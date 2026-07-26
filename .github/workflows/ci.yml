@@ -1,0 +1,120 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+env:
+  NODE_VERSION: '22'
+
+jobs:
+  lint-and-build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+      - run: npm ci
+      - run: npm run lint
+      # diagram-core must build first — api and web resolve it as a workspace dependency via its
+      # built dist/ output (see packages/diagram-core/package.json "main"), not its TS source.
+      - run: npm run build --workspace=@canvas/diagram-core
+      - run: npm run build --workspace=@canvas/api
+      - run: npm run build --workspace=@canvas/web
+
+  unit-tests:
+    runs-on: ubuntu-latest
+    needs: lint-and-build
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: canvas
+          POSTGRES_PASSWORD: canvas_dev_password
+          POSTGRES_DB: canvas_test
+        ports:
+          - 5433:5432
+        options: >-
+          --health-cmd="pg_isready -U canvas"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+      - run: npm ci
+      - run: npm run build --workspace=@canvas/diagram-core
+      - name: diagram-core contract/unit tests
+        run: npm run test --workspace=@canvas/diagram-core
+      - name: api contract tests
+        # NODE_ENV=test makes the api fall back to the canvas_test DB / a fixed dev session
+        # secret (see apps/api/src/config.ts) — no DATABASE_URL/SESSION_SECRET needed here.
+        run: npm run test --workspace=@canvas/api
+
+  e2e-tests:
+    runs-on: ubuntu-latest
+    needs: lint-and-build
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: canvas
+          POSTGRES_PASSWORD: canvas_dev_password
+          POSTGRES_DB: canvas
+        ports:
+          - 5433:5432
+        options: >-
+          --health-cmd="pg_isready -U canvas"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
+    env:
+      DATABASE_URL: postgres://canvas:canvas_dev_password@localhost:5433/canvas
+      SESSION_SECRET: ci-session-secret-at-least-32-characters-long
+      ALLOW_LOCAL_AUTH: 'true'
+      WEB_ORIGINS: http://localhost:5173
+      PORT: '3000'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+      - run: npm ci
+      - run: npm run build --workspace=@canvas/diagram-core
+      - name: Install Playwright browsers
+        working-directory: apps/web
+        run: npx playwright install --with-deps chromium
+      - name: Seed database
+        working-directory: apps/api
+        run: |
+          OUTPUT=$(npm run seed 2>&1 | tee /dev/stderr)
+          PROJECT_ID=$(echo "$OUTPUT" | grep "Project id:" | awk '{print $NF}')
+          echo "E2E_PROJECT_ID=$PROJECT_ID" >> "$GITHUB_ENV"
+      - name: Start API server
+        working-directory: apps/api
+        run: |
+          nohup npm run dev > /tmp/api.log 2>&1 &
+          for i in $(seq 1 30); do
+            curl -sf http://localhost:3000/health && exit 0
+            sleep 1
+          done
+          echo "API server did not become healthy in time"; cat /tmp/api.log; exit 1
+      # Playwright's own webServer config (apps/web/playwright.config.ts) starts the Vite dev
+      # server automatically, so only the API needs to be started manually above.
+      - name: Run Playwright E2E tests
+        working-directory: apps/web
+        run: npx playwright test
+      - name: Upload Playwright report
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: apps/web/playwright-report/
+          retention-days: 7
