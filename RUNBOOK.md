@@ -83,9 +83,12 @@ means that variable isn't set.
 
 ## Known flakiness
 
-- **`create-export.spec.ts` under full-suite parallelism**: has been observed to time out waiting
-  for a `download` event when run with Playwright's default worker parallelism, but passes reliably
-  in isolation or serially. Not a product bug — re-run before treating it as a regression.
+- **E2E specs run with `workers: 1`** (`apps/web/playwright.config.ts`) because every spec shares
+  one seeded project (`E2E_PROJECT_ID`) and several assert on its diagram count — parallel workers
+  let one worker's diagram creation land between another worker's before/after count assertions.
+  This was observed as a real CI failure (2-worker default on GitHub-hosted runners) even though
+  it didn't reproduce locally with 4 workers. If you deliberately override `workers` to speed up a
+  local run, expect the same class of flake to resurface.
 - **A Postgres "deadlock detected" in `resetDatabase()`** has been observed once under heavy
   concurrent test-suite load. Re-running resolves it; if it recurs consistently, check for a test
   file missing `fileParallelism: false` semantics (contract tests share one database and reset it
