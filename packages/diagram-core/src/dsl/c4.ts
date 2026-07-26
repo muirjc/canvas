@@ -83,6 +83,7 @@ export function parseC4(dsl: string): ParseResult {
     const rawLine = lines[i];
     const line = rawLine.trim();
     if (!line) continue;
+    if (line.startsWith('%%')) continue;
 
     if (!level) {
       if (line in HEADER_TO_LEVEL) {

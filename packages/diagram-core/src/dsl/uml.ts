@@ -45,6 +45,7 @@ export function parseUml(dsl: string): ParseResult {
     const rawLine = lines[i];
     const line = rawLine.trim();
     if (!line) continue;
+    if (line.startsWith('%%')) continue;
 
     if (!headerSeen) {
       if (line === 'classDiagram') {
