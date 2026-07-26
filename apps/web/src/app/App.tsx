@@ -1,0 +1,146 @@
+import { useEffect, useState } from 'react';
+import { api, type DiagramDto, type SessionUser } from './api';
+import { LoginForm } from './LoginForm';
+import { AppShell } from './AppShell';
+import { DiagramEditor } from './DiagramEditor';
+import { NewDiagramDialog } from './NewDiagramDialog';
+import { StandardsEditor } from '../admin/StandardsEditor';
+import { UsersPage } from '../admin/UsersPage';
+import { AdminOverview } from '../admin/AdminOverview';
+import { DeletedDiagramsPage } from '../admin/DeletedDiagramsPage';
+import { ProjectBrowser } from '../projects/ProjectBrowser';
+import { ImportDialog } from '../projects/ImportDialog';
+
+// The root project to browse/create diagrams in is supplied via a query param — a full
+// multi-project chooser is out of scope for this reference implementation.
+function getProjectIdFromUrl(): string | null {
+  return new URLSearchParams(window.location.search).get('projectId');
+}
+
+export function App() {
+  const [user, setUser] = useState<SessionUser | null>(null);
+  const [checkedSession, setCheckedSession] = useState(false);
+  const [diagram, setDiagram] = useState<DiagramDto | null>(null);
+  const [pickingType, setPickingType] = useState(false);
+  const [importing, setImporting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    api
+      .me()
+      .then(({ user }) => setUser(user))
+      .catch(() => setUser(null))
+      .finally(() => setCheckedSession(true));
+  }, []);
+
+  const createDiagram = async (diagramTypeId: string) => {
+    setPickingType(false);
+    const projectId = getProjectIdFromUrl();
+    if (!projectId) {
+      setError('Missing ?projectId= in the URL — create a project first (User Story 4).');
+      return;
+    }
+    try {
+      const { diagram } = await api.createDiagram(projectId, { name: 'Untitled Diagram', diagramTypeId });
+      setDiagram(diagram);
+    } catch (err) {
+      setError((err as Error).message);
+    }
+  };
+
+  const openDiagram = async (diagramId: string) => {
+    try {
+      const { diagram } = await api.getDiagram(diagramId);
+      setDiagram(diagram);
+    } catch (err) {
+      setError((err as Error).message);
+    }
+  };
+
+  const adminParam = new URLSearchParams(window.location.search).get('admin');
+  const projectId = getProjectIdFromUrl();
+
+  if (!checkedSession) return <p>Loading…</p>;
+  if (!user) return <LoginForm onSuccess={(loggedInUser) => setUser(loggedInUser)} />;
+
+  const handleSignOut = () => {
+    setUser(null);
+    setDiagram(null);
+    setPickingType(false);
+    setImporting(false);
+    setError(null);
+  };
+
+  let content: React.ReactNode;
+  if (adminParam && user.role === 'admin') {
+    if (adminParam === 'users') content = <UsersPage />;
+    else if (adminParam === 'overview') content = <AdminOverview />;
+    else if (adminParam === 'deleted') content = <DeletedDiagramsPage />;
+    else content = <StandardsEditor diagramTypeId="flowchart" />;
+  } else if (diagram) {
+    content = <DiagramEditor diagram={diagram} />;
+  } else if (pickingType) {
+    content = <NewDiagramDialog onCreate={createDiagram} onCancel={() => setPickingType(false)} />;
+  } else if (importing && projectId) {
+    content = (
+      <ImportDialog
+        projectId={projectId}
+        onImported={(imported) => {
+          setImporting(false);
+          setDiagram(imported);
+        }}
+        onCancel={() => setImporting(false)}
+      />
+    );
+  } else {
+    content = (
+      <main>
+        <h1>Canvas</h1>
+        <button type="button" data-testid="new-diagram" onClick={() => setPickingType(true)}>
+          New Diagram
+        </button>
+        <button
+          type="button"
+          data-testid="import-diagram-button"
+          onClick={() => {
+            if (!projectId) {
+              setError('Missing ?projectId= in the URL — create a project first (User Story 4).');
+              return;
+            }
+            setImporting(true);
+          }}
+        >
+          Import Diagram
+        </button>
+        {projectId && <ProjectBrowser rootProjectId={projectId} onOpenDiagram={openDiagram} />}
+        {user.role === 'admin' && (
+          <>
+            <a data-testid="admin-overview-link" href="?admin=overview">
+              Admin Overview
+            </a>
+            <a data-testid="admin-console-link" href="?admin=true">
+              Manage Standards
+            </a>
+            <a data-testid="admin-users-link" href="?admin=users">
+              Manage Users
+            </a>
+            <a data-testid="admin-deleted-diagrams-link" href="?admin=deleted">
+              Deleted Diagrams
+            </a>
+          </>
+        )}
+        {error && (
+          <p role="alert" data-testid="app-error">
+            {error}
+          </p>
+        )}
+      </main>
+    );
+  }
+
+  return (
+    <AppShell user={user} onSignOut={handleSignOut}>
+      {content}
+    </AppShell>
+  );
+}

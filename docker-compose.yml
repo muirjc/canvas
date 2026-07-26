@@ -1,0 +1,15 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: canvas
+      POSTGRES_PASSWORD: canvas_dev_password
+      POSTGRES_DB: canvas
+    ports:
+      # Host port 5433 (not 5432) to avoid colliding with a pre-existing local Postgres instance.
+      - '5433:5432'
+    volumes:
+      - canvas_postgres_data:/var/lib/postgresql/data
+
+volumes:
+  canvas_postgres_data:
