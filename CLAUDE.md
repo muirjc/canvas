@@ -3,6 +3,9 @@
 Auto-generated from all feature plans. Last updated: 2026-07-26
 
 ## Active Technologies
+- No new technology added in 003-parser-correctness-fixes — it extends `packages/diagram-core`
+  only (no new package, no persistence/schema changes; every new model field is optional and
+  reuses the existing `DiagramContainer`/`DiagramEdge`/`DiagramNode` entities).
 
 - TypeScript 5.x end-to-end: React frontend, Fastify backend, Node.js 22 LTS. Shared
   `diagram-core` package (Mermaid DSL parser/serializer/validator) used identically by frontend
@@ -29,7 +32,11 @@ tests are NON-NEGOTIABLE and must exist (and fail) before implementing any diagr
 work — see `.specify/memory/constitution.md` Principle IV.
 
 ## Recent Changes
-
+- 003-parser-correctness-fixes: Architecture parser now parses `-->`/`<--` connections (previously
+  a hard defect — only plain `--` worked); ER diagrams support attribute blocks (`{ type name
+  PK/FK/UK }`); sequence diagrams support notes and nestable control-flow blocks (`loop`/`alt`/
+  `opt`/`par`/`critical`/`break`); and `%%` comments are now honored in every parser, not just
+  flowchart's.
 - 002-editing-lifecycle-enhancements: Sign-out control, shape/connector label editing, shape
   deletion (with confirmation), diagram soft-delete + admin restore, and flowchart parser
   extensions (`graph` header alias, `style` directive, `%%` comments).

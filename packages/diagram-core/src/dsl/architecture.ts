@@ -8,8 +8,8 @@ const ID = String.raw`[A-Za-z0-9_]+`;
 const GROUP_PATTERN = new RegExp(`^group\\s+(${ID})\\(([^)]*)\\)\\[(.+)\\]$`);
 // service serviceId(icon)[Title] in groupId
 const SERVICE_PATTERN = new RegExp(`^service\\s+(${ID})\\(([^)]*)\\)\\[(.+?)\\](?:\\s+in\\s+(${ID}))?$`);
-// serviceA:R -- L:serviceB   or   serviceA -- serviceB
-const EDGE_PATTERN = new RegExp(`^(${ID})(?::[TBLR])?\\s*--\\s*(?:[TBLR]:)?(${ID})$`);
+// serviceA:R --> L:serviceB   or   serviceA <-- serviceB   or   serviceA -- serviceB
+const EDGE_PATTERN = new RegExp(`^(${ID})(?::([TBLR]))?\\s*(-->|<--|--)\\s*(?:([TBLR]):)?(${ID})$`);
 
 let autoPositionCounter = 0;
 function nextAutoPosition(): { x: number; y: number } {
@@ -35,7 +35,14 @@ export function parseArchitecture(dsl: string): ParseResult {
   const errors: ParseError[] = [];
   const nodesById = new Map<string, DiagramNode>();
   const containersById = new Map<string, DiagramContainer>();
-  const edges: { id: string; sourceId: string; targetId: string }[] = [];
+  const edges: {
+    id: string;
+    sourceId: string;
+    targetId: string;
+    arrow?: 'source' | 'target';
+    sourceAnchor?: 'T' | 'B' | 'L' | 'R';
+    targetAnchor?: 'T' | 'B' | 'L' | 'R';
+  }[] = [];
   let headerSeen = false;
   let edgeCounter = 0;
 
@@ -43,6 +50,7 @@ export function parseArchitecture(dsl: string): ParseResult {
     const rawLine = lines[i];
     const line = rawLine.trim();
     if (!line) continue;
+    if (line.startsWith('%%')) continue;
 
     if (!headerSeen) {
       if (line === 'architecture-beta') {
@@ -83,9 +91,18 @@ export function parseArchitecture(dsl: string): ParseResult {
 
     const edgeMatch = line.match(EDGE_PATTERN);
     if (edgeMatch) {
-      const [, source, target] = edgeMatch;
+      const [, source, sourceAnchor, connector, targetAnchor, target] = edgeMatch;
       edgeCounter += 1;
-      edges.push({ id: `e${edgeCounter}`, sourceId: source, targetId: target });
+      const arrow: 'source' | 'target' | undefined =
+        connector === '-->' ? 'target' : connector === '<--' ? 'source' : undefined;
+      edges.push({
+        id: `e${edgeCounter}`,
+        sourceId: source,
+        targetId: target,
+        arrow,
+        sourceAnchor: sourceAnchor as 'T' | 'B' | 'L' | 'R' | undefined,
+        targetAnchor: targetAnchor as 'T' | 'B' | 'L' | 'R' | undefined,
+      });
       continue;
     }
 
@@ -124,7 +141,10 @@ export function serializeArchitecture(model: DiagramModel): string {
     lines.push(`service ${node.id}(${iconName})[${node.label}]${inClause}`);
   }
   for (const edge of model.edges) {
-    lines.push(`${edge.sourceId} -- ${edge.targetId}`);
+    const connector = edge.arrow === 'target' ? '-->' : edge.arrow === 'source' ? '<--' : '--';
+    const sourcePart = edge.sourceAnchor ? `${edge.sourceId}:${edge.sourceAnchor}` : edge.sourceId;
+    const targetPart = edge.targetAnchor ? `${edge.targetAnchor}:${edge.targetId}` : edge.targetId;
+    lines.push(`${sourcePart} ${connector} ${targetPart}`);
   }
 
   return joinFrontMatter(frontMatter, `${lines.join('\n')}\n`);

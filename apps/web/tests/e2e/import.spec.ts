@@ -64,6 +64,37 @@ test('imports the spec\'s originally-failing example ("graph" header, emoji labe
   await expect(page.getByTestId('dsl-panel')).toContainText('Welcome to Playground');
 });
 
+test('imports a sequence diagram with a note and a loop, both rendered as visible canvas containers', async ({ page }) => {
+  await page.goto(`/?projectId=${PROJECT_ID}`);
+  await page.getByTestId('login-email').fill(ADMIN_EMAIL);
+  await page.getByTestId('login-password').fill(ADMIN_PASSWORD);
+  await page.getByTestId('login-submit').click();
+  await page.waitForURL('**/*');
+
+  const dsl = [
+    'sequenceDiagram',
+    'participant Alice',
+    'participant Bob',
+    'Alice->>Bob: Hi',
+    'Note over Alice, Bob: greeting exchanged',
+    'loop Retry',
+    'Alice->>Bob: Ping',
+    'Bob->>Alice: Pong',
+    'end',
+    '',
+  ].join('\n');
+
+  await page.getByTestId('import-diagram-button').click();
+  await page.getByTestId('import-name').fill('Sequence With Note And Loop');
+  await page.getByTestId('import-textarea').fill(dsl);
+  await page.getByTestId('confirm-import').click();
+
+  await expect(page.getByTestId('diagram-canvas')).toBeVisible();
+  // Two new containers (the note + the loop) should render via the existing generic container
+  // rendering — no apps/web source change was needed for this (feature 003, FR-017).
+  await expect(page.locator('[data-testid^="container-"]')).toHaveCount(2);
+});
+
 test('rejects unrecognized pasted text with a specific error, not a silent failure', async ({ page }) => {
   await page.goto(`/?projectId=${PROJECT_ID}`);
   await page.getByTestId('login-email').fill(ADMIN_EMAIL);

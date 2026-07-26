@@ -1,4 +1,4 @@
-import { createEmptyDiagramModel, type DiagramModel, type DiagramNode } from '../model/diagram-model.js';
+import { createEmptyDiagramModel, type DiagramModel, type DiagramNode, type EntityAttribute } from '../model/diagram-model.js';
 import { splitFrontMatter, joinFrontMatter, type CanvasFrontMatter } from './front-matter.js';
 import type { ParseError, ParseResult } from './types.js';
 
@@ -6,6 +6,12 @@ const ID = String.raw`[A-Za-z0-9_-]+`;
 // CUSTOMER ||--o{ ORDER : places
 const RELATIONSHIP_PATTERN = new RegExp(`^(${ID})\\s+([|o}{.-]+)\\s+(${ID})\\s*:\\s*(.+)$`);
 const DEFAULT_CARDINALITY = '||--o{';
+// CUSTOMER {
+const ENTITY_BLOCK_START = new RegExp(`^(${ID})\\s*\\{$`);
+const BLOCK_END = /^\}$/;
+// string id PK, UK "comment"
+const ATTRIBUTE_LINE = /^(\S+)\s+(\S+)(?:\s+([^"]*?))?\s*(?:"([^"]*)")?$/;
+const RECOGNIZED_KEYS = new Set(['PK', 'FK', 'UK']);
 
 let autoPositionCounter = 0;
 function nextPosition(): { x: number; y: number } {
@@ -32,6 +38,7 @@ export function parseErd(dsl: string): ParseResult {
   const edges: { id: string; sourceId: string; targetId: string; label?: string }[] = [];
   let headerSeen = false;
   let edgeCounter = 0;
+  let openEntity: { id: string; line: number; content: string } | null = null;
 
   const ensureEntity = (id: string) => {
     if (!nodesById.has(id)) {
@@ -39,10 +46,16 @@ export function parseErd(dsl: string): ParseResult {
     }
   };
 
+  const pushAttribute = (entityId: string, attribute: EntityAttribute) => {
+    const node = nodesById.get(entityId)!;
+    node.attributes = node.attributes ? [...node.attributes, attribute] : [attribute];
+  };
+
   for (let i = 0; i < lines.length; i += 1) {
     const rawLine = lines[i];
     const line = rawLine.trim();
     if (!line) continue;
+    if (line.startsWith('%%')) continue;
 
     if (!headerSeen) {
       if (line === 'erDiagram') {
@@ -50,6 +63,33 @@ export function parseErd(dsl: string): ParseResult {
         continue;
       }
       errors.push({ line: i + 1, content: rawLine, message: 'Expected "erDiagram" header line' });
+      continue;
+    }
+
+    if (openEntity) {
+      if (BLOCK_END.test(line)) {
+        openEntity = null;
+        continue;
+      }
+      const attrMatch = line.match(ATTRIBUTE_LINE);
+      if (attrMatch) {
+        const [, type, name, constraintsRaw] = attrMatch;
+        const keys = (constraintsRaw ?? '')
+          .split(',')
+          .map((k) => k.trim().toUpperCase())
+          .filter((k) => RECOGNIZED_KEYS.has(k));
+        pushAttribute(openEntity.id, { type, name, keys });
+        continue;
+      }
+      errors.push({ line: i + 1, content: rawLine, message: `Could not interpret line as an entity attribute: "${line}"` });
+      continue;
+    }
+
+    const blockStart = line.match(ENTITY_BLOCK_START);
+    if (blockStart) {
+      const [, id] = blockStart;
+      ensureEntity(id);
+      openEntity = { id, line: i + 1, content: rawLine };
       continue;
     }
 
@@ -66,6 +106,14 @@ export function parseErd(dsl: string): ParseResult {
     errors.push({ line: i + 1, content: rawLine, message: `Could not interpret line as an entity relationship: "${line}"` });
   }
 
+  if (openEntity) {
+    errors.push({
+      line: openEntity.line,
+      content: openEntity.content,
+      message: `Unclosed attribute block for entity '${openEntity.id}' opened at line ${openEntity.line}`,
+    });
+  }
+
   if (errors.length > 0) return { errors };
 
   const model = createEmptyDiagramModel('erd');
@@ -80,6 +128,16 @@ export function serializeErd(model: DiagramModel): string {
   };
 
   const lines: string[] = ['erDiagram'];
+  for (const node of model.nodes) {
+    if (node.attributes && node.attributes.length > 0) {
+      lines.push(`${node.id} {`);
+      for (const attribute of node.attributes) {
+        const keysPart = attribute.keys.length > 0 ? ` ${attribute.keys.join(', ')}` : '';
+        lines.push(`  ${attribute.type} ${attribute.name}${keysPart}`);
+      }
+      lines.push('}');
+    }
+  }
   for (const edge of model.edges) {
     lines.push(`${edge.sourceId} ${DEFAULT_CARDINALITY} ${edge.targetId} : ${edge.label ?? ''}`);
   }

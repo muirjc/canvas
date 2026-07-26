@@ -42,6 +42,13 @@ export type NodeShape =
   | 'person'
   | 'icon';
 
+/** An ER entity attribute: a typed field with zero or more key constraints (ERD only). */
+export interface EntityAttribute {
+  type: string;
+  name: string;
+  keys: string[];
+}
+
 export interface DiagramNode {
   id: ElementId;
   label: string;
@@ -54,6 +61,8 @@ export interface DiagramNode {
   icon?: IconRef;
   /** Id of the DiagramContainer this node is nested inside, if any. */
   containerId?: ElementId;
+  /** ERD only: this entity's declared attributes, in declaration order. */
+  attributes?: EntityAttribute[];
 }
 
 export interface DiagramEdge {
@@ -62,6 +71,17 @@ export interface DiagramEdge {
   targetId: ElementId;
   label?: string;
   style?: NodeStyle;
+  /** Architecture diagrams only: which endpoint(s) carry an arrowhead. */
+  arrow?: 'none' | 'source' | 'target';
+  /** Architecture diagrams only: the `:T`/`:B`/`:L`/`:R` anchor hint at each endpoint, if any. */
+  sourceAnchor?: 'T' | 'B' | 'L' | 'R';
+  targetAnchor?: 'T' | 'B' | 'L' | 'R';
+  /** Sequence diagrams only: source-order position, used to interleave with note/block
+   * containers (which live in a separate array) on serialization. */
+  sequenceOrder?: number;
+  /** Sequence diagrams only: id of the control-flow-block/branch DiagramContainer this message
+   * is nested inside, if any — mirrors DiagramNode.containerId's meaning. */
+  containerId?: ElementId;
 }
 
 /** A visual grouping/boundary (e.g., a C4 "System Boundary" or a Mermaid subgraph). */
@@ -73,6 +93,15 @@ export interface DiagramContainer {
   style?: NodeStyle;
   /** Id of a parent container, for nested grouping. */
   parentContainerId?: ElementId;
+  /** Semantic kind, mirroring DiagramNode.role. Sequence diagrams only: 'note-left',
+   * 'note-right', 'note-over', 'loop', 'alt', 'else', 'opt', 'par', 'and', 'critical', 'option',
+   * or 'break'. */
+  role?: string;
+  /** Sequence notes only (role starts with 'note-'): the participant id(s) the note is attached
+   * to — one for 'note-left'/'note-right', one or more for 'note-over'. */
+  attachedNodeIds?: ElementId[];
+  /** Sequence diagrams only: source-order position — see DiagramEdge.sequenceOrder. */
+  sequenceOrder?: number;
 }
 
 /** Mermaid flowchart layout direction (top-down, left-right, etc.), part of the DSL's own grammar. */

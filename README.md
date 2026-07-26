@@ -18,9 +18,12 @@ formats — edits to the DSL update the canvas, and canvas edits regenerate the 
 - **Admin-governed standards** — admins define per-diagram-type standards (allowed/mandatory
   shapes, colors, fonts, icon sets); the platform validates diagrams against their assigned
   standard and flags deviations without blocking work.
-- **Import** — paste or upload existing Mermaid DSL (including the `graph` header alias, `%%`
-  comments, inline node-shape-in-edge declarations, and `style` directives) and it becomes a fully
-  editable diagram.
+- **Import** — paste or upload existing Mermaid DSL across all six supported diagram families and
+  it becomes a fully editable diagram. `%%` comments are honored everywhere; each family also
+  handles its own common real-world syntax — flowchart (`graph` header alias, `style` directives,
+  inline shape-in-edge declarations), ER (attribute blocks with `PK`/`FK`/`UK`), sequence (notes
+  and nestable `loop`/`alt`/`opt`/`par`/`critical`/`break` blocks), and architecture (directional
+  `-->`/`<--` connectors).
 - **Projects, sharing, and lifecycle** — organize diagrams into projects/folders, share with
   view/comment/edit permissions, version history, and soft-delete with admin restore.
 - **Export** — Mermaid DSL, SVG, and PNG.
