@@ -10,6 +10,8 @@ import { AdminOverview } from '../admin/AdminOverview';
 import { DeletedDiagramsPage } from '../admin/DeletedDiagramsPage';
 import { ProjectBrowser } from '../projects/ProjectBrowser';
 import { ImportDialog } from '../projects/ImportDialog';
+import { CreateViaChatDialog } from '../ai/CreateViaChatDialog';
+import { PersonaAdminPage } from '../ai/PersonaAdminPage';
 
 // The root project to browse/create diagrams in is supplied via a query param — a full
 // multi-project chooser is out of scope for this reference implementation.
@@ -23,6 +25,7 @@ export function App() {
   const [diagram, setDiagram] = useState<DiagramDto | null>(null);
   const [pickingType, setPickingType] = useState(false);
   const [importing, setImporting] = useState(false);
+  const [creatingViaChat, setCreatingViaChat] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -68,6 +71,7 @@ export function App() {
     setDiagram(null);
     setPickingType(false);
     setImporting(false);
+    setCreatingViaChat(false);
     setError(null);
   };
 
@@ -76,6 +80,7 @@ export function App() {
     if (adminParam === 'users') content = <UsersPage />;
     else if (adminParam === 'overview') content = <AdminOverview />;
     else if (adminParam === 'deleted') content = <DeletedDiagramsPage />;
+    else if (adminParam === 'ai-personas') content = <PersonaAdminPage />;
     else content = <StandardsEditor diagramTypeId="flowchart" />;
   } else if (diagram) {
     content = <DiagramEditor diagram={diagram} />;
@@ -90,6 +95,17 @@ export function App() {
           setDiagram(imported);
         }}
         onCancel={() => setImporting(false)}
+      />
+    );
+  } else if (creatingViaChat && projectId) {
+    content = (
+      <CreateViaChatDialog
+        projectId={projectId}
+        onCreated={(created) => {
+          setCreatingViaChat(false);
+          setDiagram(created);
+        }}
+        onCancel={() => setCreatingViaChat(false)}
       />
     );
   } else {
@@ -112,6 +128,19 @@ export function App() {
         >
           Import Diagram
         </button>
+        <button
+          type="button"
+          data-testid="create-via-ai-chat"
+          onClick={() => {
+            if (!projectId) {
+              setError('Missing ?projectId= in the URL — create a project first (User Story 4).');
+              return;
+            }
+            setCreatingViaChat(true);
+          }}
+        >
+          Create via AI Chat
+        </button>
         {projectId && <ProjectBrowser rootProjectId={projectId} onOpenDiagram={openDiagram} />}
         {user.role === 'admin' && (
           <>
@@ -126,6 +155,9 @@ export function App() {
             </a>
             <a data-testid="admin-deleted-diagrams-link" href="?admin=deleted">
               Deleted Diagrams
+            </a>
+            <a data-testid="admin-ai-personas-link" href="?admin=ai-personas">
+              AI Personas
             </a>
           </>
         )}

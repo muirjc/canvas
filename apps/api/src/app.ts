@@ -1,5 +1,6 @@
 import Fastify, { type FastifyError, type FastifyInstance } from 'fastify';
 import cors from '@fastify/cors';
+import type { LanguageModel } from 'ai';
 import { loadConfig, type AppConfig } from './config.js';
 import { registerSession } from './auth/session.js';
 import { registerOidcRoutes } from './auth/oidc.js';
@@ -14,10 +15,16 @@ import { registerExportRoutes } from './export/export.routes.js';
 import { registerStandardRoutes } from './standards/standard.routes.js';
 import { registerLibraryRoutes } from './libraries/library.routes.js';
 import { registerProjectRoutes } from './projects/project.routes.js';
+import { registerAiSettingsRoutes } from './ai/ai-settings.routes.js';
+import { registerPersonaRoutes } from './ai/persona.routes.js';
+import { registerDiagramChatRoutes } from './ai/diagram-chat.routes.js';
 
 export interface BuildAppOptions {
   config?: AppConfig;
   logger?: boolean;
+  /** Test injection point (research.md §8) — overrides the AI provider the chat endpoint uses,
+   * bypassing apps/api/src/ai/provider.ts's env-based resolution. Production never sets this. */
+  languageModel?: LanguageModel;
 }
 
 export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyInstance> {
@@ -62,6 +69,9 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
   await registerStandardRoutes(app);
   await registerLibraryRoutes(app);
   await registerProjectRoutes(app);
+  await registerAiSettingsRoutes(app);
+  await registerPersonaRoutes(app);
+  await registerDiagramChatRoutes(app, { languageModel: options.languageModel });
 
   app.get('/health', async () => ({ status: 'ok' }));
 

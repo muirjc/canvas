@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { removeNode, removeEdge, updateNodeLabel, updateEdgeLabel } from '../../src/model/diagram-ops.js';
+import { addNode, addEdge, removeNode, removeEdge, updateNodeLabel, updateEdgeLabel } from '../../src/model/diagram-ops.js';
 import type { DiagramModel } from '../../src/model/diagram-model.js';
 
 /**
@@ -22,6 +22,80 @@ function baseModel(): DiagramModel {
     containers: [{ id: 'g1', label: 'Group', position: { x: -20, y: -20 }, size: { width: 100, height: 100 } }],
   };
 }
+
+describe('addNode', () => {
+  it('appends a new node with the given shape and label', () => {
+    const model = baseModel();
+    const result = addNode(model, { shape: 'diamond', label: 'Decision' });
+    const added = result.nodes.find((n) => !model.nodes.some((existing) => existing.id === n.id))!;
+    expect(added.shape).toBe('diamond');
+    expect(added.label).toBe('Decision');
+  });
+
+  it('defaults the label to "New Node" when omitted', () => {
+    const result = addNode(baseModel(), { shape: 'rectangle' });
+    const added = result.nodes[result.nodes.length - 1];
+    expect(added.label).toBe('New Node');
+  });
+
+  it('auto-positions the new node without colliding with the fixed-position existing nodes', () => {
+    const model = baseModel();
+    const result = addNode(model, { shape: 'rectangle' });
+    const added = result.nodes[result.nodes.length - 1];
+    expect(added.position).toBeDefined();
+    expect(model.nodes.some((n) => n.position.x === added.position.x && n.position.y === added.position.y)).toBe(false);
+  });
+
+  it('leaves every existing node, edge, and container untouched', () => {
+    const model = baseModel();
+    const result = addNode(model, { shape: 'rectangle' });
+    expect(result.nodes.slice(0, model.nodes.length)).toEqual(model.nodes);
+    expect(result.edges).toEqual(model.edges);
+    expect(result.containers).toEqual(model.containers);
+  });
+
+  it('does not mutate the input model', () => {
+    const model = baseModel();
+    const snapshot = JSON.parse(JSON.stringify(model));
+    addNode(model, { shape: 'rectangle' });
+    expect(model).toEqual(snapshot);
+  });
+});
+
+describe('addEdge', () => {
+  it('appends a new edge with the given source, target, and label', () => {
+    const result = addEdge(baseModel(), { sourceId: 'a', targetId: 'c', label: 'shortcut' });
+    const added = result.edges[result.edges.length - 1];
+    expect(added.sourceId).toBe('a');
+    expect(added.targetId).toBe('c');
+    expect(added.label).toBe('shortcut');
+  });
+
+  it('omits the label when none is given', () => {
+    const result = addEdge(baseModel(), { sourceId: 'a', targetId: 'c' });
+    expect(result.edges[result.edges.length - 1].label).toBeUndefined();
+  });
+
+  it('does not validate that sourceId/targetId reference existing nodes', () => {
+    const result = addEdge(baseModel(), { sourceId: 'a', targetId: 'does-not-exist' });
+    expect(result.edges[result.edges.length - 1].targetId).toBe('does-not-exist');
+  });
+
+  it('leaves every existing node, edge, and container untouched', () => {
+    const model = baseModel();
+    const result = addEdge(model, { sourceId: 'a', targetId: 'c' });
+    expect(result.nodes).toEqual(model.nodes);
+    expect(result.edges.slice(0, model.edges.length)).toEqual(model.edges);
+    expect(result.containers).toEqual(model.containers);
+  });
+
+  it('does not mutate the input model', () => {
+    const model = baseModel();
+    const snapshot = JSON.parse(JSON.stringify(model));
+    addEdge(model, { sourceId: 'a', targetId: 'c' });
+    expect(model).toEqual(snapshot);
+  });
+});
 
 describe('removeNode', () => {
   it('removes the node itself', () => {

@@ -17,10 +17,14 @@ export async function resetDatabase(): Promise<void> {
   const pool = getPool();
   await pool.query(
     `TRUNCATE TABLE
+       chat_messages, diagram_chats, ai_personas,
        share_grants, diagram_versions, diagrams, templates, standards, icons, icon_libraries,
        projects, diagram_types, local_credentials, users
      RESTART IDENTITY CASCADE`,
   );
+  // ai_settings is a singleton row (CHECK (id) constraint) seeded by the migration, not
+  // recreated by app code — reset its value instead of truncating so the row keeps existing.
+  await pool.query('UPDATE ai_settings SET chat_enabled = false');
 }
 
 export async function closeTestDb(): Promise<void> {

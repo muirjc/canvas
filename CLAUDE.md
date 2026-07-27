@@ -3,6 +3,10 @@
 Auto-generated from all feature plans. Last updated: 2026-07-26
 
 ## Active Technologies
+- Vercel AI SDK (`ai`, `@ai-sdk/anthropic`, `@ai-sdk/openai`) added in 004-ai-diagram-chat,
+  `apps/api` only — provider-configurable via env var, tool-calling against `diagram-core`'s
+  model operations. One additive Postgres migration (`ai_personas`, `diagram_chats`,
+  `chat_messages`, `ai_settings`); no new workspace/package.
 - No new technology added in 003-parser-correctness-fixes — it extends `packages/diagram-core`
   only (no new package, no persistence/schema changes; every new model field is optional and
   reuses the existing `DiagramContainer`/`DiagramEdge`/`DiagramNode` entities).
@@ -32,6 +36,11 @@ tests are NON-NEGOTIABLE and must exist (and fail) before implementing any diagr
 work — see `.specify/memory/constitution.md` Principle IV.
 
 ## Recent Changes
+- 004-ai-diagram-chat: Persona-driven AI chat for creating/editing flowchart diagrams — admins
+  author "AI personas" (name, architect-category tag, system prompt); users pick one to generate
+  a diagram via natural language, then keep refining it through a persistent in-editor chat panel
+  that applies targeted `diagram-core` operations (new `addNode`/`addEdge`) rather than
+  regenerating the whole diagram.
 - 003-parser-correctness-fixes: Architecture parser now parses `-->`/`<--` connections (previously
   a hard defect — only plain `--` worked); ER diagrams support attribute blocks (`{ type name
   PK/FK/UK }`); sequence diagrams support notes and nestable control-flow blocks (`loop`/`alt`/

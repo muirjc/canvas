@@ -1,10 +1,57 @@
-import type { DiagramModel } from './diagram-model.js';
+import type { DiagramEdge, DiagramModel, DiagramNode, NodeShape } from './diagram-model.js';
 
 /**
  * Pure operations over DiagramModel, shared by the canvas for shape deletion (User Story 2) and
- * label editing (User Story 1) — feature 002. No I/O, no hidden state: same result for the same
- * input every time, matching the contract diagram-core already holds itself to (Constitution I).
+ * label editing (User Story 1) — feature 002 — and by the canvas's manual add-shape/connect-mode
+ * UI *and* the AI tool-calling layer (feature 004, research.md §1/§2). No I/O, no hidden state:
+ * same result for the same input every time, matching the contract diagram-core already holds
+ * itself to (Constitution I).
  */
+
+function generateId(prefix: string): string {
+  return `${prefix}${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`;
+}
+
+export interface AddNodeInput {
+  shape: NodeShape;
+  label?: string;
+}
+
+/**
+ * Appends a new node with an auto-computed grid position — the same layout rule the canvas's
+ * manual "Add Shape" button uses — defaulting `label` to `"New Node"` when omitted.
+ */
+export function addNode(model: DiagramModel, input: AddNodeInput): DiagramModel {
+  const index = model.nodes.length;
+  const node: DiagramNode = {
+    id: generateId('n'),
+    label: input.label ?? 'New Node',
+    shape: input.shape,
+    position: { x: 40 + (index % 5) * 160, y: 40 + Math.floor(index / 5) * 120 },
+  };
+  return { ...model, nodes: [...model.nodes, node] };
+}
+
+export interface AddEdgeInput {
+  sourceId: string;
+  targetId: string;
+  label?: string;
+}
+
+/**
+ * Appends a new edge between two node ids. Does not validate that `sourceId`/`targetId` reference
+ * existing nodes — mirrors the canvas's existing manual connect-mode gesture, which has the same
+ * property (consistent with every parser's "implicit node from edge endpoint" behavior).
+ */
+export function addEdge(model: DiagramModel, input: AddEdgeInput): DiagramModel {
+  const edge: DiagramEdge = {
+    id: generateId('e'),
+    sourceId: input.sourceId,
+    targetId: input.targetId,
+    label: input.label,
+  };
+  return { ...model, edges: [...model.edges, edge] };
+}
 
 /**
  * Removes a node, every edge attached to it (FR-008 — no dangling connector reference), and —

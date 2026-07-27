@@ -5,6 +5,7 @@ import { DslPanel } from '../canvas/DslPanel';
 import { ExportMenu } from '../canvas/ExportMenu';
 import { ViolationsPanel } from '../canvas/ViolationsPanel';
 import { useDslSync } from '../canvas/useDslSync';
+import { ChatPanel } from '../ai/ChatPanel';
 import { Palette } from '../palette/Palette';
 import { VersionHistory } from '../projects/VersionHistory';
 import { ShareDialog } from '../projects/ShareDialog';
@@ -93,6 +94,7 @@ export function DiagramEditor({ diagram: initialDiagram }: DiagramEditorProps) {
       {sharing && <ShareDialog diagramId={diagram.id} onClose={() => setSharing(false)} />}
       <ViolationsPanel violations={violations} />
       <VersionHistory diagramId={diagram.id} refreshToken={versionRefreshToken} onRestored={handleRestored} />
+      <ChatPanel diagramId={diagram.id} currentDslContent={dsl} onDiagramUpdated={applyDsl} />
     </div>
   );
 }
