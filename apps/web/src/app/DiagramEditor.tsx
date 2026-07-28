@@ -10,6 +10,8 @@ import { Palette } from '../palette/Palette';
 import { VersionHistory } from '../projects/VersionHistory';
 import { ShareDialog } from '../projects/ShareDialog';
 import { api, type DiagramDto, type IconDto } from './api';
+import { Icon } from '../ui/Icon';
+import { RailTabs } from '../ui/RailTabs';
 
 let iconNodeCounter = 0;
 function nextIconNodeId(): string {
@@ -37,6 +39,9 @@ export function DiagramEditor({ diagram: initialDiagram }: DiagramEditorProps) {
   const [violations, setViolations] = useState(diagram.lastValidationResult);
   const [versionRefreshToken, setVersionRefreshToken] = useState(0);
   const [sharing, setSharing] = useState(false);
+  // State rather than a ref: the portal target must trigger a re-render once it is attached,
+  // otherwise Canvas renders its toolbar in place on the first pass and never moves it.
+  const [toolbarContainer, setToolbarContainer] = useState<HTMLDivElement | null>(null);
   const { dsl, parseErrors, applyDsl } = useDslSync(model, setModel, diagram.dslFamily);
 
   const handleRestored = async () => {
@@ -75,26 +80,93 @@ export function DiagramEditor({ diagram: initialDiagram }: DiagramEditorProps) {
     }
   };
 
+  const statusModifier =
+    saveStatus === 'saved' ? 'saved' : saveStatus === 'error' ? 'error' : saveStatus === 'saving' ? 'dirty' : '';
+
   return (
-    <div>
-      <h2>{diagram.name}</h2>
-      <div style={{ display: 'flex', gap: '1rem' }}>
-        <Palette diagramTypeId={diagram.diagramTypeId} onSelectIcon={handleSelectIcon} />
-        <Canvas model={model} onChange={setModel} />
-        <DslPanel dsl={dsl} parseErrors={parseErrors} onApply={applyDsl} />
+    <div className="editor">
+      <div className="editor__doc-bar" data-testid="doc-bar">
+        <span className="editor__title">
+          <Icon name="diamond" />
+          <span className="editor__title-text">{diagram.name}</span>
+        </span>
+        <span className="spacer" />
+        {/* The dot sits BESIDE `save-status`, never inside it: five existing spec files assert
+            that element's text exactly (`toHaveText('saved')`), and SC-003 forbids changing an
+            existing assertion. The dot reinforces the word, it never replaces it (FR-006). */}
+        <span className={`status ${statusModifier ? `status--${statusModifier}` : ''}`}>
+          <span className="status__dot" aria-hidden="true" />
+          <span data-testid="save-status">{saveStatus}</span>
+        </span>
+        <button type="button" className="btn btn--primary btn--compact" data-testid="save-diagram" onClick={handleSave}>
+          Save
+        </button>
+        <ExportMenu diagramId={diagram.id} diagramName={diagram.name} />
+        <button
+          type="button"
+          className="btn btn--secondary btn--compact"
+          data-testid="open-share-dialog"
+          onClick={() => setSharing(true)}
+        >
+          <Icon name="share" />
+          Share
+        </button>
       </div>
-      <button type="button" data-testid="save-diagram" onClick={handleSave}>
-        Save
-      </button>
-      <span data-testid="save-status">{saveStatus}</span>
-      <ExportMenu diagramId={diagram.id} diagramName={diagram.name} />
-      <button type="button" data-testid="open-share-dialog" onClick={() => setSharing(true)}>
-        Share
-      </button>
+
+      <div className="editor__body">
+        <div className="editor__rail-left">
+          {/* Canvas portals its diagram-tools toolbar in here, above the icon palette. */}
+          <div ref={setToolbarContainer} />
+          <Palette diagramTypeId={diagram.diagramTypeId} onSelectIcon={handleSelectIcon} />
+        </div>
+
+        <div className="editor__canvas" data-testid="canvas-surface">
+          <Canvas model={model} onChange={setModel} toolbarContainer={toolbarContainer} />
+        </div>
+
+        <div className="editor__rail-right">
+          <RailTabs
+            aria-label="Diagram panels"
+            initialTabId="dsl"
+            tabs={[
+              {
+                id: 'dsl',
+                label: 'DSL',
+                render: () => <DslPanel dsl={dsl} parseErrors={parseErrors} onApply={applyDsl} />,
+              },
+              {
+                id: 'chat',
+                label: 'Chat',
+                render: () => (
+                  <ChatPanel diagramId={diagram.id} currentDslContent={dsl} onDiagramUpdated={applyDsl} />
+                ),
+              },
+              {
+                id: 'issues',
+                label: 'Issues',
+                badge:
+                  violations.length > 0 ? (
+                    <span className="badge badge--warning">{violations.length}</span>
+                  ) : undefined,
+                render: () => <ViolationsPanel violations={violations} />,
+              },
+              {
+                id: 'history',
+                label: 'History',
+                render: () => (
+                  <VersionHistory
+                    diagramId={diagram.id}
+                    refreshToken={versionRefreshToken}
+                    onRestored={handleRestored}
+                  />
+                ),
+              },
+            ]}
+          />
+        </div>
+      </div>
+
       {sharing && <ShareDialog diagramId={diagram.id} onClose={() => setSharing(false)} />}
-      <ViolationsPanel violations={violations} />
-      <VersionHistory diagramId={diagram.id} refreshToken={versionRefreshToken} onRestored={handleRestored} />
-      <ChatPanel diagramId={diagram.id} currentDslContent={dsl} onDiagramUpdated={applyDsl} />
     </div>
   );
 }

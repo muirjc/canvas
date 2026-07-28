@@ -1,8 +1,11 @@
 # canvas Development Guidelines
 
-Auto-generated from all feature plans. Last updated: 2026-07-26
+Auto-generated from all feature plans. Last updated: 2026-07-27
 
 ## Active Technologies
+- No new technology added in 005-modern-ui-redesign — a frontend-only visual redesign in
+  `apps/web`. Zero runtime dependencies added: plain global CSS with custom properties, the
+  native `<dialog>` element, and inline SVG icons. No persistence, schema, or API change.
 - Vercel AI SDK (`ai`, `@ai-sdk/anthropic`, `@ai-sdk/openai`) added in 004-ai-diagram-chat,
   `apps/api` only — provider-configurable via env var, tool-calling against `diagram-core`'s
   model operations. One additive Postgres migration (`ai_personas`, `diagram_chats`,
@@ -10,7 +13,6 @@ Auto-generated from all feature plans. Last updated: 2026-07-26
 - No new technology added in 003-parser-correctness-fixes — it extends `packages/diagram-core`
   only (no new package, no persistence/schema changes; every new model field is optional and
   reuses the existing `DiagramContainer`/`DiagramEdge`/`DiagramNode` entities).
-
 - TypeScript 5.x end-to-end: React frontend, Fastify backend, Node.js 22 LTS. Shared
   `diagram-core` package (Mermaid DSL parser/serializer/validator) used identically by frontend
   and backend. PostgreSQL + a blob store for icon/shape library assets. (001-diagramming-platform)
@@ -36,6 +38,12 @@ tests are NON-NEGOTIABLE and must exist (and fail) before implementing any diagr
 work — see `.specify/memory/constitution.md` Principle IV.
 
 ## Recent Changes
+- 005-modern-ui-redesign: First visual design for the product, which previously shipped with no
+  stylesheet at all. Adds a global CSS token layer, restructures the diagram editor into a
+  document bar plus a palette rail and a tabbed secondary rail (DSL/Chat/Issues/History),
+  converts dialogs to native modals, and defines empty/loading/error states. Diagram element
+  rendering and the export renderer are deliberately untouched; admin screens inherit
+  bare-element styling without being edited.
 - 004-ai-diagram-chat: Persona-driven AI chat for creating/editing flowchart diagrams — admins
   author "AI personas" (name, architect-category tag, system prompt); users pick one to generate
   a diagram via natural language, then keep refining it through a persistent in-editor chat panel

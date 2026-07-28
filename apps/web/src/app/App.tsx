@@ -12,6 +12,7 @@ import { ProjectBrowser } from '../projects/ProjectBrowser';
 import { ImportDialog } from '../projects/ImportDialog';
 import { CreateViaChatDialog } from '../ai/CreateViaChatDialog';
 import { PersonaAdminPage } from '../ai/PersonaAdminPage';
+import { Icon } from '../ui/Icon';
 
 // The root project to browse/create diagrams in is supplied via a query param — a full
 // multi-project chooser is out of scope for this reference implementation.
@@ -84,74 +85,63 @@ export function App() {
     else content = <StandardsEditor diagramTypeId="flowchart" />;
   } else if (diagram) {
     content = <DiagramEditor diagram={diagram} />;
-  } else if (pickingType) {
-    content = <NewDiagramDialog onCreate={createDiagram} onCancel={() => setPickingType(false)} />;
-  } else if (importing && projectId) {
-    content = (
-      <ImportDialog
-        projectId={projectId}
-        onImported={(imported) => {
-          setImporting(false);
-          setDiagram(imported);
-        }}
-        onCancel={() => setImporting(false)}
-      />
-    );
-  } else if (creatingViaChat && projectId) {
-    content = (
-      <CreateViaChatDialog
-        projectId={projectId}
-        onCreated={(created) => {
-          setCreatingViaChat(false);
-          setDiagram(created);
-        }}
-        onCancel={() => setCreatingViaChat(false)}
-      />
-    );
   } else {
     content = (
-      <main>
-        <h1>Canvas</h1>
-        <button type="button" data-testid="new-diagram" onClick={() => setPickingType(true)}>
-          New Diagram
-        </button>
-        <button
-          type="button"
-          data-testid="import-diagram-button"
-          onClick={() => {
-            if (!projectId) {
-              setError('Missing ?projectId= in the URL — create a project first (User Story 4).');
-              return;
-            }
-            setImporting(true);
-          }}
-        >
-          Import Diagram
-        </button>
-        <button
-          type="button"
-          data-testid="create-via-ai-chat"
-          onClick={() => {
-            if (!projectId) {
-              setError('Missing ?projectId= in the URL — create a project first (User Story 4).');
-              return;
-            }
-            setCreatingViaChat(true);
-          }}
-        >
-          Create via AI Chat
-        </button>
+      <main className="page">
+        <h1 className="page__title">Diagrams</h1>
+        <div className="home__actions">
+          <button type="button" className="btn btn--primary" data-testid="new-diagram" onClick={() => setPickingType(true)}>
+            <Icon name="plus" />
+            New Diagram
+          </button>
+          <button
+            type="button"
+            className="btn btn--secondary"
+            data-testid="import-diagram-button"
+            onClick={() => {
+              if (!projectId) {
+                setError('Missing ?projectId= in the URL — create a project first (User Story 4).');
+                return;
+              }
+              setImporting(true);
+            }}
+          >
+            <Icon name="download" />
+            Import Diagram
+          </button>
+          <button
+            type="button"
+            className="btn btn--secondary"
+            data-testid="create-via-ai-chat"
+            onClick={() => {
+              if (!projectId) {
+                setError('Missing ?projectId= in the URL — create a project first (User Story 4).');
+                return;
+              }
+              setCreatingViaChat(true);
+            }}
+          >
+            <Icon name="sparkle" />
+            Create with AI
+          </button>
+        </div>
+        {error && (
+          <p role="alert" data-testid="app-error">
+            {error}
+          </p>
+        )}
         {projectId && <ProjectBrowser rootProjectId={projectId} onOpenDiagram={openDiagram} />}
         {user.role === 'admin' && (
-          <>
+          <nav className="home__admin" aria-label="Admin">
+            <span className="section-label">Admin</span>
             <a data-testid="admin-overview-link" href="?admin=overview">
-              Admin Overview
+              Overview
             </a>
             <a data-testid="admin-console-link" href="?admin=true">
-              Manage Standards
+              Standards
             </a>
             <a data-testid="admin-users-link" href="?admin=users">
-              Manage Users
+              Users
             </a>
             <a data-testid="admin-deleted-diagrams-link" href="?admin=deleted">
               Deleted Diagrams
@@ -159,12 +149,7 @@ export function App() {
             <a data-testid="admin-ai-personas-link" href="?admin=ai-personas">
               AI Personas
             </a>
-          </>
-        )}
-        {error && (
-          <p role="alert" data-testid="app-error">
-            {error}
-          </p>
+          </nav>
         )}
       </main>
     );
@@ -173,6 +158,30 @@ export function App() {
   return (
     <AppShell user={user} onSignOut={handleSignOut}>
       {content}
+      {/* Dialogs render alongside the current screen rather than replacing it, so the context
+          behind them stays visible (FR-016). They are native <dialog> elements opened with
+          showModal(), so they overlay everything regardless of where they sit in the tree. */}
+      {pickingType && <NewDiagramDialog onCreate={createDiagram} onCancel={() => setPickingType(false)} />}
+      {importing && projectId && (
+        <ImportDialog
+          projectId={projectId}
+          onImported={(imported) => {
+            setImporting(false);
+            setDiagram(imported);
+          }}
+          onCancel={() => setImporting(false)}
+        />
+      )}
+      {creatingViaChat && projectId && (
+        <CreateViaChatDialog
+          projectId={projectId}
+          onCreated={(created) => {
+            setCreatingViaChat(false);
+            setDiagram(created);
+          }}
+          onCancel={() => setCreatingViaChat(false)}
+        />
+      )}
     </AppShell>
   );
 }

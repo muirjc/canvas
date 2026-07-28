@@ -1,0 +1,299 @@
+/**
+ * Reset + bare-element styling.
+ *
+ * This file is deliberately written with ELEMENT selectors and almost no classes. That is what
+ * lets it restyle the five admin screens (src/admin/*, src/ai/PersonaAdminPage.tsx) without
+ * those files being edited at all — they are plain semantic markup, so element rules reach them
+ * (FR-029, research §10). Adding a class-based approach here would make that scope boundary
+ * expensive instead of free.
+ */
+
+/* ---- Reset ------------------------------------------------------------ */
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+}
+
+body,
+h1, h2, h3, h4, h5, h6,
+p, figure, blockquote, dl, dd,
+ul, ol {
+  margin: 0;
+}
+
+ul, ol {
+  padding: 0;
+}
+
+img, svg, video, canvas {
+  display: block;
+  max-width: 100%;
+}
+
+/* ---- Document --------------------------------------------------------- */
+
+body {
+  min-width: var(--app-min-w);
+  margin: 0;
+  background: var(--surface-base);
+  color: var(--text-primary);
+  font-family: var(--font-sans);
+  font-size: var(--text-body-size);
+  line-height: var(--text-body-lh);
+  font-weight: var(--text-body-weight);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ---- Typography ------------------------------------------------------- */
+
+h1 {
+  font-size: var(--text-display-size);
+  line-height: var(--text-display-lh);
+  font-weight: var(--text-display-weight);
+}
+
+h2 {
+  font-size: var(--text-title-size);
+  line-height: var(--text-title-lh);
+  font-weight: var(--text-title-weight);
+}
+
+h3, h4, h5, h6 {
+  font-size: var(--text-heading-size);
+  line-height: var(--text-heading-lh);
+  font-weight: var(--text-heading-weight);
+}
+
+/* Give stacked headings and paragraphs breathing room on screens that are pure document flow
+   (the admin screens), without needing a wrapper class on any of them. */
+h1, h2, h3, h4, h5, h6 {
+  margin-block: var(--space-5) var(--space-2);
+}
+
+h1:first-child, h2:first-child, h3:first-child {
+  margin-block-start: 0;
+}
+
+p {
+  margin-block: 0 var(--space-3);
+}
+
+small {
+  font-size: var(--text-small-size);
+  line-height: var(--text-small-lh);
+}
+
+code, pre, kbd, samp {
+  font-family: var(--font-mono);
+  font-size: var(--text-mono-size);
+}
+
+a {
+  color: var(--accent);
+  text-decoration: none;
+}
+
+a:hover {
+  text-decoration: underline;
+}
+
+/* ---- Focus ------------------------------------------------------------ */
+/* Applied at element level so every control in the app — including ones in files this feature
+   never opens — satisfies FR-005. Never remove without a stronger replacement. */
+
+:focus-visible {
+  outline: var(--focus-ring-width) solid var(--focus-ring);
+  outline-offset: var(--focus-ring-offset);
+  border-radius: var(--radius-sm);
+}
+
+/* ---- Form controls ---------------------------------------------------- */
+/* Every control boundary uses --border-control (3.59:1). See tokens.css for why the softer
+   border tokens must not be substituted here. */
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+  color: inherit;
+}
+
+button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  min-height: 36px;
+  padding: 0 var(--space-4);
+  border: var(--border-width) solid var(--border-control);
+  border-radius: var(--radius-md);
+  background: var(--surface-raised);
+  color: var(--text-primary);
+  font-size: var(--text-body-size);
+  font-weight: var(--text-body-strong-weight);
+  cursor: pointer;
+  transition: background-color var(--transition-fast), border-color var(--transition-fast);
+}
+
+button:hover:not(:disabled) {
+  background: var(--surface-sunken);
+}
+
+button:active:not(:disabled) {
+  background: #e4e7ec;
+}
+
+button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+input,
+select,
+textarea {
+  min-height: 36px;
+  padding: 0 var(--space-3);
+  border: var(--border-width) solid var(--border-control);
+  border-radius: var(--radius-md);
+  background: var(--surface-raised);
+  font-size: var(--text-body-size);
+  transition: border-color var(--transition-fast);
+}
+
+textarea {
+  padding: var(--space-2) var(--space-3);
+  line-height: var(--text-body-lh);
+  resize: vertical;
+}
+
+input:hover:not(:disabled),
+select:hover:not(:disabled),
+textarea:hover:not(:disabled) {
+  border-color: #6b7480;
+}
+
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+  border-color: var(--accent);
+  outline-offset: 1px;
+}
+
+input:disabled,
+select:disabled,
+textarea:disabled {
+  background: var(--surface-sunken);
+  color: var(--text-tertiary);
+  border-color: var(--border-default);
+  cursor: not-allowed;
+}
+
+input::placeholder,
+textarea::placeholder {
+  color: var(--text-tertiary);
+}
+
+input[aria-invalid='true'],
+textarea[aria-invalid='true'],
+select[aria-invalid='true'] {
+  border-color: var(--danger);
+}
+
+input[type='checkbox'],
+input[type='radio'] {
+  min-height: 0;
+  width: 16px;
+  height: 16px;
+  padding: 0;
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+
+select {
+  padding-inline-end: var(--space-2);
+  cursor: pointer;
+}
+
+label {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--text-body-size);
+}
+
+fieldset {
+  margin: 0 0 var(--space-4);
+  padding: var(--space-4);
+  border: var(--border-width) solid var(--border-default);
+  border-radius: var(--radius-lg);
+}
+
+legend {
+  padding-inline: var(--space-2);
+  font-weight: var(--text-body-strong-weight);
+}
+
+/* ---- Tables (the admin screens are largely tables) --------------------- */
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  background: var(--surface-raised);
+  border: var(--border-width) solid var(--border-default);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+}
+
+th, td {
+  padding: var(--space-3) var(--space-4);
+  text-align: left;
+  border-block-end: var(--border-width) solid var(--border-subtle);
+}
+
+th {
+  background: var(--surface-sunken);
+  font-size: var(--text-caption-size);
+  line-height: var(--text-caption-lh);
+  font-weight: var(--text-caption-weight);
+  letter-spacing: var(--text-caption-tracking);
+  text-transform: uppercase;
+  color: var(--text-secondary);
+}
+
+tbody tr:last-child td {
+  border-block-end: none;
+}
+
+tbody tr:hover {
+  background: var(--accent-subtle);
+}
+
+/* ---- Live regions ----------------------------------------------------- */
+/* Colour is never the sole signal (FR-006): these carry an icon or a text prefix in the markup;
+   the colour only reinforces it. */
+
+[role='alert'] {
+  color: var(--danger);
+  font-size: var(--text-small-size);
+}
+
+/* ---- Reduced motion --------------------------------------------------- */
+/* One global guard so no later component can introduce unguarded motion (FR-023). */
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

@@ -1,0 +1,346 @@
+/**
+ * Shared component classes.
+ *
+ * base.css already styles bare elements, so an unclassed <button> reads as a secondary button.
+ * These classes layer intent on top of that. Every interactive class defines all five states —
+ * rest, hover, focus-visible, active, disabled (FR-022); focus-visible is inherited from
+ * base.css's global rule rather than restated per component.
+ *
+ * Form-control borders always use --border-control (3.59:1). See tokens.css for why the
+ * decorative border tokens must never be substituted here.
+ */
+
+/* ---- Buttons ---------------------------------------------------------- */
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  min-height: 36px;
+  padding: 0 var(--space-4);
+  border: var(--border-width) solid transparent;
+  border-radius: var(--radius-md);
+  font-size: var(--text-body-size);
+  font-weight: var(--text-body-strong-weight);
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background-color var(--transition-fast), border-color var(--transition-fast);
+}
+
+.btn--compact {
+  min-height: 28px;
+  padding: 0 var(--space-3);
+  font-size: var(--text-small-size);
+}
+
+.btn--primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--text-inverse);
+}
+.btn--primary:hover:not(:disabled) { background: var(--accent-hover); border-color: var(--accent-hover); }
+.btn--primary:active:not(:disabled) { background: var(--accent-active); border-color: var(--accent-active); }
+
+.btn--secondary {
+  background: var(--surface-raised);
+  border-color: var(--border-control);
+  color: var(--text-primary);
+}
+.btn--secondary:hover:not(:disabled) { background: var(--surface-sunken); }
+.btn--secondary:active:not(:disabled) { background: #e4e7ec; }
+
+.btn--tertiary {
+  background: transparent;
+  border-color: transparent;
+  color: var(--accent);
+}
+.btn--tertiary:hover:not(:disabled) { background: var(--accent-subtle); }
+.btn--tertiary:active:not(:disabled) { background: #e2ebfe; }
+
+.btn--danger {
+  background: var(--danger);
+  border-color: var(--danger);
+  color: var(--text-inverse);
+}
+.btn--danger:hover:not(:disabled) { background: var(--danger-hover); border-color: var(--danger-hover); }
+.btn--danger:active:not(:disabled) { background: var(--danger-active); border-color: var(--danger-active); }
+
+.btn--tertiary-danger {
+  background: transparent;
+  border-color: transparent;
+  color: var(--danger);
+}
+.btn--tertiary-danger:hover:not(:disabled) { background: var(--danger-subtle); }
+.btn--tertiary-danger:active:not(:disabled) { background: #fbdcdc; }
+
+.btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+/* Icon-only button: still needs an accessible name in markup (aria-label). */
+.btn--icon {
+  min-width: 36px;
+  padding: 0;
+}
+
+/* ---- Surfaces --------------------------------------------------------- */
+
+.card {
+  background: var(--surface-raised);
+  border: var(--border-width) solid var(--border-default);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+}
+
+.panel {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  background: var(--surface-raised);
+}
+
+.panel__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-4);
+  border-block-end: var(--border-width) solid var(--border-subtle);
+  font-size: var(--text-caption-size);
+  line-height: var(--text-caption-lh);
+  font-weight: var(--text-caption-weight);
+  letter-spacing: var(--text-caption-tracking);
+  text-transform: uppercase;
+  color: var(--text-secondary);
+}
+
+.panel__body {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: var(--space-4);
+}
+
+.panel__body--flush { padding: 0; }
+
+.panel__footer {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-4);
+  border-block-start: var(--border-width) solid var(--border-subtle);
+}
+
+/* ---- Rows (project tree, version list, persona list) ------------------- */
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-height: 44px;
+  padding: var(--space-2) var(--space-4);
+  border-block-end: var(--border-width) solid var(--border-subtle);
+}
+
+.row:last-child { border-block-end: none; }
+.row:hover { background: var(--accent-subtle); }
+
+.row__main {
+  flex: 1;
+  min-width: 0;
+}
+
+/* Long project/diagram/persona names truncate rather than breaking row alignment. */
+.row__title {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.row__actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  flex-shrink: 0;
+}
+
+/* ---- Fields ----------------------------------------------------------- */
+
+.field {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: var(--space-1);
+  margin-block-end: var(--space-4);
+}
+
+.field__label {
+  font-size: var(--text-small-size);
+  line-height: var(--text-small-lh);
+  color: var(--text-secondary);
+}
+
+.field__error {
+  color: var(--danger);
+  font-size: var(--text-small-size);
+}
+
+/* ---- Layout utilities -------------------------------------------------- */
+
+.cluster {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+
+.cluster--tight { gap: var(--space-1); }
+
+.stack > * + * { margin-block-start: var(--space-4); }
+
+.spacer { flex: 1; }
+
+.section-label {
+  font-size: var(--text-caption-size);
+  line-height: var(--text-caption-lh);
+  font-weight: var(--text-caption-weight);
+  letter-spacing: var(--text-caption-tracking);
+  text-transform: uppercase;
+  color: var(--text-secondary);
+}
+
+.muted { color: var(--text-secondary); }
+.meta { color: var(--text-tertiary); font-size: var(--text-small-size); }
+.mono { font-family: var(--font-mono); font-size: var(--text-mono-size); }
+
+/* ---- Badge (violation count, statuses) --------------------------------- */
+/* Always paired with text in markup — never the sole carrier of meaning (FR-006). */
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 var(--space-1);
+  border-radius: 9px;
+  background: var(--surface-sunken);
+  color: var(--text-secondary);
+  font-size: var(--text-caption-size);
+  font-weight: var(--text-caption-weight);
+  line-height: 1;
+}
+
+.badge--warning {
+  background: var(--warning-surface);
+  color: #3d2400;
+}
+
+/* ---- Status dot (save status) ------------------------------------------ */
+/* The dot reinforces an adjacent text label; it never carries the meaning alone. */
+
+.status {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--text-small-size);
+  color: var(--text-secondary);
+}
+
+.status__dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: currentColor;
+  flex-shrink: 0;
+}
+
+.status--saved { color: var(--success); }
+.status--error { color: var(--danger); }
+.status--dirty { color: var(--warning); }
+
+/* ---- Empty / loading / error states ------------------------------------ */
+
+.state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  padding: var(--space-8) var(--space-4);
+  text-align: center;
+  color: var(--text-secondary);
+  font-size: var(--text-small-size);
+}
+
+.state__icon { color: var(--text-tertiary); }
+.state--success .state__icon { color: var(--success); }
+.state--error { color: var(--danger); }
+
+.skeleton {
+  background: var(--surface-sunken);
+  border-radius: var(--radius-md);
+  animation: skeleton-pulse 1.4s ease-in-out infinite;
+}
+
+.skeleton--row { height: 44px; margin-block-end: var(--space-2); }
+.skeleton--tile { height: 48px; }
+
+@keyframes skeleton-pulse {
+  0%, 100% { opacity: 0.6; }
+  50% { opacity: 1; }
+}
+
+/* ---- Modal ------------------------------------------------------------- */
+
+.modal {
+  width: 440px;
+  max-width: calc(100vw - var(--space-8));
+  max-height: 80vh;
+  padding: 0;
+  border: var(--border-width) solid var(--border-default);
+  border-radius: var(--radius-xl);
+  background: var(--surface-raised);
+  color: var(--text-primary);
+  box-shadow: var(--shadow-modal);
+}
+
+.modal--wide { width: 560px; }
+
+.modal::backdrop {
+  background: var(--overlay-scrim);
+}
+
+.modal__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-4) var(--space-6);
+  border-block-end: var(--border-width) solid var(--border-subtle);
+}
+
+.modal__title {
+  font-size: var(--text-title-size);
+  line-height: var(--text-title-lh);
+  font-weight: var(--text-title-weight);
+  margin: 0;
+}
+
+.modal__body {
+  padding: var(--space-6);
+  overflow: auto;
+}
+
+.modal__footer {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-2);
+  padding: var(--space-4) var(--space-6);
+  border-block-start: var(--border-width) solid var(--border-subtle);
+}

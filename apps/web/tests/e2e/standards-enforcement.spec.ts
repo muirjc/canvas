@@ -32,6 +32,8 @@ test('admin publishes a standard; a violating diagram is soft-flagged, not block
   await page.getByTestId('save-diagram').click();
 
   await expect(page.getByTestId('save-status')).toHaveText('saved');
+  // Violations are one panel of the editor's secondary rail (feature 005). Navigation only.
+  await page.getByTestId('rail-tab-issues').click();
   await expect(page.getByTestId('violations-panel')).toBeVisible();
   await expect(page.getByTestId('violation-item').first()).toContainText('allowed-shapes');
 

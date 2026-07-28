@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { api, ApiError, type ChatMessageDto, type ToolCallOutcomeDto } from '../app/api';
+import { Icon } from '../ui/Icon';
 
 export interface ChatPanelProps {
   diagramId: string;
@@ -69,30 +70,60 @@ export function ChatPanel({ diagramId, currentDslContent, onDiagramUpdated }: Ch
   };
 
   return (
-    <div data-testid="chat-panel">
-      <h3>AI Chat</h3>
-      <ul data-testid="chat-messages">
+    <div className="panel" data-testid="chat-panel">
+      <ul className="panel__body chat-messages" data-testid="chat-messages">
+        {messages.length === 0 && !sending && (
+          <li className="state" data-testid="chat-empty">
+            <Icon name="sparkle" className="state__icon" />
+            Describe a change to this diagram.
+            <span className="meta">For example: &ldquo;add a shape called Review&rdquo;</span>
+          </li>
+        )}
         {messages.map((m, i) => (
-          <li key={i} data-testid={`chat-message-${m.role}`}>
-            <strong>{m.role === 'user' ? 'You' : 'AI'}:</strong> {m.content}
+          <li key={i} className={`chat-bubble chat-bubble--${m.role}`} data-testid={`chat-message-${m.role}`}>
+            <span className="section-label">{m.role === 'user' ? 'You' : 'AI'}</span>
+            <span>{m.content}</span>
           </li>
         ))}
+        {sending && (
+          <li className="chat-bubble chat-bubble--assistant chat-thinking" data-testid="chat-thinking" aria-live="polite">
+            <span className="section-label">AI</span>
+            <span className="chat-thinking__dots" aria-label="Thinking">
+              <i />
+              <i />
+              <i />
+            </span>
+          </li>
+        )}
       </ul>
-      <textarea
-        data-testid="chat-input"
-        aria-label="Describe a change"
-        placeholder="Describe a change…"
-        value={input}
-        onChange={(e) => setInput(e.target.value)}
-        rows={2}
-        cols={50}
-      />
-      <button type="button" data-testid="chat-send" disabled={!input.trim() || sending} onClick={handleSend}>
-        {sending ? 'Sending…' : 'Send'}
-      </button>
+      <div className="panel__footer chat-composer">
+        <textarea
+          className="chat-composer__input"
+          data-testid="chat-input"
+          aria-label="Describe a change"
+          placeholder="Describe a change…"
+          value={input}
+          onChange={(e) => setInput(e.target.value)}
+          rows={2}
+        />
+        <button
+          type="button"
+          className="btn btn--primary btn--compact"
+          data-testid="chat-send"
+          disabled={!input.trim() || sending}
+          onClick={handleSend}
+        >
+          <Icon name="send" />
+          {sending ? 'Sending…' : 'Send'}
+        </button>
+      </div>
       {error && (
-        <p role="alert" data-testid="chat-error">
+        <p role="alert" className="chat-error" data-testid="chat-error">
+          <Icon name="warning" />
           {error}
+          <button type="button" className="btn btn--tertiary btn--compact" onClick={handleSend} disabled={!input.trim()}>
+            Retry
+          </button>
         </p>
       )}
     </div>

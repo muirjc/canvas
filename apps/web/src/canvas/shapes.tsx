@@ -6,11 +6,22 @@ export function nodeSize(node: DiagramNode): { width: number; height: number } {
   return node.size ?? DEFAULT_NODE_SIZE;
 }
 
+/**
+ * Selection highlight — screen only, and deliberately the ONLY visual change this redesign makes
+ * to diagram elements (FR-025). It is recoloured to the interface accent purely for palette
+ * consistency, and is safe to change because selection is never exported: the export renderer
+ * (packages/diagram-core/src/render/svg-renderer.ts) has no concept of it.
+ *
+ * Node fill, stroke, and label styling are untouched — those come from admin-defined standards
+ * and are produced by both renderers, which must agree for exports to match the canvas (SC-004).
+ */
+const SELECTION_STROKE = '#2563eb';
+
 export function renderNodeShape(node: DiagramNode, selected: boolean): JSX.Element {
   const { x, y } = node.position;
   const { width, height } = nodeSize(node);
   const fill = node.style?.fillColor ?? '#ffffff';
-  const stroke = selected ? '#1168bd' : (node.style?.strokeColor ?? '#333333');
+  const stroke = selected ? SELECTION_STROKE : (node.style?.strokeColor ?? '#333333');
   const strokeWidth = selected ? 2 : 1;
 
   switch (node.shape) {

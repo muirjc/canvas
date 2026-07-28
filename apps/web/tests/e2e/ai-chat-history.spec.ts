@@ -28,6 +28,8 @@ test('resumes a diagram\'s prior chat conversation on reopen', async ({ page }) 
   await page.getByTestId('ai-create-description').fill('Add a shape called Kickoff');
   await page.getByTestId('ai-create-confirm').click();
   await expect(page.getByTestId('diagram-canvas')).toBeVisible();
+  // The rail shows one panel at a time (feature 005) — select Chat. Navigation only.
+  await page.getByTestId('rail-tab-chat').click();
   await expect(page.locator('[data-testid="chat-message-user"]')).toHaveCount(1);
 
   // A follow-up chat message adds a second exchange.
@@ -46,6 +48,8 @@ test('resumes a diagram\'s prior chat conversation on reopen', async ({ page }) 
   await page.locator('[data-testid^="open-diagram-"]').first().click();
   await expect(page.getByTestId('diagram-canvas')).toBeVisible();
 
+  // The rail shows one panel at a time (feature 005) — select Chat. Navigation only.
+  await page.getByTestId('rail-tab-chat').click();
   await expect(page.locator('[data-testid="chat-message-user"]')).toHaveCount(2);
   await expect(page.locator('[data-testid="chat-message-assistant"]')).toHaveCount(2);
   expect(await page.locator('[data-testid="chat-message-user"]').allTextContents()).toEqual(userMessagesBeforeReload);
@@ -56,6 +60,8 @@ test('resumes a diagram\'s prior chat conversation on reopen', async ({ page }) 
   await page.getByTestId('diagram-type-flowchart').check();
   await page.getByTestId('confirm-new-diagram').click();
   await expect(page.getByTestId('diagram-canvas')).toBeVisible();
+  // The rail shows one panel at a time (feature 005) — select Chat. Navigation only.
+  await page.getByTestId('rail-tab-chat').click();
   await expect(page.getByTestId('chat-panel')).toBeVisible();
   await expect(page.locator('[data-testid^="chat-message-"]')).toHaveCount(0);
 });

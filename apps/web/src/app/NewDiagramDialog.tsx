@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { api, type DiagramTypeDto } from './api';
+import { Modal } from '../ui/Modal';
 
 export interface NewDiagramDialogProps {
   persona?: string;
@@ -17,9 +18,28 @@ export function NewDiagramDialog({ persona, onCreate, onCancel }: NewDiagramDial
   }, [persona]);
 
   return (
-    <div role="dialog" aria-label="New diagram">
-      <h2>Choose a diagram type</h2>
-      <ul>
+    <Modal
+      label="New diagram"
+      title="Choose a diagram type"
+      onClose={onCancel}
+      footer={
+        <>
+          <button type="button" className="btn btn--secondary" data-testid="cancel-new-diagram" onClick={onCancel}>
+            Cancel
+          </button>
+          <button
+            type="button"
+            className="btn btn--primary"
+            data-testid="confirm-new-diagram"
+            disabled={!selected}
+            onClick={() => selected && onCreate(selected)}
+          >
+            Create
+          </button>
+        </>
+      }
+    >
+      <ul className="choice-list">
         {types.map((type) => (
           <li key={type.id}>
             <label>
@@ -31,22 +51,13 @@ export function NewDiagramDialog({ persona, onCreate, onCancel }: NewDiagramDial
                 onChange={() => setSelected(type.id)}
                 data-testid={`diagram-type-${type.id}`}
               />
-              {type.name} <small>({type.personas.join(', ')})</small>
+              <span>
+                {type.name} <small className="meta">({type.personas.join(', ')})</small>
+              </span>
             </label>
           </li>
         ))}
       </ul>
-      <button type="button" data-testid="cancel-new-diagram" onClick={onCancel}>
-        Cancel
-      </button>
-      <button
-        type="button"
-        data-testid="confirm-new-diagram"
-        disabled={!selected}
-        onClick={() => selected && onCreate(selected)}
-      >
-        Create
-      </button>
-    </div>
+    </Modal>
   );
 }

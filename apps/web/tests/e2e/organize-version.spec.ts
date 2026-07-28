@@ -24,6 +24,8 @@ test('save into a project, edit, and restore a prior version', async ({ page }) 
   await expect(page.getByTestId('diagram-canvas')).toBeVisible();
   // Creating a diagram already records version 1 (an empty starting diagram) — the first
   // explicit Save below therefore produces version 2, not version 1.
+  // Version history is one panel of the editor's secondary rail (feature 005). Navigation only.
+  await page.getByTestId('rail-tab-history').click();
   await expect(page.getByTestId('version-1')).toBeVisible();
 
   // v2: one rectangle, save.
