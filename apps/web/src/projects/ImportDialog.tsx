@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { api, ApiError, type DiagramDto } from '../app/api';
 import { UnsupportedElementNotice } from '../canvas/UnsupportedElementNotice';
+import { Modal } from '../ui/Modal';
 
 export interface ImportDialogProps {
   projectId: string;
@@ -35,13 +36,35 @@ export function ImportDialog({ projectId, onImported, onCancel }: ImportDialogPr
   };
 
   return (
-    <div role="dialog" aria-label="Import diagram">
-      <h2>Import a Mermaid Diagram</h2>
-      <label>
-        Name
-        <input data-testid="import-name" value={name} onChange={(e) => setName(e.target.value)} />
-      </label>
-      <div>
+    <Modal
+      label="Import diagram"
+      title="Import a Mermaid Diagram"
+      wide
+      onClose={onCancel}
+      footer={
+        <>
+          <button type="button" className="btn btn--secondary" data-testid="cancel-import" onClick={onCancel}>
+            Cancel
+          </button>
+          <button
+            type="button"
+            className="btn btn--primary"
+            data-testid="confirm-import"
+            disabled={!dslContent}
+            onClick={handleImport}
+          >
+            Import
+          </button>
+        </>
+      }
+    >
+      <div className="field">
+        <label className="field__label" htmlFor="import-name">
+          Name
+        </label>
+        <input id="import-name" data-testid="import-name" value={name} onChange={(e) => setName(e.target.value)} />
+      </div>
+      <div className="field">
         <input
           data-testid="import-file"
           aria-label="Upload a Mermaid diagram file"
@@ -51,28 +74,20 @@ export function ImportDialog({ projectId, onImported, onCancel }: ImportDialogPr
         />
       </div>
       <textarea
+        className="import-textarea"
         data-testid="import-textarea"
         aria-label="Paste Mermaid diagram source"
         placeholder="Paste Mermaid DSL here…"
         value={dslContent}
         onChange={(e) => setDslContent(e.target.value)}
-        rows={16}
-        cols={60}
+        rows={12}
       />
-      <div>
-        <button type="button" data-testid="cancel-import" onClick={onCancel}>
-          Cancel
-        </button>
-        <button type="button" data-testid="confirm-import" disabled={!dslContent} onClick={handleImport}>
-          Import
-        </button>
-      </div>
       {error && (
         <p role="alert" data-testid="import-error">
           {error}
         </p>
       )}
       <UnsupportedElementNotice errors={parseErrors} />
-    </div>
+    </Modal>
   );
 }

@@ -19,22 +19,28 @@ export function DslPanel({ dsl, parseErrors, onApply }: DslPanelProps) {
   }, [dsl]);
 
   return (
-    <div>
-      <textarea
-        data-testid="dsl-panel"
-        aria-label="Mermaid DSL for this diagram"
-        value={draft}
-        onChange={(event) => setDraft(event.target.value)}
-        rows={20}
-        cols={60}
-        spellCheck={false}
-      />
-      <div>
-        <button type="button" data-testid="apply-dsl" onClick={() => onApply(draft)}>
+    <div className="panel">
+      <div className="panel__body panel__body--flush dsl-panel">
+        <textarea
+          className="dsl-panel__editor"
+          data-testid="dsl-panel"
+          aria-label="Mermaid DSL for this diagram"
+          value={draft}
+          onChange={(event) => setDraft(event.target.value)}
+          spellCheck={false}
+        />
+        <UnsupportedElementNotice errors={parseErrors} />
+      </div>
+      <div className="panel__footer">
+        <button
+          type="button"
+          className="btn btn--primary btn--compact"
+          data-testid="apply-dsl"
+          onClick={() => onApply(draft)}
+        >
           Apply
         </button>
       </div>
-      <UnsupportedElementNotice errors={parseErrors} />
     </div>
   );
 }

@@ -19,4 +19,12 @@ export default tseslint.config(
       '@typescript-eslint/no-unused-vars': ['warn', { argsIgnorePattern: '^_' }],
     },
   },
+  {
+    // Standalone Node tooling scripts (e.g. apps/web/scripts/check-contrast.mjs) run under Node,
+    // not in the browser, so they legitimately use process/console/URL.
+    files: ['**/scripts/**/*.mjs'],
+    languageOptions: {
+      globals: { process: 'readonly', console: 'readonly', URL: 'readonly' },
+    },
+  },
 );

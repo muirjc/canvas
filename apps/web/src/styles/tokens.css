@@ -1,0 +1,115 @@
+/**
+ * Design tokens — the single source of visual truth for the app chrome.
+ *
+ * Every value here is verified: `node scripts/check-contrast.mjs` reads this file directly and
+ * checks all 22 colour pairings against their WCAG 2.1 threshold. Re-run it after changing any
+ * colour; the accessibility gate treats a failure as a build failure, not a review comment.
+ *
+ * Authored as custom properties specifically so a dark appearance can be added later by
+ * overriding this block alone, with no component changes (spec.md Assumptions).
+ *
+ * NOTE ON DIAGRAM COLOURS: nothing here governs how diagram shapes look. Node fill/stroke/font
+ * come from admin-defined standards and are rendered by diagram-core. `--surface-canvas` stays
+ * white so those admin-chosen colours render truthfully (FR-027).
+ */
+
+:root {
+  /* ---- Surfaces ------------------------------------------------------- */
+  --surface-base: #f7f8fa;      /* app background, behind panels */
+  --surface-raised: #ffffff;    /* panels, cards, dialogs, table rows */
+  --surface-sunken: #eff1f4;    /* inset areas: DSL editor, code, disabled fields */
+  --surface-canvas: #ffffff;    /* the diagram drawing surface — must stay white */
+
+  /* ---- Text ----------------------------------------------------------- */
+  --text-primary: #14181f;      /* body copy, headings, control labels */
+  --text-secondary: #5a6472;    /* supporting copy, table meta */
+  --text-tertiary: #646d79;     /* timestamps, counts, placeholders */
+  --text-inverse: #ffffff;      /* labels on accent/danger fills */
+
+  /* ---- Accent (the only accent; used functionally, never decoratively) - */
+  --accent: #2563eb;
+  --accent-hover: #1d4ed8;
+  --accent-active: #1e40af;
+  --accent-subtle: #eff4ff;     /* selected row tint, active tab tint */
+
+  /* ---- Borders -------------------------------------------------------- */
+  /* --border-control is the ONLY border permitted on a form control: WCAG 1.4.11 requires 3:1
+     for boundaries needed to identify a control, and it is the only one that clears it (3.59).
+     The two below it are decorative separators (1.52 / 1.25). Substituting one on an input to
+     soften its look produces something that looks fine and fails the gate. */
+  --border-control: #7e8896;
+  --border-default: #cbd2db;    /* panel edges, table rules — decorative */
+  --border-subtle: #e3e6ea;     /* faint internal dividers — decorative */
+  --border-width: 1px;
+
+  /* ---- Feedback ------------------------------------------------------- */
+  --danger: #c81e1e;
+  --danger-hover: #b01818;
+  --danger-active: #991414;
+  --danger-subtle: #fdecec;
+  --success: #15803d;
+  --warning: #9a5b00;
+  --warning-surface: #f0b429;   /* violation-count badge fill */
+
+  /* ---- Focus ---------------------------------------------------------- */
+  --focus-ring: #2563eb;
+  --focus-ring-width: 2px;
+  --focus-ring-offset: 2px;
+
+  /* ---- Canvas --------------------------------------------------------- */
+  --canvas-grid-dot: #d8dde4;   /* decorative; CSS background only, never SVG content */
+  --canvas-grid-size: 16px;
+  --node-selected: #2563eb;     /* selection stroke — screen only, never exported */
+
+  /* ---- Typography ----------------------------------------------------- */
+  /* System stacks only: no webfont, so nothing is fetched over the network (FR-003) and the
+     sans stack matches what the export renderer already uses for diagram labels. */
+  --font-sans: system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace;
+
+  --text-display-size: 24px;    --text-display-lh: 32px;    --text-display-weight: 600;
+  --text-title-size: 18px;      --text-title-lh: 26px;      --text-title-weight: 600;
+  --text-heading-size: 15px;    --text-heading-lh: 22px;    --text-heading-weight: 600;
+  --text-body-size: 14px;       --text-body-lh: 21px;       --text-body-weight: 400;
+  --text-body-strong-weight: 500;
+  --text-small-size: 13px;      --text-small-lh: 18px;
+  --text-caption-size: 12px;    --text-caption-lh: 16px;    --text-caption-weight: 500;
+  --text-caption-tracking: 0.04em;
+  --text-mono-size: 13px;       --text-mono-lh: 20px;
+
+  /* ---- Spacing (4px base) --------------------------------------------- */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --space-10: 40px;
+
+  /* ---- Radius --------------------------------------------------------- */
+  --radius-sm: 4px;   /* checkboxes, tags */
+  --radius-md: 6px;   /* buttons, inputs, selects */
+  --radius-lg: 8px;   /* panels, cards */
+  --radius-xl: 12px;  /* modal dialogs */
+
+  /* ---- Elevation ------------------------------------------------------ */
+  /* Never applied to diagram nodes: the canvas sustains >50fps dragging 300 elements only
+     because nodes carry no shadow, filter, or transition (FR-028). */
+  --shadow-sm: 0 1px 2px rgba(20, 24, 31, 0.06);
+  --shadow-md: 0 4px 12px rgba(20, 24, 31, 0.1);
+  --shadow-modal: 0 16px 48px rgba(20, 24, 31, 0.18);
+  --overlay-scrim: rgba(20, 24, 31, 0.45);
+
+  /* ---- Layout --------------------------------------------------------- */
+  --app-header-h: 48px;
+  --doc-bar-h: 52px;
+  --rail-left-w: 240px;
+  --rail-right-w: 340px;
+  --canvas-min-w: 480px;
+  --app-min-w: 1280px;
+
+  /* ---- Motion --------------------------------------------------------- */
+  --transition-fast: 120ms ease;
+  --transition-base: 180ms ease;
+}

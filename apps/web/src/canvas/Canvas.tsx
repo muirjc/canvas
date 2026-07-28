@@ -1,4 +1,5 @@
 import { useCallback, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import {
   addEdge,
   addNode,
@@ -11,10 +12,28 @@ import {
 } from '@canvas/diagram-core';
 import { ADDABLE_SHAPES, nodeSize, renderNodeShape } from './shapes';
 import { ConfirmDialog } from './ConfirmDialog';
+import { Icon } from '../ui/Icon';
+
+/** Compact glyphs for the shape grid — each button still carries an aria-label and title, so the
+ *  glyph is decorative and the control keeps its accessible name. */
+const SHAPE_GLYPHS: Partial<Record<NodeShape, string>> = {
+  rectangle: '▭',
+  'rounded-rectangle': '▢',
+  circle: '○',
+  diamond: '◇',
+};
 
 export interface CanvasProps {
   model: DiagramModel;
   onChange: (model: DiagramModel) => void;
+  /**
+   * Where to render the diagram-tools toolbar. The editor passes its left palette rail so the
+   * tools sit with the shape palette (feature 005), while the toolbar's `role` and accessible
+   * name — and all of its testids — travel with it unchanged. Portalling rather than lifting
+   * keeps every piece of canvas interaction state (selection, connect mode, inline editing)
+   * where it already lives. Omit it and the toolbar renders in place, as before.
+   */
+  toolbarContainer?: HTMLElement | null;
 }
 
 let containerIdCounter = 0;
@@ -28,7 +47,7 @@ function nextContainerId(): string {
  * labels via direct manipulation. Renders the same DiagramModel that packages/diagram-core
  * parses/serializes, so every edit here is reflected in the Mermaid DSL by useDslSync.
  */
-export function Canvas({ model, onChange }: CanvasProps) {
+export function Canvas({ model, onChange, toolbarContainer }: CanvasProps) {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [connectMode, setConnectMode] = useState(false);
   const [connectSourceId, setConnectSourceId] = useState<string | null>(null);
@@ -162,37 +181,71 @@ export function Canvas({ model, onChange }: CanvasProps) {
     }
   };
 
-  return (
-    <div tabIndex={0} onKeyDown={handleKeyDown} data-testid="canvas-root">
-      <div role="toolbar" aria-label="Diagram tools">
-        {ADDABLE_SHAPES.map(({ shape, label }) => (
-          <button key={shape} type="button" data-testid={`add-shape-${shape}`} onClick={() => handleAddShape(shape)}>
-            Add {label}
-          </button>
-        ))}
-        <button
-          type="button"
-          data-testid="connect-mode-toggle"
-          aria-pressed={connectMode}
-          onClick={() => {
-            setConnectMode((v) => !v);
-            setConnectSourceId(null);
-          }}
-        >
-          {connectMode ? 'Cancel Connect' : 'Connect'}
-        </button>
-        <button type="button" data-testid="group-selected" disabled={selectedIds.size < 2} onClick={groupSelected}>
-          Group Selected
-        </button>
-        <button
-          type="button"
-          data-testid="delete-selected"
-          disabled={selectedIds.size === 0}
-          onClick={requestDeleteSelected}
-        >
-          Delete Selected
-        </button>
+  const toolbar = (
+    <div role="toolbar" aria-label="Diagram tools">
+      <div className="rail-section">
+        <p className="section-label rail-section__label">Shapes</p>
+        <div className="shape-grid">
+          {ADDABLE_SHAPES.map(({ shape, label }) => (
+            <button
+              key={shape}
+              type="button"
+              className="btn btn--secondary"
+              data-testid={`add-shape-${shape}`}
+              title={`Add ${label}`}
+              aria-label={`Add ${label}`}
+              onClick={() => handleAddShape(shape)}
+            >
+              {SHAPE_GLYPHS[shape] ?? label}
+            </button>
+          ))}
+        </div>
       </div>
+
+      <div className="rail-section">
+        <p className="section-label rail-section__label">Tools</p>
+        <div className="tool-list">
+          <button
+            type="button"
+            className="btn btn--secondary"
+            data-testid="connect-mode-toggle"
+            aria-pressed={connectMode}
+            onClick={() => {
+              setConnectMode((v) => !v);
+              setConnectSourceId(null);
+            }}
+          >
+            <Icon name="arrow-right" />
+            {connectMode ? 'Cancel Connect' : 'Connect'}
+          </button>
+          <button
+            type="button"
+            className="btn btn--secondary"
+            data-testid="group-selected"
+            disabled={selectedIds.size < 2}
+            onClick={groupSelected}
+          >
+            <Icon name="group" />
+            Group Selected
+          </button>
+          <button
+            type="button"
+            className="btn btn--secondary"
+            data-testid="delete-selected"
+            disabled={selectedIds.size === 0}
+            onClick={requestDeleteSelected}
+          >
+            <Icon name="trash" />
+            Delete Selected
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+
+  return (
+    <div className="canvas-root" tabIndex={0} onKeyDown={handleKeyDown} data-testid="canvas-root">
+      {toolbarContainer ? createPortal(toolbar, toolbarContainer) : toolbar}
 
       {showDeleteConfirm && (
         <ConfirmDialog
@@ -205,9 +258,14 @@ export function Canvas({ model, onChange }: CanvasProps) {
       <svg
         ref={svgRef}
         data-testid="diagram-canvas"
+        className="canvas-svg"
         width={800}
         height={500}
-        style={{ border: '1px solid #ccc', touchAction: 'none' }}
+        // The border moved to the surrounding container so the SVG can fill it and let the
+        // dot-grid background show through; `touchAction` stays inline because it is behaviour,
+        // not styling. Width/height remain as the intrinsic size — CSS stretches it, and the
+        // origin stays at the container's top-left so drag coordinate maths is unchanged.
+        style={{ touchAction: 'none' }}
         onPointerMove={handlePointerMove}
         onPointerUp={handlePointerUp}
         onPointerLeave={handlePointerUp}

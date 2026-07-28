@@ -1,4 +1,5 @@
 import { api, type SessionUser } from './api';
+import { Icon } from '../ui/Icon';
 
 export interface AppShellProps {
   user: SessionUser;
@@ -19,17 +20,20 @@ export function AppShell({ user, onSignOut, children }: AppShellProps) {
   };
 
   return (
-    <div>
-      <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0.5rem 1rem' }}>
-        <strong>Canvas</strong>
-        <span>
-          {user.email}
-          <button type="button" data-testid="sign-out" onClick={handleSignOut} style={{ marginLeft: '1rem' }}>
+    <div className="app-shell">
+      <header className="app-header">
+        <span className="app-wordmark">
+          <Icon name="diamond" />
+          Canvas
+        </span>
+        <span className="cluster">
+          <span className="meta">{user.email}</span>
+          <button type="button" className="btn btn--secondary btn--compact" data-testid="sign-out" onClick={handleSignOut}>
             Sign Out
           </button>
         </span>
       </header>
-      <div>{children}</div>
+      <div className="app-content">{children}</div>
     </div>
   );
 }

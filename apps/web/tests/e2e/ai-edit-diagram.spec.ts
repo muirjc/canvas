@@ -21,6 +21,9 @@ async function dragNodeBy(page: Page, testId: string, dx: number, dy: number) {
 }
 
 async function sendChatMessage(page: Page, message: string) {
+  // The editor's secondary rail shows one panel at a time (feature 005), so select Chat first.
+  // Navigation only — no assertion in this file changed.
+  await page.getByTestId('rail-tab-chat').click();
   const assistantMessages = page.locator('[data-testid="chat-message-assistant"]');
   const before = await assistantMessages.count();
   await page.getByTestId('chat-input').fill(message);
@@ -42,6 +45,9 @@ function extractPosition(dsl: string, nodeId: string): { x: number; y: number } 
 }
 
 async function getDslPosition(page: Page, nodeId: string): Promise<{ x: number; y: number }> {
+  // Select the DSL panel before reading it — this spec interleaves DSL reads with chat sends,
+  // and the rail shows one panel at a time (feature 005). Navigation only.
+  await page.getByTestId('rail-tab-dsl').click();
   const dsl = await page.getByTestId('dsl-panel').inputValue();
   const position = extractPosition(dsl, nodeId);
   if (!position) throw new Error(`no canvas position found for ${nodeId} in DSL:\n${dsl}`);

@@ -1,0 +1,472 @@
+/**
+ * Screen-level layout: app shell, page containers, and the diagram editor grid.
+ *
+ * Kept separate from components.css so that "where things sit" and "what things look like"
+ * stay independently readable.
+ */
+
+/* ---- App shell --------------------------------------------------------- */
+
+.app-shell {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+}
+
+.app-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+  height: var(--app-header-h);
+  flex-shrink: 0;
+  padding-inline: var(--space-4);
+  background: var(--surface-raised);
+  border-block-end: var(--border-width) solid var(--border-default);
+  box-shadow: var(--shadow-sm);
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+
+.app-wordmark {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-weight: var(--text-body-strong-weight);
+  color: var(--text-primary);
+}
+
+.app-wordmark svg { color: var(--accent); }
+
+.app-content {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+/* ---- Centred page (home, admin) ---------------------------------------- */
+
+.page {
+  width: 100%;
+  max-width: 1100px;
+  margin-inline: auto;
+  padding: var(--space-8) var(--space-6);
+}
+
+.page__title {
+  margin-block-end: var(--space-5);
+}
+
+/* ---- Auth screen ------------------------------------------------------- */
+
+.auth {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-6);
+  /* Sit slightly above true centre — optically centred rather than measured. */
+  padding-block-end: calc(var(--space-10) * 2);
+}
+
+.auth__card {
+  width: 400px;
+  max-width: 100%;
+  padding: var(--space-8);
+  background: var(--surface-raised);
+  border: var(--border-width) solid var(--border-default);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-md);
+}
+
+.auth__brand {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-block-end: var(--space-6);
+  font-weight: var(--text-body-strong-weight);
+}
+
+.auth__brand svg { color: var(--accent); }
+
+/* ---- Home ------------------------------------------------------------- */
+
+.home__actions {
+  display: flex;
+  gap: var(--space-3);
+  margin-block-end: var(--space-6);
+}
+
+.home__actions .btn {
+  min-width: 180px;
+  min-height: 40px;
+}
+
+.home__admin {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  margin-block-start: var(--space-6);
+  padding-block-start: var(--space-4);
+  border-block-start: var(--border-width) solid var(--border-subtle);
+  font-size: var(--text-small-size);
+}
+
+/* ---- Diagram editor ---------------------------------------------------- */
+
+.editor {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.editor__doc-bar {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  height: var(--doc-bar-h);
+  flex-shrink: 0;
+  padding-inline: var(--space-4);
+  background: var(--surface-raised);
+  border-block-end: var(--border-width) solid var(--border-default);
+}
+
+.editor__title {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+  font-size: var(--text-title-size);
+  line-height: var(--text-title-lh);
+  font-weight: var(--text-title-weight);
+}
+
+/* A long diagram name truncates rather than pushing the actions off screen. */
+.editor__title-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 40ch;
+}
+
+.editor__title svg { color: var(--accent); flex-shrink: 0; }
+
+.editor__body {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: var(--rail-left-w) minmax(var(--canvas-min-w), 1fr) var(--rail-right-w);
+}
+
+.editor__rail-left {
+  min-height: 0;
+  overflow: auto;
+  background: var(--surface-raised);
+  border-inline-end: var(--border-width) solid var(--border-default);
+}
+
+.editor__rail-right {
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--surface-raised);
+  border-inline-start: var(--border-width) solid var(--border-default);
+}
+
+.editor__canvas {
+  min-width: 0;
+  min-height: 0;
+  overflow: auto;
+  position: relative;
+  background-color: var(--surface-canvas);
+  /* Dot grid lives on this container, never inside the <svg> — anything inside the SVG would
+     risk reaching the export path, which must stay self-contained (research §5). */
+  background-image: radial-gradient(circle, var(--canvas-grid-dot) 1px, transparent 1px);
+  background-size: var(--canvas-grid-size) var(--canvas-grid-size);
+}
+
+/* ---- Palette rail sections --------------------------------------------- */
+
+.rail-section {
+  padding: var(--space-4);
+  border-block-end: var(--border-width) solid var(--border-subtle);
+}
+
+.rail-section__label {
+  margin-block-end: var(--space-3);
+}
+
+.shape-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: var(--space-2);
+}
+
+.shape-grid .btn {
+  min-width: 0;
+  height: 48px;
+  padding: 0;
+}
+
+.tool-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.tool-list .btn {
+  justify-content: flex-start;
+  width: 100%;
+}
+
+/* An active mode toggle is visually obvious, and pairs with aria-pressed in markup. */
+.btn[aria-pressed='true'] {
+  background: var(--accent-subtle);
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+/* ---- Secondary rail tabs ------------------------------------------------ */
+
+.rail-tabs {
+  display: flex;
+  align-items: stretch;
+  gap: 0;
+  height: 40px;
+  flex-shrink: 0;
+  border-block-end: var(--border-width) solid var(--border-default);
+}
+
+.rail-tab {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  flex: 1;
+  min-height: 0;
+  padding-inline: var(--space-2);
+  border: none;
+  border-block-end: 2px solid transparent;
+  border-radius: 0;
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: var(--text-small-size);
+  font-weight: var(--text-body-weight);
+  cursor: pointer;
+}
+
+.rail-tab:hover { background: var(--surface-sunken); }
+
+.rail-tab[aria-selected='true'] {
+  color: var(--text-primary);
+  font-weight: var(--text-body-strong-weight);
+  border-block-end-color: var(--accent);
+}
+
+.rail-panel {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.rail-panel[hidden] { display: none; }
+
+.auth__submit {
+  width: 100%;
+  margin-block-start: var(--space-2);
+}
+
+/* ---- Project browser ---------------------------------------------------- */
+
+.project-node { list-style: none; }
+
+.project-node__header {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-4);
+  background: var(--surface-sunken);
+  border-block-end: var(--border-width) solid var(--border-default);
+  font-size: var(--text-heading-size);
+}
+
+.project-node__list { list-style: none; margin: 0; padding: 0; }
+
+.project-node .project-node .project-node__header { padding-inline-start: var(--space-8); }
+
+/* ---- Icon palette -------------------------------------------------------- */
+
+.palette-search {
+  position: relative;
+  display: flex;
+  align-items: center;
+  margin-block-end: var(--space-3);
+}
+
+.palette-search svg {
+  position: absolute;
+  inset-inline-start: var(--space-2);
+  color: var(--text-tertiary);
+  pointer-events: none;
+}
+
+.palette-search input {
+  width: 100%;
+  padding-inline-start: var(--space-6);
+}
+
+.palette-results {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: var(--space-2);
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.palette-tile {
+  width: 100%;
+  min-height: 48px;
+  padding: var(--space-1);
+  font-size: var(--text-caption-size);
+  font-weight: var(--text-body-weight);
+  line-height: 1.2;
+  text-align: center;
+  overflow: hidden;
+  white-space: normal;
+}
+
+/* ---- DSL panel ----------------------------------------------------------- */
+
+.dsl-panel { display: flex; flex-direction: column; }
+
+.dsl-panel__editor {
+  flex: 1;
+  min-height: 0;
+  width: 100%;
+  padding: var(--space-3);
+  border: none;
+  border-radius: 0;
+  background: var(--surface-sunken);
+  font-family: var(--font-mono);
+  font-size: var(--text-mono-size);
+  line-height: var(--text-mono-lh);
+  resize: none;
+}
+
+.dsl-panel__editor:focus-visible { outline-offset: -2px; }
+
+/* ---- Violations ---------------------------------------------------------- */
+
+.violation-list { list-style: none; margin: 0; }
+
+.violation {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-4);
+  border-block-end: var(--border-width) solid var(--border-subtle);
+  font-size: var(--text-small-size);
+}
+
+.violation:last-child { border-block-end: none; }
+.violation__icon { color: var(--warning); flex-shrink: 0; margin-block-start: 2px; }
+.violation__rule { display: block; color: var(--text-tertiary); }
+.violation__message { display: block; color: var(--text-secondary); }
+
+/* ---- Chat ---------------------------------------------------------------- */
+
+.chat-messages {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  margin: 0;
+}
+
+.chat-bubble {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  max-width: 85%;
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-md);
+  font-size: var(--text-small-size);
+}
+
+.chat-bubble--user { align-self: flex-end; background: var(--accent-subtle); }
+.chat-bubble--assistant { align-self: flex-start; background: var(--surface-sunken); }
+
+.chat-composer { flex-direction: column; align-items: stretch; gap: var(--space-2); }
+.chat-composer__input { width: 100%; resize: none; }
+.chat-composer .btn { align-self: flex-end; }
+
+.chat-error {
+  margin: 0;
+  padding: var(--space-2) var(--space-4) var(--space-3);
+}
+
+/* ---- Dialog internals ---------------------------------------------------- */
+
+.choice-list { list-style: none; margin: 0; padding: 0; }
+.choice-list li { padding-block: var(--space-1); }
+.choice-list label { align-items: flex-start; gap: var(--space-2); cursor: pointer; }
+
+.import-textarea { width: 100%; font-family: var(--font-mono); font-size: var(--text-mono-size); }
+
+.share-form { display: flex; align-items: flex-end; gap: var(--space-3); }
+.share-form .field { flex: 1; margin-block-end: 0; }
+.share-form .btn { flex-shrink: 0; }
+
+.share-grants { list-style: none; margin-block-start: var(--space-4); padding: 0; }
+
+/* ---- Chat thinking indicator -------------------------------------------- */
+
+.chat-thinking__dots { display: inline-flex; gap: 4px; align-items: center; }
+
+.chat-thinking__dots i {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--text-tertiary);
+  animation: chat-dot 1.2s ease-in-out infinite;
+}
+
+.chat-thinking__dots i:nth-child(2) { animation-delay: 0.15s; }
+.chat-thinking__dots i:nth-child(3) { animation-delay: 0.3s; }
+
+@keyframes chat-dot {
+  0%, 100% { opacity: 0.35; }
+  50% { opacity: 1; }
+}
+
+.chat-error {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+/* The SVG fills its container so the dot grid shows through the whole drawing area rather than
+   stopping at a fixed 800x500 box. min-* keeps the original intrinsic size as a floor, so a
+   diagram larger than the viewport still scrolls. */
+.canvas-svg {
+  display: block;
+  /* Spans the available width; height follows its intrinsic size. The SVG has no background of
+     its own, so the container's dot grid shows through the whole drawing area. There is no
+     viewBox, so this resizes the viewport without scaling content — drag coordinates stay 1:1
+     with CSS pixels. */
+  width: 100%;
+  min-width: 800px;
+  min-height: 500px;
+}
+
+/* A rail panel must fill the rail, otherwise the DSL editor collapses to its content height and
+   leaves the rest of the rail blank. */
+.rail-panel > .panel {
+  flex: 1;
+  min-height: 0;
+}

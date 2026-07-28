@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { api, ApiError, type AiPersonaDto, type DiagramDto } from '../app/api';
+import { Modal } from '../ui/Modal';
 
 export interface CreateViaChatDialogProps {
   projectId: string;
@@ -52,15 +53,38 @@ export function CreateViaChatDialog({ projectId, onCreated, onCancel }: CreateVi
   const groups = groupByCategory(personas);
 
   return (
-    <div role="dialog" aria-label="Create via AI Chat">
-      <h2>Create via AI Chat</h2>
-      <label>
-        Name
-        <input data-testid="ai-create-name" value={name} onChange={(e) => setName(e.target.value)} />
-      </label>
-      <label>
-        Persona
-        <select data-testid="ai-create-persona" value={personaId} onChange={(e) => setPersonaId(e.target.value)}>
+    <Modal
+      label="Create via AI Chat"
+      wide
+      onClose={onCancel}
+      footer={
+        <>
+          <button type="button" className="btn btn--secondary" data-testid="ai-create-cancel" onClick={onCancel}>
+            Cancel
+          </button>
+          <button
+            type="button"
+            className="btn btn--primary"
+            data-testid="ai-create-confirm"
+            disabled={!personaId || !description || submitting}
+            onClick={handleCreate}
+          >
+            {submitting ? 'Creating…' : 'Create'}
+          </button>
+        </>
+      }
+    >
+      <div className="field">
+        <label className="field__label" htmlFor="ai-create-name">
+          Name
+        </label>
+        <input id="ai-create-name" data-testid="ai-create-name" value={name} onChange={(e) => setName(e.target.value)} />
+      </div>
+      <div className="field">
+        <label className="field__label" htmlFor="ai-create-persona">
+          Persona
+        </label>
+        <select id="ai-create-persona" data-testid="ai-create-persona" value={personaId} onChange={(e) => setPersonaId(e.target.value)}>
           <option value="" disabled>
             Select a persona…
           </option>
@@ -74,34 +98,26 @@ export function CreateViaChatDialog({ projectId, onCreated, onCancel }: CreateVi
             </optgroup>
           ))}
         </select>
-      </label>
-      <textarea
-        data-testid="ai-create-description"
-        aria-label="Describe the diagram you want"
-        placeholder="Describe the diagram you want…"
-        value={description}
-        onChange={(e) => setDescription(e.target.value)}
-        rows={6}
-        cols={60}
-      />
-      <div>
-        <button type="button" data-testid="ai-create-cancel" onClick={onCancel}>
-          Cancel
-        </button>
-        <button
-          type="button"
-          data-testid="ai-create-confirm"
-          disabled={!personaId || !description || submitting}
-          onClick={handleCreate}
-        >
-          {submitting ? 'Creating…' : 'Create'}
-        </button>
+      </div>
+      <div className="field">
+        <label className="field__label" htmlFor="ai-create-description">
+          Describe the diagram you want
+        </label>
+        <textarea
+          id="ai-create-description"
+          data-testid="ai-create-description"
+          aria-label="Describe the diagram you want"
+          placeholder="Describe the diagram you want…"
+          value={description}
+          onChange={(e) => setDescription(e.target.value)}
+          rows={6}
+        />
       </div>
       {error && (
         <p role="alert" data-testid="ai-create-error">
           {error}
         </p>
       )}
-    </div>
+    </Modal>
   );
 }

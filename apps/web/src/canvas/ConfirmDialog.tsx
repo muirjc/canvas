@@ -1,3 +1,5 @@
+import { Modal } from '../ui/Modal';
+
 export interface ConfirmDialogProps {
   message: string;
   onConfirm: () => void;
@@ -11,14 +13,27 @@ export interface ConfirmDialogProps {
  */
 export function ConfirmDialog({ message, onConfirm, onCancel }: ConfirmDialogProps) {
   return (
-    <div role="alertdialog" aria-modal="true" aria-label="Confirm action" data-testid="confirm-dialog">
+    <Modal
+      // `alertdialog` must be passed explicitly: <dialog> implies `dialog`, which would quietly
+      // downgrade this control's semantics (contracts/ui-contract.md §2).
+      role="alertdialog"
+      label="Confirm action"
+      title={null}
+      testId="confirm-dialog"
+      onClose={onCancel}
+      footer={
+        <>
+          <button type="button" className="btn btn--secondary" data-testid="confirm-dialog-cancel" onClick={onCancel}>
+            Cancel
+          </button>
+          {/* Danger variant, and the message names the object being affected (FR-018). */}
+          <button type="button" className="btn btn--danger" data-testid="confirm-dialog-confirm" onClick={onConfirm}>
+            Confirm
+          </button>
+        </>
+      }
+    >
       <p>{message}</p>
-      <button type="button" data-testid="confirm-dialog-confirm" onClick={onConfirm}>
-        Confirm
-      </button>
-      <button type="button" data-testid="confirm-dialog-cancel" onClick={onCancel}>
-        Cancel
-      </button>
-    </div>
+    </Modal>
   );
 }

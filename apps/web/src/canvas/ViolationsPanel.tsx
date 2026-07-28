@@ -1,3 +1,5 @@
+import { Icon } from '../ui/Icon';
+
 export interface Violation {
   elementId: string;
   rule: string;
@@ -17,20 +19,36 @@ export interface ViolationsPanelProps {
 export function ViolationsPanel({ violations }: ViolationsPanelProps) {
   if (violations.length === 0) {
     return (
-      <p data-testid="violations-panel-empty" style={{ color: '#2e7d32' }}>
-        No standards violations.
-      </p>
+      <div className="panel">
+        <div className="panel__body">
+          <p className="state state--success" data-testid="violations-panel-empty">
+            <Icon name="check" className="state__icon" />
+            No standards violations.
+          </p>
+        </div>
+      </div>
     );
   }
   return (
-    <div data-testid="violations-panel" role="status">
-      <p>
-        {violations.length} standards violation{violations.length === 1 ? '' : 's'}:
-      </p>
-      <ul>
+    <div className="panel" data-testid="violations-panel" role="status">
+      <div className="panel__header">
+        {violations.length} standards violation{violations.length === 1 ? '' : 's'}
+      </div>
+      <ul className="panel__body panel__body--flush violation-list">
         {violations.map((violation, index) => (
-          <li key={index} data-testid="violation-item" data-element-id={violation.elementId} data-rule={violation.rule}>
-            <strong>{violation.elementId}</strong> ({violation.rule}): {violation.message}
+          <li
+            key={index}
+            className="violation"
+            data-testid="violation-item"
+            data-element-id={violation.elementId}
+            data-rule={violation.rule}
+          >
+            <Icon name="warning" className="violation__icon" />
+            <span>
+              <span className="mono">{violation.elementId}</span>
+              <span className="section-label violation__rule">{violation.rule}</span>
+              <span className="violation__message">{violation.message}</span>
+            </span>
           </li>
         ))}
       </ul>
