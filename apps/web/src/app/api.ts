@@ -145,6 +145,38 @@ export interface DeletedDiagramDto {
   deletedAt: string;
 }
 
+export interface AiPersonaDto {
+  id: string;
+  name: string;
+  category: string;
+  systemPrompt: string;
+  status: 'active' | 'archived';
+}
+
+export interface ToolCallOutcomeDto {
+  tool: string;
+  applied: boolean;
+  reason?: string;
+}
+
+export interface ChatMessageDto {
+  id: string;
+  role: 'user' | 'assistant';
+  content: string;
+  toolCalls: ToolCallOutcomeDto[] | null;
+  createdAt: string;
+}
+
+export interface SendChatMessageResultDto {
+  assistantMessage: string;
+  updatedDslContent: string;
+  toolCalls: ToolCallOutcomeDto[];
+}
+
+export interface AiSettingsDto {
+  chatEnabled: boolean;
+}
+
 export const api = {
   me: () => request<{ user: SessionUser }>('/auth/me'),
   login: (email: string, password: string) =>
@@ -195,4 +227,16 @@ export const api = {
   deleteDiagram: (id: string) => request<void>(`/diagrams/${id}`, { method: 'DELETE' }),
   listDeletedDiagrams: () => request<{ diagrams: DeletedDiagramDto[] }>('/admin/deleted-diagrams'),
   restoreDiagram: (id: string) => request<{ diagram: DiagramDto }>(`/diagrams/${id}/restore`, { method: 'POST' }),
+  listAiPersonas: () => request<{ personas: AiPersonaDto[] }>('/ai-personas'),
+  listAllAiPersonas: () => request<{ personas: AiPersonaDto[] }>('/admin/ai-personas'),
+  createAiPersona: (body: { name: string; category: string; systemPrompt: string }) =>
+    request<{ persona: AiPersonaDto }>('/admin/ai-personas', { method: 'POST', body: JSON.stringify(body) }),
+  updateAiPersona: (id: string, body: { name?: string; category?: string; systemPrompt?: string }) =>
+    request<{ persona: AiPersonaDto }>(`/admin/ai-personas/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
+  archiveAiPersona: (id: string) => request<{ persona: AiPersonaDto }>(`/admin/ai-personas/${id}/archive`, { method: 'POST' }),
+  sendChatMessage: (diagramId: string, body: { message: string; currentDslContent: string; personaId?: string }) =>
+    request<SendChatMessageResultDto>(`/diagrams/${diagramId}/chat/messages`, { method: 'POST', body: JSON.stringify(body) }),
+  getChatMessages: (diagramId: string) => request<{ messages: ChatMessageDto[] }>(`/diagrams/${diagramId}/chat/messages`),
+  getAiSettings: () => request<AiSettingsDto>('/admin/ai-settings'),
+  setAiSettings: (body: AiSettingsDto) => request<AiSettingsDto>('/admin/ai-settings', { method: 'PATCH', body: JSON.stringify(body) }),
 };

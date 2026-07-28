@@ -1,5 +1,14 @@
 import { useCallback, useRef, useState } from 'react';
-import { removeNode, updateEdgeLabel, updateNodeLabel, type DiagramModel, type DiagramNode, type NodeShape } from '@canvas/diagram-core';
+import {
+  addEdge,
+  addNode,
+  removeNode,
+  updateEdgeLabel,
+  updateNodeLabel,
+  type DiagramModel,
+  type DiagramNode,
+  type NodeShape,
+} from '@canvas/diagram-core';
 import { ADDABLE_SHAPES, nodeSize, renderNodeShape } from './shapes';
 import { ConfirmDialog } from './ConfirmDialog';
 
@@ -8,11 +17,6 @@ export interface CanvasProps {
   onChange: (model: DiagramModel) => void;
 }
 
-let nodeIdCounter = 0;
-function nextNodeId(): string {
-  nodeIdCounter += 1;
-  return `n${Date.now().toString(36)}${nodeIdCounter}`;
-}
 let containerIdCounter = 0;
 function nextContainerId(): string {
   containerIdCounter += 1;
@@ -44,15 +48,8 @@ export function Canvas({ model, onChange }: CanvasProps) {
     [model, onChange],
   );
 
-  const addNode = (shape: NodeShape) => {
-    const index = model.nodes.length;
-    const node: DiagramNode = {
-      id: nextNodeId(),
-      label: 'New Node',
-      shape,
-      position: { x: 40 + (index % 5) * 160, y: 40 + Math.floor(index / 5) * 120 },
-    };
-    onChange({ ...model, nodes: [...model.nodes, node] });
+  const handleAddShape = (shape: NodeShape) => {
+    onChange(addNode(model, { shape }));
   };
 
   const toClientPoint = (event: React.PointerEvent): { x: number; y: number } => {
@@ -68,10 +65,7 @@ export function Canvas({ model, onChange }: CanvasProps) {
       if (!connectSourceId) {
         setConnectSourceId(node.id);
       } else if (connectSourceId !== node.id) {
-        onChange({
-          ...model,
-          edges: [...model.edges, { id: `e${Date.now().toString(36)}`, sourceId: connectSourceId, targetId: node.id }],
-        });
+        onChange(addEdge(model, { sourceId: connectSourceId, targetId: node.id }));
         setConnectSourceId(null);
         setConnectMode(false);
       }
@@ -172,7 +166,7 @@ export function Canvas({ model, onChange }: CanvasProps) {
     <div tabIndex={0} onKeyDown={handleKeyDown} data-testid="canvas-root">
       <div role="toolbar" aria-label="Diagram tools">
         {ADDABLE_SHAPES.map(({ shape, label }) => (
-          <button key={shape} type="button" data-testid={`add-shape-${shape}`} onClick={() => addNode(shape)}>
+          <button key={shape} type="button" data-testid={`add-shape-${shape}`} onClick={() => handleAddShape(shape)}>
             Add {label}
           </button>
         ))}

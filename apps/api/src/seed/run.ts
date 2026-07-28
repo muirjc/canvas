@@ -3,6 +3,7 @@ import { hashPassword } from '../auth/password.js';
 import { runMigrations } from '../db/migrate.js';
 import { seedDiagramTypes } from './diagram-types.seed.js';
 import { seedLibraries } from './libraries.seed.js';
+import { seedAiPersonas } from './ai-personas.seed.js';
 
 /**
  * Seeds a minimal dev/demo dataset: the full built-in DiagramType catalog, the bundled Icon/Shape
@@ -15,6 +16,7 @@ async function seed(): Promise<void> {
 
   await seedDiagramTypes();
   await seedLibraries();
+  await seedAiPersonas();
 
   async function ensureUser(name: string, email: string, role: 'admin' | 'architect', password: string): Promise<string> {
     const { rows: existing } = await pool.query<{ id: string }>('SELECT id FROM users WHERE email = $1', [email]);
