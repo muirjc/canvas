@@ -5,6 +5,9 @@ on:
     branches: [main]
   pull_request:
 
+permissions:
+  contents: read
+
 env:
   NODE_VERSION: '22'
 
@@ -123,3 +126,99 @@ jobs:
           name: playwright-report
           path: apps/web/playwright-report/
           retention-days: 7
+
+  # ---------------------------------------------------------------------------
+  # Security scanning. These run in parallel with the build/test jobs rather than
+  # after them, so they add no wall-clock time to the pipeline.
+  #
+  # Gating policy differs per tool, chosen from what each actually reports on this
+  # codebase rather than a blanket setting:
+  #   - gitleaks: any finding fails. A committed secret is never acceptable, and
+  #     the repository is currently clean, so this bar costs nothing to hold.
+  #   - semgrep:  ERROR-severity findings fail; WARNING is reported. There are
+  #     currently 0 errors and 13 warnings (mutable action tags, direct response
+  #     writes) — advisory, not defects.
+  #   - bearer:   CRITICAL fails; high/medium/low are reported. The one HIGH today
+  #     is manual XML escaping in the SVG renderer, verified safe (every escaped
+  #     value lands in a double-quoted attribute or text content), and the one
+  #     MEDIUM is a false positive — the session cookie already sets httpOnly,
+  #     sameSite and secure.
+  #
+  # All three also upload SARIF, so findings appear in the repository's Security
+  # tab with history, not only in a job log that scrolls away.
+  # ---------------------------------------------------------------------------
+
+  secret-scan:
+    name: secret-scan
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # Full history: a secret that was committed and later removed is still
+          # exposed, so scanning only the tip would miss the cases that matter most.
+          fetch-depth: 0
+      - name: Gitleaks
+        run: |
+          docker run --rm -v "$PWD:/repo" -w /repo \
+            zricethezav/gitleaks:latest detect \
+            --source=. --no-banner --redact --exit-code 1
+
+  sast-semgrep:
+    name: sast-semgrep
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+    container:
+      image: semgrep/semgrep
+    steps:
+      - uses: actions/checkout@v4
+      - name: Semgrep scan (all severities, for the Security tab)
+        run: |
+          semgrep scan \
+            --config=p/typescript --config=p/react \
+            --config=p/security-audit --config=p/owasp-top-ten \
+            --exclude=node_modules --exclude=dist \
+            --exclude=playwright-report --exclude=test-results \
+            --metrics=off --sarif --output=semgrep.sarif
+      - name: Upload SARIF
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: semgrep.sarif
+          category: semgrep
+      - name: Fail on ERROR-severity findings
+        run: |
+          semgrep scan \
+            --config=p/typescript --config=p/react \
+            --config=p/security-audit --config=p/owasp-top-ten \
+            --exclude=node_modules --exclude=dist \
+            --exclude=playwright-report --exclude=test-results \
+            --metrics=off --severity=ERROR --error
+
+  sast-bearer:
+    name: sast-bearer
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Bearer scan (all severities, for the Security tab)
+        uses: bearer/bearer-action@v2
+        with:
+          skip-path: node_modules,dist,playwright-report,test-results
+          format: sarif
+          output: bearer.sarif
+          exit-code: 0
+      - name: Upload SARIF
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: bearer.sarif
+          category: bearer
+      - name: Fail on critical findings
+        uses: bearer/bearer-action@v2
+        with:
+          skip-path: node_modules,dist,playwright-report,test-results
+          severity: critical
