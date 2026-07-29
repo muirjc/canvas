@@ -1,9 +1,11 @@
-import { useEffect, useState } from 'react';
-import { api, type DiagramDto, type SessionUser } from './api';
+import { useCallback, useEffect, useState } from 'react';
+import { api, type DiagramDto, type ProjectDto, type SessionUser } from './api';
 import { LoginForm } from './LoginForm';
 import { AppShell } from './AppShell';
 import { DiagramEditor } from './DiagramEditor';
 import { NewDiagramDialog } from './NewDiagramDialog';
+import { ProjectPicker } from './ProjectPicker';
+import { readProjectIdFromUrl, syncProjectIdToUrl, withProjectContext } from './project-context';
 import { StandardsEditor } from '../admin/StandardsEditor';
 import { UsersPage } from '../admin/UsersPage';
 import { AdminOverview } from '../admin/AdminOverview';
@@ -15,12 +17,6 @@ import { PersonaAdminPage } from '../ai/PersonaAdminPage';
 import { Icon } from '../ui/Icon';
 import { AdminShell } from '../ui/AdminShell';
 
-// The root project to browse/create diagrams in is supplied via a query param — a full
-// multi-project chooser is out of scope for this reference implementation.
-function getProjectIdFromUrl(): string | null {
-  return new URLSearchParams(window.location.search).get('projectId');
-}
-
 export function App() {
   const [user, setUser] = useState<SessionUser | null>(null);
   const [checkedSession, setCheckedSession] = useState(false);
@@ -30,6 +26,15 @@ export function App() {
   const [creatingViaChat, setCreatingViaChat] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // The project the user is working in. Seeded from the address so existing links keep working
+  // (FR-016), then held in application state so navigation cannot discard it (FR-005) — which is
+  // the whole defect this feature fixes.
+  const [projectId, setProjectId] = useState<string | null>(() => readProjectIdFromUrl());
+  const [projects, setProjects] = useState<ProjectDto[] | null>(null);
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+  const [pendingProjectId, setPendingProjectId] = useState<string | null>(null);
+  const [creatingProject, setCreatingProject] = useState(false);
+
   useEffect(() => {
     api
       .me()
@@ -38,13 +43,68 @@ export function App() {
       .finally(() => setCheckedSession(true));
   }, []);
 
-  const createDiagram = async (diagramTypeId: string) => {
-    setPickingType(false);
-    const projectId = getProjectIdFromUrl();
-    if (!projectId) {
-      setError('Missing ?projectId= in the URL — create a project first (User Story 4).');
+  // Resolve which project to work in, once we know who the user is: the one the address names if
+  // it is actually available to them, else the only one they have, else the first. Never invent
+  // one (FR-015).
+  useEffect(() => {
+    if (!user) return;
+    let cancelled = false;
+    api
+      .listProjects()
+      .then(({ projects: available }) => {
+        if (cancelled) return;
+        setProjects(available);
+        setProjectId((current) => {
+          if (current && available.some((p) => p.id === current)) return current;
+          if (current) {
+            // An address naming a project that is gone, or was never theirs. Say so and leave
+            // them somewhere usable rather than on a dead screen (FR-013).
+            setError('That project is not available to you. Showing your projects instead.');
+          }
+          return available[0]?.id ?? null;
+        });
+      })
+      .catch((err) => {
+        if (!cancelled) setError((err as Error).message);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [user]);
+
+  // Keep the address naming the project in view so a copied link opens it (FR-011), without
+  // adding a history entry per switch (FR-012).
+  useEffect(() => {
+    if (projects === null) return; // don't strip a valid id from the address before it is checked
+    syncProjectIdToUrl(projectId);
+  }, [projectId, projects]);
+
+  const handleUnsavedChangesChange = useCallback((dirty: boolean) => setHasUnsavedChanges(dirty), []);
+
+  const applyProjectChange = (nextProjectId: string) => {
+    setProjectId(nextProjectId);
+    setDiagram(null);
+    setError(null);
+  };
+
+  const requestProjectChange = (nextProjectId: string) => {
+    if (nextProjectId === projectId) return;
+    // Never discard unsaved work silently (FR-013d).
+    if (diagram && hasUnsavedChanges) {
+      setPendingProjectId(nextProjectId);
       return;
     }
+    applyProjectChange(nextProjectId);
+  };
+
+  const createDiagram = async (diagramTypeId: string) => {
+    // The guard runs BEFORE the picker closes. It used to run after, so a failure threw away the
+    // diagram type the user had just chosen and made them pick again (FR-003).
+    if (!projectId) {
+      setError('Choose or create a project first.');
+      return;
+    }
+    setPickingType(false);
     try {
       const { diagram } = await api.createDiagram(projectId, { name: 'Untitled Diagram', diagramTypeId });
       setDiagram(diagram);
@@ -62,8 +122,19 @@ export function App() {
     }
   };
 
+  const createFirstProject = async (name: string) => {
+    try {
+      const { project } = await api.createProject({ name });
+      setProjects((current) => [...(current ?? []), project]);
+      setProjectId(project.id);
+      setCreatingProject(false);
+      setError(null);
+    } catch (err) {
+      setError((err as Error).message);
+    }
+  };
+
   const adminParam = new URLSearchParams(window.location.search).get('admin');
-  const projectId = getProjectIdFromUrl();
 
   if (!checkedSession) return <p>Loading…</p>;
   if (!user) return <LoginForm onSuccess={(loggedInUser) => setUser(loggedInUser)} />;
@@ -75,7 +146,11 @@ export function App() {
     setImporting(false);
     setCreatingViaChat(false);
     setError(null);
+    setProjects(null);
+    setProjectId(null);
   };
+
+  const hasNoProjects = projects !== null && projects.length === 0;
 
   let content: React.ReactNode;
   if (adminParam && user.role === 'admin') {
@@ -93,47 +168,72 @@ export function App() {
       </AdminShell>
     );
   } else if (diagram) {
-    content = <DiagramEditor diagram={diagram} />;
+    content = <DiagramEditor diagram={diagram} onUnsavedChangesChange={handleUnsavedChangesChange} />;
   } else {
     content = (
       <main className="page">
         <h1 className="page__title">Diagrams</h1>
-        <div className="home__actions">
-          <button type="button" className="btn btn--primary" data-testid="new-diagram" onClick={() => setPickingType(true)}>
-            <Icon name="plus" />
-            New Diagram
-          </button>
-          <button
-            type="button"
-            className="btn btn--secondary"
-            data-testid="import-diagram-button"
-            onClick={() => {
-              if (!projectId) {
-                setError('Missing ?projectId= in the URL — create a project first (User Story 4).');
-                return;
-              }
-              setImporting(true);
-            }}
-          >
-            <Icon name="download" />
-            Import Diagram
-          </button>
-          <button
-            type="button"
-            className="btn btn--secondary"
-            data-testid="create-via-ai-chat"
-            onClick={() => {
-              if (!projectId) {
-                setError('Missing ?projectId= in the URL — create a project first (User Story 4).');
-                return;
-              }
-              setCreatingViaChat(true);
-            }}
-          >
-            <Icon name="sparkle" />
-            Create with AI
-          </button>
-        </div>
+
+        {hasNoProjects ? (
+          /* No projects: invite, never invent. Reachable two ways — an empty installation, and a
+             user who owns nothing and has been given nothing, which is newly possible now that
+             visibility is access-controlled (FR-014, FR-015). */
+          <section className="empty-state" data-testid="create-first-project">
+            <p>You do not have any projects yet. Create one to start drawing diagrams.</p>
+            {creatingProject ? (
+              <form
+                onSubmit={(event) => {
+                  event.preventDefault();
+                  const input = new FormData(event.currentTarget).get('projectName');
+                  const name = String(input ?? '').trim();
+                  if (name) void createFirstProject(name);
+                }}
+              >
+                <label htmlFor="new-project-name">Project name</label>{' '}
+                <input id="new-project-name" name="projectName" data-testid="new-project-name" required />{' '}
+                <button type="submit" className="btn btn--primary" data-testid="confirm-create-project">
+                  Create Project
+                </button>
+              </form>
+            ) : (
+              <button
+                type="button"
+                className="btn btn--primary"
+                data-testid="start-create-project"
+                onClick={() => setCreatingProject(true)}
+              >
+                <Icon name="plus" />
+                Create Project
+              </button>
+            )}
+          </section>
+        ) : (
+          <div className="home__actions">
+            <button type="button" className="btn btn--primary" data-testid="new-diagram" onClick={() => setPickingType(true)}>
+              <Icon name="plus" />
+              New Diagram
+            </button>
+            <button
+              type="button"
+              className="btn btn--secondary"
+              data-testid="import-diagram-button"
+              onClick={() => setImporting(true)}
+            >
+              <Icon name="download" />
+              Import Diagram
+            </button>
+            <button
+              type="button"
+              className="btn btn--secondary"
+              data-testid="create-via-ai-chat"
+              onClick={() => setCreatingViaChat(true)}
+            >
+              <Icon name="sparkle" />
+              Create with AI
+            </button>
+          </div>
+        )}
+
         {error && (
           <p role="alert" data-testid="app-error">
             {error}
@@ -143,19 +243,22 @@ export function App() {
         {user.role === 'admin' && (
           <nav className="home__admin" aria-label="Admin">
             <span className="section-label">Admin</span>
-            <a data-testid="admin-overview-link" href="?admin=overview">
+            {/* Built through withProjectContext so the project survives the hop. These links being
+                absolute query-string replacements is exactly how the context was lost — on the way
+                IN to the admin console, one hop before the back link that gets blamed for it. */}
+            <a data-testid="admin-overview-link" href={withProjectContext({ admin: 'overview' }, projectId)}>
               Overview
             </a>
-            <a data-testid="admin-console-link" href="?admin=true">
+            <a data-testid="admin-console-link" href={withProjectContext({ admin: 'true' }, projectId)}>
               Standards
             </a>
-            <a data-testid="admin-users-link" href="?admin=users">
+            <a data-testid="admin-users-link" href={withProjectContext({ admin: 'users' }, projectId)}>
               Users
             </a>
-            <a data-testid="admin-deleted-diagrams-link" href="?admin=deleted">
+            <a data-testid="admin-deleted-diagrams-link" href={withProjectContext({ admin: 'deleted' }, projectId)}>
               Deleted Diagrams
             </a>
-            <a data-testid="admin-ai-personas-link" href="?admin=ai-personas">
+            <a data-testid="admin-ai-personas-link" href={withProjectContext({ admin: 'ai-personas' }, projectId)}>
               AI Personas
             </a>
           </nav>
@@ -165,7 +268,15 @@ export function App() {
   }
 
   return (
-    <AppShell user={user} onSignOut={handleSignOut}>
+    <AppShell
+      user={user}
+      onSignOut={handleSignOut}
+      projectPicker={
+        projects !== null && projects.length > 0 ? (
+          <ProjectPicker projects={projects} currentProjectId={projectId} onSelect={requestProjectChange} />
+        ) : null
+      }
+    >
       {content}
       {/* Dialogs render alongside the current screen rather than replacing it, so the context
           behind them stays visible (FR-016). They are native <dialog> elements opened with
@@ -190,6 +301,30 @@ export function App() {
           }}
           onCancel={() => setCreatingViaChat(false)}
         />
+      )}
+      {pendingProjectId && (
+        <div role="alertdialog" aria-modal="true" aria-label="Unsaved changes" data-testid="project-switch-confirm">
+          <p>This diagram has unsaved changes. Switching project will discard them.</p>
+          <button
+            type="button"
+            className="btn btn--primary"
+            data-testid="confirm-project-switch"
+            onClick={() => {
+              applyProjectChange(pendingProjectId);
+              setPendingProjectId(null);
+            }}
+          >
+            Discard and switch
+          </button>
+          <button
+            type="button"
+            className="btn btn--secondary"
+            data-testid="cancel-project-switch"
+            onClick={() => setPendingProjectId(null)}
+          >
+            Keep editing
+          </button>
+        </div>
       )}
     </AppShell>
   );

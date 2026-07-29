@@ -1,5 +1,6 @@
 import type { FastifyReply, FastifyRequest } from 'fastify';
 import { getPool } from '../db/pool.js';
+import { projectExists, resolveProjectAccess } from '../projects/project.access.js';
 import { accessAtLeast, resolveDiagramAccess, type AccessLevel } from '../sharing/sharing.service.js';
 
 /**
@@ -32,6 +33,52 @@ export function requireDiagramOwnerOrAdmin() {
 
     if (rows[0].owner_id !== user.id && user.role !== 'admin') {
       reply.code(403).send({ error: 'Only this diagram\'s owner or an admin can delete it.' });
+    }
+  };
+}
+
+/**
+ * Enforces a minimum access level on a route that takes a project id (feature 007, FR-013a).
+ * Before this, every such route was guarded by `requireAuth` alone, so any signed-in user could
+ * read any project's entire diagram tree by id.
+ *
+ * `paramName` is REQUIRED and has deliberately no default. The five guarded routes are split
+ * across two parameter names — `/projects/:id` and `/projects/:projectId/diagrams` — so a default
+ * of `'id'` would read `undefined` on three of them, find no project, fall through as
+ * "nonexistent", and leave those routes completely unguarded while every happy-path test stayed
+ * green. An absent parameter is treated as a wiring mistake and fails closed with a 500 rather
+ * than silently allowing the request.
+ *
+ * A nonexistent project id falls through to the route's own 404, for the same reason as
+ * `requireDiagramAccess` above.
+ */
+export function requireProjectAccess(required: AccessLevel, paramName: string) {
+  return async (request: FastifyRequest, reply: FastifyReply): Promise<void> => {
+    const user = request.session.user;
+    if (!user) {
+      reply.code(401).send({ error: 'Authentication required' });
+      return;
+    }
+
+    const projectId = (request.params as Record<string, string | undefined>)[paramName];
+    if (!projectId) {
+      request.log.error(
+        { paramName, params: request.params, url: request.url },
+        'requireProjectAccess was given a parameter name this route does not define — refusing the request rather than letting it through unchecked',
+      );
+      reply.code(500).send({ error: 'Access control is misconfigured for this route.' });
+      return;
+    }
+
+    if (!(await projectExists(projectId))) return; // let the route's own not-found handling fire
+
+    const level = await resolveProjectAccess(user.id, projectId);
+    if (!accessAtLeast(level, required)) {
+      reply.code(403).send({
+        error: level
+          ? `This action requires "${required}" access, but you only have "${level}" access to this project.`
+          : 'You do not have access to this project.',
+      });
     }
   };
 }

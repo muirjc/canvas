@@ -33,8 +33,10 @@ describe('Sharing API contract', () => {
   beforeEach(async () => {
     await resetDatabase();
     await seedFlowchartDiagramType();
-    projectId = (await seedProject()).id;
     ownerId = (await seedUser({ email: 'owner@example.com', password: 'owner-pass' })).id;
+    // Owned by the acting user: projects became access-controlled in feature 007, so a
+    // fixture project must name who works in it.
+    projectId = (await seedProject('Test Project', ownerId)).id;
     granteeId = (await seedUser({ email: 'grantee@example.com', password: 'grantee-pass' })).id;
     ownerCookie = await login('owner@example.com', 'owner-pass');
     granteeCookie = await login('grantee@example.com', 'grantee-pass');

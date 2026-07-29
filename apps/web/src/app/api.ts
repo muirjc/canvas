@@ -216,6 +216,8 @@ export const api = {
   createProject: (body: { name: string; parentProjectId?: string }) =>
     request<{ project: ProjectDto }>('/projects', { method: 'POST', body: JSON.stringify(body) }),
   getProjectTree: (id: string) => request<{ tree: ProjectTreeNodeDto }>(`/projects/${id}/tree`),
+  /** Projects available to the signed-in user — owned or shared (feature 007, FR-013a). */
+  listProjects: () => request<{ projects: ProjectDto[] }>('/projects'),
   listDiagramVersions: (diagramId: string, options: { limit?: number; q?: string } = {}) => {
     const params = new URLSearchParams();
     if (options.limit !== undefined) params.set('limit', String(options.limit));

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { createEmptyDiagramModel, getDslFamily, isParseSuccess, type DiagramModel } from '@canvas/diagram-core';
 import { Canvas } from '../canvas/Canvas';
 import { DslPanel } from '../canvas/DslPanel';
@@ -21,6 +21,11 @@ function nextIconNodeId(): string {
 
 export interface DiagramEditorProps {
   diagram: DiagramDto;
+  /**
+   * Reports whether the open diagram has edits that have not been saved, so the shell can warn
+   * before a project switch discards them (feature 007, FR-013d).
+   */
+  onUnsavedChangesChange?: (hasUnsavedChanges: boolean) => void;
 }
 
 function initialModelFromDsl(diagram: DiagramDto): DiagramModel {
@@ -32,7 +37,7 @@ function initialModelFromDsl(diagram: DiagramDto): DiagramModel {
   return isParseSuccess(result) ? result.model : createEmptyDiagramModel(diagram.diagramTypeId);
 }
 
-export function DiagramEditor({ diagram: initialDiagram }: DiagramEditorProps) {
+export function DiagramEditor({ diagram: initialDiagram, onUnsavedChangesChange }: DiagramEditorProps) {
   const [diagram, setDiagram] = useState(initialDiagram);
   const [model, setModel] = useState<DiagramModel>(() => initialModelFromDsl(diagram));
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
@@ -44,11 +49,33 @@ export function DiagramEditor({ diagram: initialDiagram }: DiagramEditorProps) {
   const [toolbarContainer, setToolbarContainer] = useState<HTMLDivElement | null>(null);
   const { dsl, parseErrors, applyDsl } = useDslSync(model, setModel, diagram.dslFamily);
 
+  // Unsaved-change detection (feature 007, FR-013d). `saveStatus` above is REQUEST state — it
+  // never becomes "dirty" when the model changes — so there was previously no way to answer
+  // "would switching project lose this user's work".
+  //
+  // The baseline is the first SERIALIZED dsl, not `diagram.dslContent`. Parsing and re-serializing
+  // can normalise whitespace and ordering, so comparing against the stored text would report every
+  // freshly opened diagram as dirty and nag on every switch. Comparing serialized to serialized
+  // reports only real edits.
+  const initialDslRef = useRef<string | null>(null);
+  if (initialDslRef.current === null) initialDslRef.current = dsl;
+  const [lastSavedDsl, setLastSavedDsl] = useState<string | null>(null);
+  const hasUnsavedChanges = dsl !== (lastSavedDsl ?? initialDslRef.current);
+
+  useEffect(() => {
+    onUnsavedChangesChange?.(hasUnsavedChanges);
+  }, [hasUnsavedChanges, onUnsavedChangesChange]);
+
+  // Leaving the editor must not leave a stale "unsaved" flag behind on the shell.
+  useEffect(() => () => onUnsavedChangesChange?.(false), [onUnsavedChangesChange]);
+
   const handleRestored = async () => {
     const { diagram: restored } = await api.getDiagram(diagram.id);
     setDiagram(restored);
     setModel(initialModelFromDsl(restored));
     setViolations(restored.lastValidationResult);
+    setLastSavedDsl(null);
+    initialDslRef.current = null;
   };
 
   const handleSelectIcon = (icon: IconDto) => {
@@ -74,6 +101,7 @@ export function DiagramEditor({ diagram: initialDiagram }: DiagramEditorProps) {
       const { diagram: saved } = await api.saveDiagram(diagram.id, dsl);
       setViolations(saved.lastValidationResult);
       setVersionRefreshToken((t) => t + 1);
+      setLastSavedDsl(dsl);
       setSaveStatus('saved');
     } catch {
       setSaveStatus('error');

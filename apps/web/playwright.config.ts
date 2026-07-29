@@ -8,6 +8,10 @@ export default defineConfig({
   // assertions). Sequential is correct here, not a performance workaround, mirroring
   // apps/api/vitest.config.ts's fileParallelism: false for the same reason.
   workers: 1,
+  // CI already has an "Upload Playwright report" step pointing at playwright-report/, but nothing
+  // was producing that directory — the default reporter writes no HTML. With this, the artifact
+  // that step uploads actually contains the failure screenshots and traces.
+  reporter: process.env.CI ? [['list'], ['html', { open: 'never' }]] : 'list',
   webServer: {
     command: 'npm run dev',
     url: 'http://localhost:5173',
@@ -15,5 +19,10 @@ export default defineConfig({
   },
   use: {
     baseURL: 'http://localhost:5173',
+    // Kept on permanently, not just while chasing one bug: this suite is the only coverage
+    // apps/web has, and a failure that reproduces in CI but not locally is otherwise undiagnosable
+    // from the log alone — the log shows which locator timed out, never what the page contained.
+    trace: 'retain-on-failure',
+    screenshot: 'only-on-failure',
   },
 });

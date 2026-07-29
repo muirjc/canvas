@@ -61,11 +61,18 @@ export async function seedFlowchartDiagramType(): Promise<void> {
   );
 }
 
-export async function seedProject(name = 'Test Project'): Promise<{ id: string }> {
+/**
+ * `ownerId` became required with feature 007 (`projects.owner_id` is NOT NULL). Callers that
+ * don't care who owns the project may omit it, in which case any existing user is used — seeding
+ * a user first is a precondition of every caller anyway.
+ */
+export async function seedProject(name = 'Test Project', ownerId?: string): Promise<{ id: string }> {
   const pool = getPool();
+  const owner = ownerId ?? (await pool.query<{ id: string }>('SELECT id FROM users ORDER BY created_at LIMIT 1')).rows[0]?.id;
+  if (!owner) throw new Error('seedProject needs a user to own the project — call seedUser first.');
   const { rows } = await pool.query<{ id: string }>(
-    'INSERT INTO projects (name) VALUES ($1) RETURNING id',
-    [name],
+    'INSERT INTO projects (name, owner_id) VALUES ($1, $2) RETURNING id',
+    [name, owner],
   );
   return rows[0];
 }

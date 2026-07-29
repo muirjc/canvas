@@ -35,16 +35,31 @@ async function seed(): Promise<void> {
     return rows[0].id;
   }
 
-  await ensureUser('Admin', 'admin@example.com', 'admin', 'admin-dev-password');
-  await ensureUser('Architect', 'architect@example.com', 'architect', 'architect-dev-password');
+  const adminId = await ensureUser('Admin', 'admin@example.com', 'admin', 'admin-dev-password');
+  const architectId = await ensureUser('Architect', 'architect@example.com', 'architect', 'architect-dev-password');
 
   const { rows: existingProjects } = await pool.query('SELECT id FROM projects WHERE name = $1', [
     'Smoke Test',
   ]);
   const projectId = existingProjects[0]
     ? existingProjects[0].id
-    : (await pool.query<{ id: string }>("INSERT INTO projects (name) VALUES ('Smoke Test') RETURNING id"))
-        .rows[0].id;
+    : (
+        await pool.query<{ id: string }>(
+          "INSERT INTO projects (name, owner_id) VALUES ('Smoke Test', $1) RETURNING id",
+          [adminId],
+        )
+      ).rows[0].id;
+
+  // The architect needs an explicit grant now that project visibility follows ownership
+  // (feature 007, FR-013a). Without this the seeded environment has a signed-in user who can see
+  // no projects at all and therefore cannot do anything — which is exactly what the backfill
+  // produces for every non-owner on a real installation, so it is worth seeing in dev.
+  await pool.query(
+    `INSERT INTO share_grants (subject_type, subject_id, grantee_user_id, access_level, granted_by_user_id)
+     VALUES ('project', $1, $2, 'edit', $3)
+     ON CONFLICT (subject_type, subject_id, grantee_user_id) DO NOTHING`,
+    [projectId, architectId, adminId],
+  );
 
   console.log('Seed complete.');
   console.log(`  Admin login: admin@example.com / admin-dev-password`);

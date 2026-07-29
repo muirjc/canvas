@@ -32,8 +32,10 @@ describe('Import API contract', () => {
          ('c4-context', 'C4 Context', ARRAY['Technical'], 'Context', 'c4', ARRAY['c4-notation']),
          ('sequence', 'Sequence Diagram', ARRAY['Solution','Technical'], 'N/A', 'sequence', ARRAY['generic'])`,
     );
-    projectId = (await seedProject()).id;
-    await seedUser({ email: 'architect@example.com', password: 'architect-pass' });
+    const architect = await seedUser({ email: 'architect@example.com', password: 'architect-pass' });
+    // Owned by the acting user: projects became access-controlled in feature 007, so a
+    // fixture project must name who works in it.
+    projectId = (await seedProject('Test Project', architect.id)).id;
     const response = await app.inject({
       method: 'POST',
       url: '/auth/local/login',
