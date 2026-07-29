@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react';
+import { withProjectContext } from '../app/project-context';
 import { Icon } from './Icon';
 
 /** The five admin destinations, in the order they appear in the navigation. `param` is the
@@ -52,7 +53,9 @@ export function AdminShell({ activeParam, projectId, children }: AdminShellProps
                 <a
                   className="admin-nav__link"
                   data-testid={`admin-nav-${destination.id}`}
-                  href={`?admin=${destination.param}`}
+                  // One template renders all five destinations, so carrying the project through
+                  // here covers every admin-to-admin hop (feature 007, FR-005).
+                  href={withProjectContext({ admin: destination.param }, projectId ?? null)}
                   // Exposes the current destination to assistive technology, not by colour alone.
                   aria-current={isActive ? 'page' : undefined}
                 >

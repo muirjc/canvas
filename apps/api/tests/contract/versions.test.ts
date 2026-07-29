@@ -24,8 +24,10 @@ describe('Diagram versions API contract', () => {
   beforeEach(async () => {
     await resetDatabase();
     await seedFlowchartDiagramType();
-    projectId = (await seedProject()).id;
-    await seedUser({ email: 'architect@example.com', password: 'architect-pass' });
+    const architect = await seedUser({ email: 'architect@example.com', password: 'architect-pass' });
+    // Owned by the acting user: projects became access-controlled in feature 007, so a
+    // fixture project must name who works in it.
+    projectId = (await seedProject('Test Project', architect.id)).id;
     const response = await app.inject({
       method: 'POST',
       url: '/auth/local/login',
@@ -123,8 +125,10 @@ describe('Diagram version listing: default cap and search', () => {
   beforeEach(async () => {
     await resetDatabase();
     await seedFlowchartDiagramType();
-    projectId = (await seedProject()).id;
-    await seedUser({ email: 'architect@example.com', password: 'architect-pass' });
+    const architect = await seedUser({ email: 'architect@example.com', password: 'architect-pass' });
+    // Owned by the acting user: projects became access-controlled in feature 007, so a
+    // fixture project must name who works in it.
+    projectId = (await seedProject('Test Project', architect.id)).id;
     const response = await app.inject({
       method: 'POST',
       url: '/auth/local/login',

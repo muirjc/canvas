@@ -17,6 +17,7 @@ describe('Standards API contract', () => {
   let app: FastifyInstance;
   let adminCookie: string;
   let architectCookie: string;
+  let architectId: string;
 
   beforeAll(async () => {
     app = await buildTestApp();
@@ -38,7 +39,7 @@ describe('Standards API contract', () => {
     await resetDatabase();
     await seedFlowchartDiagramType();
     await seedUser({ email: 'admin@example.com', password: 'admin-pass', role: 'admin' });
-    await seedUser({ email: 'architect@example.com', password: 'architect-pass', role: 'architect' });
+    architectId = (await seedUser({ email: 'architect@example.com', password: 'architect-pass', role: 'architect' })).id;
     adminCookie = await login('admin@example.com', 'admin-pass');
     architectCookie = await login('architect@example.com', 'architect-pass');
   });
@@ -168,7 +169,8 @@ describe('Standards API contract', () => {
 
     // Project creation is User Story 4's concern; seed one directly here so this test only
     // exercises User Story 1 + 2 behavior.
-    const project = await seedProject();
+    // Owned by the architect who acts on it: projects became access-controlled in feature 007.
+    const project = await seedProject('Test Project', architectId);
 
     const createResponse = await app.inject({
       method: 'POST',

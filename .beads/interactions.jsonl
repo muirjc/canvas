@@ -1,0 +1,1 @@
+{"id":"int-374ec789e8860684c814cf9a2b147223","kind":"field_change","created_at":"2026-07-29T13:32:11.205633144Z","actor":"muir.jc@gmail.com","issue_id":"canvas-xyl","extra":{"field":"status","new_value":"closed","old_value":"open","reason":"Fixed in feature 007-project-context; reproduction tests pass unmodified."}}

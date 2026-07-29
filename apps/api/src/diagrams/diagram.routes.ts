@@ -1,6 +1,6 @@
 import type { FastifyInstance, FastifyReply } from 'fastify';
 import { requireAuth, requireRole } from '../auth/middleware.js';
-import { requireDiagramAccess, requireDiagramOwnerOrAdmin } from '../auth/access-control.middleware.js';
+import { requireDiagramAccess, requireDiagramOwnerOrAdmin, requireProjectAccess } from '../auth/access-control.middleware.js';
 import {
   createDiagram,
   deleteDiagram,
@@ -40,29 +40,33 @@ export async function registerDiagramRoutes(app: FastifyInstance): Promise<void>
   app.post<{
     Params: { projectId: string };
     Body: { name: string; diagramTypeId: string; initialDslContent?: string };
-  }>('/projects/:projectId/diagrams', { preHandler: requireAuth }, async (request, reply) => {
-    const { name, diagramTypeId, initialDslContent } = request.body;
-    if (!name || !diagramTypeId) {
-      reply.code(400).send({ error: 'name and diagramTypeId are required' });
-      return;
-    }
-    try {
-      const diagram = await createDiagram({
-        name,
-        diagramTypeId,
-        projectId: request.params.projectId,
-        ownerId: request.session.user!.id,
-        initialDslContent,
-      });
-      reply.code(201).send({ diagram });
-    } catch (error) {
-      handleServiceError(error, reply);
-    }
-  });
+  }>(
+    '/projects/:projectId/diagrams',
+    { preHandler: [requireAuth, requireProjectAccess('edit', 'projectId')] },
+    async (request, reply) => {
+      const { name, diagramTypeId, initialDslContent } = request.body;
+      if (!name || !diagramTypeId) {
+        reply.code(400).send({ error: 'name and diagramTypeId are required' });
+        return;
+      }
+      try {
+        const diagram = await createDiagram({
+          name,
+          diagramTypeId,
+          projectId: request.params.projectId,
+          ownerId: request.session.user!.id,
+          initialDslContent,
+        });
+        reply.code(201).send({ diagram });
+      } catch (error) {
+        handleServiceError(error, reply);
+      }
+    },
+  );
 
   app.get<{ Params: { projectId: string }; Querystring: { query?: string; type?: string } }>(
     '/projects/:projectId/diagrams',
-    { preHandler: requireAuth },
+    { preHandler: [requireAuth, requireProjectAccess('view', 'projectId')] },
     async (request, reply) => {
       const diagrams = await searchDiagrams({
         projectId: request.params.projectId,

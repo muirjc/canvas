@@ -1,6 +1,6 @@
 # canvas Development Guidelines
 
-Auto-generated from all feature plans. Last updated: 2026-07-28
+Auto-generated from all feature plans. Last updated: 2026-07-29
 
 ## Active Technologies
 - No new technology added in 005-modern-ui-redesign — a frontend-only visual redesign in
@@ -21,6 +21,8 @@ Auto-generated from all feature plans. Last updated: 2026-07-28
 - No new technology added in 006-authoring-admin-console — zero runtime dependencies added. One
   additive Postgres migration on `standards` (`name`, `description`, `retired_at`) plus a backfill;
   seven new pure container operations in `packages/diagram-core`.
+- No new technology added in 007-project-context — zero runtime dependencies added. One additive
+  Postgres migration on `projects` (`owner_id`) plus a backfill; no new package or service.
 
 ## Project Structure
 
@@ -41,6 +43,12 @@ tests are NON-NEGOTIABLE and must exist (and fail) before implementing any diagr
 work — see `.specify/memory/constitution.md` Principle IV.
 
 ## Recent Changes
+- 007-project-context: The project a user works in becomes real application state with an
+  in-app chooser, instead of a query parameter the UI read but never wrote (landing on the root
+  and clicking New Diagram failed outright). Projects gain an `owner_id`, and project visibility
+  becomes access-controlled — closing a pre-existing hole where any signed-in user could read any
+  project's entire diagram tree by id, since no route taking a project id checked more than
+  authentication.
 - 006-authoring-admin-console: Containers become first-class canvas objects (create, name, move,
   resize, drag membership; deleting one releases its shapes) backed by seven new `diagram-core`
   operations; a shared admin shell centres every admin screen and adds persistent navigation; a

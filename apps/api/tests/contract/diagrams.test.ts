@@ -31,9 +31,11 @@ describe('Diagrams API contract', () => {
   beforeEach(async () => {
     await resetDatabase();
     await seedFlowchartDiagramType();
-    const project = await seedProject();
+    const architect = await seedUser({ email: 'architect@example.com', password: 'correct horse battery staple' });
+    // Owned by the acting user: projects became access-controlled in feature 007, so a
+    // fixture project must name who works in it.
+    const project = await seedProject('Test Project', architect.id);
     projectId = project.id;
-    await seedUser({ email: 'architect@example.com', password: 'correct horse battery staple' });
 
     const loginResponse = await app.inject({
       method: 'POST',

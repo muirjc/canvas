@@ -42,8 +42,10 @@ describe('Diagram delete/restore API contract', () => {
   beforeEach(async () => {
     await resetDatabase();
     await seedFlowchartDiagramType();
-    projectId = (await seedProject()).id;
     ownerId = (await seedUser({ email: 'owner@example.com', password: 'owner-pass' })).id;
+    // Owned by the acting user: projects became access-controlled in feature 007, so a
+    // fixture project must name who works in it.
+    projectId = (await seedProject('Test Project', ownerId)).id;
     await seedUser({ email: 'other@example.com', password: 'other-pass' });
     await seedUser({ email: 'admin@example.com', password: 'admin-pass', role: 'admin' });
     ownerCookie = await login('owner@example.com', 'owner-pass');

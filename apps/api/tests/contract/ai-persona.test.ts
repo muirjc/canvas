@@ -70,6 +70,7 @@ describe('Admin persona CRUD API contract', () => {
   let app: FastifyInstance;
   let adminCookie: string;
   let architectCookie: string;
+  let architectId: string;
 
   beforeAll(async () => {
     app = await buildTestApp();
@@ -83,7 +84,7 @@ describe('Admin persona CRUD API contract', () => {
   beforeEach(async () => {
     await resetDatabase();
     await seedUser({ email: 'admin@example.com', password: 'admin-pass', role: 'admin' });
-    await seedUser({ email: 'architect@example.com', password: 'architect-pass' });
+    architectId = (await seedUser({ email: 'architect@example.com', password: 'architect-pass' })).id;
 
     const adminLogin = await app.inject({ method: 'POST', url: '/auth/local/login', payload: { email: 'admin@example.com', password: 'admin-pass' } });
     adminCookie = (Array.isArray(adminLogin.headers['set-cookie']) ? adminLogin.headers['set-cookie'][0] : adminLogin.headers['set-cookie'])!.split(';')[0];
@@ -165,7 +166,8 @@ describe('Admin persona CRUD API contract', () => {
     const id = createResponse.json().persona.id;
 
     await seedFlowchartDiagramType();
-    const projectId = (await seedProject()).id;
+    // Owned by the architect who acts on it: projects became access-controlled in feature 007.
+    const projectId = (await seedProject('Test Project', architectId)).id;
     const diagramResponse = await app.inject({
       method: 'POST',
       url: `/projects/${projectId}/diagrams`,
