@@ -160,9 +160,12 @@ test('switching project with unsaved changes warns, and cancelling keeps the wor
   await page.getByTestId('confirm-new-diagram').click();
   await expect(page.getByTestId('diagram-canvas')).toBeVisible();
 
-  // An actual edit, so there is real work to lose.
+  // An actual edit, so there is real work to lose. Wait for the shape to actually render before
+  // switching: the model drives both the canvas and the unsaved-changes signal, so a visible node
+  // is proof the edit has landed. Clicking straight through can outrun a frame and switch while
+  // the shell still believes nothing has changed — which is what failed in CI but not locally.
   await page.getByTestId('add-shape-rectangle').click();
-  await expect(page.getByTestId('save-status')).not.toHaveText('saved');
+  await expect(page.locator('[data-testid^="node-"]')).toHaveCount(1);
 
   // Switching from the header, without leaving the editor.
   await page.getByTestId('project-picker').selectOption(otherProjectId);
@@ -188,8 +191,10 @@ test('confirming a project switch with unsaved changes does leave the editor', a
   await page.getByTestId('confirm-new-diagram').click();
   await expect(page.getByTestId('diagram-canvas')).toBeVisible();
   await page.getByTestId('add-shape-rectangle').click();
+  await expect(page.locator('[data-testid^="node-"]')).toHaveCount(1);
 
   await page.getByTestId('project-picker').selectOption(otherProjectId);
+  await expect(page.getByTestId('project-switch-confirm')).toBeVisible();
   await page.getByTestId('confirm-project-switch').click();
 
   await expect(page.getByTestId('diagram-canvas')).toHaveCount(0);
