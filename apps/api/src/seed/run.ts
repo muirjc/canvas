@@ -18,7 +18,12 @@ async function seed(): Promise<void> {
   await seedLibraries();
   await seedAiPersonas();
 
-  async function ensureUser(name: string, email: string, role: 'admin' | 'architect', password: string): Promise<string> {
+  async function ensureUser(
+    name: string,
+    email: string,
+    role: 'admin' | 'architect' | 'viewer',
+    password: string,
+  ): Promise<string> {
     const { rows: existing } = await pool.query<{ id: string }>('SELECT id FROM users WHERE email = $1', [email]);
     if (existing[0]) return existing[0].id;
 
@@ -37,6 +42,11 @@ async function seed(): Promise<void> {
 
   const adminId = await ensureUser('Admin', 'admin@example.com', 'admin', 'admin-dev-password');
   const architectId = await ensureUser('Architect', 'architect@example.com', 'architect', 'architect-dev-password');
+  // Deliberately given no project ownership and no project-level grant (feature 008,
+  // research.md §5). Every other seeded user always has some project access — admin owns one,
+  // architect is explicitly granted one below — so neither can stand in for "a user with a
+  // diagram-level grant and zero project access", which is this feature's own primary scenario.
+  await ensureUser('Guest', 'guest@example.com', 'viewer', 'guest-dev-password');
 
   const { rows: existingProjects } = await pool.query('SELECT id FROM projects WHERE name = $1', [
     'Smoke Test',
@@ -64,6 +74,7 @@ async function seed(): Promise<void> {
   console.log('Seed complete.');
   console.log(`  Admin login: admin@example.com / admin-dev-password`);
   console.log(`  Architect login: architect@example.com / architect-dev-password`);
+  console.log(`  Guest login: guest@example.com / guest-dev-password (no project access)`);
   console.log(`  Project id: ${projectId}`);
 }
 

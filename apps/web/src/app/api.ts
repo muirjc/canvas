@@ -127,6 +127,18 @@ export interface ShareGrantDto {
   createdAt: string;
 }
 
+export interface SharedDiagramDto {
+  diagramId: string;
+  diagramName: string;
+  diagramTypeId: string;
+  /** The diagram's immediate containing project only — never an ancestor (feature 008, FR-005). */
+  projectName: string;
+  accessLevel: AccessLevel;
+  sharedByName: string;
+  sharedByEmail: string;
+  sharedAt: string;
+}
+
 export interface UserRecordDto {
   id: string;
   name: string;
@@ -237,6 +249,8 @@ export const api = {
       body: JSON.stringify({ granteeUserId, accessLevel }),
     }),
   listDiagramShares: (diagramId: string) => request<{ grants: ShareGrantDto[] }>(`/diagrams/${diagramId}/shares`),
+  /** Diagrams shared directly with the signed-in user (feature 008, FR-001). */
+  listSharedDiagrams: () => request<{ diagrams: SharedDiagramDto[] }>('/shared-diagrams'),
   revokeShare: (grantId: string) => request<void>(`/shares/${grantId}`, { method: 'DELETE' }),
   listAdminUsers: () => request<{ users: UserRecordDto[] }>('/admin/users'),
   updateAdminUser: (id: string, body: { role?: string; personas?: string[]; active?: boolean }) =>
