@@ -1,5 +1,19 @@
 import { describe, expect, it } from 'vitest';
-import { addNode, addEdge, removeNode, removeEdge, updateNodeLabel, updateEdgeLabel } from '../../src/model/diagram-ops.js';
+import {
+  addNode,
+  addEdge,
+  removeNode,
+  removeEdge,
+  updateNodeLabel,
+  updateEdgeLabel,
+  addContainer,
+  updateContainerLabel,
+  moveContainer,
+  resizeContainer,
+  assignNodeToContainer,
+  removeNodeFromContainer,
+  removeContainer,
+} from '../../src/model/diagram-ops.js';
 import type { DiagramModel } from '../../src/model/diagram-model.js';
 
 /**
@@ -198,5 +212,249 @@ describe('updateEdgeLabel', () => {
     const result = updateEdgeLabel(model, 'e1', 'x');
     expect(result.nodes).toEqual(model.nodes);
     expect(result.containers).toEqual(model.containers);
+  });
+});
+
+/**
+ * Feature 006, User Story 2: container operations.
+ *
+ * Containers were previously assembled inline in the canvas component. These are the pure
+ * operations the canvas, the DSL, and any future AI tool-calling all share — see
+ * specs/006-authoring-admin-console/contracts/diagram-core-container-ops.md.
+ */
+function nestedModel(): DiagramModel {
+  return {
+    diagramTypeId: 'flowchart',
+    nodes: [
+      { id: 'inA', label: 'In A', shape: 'rectangle', position: { x: 50, y: 50 }, containerId: 'outer' },
+      { id: 'inB', label: 'In B', shape: 'rectangle', position: { x: 120, y: 60 }, containerId: 'inner' },
+      { id: 'free', label: 'Free', shape: 'rectangle', position: { x: 500, y: 500 } },
+    ],
+    edges: [{ id: 'e1', sourceId: 'inA', targetId: 'free' }],
+    containers: [
+      { id: 'outer', label: 'Outer', position: { x: 0, y: 0 }, size: { width: 400, height: 300 } },
+      { id: 'inner', label: 'Inner', position: { x: 100, y: 40 }, size: { width: 150, height: 120 }, parentContainerId: 'outer' },
+    ],
+  };
+}
+
+describe('addContainer', () => {
+  it('appends a container with a generated id', () => {
+    const model = baseModel();
+    const result = addContainer(model, {});
+    expect(result.containers).toHaveLength(model.containers.length + 1);
+    const added = result.containers[result.containers.length - 1];
+    expect(added.id).toBeTruthy();
+    expect(result.containers.filter((c) => c.id === added.id)).toHaveLength(1);
+  });
+
+  it('ALWAYS produces a size, even when none is supplied', () => {
+    // The flowchart serializer omits containers without a size, which would silently lose the
+    // container's position on the next parse (data-model.md invariant 1).
+    const added = addContainer(baseModel(), {}).containers.at(-1)!;
+    expect(added.size).toBeDefined();
+    expect(added.size!.width).toBeGreaterThan(0);
+    expect(added.size!.height).toBeGreaterThan(0);
+  });
+
+  it('uses the supplied label, position, and size when given', () => {
+    const added = addContainer(baseModel(), {
+      label: 'Payments Domain',
+      position: { x: 12, y: 34 },
+      size: { width: 222, height: 111 },
+    }).containers.at(-1)!;
+    expect(added.label).toBe('Payments Domain');
+    expect(added.position).toEqual({ x: 12, y: 34 });
+    expect(added.size).toEqual({ width: 222, height: 111 });
+  });
+
+  it('creates no membership and leaves nodes and edges untouched', () => {
+    const model = baseModel();
+    const result = addContainer(model, {});
+    expect(result.nodes).toEqual(model.nodes);
+    expect(result.edges).toEqual(model.edges);
+  });
+});
+
+describe('updateContainerLabel', () => {
+  it('renames only the named container', () => {
+    const result = updateContainerLabel(baseModel(), 'g1', 'Renamed');
+    expect(result.containers.find((c) => c.id === 'g1')!.label).toBe('Renamed');
+  });
+
+  it('rejects an empty label, mirroring updateNodeLabel', () => {
+    expect(() => updateContainerLabel(baseModel(), 'g1', '')).toThrow();
+  });
+
+  it('leaves geometry and membership untouched', () => {
+    const model = baseModel();
+    const result = updateContainerLabel(model, 'g1', 'Renamed');
+    const before = model.containers.find((c) => c.id === 'g1')!;
+    const after = result.containers.find((c) => c.id === 'g1')!;
+    expect(after.position).toEqual(before.position);
+    expect(after.size).toEqual(before.size);
+    expect(result.nodes).toEqual(model.nodes);
+  });
+
+  it('is a no-op for an unknown id', () => {
+    const model = baseModel();
+    expect(updateContainerLabel(model, 'nope', 'x').containers).toEqual(model.containers);
+  });
+});
+
+describe('moveContainer', () => {
+  it('moves the container to the given position', () => {
+    const result = moveContainer(baseModel(), 'g1', { x: 100, y: 100 });
+    expect(result.containers.find((c) => c.id === 'g1')!.position).toEqual({ x: 100, y: 100 });
+  });
+
+  it('moves every member by the same delta, preserving relative positions', () => {
+    const model = baseModel();
+    const before = model.nodes.find((n) => n.id === 'a')!.position;
+    // g1 sits at (-20,-20); moving to (80,30) is a delta of (+100,+50).
+    const result = moveContainer(model, 'g1', { x: 80, y: 30 });
+    const after = result.nodes.find((n) => n.id === 'a')!.position;
+    expect(after).toEqual({ x: before.x + 100, y: before.y + 50 });
+  });
+
+  it('does not move non-members', () => {
+    const model = baseModel();
+    const result = moveContainer(model, 'g1', { x: 500, y: 500 });
+    expect(result.nodes.find((n) => n.id === 'b')!.position).toEqual(
+      model.nodes.find((n) => n.id === 'b')!.position,
+    );
+  });
+
+  it('cascades to child containers and their members', () => {
+    const model = nestedModel();
+    const result = moveContainer(model, 'outer', { x: 10, y: 20 }); // delta (+10,+20)
+    expect(result.containers.find((c) => c.id === 'inner')!.position).toEqual({ x: 110, y: 60 });
+    expect(result.nodes.find((n) => n.id === 'inB')!.position).toEqual({ x: 130, y: 80 });
+  });
+
+  it('does not resize the container or change membership', () => {
+    const model = baseModel();
+    const result = moveContainer(model, 'g1', { x: 9, y: 9 });
+    expect(result.containers.find((c) => c.id === 'g1')!.size).toEqual(
+      model.containers.find((c) => c.id === 'g1')!.size,
+    );
+    expect(result.nodes.map((n) => n.containerId)).toEqual(model.nodes.map((n) => n.containerId));
+  });
+
+  it('is a no-op for an unknown id', () => {
+    const model = baseModel();
+    expect(moveContainer(model, 'nope', { x: 1, y: 1 })).toEqual(model);
+  });
+});
+
+describe('resizeContainer', () => {
+  it('sets the size', () => {
+    const result = resizeContainer(baseModel(), 'g1', { width: 640, height: 480 });
+    expect(result.containers.find((c) => c.id === 'g1')!.size).toEqual({ width: 640, height: 480 });
+  });
+
+  it('moves and resizes nothing inside it', () => {
+    const model = baseModel();
+    const result = resizeContainer(model, 'g1', { width: 640, height: 480 });
+    expect(result.nodes).toEqual(model.nodes);
+  });
+
+  it('does not change membership even when shrunk below its contents', () => {
+    const model = baseModel();
+    const result = resizeContainer(model, 'g1', { width: 1, height: 1 });
+    expect(result.nodes.find((n) => n.id === 'a')!.containerId).toBe('g1');
+  });
+
+  it('does not move the container', () => {
+    const model = baseModel();
+    const result = resizeContainer(model, 'g1', { width: 10, height: 10 });
+    expect(result.containers.find((c) => c.id === 'g1')!.position).toEqual(
+      model.containers.find((c) => c.id === 'g1')!.position,
+    );
+  });
+
+  it('is a no-op for an unknown id', () => {
+    const model = baseModel();
+    expect(resizeContainer(model, 'nope', { width: 5, height: 5 })).toEqual(model);
+  });
+});
+
+describe('assignNodeToContainer / removeNodeFromContainer', () => {
+  it('assigns membership without moving the node', () => {
+    const model = baseModel();
+    const result = assignNodeToContainer(model, 'b', 'g1');
+    expect(result.nodes.find((n) => n.id === 'b')!.containerId).toBe('g1');
+    expect(result.nodes.find((n) => n.id === 'b')!.position).toEqual(
+      model.nodes.find((n) => n.id === 'b')!.position,
+    );
+  });
+
+  it('replaces prior membership rather than adding a second', () => {
+    const model = addContainer(baseModel(), { label: 'Other' });
+    const otherId = model.containers.at(-1)!.id;
+    const result = assignNodeToContainer(model, 'a', otherId);
+    expect(result.nodes.find((n) => n.id === 'a')!.containerId).toBe(otherId);
+  });
+
+  it('clears membership without moving the node', () => {
+    const model = baseModel();
+    const result = removeNodeFromContainer(model, 'a');
+    expect(result.nodes.find((n) => n.id === 'a')!.containerId).toBeUndefined();
+    expect(result.nodes.find((n) => n.id === 'a')!.position).toEqual(
+      model.nodes.find((n) => n.id === 'a')!.position,
+    );
+  });
+
+  it('leaves the container itself in place when a member is removed', () => {
+    const model = baseModel();
+    const result = removeNodeFromContainer(model, 'a');
+    expect(result.containers).toEqual(model.containers);
+  });
+
+  it('is a no-op for unknown ids', () => {
+    const model = baseModel();
+    expect(assignNodeToContainer(model, 'nope', 'g1')).toEqual(model);
+    expect(assignNodeToContainer(model, 'b', 'nope')).toEqual(model);
+    expect(removeNodeFromContainer(model, 'nope')).toEqual(model);
+  });
+});
+
+describe('removeContainer', () => {
+  it('removes the container', () => {
+    const result = removeContainer(baseModel(), 'g1');
+    expect(result.containers.find((c) => c.id === 'g1')).toBeUndefined();
+  });
+
+  it('NEVER removes the nodes it held, and leaves their positions untouched', () => {
+    const model = baseModel();
+    const result = removeContainer(model, 'g1');
+    expect(result.nodes).toHaveLength(model.nodes.length);
+    expect(result.nodes.find((n) => n.id === 'a')!.position).toEqual(
+      model.nodes.find((n) => n.id === 'a')!.position,
+    );
+  });
+
+  it('releases members by clearing their containerId', () => {
+    const result = removeContainer(baseModel(), 'g1');
+    expect(result.nodes.find((n) => n.id === 'a')!.containerId).toBeUndefined();
+  });
+
+  it('re-parents child containers rather than deleting them', () => {
+    const model = nestedModel();
+    const result = removeContainer(model, 'outer');
+    const inner = result.containers.find((c) => c.id === 'inner');
+    expect(inner).toBeDefined();
+    expect(inner!.parentContainerId).toBeUndefined();
+    expect(result.nodes.find((n) => n.id === 'inB')!.containerId).toBe('inner');
+  });
+
+  it('leaves edges untouched', () => {
+    const model = baseModel();
+    expect(removeContainer(model, 'g1').edges).toEqual(model.edges);
+  });
+
+  it('is a no-op for an unknown id', () => {
+    const model = baseModel();
+    expect(removeContainer(model, 'nope')).toEqual(model);
   });
 });

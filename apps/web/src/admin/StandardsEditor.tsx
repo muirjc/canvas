@@ -19,6 +19,8 @@ export function StandardsEditor({ diagramTypeId }: StandardsEditorProps) {
   const [rules, setRules] = useState<StandardRulesDto>(emptyRules());
   const [colorRole, setColorRole] = useState('');
   const [colorHex, setColorHex] = useState('#000000');
+  const [name, setName] = useState('');
+  const [description, setDescription] = useState('');
   const [standards, setStandards] = useState<StandardDto[]>([]);
   const [message, setMessage] = useState<string | null>(null);
 
@@ -43,10 +45,12 @@ export function StandardsEditor({ diagramTypeId }: StandardsEditorProps) {
 
   const createAndPublish = async () => {
     try {
-      const { standard } = await api.createStandard(diagramTypeId, rules);
+      const { standard } = await api.createStandard(diagramTypeId, { ...rules, name, description });
       await api.publishStandard(standard.id);
       setMessage(`Published standard v${standard.version} for ${diagramTypeId}.`);
       setRules(emptyRules());
+      setName('');
+      setDescription('');
       refresh();
     } catch (error) {
       setMessage((error as Error).message);
@@ -56,6 +60,32 @@ export function StandardsEditor({ diagramTypeId }: StandardsEditorProps) {
   return (
     <div>
       <h2>Standards — {diagramTypeId}</h2>
+
+      <div className="field">
+        <label className="field__label" htmlFor="standard-name">
+          Name
+        </label>
+        <input
+          id="standard-name"
+          data-testid="standard-name-input"
+          value={name}
+          placeholder="e.g. Core Flowchart Rules"
+          onChange={(e) => setName(e.target.value)}
+        />
+      </div>
+      <div className="field">
+        <label className="field__label" htmlFor="standard-description">
+          Description
+        </label>
+        <textarea
+          id="standard-description"
+          data-testid="standard-description-input"
+          value={description}
+          placeholder="What this standard is for"
+          rows={2}
+          onChange={(e) => setDescription(e.target.value)}
+        />
+      </div>
 
       <fieldset>
         <legend>Allowed shapes (empty = unrestricted)</legend>
@@ -121,10 +151,28 @@ export function StandardsEditor({ diagramTypeId }: StandardsEditorProps) {
       <h3>History</h3>
       <ul data-testid="standards-history">
         {standards.map((standard) => (
-          <li key={standard.id}>
-            v{standard.version} — {standard.status}
+          <li key={standard.id} className="row" data-testid={`standard-row-${standard.id}`}>
+            <span className="row__main">
+              <span className="row__title">
+                {standard.name ?? `${standard.diagramTypeId} v${standard.version}`}{' '}
+                <span className="meta">
+                  v{standard.version} · {standard.status}
+                </span>
+              </span>
+              {standard.description && <span className="meta">{standard.description}</span>}
+              <span className="meta" data-testid={`standard-dates-${standard.id}`}>
+                Created {new Date(standard.createdAt).toLocaleDateString()}
+                {/* Shown only once the standard has left force (FR-025). */}
+                {standard.retiredAt && ` · Retired ${new Date(standard.retiredAt).toLocaleDateString()}`}
+              </span>
+            </span>
             {standard.status === 'published' && (
-              <button type="button" onClick={() => api.retireStandard(standard.id).then(refresh)}>
+              <button
+                type="button"
+                className="btn btn--tertiary btn--compact"
+                data-testid={`retire-standard-${standard.id}`}
+                onClick={() => api.retireStandard(standard.id).then(refresh)}
+              >
                 Retire
               </button>
             )}

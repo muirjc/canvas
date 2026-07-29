@@ -8,10 +8,17 @@ export interface StandardRecord {
   id: string;
   diagramTypeId: string;
   version: number;
+  /** Human-readable identity. Backfilled for standards created before feature 006, so this is
+   *  never absent in practice (FR-021, FR-026). */
+  name: string | null;
+  /** What the standard is for. Optional — a standard need not elaborate beyond its name. */
+  description: string | null;
   status: StandardStatus;
   rules: StandardRules;
   publishedAt: string | null;
   createdAt: string;
+  /** Set if and only if the standard has left force (FR-024, FR-025). */
+  retiredAt: string | null;
 }
 
 export class StandardNotFoundError extends Error {}
@@ -27,8 +34,11 @@ interface StandardRow {
   allowed_icon_library_refs: IconLibraryRef[];
   color_palette: ColorPaletteEntry[];
   font_constraints: FontConstraints | null;
+  name: string | null;
+  description: string | null;
   published_at: string | null;
   created_at: string;
+  retired_at: string | null;
 }
 
 function toRecord(row: StandardRow): StandardRecord {
@@ -44,14 +54,19 @@ function toRecord(row: StandardRow): StandardRecord {
       colorPalette: row.color_palette ?? [],
       fontConstraints: row.font_constraints ?? undefined,
     },
+    name: row.name,
+    description: row.description,
     publishedAt: row.published_at,
     createdAt: row.created_at,
+    retiredAt: row.retired_at,
   };
 }
 
 export interface CreateDraftStandardInput {
   diagramTypeId: string;
   rules: StandardRules;
+  name?: string;
+  description?: string;
 }
 
 export async function createDraftStandard(input: CreateDraftStandardInput): Promise<StandardRecord> {
@@ -65,8 +80,8 @@ export async function createDraftStandard(input: CreateDraftStandardInput): Prom
   const { rows } = await pool.query<StandardRow>(
     `INSERT INTO standards
        (diagram_type_id, version, status, allowed_shape_ids, mandatory_shape_ids,
-        allowed_icon_library_refs, color_palette, font_constraints)
-     VALUES ($1, $2, 'draft', $3, $4, $5, $6, $7)
+        allowed_icon_library_refs, color_palette, font_constraints, name, description)
+     VALUES ($1, $2, 'draft', $3, $4, $5, $6, $7, $8, $9)
      RETURNING *`,
     [
       input.diagramTypeId,
@@ -76,6 +91,9 @@ export async function createDraftStandard(input: CreateDraftStandardInput): Prom
       JSON.stringify(input.rules.allowedIconLibraryRefs),
       JSON.stringify(input.rules.colorPalette),
       input.rules.fontConstraints ? JSON.stringify(input.rules.fontConstraints) : null,
+      // Fall back to the same derivation the migration used, so no standard is ever nameless.
+      input.name ?? `${input.diagramTypeId} v${nextVersion}`,
+      input.description ?? null,
     ],
   );
   return toRecord(rows[0]);
@@ -102,7 +120,10 @@ export async function publishStandard(id: string): Promise<StandardRecord> {
   try {
     await client.query('BEGIN');
     await client.query(
-      `UPDATE standards SET status = 'retired' WHERE diagram_type_id = $1 AND status = 'published'`,
+      // Supersession: the more common way a standard leaves force. Missing retired_at here
+      // would leave most retired standards undated (contracts/api-standards-versions.md).
+      `UPDATE standards SET status = 'retired', retired_at = COALESCE(retired_at, now())
+       WHERE diagram_type_id = $1 AND status = 'published'`,
       [row.diagram_type_id],
     );
     const { rows } = await client.query<StandardRow>(
@@ -122,7 +143,8 @@ export async function publishStandard(id: string): Promise<StandardRecord> {
 export async function retireStandard(id: string): Promise<StandardRecord> {
   const pool = getPool();
   const { rows } = await pool.query<StandardRow>(
-    `UPDATE standards SET status = 'retired' WHERE id = $1 RETURNING *`,
+    `UPDATE standards SET status = 'retired', retired_at = COALESCE(retired_at, now())
+     WHERE id = $1 RETURNING *`,
     [id],
   );
   if (!rows[0]) {

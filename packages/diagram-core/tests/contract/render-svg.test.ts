@@ -59,3 +59,58 @@ describe('renderToSvg output', () => {
     expect(svg).not.toContain('A & B <C>');
   });
 });
+
+/**
+ * Feature 006 (FR-015 / SC-009): containers must appear in exports with their names and
+ * membership, so an exported diagram matches the canvas.
+ *
+ * Note what this does NOT do: it adds no rendering code. Containers are already serialized as
+ * `subgraph` and already drawn by renderToSvg — this feature adds interaction, not appearance,
+ * so svg-renderer.ts is deliberately untouched (research §7).
+ */
+describe('renderToSvg container fidelity', () => {
+  const withContainers: DiagramModel = {
+    diagramTypeId: 'flowchart',
+    nodes: [
+      { id: 'a', label: 'Validate', shape: 'rectangle', position: { x: 60, y: 60 }, containerId: 'dom' },
+      { id: 'b', label: 'Approve', shape: 'rectangle', position: { x: 240, y: 60 }, containerId: 'dom' },
+      { id: 'c', label: 'Outside', shape: 'rectangle', position: { x: 600, y: 400 } },
+    ],
+    edges: [{ id: 'e1', sourceId: 'a', targetId: 'b' }],
+    containers: [
+      { id: 'dom', label: 'Payments Domain', position: { x: 20, y: 20 }, size: { width: 400, height: 200 } },
+    ],
+  };
+
+  it('renders each container as an identifiable element carrying its name', () => {
+    const svg = renderToSvg(withContainers);
+    expect(svg).toContain('data-container-id="dom"');
+    expect(svg).toContain('Payments Domain');
+  });
+
+  it('renders an empty container just as it renders a populated one', () => {
+    const svg = renderToSvg({
+      ...withContainers,
+      nodes: [],
+      edges: [],
+      containers: [
+        { id: 'empty', label: 'Empty Region', position: { x: 10, y: 10 }, size: { width: 200, height: 150 } },
+      ],
+    });
+    expect(svg).toContain('data-container-id="empty"');
+    expect(svg).toContain('Empty Region');
+  });
+
+  it('renders every member and non-member node, so membership is not lost on export', () => {
+    const svg = renderToSvg(withContainers);
+    for (const id of ['a', 'b', 'c']) {
+      expect(svg).toContain(`data-node-id="${id}"`);
+    }
+  });
+
+  it('carries no screen-only interaction affordance into the export', () => {
+    // Selection highlight, drag cursor, and resize handles are canvas-only concerns.
+    const svg = renderToSvg(withContainers);
+    expect(svg).not.toMatch(/resize-handle|data-selected|cursor=/);
+  });
+});

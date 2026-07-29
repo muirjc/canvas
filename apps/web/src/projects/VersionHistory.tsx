@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { api, type DiagramVersionDto } from '../app/api';
 import { Icon } from '../ui/Icon';
 
@@ -15,20 +15,23 @@ export interface VersionHistoryProps {
 /** Version history panel: view and restore prior versions of a diagram (FR-017). */
 export function VersionHistory({ diagramId, refreshToken, onRestored }: VersionHistoryProps) {
   const [versions, setVersions] = useState<DiagramVersionDto[]>([]);
+  const [hasMore, setHasMore] = useState(false);
+  const [search, setSearch] = useState('');
   const [status, setStatus] = useState<'loading' | 'ready' | 'error'>('loading');
 
-  const refresh = () => {
+  const refresh = useCallback(() => {
     setStatus('loading');
     api
-      .listDiagramVersions(diagramId)
-      .then(({ versions }) => {
-        setVersions(versions);
+      .listDiagramVersions(diagramId, { q: search || undefined })
+      .then((page) => {
+        setVersions(page.versions);
+        setHasMore(page.hasMore);
         setStatus('ready');
       })
       .catch(() => setStatus('error'));
-  };
+  }, [diagramId, search]);
 
-  useEffect(refresh, [diagramId, refreshToken]);
+  useEffect(refresh, [refresh, refreshToken]);
 
   const handleRestore = async (versionId: string) => {
     await api.restoreDiagramVersion(diagramId, versionId);
@@ -66,7 +69,7 @@ export function VersionHistory({ diagramId, refreshToken, onRestored }: VersionH
     );
   }
 
-  if (versions.length === 0) {
+  if (versions.length === 0 && !search) {
     return (
       <div className="panel">
         <div className="panel__header">Version History</div>
@@ -83,6 +86,26 @@ export function VersionHistory({ diagramId, refreshToken, onRestored }: VersionH
   return (
     <div className="panel">
       <div className="panel__header">Version History</div>
+      <div className="version-search">
+        <input
+          data-testid="version-search"
+          aria-label="Search versions by number or date"
+          placeholder="Search by version or date…"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+        />
+      </div>
+      {/* FR-029: older versions are not hidden silently — the architect is told they exist. */}
+      {hasMore && !search && (
+        <p className="meta version-more" data-testid="version-history-more">
+          Showing the {versions.length} most recent. Search to find older versions.
+        </p>
+      )}
+      {versions.length === 0 && search && (
+        <p className="state" data-testid="version-search-empty">
+          No versions match &ldquo;{search}&rdquo;.
+        </p>
+      )}
       <ul className="panel__body panel__body--flush" data-testid="version-history">
         {versions.map((version) => (
           <li key={version.id} className="row" data-testid={`version-${version.sequenceNumber}`}>

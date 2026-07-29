@@ -470,3 +470,98 @@
   flex: 1;
   min-height: 0;
 }
+
+/* ---- Admin console ------------------------------------------------------- */
+/* Chrome shared by all five admin screens via AdminShell. Those screens render bare markup with
+   no page container of their own, which is why they previously sat flush against the viewport
+   edge — this supplies the container they never had. */
+
+.admin {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.admin-nav {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  height: var(--doc-bar-h);
+  flex-shrink: 0;
+  padding-inline: var(--space-6);
+  background: var(--surface-raised);
+  border-block-end: var(--border-width) solid var(--border-default);
+  overflow-x: auto;
+}
+
+.admin-nav__back {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  flex-shrink: 0;
+  font-size: var(--text-small-size);
+  white-space: nowrap;
+}
+
+/* The chevron points back, not forward. */
+.admin-nav__back-icon { transform: rotate(180deg); }
+
+.admin-nav__divider {
+  width: var(--border-width);
+  height: 20px;
+  flex-shrink: 0;
+  background: var(--border-default);
+}
+
+.admin-nav__list {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.admin-nav__link {
+  display: inline-block;
+  padding-block: var(--space-1);
+  border-block-end: 2px solid transparent;
+  color: var(--text-secondary);
+  font-size: var(--text-small-size);
+  white-space: nowrap;
+  text-decoration: none;
+}
+
+.admin-nav__link:hover { color: var(--text-primary); text-decoration: none; }
+
+/* Current destination: an underline plus a weight and colour change, so it is never signalled by
+   colour alone (FR-006 of feature 005 / accessibility gate). aria-current carries it to
+   assistive technology. */
+.admin-nav__link[aria-current='page'] {
+  color: var(--text-primary);
+  font-weight: var(--text-body-strong-weight);
+  border-block-end-color: var(--accent);
+}
+
+.admin__page {
+  width: 100%;
+  max-width: 1100px;
+  margin-inline: auto;
+  padding: var(--space-8) var(--space-6);
+}
+
+/* ---- Version history search --------------------------------------------- */
+
+.version-search {
+  padding: var(--space-3) var(--space-4) 0;
+  flex-shrink: 0;
+}
+
+.version-search input { width: 100%; }
+
+.version-more {
+  margin: 0;
+  padding: var(--space-2) var(--space-4);
+  flex-shrink: 0;
+}

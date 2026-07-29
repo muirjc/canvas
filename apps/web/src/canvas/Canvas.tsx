@@ -1,11 +1,19 @@
 import { useCallback, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import {
+  addContainer,
   addEdge,
   addNode,
+  assignNodeToContainer,
+  moveContainer,
+  removeContainer,
   removeNode,
+  removeNodeFromContainer,
+  resizeContainer,
+  updateContainerLabel,
   updateEdgeLabel,
   updateNodeLabel,
+  type DiagramContainer,
   type DiagramModel,
   type DiagramNode,
   type NodeShape,
@@ -36,10 +44,32 @@ export interface CanvasProps {
   toolbarContainer?: HTMLElement | null;
 }
 
-let containerIdCounter = 0;
-function nextContainerId(): string {
-  containerIdCounter += 1;
-  return `grp${containerIdCounter}`;
+/** Minimum a container may be dragged down to, so it never becomes un-grabbable. */
+const MIN_CONTAINER_SIZE = { width: 80, height: 60 };
+
+function containerBounds(container: DiagramContainer) {
+  const size = container.size ?? { width: 300, height: 200 };
+  return {
+    left: container.position.x,
+    top: container.position.y,
+    right: container.position.x + size.width,
+    bottom: container.position.y + size.height,
+  };
+}
+
+/** Which container, if any, a dropped shape lands in — decided by the shape's centre point.
+ *  Geometry decides membership only at the moment of a drop; `containerId` is authoritative
+ *  afterwards, so resizing a container never ejects anything (research §3). */
+function containerAtPoint(model: DiagramModel, point: { x: number; y: number }): string | undefined {
+  // Last match wins, so a container drawn later (visually on top) takes precedence.
+  let found: string | undefined;
+  for (const container of model.containers) {
+    const b = containerBounds(container);
+    if (point.x >= b.left && point.x <= b.right && point.y >= b.top && point.y <= b.bottom) {
+      found = container.id;
+    }
+  }
+  return found;
 }
 
 /**
@@ -53,8 +83,19 @@ export function Canvas({ model, onChange, toolbarContainer }: CanvasProps) {
   const [connectSourceId, setConnectSourceId] = useState<string | null>(null);
   const [editingNodeId, setEditingNodeId] = useState<string | null>(null);
   const [editingEdgeId, setEditingEdgeId] = useState<string | null>(null);
+  const [editingContainerId, setEditingContainerId] = useState<string | null>(null);
+  const [selectedContainerId, setSelectedContainerId] = useState<string | null>(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
-  const dragState = useRef<{ id: string; offsetX: number; offsetY: number } | null>(null);
+  // Which element the pointer is over. Paired with selection below so the edit affordance is
+  // reachable by keyboard too — hover alone would be unusable without a pointer (FR-017).
+  const [hoveredId, setHoveredId] = useState<string | null>(null);
+  // `kind` distinguishes the three drags that share the pointer handlers: moving a shape, moving
+  // a container (which carries its members), and resizing a container.
+  const dragState = useRef<
+    { kind: 'node' | 'container'; id: string; offsetX: number; offsetY: number }
+    | { kind: 'resize'; id: string; originX: number; originY: number }
+    | null
+  >(null);
   const svgRef = useRef<SVGSVGElement>(null);
 
   const updateNode = useCallback(
@@ -101,21 +142,116 @@ export function Canvas({ model, onChange, toolbarContainer }: CanvasProps) {
       return;
     }
     setSelectedIds(new Set([node.id]));
+    setSelectedContainerId(null);
 
     const point = toClientPoint(event);
-    dragState.current = { id: node.id, offsetX: point.x - node.position.x, offsetY: point.y - node.position.y };
+    dragState.current = {
+      kind: 'node',
+      id: node.id,
+      offsetX: point.x - node.position.x,
+      offsetY: point.y - node.position.y,
+    };
+  };
+
+  const handleAddContainer = () => {
+    onChange(addContainer(model, {}));
+  };
+
+  const handleContainerPointerDown = (container: DiagramContainer) => (event: React.PointerEvent) => {
+    // Containers sit behind shapes; a pointer-down that reached here is on the container itself.
+    event.stopPropagation();
+    if (connectMode) return;
+    setSelectedContainerId(container.id);
+    setSelectedIds(new Set());
+
+    const point = toClientPoint(event);
+    dragState.current = {
+      kind: 'container',
+      id: container.id,
+      offsetX: point.x - container.position.x,
+      offsetY: point.y - container.position.y,
+    };
+  };
+
+  const handleResizePointerDown = (container: DiagramContainer) => (event: React.PointerEvent) => {
+    event.stopPropagation();
+    dragState.current = {
+      kind: 'resize',
+      id: container.id,
+      originX: container.position.x,
+      originY: container.position.y,
+    };
   };
 
   const handlePointerMove = (event: React.PointerEvent) => {
-    if (!dragState.current) return;
+    const drag = dragState.current;
+    if (!drag) return;
     const point = toClientPoint(event);
-    updateNode(dragState.current.id, {
-      position: { x: point.x - dragState.current.offsetX, y: point.y - dragState.current.offsetY },
-    });
+
+    if (drag.kind === 'node') {
+      updateNode(drag.id, { position: { x: point.x - drag.offsetX, y: point.y - drag.offsetY } });
+      return;
+    }
+
+    if (drag.kind === 'resize') {
+      // The top-left stays put, so the new size is simply the pointer's offset from it.
+      onChange(
+        resizeContainer(model, drag.id, {
+          width: Math.max(MIN_CONTAINER_SIZE.width, point.x - drag.originX),
+          height: Math.max(MIN_CONTAINER_SIZE.height, point.y - drag.originY),
+        }),
+      );
+      return;
+    }
+
+    // moveContainer carries members and nested containers with it.
+    onChange(moveContainer(model, drag.id, { x: point.x - drag.offsetX, y: point.y - drag.offsetY }));
   };
 
   const handlePointerUp = () => {
+    const drag = dragState.current;
     dragState.current = null;
+    if (!drag || drag.kind !== 'node') return;
+
+    // Membership is resolved once, on drop, from the shape's centre (FR-011, research §3).
+    const node = model.nodes.find((n) => n.id === drag.id);
+    if (!node) return;
+    const size = nodeSize(node);
+    const centre = { x: node.position.x + size.width / 2, y: node.position.y + size.height / 2 };
+    const target = containerAtPoint(model, centre);
+
+    if (target && node.containerId !== target) {
+      onChange(assignNodeToContainer(model, node.id, target));
+    } else if (!target && node.containerId) {
+      onChange(removeNodeFromContainer(model, node.id));
+    }
+  };
+
+  /** A small pencil control that opens the label editor that already exists. Revealed on hover
+   *  AND on selection/focus — an affordance only reachable by pointer would fail the
+   *  accessibility gate (research §11). */
+  const renderEditAffordance = (id: string, x: number, y: number, onActivate: () => void, label: string) => (
+    <foreignObject x={x} y={y} width={22} height={22}>
+      <button
+        type="button"
+        className="canvas-edit-affordance"
+        data-testid={`edit-label-${id}`}
+        aria-label={label}
+        title={label}
+        onClick={(event) => {
+          event.stopPropagation();
+          onActivate();
+        }}
+        onPointerDown={(event) => event.stopPropagation()}
+      >
+        <Icon name="pencil" size={12} />
+      </button>
+    </foreignObject>
+  );
+
+  const commitContainerLabel = (containerId: string, label: string) => {
+    onChange(updateContainerLabel(model, containerId, label || 'Container'));
+    setEditingContainerId(null);
   };
 
   const commitLabel = (nodeId: string, label: string) => {
@@ -128,6 +264,8 @@ export function Canvas({ model, onChange, toolbarContainer }: CanvasProps) {
     setEditingEdgeId(null);
   };
 
+  /** Wraps the selected shapes in a container. Now routed through the shared operations rather
+   *  than building the container inline, so manual, DSL, and future AI edits share one path. */
   const groupSelected = () => {
     if (selectedIds.size < 2) return;
     const selectedNodes = model.nodes.filter((n) => selectedIds.has(n.id));
@@ -135,26 +273,21 @@ export function Canvas({ model, onChange, toolbarContainer }: CanvasProps) {
     const minY = Math.min(...selectedNodes.map((n) => n.position.y)) - 20;
     const maxX = Math.max(...selectedNodes.map((n) => n.position.x + nodeSize(n).width)) + 20;
     const maxY = Math.max(...selectedNodes.map((n) => n.position.y + nodeSize(n).height)) + 20;
-    const containerId = nextContainerId();
 
-    onChange({
-      ...model,
-      containers: [
-        ...model.containers,
-        {
-          id: containerId,
-          label: 'Group',
-          position: { x: minX, y: minY },
-          size: { width: maxX - minX, height: maxY - minY },
-        },
-      ],
-      nodes: model.nodes.map((n) => (selectedIds.has(n.id) ? { ...n, containerId } : n)),
+    let next = addContainer(model, {
+      position: { x: minX, y: minY },
+      size: { width: maxX - minX, height: maxY - minY },
     });
+    const containerId = next.containers[next.containers.length - 1].id;
+    for (const nodeId of selectedIds) {
+      next = assignNodeToContainer(next, nodeId, containerId);
+    }
+    onChange(next);
     setSelectedIds(new Set());
   };
 
   const requestDeleteSelected = () => {
-    if (selectedIds.size === 0) return;
+    if (selectedIds.size === 0 && !selectedContainerId) return;
     setShowDeleteConfirm(true);
   };
 
@@ -163,10 +296,19 @@ export function Canvas({ model, onChange, toolbarContainer }: CanvasProps) {
     for (const id of selectedIds) {
       next = removeNode(next, id);
     }
+    // Deleting a container releases its shapes — it never deletes them (FR-013).
+    if (selectedContainerId) {
+      next = removeContainer(next, selectedContainerId);
+    }
     onChange(next);
     setSelectedIds(new Set());
+    setSelectedContainerId(null);
     setShowDeleteConfirm(false);
   };
+
+  const deleteConfirmMessage = selectedContainerId
+    ? 'Delete this container? The shapes inside it will be kept on the canvas.'
+    : `Delete ${selectedIds.size} selected shape${selectedIds.size === 1 ? '' : 's'}? This cannot be undone.`;
 
   const cancelDeleteSelected = () => setShowDeleteConfirm(false);
 
@@ -221,18 +363,27 @@ export function Canvas({ model, onChange, toolbarContainer }: CanvasProps) {
           <button
             type="button"
             className="btn btn--secondary"
+            data-testid="add-container"
+            onClick={handleAddContainer}
+          >
+            <Icon name="group" />
+            Add Container
+          </button>
+          <button
+            type="button"
+            className="btn btn--secondary"
             data-testid="group-selected"
             disabled={selectedIds.size < 2}
             onClick={groupSelected}
           >
             <Icon name="group" />
-            Group Selected
+            Group into Container
           </button>
           <button
             type="button"
             className="btn btn--secondary"
             data-testid="delete-selected"
-            disabled={selectedIds.size === 0}
+            disabled={selectedIds.size === 0 && !selectedContainerId}
             onClick={requestDeleteSelected}
           >
             <Icon name="trash" />
@@ -249,7 +400,7 @@ export function Canvas({ model, onChange, toolbarContainer }: CanvasProps) {
 
       {showDeleteConfirm && (
         <ConfirmDialog
-          message={`Delete ${selectedIds.size} selected shape${selectedIds.size === 1 ? '' : 's'}? This cannot be undone.`}
+          message={deleteConfirmMessage}
           onConfirm={confirmDeleteSelected}
           onCancel={cancelDeleteSelected}
         />
@@ -272,25 +423,78 @@ export function Canvas({ model, onChange, toolbarContainer }: CanvasProps) {
         onClick={(event) => {
           // Only deselect on a genuine click on the canvas background — not one that bubbled up
           // from a node/edge click, which already set the selection this same interaction.
-          if (event.target === event.currentTarget) setSelectedIds(new Set());
+          if (event.target === event.currentTarget) {
+            setSelectedIds(new Set());
+            setSelectedContainerId(null);
+          }
         }}
       >
-        {model.containers.map((container) => (
-          <g key={container.id} data-testid={`container-${container.id}`}>
-            <rect
-              x={container.position.x}
-              y={container.position.y}
-              width={container.size?.width ?? 300}
-              height={container.size?.height ?? 200}
-              fill="none"
-              stroke="#888"
-              strokeDasharray="6,4"
-            />
-            <text x={container.position.x + 8} y={container.position.y + 16} fontSize={12}>
-              {container.label}
-            </text>
-          </g>
-        ))}
+        {model.containers.map((container) => {
+          const size = container.size ?? { width: 300, height: 200 };
+          const isSelected = selectedContainerId === container.id;
+          return (
+            <g
+              key={container.id}
+              data-testid={`container-${container.id}`}
+              onPointerDown={handleContainerPointerDown(container)}
+              onDoubleClick={(event) => {
+                event.stopPropagation();
+                setEditingContainerId(container.id);
+              }}
+              style={{ cursor: 'move' }}
+            >
+              {/* Appearance is deliberately unchanged from what the export renderer draws — this
+                  feature adds interaction, not styling (research §7). Only the selection stroke
+                  differs, and it is screen-only. */}
+              <rect
+                x={container.position.x}
+                y={container.position.y}
+                width={size.width}
+                height={size.height}
+                fill="transparent"
+                stroke={isSelected ? '#2563eb' : '#888'}
+                strokeWidth={isSelected ? 2 : 1}
+                strokeDasharray="6,4"
+              />
+              {editingContainerId !== container.id && (
+                <text x={container.position.x + 8} y={container.position.y + 16} fontSize={12}>
+                  {container.label}
+                </text>
+              )}
+              {editingContainerId === container.id && (
+                <foreignObject x={container.position.x + 4} y={container.position.y + 4} width={160} height={24}>
+                  <input
+                    data-testid={`container-label-input-${container.id}`}
+                    autoFocus
+                    defaultValue={container.label}
+                    style={{ width: '100%', boxSizing: 'border-box' }}
+                    onClick={(e) => e.stopPropagation()}
+                    onPointerDown={(e) => e.stopPropagation()}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') commitContainerLabel(container.id, (e.target as HTMLInputElement).value);
+                      if (e.key === 'Escape') setEditingContainerId(null);
+                    }}
+                    onBlur={(e) => commitContainerLabel(container.id, e.target.value)}
+                  />
+                </foreignObject>
+              )}
+              {/* Resize handle renders only for the selected container, so the steady-state
+                  element count is unchanged and the drag performance gate is unaffected. */}
+              {isSelected && (
+                <rect
+                  data-testid={`container-resize-${container.id}`}
+                  x={container.position.x + size.width - 5}
+                  y={container.position.y + size.height - 5}
+                  width={10}
+                  height={10}
+                  fill="#2563eb"
+                  style={{ cursor: 'nwse-resize' }}
+                  onPointerDown={handleResizePointerDown(container)}
+                />
+              )}
+            </g>
+          );
+        })}
 
         {model.edges.map((edge) => {
           const source = model.nodes.find((n) => n.id === edge.sourceId);
@@ -305,6 +509,8 @@ export function Canvas({ model, onChange, toolbarContainer }: CanvasProps) {
             <g
               key={edge.id}
               data-testid={`edge-${edge.id}`}
+              onPointerEnter={() => setHoveredId(edge.id)}
+              onPointerLeave={() => setHoveredId((current) => (current === edge.id ? null : current))}
               onDoubleClick={(event) => {
                 event.stopPropagation();
                 setEditingEdgeId(edge.id);
@@ -343,6 +549,16 @@ export function Canvas({ model, onChange, toolbarContainer }: CanvasProps) {
                   />
                 </foreignObject>
               )}
+              {!isEditingThisEdge &&
+                !connectMode &&
+                hoveredId === edge.id &&
+                renderEditAffordance(
+                  edge.id,
+                  midX + 8,
+                  midY - 26,
+                  () => setEditingEdgeId(edge.id),
+                  `Edit label for connector ${edge.id}`,
+                )}
             </g>
           );
         })}
@@ -360,6 +576,8 @@ export function Canvas({ model, onChange, toolbarContainer }: CanvasProps) {
               key={node.id}
               data-testid={`node-${node.id}`}
               onPointerDown={handleNodePointerDown(node)}
+              onPointerEnter={() => setHoveredId(node.id)}
+              onPointerLeave={() => setHoveredId((current) => (current === node.id ? null : current))}
               onDoubleClick={(event) => {
                 event.stopPropagation();
                 setEditingNodeId(node.id);
@@ -395,6 +613,16 @@ export function Canvas({ model, onChange, toolbarContainer }: CanvasProps) {
                   />
                 </foreignObject>
               )}
+              {editingNodeId !== node.id &&
+                !connectMode &&
+                (hoveredId === node.id || selectedIds.has(node.id)) &&
+                renderEditAffordance(
+                  node.id,
+                  node.position.x + size.width - 24,
+                  node.position.y + 2,
+                  () => setEditingNodeId(node.id),
+                  `Edit label for ${node.label}`,
+                )}
             </g>
           );
         })}

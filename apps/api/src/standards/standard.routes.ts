@@ -42,7 +42,7 @@ export async function registerStandardRoutes(app: FastifyInstance): Promise<void
     },
   );
 
-  app.post<{ Params: { id: string }; Body: Partial<StandardRules> }>(
+  app.post<{ Params: { id: string }; Body: Partial<StandardRules> & { name?: string; description?: string } }>(
     '/diagram-types/:id/standards',
     { preHandler: requireRole('admin') },
     async (request, reply) => {
@@ -56,6 +56,8 @@ export async function registerStandardRoutes(app: FastifyInstance): Promise<void
           colorPalette: body.colorPalette ?? [],
           fontConstraints: body.fontConstraints,
         },
+        name: body.name,
+        description: body.description,
       });
       reply.code(201).send({ standard });
     },
