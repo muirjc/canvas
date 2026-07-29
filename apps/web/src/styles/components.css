@@ -344,3 +344,28 @@
   padding: var(--space-4) var(--space-6);
   border-block-start: var(--border-width) solid var(--border-subtle);
 }
+
+/* ---- Canvas edit affordance --------------------------------------------- */
+/* Shows that a shape's or connector's label can be edited. Revealed on hover and on selection —
+   never hover-only, which would be unreachable without a pointer (FR-017/FR-018). */
+
+.canvas-edit-affordance {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  min-height: 0;
+  padding: 0;
+  border: var(--border-width) solid var(--border-control);
+  border-radius: var(--radius-sm);
+  background: var(--surface-raised);
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+
+.canvas-edit-affordance:hover {
+  background: var(--accent-subtle);
+  border-color: var(--accent);
+  color: var(--accent);
+}

@@ -103,11 +103,16 @@ export async function registerDiagramRoutes(app: FastifyInstance): Promise<void>
     },
   );
 
-  app.get<{ Params: { id: string } }>(
+  app.get<{ Params: { id: string }; Querystring: { limit?: string; q?: string } }>(
     '/diagrams/:id/versions',
     { preHandler: [requireAuth, requireDiagramAccess('view')] },
     async (request, reply) => {
-      reply.send({ versions: await listDiagramVersions(request.params.id) });
+      const parsedLimit = Number.parseInt(request.query.limit ?? '', 10);
+      const page = await listDiagramVersions(request.params.id, {
+        limit: Number.isFinite(parsedLimit) ? parsedLimit : undefined,
+        search: request.query.q,
+      });
+      reply.send(page);
     },
   );
 

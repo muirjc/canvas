@@ -195,3 +195,124 @@ describe('Standards API contract', () => {
     expect(exportResponse.statusCode).toBe(200);
   });
 });
+
+/**
+ * Feature 006, User Story 4: standards carry a name, a description, and lifecycle dates.
+ *
+ * Before this, a standard was identifiable only by id and version number — the development
+ * database held 33 of them, indistinguishable in a list.
+ */
+describe('Standards metadata and lifecycle dates', () => {
+  let app: FastifyInstance;
+  let adminCookie: string;
+
+  beforeAll(async () => {
+    app = await buildTestApp();
+  });
+
+  afterAll(async () => {
+    await app.close();
+    await closeTestDb();
+  });
+
+  async function login(email: string, password: string): Promise<string> {
+    const response = await app.inject({ method: 'POST', url: '/auth/local/login', payload: { email, password } });
+    const setCookie = response.headers['set-cookie'];
+    const cookieHeader = Array.isArray(setCookie) ? setCookie[0] : setCookie;
+    return cookieHeader!.split(';')[0];
+  }
+
+  async function createStandard(name: string, description?: string) {
+    const response = await app.inject({
+      method: 'POST',
+      url: '/diagram-types/flowchart/standards',
+      headers: { cookie: adminCookie },
+      payload: { name, description, allowedShapeIds: ['rectangle'] },
+    });
+    return response.json().standard;
+  }
+
+  beforeEach(async () => {
+    await resetDatabase();
+    await seedFlowchartDiagramType();
+    await seedUser({ email: 'admin@example.com', password: 'admin-pass', role: 'admin' });
+    adminCookie = await login('admin@example.com', 'admin-pass');
+  });
+
+  it('stores and returns a name and description', async () => {
+    const created = await createStandard('Core Flowchart Rules', 'Shapes permitted for process maps.');
+    expect(created.name).toBe('Core Flowchart Rules');
+    expect(created.description).toBe('Shapes permitted for process maps.');
+  });
+
+  it('always returns a creation date', async () => {
+    const created = await createStandard('Dated');
+    expect(created.createdAt).toBeTruthy();
+  });
+
+  it('returns no retirement date until the standard is retired', async () => {
+    const created = await createStandard('Not Retired');
+    expect(created.retiredAt ?? null).toBeNull();
+  });
+
+  it('records a retirement date when a standard is explicitly retired', async () => {
+    const created = await createStandard('To Retire');
+    const response = await app.inject({
+      method: 'POST',
+      url: `/standards/${created.id}/retire`,
+      headers: { cookie: adminCookie },
+    });
+    expect(response.statusCode).toBe(200);
+    expect(response.json().standard.retiredAt).toBeTruthy();
+  });
+
+  it('records a retirement date on a standard retired by SUPERSESSION', async () => {
+    // The path most easily missed: publishStandard auto-retires the previously published
+    // standard for that diagram type inside its own transaction. In practice this is the more
+    // common way a standard leaves force (contracts/api-standards-versions.md).
+    const first = await createStandard('First');
+    await app.inject({ method: 'POST', url: `/standards/${first.id}/publish`, headers: { cookie: adminCookie } });
+
+    const second = await createStandard('Second');
+    await app.inject({ method: 'POST', url: `/standards/${second.id}/publish`, headers: { cookie: adminCookie } });
+
+    const list = await app.inject({
+      method: 'GET',
+      url: '/diagram-types/flowchart/standards',
+      headers: { cookie: adminCookie },
+    });
+    const superseded = list.json().standards.find((s: { id: string }) => s.id === first.id);
+    expect(superseded.status).toBe('retired');
+    expect(superseded.retiredAt, 'a superseded standard has no retirement date').toBeTruthy();
+  });
+
+  it('does not overwrite an existing retirement date when retired again', async () => {
+    const created = await createStandard('Retire Twice');
+    const first = await app.inject({
+      method: 'POST',
+      url: `/standards/${created.id}/retire`,
+      headers: { cookie: adminCookie },
+    });
+    const originalDate = first.json().standard.retiredAt;
+
+    const second = await app.inject({
+      method: 'POST',
+      url: `/standards/${created.id}/retire`,
+      headers: { cookie: adminCookie },
+    });
+    expect(second.json().standard.retiredAt).toBe(originalDate);
+  });
+
+  it('lists standards identifiable by name rather than only by id', async () => {
+    await createStandard('Alpha Rules');
+    await createStandard('Beta Rules');
+    const list = await app.inject({
+      method: 'GET',
+      url: '/diagram-types/flowchart/standards',
+      headers: { cookie: adminCookie },
+    });
+    const names = list.json().standards.map((s: { name: string }) => s.name);
+    expect(names).toEqual(expect.arrayContaining(['Alpha Rules', 'Beta Rules']));
+    expect(names.every((n: string | null) => Boolean(n))).toBe(true);
+  });
+});

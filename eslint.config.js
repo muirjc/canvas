@@ -16,7 +16,13 @@ export default tseslint.config(
   ...tseslint.configs.recommended,
   {
     rules: {
-      '@typescript-eslint/no-unused-vars': ['warn', { argsIgnorePattern: '^_' }],
+      // ignoreRestSiblings covers the standard idiom for omitting a property immutably:
+      // `const { containerId: _dropped, ...rest } = node`. The binding is deliberately unused —
+      // it exists so the rest object excludes that key.
+      '@typescript-eslint/no-unused-vars': [
+        'warn',
+        { argsIgnorePattern: '^_', varsIgnorePattern: '^_', ignoreRestSiblings: true },
+      ],
     },
   },
   {

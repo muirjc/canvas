@@ -67,6 +67,12 @@ export interface StandardDto extends StandardRulesDto {
   diagramTypeId: string;
   version: number;
   status: 'draft' | 'published' | 'retired';
+  /** Human-readable identity; backfilled for standards predating feature 006. */
+  name: string | null;
+  description: string | null;
+  createdAt: string;
+  /** Present only once the standard has left force. */
+  retiredAt: string | null;
 }
 
 export interface DiagramTypeDto {
@@ -193,7 +199,10 @@ export const api = {
     request<{ standard: StandardDto }>(`/diagram-types/${diagramTypeId}/standard`),
   listStandards: (diagramTypeId: string) =>
     request<{ standards: StandardDto[] }>(`/diagram-types/${diagramTypeId}/standards`),
-  createStandard: (diagramTypeId: string, rules: Partial<StandardRulesDto>) =>
+  createStandard: (
+    diagramTypeId: string,
+    rules: Partial<StandardRulesDto> & { name?: string; description?: string },
+  ) =>
     request<{ standard: StandardDto }>(`/diagram-types/${diagramTypeId}/standards`, {
       method: 'POST',
       body: JSON.stringify(rules),
@@ -207,8 +216,15 @@ export const api = {
   createProject: (body: { name: string; parentProjectId?: string }) =>
     request<{ project: ProjectDto }>('/projects', { method: 'POST', body: JSON.stringify(body) }),
   getProjectTree: (id: string) => request<{ tree: ProjectTreeNodeDto }>(`/projects/${id}/tree`),
-  listDiagramVersions: (diagramId: string) =>
-    request<{ versions: DiagramVersionDto[] }>(`/diagrams/${diagramId}/versions`),
+  listDiagramVersions: (diagramId: string, options: { limit?: number; q?: string } = {}) => {
+    const params = new URLSearchParams();
+    if (options.limit !== undefined) params.set('limit', String(options.limit));
+    if (options.q) params.set('q', options.q);
+    const query = params.toString();
+    return request<{ versions: DiagramVersionDto[]; hasMore: boolean }>(
+      `/diagrams/${diagramId}/versions${query ? `?${query}` : ''}`,
+    );
+  },
   restoreDiagramVersion: (diagramId: string, versionId: string) =>
     request<{ diagram: DiagramDto }>(`/diagrams/${diagramId}/versions/${versionId}/restore`, { method: 'POST' }),
   lookupUserByEmail: (email: string) =>

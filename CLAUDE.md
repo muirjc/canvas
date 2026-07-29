@@ -1,6 +1,6 @@
 # canvas Development Guidelines
 
-Auto-generated from all feature plans. Last updated: 2026-07-27
+Auto-generated from all feature plans. Last updated: 2026-07-28
 
 ## Active Technologies
 - No new technology added in 005-modern-ui-redesign — a frontend-only visual redesign in
@@ -18,6 +18,9 @@ Auto-generated from all feature plans. Last updated: 2026-07-27
   and backend. PostgreSQL + a blob store for icon/shape library assets. (001-diagramming-platform)
 - No new technology added in 002-editing-lifecycle-enhancements — it extends the same stack
   (one additive Postgres migration for diagram soft-delete; no new packages/services).
+- No new technology added in 006-authoring-admin-console — zero runtime dependencies added. One
+  additive Postgres migration on `standards` (`name`, `description`, `retired_at`) plus a backfill;
+  seven new pure container operations in `packages/diagram-core`.
 
 ## Project Structure
 
@@ -38,6 +41,11 @@ tests are NON-NEGOTIABLE and must exist (and fail) before implementing any diagr
 work — see `.specify/memory/constitution.md` Principle IV.
 
 ## Recent Changes
+- 006-authoring-admin-console: Containers become first-class canvas objects (create, name, move,
+  resize, drag membership; deleting one releases its shapes) backed by seven new `diagram-core`
+  operations; a shared admin shell centres every admin screen and adds persistent navigation; a
+  visible affordance for the existing label editor; standards gain a name, description and
+  retirement date; version history is capped at five with search.
 - 005-modern-ui-redesign: First visual design for the product, which previously shipped with no
   stylesheet at all. Adds a global CSS token layer, restructures the diagram editor into a
   document bar plus a palette rail and a tabbed secondary rail (DSL/Chat/Issues/History),

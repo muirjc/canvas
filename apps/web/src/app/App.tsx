@@ -13,6 +13,7 @@ import { ImportDialog } from '../projects/ImportDialog';
 import { CreateViaChatDialog } from '../ai/CreateViaChatDialog';
 import { PersonaAdminPage } from '../ai/PersonaAdminPage';
 import { Icon } from '../ui/Icon';
+import { AdminShell } from '../ui/AdminShell';
 
 // The root project to browse/create diagrams in is supplied via a query param — a full
 // multi-project chooser is out of scope for this reference implementation.
@@ -78,11 +79,19 @@ export function App() {
 
   let content: React.ReactNode;
   if (adminParam && user.role === 'admin') {
-    if (adminParam === 'users') content = <UsersPage />;
-    else if (adminParam === 'overview') content = <AdminOverview />;
-    else if (adminParam === 'deleted') content = <DeletedDiagramsPage />;
-    else if (adminParam === 'ai-personas') content = <PersonaAdminPage />;
-    else content = <StandardsEditor diagramTypeId="flowchart" />;
+    let adminScreen: React.ReactNode;
+    if (adminParam === 'users') adminScreen = <UsersPage />;
+    else if (adminParam === 'overview') adminScreen = <AdminOverview />;
+    else if (adminParam === 'deleted') adminScreen = <DeletedDiagramsPage />;
+    else if (adminParam === 'ai-personas') adminScreen = <PersonaAdminPage />;
+    else adminScreen = <StandardsEditor diagramTypeId="flowchart" />;
+    // Wrapping here rather than inside each screen is what centres and navigates all five
+    // without any of them being edited (research §10).
+    content = (
+      <AdminShell activeParam={adminParam} projectId={projectId}>
+        {adminScreen}
+      </AdminShell>
+    );
   } else if (diagram) {
     content = <DiagramEditor diagram={diagram} />;
   } else {

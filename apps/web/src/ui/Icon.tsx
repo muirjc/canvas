@@ -27,7 +27,8 @@ export type IconName =
   | 'check'
   | 'warning'
   | 'history'
-  | 'send';
+  | 'send'
+  | 'pencil';
 
 /** Path data only — the wrapper supplies sizing, colour, and ARIA. `diamond` and `check` are
  *  filled; the rest are 1.5px strokes on a 16-unit grid. */
@@ -49,6 +50,7 @@ const PATHS: Record<IconName, { d: string; filled?: boolean }[]> = {
   warning: [{ d: 'M8 2.5 14.5 13.5h-13ZM8 6.5v3M8 11.5v.5' }],
   history: [{ d: 'M2.75 8a5.25 5.25 0 1 0 1.6-3.77M2.5 3v2.5H5M8 5.5V8l2 1.5' }],
   send: [{ d: 'M14 2 2 7l4.5 1.8L8.5 13 14 2ZM6.5 8.8 14 2' }],
+  pencil: [{ d: 'M11.5 2.5 13.5 4.5 5.5 12.5 2.5 13.5 3.5 10.5 11.5 2.5Z' }],
 };
 
 export interface IconProps {
