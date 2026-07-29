@@ -198,7 +198,10 @@ of having a diagram — without encountering an error message as the first respo
 - **FR-013**: An address naming a project that is missing, or that the user has no access to,
   MUST produce a clear explanation and leave the user able to continue.
 - **FR-013a**: The projects offered to a user MUST be limited to those they own or that have been
-  explicitly shared with them; projects belonging to others MUST NOT be listed or named.
+  explicitly shared with them; projects belonging to others MUST NOT be listed or named — except
+  that the *name* of a project containing a diagram directly shared with the user MAY be shown
+  alongside that diagram (never as a link, and never extending to the project's contents or any
+  other project), per feature 008 (`specs/008-shared-diagram-access/`).
 - **FR-013b**: Every project MUST have an owner, including projects that existed before this
   feature.
 - **FR-013c**: A user creating a project MUST become its owner.

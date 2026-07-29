@@ -4,6 +4,7 @@ import {
   createShareGrant,
   GranteeNotFoundError,
   listShareGrants,
+  listSharedDiagramsForUser,
   revokeShareGrant,
   ShareGrantNotFoundError,
   type AccessLevel,
@@ -63,6 +64,15 @@ function registerSubjectRoutes(app: FastifyInstance, subjectType: SubjectType): 
 export async function registerSharingRoutes(app: FastifyInstance): Promise<void> {
   registerSubjectRoutes(app, 'diagram');
   registerSubjectRoutes(app, 'project');
+
+  /**
+   * Diagrams shared directly with the caller (feature 008, FR-001). Self-scoped like
+   * GET /projects — no id param, the session names the user. 200 with an empty array for a
+   * user with nothing shared; that is the common case, not an error (FR-002).
+   */
+  app.get('/shared-diagrams', { preHandler: requireAuth }, async (request, reply) => {
+    reply.send({ diagrams: await listSharedDiagramsForUser(request.session.user!.id) });
+  });
 
   app.delete<{ Params: { id: string } }>('/shares/:id', { preHandler: requireAuth }, async (request, reply) => {
     try {

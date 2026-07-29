@@ -23,6 +23,9 @@ Auto-generated from all feature plans. Last updated: 2026-07-29
   seven new pure container operations in `packages/diagram-core`.
 - No new technology added in 007-project-context — zero runtime dependencies added. One additive
   Postgres migration on `projects` (`owner_id`) plus a backfill; no new package or service.
+- No new technology added in 008-shared-diagram-access — zero runtime dependencies added. One
+  additive Postgres migration, index-only (`share_grants_grantee_idx` on `share_grants`); no new
+  table, column, package, or service.
 
 ## Project Structure
 
@@ -43,6 +46,12 @@ tests are NON-NEGOTIABLE and must exist (and fail) before implementing any diagr
 work — see `.specify/memory/constitution.md` Principle IV.
 
 ## Recent Changes
+- 008-shared-diagram-access: A user granted access to a diagram, but not the project containing
+  it, previously had no way to discover or reach it, and the home screen actively told them they
+  had no work. Adds one self-scoped read endpoint listing a user's direct diagram-level grants and
+  a home-screen section rendering it; access resolution (`resolveDiagramAccess`) is unchanged —
+  this closes a discovery gap deliberately left open by feature 007's access-control fix, not a
+  new access rule.
 - 007-project-context: The project a user works in becomes real application state with an
   in-app chooser, instead of a query parameter the UI read but never wrote (landing on the root
   and clicking New Diagram failed outright). Projects gain an `owner_id`, and project visibility
@@ -54,26 +63,21 @@ work — see `.specify/memory/constitution.md` Principle IV.
   operations; a shared admin shell centres every admin screen and adds persistent navigation; a
   visible affordance for the existing label editor; standards gain a name, description and
   retirement date; version history is capped at five with search.
-- 005-modern-ui-redesign: First visual design for the product, which previously shipped with no
   stylesheet at all. Adds a global CSS token layer, restructures the diagram editor into a
   document bar plus a palette rail and a tabbed secondary rail (DSL/Chat/Issues/History),
   converts dialogs to native modals, and defines empty/loading/error states. Diagram element
   rendering and the export renderer are deliberately untouched; admin screens inherit
   bare-element styling without being edited.
-- 004-ai-diagram-chat: Persona-driven AI chat for creating/editing flowchart diagrams — admins
   author "AI personas" (name, architect-category tag, system prompt); users pick one to generate
   a diagram via natural language, then keep refining it through a persistent in-editor chat panel
   that applies targeted `diagram-core` operations (new `addNode`/`addEdge`) rather than
   regenerating the whole diagram.
-- 003-parser-correctness-fixes: Architecture parser now parses `-->`/`<--` connections (previously
   a hard defect — only plain `--` worked); ER diagrams support attribute blocks (`{ type name
   PK/FK/UK }`); sequence diagrams support notes and nestable control-flow blocks (`loop`/`alt`/
   `opt`/`par`/`critical`/`break`); and `%%` comments are now honored in every parser, not just
   flowchart's.
-- 002-editing-lifecycle-enhancements: Sign-out control, shape/connector label editing, shape
   deletion (with confirmation), diagram soft-delete + admin restore, and flowchart parser
   extensions (`graph` header alias, `style` directive, `%%` comments).
-- 001-diagramming-platform: Added TypeScript/React/Fastify web app + shared diagram-core package
   for a governed, multi-persona (Business/Enterprise/Solution/Technical Architect) diagramming
   platform with Mermaid DSL/SVG/PNG export and Azure/AWS icon libraries.
 

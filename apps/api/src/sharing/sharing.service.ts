@@ -128,6 +128,75 @@ export async function resolveDiagramAccess(
   return projectGrant[0]?.access_level;
 }
 
+export interface SharedDiagramEntry {
+  diagramId: string;
+  diagramName: string;
+  diagramTypeId: string;
+  projectName: string;
+  accessLevel: AccessLevel;
+  sharedByName: string;
+  sharedByEmail: string;
+  sharedAt: string;
+}
+
+/**
+ * Diagrams shared directly with a user (feature 008, FR-001). Deliberately a single join with no
+ * access-resolution logic layered on top — research.md §1 found that shape alone already
+ * satisfies every requirement:
+ *
+ * - A revoked grant has no `share_grants` row to join from, so it is simply absent (FR-011).
+ * - A diagram the user could also reach via project access is not excluded — this never checks
+ *   project access at all, so there is nothing to exclude it with (FR-006).
+ * - `accessLevel` is the grant's own stored value, identical to what `resolveDiagramAccess` would
+ *   return for a diagram-level grant (FR-004) — nothing here recomputes it.
+ * - `projectName` is the diagram's immediate `project_id` only, never an ancestor (FR-005).
+ * - `sharedByName`/`sharedByEmail` are joined without an `active = true` filter: a grant made
+ *   while the sharer was active remains attributed to them regardless of their current status
+ *   (FR-007).
+ */
+export async function listSharedDiagramsForUser(userId: string): Promise<SharedDiagramEntry[]> {
+  const pool = getPool();
+  const { rows } = await pool.query<{
+    diagram_id: string;
+    diagram_name: string;
+    diagram_type_id: string;
+    project_name: string;
+    access_level: AccessLevel;
+    shared_by_name: string;
+    shared_by_email: string;
+    shared_at: string;
+  }>(
+    `SELECT
+       d.id            AS diagram_id,
+       d.name          AS diagram_name,
+       d.diagram_type_id,
+       p.name          AS project_name,
+       sg.access_level,
+       u.name          AS shared_by_name,
+       u.email         AS shared_by_email,
+       sg.created_at   AS shared_at
+     FROM share_grants sg
+     JOIN diagrams d ON d.id = sg.subject_id
+     JOIN projects p ON p.id = d.project_id
+     JOIN users    u ON u.id = sg.granted_by_user_id
+     WHERE sg.subject_type = 'diagram'
+       AND sg.grantee_user_id = $1
+       AND d.deleted_at IS NULL
+     ORDER BY d.name, d.id`,
+    [userId],
+  );
+  return rows.map((r) => ({
+    diagramId: r.diagram_id,
+    diagramName: r.diagram_name,
+    diagramTypeId: r.diagram_type_id,
+    projectName: r.project_name,
+    accessLevel: r.access_level,
+    sharedByName: r.shared_by_name,
+    sharedByEmail: r.shared_by_email,
+    sharedAt: r.shared_at,
+  }));
+}
+
 export function accessAtLeast(level: AccessLevel | undefined, required: AccessLevel): boolean {
   if (!level) return false;
   return ACCESS_RANK[level] >= ACCESS_RANK[required];

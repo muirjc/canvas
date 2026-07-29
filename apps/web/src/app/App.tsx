@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { api, type DiagramDto, type ProjectDto, type SessionUser } from './api';
+import { api, type DiagramDto, type ProjectDto, type SessionUser, type SharedDiagramDto } from './api';
 import { LoginForm } from './LoginForm';
 import { AppShell } from './AppShell';
 import { DiagramEditor } from './DiagramEditor';
@@ -11,6 +11,7 @@ import { UsersPage } from '../admin/UsersPage';
 import { AdminOverview } from '../admin/AdminOverview';
 import { DeletedDiagramsPage } from '../admin/DeletedDiagramsPage';
 import { ProjectBrowser } from '../projects/ProjectBrowser';
+import { SharedDiagramsList } from '../projects/SharedDiagramsList';
 import { ImportDialog } from '../projects/ImportDialog';
 import { CreateViaChatDialog } from '../ai/CreateViaChatDialog';
 import { PersonaAdminPage } from '../ai/PersonaAdminPage';
@@ -31,6 +32,10 @@ export function App() {
   // the whole defect this feature fixes.
   const [projectId, setProjectId] = useState<string | null>(() => readProjectIdFromUrl());
   const [projects, setProjects] = useState<ProjectDto[] | null>(null);
+  // Diagrams shared directly with this user, independent of project access (feature 008,
+  // FR-001/FR-002). Fetched alongside — not gated on — the project list, since a user with zero
+  // projects still needs to see this.
+  const [sharedDiagrams, setSharedDiagrams] = useState<SharedDiagramDto[]>([]);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const [pendingProjectId, setPendingProjectId] = useState<string | null>(null);
   const [creatingProject, setCreatingProject] = useState(false);
@@ -66,6 +71,24 @@ export function App() {
       })
       .catch((err) => {
         if (!cancelled) setError((err as Error).message);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [user]);
+
+  // Diagrams shared directly with this user (feature 008, FR-001). Independent of the project
+  // list above — it must populate even for a user with zero project access.
+  useEffect(() => {
+    if (!user) return;
+    let cancelled = false;
+    api
+      .listSharedDiagrams()
+      .then(({ diagrams }) => {
+        if (!cancelled) setSharedDiagrams(diagrams);
+      })
+      .catch(() => {
+        if (!cancelled) setSharedDiagrams([]);
       });
     return () => {
       cancelled = true;
@@ -174,10 +197,18 @@ export function App() {
       <main className="page">
         <h1 className="page__title">Diagrams</h1>
 
-        {hasNoProjects ? (
+        {/* Rendered independent of hasNoProjects below — a user with zero projects still needs
+            to see this (feature 008, FR-002). Omitted entirely, not shown empty, when there is
+            nothing shared (FR-002's clarified behavior). */}
+        {sharedDiagrams.length > 0 && <SharedDiagramsList diagrams={sharedDiagrams} onOpenDiagram={openDiagram} />}
+
+        {hasNoProjects && sharedDiagrams.length > 0 ? null : hasNoProjects ? (
           /* No projects: invite, never invent. Reachable two ways — an empty installation, and a
              user who owns nothing and has been given nothing, which is newly possible now that
-             visibility is access-controlled (FR-014, FR-015). */
+             visibility is access-controlled (FR-014, FR-015). Suppressed entirely — not shown
+             alongside the shared list — for a user who has no projects but does have a diagram
+             shared with them (feature 008, FR-003): the invitation would otherwise misinform them
+             they have no work, immediately above a list proving otherwise. */
           <section className="empty-state" data-testid="create-first-project">
             <p>You do not have any projects yet. Create one to start drawing diagrams.</p>
             {creatingProject ? (
