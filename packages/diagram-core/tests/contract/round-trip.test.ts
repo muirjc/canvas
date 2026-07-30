@@ -99,4 +99,90 @@ describe('flowchart round-trip (parse(serialize(model)) === model)', () => {
     }
     expect(normalize(current)).toEqual(normalize(model));
   });
+
+  const newShapes: DiagramModel['nodes'][number]['shape'][] = [
+    'stadium',
+    'subroutine',
+    'double-circle',
+    'hexagon',
+    'parallelogram',
+    'parallelogram-alt',
+    'trapezoid',
+    'trapezoid-alt',
+    'asymmetric',
+  ];
+
+  it.each(newShapes)('round-trips a %s node losslessly', (shape) => {
+    const model: DiagramModel = {
+      diagramTypeId: 'flowchart',
+      nodes: [{ id: 'A', label: 'Node', shape, position: { x: 40, y: 40 } }],
+      edges: [],
+      containers: [],
+    };
+
+    expect(normalize(roundTrip(model))).toEqual(normalize(model));
+  });
+
+  it('never normalizes parallelogram/trapezoid to their -alt counterpart or vice versa', () => {
+    const model: DiagramModel = {
+      diagramTypeId: 'flowchart',
+      nodes: [
+        { id: 'A', label: 'P', shape: 'parallelogram', position: { x: 0, y: 0 } },
+        { id: 'B', label: 'PAlt', shape: 'parallelogram-alt', position: { x: 200, y: 0 } },
+        { id: 'C', label: 'T', shape: 'trapezoid', position: { x: 400, y: 0 } },
+        { id: 'D', label: 'TAlt', shape: 'trapezoid-alt', position: { x: 600, y: 0 } },
+      ],
+      edges: [],
+      containers: [],
+    };
+
+    const result = roundTrip(model);
+    expect(result.nodes.find((n) => n.id === 'A')!.shape).toBe('parallelogram');
+    expect(result.nodes.find((n) => n.id === 'B')!.shape).toBe('parallelogram-alt');
+    expect(result.nodes.find((n) => n.id === 'C')!.shape).toBe('trapezoid');
+    expect(result.nodes.find((n) => n.id === 'D')!.shape).toBe('trapezoid-alt');
+  });
+
+  it('round-trips an edge style (linkStyle: color, width, dasharray) losslessly', () => {
+    const model: DiagramModel = {
+      diagramTypeId: 'flowchart',
+      nodes: [
+        { id: 'A', label: 'Start', shape: 'rectangle', position: { x: 0, y: 0 } },
+        { id: 'B', label: 'End', shape: 'rectangle', position: { x: 200, y: 0 } },
+      ],
+      edges: [
+        {
+          id: 'e1',
+          sourceId: 'A',
+          targetId: 'B',
+          style: { strokeColor: '#ff0000', strokeWidth: 4, strokeDasharray: '5 5' },
+        },
+      ],
+      containers: [],
+    };
+
+    expect(normalize(roundTrip(model))).toEqual(normalize(model));
+  });
+
+  it('round-trips distinct styles on multiple edges without cross-contamination', () => {
+    const model: DiagramModel = {
+      diagramTypeId: 'flowchart',
+      nodes: [
+        { id: 'A', label: 'A', shape: 'rectangle', position: { x: 0, y: 0 } },
+        { id: 'B', label: 'B', shape: 'rectangle', position: { x: 200, y: 0 } },
+        { id: 'C', label: 'C', shape: 'rectangle', position: { x: 400, y: 0 } },
+      ],
+      edges: [
+        { id: 'e1', sourceId: 'A', targetId: 'B', style: { strokeColor: '#ff0000' } },
+        { id: 'e2', sourceId: 'B', targetId: 'C', style: { strokeDasharray: '2 2' } },
+      ],
+      containers: [],
+    };
+
+    const result = roundTrip(model);
+    expect(result.edges.find((e) => e.id === 'e1')!.style?.strokeColor).toBe('#ff0000');
+    expect(result.edges.find((e) => e.id === 'e1')!.style?.strokeDasharray).toBeUndefined();
+    expect(result.edges.find((e) => e.id === 'e2')!.style?.strokeDasharray).toBe('2 2');
+    expect(result.edges.find((e) => e.id === 'e2')!.style?.strokeColor).toBeUndefined();
+  });
 });

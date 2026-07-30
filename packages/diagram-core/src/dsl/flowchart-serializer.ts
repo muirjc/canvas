@@ -9,6 +9,15 @@ const SHAPE_DELIMITERS: Record<NodeShape, [string, string]> = {
   cylinder: ['[(', ')]'],
   person: ['[', ']'],
   icon: ['[', ']'],
+  stadium: ['([', '])'],
+  subroutine: ['[[', ']]'],
+  'double-circle': ['(((', ')))'],
+  hexagon: ['{{', '}}'],
+  parallelogram: ['[/', '/]'],
+  'parallelogram-alt': ['[\\', '\\]'],
+  trapezoid: ['[/', '\\]'],
+  'trapezoid-alt': ['[\\', '/]'],
+  asymmetric: ['>', ']'],
 };
 
 function serializeNode(node: DiagramNode): string {
@@ -59,6 +68,9 @@ export function serializeFlowchart(model: DiagramModel): string {
       ),
       styles: Object.fromEntries(
         model.nodes.filter((n) => n.style).map((n) => [n.id, n.style!]),
+      ),
+      edgeStyles: Object.fromEntries(
+        model.edges.filter((e) => e.style).map((e) => [e.id, e.style!]),
       ),
       icons: Object.fromEntries(
         model.nodes.filter((n) => n.icon).map((n) => [n.id, n.icon!]),

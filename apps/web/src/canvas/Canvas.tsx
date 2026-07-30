@@ -18,7 +18,7 @@ import {
   type DiagramNode,
   type NodeShape,
 } from '@canvas/diagram-core';
-import { ADDABLE_SHAPES, nodeSize, renderNodeShape } from './shapes';
+import { getAddableShapes, nodeSize, renderNodeShape } from './shapes';
 import { ConfirmDialog } from './ConfirmDialog';
 import { Icon } from '../ui/Icon';
 
@@ -29,11 +29,22 @@ const SHAPE_GLYPHS: Partial<Record<NodeShape, string>> = {
   'rounded-rectangle': '▢',
   circle: '○',
   diamond: '◇',
+  stadium: '⬭',
+  subroutine: '⊟',
+  'double-circle': '◎',
+  hexagon: '⬡',
+  parallelogram: '▱',
+  trapezoid: '⏢',
+  asymmetric: '⌂',
 };
 
 export interface CanvasProps {
   model: DiagramModel;
   onChange: (model: DiagramModel) => void;
+  /** The diagram type's DSL family (e.g. `'flowchart'`, `'erd'`) — scopes which shapes the "Add
+   *  Shape" toolbar offers (feature 009). Several diagram types share `dslFamily: 'flowchart'`
+   *  without `diagramTypeId === 'flowchart'`, so this must not be substituted with the type id. */
+  dslFamily: string;
   /**
    * Where to render the diagram-tools toolbar. The editor passes its left palette rail so the
    * tools sit with the shape palette (feature 005), while the toolbar's `role` and accessible
@@ -77,7 +88,7 @@ function containerAtPoint(model: DiagramModel, point: { x: number; y: number }):
  * labels via direct manipulation. Renders the same DiagramModel that packages/diagram-core
  * parses/serializes, so every edit here is reflected in the Mermaid DSL by useDslSync.
  */
-export function Canvas({ model, onChange, toolbarContainer }: CanvasProps) {
+export function Canvas({ model, onChange, dslFamily, toolbarContainer }: CanvasProps) {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [connectMode, setConnectMode] = useState(false);
   const [connectSourceId, setConnectSourceId] = useState<string | null>(null);
@@ -328,7 +339,7 @@ export function Canvas({ model, onChange, toolbarContainer }: CanvasProps) {
       <div className="rail-section">
         <p className="section-label rail-section__label">Shapes</p>
         <div className="shape-grid">
-          {ADDABLE_SHAPES.map(({ shape, label }) => (
+          {getAddableShapes(dslFamily).map(({ shape, label }) => (
             <button
               key={shape}
               type="button"
@@ -516,7 +527,16 @@ export function Canvas({ model, onChange, toolbarContainer }: CanvasProps) {
                 setEditingEdgeId(edge.id);
               }}
             >
-              <line x1={from.x} y1={from.y} x2={to.x} y2={to.y} stroke="#333" markerEnd="url(#arrow)" />
+              <line
+                x1={from.x}
+                y1={from.y}
+                x2={to.x}
+                y2={to.y}
+                stroke={edge.style?.strokeColor ?? '#333'}
+                strokeWidth={edge.style?.strokeWidth}
+                strokeDasharray={edge.style?.strokeDasharray}
+                markerEnd="url(#arrow)"
+              />
               {/* Padded invisible hit-target rect, not a thin line: a horizontal or vertical
                   connector's own geometry has a zero-height/width bounding box, which is not a
                   reliable click (or double-click) target for a user or for automated testing. */}

@@ -49,6 +49,98 @@ function renderNodeShape(node: DiagramNode): string {
     }
     case 'rounded-rectangle':
       return `<rect x="${x}" y="${y}" width="${width}" height="${height}" rx="12" ry="12" fill="${fill}" stroke="${stroke}" />`;
+    case 'stadium':
+      return `<rect x="${x}" y="${y}" width="${width}" height="${height}" rx="${height / 2}" ry="${height / 2}" fill="${fill}" stroke="${stroke}" />`;
+    case 'subroutine': {
+      const inset = Math.min(10, width / 6);
+      return [
+        `<rect x="${x}" y="${y}" width="${width}" height="${height}" fill="${fill}" stroke="${stroke}" />`,
+        `<line x1="${x + inset}" y1="${y}" x2="${x + inset}" y2="${y + height}" stroke="${stroke}" />`,
+        `<line x1="${x + width - inset}" y1="${y}" x2="${x + width - inset}" y2="${y + height}" stroke="${stroke}" />`,
+      ].join('');
+    }
+    case 'double-circle': {
+      const gap = 5;
+      return [
+        `<ellipse cx="${x + width / 2}" cy="${y + height / 2}" rx="${width / 2}" ry="${height / 2}" fill="${fill}" stroke="${stroke}" />`,
+        `<ellipse cx="${x + width / 2}" cy="${y + height / 2}" rx="${width / 2 - gap}" ry="${height / 2 - gap}" fill="none" stroke="${stroke}" />`,
+      ].join('');
+    }
+    case 'hexagon': {
+      const notch = Math.min(20, width / 4);
+      const points = [
+        [x + notch, y],
+        [x + width - notch, y],
+        [x + width, y + height / 2],
+        [x + width - notch, y + height],
+        [x + notch, y + height],
+        [x, y + height / 2],
+      ]
+        .map((p) => p.join(','))
+        .join(' ');
+      return `<polygon points="${points}" fill="${fill}" stroke="${stroke}" />`;
+    }
+    case 'parallelogram': {
+      const skew = Math.min(20, width / 5);
+      const points = [
+        [x + skew, y],
+        [x + width, y],
+        [x + width - skew, y + height],
+        [x, y + height],
+      ]
+        .map((p) => p.join(','))
+        .join(' ');
+      return `<polygon points="${points}" fill="${fill}" stroke="${stroke}" />`;
+    }
+    case 'parallelogram-alt': {
+      const skew = Math.min(20, width / 5);
+      const points = [
+        [x, y],
+        [x + width - skew, y],
+        [x + width, y + height],
+        [x + skew, y + height],
+      ]
+        .map((p) => p.join(','))
+        .join(' ');
+      return `<polygon points="${points}" fill="${fill}" stroke="${stroke}" />`;
+    }
+    case 'trapezoid': {
+      const skew = Math.min(20, width / 5);
+      const points = [
+        [x + skew, y],
+        [x + width - skew, y],
+        [x + width, y + height],
+        [x, y + height],
+      ]
+        .map((p) => p.join(','))
+        .join(' ');
+      return `<polygon points="${points}" fill="${fill}" stroke="${stroke}" />`;
+    }
+    case 'trapezoid-alt': {
+      const skew = Math.min(20, width / 5);
+      const points = [
+        [x, y],
+        [x + width, y],
+        [x + width - skew, y + height],
+        [x + skew, y + height],
+      ]
+        .map((p) => p.join(','))
+        .join(' ');
+      return `<polygon points="${points}" fill="${fill}" stroke="${stroke}" />`;
+    }
+    case 'asymmetric': {
+      const notch = Math.min(20, width / 5);
+      const points = [
+        [x, y],
+        [x + width - notch, y],
+        [x + width, y + height / 2],
+        [x + width - notch, y + height],
+        [x, y + height],
+      ]
+        .map((p) => p.join(','))
+        .join(' ');
+      return `<polygon points="${points}" fill="${fill}" stroke="${stroke}" />`;
+    }
     case 'person':
       return `<rect x="${x}" y="${y}" width="${width}" height="${height}" rx="24" ry="24" fill="${fill}" stroke="${stroke}" />`;
     case 'icon':
@@ -111,7 +203,10 @@ function renderEdge(edge: DiagramModel['edges'][number], nodesById: Map<string, 
   const label = edge.label
     ? `<text x="${midX}" y="${midY - 4}" text-anchor="middle" font-size="12" font-family='${FONT_FAMILY}'>${escapeXml(edge.label)}</text>`
     : '';
-  return `<g data-edge-id="${escapeXml(edge.id)}"><line x1="${from.x}" y1="${from.y}" x2="${to.x}" y2="${to.y}" stroke="#333333" marker-end="url(#arrowhead)" />${label}</g>`;
+  const stroke = edge.style?.strokeColor ?? '#333333';
+  const strokeWidth = edge.style?.strokeWidth ? ` stroke-width="${edge.style.strokeWidth}"` : '';
+  const strokeDasharray = edge.style?.strokeDasharray ? ` stroke-dasharray="${edge.style.strokeDasharray}"` : '';
+  return `<g data-edge-id="${escapeXml(edge.id)}"><line x1="${from.x}" y1="${from.y}" x2="${to.x}" y2="${to.y}" stroke="${stroke}"${strokeWidth}${strokeDasharray} marker-end="url(#arrowhead)" />${label}</g>`;
 }
 
 function computeBounds(model: DiagramModel): { width: number; height: number } {

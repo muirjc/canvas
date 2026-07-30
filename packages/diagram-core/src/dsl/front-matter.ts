@@ -1,4 +1,5 @@
 import { parse as parseYaml, stringify as stringifyYaml } from 'yaml';
+import type { NodeStyle } from '../model/diagram-model.js';
 
 /**
  * The platform's visual-metadata extension point (research.md §1): free-form positions, sizes,
@@ -9,10 +10,9 @@ export interface CanvasFrontMatter {
   canvas?: {
     positions?: Record<string, { x: number; y: number }>;
     containers?: Record<string, { x: number; y: number; width?: number; height?: number }>;
-    styles?: Record<
-      string,
-      { fillColor?: string; strokeColor?: string; fontFamily?: string; fontSize?: number }
-    >;
+    styles?: Record<string, NodeStyle>;
+    /** Per-edge style overrides (`linkStyle`) — keyed by edge id, same shape as node `styles`. */
+    edgeStyles?: Record<string, NodeStyle>;
     icons?: Record<string, { libraryId: string; libraryVersion: string; iconId: string }>;
   };
 }

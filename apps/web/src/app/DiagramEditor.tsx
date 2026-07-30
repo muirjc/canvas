@@ -149,7 +149,7 @@ export function DiagramEditor({ diagram: initialDiagram, onUnsavedChangesChange 
         </div>
 
         <div className="editor__canvas" data-testid="canvas-surface">
-          <Canvas model={model} onChange={setModel} toolbarContainer={toolbarContainer} />
+          <Canvas model={model} onChange={setModel} dslFamily={diagram.dslFamily} toolbarContainer={toolbarContainer} />
         </div>
 
         <div className="editor__rail-right">

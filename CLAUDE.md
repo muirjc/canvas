@@ -26,6 +26,9 @@ Auto-generated from all feature plans. Last updated: 2026-07-29
 - No new technology added in 008-shared-diagram-access — zero runtime dependencies added. One
   additive Postgres migration, index-only (`share_grants_grantee_idx` on `share_grants`); no new
   table, column, package, or service.
+- No new technology added in 009-flowchart-node-shapes — zero runtime dependencies added. No
+  persistence change (`NodeShape` is an in-memory/DSL-level type, not a database column); no new
+  package or service. Touches `packages/diagram-core` and `apps/web` only.
 
 ## Project Structure
 
@@ -46,6 +49,12 @@ tests are NON-NEGOTIABLE and must exist (and fail) before implementing any diagr
 work — see `.specify/memory/constitution.md` Principle IV.
 
 ## Recent Changes
+- 009-flowchart-node-shapes: Feature 002 deferred "additional node shapes" as a named follow-up;
+  this adds the seven Mermaid flowchart shapes still missing (stadium, subroutine, double-circle,
+  hexagon, parallelogram, trapezoid, asymmetric) — parsed, rendered (canvas and export), and
+  authorable from a toolbar that becomes diagram-family-aware for the first time (scoped by
+  `dslFamily`, not `diagramTypeId`, since six diagram types share the flowchart family). Standards
+  enforcement needed no code change — already generic over `NodeShape`.
 - 008-shared-diagram-access: A user granted access to a diagram, but not the project containing
   it, previously had no way to discover or reach it, and the home screen actively told them they
   had no work. Adds one self-scoped read endpoint listing a user's direct diagram-level grants and
@@ -58,7 +67,6 @@ work — see `.specify/memory/constitution.md` Principle IV.
   becomes access-controlled — closing a pre-existing hole where any signed-in user could read any
   project's entire diagram tree by id, since no route taking a project id checked more than
   authentication.
-- 006-authoring-admin-console: Containers become first-class canvas objects (create, name, move,
   resize, drag membership; deleting one releases its shapes) backed by seven new `diagram-core`
   operations; a shared admin shell centres every admin screen and adds persistent navigation; a
   visible affordance for the existing label editor; standards gain a name, description and

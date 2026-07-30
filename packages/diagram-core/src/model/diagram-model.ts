@@ -31,6 +31,10 @@ export interface NodeStyle {
   strokeColor?: string;
   fontFamily?: string;
   fontSize?: number;
+  /** Line thickness in px — meaningful for edges (`linkStyle`), rarely used for node borders. */
+  strokeWidth?: number;
+  /** Raw SVG `stroke-dasharray` value (e.g. "5 5") — dotted/dashed edges via `linkStyle`. */
+  strokeDasharray?: string;
 }
 
 export type NodeShape =
@@ -40,7 +44,18 @@ export type NodeShape =
   | 'diamond'
   | 'cylinder'
   | 'person'
-  | 'icon';
+  | 'icon'
+  // Feature 009: orientation is part of the shape's identity, not a separate field —
+  // `parallelogram`/`trapezoid` each have a mirrored `-alt` counterpart (see data-model.md).
+  | 'stadium'
+  | 'subroutine'
+  | 'double-circle'
+  | 'hexagon'
+  | 'parallelogram'
+  | 'parallelogram-alt'
+  | 'trapezoid'
+  | 'trapezoid-alt'
+  | 'asymmetric';
 
 /** An ER entity attribute: a typed field with zero or more key constraints (ERD only). */
 export interface EntityAttribute {
