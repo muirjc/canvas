@@ -114,3 +114,125 @@ describe('renderToSvg container fidelity', () => {
     expect(svg).not.toMatch(/resize-handle|data-selected|cursor=/);
   });
 });
+
+/**
+ * Feature 009: the seven additional Mermaid flowchart shapes (plus double-circle and stadium,
+ * both already implied by the DSL but never drawn) must render as themselves in export markup —
+ * never silently fall through to the rectangle `default` case (data-model.md's rendering table).
+ */
+describe('renderToSvg additional node shapes (feature 009)', () => {
+  function svgFor(shape: DiagramModel['nodes'][number]['shape']): string {
+    return renderToSvg({
+      diagramTypeId: 'flowchart',
+      nodes: [{ id: 'A', label: 'Node', shape, position: { x: 0, y: 0 } }],
+      edges: [],
+      containers: [],
+    });
+  }
+
+  it('renders stadium as a fully rounded rect (rx/ry = half the node height), distinct from rounded-rectangle', () => {
+    const svg = svgFor('stadium');
+    expect(svg).toContain('<rect');
+    expect(svg).toMatch(/<rect[^>]*rx="30"[^>]*ry="30"/);
+  });
+
+  it('renders subroutine as a rect with two inset vertical lines', () => {
+    const svg = svgFor('subroutine');
+    expect(svg).toContain('<rect');
+    expect(svg.match(/<line/g)?.length).toBe(2);
+  });
+
+  it('renders double-circle as two concentric ellipses', () => {
+    const svg = svgFor('double-circle');
+    expect(svg.match(/<ellipse/g)?.length).toBe(2);
+  });
+
+  it('renders hexagon as a six-point polygon', () => {
+    const svg = svgFor('hexagon');
+    const match = svg.match(/<polygon points="([^"]+)"/);
+    expect(match).not.toBeNull();
+    expect(match![1].trim().split(/\s+/)).toHaveLength(6);
+  });
+
+  it.each(['parallelogram', 'parallelogram-alt', 'trapezoid', 'trapezoid-alt'] as const)(
+    'renders %s as a four-point polygon',
+    (shape) => {
+      const svg = svgFor(shape);
+      const match = svg.match(/<polygon points="([^"]+)"/);
+      expect(match).not.toBeNull();
+      expect(match![1].trim().split(/\s+/)).toHaveLength(4);
+    },
+  );
+
+  it('renders parallelogram and parallelogram-alt as mirror images (opposite slant)', () => {
+    const svg = svgFor('parallelogram');
+    const svgAlt = svgFor('parallelogram-alt');
+    const points = svg.match(/<polygon points="([^"]+)"/)![1];
+    const pointsAlt = svgAlt.match(/<polygon points="([^"]+)"/)![1];
+    expect(points).not.toBe(pointsAlt);
+  });
+
+  it('renders asymmetric as a polygon, not a rectangle', () => {
+    const svg = svgFor('asymmetric');
+    expect(svg).toContain('<polygon');
+    expect(svg).not.toContain('<rect');
+  });
+
+  it('never falls through to a plain rectangle default for any of the nine new shapes', () => {
+    const newShapes: DiagramModel['nodes'][number]['shape'][] = [
+      'stadium',
+      'subroutine',
+      'double-circle',
+      'hexagon',
+      'parallelogram',
+      'parallelogram-alt',
+      'trapezoid',
+      'trapezoid-alt',
+      'asymmetric',
+    ];
+    const rectangleSvg = svgFor('rectangle');
+    for (const shape of newShapes) {
+      expect(svgFor(shape)).not.toBe(rectangleSvg);
+    }
+  });
+});
+
+/**
+ * linkStyle support: an edge carrying a style must render with that color/width/dash-pattern
+ * instead of the hardcoded default stroke every edge used to get regardless of edge.style.
+ */
+describe('renderToSvg edge styling (linkStyle)', () => {
+  function svgForEdge(style: DiagramModel['edges'][number]['style']): string {
+    return renderToSvg({
+      diagramTypeId: 'flowchart',
+      nodes: [
+        { id: 'A', label: 'A', shape: 'rectangle', position: { x: 0, y: 0 } },
+        { id: 'B', label: 'B', shape: 'rectangle', position: { x: 300, y: 0 } },
+      ],
+      edges: [{ id: 'e1', sourceId: 'A', targetId: 'B', style }],
+      containers: [],
+    });
+  }
+
+  it('applies a styled edge\'s stroke color instead of the default', () => {
+    const svg = svgForEdge({ strokeColor: '#ff0000' });
+    expect(svg).toMatch(/<line[^>]*stroke="#ff0000"/);
+    expect(svg).not.toMatch(/<line[^>]*stroke="#333333"/);
+  });
+
+  it('applies stroke-width when set', () => {
+    const svg = svgForEdge({ strokeWidth: 4 });
+    expect(svg).toMatch(/<line[^>]*stroke-width="4"/);
+  });
+
+  it('applies stroke-dasharray when set', () => {
+    const svg = svgForEdge({ strokeDasharray: '5 5' });
+    expect(svg).toMatch(/<line[^>]*stroke-dasharray="5 5"/);
+  });
+
+  it('falls back to the default stroke and no dasharray for an unstyled edge', () => {
+    const svg = svgForEdge(undefined);
+    expect(svg).toMatch(/<line[^>]*stroke="#333333"/);
+    expect(svg).not.toContain('stroke-dasharray');
+  });
+});

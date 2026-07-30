@@ -30,9 +30,9 @@ test('offers scoped diagram types and finds Azure/AWS icons by name', async ({ p
   await search.fill('Lambda');
   await expect(page.getByTestId('palette-icon-aws-icons-lambda')).toBeVisible();
 
-  await search.fill('Blob Storage');
-  await expect(page.getByTestId('palette-icon-azure-icons-blob-storage')).toBeVisible();
+  await search.fill('Storage Accounts');
+  await expect(page.getByTestId('palette-icon-azure-icons-storage-accounts')).toBeVisible();
 
-  await page.getByTestId('palette-icon-azure-icons-blob-storage').click();
-  await expect(page.getByTestId('dsl-panel')).toContainText('blob-storage');
+  await page.getByTestId('palette-icon-azure-icons-storage-accounts').click();
+  await expect(page.getByTestId('dsl-panel')).toContainText('storage-accounts');
 });

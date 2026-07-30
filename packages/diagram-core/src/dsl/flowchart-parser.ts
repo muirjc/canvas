@@ -4,14 +4,27 @@ import {
   type DiagramNode,
   type FlowchartDirection,
   type NodeShape,
+  type NodeStyle,
 } from '../model/diagram-model.js';
 import { splitFrontMatter } from './front-matter.js';
 import type { ParseError, ParseResult } from './types.js';
 
 const ID = String.raw`[A-Za-z0-9_]+`;
 
+// Insertion order is a correctness requirement, not a style preference: each more-specific
+// delimiter must be tried before the less-specific pattern it would otherwise collide with
+// (see data-model.md's ordering table). `rectangle` must stay last.
 const NODE_PATTERNS: Array<{ shape: NodeShape; regex: RegExp }> = [
+  { shape: 'subroutine', regex: new RegExp(`^(${ID})\\[\\[(.+)\\]\\]$`) },
+  { shape: 'double-circle', regex: new RegExp(`^(${ID})\\(\\(\\((.+)\\)\\)\\)$`) },
+  { shape: 'hexagon', regex: new RegExp(`^(${ID})\\{\\{(.+)\\}\\}$`) },
+  { shape: 'stadium', regex: new RegExp(`^(${ID})\\(\\[(.+)\\]\\)$`) },
   { shape: 'cylinder', regex: new RegExp(`^(${ID})\\[\\((.+)\\)\\]$`) },
+  { shape: 'parallelogram', regex: new RegExp(`^(${ID})\\[/(.+)/\\]$`) },
+  { shape: 'parallelogram-alt', regex: new RegExp(`^(${ID})\\[\\\\(.+)\\\\\\]$`) },
+  { shape: 'trapezoid', regex: new RegExp(`^(${ID})\\[/(.+)\\\\\\]$`) },
+  { shape: 'trapezoid-alt', regex: new RegExp(`^(${ID})\\[\\\\(.+)/\\]$`) },
+  { shape: 'asymmetric', regex: new RegExp(`^(${ID})>(.+)\\]$`) },
   { shape: 'circle', regex: new RegExp(`^(${ID})\\(\\((.+)\\)\\)$`) },
   { shape: 'diamond', regex: new RegExp(`^(${ID})\\{(.+)\\}$`) },
   { shape: 'rounded-rectangle', regex: new RegExp(`^(${ID})\\((.+)\\)$`) },
@@ -21,7 +34,7 @@ const NODE_PATTERNS: Array<{ shape: NodeShape; regex: RegExp }> = [
 // A node "token" as it appears at an edge endpoint: a bare id, optionally followed by an inline
 // shape+label declaration (Mermaid lets you declare a node's shape the first time it's used as an
 // edge endpoint, rather than requiring a separate declaration line).
-const SHAPE_SUFFIX = String.raw`\[\(.+?\)\]|\(\(.+?\)\)|\{.+?\}|\(.+?\)|\[.+?\]`;
+const SHAPE_SUFFIX = String.raw`\[\[.+?\]\]|\(\(\(.+?\)\)\)|\{\{.+?\}\}|\(\[.+?\]\)|\[\(.+?\)\]|\[/.+?/\]|\[\\.+?\\\]|\[/.+?\\\]|\[\\.+?/\]|>.+?\]|\(\(.+?\)\)|\{.+?\}|\(.+?\)|\[.+?\]`;
 const TOKEN = String.raw`${ID}(?:${SHAPE_SUFFIX})?`;
 
 const EDGE_WITH_PIPE_LABEL = new RegExp(`^(${TOKEN})\\s*-->\\s*\\|(.+?)\\|\\s*(${TOKEN})$`);
@@ -32,6 +45,22 @@ const SUBGRAPH_END = /^end$/;
 const BARE_ID = new RegExp(`^(${ID})$`);
 const HEADER = /^(?:flowchart|graph)\s+(TD|LR|TB|RL|BT)$/i;
 const STYLE_DIRECTIVE = new RegExp(`^style\\s+(${ID})\\s+(.+)$`);
+// Mermaid addresses links by their 0-based declaration order (the Nth edge line encountered),
+// not by the platform's internal e1/e2 ids — "default" applies the style to every edge.
+const LINK_STYLE_DIRECTIVE = /^linkStyle\s+(default|\d+(?:\s*,\s*\d+)*)\s+(.+)$/;
+
+/** Shared by both `style <nodeId> ...` and `linkStyle <index> ...` — same prop grammar. */
+function parseStyleProps(propsRaw: string): NodeStyle {
+  const style: NodeStyle = {};
+  for (const prop of propsRaw.split(',')) {
+    const [key, value] = prop.split(':').map((part) => part.trim());
+    if (key === 'fill') style.fillColor = value;
+    else if (key === 'stroke') style.strokeColor = value;
+    else if (key === 'stroke-width') style.strokeWidth = Number.parseFloat(value);
+    else if (key === 'stroke-dasharray') style.strokeDasharray = value;
+  }
+  return style;
+}
 
 /** Parses a single edge-endpoint token into its id and (if inline-declared) shape/label. */
 function matchNodeToken(token: string): { id: string; label: string; shape: NodeShape } | null {
@@ -65,15 +94,17 @@ export function parseFlowchart(dsl: string): ParseResult {
   const positions = canvas.positions ?? {};
   const containerMeta = canvas.containers ?? {};
   const styles = canvas.styles ?? {};
+  const edgeStyles = canvas.edgeStyles ?? {};
   const icons = canvas.icons ?? {};
 
   const lines = body.split(/\r?\n/);
   const errors: ParseError[] = [];
   const nodesById = new Map<string, DiagramNode>();
   const containersById = new Map<string, DiagramContainer>();
-  const edges: { id: string; sourceId: string; targetId: string; label?: string }[] = [];
+  const edges: { id: string; sourceId: string; targetId: string; label?: string; style?: NodeStyle }[] = [];
   const containerStack: string[] = [];
   const styleDirectives: { nodeId: string; propsRaw: string }[] = [];
+  const linkStyleDirectives: { indices: number[] | 'default'; propsRaw: string }[] = [];
   let diagramTypeSeen = false;
   let direction: FlowchartDirection | undefined;
   let edgeCounter = 0;
@@ -151,25 +182,36 @@ export function parseFlowchart(dsl: string): ParseResult {
       continue;
     }
 
+    const linkStyleMatch = line.match(LINK_STYLE_DIRECTIVE);
+    if (linkStyleMatch) {
+      const [, indexSpec, propsRaw] = linkStyleMatch;
+      const indices = indexSpec === 'default' ? 'default' : indexSpec.split(',').map((n) => Number.parseInt(n.trim(), 10));
+      linkStyleDirectives.push({ indices, propsRaw });
+      continue;
+    }
+
     const pipeEdge = line.match(EDGE_WITH_PIPE_LABEL);
     if (pipeEdge) {
       const [, source, label, target] = pipeEdge;
       edgeCounter += 1;
-      edges.push({ id: `e${edgeCounter}`, sourceId: resolveEdgeEndpoint(source), targetId: resolveEdgeEndpoint(target), label });
+      const id = `e${edgeCounter}`;
+      edges.push({ id, sourceId: resolveEdgeEndpoint(source), targetId: resolveEdgeEndpoint(target), label, style: edgeStyles[id] });
       continue;
     }
     const inlineEdge = line.match(EDGE_WITH_INLINE_LABEL);
     if (inlineEdge) {
       const [, source, label, target] = inlineEdge;
       edgeCounter += 1;
-      edges.push({ id: `e${edgeCounter}`, sourceId: resolveEdgeEndpoint(source), targetId: resolveEdgeEndpoint(target), label });
+      const id = `e${edgeCounter}`;
+      edges.push({ id, sourceId: resolveEdgeEndpoint(source), targetId: resolveEdgeEndpoint(target), label, style: edgeStyles[id] });
       continue;
     }
     const plainEdge = line.match(EDGE_NO_LABEL);
     if (plainEdge) {
       const [, source, target] = plainEdge;
       edgeCounter += 1;
-      edges.push({ id: `e${edgeCounter}`, sourceId: resolveEdgeEndpoint(source), targetId: resolveEdgeEndpoint(target) });
+      const id = `e${edgeCounter}`;
+      edges.push({ id, sourceId: resolveEdgeEndpoint(source), targetId: resolveEdgeEndpoint(target), style: edgeStyles[id] });
       continue;
     }
 
@@ -206,13 +248,16 @@ export function parseFlowchart(dsl: string): ParseResult {
   for (const { nodeId, propsRaw } of styleDirectives) {
     const node = nodesById.get(nodeId);
     if (!node) continue;
-    const style = { ...node.style };
-    for (const prop of propsRaw.split(',')) {
-      const [key, value] = prop.split(':').map((part) => part.trim());
-      if (key === 'fill') style.fillColor = value;
-      else if (key === 'stroke') style.strokeColor = value;
+    node.style = { ...node.style, ...parseStyleProps(propsRaw) };
+  }
+
+  // Same idea for `linkStyle`, but edges have no DSL-level id to look up — Mermaid addresses them
+  // by 0-based declaration order instead, so this must run after every edge has been collected.
+  for (const { indices, propsRaw } of linkStyleDirectives) {
+    const targets = indices === 'default' ? edges : indices.map((i) => edges[i]).filter((e): e is (typeof edges)[number] => !!e);
+    for (const edge of targets) {
+      edge.style = { ...edge.style, ...parseStyleProps(propsRaw) };
     }
-    node.style = style;
   }
 
   if (errors.length > 0) {

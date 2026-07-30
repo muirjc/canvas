@@ -90,7 +90,7 @@ describe('Libraries API contract', () => {
     expect(response.statusCode).toBe(200);
     const icons = response.json().icons;
     const ids = icons.map((i: { id: string; libraryId: string }) => `${i.libraryId}:${i.id}`);
-    expect(ids).toContain('azure-icons:blob-storage');
+    expect(ids).toContain('azure-icons:storage-accounts');
     expect(ids).toContain('aws-icons:s3');
   });
 

@@ -57,7 +57,7 @@ describe('architecture (cloud-infrastructure) DSL family', () => {
           label: 'Storage',
           shape: 'icon',
           position: { x: 0, y: 0 },
-          icon: { libraryId: 'azure-icons', libraryVersion: '2024.1', iconId: 'blob-storage' },
+          icon: { libraryId: 'azure-icons', libraryVersion: '2024.1', iconId: 'storage-accounts' },
         },
         {
           id: 's3',

@@ -1,7 +1,24 @@
 import { useEffect, useState } from 'react';
 import { api, type StandardDto, type StandardRulesDto } from '../app/api';
 
-const KNOWN_SHAPES = ['rectangle', 'rounded-rectangle', 'circle', 'diamond', 'cylinder', 'person', 'icon'];
+const KNOWN_SHAPES = [
+  'rectangle',
+  'rounded-rectangle',
+  'circle',
+  'diamond',
+  'cylinder',
+  'person',
+  'icon',
+  'stadium',
+  'subroutine',
+  'double-circle',
+  'hexagon',
+  'parallelogram',
+  'parallelogram-alt',
+  'trapezoid',
+  'trapezoid-alt',
+  'asymmetric',
+];
 
 export interface StandardsEditorProps {
   diagramTypeId: string;

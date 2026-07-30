@@ -41,3 +41,53 @@ test('admin publishes a standard; a violating diagram is soft-flagged, not block
   const [download] = await Promise.all([page.waitForEvent('download'), page.getByTestId('export-svg').click()]);
   expect(download.suggestedFilename()).toMatch(/\.svg$/);
 });
+
+/**
+ * Feature 009: the admin standards editor must offer all nine new shapes as governable, even
+ * though only seven have a toolbar button (research.md §5) — an admin can still mandate/allow the
+ * -alt orientations. This exercises the "zero validator change needed" claim end to end rather
+ * than taking it on faith: `packages/diagram-core/src/standards/validator.ts` is already generic
+ * over `NodeShape`.
+ */
+test('admin standards editor governs the nine new shapes, including a mandatory-shape violation', async ({ page }) => {
+  await page.goto('/?admin=true');
+  await page.getByTestId('login-email').fill(ADMIN_EMAIL);
+  await page.getByTestId('login-password').fill(ADMIN_PASSWORD);
+  await page.getByTestId('login-submit').click();
+  await page.waitForURL('**/*?admin=true');
+
+  const newShapes = [
+    'stadium',
+    'subroutine',
+    'double-circle',
+    'hexagon',
+    'parallelogram',
+    'parallelogram-alt',
+    'trapezoid',
+    'trapezoid-alt',
+    'asymmetric',
+  ];
+  for (const shape of newShapes) {
+    await expect(page.getByTestId(`allowed-shape-${shape}`)).toBeVisible();
+    await expect(page.getByTestId(`mandatory-shape-${shape}`)).toBeVisible();
+  }
+
+  await page.getByTestId('mandatory-shape-hexagon').locator('input').check();
+  await page.getByTestId('create-publish-standard').click();
+  await expect(page.getByTestId('standards-editor-message')).toContainText('Published standard');
+
+  await page.goto(`/?projectId=${PROJECT_ID}`);
+  await page.getByTestId('new-diagram').click();
+  await page.getByTestId('diagram-type-flowchart').check();
+  await page.getByTestId('confirm-new-diagram').click();
+  await expect(page.getByTestId('diagram-canvas')).toBeVisible();
+
+  // No hexagon added — the mandatory-shape rule should flag its absence.
+  await page.getByTestId('add-shape-rectangle').click();
+  await page.getByTestId('save-diagram').click();
+  await expect(page.getByTestId('save-status')).toHaveText('saved');
+
+  await page.getByTestId('rail-tab-issues').click();
+  await expect(page.getByTestId('violations-panel')).toBeVisible();
+  await expect(page.getByTestId('violation-item').first()).toContainText('mandatory-shapes');
+});
