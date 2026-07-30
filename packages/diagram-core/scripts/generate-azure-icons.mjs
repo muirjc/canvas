@@ -150,7 +150,7 @@ export const azureIconsManifest: IconShapeLibraryManifest = ${JSON.stringify(man
 `;
 
   writeFileSync(OUTPUT_PATH, header);
-  console.log(`Wrote ${icons.length} icons to ${OUTPUT_PATH}`);
+  console.log(`Wrote ${icons.length} icons to src/libraries/azure-icons.ts`);
 }
 
 main();
