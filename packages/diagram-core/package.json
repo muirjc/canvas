@@ -11,7 +11,8 @@
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "generate:azure-icons": "node scripts/generate-azure-icons.mjs"
   },
   "devDependencies": {
     "typescript": "^5.7.2",
