@@ -21,6 +21,11 @@ function nextIconNodeId(): string {
 
 export interface DiagramEditorProps {
   diagram: DiagramDto;
+  /** Navigates back to the project browser (App owns the unsaved-changes guard for this, same
+   *  as project switching — see App.tsx's requestGoHome). Optional only so DiagramEditor stays
+   *  usable without a shell around it (there is currently none, but no prop should be load-bearing
+   *  for rendering at all). */
+  onRequestClose?: () => void;
 }
 
 /**
@@ -45,7 +50,7 @@ function initialModelFromDsl(diagram: DiagramDto): DiagramModel {
 }
 
 export const DiagramEditor = forwardRef<DiagramEditorHandle, DiagramEditorProps>(function DiagramEditor(
-  { diagram: initialDiagram },
+  { diagram: initialDiagram, onRequestClose },
   ref,
 ) {
   const [diagram, setDiagram] = useState(initialDiagram);
@@ -119,6 +124,17 @@ export const DiagramEditor = forwardRef<DiagramEditorHandle, DiagramEditorProps>
   return (
     <div className="editor">
       <div className="editor__doc-bar" data-testid="doc-bar">
+        {onRequestClose && (
+          <button
+            type="button"
+            className="btn btn--secondary btn--compact"
+            data-testid="back-to-diagrams"
+            onClick={onRequestClose}
+          >
+            <Icon name="chevron-right" className="icon--flip" />
+            Diagrams
+          </button>
+        )}
         <span className="editor__title">
           <Icon name="diamond" />
           <span className="editor__title-text">{diagram.name}</span>

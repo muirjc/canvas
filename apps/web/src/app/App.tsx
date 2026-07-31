@@ -37,6 +37,7 @@ export function App() {
   // projects still needs to see this.
   const [sharedDiagrams, setSharedDiagrams] = useState<SharedDiagramDto[]>([]);
   const [pendingProjectId, setPendingProjectId] = useState<string | null>(null);
+  const [confirmingHome, setConfirmingHome] = useState(false);
   const [creatingProject, setCreatingProject] = useState(false);
   // canvas-eow: read synchronously at switch-time via ref, not mirrored into a parent useState —
   // see DiagramEditorHandle's doc comment for why the mirrored-state version was a genuine race.
@@ -121,6 +122,18 @@ export function App() {
     applyProjectChange(nextProjectId);
   };
 
+  /** Closes the open diagram back to the project browser, staying in the same project — the
+   *  same unsaved-changes guard as switching project, since discarding work silently is exactly
+   *  as wrong here as it is there. */
+  const requestGoHome = () => {
+    if (diagram && diagramEditorRef.current?.hasUnsavedChanges()) {
+      setConfirmingHome(true);
+      return;
+    }
+    setDiagram(null);
+    setError(null);
+  };
+
   const createDiagram = async (diagramTypeId: string) => {
     // The guard runs BEFORE the picker closes. It used to run after, so a failure threw away the
     // diagram type the user had just chosen and made them pick again (FR-003).
@@ -192,7 +205,7 @@ export function App() {
       </AdminShell>
     );
   } else if (diagram) {
-    content = <DiagramEditor diagram={diagram} ref={diagramEditorRef} />;
+    content = <DiagramEditor diagram={diagram} ref={diagramEditorRef} onRequestClose={requestGoHome} />;
   } else {
     content = (
       <main className="page">
@@ -353,6 +366,31 @@ export function App() {
             className="btn btn--secondary"
             data-testid="cancel-project-switch"
             onClick={() => setPendingProjectId(null)}
+          >
+            Keep editing
+          </button>
+        </div>
+      )}
+      {confirmingHome && (
+        <div role="alertdialog" aria-modal="true" aria-label="Unsaved changes" data-testid="home-nav-confirm">
+          <p>This diagram has unsaved changes. Returning to Diagrams will discard them.</p>
+          <button
+            type="button"
+            className="btn btn--primary"
+            data-testid="confirm-home-nav"
+            onClick={() => {
+              setDiagram(null);
+              setError(null);
+              setConfirmingHome(false);
+            }}
+          >
+            Discard and leave
+          </button>
+          <button
+            type="button"
+            className="btn btn--secondary"
+            data-testid="cancel-home-nav"
+            onClick={() => setConfirmingHome(false)}
           >
             Keep editing
           </button>
