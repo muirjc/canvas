@@ -47,8 +47,26 @@ describe('diagram-tools (AI tool wrappers)', () => {
 
   it('addNode adds a node', async () => {
     const result = await tools.addNode.execute!({ shape: 'diamond', label: 'Decision' }, { toolCallId: 't1', messages: [] });
-    expect(result).toEqual({ applied: true });
+    expect(result).toEqual({ applied: true, nodeId: expect.any(String) });
     expect(model.nodes.some((n) => n.label === 'Decision' && n.shape === 'diamond')).toBe(true);
+  });
+
+  it('addNode\'s result carries the new node\'s id, so a same-turn addEdge can reference it', async () => {
+    // Real bug found via T033 (live-provider validation, not the mock path): a real model creates
+    // several nodes then tries to connect them within the same turn, but has no way to learn the
+    // opaque generated id addNode assigned — it can only guess (the label text, "node-1", "0", …),
+    // and every guess fails. The tool result must surface the id so the model can use it.
+    const created = await tools.addNode.execute!({ shape: 'rectangle', label: 'New Shape' }, { toolCallId: 't1', messages: [] });
+    expect(created.applied).toBe(true);
+    const newNodeId = (created as { nodeId: string }).nodeId;
+    expect(model.nodes.some((n) => n.id === newNodeId)).toBe(true);
+
+    const edgeResult = await tools.addEdge.execute!(
+      { sourceId: 'a', targetId: newNodeId },
+      { toolCallId: 't2', messages: [] },
+    );
+    expect(edgeResult).toEqual({ applied: true });
+    expect(model.edges.some((e) => e.sourceId === 'a' && e.targetId === newNodeId)).toBe(true);
   });
 
   it('addEdge adds an edge between two existing nodes', async () => {

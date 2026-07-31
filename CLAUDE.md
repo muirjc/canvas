@@ -49,6 +49,20 @@ tests are NON-NEGOTIABLE and must exist (and fail) before implementing any diagr
 work — see `.specify/memory/constitution.md` Principle IV.
 
 ## Recent Changes
+- Feature 004 (AI-assisted diagram chat) completion + a real bug fix found via live-provider
+  validation (T033, `jmuir-4m0`/`jmuir-4m0.1`): all 33 tasks were already implemented, but the
+  final manual-validation task against a real (non-mock) AI provider had never been run. Doing so
+  surfaced a genuine bug the mock-provider e2e suite could never catch (it only ever exercises
+  single-node creation with no edges): describing a multi-step business process, a real model
+  correctly created every node via `addNode` but then failed every `addEdge` call, since it had no
+  way to learn the opaque generated ids `addNode` had just assigned — it could only guess (the
+  label text, `"node-1"`, `"0"`, ...), and every guess was rejected. `diagram-tools.ts`'s `addNode`
+  tool result now also returns the new node's `nodeId` (the persisted/API-facing `toolCalls`
+  summary is unchanged — only the value fed back to the model for that turn gained the field),
+  plus a note in the tool's description telling the model to use it for `addEdge`. Re-validated
+  against the real Anthropic API post-fix: a full "order comes in, gets validated, then approved
+  or rejected" description now produces a correctly wired 5-node, 4-edge flowchart with a proper
+  Yes/No decision branch.
 - Project-switch unsaved-changes race fix (`canvas-eow`): `App.tsx` used to learn whether the open
   diagram had unsaved edits through a child->parent mirror — `DiagramEditor.tsx` computed
   `hasUnsavedChanges` synchronously but reported it to `App` via a `useEffect` calling
