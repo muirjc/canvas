@@ -195,7 +195,12 @@ export function parseFlowchart(dsl: string): ParseResult {
       node = {
         id,
         label,
-        shape,
+        // canvas-8n7: 'icon' shares rectangle's exact `[label]` bracket delimiters (see
+        // flowchart-serializer.ts's SHAPE_DELIMITERS), so a plain `[label]` match is ambiguous
+        // between the two — an icon ref in front-matter breaks the tie toward 'icon'. Any other,
+        // unambiguous shape (e.g. an explicit cylinder `[(label)]`) is never overridden: a node
+        // can validly carry icon metadata without its shape being 'icon'.
+        shape: shape === 'rectangle' && icons[id] ? 'icon' : shape,
         position: positions[id] ?? nextAutoPosition(),
         style: styles[id],
         icon: icons[id],

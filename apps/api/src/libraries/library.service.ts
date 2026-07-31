@@ -74,6 +74,37 @@ export async function searchIconsInLibrary(libraryId: string, version: string, q
   return searchIcons(library, query);
 }
 
+/**
+ * canvas-8n7: resolves a batch of icon refs to their SVG markup (`assetRef`) in one query, for
+ * export's `resolveIcon` — a diagram's distinct icon refs are typically few, so one `IN`-style
+ * query beats N round-trips or fetching an entire library just to pick out a handful of icons.
+ * Refs naming a library/version/id with no matching row are simply absent from the result map,
+ * left for the caller to treat as "no artwork available" rather than an error (FR-005-style
+ * leniency — a stale or since-deleted icon shouldn't fail the whole export).
+ */
+export async function resolveIconAssets(
+  refs: { libraryId: string; libraryVersion: string; iconId: string }[],
+): Promise<Map<string, string>> {
+  const result = new Map<string, string>();
+  if (refs.length === 0) return result;
+
+  const libraryIds = refs.map((r) => r.libraryId);
+  const libraryVersions = refs.map((r) => r.libraryVersion);
+  const iconIds = refs.map((r) => r.iconId);
+  const pool = getPool();
+  const { rows } = await pool.query<{ library_id: string; library_version: string; id: string; asset_ref: string }>(
+    `SELECT library_id, library_version, id, asset_ref FROM icons
+     WHERE (library_id, library_version, id) IN (
+       SELECT * FROM UNNEST($1::text[], $2::text[], $3::text[])
+     )`,
+    [libraryIds, libraryVersions, iconIds],
+  );
+  for (const row of rows) {
+    result.set(`${row.library_id}@${row.library_version}@${row.id}`, row.asset_ref);
+  }
+  return result;
+}
+
 /** Cross-library search scoped to a diagram type's default palette libraries (FR-007 + FR-009). */
 export async function searchIconsForDiagramType(diagramTypeId: string, query: string): Promise<Icon[]> {
   const pool = getPool();

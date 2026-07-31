@@ -49,6 +49,26 @@ tests are NON-NEGOTIABLE and must exist (and fail) before implementing any diagr
 work — see `.specify/memory/constitution.md` Principle IV.
 
 ## Recent Changes
+- Icon artwork rendering fix (`canvas-8n7`, not part of the flowchart-completeness-brief
+  groupings): grew beyond its original filing during investigation — the bug's own premise
+  ("export already renders the true icon") was false in production; `export.service.ts` called
+  `renderToSvg(model)` with no `resolveIcon` at all, so real exports never drew icon artwork
+  either. Fixed in four places: (1) `flowchart-parser.ts` now infers shape `'icon'` when a
+  bracket-matched-as-`'rectangle'` node carries an icon ref in front-matter (the two shapes share
+  identical `[label]` delimiters, so a saved icon node previously reverted to a plain rectangle on
+  reload) — an already-unambiguous explicit shape like `cylinder` carrying icon metadata is never
+  overridden; (2) `library.service.ts` gained a batched `resolveIconAssets` lookup and
+  `export.service.ts`'s `exportSvg`/`exportPng` are now async and wire a real `resolveIcon`; (3)
+  `Canvas.tsx` resolves `node.icon` refs to real SVG markup via a new `api.getLibraryIcons` call,
+  cached per library+version, and draws it the same way `svg-renderer.ts`'s `renderNode` already
+  does (SC-004) — via an SVG `<image>` element's `data:` URI (`iconMarkupToDataUri`), not
+  `dangerouslySetInnerHTML`: browsers never execute script/event-handler content loaded as an
+  image resource, a stronger guarantee than string sanitization alone (GitHub code scanning's
+  Bearer check correctly flagged the original `dangerouslySetInnerHTML` version as unsanitized-
+  input XSS, even though `assetRef` is also sanitized at admin-only library-ingestion time); (4)
+  `shapes.tsx` gained a `case 'cylinder'` (was silently a
+  plain rectangle on canvas only). Rendering real icon thumbnails in the Palette picker itself
+  (currently text-only) was explicitly scoped out after discussion.
 - Edge arrowhead visibility fix (`canvas-1rq`, not part of the flowchart-completeness-brief
   groupings): edges were drawn center-to-center with nodes rendered on top, hiding the arrowhead
   (and the line segment inside each node) underneath the target's opaque fill. Both renderers now

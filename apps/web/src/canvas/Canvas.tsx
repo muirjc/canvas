@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import {
   addContainer,
@@ -15,6 +15,7 @@ import {
   updateNodeLabel,
   splitLabelLines,
   clipEdgeEndpoint,
+  sanitizeSvgFragment,
   type DiagramContainer,
   type DiagramModel,
   type DiagramNode,
@@ -22,6 +23,7 @@ import {
 } from '@canvas/diagram-core';
 import { getAddableShapes, nodeSize, renderNodeShape } from './shapes';
 import { ConfirmDialog } from './ConfirmDialog';
+import { api } from '../app/api';
 import { Icon } from '../ui/Icon';
 
 /** Compact glyphs for the shape grid — each button still carries an aria-label and title, so the
@@ -97,6 +99,20 @@ function renderLabelLines(
   );
 }
 
+/**
+ * canvas-8n7: renders resolved icon markup via an `<image>` element's `data:` URI rather than
+ * `dangerouslySetInnerHTML`, so it is never inserted into the live DOM as executable markup in
+ * the first place — browsers do not execute `<script>`/event-handler content inside an SVG
+ * loaded as an image resource, a stronger guarantee than string sanitization alone (which stays
+ * on as defense in depth, not as the only safeguard). Wraps the bare `<g>...</g>` fragment in a
+ * standalone `<svg>` matching the library's normalized 48x48 icon viewBox (see
+ * generate-azure-icons.mjs), since a data URI must be a complete, self-contained document.
+ */
+function iconMarkupToDataUri(markup: string): string {
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48">${markup}</svg>`;
+  return `data:image/svg+xml;base64,${btoa(unescape(encodeURIComponent(svg)))}`;
+}
+
 function containerBounds(container: DiagramContainer) {
   const size = container.size ?? { width: 300, height: 200 };
   return {
@@ -147,6 +163,65 @@ export function Canvas({ model, onChange, dslFamily, toolbarContainer }: CanvasP
     | null
   >(null);
   const svgRef = useRef<SVGSVGElement>(null);
+
+  // canvas-8n7: a node only stores an icon *reference* (Constitution V), not its artwork, so the
+  // canvas must resolve refs to real SVG markup at render time — mirroring how svg-renderer.ts's
+  // export path already does via its own resolveIcon callback (SC-004). Cached per library+
+  // version+icon (keyed `${libraryId}@${libraryVersion}@${iconId}`) so placing many icons from
+  // the same library costs one fetch, not one per node.
+  //
+  // "Do I still need to fetch this?" is answered by checking the cache itself (`iconArtwork`,
+  // in the dependency array), not a separate ref marking a library as "already requested" —
+  // that second form has a real bug under StrictMode's dev-only mount→cleanup→remount: the ref
+  // would get marked *before* the request resolves, so when the first (simulated) instance's
+  // cleanup sets its own `cancelled` flag, the second (surviving) instance sees the library as
+  // already handled and never fetches at all — the original response arrives but is discarded,
+  // and the icon never renders. Gating on the cache instead means the surviving instance always
+  // sees an empty cache and issues its own fetch, since neither instance's ref-write can
+  // suppress the other's decision to fetch.
+  const [iconArtwork, setIconArtwork] = useState<Map<string, string>>(new Map());
+
+  useEffect(() => {
+    const toFetch = new Map<string, { libraryId: string; libraryVersion: string }>();
+    for (const node of model.nodes) {
+      if (node.shape === 'icon' && node.icon) {
+        const libraryKey = `${node.icon.libraryId}@${node.icon.libraryVersion}`;
+        const cacheKey = `${libraryKey}@${node.icon.iconId}`;
+        if (!iconArtwork.has(cacheKey)) {
+          toFetch.set(libraryKey, { libraryId: node.icon.libraryId, libraryVersion: node.icon.libraryVersion });
+        }
+      }
+    }
+    if (toFetch.size === 0) return;
+
+    let cancelled = false;
+    Promise.all(
+      Array.from(toFetch.values()).map(({ libraryId, libraryVersion }) =>
+        api
+          .getLibraryIcons(libraryId, libraryVersion)
+          .then(({ icons }) => ({ libraryId, libraryVersion, icons }))
+          .catch(() => ({ libraryId, libraryVersion, icons: [] })),
+      ),
+    ).then((results) => {
+      if (cancelled) return;
+      setIconArtwork((prev) => {
+        const next = new Map(prev);
+        for (const { libraryId, libraryVersion, icons } of results) {
+          // Defense in depth: assetRef is sanitized at admin-only library-ingestion time
+          // (loadLibrary), but this re-applies the same sanitizer at the point of rendering,
+          // right before dangerouslySetInnerHTML, rather than trusting that ingestion-time pass
+          // is still intact by the time markup has traveled through the DB and a network fetch.
+          for (const icon of icons) {
+            next.set(`${libraryId}@${libraryVersion}@${icon.id}`, sanitizeSvgFragment(icon.assetRef));
+          }
+        }
+        return next;
+      });
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [model.nodes, iconArtwork]);
 
   const updateNode = useCallback(
     (id: string, patch: Partial<DiagramNode>) => {
@@ -634,6 +709,13 @@ export function Canvas({ model, onChange, dslFamily, toolbarContainer }: CanvasP
 
         {model.nodes.map((node) => {
           const size = nodeSize(node);
+          // canvas-8n7: mirrors svg-renderer.ts's renderNode icon branch exactly (same 0.6 scale
+          // factor, same -8 vertical nudge, same 48x48 normalized icon viewBox, same smaller
+          // below-icon caption instead of a centered label) so canvas and export agree (SC-004).
+          const iconMarkup =
+            node.shape === 'icon' && node.icon
+              ? iconArtwork.get(`${node.icon.libraryId}@${node.icon.libraryVersion}@${node.icon.iconId}`)
+              : undefined;
           return (
             <g
               key={node.id}
@@ -648,8 +730,17 @@ export function Canvas({ model, onChange, dslFamily, toolbarContainer }: CanvasP
               style={{ cursor: connectMode ? 'crosshair' : 'move' }}
             >
               {renderNodeShape(node, selectedIds.has(node.id))}
+              {iconMarkup &&
+                (() => {
+                  const iconSize = Math.min(size.width, size.height) * 0.6;
+                  const iconX = node.position.x + (size.width - iconSize) / 2;
+                  const iconY = node.position.y + (size.height - iconSize) / 2 - 8;
+                  return <image x={iconX} y={iconY} width={iconSize} height={iconSize} href={iconMarkupToDataUri(iconMarkup)} />;
+                })()}
               {editingNodeId !== node.id &&
-                renderLabelLines(node.position.x + size.width / 2, node.position.y + size.height / 2, node.label, 14, true)}
+                (iconMarkup
+                  ? renderLabelLines(node.position.x + size.width / 2, node.position.y + size.height - 10, node.label, 12, false)
+                  : renderLabelLines(node.position.x + size.width / 2, node.position.y + size.height / 2, node.label, 14, true))}
               {editingNodeId === node.id && (
                 <foreignObject x={node.position.x} y={node.position.y} width={size.width} height={size.height}>
                   <input

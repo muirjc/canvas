@@ -82,6 +82,28 @@ describe('flowchart round-trip (parse(serialize(model)) === model)', () => {
     expect(normalize(roundTrip(model))).toEqual(normalize(model));
   });
 
+  it('preserves shape "icon" itself through serialize/parse, not just its icon metadata (canvas-8n7)', () => {
+    // 'icon' shares rectangle's exact `[label]` bracket delimiters (flowchart-serializer.ts's
+    // SHAPE_DELIMITERS), so the parser has nothing in the DSL text itself to tell them apart —
+    // it must infer shape 'icon' from the presence of an icon ref in front-matter instead.
+    const model: DiagramModel = {
+      diagramTypeId: 'flowchart',
+      nodes: [
+        {
+          id: 'A',
+          label: 'Lambda',
+          shape: 'icon',
+          position: { x: 10, y: 10 },
+          icon: { libraryId: 'aws-icons', libraryVersion: '2024.1', iconId: 'lambda' },
+        },
+      ],
+      edges: [],
+      containers: [],
+    };
+
+    expect(normalize(roundTrip(model))).toEqual(normalize(model));
+  });
+
   it('is stable across repeated round-trips (idempotent serialize/parse)', () => {
     const model: DiagramModel = {
       diagramTypeId: 'flowchart',
