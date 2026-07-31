@@ -14,6 +14,7 @@ import {
   updateEdgeLabel,
   updateNodeLabel,
   splitLabelLines,
+  clipEdgeEndpoint,
   type DiagramContainer,
   type DiagramModel,
   type DiagramNode,
@@ -553,6 +554,11 @@ export function Canvas({ model, onChange, dslFamily, toolbarContainer }: CanvasP
           const to = { x: target.position.x + nodeSize(target).width / 2, y: target.position.y + nodeSize(target).height / 2 };
           const midX = (from.x + to.x) / 2;
           const midY = (from.y + to.y) / 2;
+          // canvas-1rq: clip each endpoint to its own node's boundary — otherwise the arrowhead
+          // (and the line segment inside each node) is hidden underneath the node's opaque fill,
+          // since nodes render on top of edges. Must match svg-renderer.ts exactly (SC-004).
+          const clippedFrom = clipEdgeEndpoint(from, nodeSize(source), source.shape, to.x, to.y);
+          const clippedTo = clipEdgeEndpoint(to, nodeSize(target), target.shape, from.x, from.y);
           const isEditingThisEdge = editingEdgeId === edge.id;
           return (
             <g
@@ -566,10 +572,10 @@ export function Canvas({ model, onChange, dslFamily, toolbarContainer }: CanvasP
               }}
             >
               <line
-                x1={from.x}
-                y1={from.y}
-                x2={to.x}
-                y2={to.y}
+                x1={clippedFrom.x}
+                y1={clippedFrom.y}
+                x2={clippedTo.x}
+                y2={clippedTo.y}
                 stroke={edge.lineStyle === 'invisible' ? 'none' : (edge.style?.strokeColor ?? '#333')}
                 strokeWidth={edge.style?.strokeWidth ?? (edge.lineStyle === 'thick' ? DEFAULT_THICK_STROKE_WIDTH : undefined)}
                 strokeDasharray={edge.style?.strokeDasharray ?? (edge.lineStyle === 'dotted' ? DEFAULT_DOTTED_DASHARRAY : undefined)}
