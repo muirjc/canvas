@@ -99,6 +99,20 @@ function renderLabelLines(
   );
 }
 
+/**
+ * canvas-8n7: renders resolved icon markup via an `<image>` element's `data:` URI rather than
+ * `dangerouslySetInnerHTML`, so it is never inserted into the live DOM as executable markup in
+ * the first place — browsers do not execute `<script>`/event-handler content inside an SVG
+ * loaded as an image resource, a stronger guarantee than string sanitization alone (which stays
+ * on as defense in depth, not as the only safeguard). Wraps the bare `<g>...</g>` fragment in a
+ * standalone `<svg>` matching the library's normalized 48x48 icon viewBox (see
+ * generate-azure-icons.mjs), since a data URI must be a complete, self-contained document.
+ */
+function iconMarkupToDataUri(markup: string): string {
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48">${markup}</svg>`;
+  return `data:image/svg+xml;base64,${btoa(unescape(encodeURIComponent(svg)))}`;
+}
+
 function containerBounds(container: DiagramContainer) {
   const size = container.size ?? { width: 300, height: 200 };
   return {
@@ -714,12 +728,7 @@ export function Canvas({ model, onChange, dslFamily, toolbarContainer }: CanvasP
                   const iconSize = Math.min(size.width, size.height) * 0.6;
                   const iconX = node.position.x + (size.width - iconSize) / 2;
                   const iconY = node.position.y + (size.height - iconSize) / 2 - 8;
-                  return (
-                    <g
-                      transform={`translate(${iconX}, ${iconY}) scale(${iconSize / 48})`}
-                      dangerouslySetInnerHTML={{ __html: iconMarkup }}
-                    />
-                  );
+                  return <image x={iconX} y={iconY} width={iconSize} height={iconSize} href={iconMarkupToDataUri(iconMarkup)} />;
                 })()}
               {editingNodeId !== node.id &&
                 (iconMarkup

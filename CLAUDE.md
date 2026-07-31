@@ -61,8 +61,12 @@ work — see `.specify/memory/constitution.md` Principle IV.
   `export.service.ts`'s `exportSvg`/`exportPng` are now async and wire a real `resolveIcon`; (3)
   `Canvas.tsx` resolves `node.icon` refs to real SVG markup via a new `api.getLibraryIcons` call,
   cached per library+version, and draws it the same way `svg-renderer.ts`'s `renderNode` already
-  does (SC-004) via `dangerouslySetInnerHTML` — safe given `assetRef` is already sanitized at
-  admin-only library-ingestion time; (4) `shapes.tsx` gained a `case 'cylinder'` (was silently a
+  does (SC-004) — via an SVG `<image>` element's `data:` URI (`iconMarkupToDataUri`), not
+  `dangerouslySetInnerHTML`: browsers never execute script/event-handler content loaded as an
+  image resource, a stronger guarantee than string sanitization alone (GitHub code scanning's
+  Bearer check correctly flagged the original `dangerouslySetInnerHTML` version as unsanitized-
+  input XSS, even though `assetRef` is also sanitized at admin-only library-ingestion time); (4)
+  `shapes.tsx` gained a `case 'cylinder'` (was silently a
   plain rectangle on canvas only). Rendering real icon thumbnails in the Palette picker itself
   (currently text-only) was explicitly scoped out after discussion.
 - Edge arrowhead visibility fix (`canvas-1rq`, not part of the flowchart-completeness-brief

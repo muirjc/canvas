@@ -17,6 +17,20 @@ async function login(page: import('@playwright/test').Page) {
 }
 
 /**
+ * Icon artwork renders via an SVG <image> element's data: URI (Canvas.tsx's iconMarkupToDataUri),
+ * not raw DOM attributes — decodes it to confirm the real Lambda placeholder markup is inside,
+ * not just that some <image> exists.
+ */
+async function expectRealIconArtwork(page: import('@playwright/test').Page) {
+  const iconImage = page.locator('[data-testid^="node-"] image');
+  await expect(iconImage).toHaveCount(1);
+  const href = await iconImage.getAttribute('href');
+  expect(href).toMatch(/^data:image\/svg\+xml;base64,/);
+  const decoded = Buffer.from(href!.split(',')[1], 'base64').toString('utf-8');
+  expect(decoded).toContain('#ec7211');
+}
+
+/**
  * canvas-8n7: an icon-shaped node placed from the palette must show its real icon artwork on the
  * canvas, not just label text in a generic box — matching what export already draws once its own
  * resolveIcon wiring (also fixed by this bead) is in place. Uses the bundled AWS-icons placeholder
@@ -34,8 +48,7 @@ test('places an icon node from the palette and shows its real artwork, not just 
   await page.getByTestId('palette-search').fill('Lambda');
   await page.getByTestId('palette-icon-aws-icons-lambda').click();
 
-  const iconArtwork = page.locator('[data-testid^="node-"] [fill="#ec7211"]');
-  await expect(iconArtwork).toHaveCount(1);
+  await expectRealIconArtwork(page);
 });
 
 test('preserves the icon node\'s shape and artwork through save and reload', async ({ page }) => {
@@ -68,8 +81,7 @@ test('preserves the icon node\'s shape and artwork through save and reload', asy
   await page.getByTestId('confirm-import').click();
   await expect(page.getByTestId('diagram-canvas')).toBeVisible();
 
-  const iconArtworkBeforeSave = page.locator('[data-testid^="node-"] [fill="#ec7211"]');
-  await expect(iconArtworkBeforeSave).toHaveCount(1);
+  await expectRealIconArtwork(page);
 
   await page.getByTestId('save-diagram').click();
   await expect(page.getByTestId('save-status')).toHaveText('saved');
@@ -83,8 +95,7 @@ test('preserves the icon node\'s shape and artwork through save and reload', asy
   // Confirms the parser's shape-inference fix too: without it, shape reverts to 'rectangle' on
   // reparse (icon and rectangle share identical `[label]` bracket delimiters) and this artwork
   // would disappear after reload even though it showed correctly before saving.
-  const iconArtwork = page.locator('[data-testid^="node-"] [fill="#ec7211"]');
-  await expect(iconArtwork).toHaveCount(1);
+  await expectRealIconArtwork(page);
 });
 
 test('exports the icon node with the same real artwork', async ({ page }) => {
