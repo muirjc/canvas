@@ -1,17 +1,8 @@
 import { useEffect, useState } from 'react';
 import { api, ApiError, type AiPersonaDto, type AiSettingsDto } from '../app/api';
+import { groupPersonasByCategory } from './persona-grouping';
 
 const CATEGORIES = ['Business', 'Enterprise', 'Solution', 'Technical'] as const;
-
-function groupByCategory(personas: AiPersonaDto[]): Map<string, AiPersonaDto[]> {
-  const groups = new Map<string, AiPersonaDto[]>();
-  for (const persona of personas) {
-    const list = groups.get(persona.category) ?? [];
-    list.push(persona);
-    groups.set(persona.category, list);
-  }
-  return groups;
-}
 
 /** User Story 3: admin persona library management (create/edit/archive), plus the platform-wide
  * "Enable AI Chat" toggle (FR-020) — tasks.md has no dedicated task for that toggle's admin UI,
@@ -60,7 +51,7 @@ export function PersonaAdminPage() {
     setSettings(await api.setAiSettings({ chatEnabled }));
   };
 
-  const groups = groupByCategory(personas);
+  const groups = groupPersonasByCategory(personas);
 
   return (
     <div className="stack">
