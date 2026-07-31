@@ -236,3 +236,63 @@ describe('renderToSvg edge styling (linkStyle)', () => {
     expect(svg).not.toContain('stroke-dasharray');
   });
 });
+
+/**
+ * Grouping B: dotted/thick/invisible/no-arrow/bidirectional edges must actually look distinct —
+ * not just round-trip as data. `edge.style`'s explicit overrides (linkStyle) still win over these
+ * declared-lineStyle defaults, since linkStyle is a more specific instruction layered on top.
+ */
+describe('renderToSvg edge line style and arrow direction (grouping B)', () => {
+  function svgForConnector(edge: Partial<DiagramModel['edges'][number]>): string {
+    return renderToSvg({
+      diagramTypeId: 'flowchart',
+      nodes: [
+        { id: 'A', label: 'A', shape: 'rectangle', position: { x: 0, y: 0 } },
+        { id: 'B', label: 'B', shape: 'rectangle', position: { x: 300, y: 0 } },
+      ],
+      edges: [{ id: 'e1', sourceId: 'A', targetId: 'B', ...edge }],
+      containers: [],
+    });
+  }
+
+  it('gives a dotted edge a default stroke-dasharray', () => {
+    const svg = svgForConnector({ lineStyle: 'dotted' });
+    expect(svg).toMatch(/<line[^>]*stroke-dasharray="[^"]+"/);
+  });
+
+  it('gives a thick edge a wider default stroke than a plain edge', () => {
+    const plain = svgForConnector({});
+    const thick = svgForConnector({ lineStyle: 'thick' });
+    const plainWidth = Number(plain.match(/<line[^>]*stroke-width="(\d+)"/)?.[1] ?? 1);
+    const thickWidth = Number(thick.match(/<line[^>]*stroke-width="(\d+)"/)?.[1] ?? 1);
+    expect(thickWidth).toBeGreaterThan(plainWidth);
+  });
+
+  it('an explicit linkStyle stroke-dasharray overrides a dotted lineStyle\'s default dasharray', () => {
+    const svg = svgForConnector({ lineStyle: 'dotted', style: { strokeDasharray: '9 1' } });
+    expect(svg).toMatch(/<line[^>]*stroke-dasharray="9 1"/);
+  });
+
+  it('renders an invisible edge with no visible stroke and no arrowhead', () => {
+    const svg = svgForConnector({ lineStyle: 'invisible' });
+    expect(svg).not.toMatch(/marker-end/);
+    expect(svg).toMatch(/<line[^>]*stroke="none"/);
+  });
+
+  it('omits the arrowhead marker for a no-arrow edge (---)', () => {
+    const svg = svgForConnector({ arrow: 'none' });
+    expect(svg).not.toMatch(/marker-end/);
+  });
+
+  it('adds a marker-start (in addition to marker-end) for a bidirectional edge', () => {
+    const svg = svgForConnector({ arrow: 'both' });
+    expect(svg).toMatch(/marker-start/);
+    expect(svg).toMatch(/marker-end/);
+  });
+
+  it('a plain edge (no lineStyle/arrow set) still gets exactly one arrowhead, as before', () => {
+    const svg = svgForConnector({});
+    expect(svg).toMatch(/marker-end/);
+    expect(svg).not.toMatch(/marker-start/);
+  });
+});

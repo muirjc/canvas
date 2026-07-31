@@ -2,6 +2,8 @@ import type { DiagramContainer, DiagramModel, DiagramNode, Size } from '../model
 
 const DEFAULT_NODE_SIZE: Size = { width: 140, height: 60 };
 const FONT_FAMILY = 'system-ui, -apple-system, "Segoe UI", Roboto, sans-serif';
+const DEFAULT_DOTTED_DASHARRAY = '4 2';
+const DEFAULT_THICK_STROKE_WIDTH = 3;
 
 function escapeXml(value: string): string {
   return value
@@ -203,10 +205,17 @@ function renderEdge(edge: DiagramModel['edges'][number], nodesById: Map<string, 
   const label = edge.label
     ? `<text x="${midX}" y="${midY - 4}" text-anchor="middle" font-size="12" font-family='${FONT_FAMILY}'>${escapeXml(edge.label)}</text>`
     : '';
-  const stroke = edge.style?.strokeColor ?? '#333333';
-  const strokeWidth = edge.style?.strokeWidth ? ` stroke-width="${edge.style.strokeWidth}"` : '';
-  const strokeDasharray = edge.style?.strokeDasharray ? ` stroke-dasharray="${edge.style.strokeDasharray}"` : '';
-  return `<g data-edge-id="${escapeXml(edge.id)}"><line x1="${from.x}" y1="${from.y}" x2="${to.x}" y2="${to.y}" stroke="${stroke}"${strokeWidth}${strokeDasharray} marker-end="url(#arrowhead)" />${label}</g>`;
+  // Grouping B: lineStyle supplies a default treatment (dotted dasharray, thick width) that an
+  // explicit edge.style (linkStyle) override still wins over, since linkStyle is layered on top.
+  const isInvisible = edge.lineStyle === 'invisible';
+  const stroke = isInvisible ? 'none' : (edge.style?.strokeColor ?? '#333333');
+  const strokeWidthValue = edge.style?.strokeWidth ?? (edge.lineStyle === 'thick' ? DEFAULT_THICK_STROKE_WIDTH : undefined);
+  const strokeWidth = strokeWidthValue ? ` stroke-width="${strokeWidthValue}"` : '';
+  const dasharrayValue = edge.style?.strokeDasharray ?? (edge.lineStyle === 'dotted' ? DEFAULT_DOTTED_DASHARRAY : undefined);
+  const strokeDasharray = dasharrayValue ? ` stroke-dasharray="${dasharrayValue}"` : '';
+  const markerEnd = isInvisible || edge.arrow === 'none' ? '' : ' marker-end="url(#arrowhead)"';
+  const markerStart = !isInvisible && edge.arrow === 'both' ? ' marker-start="url(#arrowhead)"' : '';
+  return `<g data-edge-id="${escapeXml(edge.id)}"><line x1="${from.x}" y1="${from.y}" x2="${to.x}" y2="${to.y}" stroke="${stroke}"${strokeWidth}${strokeDasharray}${markerStart}${markerEnd} />${label}</g>`;
 }
 
 function computeBounds(model: DiagramModel): { width: number; height: number } {
@@ -240,7 +249,10 @@ export function renderToSvg(model: DiagramModel, resolveIcon?: IconResolver): st
   return [
     `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">`,
     '<defs>',
-    '<marker id="arrowhead" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto">',
+    // auto-start-reverse: behaves exactly like "auto" as a marker-end, but as a marker-start it
+    // points the arrowhead the other way — the one marker definition works for both ends of a
+    // bidirectional (arrow: 'both') edge.
+    '<marker id="arrowhead" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto-start-reverse">',
     '<path d="M0,0 L0,6 L9,3 z" fill="#333333" />',
     '</marker>',
     '</defs>',

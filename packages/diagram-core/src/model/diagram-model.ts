@@ -86,8 +86,12 @@ export interface DiagramEdge {
   targetId: ElementId;
   label?: string;
   style?: NodeStyle;
-  /** Architecture diagrams only: which endpoint(s) carry an arrowhead. */
-  arrow?: 'none' | 'source' | 'target';
+  /** Which endpoint(s) carry an arrowhead. Architecture diagrams use 'source'/'target' for
+   *  directional anchors; flowchart additionally uses 'both' for a bidirectional edge (`<-->`). */
+  arrow?: 'none' | 'source' | 'target' | 'both';
+  /** Flowchart only: the connector's line rendering — undefined means 'solid' (the default,
+   *  ordinary `-->`). 'invisible' is Mermaid's `~~~`, used purely as a layout hint. */
+  lineStyle?: 'solid' | 'dotted' | 'thick' | 'invisible';
   /** Architecture diagrams only: the `:T`/`:B`/`:L`/`:R` anchor hint at each endpoint, if any. */
   sourceAnchor?: 'T' | 'B' | 'L' | 'R';
   targetAnchor?: 'T' | 'B' | 'L' | 'R';

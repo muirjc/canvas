@@ -25,10 +25,26 @@ function serializeNode(node: DiagramNode): string {
   return `  ${node.id}${open}${node.label}${close}`;
 }
 
+// Grouping B: which literal connector token represents a given (lineStyle, arrow) pair. Both
+// fields default to the common case (solid line, forward arrowhead) when unset on the edge.
+const CONNECTOR_TOKENS: Record<'solid' | 'dotted' | 'thick', Record<'none' | 'target' | 'both', string>> = {
+  solid: { none: '---', target: '-->', both: '<-->' },
+  dotted: { none: '-.-', target: '-.->', both: '<-.->' },
+  thick: { none: '===', target: '==>', both: '<==>' },
+};
+
+function connectorFor(edge: DiagramModel['edges'][number]): string {
+  if (edge.lineStyle === 'invisible') return '~~~';
+  const lineStyle = edge.lineStyle ?? 'solid';
+  const arrow = edge.arrow === 'none' || edge.arrow === 'both' ? edge.arrow : 'target';
+  return CONNECTOR_TOKENS[lineStyle][arrow];
+}
+
 function serializeEdge(edge: DiagramModel['edges'][number]): string {
+  const connector = connectorFor(edge);
   return edge.label
-    ? `  ${edge.sourceId} -->|${edge.label}| ${edge.targetId}`
-    : `  ${edge.sourceId} --> ${edge.targetId}`;
+    ? `  ${edge.sourceId} ${connector}|${edge.label}| ${edge.targetId}`
+    : `  ${edge.sourceId} ${connector} ${edge.targetId}`;
 }
 
 function serializeContainer(

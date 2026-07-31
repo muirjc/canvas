@@ -37,9 +37,67 @@ const NODE_PATTERNS: Array<{ shape: NodeShape; regex: RegExp }> = [
 const SHAPE_SUFFIX = String.raw`\[\[.+?\]\]|\(\(\(.+?\)\)\)|\{\{.+?\}\}|\(\[.+?\]\)|\[\(.+?\)\]|\[/.+?/\]|\[\\.+?\\\]|\[/.+?\\\]|\[\\.+?/\]|>.+?\]|\(\(.+?\)\)|\{.+?\}|\(.+?\)|\[.+?\]`;
 const TOKEN = String.raw`${ID}(?:${SHAPE_SUFFIX})?`;
 
-const EDGE_WITH_PIPE_LABEL = new RegExp(`^(${TOKEN})\\s*-->\\s*\\|(.+?)\\|\\s*(${TOKEN})$`);
-const EDGE_WITH_INLINE_LABEL = new RegExp(`^(${TOKEN})\\s*--\\s*(.+?)\\s*-->\\s*(${TOKEN})$`);
-const EDGE_NO_LABEL = new RegExp(`^(${TOKEN})\\s*-->\\s*(${TOKEN})$`);
+// Grouping B (docs/flowchart-completeness-brief.md): the ten flowchart connector tokens, each
+// naming a (lineStyle, arrow) pair. `lineStyle`/`arrow` are left undefined on the parsed edge for
+// the default case (solid line, forward arrowhead) rather than filled in explicitly, so a plain
+// `A --> B` keeps round-tripping identically to how it always has.
+// 'target' (a plain forward arrowhead) is the default and so is never actually assigned here —
+// it's represented by leaving `arrow` undefined, not by a literal 'target' value.
+type EdgeArrow = 'none' | 'both';
+type EdgeLineStyle = 'dotted' | 'thick' | 'invisible';
+const EDGE_CONNECTORS: { token: string; lineStyle?: EdgeLineStyle; arrow?: EdgeArrow }[] = [
+  { token: '<-.->', lineStyle: 'dotted', arrow: 'both' },
+  { token: '<-->', arrow: 'both' },
+  { token: '<==>', lineStyle: 'thick', arrow: 'both' },
+  { token: '-.->', lineStyle: 'dotted' },
+  { token: '==>', lineStyle: 'thick' },
+  { token: '-->' },
+  { token: '-.-', lineStyle: 'dotted', arrow: 'none' },
+  { token: '===', lineStyle: 'thick', arrow: 'none' },
+  { token: '---', arrow: 'none' },
+  { token: '~~~', lineStyle: 'invisible', arrow: 'none' },
+];
+const CONNECTOR_BY_TOKEN = new Map(EDGE_CONNECTORS.map((c) => [c.token, c]));
+function escapeRegex(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+// Every token here is a full, fixed literal (no two share a starting substring that would make
+// one shadow the other), so alternation order doesn't affect correctness — listed roughly
+// longest-first anyway as the clearer convention to read.
+const CONNECTOR_ALTERNATION = EDGE_CONNECTORS.map((c) => escapeRegex(c.token)).join('|');
+
+const EDGE_WITH_PIPE_LABEL = new RegExp(`^(${TOKEN})\\s*(${CONNECTOR_ALTERNATION})\\s*\\|(.+?)\\|\\s*(${TOKEN})$`);
+// Inline (embedded) labels: `A -- text --> B` / `A -. text .-> B` / `A == text ==> B` — one
+// regex per line style since the opening and closing halves of the connector must match (a
+// single alternation of independent opens/closes could not enforce that pairing).
+const EDGE_INLINE_LABEL_SOLID = new RegExp(`^(${TOKEN})\\s*--\\s*(.+?)\\s*-->\\s*(${TOKEN})$`);
+const EDGE_INLINE_LABEL_DOTTED = new RegExp(`^(${TOKEN})\\s*-\\.\\s*(.+?)\\s*\\.->\\s*(${TOKEN})$`);
+const EDGE_INLINE_LABEL_THICK = new RegExp(`^(${TOKEN})\\s*==\\s*(.+?)\\s*==>\\s*(${TOKEN})$`);
+// Fan-out: `A --> B & C & ...` — one connector, an "&"-separated list of targets.
+const EDGE_FAN_OUT = new RegExp(`^(${TOKEN})\\s*(${CONNECTOR_ALTERNATION})\\s*(${TOKEN}(?:\\s*&\\s*${TOKEN})+)$`);
+const EDGE_NO_LABEL = new RegExp(`^(${TOKEN})\\s*(${CONNECTOR_ALTERNATION})\\s*(${TOKEN})$`);
+// Chained edges: `A --> B --> C` — peels one `TOKEN CONNECTOR` hop off the front at a time; each
+// hop's connector is independent, so a chain may mix line styles (`A --> B -.-> C`).
+const CHAIN_HOP = new RegExp(`^(${TOKEN})\\s*(${CONNECTOR_ALTERNATION})\\s*`);
+const BARE_TOKEN = new RegExp(`^(${TOKEN})$`);
+
+/** Only a genuine 2+-hop chain is reported; a single hop is just an ordinary edge, already
+ *  handled by EDGE_NO_LABEL (and friends) without going through this slower path. */
+function tryParseChain(line: string): { sourceToken: string; connectorToken: string; targetToken: string }[] | null {
+  const hops: { sourceToken: string; connectorToken: string }[] = [];
+  let remaining = line;
+  let match: RegExpMatchArray | null;
+  while ((match = remaining.match(CHAIN_HOP))) {
+    hops.push({ sourceToken: match[1], connectorToken: match[2] });
+    remaining = remaining.slice(match[0].length);
+  }
+  if (hops.length < 2) return null;
+  const finalMatch = remaining.match(BARE_TOKEN);
+  if (!finalMatch) return null;
+
+  const tokens = [...hops.map((h) => h.sourceToken), finalMatch[1]];
+  return hops.map((hop, i) => ({ sourceToken: tokens[i], connectorToken: hop.connectorToken, targetToken: tokens[i + 1] }));
+}
 const SUBGRAPH_START = new RegExp(`^subgraph\\s+(${ID})(?:\\s*\\[(.+)\\])?$`);
 const SUBGRAPH_END = /^end$/;
 const BARE_ID = new RegExp(`^(${ID})$`);
@@ -101,7 +159,15 @@ export function parseFlowchart(dsl: string): ParseResult {
   const errors: ParseError[] = [];
   const nodesById = new Map<string, DiagramNode>();
   const containersById = new Map<string, DiagramContainer>();
-  const edges: { id: string; sourceId: string; targetId: string; label?: string; style?: NodeStyle }[] = [];
+  const edges: {
+    id: string;
+    sourceId: string;
+    targetId: string;
+    label?: string;
+    style?: NodeStyle;
+    arrow?: EdgeArrow;
+    lineStyle?: EdgeLineStyle;
+  }[] = [];
   const containerStack: string[] = [];
   const styleDirectives: { nodeId: string; propsRaw: string }[] = [];
   const linkStyleDirectives: { indices: number[] | 'default'; propsRaw: string }[] = [];
@@ -133,6 +199,21 @@ export function parseFlowchart(dsl: string): ParseResult {
     if (!parsed) return token;
     ensureNode(parsed.id, parsed.label, parsed.shape);
     return parsed.id;
+  };
+
+  const pushEdge = (sourceToken: string, connectorToken: string, targetToken: string, label?: string): void => {
+    const connector = CONNECTOR_BY_TOKEN.get(connectorToken)!;
+    edgeCounter += 1;
+    const id = `e${edgeCounter}`;
+    edges.push({
+      id,
+      sourceId: resolveEdgeEndpoint(sourceToken),
+      targetId: resolveEdgeEndpoint(targetToken),
+      label,
+      style: edgeStyles[id],
+      arrow: connector.arrow,
+      lineStyle: connector.lineStyle,
+    });
   };
 
   for (let i = 0; i < lines.length; i += 1) {
@@ -192,26 +273,49 @@ export function parseFlowchart(dsl: string): ParseResult {
 
     const pipeEdge = line.match(EDGE_WITH_PIPE_LABEL);
     if (pipeEdge) {
-      const [, source, label, target] = pipeEdge;
-      edgeCounter += 1;
-      const id = `e${edgeCounter}`;
-      edges.push({ id, sourceId: resolveEdgeEndpoint(source), targetId: resolveEdgeEndpoint(target), label, style: edgeStyles[id] });
+      const [, source, connector, label, target] = pipeEdge;
+      pushEdge(source, connector, target, label);
       continue;
     }
-    const inlineEdge = line.match(EDGE_WITH_INLINE_LABEL);
-    if (inlineEdge) {
-      const [, source, label, target] = inlineEdge;
-      edgeCounter += 1;
-      const id = `e${edgeCounter}`;
-      edges.push({ id, sourceId: resolveEdgeEndpoint(source), targetId: resolveEdgeEndpoint(target), label, style: edgeStyles[id] });
+    // Chained (`A --> B --> C`) and fan-out (`A --> B & C`) must be tried before the inline-label
+    // regexes below: an inline-label regex's lazy label-text group has no way to know a plain
+    // multi-hop chain isn't "text" — `A --> B --> C` would otherwise be misread as one edge A->C
+    // with the label-open `--` matching the first hop's `-->` and the label swallowing " B ".
+    // Neither chain nor fan-out supports a label, so trying them first can't shadow a genuine
+    // inline-labeled edge (its `--`/`-.`/`==` open is never itself a complete connector token).
+    const chain = tryParseChain(line);
+    if (chain) {
+      for (const hop of chain) pushEdge(hop.sourceToken, hop.connectorToken, hop.targetToken);
+      continue;
+    }
+    const fanOut = line.match(EDGE_FAN_OUT);
+    if (fanOut) {
+      const [, source, connector, targetList] = fanOut;
+      for (const target of targetList.split('&').map((t) => t.trim())) pushEdge(source, connector, target);
+      continue;
+    }
+    const inlineSolid = line.match(EDGE_INLINE_LABEL_SOLID);
+    if (inlineSolid) {
+      const [, source, label, target] = inlineSolid;
+      pushEdge(source, '-->', target, label);
+      continue;
+    }
+    const inlineDotted = line.match(EDGE_INLINE_LABEL_DOTTED);
+    if (inlineDotted) {
+      const [, source, label, target] = inlineDotted;
+      pushEdge(source, '-.->', target, label);
+      continue;
+    }
+    const inlineThick = line.match(EDGE_INLINE_LABEL_THICK);
+    if (inlineThick) {
+      const [, source, label, target] = inlineThick;
+      pushEdge(source, '==>', target, label);
       continue;
     }
     const plainEdge = line.match(EDGE_NO_LABEL);
     if (plainEdge) {
-      const [, source, target] = plainEdge;
-      edgeCounter += 1;
-      const id = `e${edgeCounter}`;
-      edges.push({ id, sourceId: resolveEdgeEndpoint(source), targetId: resolveEdgeEndpoint(target), style: edgeStyles[id] });
+      const [, source, connector, target] = plainEdge;
+      pushEdge(source, connector, target);
       continue;
     }
 
