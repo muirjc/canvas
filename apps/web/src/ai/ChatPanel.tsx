@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
-import { api, ApiError, type ChatMessageDto, type ToolCallOutcomeDto } from '../app/api';
+import { api, ApiError, type AiPersonaDto, type ChatMessageDto, type ToolCallOutcomeDto } from '../app/api';
 import { Icon } from '../ui/Icon';
+import { groupPersonasByCategory } from './persona-grouping';
 
 export interface ChatPanelProps {
   diagramId: string;
@@ -28,12 +29,21 @@ function formatAssistantContent(text: string, toolCalls: ToolCallOutcomeDto[] | 
  * edits interleave freely without either undoing the other. */
 export function ChatPanel({ diagramId, currentDslContent, onDiagramUpdated }: ChatPanelProps) {
   const [messages, setMessages] = useState<LocalMessage[]>([]);
+  const [historyLoaded, setHistoryLoaded] = useState(false);
+  const [personas, setPersonas] = useState<AiPersonaDto[]>([]);
+  const [personaId, setPersonaId] = useState('');
   const [input, setInput] = useState('');
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    api.listAiPersonas().then(({ personas }) => setPersonas(personas));
+  }, []);
+
+  useEffect(() => {
     setMessages([]);
+    setHistoryLoaded(false);
+    setPersonaId('');
     api
       .getChatMessages(diagramId)
       .then(({ messages: history }: { messages: ChatMessageDto[] }) => {
@@ -47,7 +57,8 @@ export function ChatPanel({ diagramId, currentDslContent, onDiagramUpdated }: Ch
       .catch(() => {
         // A diagram that's never been chatted with (imported/hand-created) has no history —
         // the panel simply starts empty, not an error state.
-      });
+      })
+      .finally(() => setHistoryLoaded(true));
   }, [diagramId]);
 
   const handleSend = async () => {
@@ -58,7 +69,11 @@ export function ChatPanel({ diagramId, currentDslContent, onDiagramUpdated }: Ch
     setMessages((prev) => [...prev, { role: 'user', content: message }]);
     setInput('');
     try {
-      const result = await api.sendChatMessage(diagramId, { message, currentDslContent });
+      // personaId only has any effect on a diagram's first-ever message (FR-008a fixes it at
+      // creation) — sent every time regardless, since the server already ignores it once a chat
+      // exists rather than erroring, and tracking "is this the first message" client-side too
+      // would just be a second copy of the same fact.
+      const result = await api.sendChatMessage(diagramId, { message, currentDslContent, personaId: personaId || undefined });
       const content = formatAssistantContent(result.assistantMessage, result.toolCalls);
       setMessages((prev) => [...prev, { role: 'assistant', content }]);
       onDiagramUpdated(result.updatedDslContent);
@@ -68,6 +83,11 @@ export function ChatPanel({ diagramId, currentDslContent, onDiagramUpdated }: Ch
       setSending(false);
     }
   };
+
+  const personaGroups = groupPersonasByCategory(personas);
+  // Only offered before the diagram's first message — FR-008a fixes the persona at creation, so
+  // showing this once history exists would offer a choice that no longer does anything.
+  const showPersonaPicker = historyLoaded && messages.length === 0 && personas.length > 0;
 
   return (
     <div className="panel" data-testid="chat-panel">
@@ -96,6 +116,32 @@ export function ChatPanel({ diagramId, currentDslContent, onDiagramUpdated }: Ch
           </li>
         )}
       </ul>
+      {showPersonaPicker && (
+        <div className="panel__footer">
+          <div className="field">
+            <label className="field__label" htmlFor="chat-persona-select">
+              Persona for this diagram
+            </label>
+            <select
+              id="chat-persona-select"
+              data-testid="chat-persona-select"
+              value={personaId}
+              onChange={(e) => setPersonaId(e.target.value)}
+            >
+              <option value="">Default assistant (no persona)</option>
+              {[...personaGroups.entries()].map(([category, categoryPersonas]) => (
+                <optgroup key={category} label={category}>
+                  {categoryPersonas.map((persona) => (
+                    <option key={persona.id} value={persona.id}>
+                      {persona.name}
+                    </option>
+                  ))}
+                </optgroup>
+              ))}
+            </select>
+          </div>
+        </div>
+      )}
       <div className="panel__footer chat-composer">
         <textarea
           className="chat-composer__input"

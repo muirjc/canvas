@@ -1,21 +1,12 @@
 import { useEffect, useState } from 'react';
 import { api, ApiError, type AiPersonaDto, type DiagramDto } from '../app/api';
 import { Modal } from '../ui/Modal';
+import { groupPersonasByCategory } from './persona-grouping';
 
 export interface CreateViaChatDialogProps {
   projectId: string;
   onCreated: (diagram: DiagramDto) => void;
   onCancel: () => void;
-}
-
-function groupByCategory(personas: AiPersonaDto[]): Map<string, AiPersonaDto[]> {
-  const groups = new Map<string, AiPersonaDto[]>();
-  for (const persona of personas) {
-    const list = groups.get(persona.category) ?? [];
-    list.push(persona);
-    groups.set(persona.category, list);
-  }
-  return groups;
 }
 
 /** "Create via AI Chat" entry point (User Story 1, FR-005): pick a persona, describe the diagram,
@@ -50,7 +41,7 @@ export function CreateViaChatDialog({ projectId, onCreated, onCancel }: CreateVi
     }
   };
 
-  const groups = groupByCategory(personas);
+  const groups = groupPersonasByCategory(personas);
 
   return (
     <Modal
