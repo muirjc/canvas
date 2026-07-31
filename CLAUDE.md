@@ -49,6 +49,23 @@ tests are NON-NEGOTIABLE and must exist (and fail) before implementing any diagr
 work — see `.specify/memory/constitution.md` Principle IV.
 
 ## Recent Changes
+- classDef/class flowchart styling (grouping C of `docs/flowchart-completeness-brief.md`, tracked
+  under bead `jmuir-dzd` — not its own numbered spec): Mermaid's `classDef <name> <props>` defines a
+  named style and `class <id1>,<id2>,... <name>` assigns it to one or more nodes. Reuses the same
+  prop parser as `style`/`linkStyle` (fill/stroke/stroke-width/stroke-dasharray; other properties
+  silently ignored) and folds directly into the existing `NodeStyle` field — no model or serializer
+  change needed. Same import-compatibility precedent as `style`/`linkStyle`: front-matter remains
+  the canonical round-trip mechanism, `classDef`/`class` lines are never re-emitted on serialize. A
+  `class` line may reference a `classDef` declared later in the file; an explicit `style` directive
+  on the same node overrides its class-applied properties.
+- Additional flowchart edge/link syntax (grouping B of `docs/flowchart-completeness-brief.md`,
+  tracked under bead `jmuir-dzd` — not its own numbered spec): Mermaid's dotted (`-.-`/`-.->`),
+  thick (`===`/`==>`), no-arrowhead (`---`), bidirectional (`<-->`), and invisible (`~~~`) edge/link
+  connectors, plus chained edges on one line (`A --> B --> C`) and fan-out via `&`
+  (`A --> B & C`). `DiagramEdge` gained a `lineStyle` field; `arrow` now also accepts `'both'`. Both
+  renderers give dotted/thick a default dasharray/width (overridable by an explicit `linkStyle`) and
+  correct marker treatment for invisible/no-arrow/bidirectional edges. The serializer canonicalizes
+  chains/fan-out to separate plain edges on output rather than re-compressing them.
 - linkStyle edge styling (PR #12, alongside 009 — not its own numbered spec): Mermaid's
   `linkStyle <index[,index...]|default> <props>` directive is now supported — edges are styled by
   0-based declaration order (not the platform's internal `e1`/`e2` ids), with stroke color/width/

@@ -106,6 +106,13 @@ const STYLE_DIRECTIVE = new RegExp(`^style\\s+(${ID})\\s+(.+)$`);
 // Mermaid addresses links by their 0-based declaration order (the Nth edge line encountered),
 // not by the platform's internal e1/e2 ids — "default" applies the style to every edge.
 const LINK_STYLE_DIRECTIVE = /^linkStyle\s+(default|\d+(?:\s*,\s*\d+)*)\s+(.+)$/;
+// Grouping C (docs/flowchart-completeness-brief.md): `classDef <name> <props>` defines a named
+// style; `class <id1>,<id2>,... <name>` assigns it to one or more nodes. The trailing `;?` is
+// Mermaid's conventional (optional) statement terminator for both forms. Checked before "class"
+// below matters only for clarity, not correctness — "classDef" can never match "^class\s+..."
+// since the very next character after "class" is "D", not whitespace.
+const CLASSDEF_DIRECTIVE = new RegExp(`^classDef\\s+(${ID})\\s+(.+?);?$`);
+const CLASS_ASSIGN_DIRECTIVE = new RegExp(`^class\\s+((?:${ID})(?:\\s*,\\s*${ID})*)\\s+(${ID})\\s*;?$`);
 
 /** Shared by both `style <nodeId> ...` and `linkStyle <index> ...` — same prop grammar. */
 function parseStyleProps(propsRaw: string): NodeStyle {
@@ -171,6 +178,8 @@ export function parseFlowchart(dsl: string): ParseResult {
   const containerStack: string[] = [];
   const styleDirectives: { nodeId: string; propsRaw: string }[] = [];
   const linkStyleDirectives: { indices: number[] | 'default'; propsRaw: string }[] = [];
+  const classDefs = new Map<string, NodeStyle>();
+  const classAssignments: { nodeIds: string[]; className: string }[] = [];
   let diagramTypeSeen = false;
   let direction: FlowchartDirection | undefined;
   let edgeCounter = 0;
@@ -271,6 +280,20 @@ export function parseFlowchart(dsl: string): ParseResult {
       continue;
     }
 
+    const classDefMatch = line.match(CLASSDEF_DIRECTIVE);
+    if (classDefMatch) {
+      const [, className, propsRaw] = classDefMatch;
+      classDefs.set(className, parseStyleProps(propsRaw));
+      continue;
+    }
+
+    const classAssignMatch = line.match(CLASS_ASSIGN_DIRECTIVE);
+    if (classAssignMatch) {
+      const [, idList, className] = classAssignMatch;
+      classAssignments.push({ nodeIds: idList.split(',').map((id) => id.trim()), className });
+      continue;
+    }
+
     const pipeEdge = line.match(EDGE_WITH_PIPE_LABEL);
     if (pipeEdge) {
       const [, source, connector, label, target] = pipeEdge;
@@ -345,6 +368,21 @@ export function parseFlowchart(dsl: string): ParseResult {
   for (const edge of edges) {
     if (!nodesById.has(edge.sourceId)) ensureNode(edge.sourceId, edge.sourceId, 'rectangle');
     if (!nodesById.has(edge.targetId)) ensureNode(edge.targetId, edge.targetId, 'rectangle');
+  }
+
+  // Grouping C: resolved as a second pass, same reasoning as `style` below — a `class` line may
+  // reference a node only implicitly declared via an edge, or a `classDef` declared later in the
+  // file, so both must be fully collected before applying. Runs before `style` below so an
+  // explicit `style` directive on the same node can override class-applied properties, matching
+  // the intuition that a more specific, node-targeted directive wins over a shared named class.
+  for (const { nodeIds, className } of classAssignments) {
+    const classStyle = classDefs.get(className);
+    if (!classStyle) continue;
+    for (const nodeId of nodeIds) {
+      const node = nodesById.get(nodeId);
+      if (!node) continue;
+      node.style = { ...node.style, ...classStyle };
+    }
   }
 
   // Applied as a second pass since `style` lines conventionally follow the node/edge
