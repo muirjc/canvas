@@ -49,6 +49,14 @@ tests are NON-NEGOTIABLE and must exist (and fail) before implementing any diagr
 work — see `.specify/memory/constitution.md` Principle IV.
 
 ## Recent Changes
+- Edge arrowhead visibility fix (`canvas-1rq`, not part of the flowchart-completeness-brief
+  groupings): edges were drawn center-to-center with nodes rendered on top, hiding the arrowhead
+  (and the line segment inside each node) underneath the target's opaque fill. Both renderers now
+  clip each endpoint to the node's own shape boundary via a new shared `clipEdgeEndpoint` (exported
+  from `svg-renderer.ts`, same reuse pattern as `splitLabelLines`) — exact ellipse boundary for
+  circle/double-circle, exact rhombus boundary for diamond, rectangle bounding-box intersection for
+  every other shape. Endpoint is clamped so it never crosses past the other node's own center.
+  Canvas and export call the identical function, so they can't disagree (SC-004).
 - Multi-line node/edge labels via `<br/>` (grouping F of `docs/flowchart-completeness-brief.md`,
   tracked under bead `jmuir-dzd` — not its own numbered spec): a literal `<br/>` (any case,
   self-closing or not) or a raw newline in a label now renders as an actual line break (stacked

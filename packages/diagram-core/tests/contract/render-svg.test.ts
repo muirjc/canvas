@@ -357,3 +357,91 @@ describe('renderToSvg multi-line labels (grouping F)', () => {
     expect(order).toEqual(['First', 'Second', 'Third']);
   });
 });
+
+/**
+ * canvas-1rq: edges drawn center-to-center hide the arrowhead (and the marker itself) underneath
+ * the opaque target node. Endpoints must be clipped to each node's shape boundary, not left at the
+ * raw center, so the arrowhead lands in open space between the two shapes.
+ */
+describe('renderToSvg edge endpoint clipping (canvas-1rq)', () => {
+  function lineCoords(svg: string): { x1: number; y1: number; x2: number; y2: number } {
+    const match = svg.match(/<line x1="([\d.-]+)" y1="([\d.-]+)" x2="([\d.-]+)" y2="([\d.-]+)"/);
+    expect(match, `no <line> found in: ${svg}`).not.toBeNull();
+    const [, x1, y1, x2, y2] = match!;
+    return { x1: Number(x1), y1: Number(y1), x2: Number(x2), y2: Number(y2) };
+  }
+
+  it('clips a horizontal edge between two rectangles to each node\'s edge, not its center', () => {
+    // A[0,0 140x60] center (70,30); B[300,0 140x60] center (370,30).
+    const svg = renderToSvg({
+      diagramTypeId: 'flowchart',
+      nodes: [
+        { id: 'A', label: 'A', shape: 'rectangle', position: { x: 0, y: 0 } },
+        { id: 'B', label: 'B', shape: 'rectangle', position: { x: 300, y: 0 } },
+      ],
+      edges: [{ id: 'e1', sourceId: 'A', targetId: 'B' }],
+      containers: [],
+    });
+    const { x1, x2, y1, y2 } = lineCoords(svg);
+    expect(x1).toBeCloseTo(140); // A's right edge, not its center (70)
+    expect(x2).toBeCloseTo(300); // B's left edge, not its center (370)
+    expect(y1).toBeCloseTo(30);
+    expect(y2).toBeCloseTo(30);
+  });
+
+  it('clips a diagonal edge between two rectangles differently than an ellipse or diamond would', () => {
+    const nodesFor = (shape: 'rectangle' | 'circle' | 'diamond') => [
+      { id: 'A', label: 'A', shape, position: { x: -100, y: -50 }, size: { width: 200, height: 100 } },
+      { id: 'B', label: 'B', shape, position: { x: 100, y: 100 }, size: { width: 200, height: 100 } },
+    ];
+    const svgFor = (shape: 'rectangle' | 'circle' | 'diamond') =>
+      renderToSvg({
+        diagramTypeId: 'flowchart',
+        nodes: nodesFor(shape) as never,
+        edges: [{ id: 'e1', sourceId: 'A', targetId: 'B' }],
+        containers: [],
+      });
+
+    const rect = lineCoords(svgFor('rectangle'));
+    const circle = lineCoords(svgFor('circle'));
+    const diamond = lineCoords(svgFor('diamond'));
+
+    // All three must actually clip away from center (0,0) — none should start at the raw center.
+    expect(rect.x1).not.toBeCloseTo(0);
+    expect(circle.x1).not.toBeCloseTo(0);
+    expect(diamond.x1).not.toBeCloseTo(0);
+    // But each shape's boundary differs, so the three must disagree with each other.
+    expect(rect.x1).not.toBeCloseTo(circle.x1);
+    expect(circle.x1).not.toBeCloseTo(diamond.x1);
+    expect(rect.x1).not.toBeCloseTo(diamond.x1);
+  });
+
+  it('never extends an endpoint past the other node\'s own center, even when nodes nearly overlap', () => {
+    const svg = renderToSvg({
+      diagramTypeId: 'flowchart',
+      nodes: [
+        { id: 'A', label: 'A', shape: 'rectangle', position: { x: 0, y: 0 }, size: { width: 200, height: 100 } },
+        { id: 'B', label: 'B', shape: 'rectangle', position: { x: 10, y: 0 }, size: { width: 200, height: 100 } },
+      ],
+      edges: [{ id: 'e1', sourceId: 'A', targetId: 'B' }],
+      containers: [],
+    });
+    const { x1, x2 } = lineCoords(svg);
+    // Centers are at 100 and 110 respectively; neither endpoint may cross past the other's center.
+    expect(x1).toBeLessThanOrEqual(110);
+    expect(x2).toBeGreaterThanOrEqual(100);
+  });
+
+  it('still renders a visible marker-end for a plain edge after clipping', () => {
+    const svg = renderToSvg({
+      diagramTypeId: 'flowchart',
+      nodes: [
+        { id: 'A', label: 'A', shape: 'rectangle', position: { x: 0, y: 0 } },
+        { id: 'B', label: 'B', shape: 'rectangle', position: { x: 300, y: 0 } },
+      ],
+      edges: [{ id: 'e1', sourceId: 'A', targetId: 'B' }],
+      containers: [],
+    });
+    expect(svg).toMatch(/<line[^>]*marker-end="url\(#arrowhead\)"/);
+  });
+});

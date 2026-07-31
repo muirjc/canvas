@@ -49,6 +49,47 @@ function nodeCenter(node: DiagramNode): { x: number; y: number } {
   return { x: node.position.x + size.width / 2, y: node.position.y + size.height / 2 };
 }
 
+/**
+ * canvas-1rq: an edge endpoint left at the node's raw center is hidden underneath the node's own
+ * opaque fill (nodes render on top of edges) — the arrowhead never becomes visible. Clips the
+ * endpoint to the node's shape boundary instead, along the line toward `towardX`/`towardY` (the
+ * other endpoint, before clipping). Exported so the interactive canvas (Canvas.tsx) clips
+ * identically — both renderers must agree on where an edge visibly starts/ends (SC-004).
+ *
+ * `circle`/`double-circle` use the true ellipse boundary and `diamond` its own rhombus boundary;
+ * every other shape (including the 009 shapes and icon/person/cylinder) falls back to a rectangle
+ * bounding-box intersection — a reasonable approximation per canvas-1rq's own acceptance
+ * criteria, not a claim that e.g. a hexagon's real silhouette is being traced exactly.
+ */
+export function clipEdgeEndpoint(
+  center: { x: number; y: number },
+  size: Size,
+  shape: DiagramNode['shape'],
+  towardX: number,
+  towardY: number,
+): { x: number; y: number } {
+  const dx = towardX - center.x;
+  const dy = towardY - center.y;
+  if (dx === 0 && dy === 0) return { ...center };
+
+  const hw = size.width / 2;
+  const hh = size.height / 2;
+  let t: number;
+  if (shape === 'circle' || shape === 'double-circle') {
+    t = 1 / Math.sqrt((dx / hw) ** 2 + (dy / hh) ** 2);
+  } else if (shape === 'diamond') {
+    t = 1 / (Math.abs(dx) / hw + Math.abs(dy) / hh);
+  } else {
+    const tx = dx !== 0 ? hw / Math.abs(dx) : Infinity;
+    const ty = dy !== 0 ? hh / Math.abs(dy) : Infinity;
+    t = Math.min(tx, ty);
+  }
+  // Never past the other endpoint (near-overlapping nodes), and never back past this node's own
+  // center (a malformed/zero-size node).
+  t = Math.min(Math.max(t, 0), 1);
+  return { x: center.x + t * dx, y: center.y + t * dy };
+}
+
 function renderNodeShape(node: DiagramNode): string {
   const { x, y } = node.position;
   const { width, height } = nodeSize(node);
@@ -229,6 +270,11 @@ function renderEdge(edge: DiagramModel['edges'][number], nodesById: Map<string, 
   const to = nodeCenter(target);
   const midX = (from.x + to.x) / 2;
   const midY = (from.y + to.y) / 2;
+  // canvas-1rq: clip each endpoint to its own node's boundary so the arrowhead lands in open
+  // space instead of underneath the target's opaque fill. Label position stays center-based —
+  // unaffected by this fix and barely different in practice.
+  const clippedFrom = clipEdgeEndpoint(from, nodeSize(source), source.shape, to.x, to.y);
+  const clippedTo = clipEdgeEndpoint(to, nodeSize(target), target.shape, from.x, from.y);
   const label = edge.label ? renderLabelText(midX, midY - 4, edge.label, 12, false) : '';
   // Grouping B: lineStyle supplies a default treatment (dotted dasharray, thick width) that an
   // explicit edge.style (linkStyle) override still wins over, since linkStyle is layered on top.
@@ -240,7 +286,7 @@ function renderEdge(edge: DiagramModel['edges'][number], nodesById: Map<string, 
   const strokeDasharray = dasharrayValue ? ` stroke-dasharray="${dasharrayValue}"` : '';
   const markerEnd = isInvisible || edge.arrow === 'none' ? '' : ' marker-end="url(#arrowhead)"';
   const markerStart = !isInvisible && edge.arrow === 'both' ? ' marker-start="url(#arrowhead)"' : '';
-  return `<g data-edge-id="${escapeXml(edge.id)}"><line x1="${from.x}" y1="${from.y}" x2="${to.x}" y2="${to.y}" stroke="${stroke}"${strokeWidth}${strokeDasharray}${markerStart}${markerEnd} />${label}</g>`;
+  return `<g data-edge-id="${escapeXml(edge.id)}"><line x1="${clippedFrom.x}" y1="${clippedFrom.y}" x2="${clippedTo.x}" y2="${clippedTo.y}" stroke="${stroke}"${strokeWidth}${strokeDasharray}${markerStart}${markerEnd} />${label}</g>`;
 }
 
 function computeBounds(model: DiagramModel): { width: number; height: number } {
