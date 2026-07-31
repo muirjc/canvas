@@ -167,25 +167,32 @@ export function Canvas({ model, onChange, dslFamily, toolbarContainer }: CanvasP
   // canvas-8n7: a node only stores an icon *reference* (Constitution V), not its artwork, so the
   // canvas must resolve refs to real SVG markup at render time — mirroring how svg-renderer.ts's
   // export path already does via its own resolveIcon callback (SC-004). Cached per library+
-  // version (keyed `${libraryId}@${libraryVersion}@${iconId}`) so placing many icons from the
-  // same library costs one fetch, not one per node. `fetchedLibraries` (a ref, not state) tracks
-  // which library+version pairs have already been requested, so the effect below never re-fetches
-  // one just because `iconArtwork` itself changed.
+  // version+icon (keyed `${libraryId}@${libraryVersion}@${iconId}`) so placing many icons from
+  // the same library costs one fetch, not one per node.
+  //
+  // "Do I still need to fetch this?" is answered by checking the cache itself (`iconArtwork`,
+  // in the dependency array), not a separate ref marking a library as "already requested" —
+  // that second form has a real bug under StrictMode's dev-only mount→cleanup→remount: the ref
+  // would get marked *before* the request resolves, so when the first (simulated) instance's
+  // cleanup sets its own `cancelled` flag, the second (surviving) instance sees the library as
+  // already handled and never fetches at all — the original response arrives but is discarded,
+  // and the icon never renders. Gating on the cache instead means the surviving instance always
+  // sees an empty cache and issues its own fetch, since neither instance's ref-write can
+  // suppress the other's decision to fetch.
   const [iconArtwork, setIconArtwork] = useState<Map<string, string>>(new Map());
-  const fetchedLibraries = useRef<Set<string>>(new Set());
 
   useEffect(() => {
     const toFetch = new Map<string, { libraryId: string; libraryVersion: string }>();
     for (const node of model.nodes) {
       if (node.shape === 'icon' && node.icon) {
         const libraryKey = `${node.icon.libraryId}@${node.icon.libraryVersion}`;
-        if (!fetchedLibraries.current.has(libraryKey)) {
+        const cacheKey = `${libraryKey}@${node.icon.iconId}`;
+        if (!iconArtwork.has(cacheKey)) {
           toFetch.set(libraryKey, { libraryId: node.icon.libraryId, libraryVersion: node.icon.libraryVersion });
         }
       }
     }
     if (toFetch.size === 0) return;
-    for (const libraryKey of toFetch.keys()) fetchedLibraries.current.add(libraryKey);
 
     let cancelled = false;
     Promise.all(
@@ -214,7 +221,7 @@ export function Canvas({ model, onChange, dslFamily, toolbarContainer }: CanvasP
     return () => {
       cancelled = true;
     };
-  }, [model.nodes]);
+  }, [model.nodes, iconArtwork]);
 
   const updateNode = useCallback(
     (id: string, patch: Partial<DiagramNode>) => {
