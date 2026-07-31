@@ -42,14 +42,23 @@ export function createDiagramTools(context: DiagramToolsContext) {
 
   return {
     addNode: tool({
-      description: 'Add a new shape to the flowchart.',
+      description:
+        'Add a new shape to the flowchart. Returns the new shape\'s id — use it (not the label) ' +
+        'as sourceId/targetId in a later addEdge call to connect it.',
       inputSchema: z.object({
         shape: z.enum(FLOWCHART_SHAPES).describe('The shape to draw.'),
         label: z.string().optional().describe('Text shown on the shape. Defaults to "New Node" if omitted.'),
       }),
       execute: async ({ shape, label }) => {
-        context.setModel(addNode(context.getModel(), { shape, label }));
-        return record('addNode', { applied: true });
+        const updated = addNode(context.getModel(), { shape, label });
+        context.setModel(updated);
+        // T033 (live-provider validation): a real model creating several nodes then connecting
+        // them within the same turn has no way to learn this opaque generated id otherwise — it
+        // can only guess (the label text, "node-1", "0", …), and every guess fails. The recorded
+        // outcome (persisted/returned by the chat API) stays the existing narrow {tool, applied}
+        // shape; only the value fed back to the model for this turn gains `nodeId`.
+        const newNode = updated.nodes[updated.nodes.length - 1];
+        return { ...record('addNode', { applied: true }), nodeId: newNode.id };
       },
     }),
 
