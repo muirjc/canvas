@@ -49,6 +49,16 @@ tests are NON-NEGOTIABLE and must exist (and fail) before implementing any diagr
 work — see `.specify/memory/constitution.md` Principle IV.
 
 ## Recent Changes
+- `canvas-23t.1` (post-005 UI consistency review, `docs/ui-review-brief.md` finding #1 — the one
+  screen the review called genuinely broken, not just unremarkable): `PersonaAdminPage.tsx` had
+  zero classNames anywhere, and each persona's `<textarea>` (an inline-level replaced element with
+  no flex/grid container around it) visibly overlapped the next category heading and crowded its
+  own Archive button. Each persona is now its own bordered `.card` with a `.row` header (name,
+  status, Archive) and the prompt textarea beneath it; categories use `.section-label` headings;
+  lists reuse the existing `.project-node__list`/`.stack` utilities for spacing. The chat-enabled
+  toggle and create-persona form reuse the same `.card`/`.field` primitives already used elsewhere
+  (`SharedDiagramsList`, `StandardsEditor`) — the minimum-bar option from the bead's own open
+  question, not a bespoke persona-card redesign. No testids, element types, or behavior changed.
 - `canvas-23t.2` (part of the post-005 UI consistency review, `docs/ui-review-brief.md` finding
   #2): `project-switch-confirm` and `home-nav-confirm` (both in `App.tsx`) were plain
   `<div role="alertdialog">`s with no overlay scrim, centering, or `--shadow-modal`/`--radius-xl`
