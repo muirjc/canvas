@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { forwardRef, useImperativeHandle, useRef, useState } from 'react';
 import { createEmptyDiagramModel, getDslFamily, isParseSuccess, type DiagramModel } from '@canvas/diagram-core';
 import { Canvas } from '../canvas/Canvas';
 import { DslPanel } from '../canvas/DslPanel';
@@ -21,11 +21,18 @@ function nextIconNodeId(): string {
 
 export interface DiagramEditorProps {
   diagram: DiagramDto;
-  /**
-   * Reports whether the open diagram has edits that have not been saved, so the shell can warn
-   * before a project switch discards them (feature 007, FR-013d).
-   */
-  onUnsavedChangesChange?: (hasUnsavedChanges: boolean) => void;
+}
+
+/**
+ * canvas-eow: exposed via ref rather than a callback-into-parent-state prop, so the shell (App)
+ * can read whether there are unsaved edits *synchronously, at the moment of a project switch* —
+ * a callback mirrored into a parent `useState` would only land on the parent's NEXT render (one
+ * commit after this component's own DOM update), which a test's next action can easily outrace
+ * under CI load. `hasUnsavedChanges` here is a plain getter closing over each render's current
+ * derived value — no propagation delay, since there is no second copy of the state to propagate.
+ */
+export interface DiagramEditorHandle {
+  hasUnsavedChanges: () => boolean;
 }
 
 function initialModelFromDsl(diagram: DiagramDto): DiagramModel {
@@ -37,7 +44,10 @@ function initialModelFromDsl(diagram: DiagramDto): DiagramModel {
   return isParseSuccess(result) ? result.model : createEmptyDiagramModel(diagram.diagramTypeId);
 }
 
-export function DiagramEditor({ diagram: initialDiagram, onUnsavedChangesChange }: DiagramEditorProps) {
+export const DiagramEditor = forwardRef<DiagramEditorHandle, DiagramEditorProps>(function DiagramEditor(
+  { diagram: initialDiagram },
+  ref,
+) {
   const [diagram, setDiagram] = useState(initialDiagram);
   const [model, setModel] = useState<DiagramModel>(() => initialModelFromDsl(diagram));
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
@@ -62,12 +72,7 @@ export function DiagramEditor({ diagram: initialDiagram, onUnsavedChangesChange 
   const [lastSavedDsl, setLastSavedDsl] = useState<string | null>(null);
   const hasUnsavedChanges = dsl !== (lastSavedDsl ?? initialDslRef.current);
 
-  useEffect(() => {
-    onUnsavedChangesChange?.(hasUnsavedChanges);
-  }, [hasUnsavedChanges, onUnsavedChangesChange]);
-
-  // Leaving the editor must not leave a stale "unsaved" flag behind on the shell.
-  useEffect(() => () => onUnsavedChangesChange?.(false), [onUnsavedChangesChange]);
+  useImperativeHandle(ref, () => ({ hasUnsavedChanges: () => hasUnsavedChanges }), [hasUnsavedChanges]);
 
   const handleRestored = async () => {
     const { diagram: restored } = await api.getDiagram(diagram.id);
@@ -197,4 +202,4 @@ export function DiagramEditor({ diagram: initialDiagram, onUnsavedChangesChange 
       {sharing && <ShareDialog diagramId={diagram.id} onClose={() => setSharing(false)} />}
     </div>
   );
-}
+});
