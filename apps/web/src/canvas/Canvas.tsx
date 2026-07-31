@@ -38,6 +38,11 @@ const SHAPE_GLYPHS: Partial<Record<NodeShape, string>> = {
   asymmetric: '⌂',
 };
 
+// Grouping B: default visual treatment per lineStyle, mirroring svg-renderer.ts exactly so the
+// canvas and export never disagree about what a dotted/thick edge looks like (SC-004).
+const DEFAULT_DOTTED_DASHARRAY = '4 2';
+const DEFAULT_THICK_STROKE_WIDTH = 3;
+
 export interface CanvasProps {
   model: DiagramModel;
   onChange: (model: DiagramModel) => void;
@@ -532,10 +537,11 @@ export function Canvas({ model, onChange, dslFamily, toolbarContainer }: CanvasP
                 y1={from.y}
                 x2={to.x}
                 y2={to.y}
-                stroke={edge.style?.strokeColor ?? '#333'}
-                strokeWidth={edge.style?.strokeWidth}
-                strokeDasharray={edge.style?.strokeDasharray}
-                markerEnd="url(#arrow)"
+                stroke={edge.lineStyle === 'invisible' ? 'none' : (edge.style?.strokeColor ?? '#333')}
+                strokeWidth={edge.style?.strokeWidth ?? (edge.lineStyle === 'thick' ? DEFAULT_THICK_STROKE_WIDTH : undefined)}
+                strokeDasharray={edge.style?.strokeDasharray ?? (edge.lineStyle === 'dotted' ? DEFAULT_DOTTED_DASHARRAY : undefined)}
+                markerStart={edge.lineStyle !== 'invisible' && edge.arrow === 'both' ? 'url(#arrow)' : undefined}
+                markerEnd={edge.lineStyle === 'invisible' || edge.arrow === 'none' ? undefined : 'url(#arrow)'}
               />
               {/* Padded invisible hit-target rect, not a thin line: a horizontal or vertical
                   connector's own geometry has a zero-height/width bounding box, which is not a
@@ -584,7 +590,9 @@ export function Canvas({ model, onChange, dslFamily, toolbarContainer }: CanvasP
         })}
 
         <defs>
-          <marker id="arrow" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto">
+          {/* auto-start-reverse: identical to "auto" as a marker-end; as a marker-start it points
+              the other way, so this one definition serves both ends of a bidirectional edge. */}
+          <marker id="arrow" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto-start-reverse">
             <path d="M0,0 L0,6 L9,3 z" fill="#333" />
           </marker>
         </defs>

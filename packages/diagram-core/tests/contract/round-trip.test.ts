@@ -185,4 +185,67 @@ describe('flowchart round-trip (parse(serialize(model)) === model)', () => {
     expect(result.edges.find((e) => e.id === 'e2')!.style?.strokeDasharray).toBe('2 2');
     expect(result.edges.find((e) => e.id === 'e2')!.style?.strokeColor).toBeUndefined();
   });
+
+  const edgeVariants: { lineStyle: DiagramModel['edges'][number]['lineStyle']; arrow: DiagramModel['edges'][number]['arrow'] }[] = [
+    { lineStyle: undefined, arrow: undefined },
+    { lineStyle: undefined, arrow: 'none' },
+    { lineStyle: undefined, arrow: 'both' },
+    { lineStyle: 'dotted', arrow: undefined },
+    { lineStyle: 'dotted', arrow: 'none' },
+    { lineStyle: 'dotted', arrow: 'both' },
+    { lineStyle: 'thick', arrow: undefined },
+    { lineStyle: 'thick', arrow: 'none' },
+    { lineStyle: 'thick', arrow: 'both' },
+    { lineStyle: 'invisible', arrow: 'none' },
+  ];
+
+  it.each(edgeVariants)('round-trips an edge with lineStyle=$lineStyle arrow=$arrow losslessly', ({ lineStyle, arrow }) => {
+    const model: DiagramModel = {
+      diagramTypeId: 'flowchart',
+      nodes: [
+        { id: 'A', label: 'A', shape: 'rectangle', position: { x: 0, y: 0 } },
+        { id: 'B', label: 'B', shape: 'rectangle', position: { x: 200, y: 0 } },
+      ],
+      edges: [{ id: 'e1', sourceId: 'A', targetId: 'B', lineStyle, arrow }],
+      containers: [],
+    };
+
+    expect(normalize(roundTrip(model))).toEqual(normalize(model));
+  });
+
+  it('round-trips a labeled edge for every line style, keeping label and connector both intact', () => {
+    const model: DiagramModel = {
+      diagramTypeId: 'flowchart',
+      nodes: [
+        { id: 'A', label: 'A', shape: 'rectangle', position: { x: 0, y: 0 } },
+        { id: 'B', label: 'B', shape: 'rectangle', position: { x: 200, y: 0 } },
+      ],
+      edges: [{ id: 'e1', sourceId: 'A', targetId: 'B', label: 'yes', lineStyle: 'thick', arrow: 'both' }],
+      containers: [],
+    };
+
+    expect(normalize(roundTrip(model))).toEqual(normalize(model));
+  });
+
+  it('round-trips distinct lineStyle/arrow combinations on different edges without cross-contamination', () => {
+    const model: DiagramModel = {
+      diagramTypeId: 'flowchart',
+      nodes: [
+        { id: 'A', label: 'A', shape: 'rectangle', position: { x: 0, y: 0 } },
+        { id: 'B', label: 'B', shape: 'rectangle', position: { x: 200, y: 0 } },
+        { id: 'C', label: 'C', shape: 'rectangle', position: { x: 400, y: 0 } },
+      ],
+      edges: [
+        { id: 'e1', sourceId: 'A', targetId: 'B', lineStyle: 'dotted' },
+        { id: 'e2', sourceId: 'B', targetId: 'C', arrow: 'none' },
+      ],
+      containers: [],
+    };
+
+    const result = roundTrip(model);
+    expect(result.edges.find((e) => e.id === 'e1')!.lineStyle).toBe('dotted');
+    expect(result.edges.find((e) => e.id === 'e1')!.arrow).toBeUndefined();
+    expect(result.edges.find((e) => e.id === 'e2')!.lineStyle).toBeUndefined();
+    expect(result.edges.find((e) => e.id === 'e2')!.arrow).toBe('none');
+  });
 });
