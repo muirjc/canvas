@@ -63,90 +63,131 @@ export function PersonaAdminPage() {
   const groups = groupByCategory(personas);
 
   return (
-    <div>
+    <div className="stack">
       <h2>AI Personas</h2>
 
-      <label>
-        <input
-          type="checkbox"
-          data-testid="ai-chat-enabled-toggle"
-          checked={settings?.chatEnabled ?? false}
-          onChange={(e) => handleToggleChat(e.target.checked)}
-        />
-        Enable AI Chat
-      </label>
+      {/* canvas-23t.1: every section below reuses primitives already established elsewhere
+          (SharedDiagramsList, ProjectBrowser, StandardsEditor) — .card for a bordered surface,
+          .row/.row__main/.row__title/.row__actions for a single-line entry, .field for a
+          labelled control — rather than inventing a bespoke persona layout. */}
+      <section className="card">
+        <label className="row">
+          <input
+            type="checkbox"
+            data-testid="ai-chat-enabled-toggle"
+            checked={settings?.chatEnabled ?? false}
+            onChange={(e) => handleToggleChat(e.target.checked)}
+          />
+          Enable AI Chat
+        </label>
+      </section>
 
       {CATEGORIES.map((cat) => {
         const categoryPersonas = groups.get(cat) ?? [];
         return (
-          <div key={cat}>
-            <h3>{cat}</h3>
-            <ul>
+          <section key={cat}>
+            <h3 className="section-label">{cat}</h3>
+            <ul className="project-node__list stack">
               {categoryPersonas.map((persona) => (
-                <li key={persona.id} data-testid={`persona-row-${persona.id}`}>
-                  <strong>{persona.name}</strong> <span data-testid={`persona-status-${persona.id}`}>({persona.status})</span>
-                  <textarea
-                    data-testid={`persona-prompt-${persona.id}`}
-                    aria-label={`System prompt for ${persona.name}`}
-                    defaultValue={persona.systemPrompt}
-                    onBlur={(e) => handlePromptEdit(persona.id, e.target.value, persona.systemPrompt)}
-                    rows={3}
-                    cols={50}
-                  />
-                  {persona.status === 'active' && (
-                    <button
-                      type="button"
-                      data-testid={`persona-archive-${persona.id}`}
-                      onClick={() => handleArchive(persona.id)}
-                    >
-                      Archive
-                    </button>
-                  )}
+                <li key={persona.id} data-testid={`persona-row-${persona.id}`} className="card">
+                  <div className="row">
+                    <span className="row__main">
+                      <span className="row__title">
+                        <strong>{persona.name}</strong>{' '}
+                        <span className="meta" data-testid={`persona-status-${persona.id}`}>
+                          ({persona.status})
+                        </span>
+                      </span>
+                    </span>
+                    <span className="row__actions">
+                      {persona.status === 'active' && (
+                        <button
+                          type="button"
+                          className="btn btn--tertiary btn--compact"
+                          data-testid={`persona-archive-${persona.id}`}
+                          onClick={() => handleArchive(persona.id)}
+                        >
+                          Archive
+                        </button>
+                      )}
+                    </span>
+                  </div>
+                  <div className="panel__body">
+                    <textarea
+                      data-testid={`persona-prompt-${persona.id}`}
+                      aria-label={`System prompt for ${persona.name}`}
+                      defaultValue={persona.systemPrompt}
+                      onBlur={(e) => handlePromptEdit(persona.id, e.target.value, persona.systemPrompt)}
+                      rows={3}
+                      style={{ width: '100%' }}
+                    />
+                  </div>
                 </li>
               ))}
             </ul>
-          </div>
+          </section>
         );
       })}
 
-      <h3>Create Persona</h3>
-      <label>
-        Name
-        <input data-testid="persona-create-name" value={name} onChange={(e) => setName(e.target.value)} />
-      </label>
-      <label>
-        Category
-        <select data-testid="persona-create-category" value={category} onChange={(e) => setCategory(e.target.value)}>
-          {CATEGORIES.map((c) => (
-            <option key={c} value={c}>
-              {c}
-            </option>
-          ))}
-        </select>
-      </label>
-      <label>
-        System Prompt
-        <textarea
-          data-testid="persona-create-prompt"
-          value={systemPrompt}
-          onChange={(e) => setSystemPrompt(e.target.value)}
-          rows={4}
-          cols={50}
-        />
-      </label>
-      <button
-        type="button"
-        data-testid="persona-create-submit"
-        disabled={!name || !systemPrompt}
-        onClick={handleCreate}
-      >
-        Create Persona
-      </button>
-      {error && (
-        <p role="alert" data-testid="persona-create-error">
-          {error}
-        </p>
-      )}
+      <section className="card">
+        <div className="panel__body">
+          <h3 className="section-label">Create Persona</h3>
+          <div className="field">
+            <label className="field__label" htmlFor="persona-create-name">
+              Name
+            </label>
+            <input
+              id="persona-create-name"
+              data-testid="persona-create-name"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+            />
+          </div>
+          <div className="field">
+            <label className="field__label" htmlFor="persona-create-category">
+              Category
+            </label>
+            <select
+              id="persona-create-category"
+              data-testid="persona-create-category"
+              value={category}
+              onChange={(e) => setCategory(e.target.value)}
+            >
+              {CATEGORIES.map((c) => (
+                <option key={c} value={c}>
+                  {c}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="field">
+            <label className="field__label" htmlFor="persona-create-prompt">
+              System Prompt
+            </label>
+            <textarea
+              id="persona-create-prompt"
+              data-testid="persona-create-prompt"
+              value={systemPrompt}
+              onChange={(e) => setSystemPrompt(e.target.value)}
+              rows={4}
+            />
+          </div>
+          <button
+            type="button"
+            className="btn btn--primary"
+            data-testid="persona-create-submit"
+            disabled={!name || !systemPrompt}
+            onClick={handleCreate}
+          >
+            Create Persona
+          </button>
+          {error && (
+            <p role="alert" data-testid="persona-create-error">
+              {error}
+            </p>
+          )}
+        </div>
+      </section>
     </div>
   );
 }
