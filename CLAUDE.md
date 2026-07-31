@@ -49,6 +49,17 @@ tests are NON-NEGOTIABLE and must exist (and fail) before implementing any diagr
 work — see `.specify/memory/constitution.md` Principle IV.
 
 ## Recent Changes
+- Project-switch unsaved-changes race fix (`canvas-eow`): `App.tsx` used to learn whether the open
+  diagram had unsaved edits through a child->parent mirror — `DiagramEditor.tsx` computed
+  `hasUnsavedChanges` synchronously but reported it to `App` via a `useEffect` calling
+  `onUnsavedChangesChange`, which only lands on `App`'s NEXT render, one commit after the child's
+  own DOM update. A project switch requested in that gap read a stale `false` and silently
+  discarded unsaved work instead of confirming — a real race, not a test defect. `DiagramEditor`
+  is now a `forwardRef` exposing `hasUnsavedChanges: () => boolean` via `useImperativeHandle`;
+  `App` reads it synchronously through a ref at the moment of the switch request instead of a
+  mirrored `useState`. Verified against the live dev server (15 repeated runs of the exact flaky
+  e2e scenario, all passing) rather than just unit/type checks, since the bug only manifested as
+  real browser event timing.
 - Icon artwork rendering fix (`canvas-8n7`, not part of the flowchart-completeness-brief
   groupings): grew beyond its original filing during investigation — the bug's own premise
   ("export already renders the true icon") was false in production; `export.service.ts` called

@@ -1,8 +1,8 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { api, type DiagramDto, type ProjectDto, type SessionUser, type SharedDiagramDto } from './api';
 import { LoginForm } from './LoginForm';
 import { AppShell } from './AppShell';
-import { DiagramEditor } from './DiagramEditor';
+import { DiagramEditor, type DiagramEditorHandle } from './DiagramEditor';
 import { NewDiagramDialog } from './NewDiagramDialog';
 import { ProjectPicker } from './ProjectPicker';
 import { readProjectIdFromUrl, syncProjectIdToUrl, withProjectContext } from './project-context';
@@ -36,9 +36,11 @@ export function App() {
   // FR-001/FR-002). Fetched alongside — not gated on — the project list, since a user with zero
   // projects still needs to see this.
   const [sharedDiagrams, setSharedDiagrams] = useState<SharedDiagramDto[]>([]);
-  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const [pendingProjectId, setPendingProjectId] = useState<string | null>(null);
   const [creatingProject, setCreatingProject] = useState(false);
+  // canvas-eow: read synchronously at switch-time via ref, not mirrored into a parent useState —
+  // see DiagramEditorHandle's doc comment for why the mirrored-state version was a genuine race.
+  const diagramEditorRef = useRef<DiagramEditorHandle>(null);
 
   useEffect(() => {
     api
@@ -102,8 +104,6 @@ export function App() {
     syncProjectIdToUrl(projectId);
   }, [projectId, projects]);
 
-  const handleUnsavedChangesChange = useCallback((dirty: boolean) => setHasUnsavedChanges(dirty), []);
-
   const applyProjectChange = (nextProjectId: string) => {
     setProjectId(nextProjectId);
     setDiagram(null);
@@ -112,8 +112,9 @@ export function App() {
 
   const requestProjectChange = (nextProjectId: string) => {
     if (nextProjectId === projectId) return;
-    // Never discard unsaved work silently (FR-013d).
-    if (diagram && hasUnsavedChanges) {
+    // Never discard unsaved work silently (FR-013d). Read synchronously via ref — see
+    // DiagramEditorHandle's doc comment for why a mirrored parent state was a genuine race.
+    if (diagram && diagramEditorRef.current?.hasUnsavedChanges()) {
       setPendingProjectId(nextProjectId);
       return;
     }
@@ -191,7 +192,7 @@ export function App() {
       </AdminShell>
     );
   } else if (diagram) {
-    content = <DiagramEditor diagram={diagram} onUnsavedChangesChange={handleUnsavedChangesChange} />;
+    content = <DiagramEditor diagram={diagram} ref={diagramEditorRef} />;
   } else {
     content = (
       <main className="page">
