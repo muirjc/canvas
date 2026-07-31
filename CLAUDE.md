@@ -49,6 +49,16 @@ tests are NON-NEGOTIABLE and must exist (and fail) before implementing any diagr
 work — see `.specify/memory/constitution.md` Principle IV.
 
 ## Recent Changes
+- Multi-line node/edge labels via `<br/>` (grouping F of `docs/flowchart-completeness-brief.md`,
+  tracked under bead `jmuir-dzd` — not its own numbered spec): a literal `<br/>` (any case,
+  self-closing or not) or a raw newline in a label now renders as an actual line break (stacked
+  `<tspan>`s) instead of literal text. Rendering-only — label capture was already a greedy `.+`, so
+  no parser/model change. `splitLabelLines` is exported from `svg-renderer.ts` specifically so the
+  interactive canvas imports and reuses the same split logic rather than reimplementing it, so the
+  two renderers can never disagree about where a label breaks (SC-004). Applies to node and edge
+  labels; container/subgraph captions were deliberately left single-line-only, a scope line drawn
+  on purpose since real-world subgraph titles are essentially always short. Has an e2e spec — unlike
+  grouping E, this one IS visually distinguishable on the canvas.
 - Subgraph direction override (grouping E of `docs/flowchart-completeness-brief.md`, tracked under
   bead `jmuir-dzd` — not its own numbered spec): a `direction <TD|LR|TB|RL|BT>` statement inside a
   `subgraph`/`end` block sets that container's own layout direction. Unlike style/classDef/
