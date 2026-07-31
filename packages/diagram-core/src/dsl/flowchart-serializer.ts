@@ -54,6 +54,9 @@ function serializeContainer(
 ): string[] {
   const lines: string[] = [];
   lines.push(`subgraph ${container.id} [${container.label}]`);
+  if (container.direction) {
+    lines.push(`  direction ${container.direction}`);
+  }
   for (const node of model.nodes) {
     if (node.containerId === container.id) {
       lines.push(serializeNode(node));

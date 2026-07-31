@@ -49,6 +49,17 @@ tests are NON-NEGOTIABLE and must exist (and fail) before implementing any diagr
 work — see `.specify/memory/constitution.md` Principle IV.
 
 ## Recent Changes
+- Subgraph direction override (grouping E of `docs/flowchart-completeness-brief.md`, tracked under
+  bead `jmuir-dzd` — not its own numbered spec): a `direction <TD|LR|TB|RL|BT>` statement inside a
+  `subgraph`/`end` block sets that container's own layout direction. Unlike style/classDef/
+  linkStyle, this is native Mermaid grammar with no generic field to fold into — `DiagramContainer`
+  gained its own `direction` field and the serializer emits a real `direction` line, not a
+  front-matter entry. Only recognized inside a subgraph body; a top-level `direction` line is an
+  error like any other out-of-place construct. Scoped to parse/serialize fidelity only — per the
+  brief's own note, neither the top-level direction nor a subgraph override drives auto-layout
+  today, and this grouping deliberately left that alone. No e2e spec: purely textual/import
+  fidelity with nothing visually distinguishable to assert, same as the `style` directive and
+  `graph` alias groupings before it.
 - classDef/class flowchart styling (grouping C of `docs/flowchart-completeness-brief.md`, tracked
   under bead `jmuir-dzd` — not its own numbered spec): Mermaid's `classDef <name> <props>` defines a
   named style and `class <id1>,<id2>,... <name>` assigns it to one or more nodes. Reuses the same
