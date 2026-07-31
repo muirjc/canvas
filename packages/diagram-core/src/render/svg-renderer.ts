@@ -13,6 +13,33 @@ function escapeXml(value: string): string {
     .replace(/"/g, '&quot;');
 }
 
+// Grouping F (docs/flowchart-completeness-brief.md): a literal `<br/>` (any case, self-closing or
+// not) or a raw newline splits a label into multiple rendered lines. Exported so the interactive
+// canvas (apps/web/src/canvas/Canvas.tsx) can split identically — both renderers must agree on
+// label rendering for exports to match the canvas (per shapes.tsx's own SC-004 note).
+const LINE_BREAK = /<br\s*\/?>|\r?\n/gi;
+
+export function splitLabelLines(label: string): string[] {
+  return label.split(LINE_BREAK);
+}
+
+/** Renders a horizontally-centered `<text>` label, stacking `<tspan>`s when the label contains a
+ *  line break. `centered` mirrors `dominant-baseline="middle"`'s effect for the single-line case,
+ *  vertically centering the whole stacked block around `y` instead of just the first line. */
+function renderLabelText(x: number, y: number, label: string, fontSize: number, centered: boolean): string {
+  const lines = splitLabelLines(label);
+  if (lines.length === 1) {
+    const baseline = centered ? ' dominant-baseline="middle"' : '';
+    return `<text x="${x}" y="${y}"${baseline} text-anchor="middle" font-size="${fontSize}" font-family='${FONT_FAMILY}'>${escapeXml(label)}</text>`;
+  }
+  const lineHeightEm = 1.2;
+  const firstDy = centered ? (-(lines.length - 1) * lineHeightEm) / 2 : 0;
+  const tspans = lines
+    .map((line, i) => `<tspan x="${x}" dy="${i === 0 ? firstDy : lineHeightEm}em">${escapeXml(line)}</tspan>`)
+    .join('');
+  return `<text x="${x}" y="${y}" text-anchor="middle" font-size="${fontSize}" font-family='${FONT_FAMILY}'>${tspans}</text>`;
+}
+
 function nodeSize(node: DiagramNode): Size {
   return node.size ?? DEFAULT_NODE_SIZE;
 }
@@ -169,16 +196,16 @@ function renderNode(node: DiagramNode, resolveIcon?: IconResolver): string {
       `<g data-node-id="${escapeXml(node.id)}">`,
       renderNodeShape(node),
       `<g transform="translate(${iconX}, ${iconY}) scale(${iconSize / 48})">${iconMarkup}</g>`,
-      `<text x="${x + width / 2}" y="${y + height - 10}" text-anchor="middle" font-size="${Math.max(fontSize - 2, 10)}" font-family='${FONT_FAMILY}'>${escapeXml(node.label)}</text>`,
+      renderLabelText(x + width / 2, y + height - 10, node.label, Math.max(fontSize - 2, 10), false),
       '</g>',
     ].join('');
   }
 
-  const label = node.icon ? `${escapeXml(node.label)} [${escapeXml(node.icon.iconId)}]` : escapeXml(node.label);
+  const rawLabel = node.icon ? `${node.label} [${node.icon.iconId}]` : node.label;
   return [
     `<g data-node-id="${escapeXml(node.id)}">`,
     renderNodeShape(node),
-    `<text x="${x + width / 2}" y="${y + height / 2}" text-anchor="middle" dominant-baseline="middle" font-size="${fontSize}" font-family='${FONT_FAMILY}'>${label}</text>`,
+    renderLabelText(x + width / 2, y + height / 2, rawLabel, fontSize, true),
     '</g>',
   ].join('');
 }
@@ -202,9 +229,7 @@ function renderEdge(edge: DiagramModel['edges'][number], nodesById: Map<string, 
   const to = nodeCenter(target);
   const midX = (from.x + to.x) / 2;
   const midY = (from.y + to.y) / 2;
-  const label = edge.label
-    ? `<text x="${midX}" y="${midY - 4}" text-anchor="middle" font-size="12" font-family='${FONT_FAMILY}'>${escapeXml(edge.label)}</text>`
-    : '';
+  const label = edge.label ? renderLabelText(midX, midY - 4, edge.label, 12, false) : '';
   // Grouping B: lineStyle supplies a default treatment (dotted dasharray, thick width) that an
   // explicit edge.style (linkStyle) override still wins over, since linkStyle is layered on top.
   const isInvisible = edge.lineStyle === 'invisible';

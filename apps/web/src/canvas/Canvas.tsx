@@ -13,6 +13,7 @@ import {
   updateContainerLabel,
   updateEdgeLabel,
   updateNodeLabel,
+  splitLabelLines,
   type DiagramContainer,
   type DiagramModel,
   type DiagramNode,
@@ -62,6 +63,38 @@ export interface CanvasProps {
 
 /** Minimum a container may be dragged down to, so it never becomes un-grabbable. */
 const MIN_CONTAINER_SIZE = { width: 80, height: 60 };
+
+// Grouping F (docs/flowchart-completeness-brief.md): splits identically to svg-renderer.ts's own
+// `splitLabelLines` (imported, not reimplemented) so the canvas and export never disagree about
+// where a label breaks (SC-004). `centered` mirrors `dominantBaseline="middle"`'s effect for the
+// single-line case, vertically centering the whole stacked block instead of just the first line.
+function renderLabelLines(
+  x: number,
+  y: number,
+  label: string,
+  fontSize: number,
+  centered: boolean,
+): JSX.Element {
+  const lines = splitLabelLines(label);
+  if (lines.length === 1) {
+    return (
+      <text x={x} y={y} textAnchor="middle" dominantBaseline={centered ? 'middle' : undefined} fontSize={fontSize}>
+        {label}
+      </text>
+    );
+  }
+  const lineHeightEm = 1.2;
+  const firstDy = centered ? (-(lines.length - 1) * lineHeightEm) / 2 : 0;
+  return (
+    <text x={x} y={y} textAnchor="middle" fontSize={fontSize}>
+      {lines.map((line, i) => (
+        <tspan key={i} x={x} dy={`${i === 0 ? firstDy : lineHeightEm}em`}>
+          {line}
+        </tspan>
+      ))}
+    </text>
+  );
+}
 
 function containerBounds(container: DiagramContainer) {
   const size = container.size ?? { width: 300, height: 200 };
@@ -553,11 +586,7 @@ export function Canvas({ model, onChange, dslFamily, toolbarContainer }: CanvasP
                 height={Math.max(Math.abs(to.y - from.y), 1) + 20}
                 fill="transparent"
               />
-              {!isEditingThisEdge && edge.label && (
-                <text x={midX} y={midY - 4} fontSize={12} textAnchor="middle">
-                  {edge.label}
-                </text>
-              )}
+              {!isEditingThisEdge && edge.label && renderLabelLines(midX, midY - 4, edge.label, 12, false)}
               {isEditingThisEdge && (
                 <foreignObject x={midX - 60} y={midY - 12} width={120} height={24}>
                   <input
@@ -613,17 +642,8 @@ export function Canvas({ model, onChange, dslFamily, toolbarContainer }: CanvasP
               style={{ cursor: connectMode ? 'crosshair' : 'move' }}
             >
               {renderNodeShape(node, selectedIds.has(node.id))}
-              {editingNodeId !== node.id && (
-                <text
-                  x={node.position.x + size.width / 2}
-                  y={node.position.y + size.height / 2}
-                  textAnchor="middle"
-                  dominantBaseline="middle"
-                  fontSize={14}
-                >
-                  {node.label}
-                </text>
-              )}
+              {editingNodeId !== node.id &&
+                renderLabelLines(node.position.x + size.width / 2, node.position.y + size.height / 2, node.label, 14, true)}
               {editingNodeId === node.id && (
                 <foreignObject x={node.position.x} y={node.position.y} width={size.width} height={size.height}>
                   <input

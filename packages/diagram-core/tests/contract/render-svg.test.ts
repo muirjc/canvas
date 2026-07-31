@@ -296,3 +296,64 @@ describe('renderToSvg edge line style and arrow direction (grouping B)', () => {
     expect(svg).not.toMatch(/marker-start/);
   });
 });
+
+/**
+ * Grouping F (docs/flowchart-completeness-brief.md): a `<br/>` (any case, self-closing or not) or
+ * a raw newline in a label must render as an actual line break (stacked `<tspan>`s), not literal
+ * text. The label text itself already round-trips (label capture is a greedy `.+`) — this is a
+ * rendering-only change, so there is no parser/model/round-trip test for it.
+ */
+describe('renderToSvg multi-line labels (grouping F)', () => {
+  function svgForNodeLabel(label: string): string {
+    return renderToSvg({
+      diagramTypeId: 'flowchart',
+      nodes: [{ id: 'A', label, shape: 'rectangle', position: { x: 0, y: 0 } }],
+      edges: [],
+      containers: [],
+    });
+  }
+
+  it('renders a single-line label exactly as before (no tspan wrapping)', () => {
+    const svg = svgForNodeLabel('Plain Label');
+    expect(svg).toContain('>Plain Label</text>');
+    expect(svg).not.toContain('<tspan');
+  });
+
+  it.each(['<br/>', '<br>', '<br />', '<BR/>'])('splits a label containing "%s" into two tspans', (br) => {
+    const svg = svgForNodeLabel(`Line one${br}Line two`);
+    expect(svg).toMatch(/<tspan[^>]*>Line one<\/tspan>/);
+    expect(svg).toMatch(/<tspan[^>]*>Line two<\/tspan>/);
+  });
+
+  it('splits a label containing a literal newline into two tspans', () => {
+    const svg = svgForNodeLabel('Line one\nLine two');
+    expect(svg).toMatch(/<tspan[^>]*>Line one<\/tspan>/);
+    expect(svg).toMatch(/<tspan[^>]*>Line two<\/tspan>/);
+  });
+
+  it('escapes XML-sensitive characters within each line of a multi-line label', () => {
+    const svg = svgForNodeLabel('A & B<br/><C>');
+    expect(svg).toMatch(/<tspan[^>]*>A &amp; B<\/tspan>/);
+    expect(svg).toMatch(/<tspan[^>]*>&lt;C&gt;<\/tspan>/);
+  });
+
+  it('splits an edge label the same way as a node label', () => {
+    const svg = renderToSvg({
+      diagramTypeId: 'flowchart',
+      nodes: [
+        { id: 'A', label: 'A', shape: 'rectangle', position: { x: 0, y: 0 } },
+        { id: 'B', label: 'B', shape: 'rectangle', position: { x: 300, y: 0 } },
+      ],
+      edges: [{ id: 'e1', sourceId: 'A', targetId: 'B', label: 'Edge one<br/>Edge two' }],
+      containers: [],
+    });
+    expect(svg).toMatch(/<tspan[^>]*>Edge one<\/tspan>/);
+    expect(svg).toMatch(/<tspan[^>]*>Edge two<\/tspan>/);
+  });
+
+  it('preserves a three-line label in declared order', () => {
+    const svg = svgForNodeLabel('First<br/>Second<br/>Third');
+    const order = [...svg.matchAll(/<tspan[^>]*>([^<]*)<\/tspan>/g)].map((m) => m[1]);
+    expect(order).toEqual(['First', 'Second', 'Third']);
+  });
+});
