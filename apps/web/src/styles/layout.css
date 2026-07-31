@@ -507,6 +507,10 @@
 /* The chevron points back, not forward. */
 .admin-nav__back-icon { transform: rotate(180deg); }
 
+/* Generic 180deg icon flip — e.g. reusing chevron-right as a "back" chevron elsewhere
+   (editor__back), without a dedicated chevron-left icon asset. */
+.icon--flip { transform: rotate(180deg); }
+
 .admin-nav__divider {
   width: var(--border-width);
   height: 20px;

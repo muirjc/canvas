@@ -49,6 +49,16 @@ tests are NON-NEGOTIABLE and must exist (and fail) before implementing any diagr
 work — see `.specify/memory/constitution.md` Principle IV.
 
 ## Recent Changes
+- Editor "back to Diagrams" navigation: once a diagram was open, there was no way back to the
+  project browser short of switching to a different project (a no-op if you picked the current
+  one) or signing out. The doc-bar gains a "Diagrams" button (`DiagramEditor`'s new
+  `onRequestClose` prop); `App.tsx`'s new `requestGoHome` guards it exactly like
+  `requestProjectChange` already guards switching project — same unsaved-changes check via
+  `diagramEditorRef`, same discard/keep-editing confirm pattern, just worded for "returning to
+  Diagrams" and under new testids (`home-nav-confirm`/`confirm-home-nav`/`cancel-home-nav`) rather
+  than reusing the project-switch ones. Reuses the existing `chevron-right` icon (already
+  flipped 180° for "back" in `AdminShell`'s own back link) via a new generic `.icon--flip`
+  utility, rather than a new icon asset.
 - Feature 004 (AI-assisted diagram chat) completion + a real bug fix found via live-provider
   validation (T033, `jmuir-4m0`/`jmuir-4m0.1`): all 33 tasks were already implemented, but the
   final manual-validation task against a real (non-mock) AI provider had never been run. Doing so
