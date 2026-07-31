@@ -1,5 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { expect, test } from '@playwright/test';
+import { awsIconsManifest } from '@canvas/diagram-core';
 
 const PROJECT_ID = process.env.E2E_PROJECT_ID;
 const ADMIN_EMAIL = 'admin@example.com';
@@ -53,7 +54,7 @@ test('preserves the icon node\'s shape and artwork through save and reload', asy
     '  icons:',
     '    A:',
     '      libraryId: aws-icons',
-    '      libraryVersion: "2024.1"',
+    `      libraryVersion: "${awsIconsManifest.version}"`,
     '      iconId: lambda',
     '---',
     'flowchart TD',
@@ -96,6 +97,11 @@ test('exports the icon node with the same real artwork', async ({ page }) => {
 
   await page.getByTestId('palette-search').fill('Lambda');
   await page.getByTestId('palette-icon-aws-icons-lambda').click();
+
+  // Export reads the server's last-saved DSL, not live in-memory canvas state — must save first
+  // (same requirement create-export.spec.ts's own export test already follows).
+  await page.getByTestId('save-diagram').click();
+  await expect(page.getByTestId('save-status')).toHaveText('saved');
 
   const [download] = await Promise.all([page.waitForEvent('download'), page.getByTestId('export-svg').click()]);
   const path = await download.path();

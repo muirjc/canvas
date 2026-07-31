@@ -15,6 +15,7 @@ import {
   updateNodeLabel,
   splitLabelLines,
   clipEdgeEndpoint,
+  sanitizeSvgFragment,
   type DiagramContainer,
   type DiagramModel,
   type DiagramNode,
@@ -185,7 +186,13 @@ export function Canvas({ model, onChange, dslFamily, toolbarContainer }: CanvasP
       setIconArtwork((prev) => {
         const next = new Map(prev);
         for (const { libraryId, libraryVersion, icons } of results) {
-          for (const icon of icons) next.set(`${libraryId}@${libraryVersion}@${icon.id}`, icon.assetRef);
+          // Defense in depth: assetRef is sanitized at admin-only library-ingestion time
+          // (loadLibrary), but this re-applies the same sanitizer at the point of rendering,
+          // right before dangerouslySetInnerHTML, rather than trusting that ingestion-time pass
+          // is still intact by the time markup has traveled through the DB and a network fetch.
+          for (const icon of icons) {
+            next.set(`${libraryId}@${libraryVersion}@${icon.id}`, sanitizeSvgFragment(icon.assetRef));
+          }
         }
         return next;
       });
