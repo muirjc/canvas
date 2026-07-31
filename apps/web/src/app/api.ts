@@ -225,6 +225,12 @@ export const api = {
     request<{ diagramTypes: DiagramTypeDto[] }>(`/diagram-types${persona ? `?persona=${encodeURIComponent(persona)}` : ''}`),
   searchIcons: (diagramTypeId: string, query: string) =>
     request<{ icons: IconDto[] }>(`/icons/search?diagramTypeId=${encodeURIComponent(diagramTypeId)}&query=${encodeURIComponent(query)}`),
+  /** canvas-8n7: every icon in one library/version, including `assetRef` (the real SVG markup) —
+   *  used to resolve a placed node's icon ref back to artwork the canvas can actually draw. */
+  getLibraryIcons: (libraryId: string, libraryVersion: string) =>
+    request<{ icons: IconDto[] }>(
+      `/libraries/${encodeURIComponent(libraryId)}/versions/${encodeURIComponent(libraryVersion)}/icons`,
+    ),
   createProject: (body: { name: string; parentProjectId?: string }) =>
     request<{ project: ProjectDto }>('/projects', { method: 'POST', body: JSON.stringify(body) }),
   getProjectTree: (id: string) => request<{ tree: ProjectTreeNodeDto }>(`/projects/${id}/tree`),

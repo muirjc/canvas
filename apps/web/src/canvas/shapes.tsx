@@ -48,6 +48,22 @@ export function renderNodeShape(node: DiagramNode, selected: boolean): JSX.Eleme
         .join(' ');
       return <polygon points={points} fill={fill} stroke={stroke} strokeWidth={strokeWidth} />;
     }
+    case 'cylinder': {
+      // canvas-8n7: was silently falling through to a plain rectangle — mirrors
+      // svg-renderer.ts's cylinder case exactly (SC-004) rather than reimplementing it.
+      const capHeight = Math.min(16, height / 4);
+      return (
+        <g>
+          <path
+            d={`M ${x} ${y + capHeight} L ${x} ${y + height - capHeight} A ${width / 2} ${capHeight} 0 0 0 ${x + width} ${y + height - capHeight} L ${x + width} ${y + capHeight} A ${width / 2} ${capHeight} 0 0 0 ${x} ${y + capHeight} Z`}
+            fill={fill}
+            stroke={stroke}
+            strokeWidth={strokeWidth}
+          />
+          <ellipse cx={x + width / 2} cy={y + capHeight} rx={width / 2} ry={capHeight} fill={fill} stroke={stroke} strokeWidth={strokeWidth} />
+        </g>
+      );
+    }
     case 'rounded-rectangle':
       return (
         <rect x={x} y={y} width={width} height={height} rx={12} ry={12} fill={fill} stroke={stroke} strokeWidth={strokeWidth} />

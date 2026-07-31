@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import {
   addContainer,
@@ -22,6 +22,7 @@ import {
 } from '@canvas/diagram-core';
 import { getAddableShapes, nodeSize, renderNodeShape } from './shapes';
 import { ConfirmDialog } from './ConfirmDialog';
+import { api } from '../app/api';
 import { Icon } from '../ui/Icon';
 
 /** Compact glyphs for the shape grid — each button still carries an aria-label and title, so the
@@ -147,6 +148,52 @@ export function Canvas({ model, onChange, dslFamily, toolbarContainer }: CanvasP
     | null
   >(null);
   const svgRef = useRef<SVGSVGElement>(null);
+
+  // canvas-8n7: a node only stores an icon *reference* (Constitution V), not its artwork, so the
+  // canvas must resolve refs to real SVG markup at render time — mirroring how svg-renderer.ts's
+  // export path already does via its own resolveIcon callback (SC-004). Cached per library+
+  // version (keyed `${libraryId}@${libraryVersion}@${iconId}`) so placing many icons from the
+  // same library costs one fetch, not one per node. `fetchedLibraries` (a ref, not state) tracks
+  // which library+version pairs have already been requested, so the effect below never re-fetches
+  // one just because `iconArtwork` itself changed.
+  const [iconArtwork, setIconArtwork] = useState<Map<string, string>>(new Map());
+  const fetchedLibraries = useRef<Set<string>>(new Set());
+
+  useEffect(() => {
+    const toFetch = new Map<string, { libraryId: string; libraryVersion: string }>();
+    for (const node of model.nodes) {
+      if (node.shape === 'icon' && node.icon) {
+        const libraryKey = `${node.icon.libraryId}@${node.icon.libraryVersion}`;
+        if (!fetchedLibraries.current.has(libraryKey)) {
+          toFetch.set(libraryKey, { libraryId: node.icon.libraryId, libraryVersion: node.icon.libraryVersion });
+        }
+      }
+    }
+    if (toFetch.size === 0) return;
+    for (const libraryKey of toFetch.keys()) fetchedLibraries.current.add(libraryKey);
+
+    let cancelled = false;
+    Promise.all(
+      Array.from(toFetch.values()).map(({ libraryId, libraryVersion }) =>
+        api
+          .getLibraryIcons(libraryId, libraryVersion)
+          .then(({ icons }) => ({ libraryId, libraryVersion, icons }))
+          .catch(() => ({ libraryId, libraryVersion, icons: [] })),
+      ),
+    ).then((results) => {
+      if (cancelled) return;
+      setIconArtwork((prev) => {
+        const next = new Map(prev);
+        for (const { libraryId, libraryVersion, icons } of results) {
+          for (const icon of icons) next.set(`${libraryId}@${libraryVersion}@${icon.id}`, icon.assetRef);
+        }
+        return next;
+      });
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [model.nodes]);
 
   const updateNode = useCallback(
     (id: string, patch: Partial<DiagramNode>) => {
@@ -634,6 +681,13 @@ export function Canvas({ model, onChange, dslFamily, toolbarContainer }: CanvasP
 
         {model.nodes.map((node) => {
           const size = nodeSize(node);
+          // canvas-8n7: mirrors svg-renderer.ts's renderNode icon branch exactly (same 0.6 scale
+          // factor, same -8 vertical nudge, same 48x48 normalized icon viewBox, same smaller
+          // below-icon caption instead of a centered label) so canvas and export agree (SC-004).
+          const iconMarkup =
+            node.shape === 'icon' && node.icon
+              ? iconArtwork.get(`${node.icon.libraryId}@${node.icon.libraryVersion}@${node.icon.iconId}`)
+              : undefined;
           return (
             <g
               key={node.id}
@@ -648,8 +702,22 @@ export function Canvas({ model, onChange, dslFamily, toolbarContainer }: CanvasP
               style={{ cursor: connectMode ? 'crosshair' : 'move' }}
             >
               {renderNodeShape(node, selectedIds.has(node.id))}
+              {iconMarkup &&
+                (() => {
+                  const iconSize = Math.min(size.width, size.height) * 0.6;
+                  const iconX = node.position.x + (size.width - iconSize) / 2;
+                  const iconY = node.position.y + (size.height - iconSize) / 2 - 8;
+                  return (
+                    <g
+                      transform={`translate(${iconX}, ${iconY}) scale(${iconSize / 48})`}
+                      dangerouslySetInnerHTML={{ __html: iconMarkup }}
+                    />
+                  );
+                })()}
               {editingNodeId !== node.id &&
-                renderLabelLines(node.position.x + size.width / 2, node.position.y + size.height / 2, node.label, 14, true)}
+                (iconMarkup
+                  ? renderLabelLines(node.position.x + size.width / 2, node.position.y + size.height - 10, node.label, 12, false)
+                  : renderLabelLines(node.position.x + size.width / 2, node.position.y + size.height / 2, node.label, 14, true))}
               {editingNodeId === node.id && (
                 <foreignObject x={node.position.x} y={node.position.y} width={size.width} height={size.height}>
                   <input
