@@ -20,10 +20,15 @@ async function login(page: import('@playwright/test').Page) {
  * Icon artwork renders via an SVG <image> element's data: URI (Canvas.tsx's iconMarkupToDataUri),
  * not raw DOM attributes — decodes it to confirm the real Lambda placeholder markup is inside,
  * not just that some <image> exists.
+ *
+ * Resolving artwork is one more sequential network hop after the node itself appears (Canvas.tsx
+ * fetches the icon library, then renders) — a longer timeout than the default 5s covers that
+ * extra round trip after an import (which already did its own network round trip to create the
+ * diagram), without weakening what is actually being asserted.
  */
 async function expectRealIconArtwork(page: import('@playwright/test').Page) {
   const iconImage = page.locator('[data-testid^="node-"] image');
-  await expect(iconImage).toHaveCount(1);
+  await expect(iconImage).toHaveCount(1, { timeout: 15000 });
   const href = await iconImage.getAttribute('href');
   expect(href).toMatch(/^data:image\/svg\+xml;base64,/);
   const decoded = Buffer.from(href!.split(',')[1], 'base64').toString('utf-8');
