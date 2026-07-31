@@ -121,6 +121,10 @@ export interface DiagramContainer {
   attachedNodeIds?: ElementId[];
   /** Sequence diagrams only: source-order position — see DiagramEdge.sequenceOrder. */
   sequenceOrder?: number;
+  /** Flowchart subgraphs only: a `direction <TD|LR|TB|RL|BT>` statement inside this subgraph,
+   *  overriding the diagram's top-level direction for it. Note this is preserved for round-trip
+   *  only — like the top-level `DiagramModel.direction`, it does not yet drive auto-layout. */
+  direction?: FlowchartDirection;
 }
 
 /** Mermaid flowchart layout direction (top-down, left-right, etc.), part of the DSL's own grammar. */

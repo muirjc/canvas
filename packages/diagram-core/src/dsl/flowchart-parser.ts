@@ -100,6 +100,11 @@ function tryParseChain(line: string): { sourceToken: string; connectorToken: str
 }
 const SUBGRAPH_START = new RegExp(`^subgraph\\s+(${ID})(?:\\s*\\[(.+)\\])?$`);
 const SUBGRAPH_END = /^end$/;
+// Grouping E (docs/flowchart-completeness-brief.md): a `direction` statement is only valid inside
+// a subgraph body (real Mermaid grammar, not this platform's own restriction) — matched only when
+// `containerStack` is non-empty; a top-level `direction` line falls through to the same
+// unrecognized-line error every other out-of-place construct gets.
+const SUBGRAPH_DIRECTION = /^direction\s+(TD|LR|TB|RL|BT)$/i;
 const BARE_ID = new RegExp(`^(${ID})$`);
 const HEADER = /^(?:flowchart|graph)\s+(TD|LR|TB|RL|BT)$/i;
 const STYLE_DIRECTIVE = new RegExp(`^style\\s+(${ID})\\s+(.+)$`);
@@ -263,6 +268,16 @@ export function parseFlowchart(dsl: string): ParseResult {
         containerStack.pop();
       }
       continue;
+    }
+
+    if (containerStack.length > 0) {
+      const directionMatch = line.match(SUBGRAPH_DIRECTION);
+      if (directionMatch) {
+        const currentContainerId = containerStack[containerStack.length - 1];
+        const container = containersById.get(currentContainerId)!;
+        container.direction = directionMatch[1].toUpperCase() as FlowchartDirection;
+        continue;
+      }
     }
 
     const styleMatch = line.match(STYLE_DIRECTIVE);
