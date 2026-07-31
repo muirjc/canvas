@@ -17,6 +17,7 @@ import { CreateViaChatDialog } from '../ai/CreateViaChatDialog';
 import { PersonaAdminPage } from '../ai/PersonaAdminPage';
 import { Icon } from '../ui/Icon';
 import { AdminShell } from '../ui/AdminShell';
+import { Modal } from '../ui/Modal';
 
 export function App() {
   const [user, setUser] = useState<SessionUser | null>(null);
@@ -348,53 +349,73 @@ export function App() {
         />
       )}
       {pendingProjectId && (
-        <div role="alertdialog" aria-modal="true" aria-label="Unsaved changes" data-testid="project-switch-confirm">
+        <Modal
+          role="alertdialog"
+          label="Unsaved changes"
+          title={null}
+          testId="project-switch-confirm"
+          onClose={() => setPendingProjectId(null)}
+          footer={
+            <>
+              <button
+                type="button"
+                className="btn btn--secondary"
+                data-testid="cancel-project-switch"
+                onClick={() => setPendingProjectId(null)}
+              >
+                Keep editing
+              </button>
+              <button
+                type="button"
+                className="btn btn--primary"
+                data-testid="confirm-project-switch"
+                onClick={() => {
+                  applyProjectChange(pendingProjectId);
+                  setPendingProjectId(null);
+                }}
+              >
+                Discard and switch
+              </button>
+            </>
+          }
+        >
           <p>This diagram has unsaved changes. Switching project will discard them.</p>
-          <button
-            type="button"
-            className="btn btn--primary"
-            data-testid="confirm-project-switch"
-            onClick={() => {
-              applyProjectChange(pendingProjectId);
-              setPendingProjectId(null);
-            }}
-          >
-            Discard and switch
-          </button>
-          <button
-            type="button"
-            className="btn btn--secondary"
-            data-testid="cancel-project-switch"
-            onClick={() => setPendingProjectId(null)}
-          >
-            Keep editing
-          </button>
-        </div>
+        </Modal>
       )}
       {confirmingHome && (
-        <div role="alertdialog" aria-modal="true" aria-label="Unsaved changes" data-testid="home-nav-confirm">
+        <Modal
+          role="alertdialog"
+          label="Unsaved changes"
+          title={null}
+          testId="home-nav-confirm"
+          onClose={() => setConfirmingHome(false)}
+          footer={
+            <>
+              <button
+                type="button"
+                className="btn btn--secondary"
+                data-testid="cancel-home-nav"
+                onClick={() => setConfirmingHome(false)}
+              >
+                Keep editing
+              </button>
+              <button
+                type="button"
+                className="btn btn--primary"
+                data-testid="confirm-home-nav"
+                onClick={() => {
+                  setDiagram(null);
+                  setError(null);
+                  setConfirmingHome(false);
+                }}
+              >
+                Discard and leave
+              </button>
+            </>
+          }
+        >
           <p>This diagram has unsaved changes. Returning to Diagrams will discard them.</p>
-          <button
-            type="button"
-            className="btn btn--primary"
-            data-testid="confirm-home-nav"
-            onClick={() => {
-              setDiagram(null);
-              setError(null);
-              setConfirmingHome(false);
-            }}
-          >
-            Discard and leave
-          </button>
-          <button
-            type="button"
-            className="btn btn--secondary"
-            data-testid="cancel-home-nav"
-            onClick={() => setConfirmingHome(false)}
-          >
-            Keep editing
-          </button>
-        </div>
+        </Modal>
       )}
     </AppShell>
   );
