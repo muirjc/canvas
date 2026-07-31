@@ -49,6 +49,13 @@ tests are NON-NEGOTIABLE and must exist (and fail) before implementing any diagr
 work — see `.specify/memory/constitution.md` Principle IV.
 
 ## Recent Changes
+- `canvas-23t.2` (part of the post-005 UI consistency review, `docs/ui-review-brief.md` finding
+  #2): `project-switch-confirm` and `home-nav-confirm` (both in `App.tsx`) were plain
+  `<div role="alertdialog">`s with no overlay scrim, centering, or `--shadow-modal`/`--radius-xl`
+  panel — a gap `home-nav-confirm` inherited by deliberately mirroring the pre-existing
+  `project-switch-confirm`, not a regression of its own. Both now render through the existing
+  `ui/Modal.tsx`, matching every other dialog in the app and `ui-design-spec.md` §3.4. Existing
+  testids and `role=alertdialog` semantics are unchanged.
 - Editor "back to Diagrams" navigation: once a diagram was open, there was no way back to the
   project browser short of switching to a different project (a no-op if you picked the current
   one) or signing out. The doc-bar gains a "Diagrams" button (`DiagramEditor`'s new
