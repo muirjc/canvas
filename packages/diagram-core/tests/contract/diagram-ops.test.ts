@@ -111,6 +111,16 @@ describe('addEdge', () => {
     addEdge(model, { sourceId: 'a', targetId: 'c' });
     expect(model).toEqual(snapshot);
   });
+
+  it('sets arrow when given (canvas-7rr: bidirectional/no-arrowhead at connect time)', () => {
+    const result = addEdge(baseModel(), { sourceId: 'a', targetId: 'c', arrow: 'both' });
+    expect(result.edges[result.edges.length - 1].arrow).toBe('both');
+  });
+
+  it('omits arrow (defaults to a plain forward arrow) when none is given', () => {
+    const result = addEdge(baseModel(), { sourceId: 'a', targetId: 'c' });
+    expect(result.edges[result.edges.length - 1].arrow).toBeUndefined();
+  });
 });
 
 describe('removeNode', () => {
