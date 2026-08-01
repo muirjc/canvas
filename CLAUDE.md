@@ -49,6 +49,19 @@ tests are NON-NEGOTIABLE and must exist (and fail) before implementing any diagr
 work — see `.specify/memory/constitution.md` Principle IV.
 
 ## Recent Changes
+- `canvas-xig`: manually coloring a shape or connector was only possible via AI chat (canvas-kwa)
+  or hand-editing the DSL panel's `style`/`classDef`/`linkStyle` syntax. Adds a second, separate
+  small icon next to the existing pencil edit-affordance — not merged into the same popup, so
+  `label-affordance.spec.ts`'s rename-flow coverage stays untouched — that opens a small
+  color-picker popup: fill color for shapes, stroke color for connectors, reusing
+  `updateNodeStyle`/`updateEdgeStyle` exactly as canvas-kwa built them. `diagram-ops.ts`'s
+  `StylePatch` fields widen to `string|null|undefined`: an explicit `null` clears a field back to
+  unset (the popup's Clear button), distinct from omitting one (unchanged AI-tool behavior).
+  Two real bugs found via e2e coverage and fixed before shipping: Escape didn't close the popup
+  (nothing moved focus into it on open — fixed with `autoFocus` on the color input) and the
+  connector's affordance could land inside the adjacent node's own rect for the standard
+  close-together two-node layout, making it unclickable (nodes paint over edges) — fixed by
+  stacking it vertically above the pencil instead of beside it.
 - `canvas-uaq`: export always read the diagram's last-SAVED `dslContent`, never live editor
   state, with no warning. Reproduced live: exporting right after adding shapes but before Save
   downloaded a near-empty Mermaid file and a technically-valid-but-blank SVG/PNG — no separate
