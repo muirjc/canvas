@@ -11,6 +11,12 @@ export interface ProjectRecord {
   createdAt: string;
 }
 
+export interface ProjectListItem extends ProjectRecord {
+  /** Direct (non-recursive) count of the project's own non-deleted diagrams — canvas-228.1's
+   *  Projects screen shows this per row, and canvas-228.2's delete guard rejects unless it's 0. */
+  diagramCount: number;
+}
+
 export interface CreateProjectInput {
   name: string;
   parentProjectId?: string;
@@ -24,7 +30,7 @@ export interface CreateProjectInput {
  * cycle prevention here means rejecting a parentProjectId that doesn't exist, which is the only
  * way a cycle could otherwise be introduced later.
  */
-export async function createProject(input: CreateProjectInput): Promise<ProjectRecord> {
+export async function createProject(input: CreateProjectInput): Promise<ProjectListItem> {
   const pool = getPool();
   if (input.parentProjectId) {
     const { rows } = await pool.query('SELECT id FROM projects WHERE id = $1', [input.parentProjectId]);
@@ -37,7 +43,8 @@ export async function createProject(input: CreateProjectInput): Promise<ProjectR
      RETURNING id, name, parent_project_id, created_at`,
     [input.name, input.parentProjectId ?? null, input.ownerId],
   );
-  return { id: rows[0].id, name: rows[0].name, parentProjectId: rows[0].parent_project_id, createdAt: rows[0].created_at };
+  // Always 0 — a brand-new project cannot already have a diagram in it.
+  return { id: rows[0].id, name: rows[0].name, parentProjectId: rows[0].parent_project_id, createdAt: rows[0].created_at, diagramCount: 0 };
 }
 
 /**
@@ -48,13 +55,21 @@ export async function createProject(input: CreateProjectInput): Promise<ProjectR
  * Ordered by name so the chooser is stable between loads. No search or paging: the clarified
  * scale is tens of projects (FR-013e).
  */
-export async function listProjectsForUser(userId: string): Promise<ProjectRecord[]> {
+export async function listProjectsForUser(userId: string): Promise<ProjectListItem[]> {
   const pool = getPool();
-  const { rows } = await pool.query<{ id: string; name: string; parent_project_id: string | null; created_at: string }>(
+  const { rows } = await pool.query<{
+    id: string;
+    name: string;
+    parent_project_id: string | null;
+    created_at: string;
+    diagram_count: string;
+  }>(
     `${ACCESSIBLE_PROJECT_IDS_SQL}
-     SELECT p.id, p.name, p.parent_project_id, p.created_at
+     SELECT p.id, p.name, p.parent_project_id, p.created_at, COUNT(d.id) AS diagram_count
      FROM projects p
+     LEFT JOIN diagrams d ON d.project_id = p.id AND d.deleted_at IS NULL
      WHERE p.id IN (SELECT id FROM accessible)
+     GROUP BY p.id
      ORDER BY p.name, p.id`,
     [userId],
   );
@@ -63,6 +78,7 @@ export async function listProjectsForUser(userId: string): Promise<ProjectRecord
     name: r.name,
     parentProjectId: r.parent_project_id,
     createdAt: r.created_at,
+    diagramCount: Number(r.diagram_count),
   }));
 }
 

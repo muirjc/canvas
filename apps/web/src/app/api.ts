@@ -99,6 +99,8 @@ export interface ProjectDto {
   name: string;
   parentProjectId: string | null;
   createdAt: string;
+  /** Direct (non-recursive) count of the project's own non-deleted diagrams (canvas-228.1). */
+  diagramCount: number;
 }
 
 export interface ProjectTreeNodeDto {

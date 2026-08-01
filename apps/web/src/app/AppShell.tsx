@@ -12,6 +12,11 @@ export interface AppShellProps {
    * switcher (FR-013d).
    */
   projectPicker?: React.ReactNode;
+  /** canvas-228.1: a "Projects" nav entry point, reachable from anywhere — same reasoning as
+   *  projectPicker above (a screen with no chrome of its own would make it unreachable while
+   *  editing a diagram). Optional only so AppShell stays usable before the project list has
+   *  loaded, mirroring projectPicker's own optionality. */
+  projectsLink?: React.ReactNode;
   children: React.ReactNode;
 }
 
@@ -21,7 +26,7 @@ export interface AppShellProps {
  * would need to be duplicated into each view and would be missed on some, as every view added
  * before this feature demonstrates).
  */
-export function AppShell({ user, onSignOut, projectPicker, children }: AppShellProps) {
+export function AppShell({ user, onSignOut, projectPicker, projectsLink, children }: AppShellProps) {
   const handleSignOut = async () => {
     await api.logout();
     onSignOut();
@@ -35,6 +40,7 @@ export function AppShell({ user, onSignOut, projectPicker, children }: AppShellP
           Canvas
         </span>
         <span className="cluster">
+          {projectsLink}
           {projectPicker}
           <span className="meta">{user.email}</span>
           <button type="button" className="btn btn--secondary btn--compact" data-testid="sign-out" onClick={handleSignOut}>
