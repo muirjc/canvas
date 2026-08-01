@@ -49,6 +49,17 @@ tests are NON-NEGOTIABLE and must exist (and fail) before implementing any diagr
 work — see `.specify/memory/constitution.md` Principle IV.
 
 ## Recent Changes
+- `canvas-f9q`: only `CreateViaChatDialog` ("Create via AI Chat", for a brand-new diagram) ever
+  collected a persona. FR-008a fixes a diagram's persona at its first chat message, but any
+  diagram not created through that one dialog — imported, hand-created, or created via the plain
+  "New Diagram" flow — had no UI path to ever set one, permanently stuck on the default assistant
+  prompt (found live during T033 validation, jmuir-4m0.1: imported a diagram, used its chat, had
+  no way to pick a persona). `ChatPanel` now shows the same optgroup-by-category picker before a
+  diagram's first message, hidden again once history exists since the choice no longer does
+  anything past that point; the selection is passed through as `personaId` on that first
+  `sendChatMessage` call. `groupByCategory` had been duplicated three ways
+  (`PersonaAdminPage`/`CreateViaChatDialog`/now `ChatPanel`) — extracted to a shared
+  `persona-grouping.ts` so the three pickers can't drift apart.
 - `canvas-23t.1` (post-005 UI consistency review, `docs/ui-review-brief.md` finding #1 — the one
   screen the review called genuinely broken, not just unremarkable): `PersonaAdminPage.tsx` had
   zero classNames anywhere, and each persona's `<textarea>` (an inline-level replaced element with
