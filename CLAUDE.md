@@ -49,6 +49,12 @@ tests are NON-NEGOTIABLE and must exist (and fail) before implementing any diagr
 work — see `.specify/memory/constitution.md` Principle IV.
 
 ## Recent Changes
+- `canvas-40t`: `ProjectBrowser.tsx`'s `confirmDelete` had no try/catch around
+  `api.deleteDiagram` — `DELETE /diagrams/:id` requires `requireDiagramOwnerOrAdmin()`, so a user
+  with only edit access (not the owner, not an admin) got a 403 that left the confirm dialog open
+  forever with no error, indistinguishable from a hang. Now closes the dialog and shows the
+  server's actual message via a new `delete-diagram-error` alert, matching
+  `DeletedDiagramsPage`'s existing restore-error pattern.
 - `canvas-7rr`: `Canvas.tsx`'s connect-mode `addEdge` call had no arrow parameter — every
   interactively-drawn connector defaulted to a plain forward arrow, with no way to reverse it or
   make it bidirectional/arrowless short of drawing a second edge on top to fake it.
