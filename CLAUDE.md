@@ -49,6 +49,13 @@ tests are NON-NEGOTIABLE and must exist (and fail) before implementing any diagr
 work — see `.specify/memory/constitution.md` Principle IV.
 
 ## Recent Changes
+- `canvas-uaq`: export always read the diagram's last-SAVED `dslContent`, never live editor
+  state, with no warning. Reproduced live: exporting right after adding shapes but before Save
+  downloaded a near-empty Mermaid file and a technically-valid-but-blank SVG/PNG — no separate
+  rendering bug found (`resvg-js`/`renderToSvg` output was structurally sound). `ExportMenu` now
+  takes `hasUnsavedChanges` (from `DiagramEditor`'s existing local value) and disables all three
+  export buttons with an explanatory tooltip plus a visible "Save to enable export" message
+  whenever there are unsaved changes.
 - `canvas-40t`: `ProjectBrowser.tsx`'s `confirmDelete` had no try/catch around
   `api.deleteDiagram` — `DELETE /diagrams/:id` requires `requireDiagramOwnerOrAdmin()`, so a user
   with only edit access (not the owner, not an admin) got a 403 that left the confirm dialog open
