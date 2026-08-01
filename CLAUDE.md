@@ -49,6 +49,15 @@ tests are NON-NEGOTIABLE and must exist (and fail) before implementing any diagr
 work — see `.specify/memory/constitution.md` Principle IV.
 
 ## Recent Changes
+- `canvas-kwa`: `createDiagramTools` exposed exactly 6 tools (add/remove node, add/remove edge,
+  update node/edge label) — none could set or change a node's or edge's style, even though
+  `NodeStyle` (fillColor/strokeColor/strokeWidth/strokeDasharray) was already a full model field,
+  fully expressible via DSL (`style`/`classDef`/`linkStyle`). Adds `updateNodeStyle`/
+  `updateEdgeStyle` pure operations to `diagram-core` (merging a partial patch onto any existing
+  style — only the fields supplied change) plus matching AI tool wrappers following the existing
+  not-found-reports-a-reason convention. `mock-nlu.ts` gained a "make/color X `<color word>`" rule
+  so an e2e spec (`ai-node-color.spec.ts`) can exercise the new tool through the real HTTP/tool-
+  execution/persistence pipeline, no real LLM call, matching every other mock-NLU-backed spec.
 - `canvas-f9q`: only `CreateViaChatDialog` ("Create via AI Chat", for a brand-new diagram) ever
   collected a persona. FR-008a fixes a diagram's persona at its first chat message, but any
   diagram not created through that one dialog — imported, hand-created, or created via the plain
