@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { api, type ProjectTreeNodeDto } from '../app/api';
+import { api, ApiError, type ProjectTreeNodeDto } from '../app/api';
 import { ConfirmDialog } from '../canvas/ConfirmDialog';
 import { Icon } from '../ui/Icon';
 
@@ -72,6 +72,12 @@ export function ProjectBrowser({ rootProjectId, onOpenDiagram }: ProjectBrowserP
   const [tree, setTree] = useState<ProjectTreeNodeDto | null>(null);
   const [status, setStatus] = useState<'loading' | 'ready' | 'error'>('loading');
   const [pendingDelete, setPendingDelete] = useState<{ id: string; name: string } | null>(null);
+  // canvas-40t: deleteDiagram requires being the diagram's owner or an admin (DELETE
+  // /diagrams/:id) — a user with only edit access (project membership or a share grant) gets a
+  // 403. Without this, that rejection had nowhere to go: confirmDelete's un-caught throw left
+  // pendingDelete set and refresh() never called, so the confirm dialog just sat there forever
+  // with no error, indistinguishable from a hang.
+  const [deleteError, setDeleteError] = useState<string | null>(null);
 
   const refresh = () => {
     setStatus('loading');
@@ -88,9 +94,15 @@ export function ProjectBrowser({ rootProjectId, onOpenDiagram }: ProjectBrowserP
 
   const confirmDelete = async () => {
     if (!pendingDelete) return;
-    await api.deleteDiagram(pendingDelete.id);
-    setPendingDelete(null);
-    refresh();
+    setDeleteError(null);
+    try {
+      await api.deleteDiagram(pendingDelete.id);
+      setPendingDelete(null);
+      refresh();
+    } catch (err) {
+      setPendingDelete(null);
+      setDeleteError(err instanceof ApiError ? err.message : 'Failed to delete diagram.');
+    }
   };
 
   if (status === 'loading') {
@@ -141,6 +153,11 @@ export function ProjectBrowser({ rootProjectId, onOpenDiagram }: ProjectBrowserP
           onConfirm={confirmDelete}
           onCancel={() => setPendingDelete(null)}
         />
+      )}
+      {deleteError && (
+        <p role="alert" data-testid="delete-diagram-error">
+          {deleteError}
+        </p>
       )}
     </div>
   );
