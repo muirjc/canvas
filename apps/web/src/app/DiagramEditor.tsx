@@ -150,7 +150,7 @@ export const DiagramEditor = forwardRef<DiagramEditorHandle, DiagramEditorProps>
         <button type="button" className="btn btn--primary btn--compact" data-testid="save-diagram" onClick={handleSave}>
           Save
         </button>
-        <ExportMenu diagramId={diagram.id} diagramName={diagram.name} />
+        <ExportMenu diagramId={diagram.id} diagramName={diagram.name} hasUnsavedChanges={hasUnsavedChanges} />
         <button
           type="button"
           className="btn btn--secondary btn--compact"
