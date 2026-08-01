@@ -49,6 +49,16 @@ tests are NON-NEGOTIABLE and must exist (and fail) before implementing any diagr
 work — see `.specify/memory/constitution.md` Principle IV.
 
 ## Recent Changes
+- `canvas-228.1` (first of three canvas-228 "project management" sub-features): `createFirstProject`
+  in `App.tsx` only rendered when the user had zero projects — once they had one, there was no way
+  to create another, and no dedicated project-management surface existed at all. Adds a new
+  `ProjectsPage.tsx`, reachable from anywhere via a "Projects" button in `AppShell`'s header (shown
+  once the project list has loaded, unlike `ProjectPicker` which needs ≥2 projects to render at
+  all); lists every accessible project with its diagram count and lets the user create another via
+  the same `createProject` API. Navigating to it is guarded by a new `requestViewProjects`, added
+  alongside — not inside — the existing `requestGoHome`, so its own confirm dialog and testids stay
+  untouched. `GET /projects` now returns each project's direct non-deleted diagram count
+  (`diagramCount`), needed here and for `canvas-228.2`'s upcoming "delete only if empty" rule.
 - `canvas-xig`: manually coloring a shape or connector was only possible via AI chat (canvas-kwa)
   or hand-editing the DSL panel's `style`/`classDef`/`linkStyle` syntax. Adds a second, separate
   small icon next to the existing pencil edit-affordance — not merged into the same popup, so
