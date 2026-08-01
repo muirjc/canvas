@@ -115,6 +115,42 @@ describe('diagram-tools (AI tool wrappers)', () => {
     const result = await tools.updateEdgeLabel.execute!({ edgeId: 'does-not-exist', label: 'X' }, { toolCallId: 't1', messages: [] });
     expect(result).toEqual({ applied: false, reason: expect.stringContaining('does-not-exist') });
   });
+
+  it('updateNodeStyle sets fillColor/strokeColor on an existing node', async () => {
+    const result = await tools.updateNodeStyle.execute!(
+      { nodeId: 'a', fillColor: '#1168bd', strokeColor: '#0b4884' },
+      { toolCallId: 't1', messages: [] },
+    );
+    expect(result).toEqual({ applied: true });
+    expect(model.nodes.find((n) => n.id === 'a')!.style).toEqual({ fillColor: '#1168bd', strokeColor: '#0b4884' });
+  });
+
+  it('updateNodeStyle reports not-found for a nonexistent id', async () => {
+    const result = await tools.updateNodeStyle.execute!(
+      { nodeId: 'does-not-exist', fillColor: '#000000' },
+      { toolCallId: 't1', messages: [] },
+    );
+    expect(result).toEqual({ applied: false, reason: expect.stringContaining('does-not-exist') });
+  });
+
+  it('updateEdgeStyle sets strokeColor on an existing edge', async () => {
+    model.nodes.push({ id: 'b', label: 'B', shape: 'rectangle', position: { x: 200, y: 0 } });
+    model.edges.push({ id: 'e1', sourceId: 'a', targetId: 'b' });
+    const result = await tools.updateEdgeStyle.execute!(
+      { edgeId: 'e1', strokeColor: '#c0392b' },
+      { toolCallId: 't1', messages: [] },
+    );
+    expect(result).toEqual({ applied: true });
+    expect(model.edges.find((e) => e.id === 'e1')!.style).toEqual({ strokeColor: '#c0392b' });
+  });
+
+  it('updateEdgeStyle reports not-found for a nonexistent id', async () => {
+    const result = await tools.updateEdgeStyle.execute!(
+      { edgeId: 'does-not-exist', strokeColor: '#c0392b' },
+      { toolCallId: 't1', messages: [] },
+    );
+    expect(result).toEqual({ applied: false, reason: expect.stringContaining('does-not-exist') });
+  });
 });
 
 describe('POST/GET /diagrams/:id/chat/messages', () => {

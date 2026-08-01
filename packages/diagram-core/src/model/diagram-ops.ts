@@ -4,6 +4,7 @@ import type {
   DiagramModel,
   DiagramNode,
   NodeShape,
+  NodeStyle,
   Position,
   Size,
 } from './diagram-model.js';
@@ -109,6 +110,46 @@ export function updateEdgeLabel(model: DiagramModel, edgeId: string, label: stri
   return {
     ...model,
     edges: model.edges.map((e) => (e.id === edgeId ? { ...e, label } : e)),
+  };
+}
+
+export interface StylePatch {
+  fillColor?: string;
+  strokeColor?: string;
+  strokeWidth?: number;
+  strokeDasharray?: string;
+}
+
+/** Merges only the fields present in `patch` onto `existing` — a field simply absent from the
+ *  patch (as opposed to explicitly cleared) leaves whatever the style already had untouched. */
+function mergeStyle(existing: NodeStyle | undefined, patch: StylePatch): NodeStyle {
+  const merged: NodeStyle = { ...existing };
+  if (patch.fillColor !== undefined) merged.fillColor = patch.fillColor;
+  if (patch.strokeColor !== undefined) merged.strokeColor = patch.strokeColor;
+  if (patch.strokeWidth !== undefined) merged.strokeWidth = patch.strokeWidth;
+  if (patch.strokeDasharray !== undefined) merged.strokeDasharray = patch.strokeDasharray;
+  return merged;
+}
+
+/** Sets fill/stroke color and stroke width/dasharray on a node, merging onto any existing style
+ *  (DSL `style`/`classDef` equivalents, now reachable from the canvas and the AI tool-calling
+ *  layer too — feature 004 research.md §1/§2's shared-operation pattern). No-op for an unknown id,
+ *  mirroring updateContainerLabel/resizeContainer rather than updateNodeLabel/updateEdgeLabel
+ *  (which have no failure mode to guard, since any string is a valid label). */
+export function updateNodeStyle(model: DiagramModel, nodeId: string, patch: StylePatch): DiagramModel {
+  if (!model.nodes.some((n) => n.id === nodeId)) return model;
+  return {
+    ...model,
+    nodes: model.nodes.map((n) => (n.id === nodeId ? { ...n, style: mergeStyle(n.style, patch) } : n)),
+  };
+}
+
+/** Sets fill/stroke color and stroke width/dasharray on an edge (DSL `linkStyle` equivalent). */
+export function updateEdgeStyle(model: DiagramModel, edgeId: string, patch: StylePatch): DiagramModel {
+  if (!model.edges.some((e) => e.id === edgeId)) return model;
+  return {
+    ...model,
+    edges: model.edges.map((e) => (e.id === edgeId ? { ...e, style: mergeStyle(e.style, patch) } : e)),
   };
 }
 

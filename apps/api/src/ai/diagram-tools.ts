@@ -6,7 +6,9 @@ import {
   removeEdge,
   removeNode,
   updateEdgeLabel,
+  updateEdgeStyle,
   updateNodeLabel,
+  updateNodeStyle,
   type DiagramModel,
 } from '@canvas/diagram-core';
 
@@ -25,6 +27,13 @@ export interface DiagramToolsContext {
 }
 
 const FLOWCHART_SHAPES = ['rectangle', 'rounded-rectangle', 'circle', 'diamond', 'cylinder'] as const;
+
+const stylePatchSchema = {
+  fillColor: z.string().optional().describe('Fill color as a hex code, e.g. "#1168bd".'),
+  strokeColor: z.string().optional().describe('Border/line color as a hex code, e.g. "#0b4884".'),
+  strokeWidth: z.number().optional().describe('Border/line thickness in pixels.'),
+  strokeDasharray: z.string().optional().describe('SVG stroke-dasharray, e.g. "5 5", for a dashed/dotted line.'),
+};
 
 /**
  * The AI-facing tool surface (FR-009), one wrapper per targeted edit operation. Each wrapper
@@ -135,6 +144,42 @@ export function createDiagramTools(context: DiagramToolsContext) {
         }
         context.setModel(updateEdgeLabel(model, edgeId, label));
         return record('updateEdgeLabel', { applied: true });
+      },
+    }),
+
+    updateNodeStyle: tool({
+      description:
+        "Set a shape's fill/border color or border thickness/dash pattern. Only the fields you " +
+        'provide are changed — omit any you want left as they are.',
+      inputSchema: z.object({
+        nodeId: z.string().describe('The id of the shape to restyle.'),
+        ...stylePatchSchema,
+      }),
+      execute: async ({ nodeId, ...patch }) => {
+        const model = context.getModel();
+        if (!model.nodes.some((n) => n.id === nodeId)) {
+          return record('updateNodeStyle', { applied: false, reason: `No shape with id '${nodeId}' was found.` });
+        }
+        context.setModel(updateNodeStyle(model, nodeId, patch));
+        return record('updateNodeStyle', { applied: true });
+      },
+    }),
+
+    updateEdgeStyle: tool({
+      description:
+        "Set a connector's line color or thickness/dash pattern. Only the fields you provide are " +
+        'changed — omit any you want left as they are.',
+      inputSchema: z.object({
+        edgeId: z.string().describe('The id of the connector to restyle.'),
+        ...stylePatchSchema,
+      }),
+      execute: async ({ edgeId, ...patch }) => {
+        const model = context.getModel();
+        if (!model.edges.some((e) => e.id === edgeId)) {
+          return record('updateEdgeStyle', { applied: false, reason: `No connector with id '${edgeId}' was found.` });
+        }
+        context.setModel(updateEdgeStyle(model, edgeId, patch));
+        return record('updateEdgeStyle', { applied: true });
       },
     }),
   };

@@ -54,6 +54,19 @@ function findIdByLabel(system: string, label: string): string | undefined {
 
 const SHAPE_WORDS = ['rectangle', 'rounded-rectangle', 'circle', 'diamond', 'cylinder'] as const;
 
+const COLOR_WORDS: Record<string, string> = {
+  red: '#c0392b',
+  green: '#27ae60',
+  blue: '#2980b9',
+  yellow: '#f1c40f',
+  orange: '#e67e22',
+  purple: '#8e44ad',
+  black: '#000000',
+  white: '#ffffff',
+  gray: '#7f8c8d',
+  grey: '#7f8c8d',
+};
+
 export function createMockLanguageModel() {
   return new MockLanguageModelV4({
     doGenerate: async (options: LanguageModelV4CallOptions) => {
@@ -94,6 +107,15 @@ export function createMockLanguageModel() {
       if (renameMatch) {
         const nodeId = findIdByLabel(system, renameMatch[1].trim()) ?? renameMatch[1].trim();
         return toolCallResult('updateNodeLabel', { nodeId, label: renameMatch[2].trim() });
+      }
+
+      const colorWords = Object.keys(COLOR_WORDS).join('|');
+      const colorMatch = text.match(
+        new RegExp(`(?:make|color) (?:the )?['"]?([^'".]+?)['"]? ?(?:node |shape )?(${colorWords})\\b`, 'i'),
+      );
+      if (colorMatch) {
+        const nodeId = findIdByLabel(system, colorMatch[1].trim()) ?? colorMatch[1].trim();
+        return toolCallResult('updateNodeStyle', { nodeId, fillColor: COLOR_WORDS[colorMatch[2].toLowerCase()] });
       }
 
       return noToolCallResult("I'm not sure how to help with that.");
