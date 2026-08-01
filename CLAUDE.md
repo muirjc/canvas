@@ -49,6 +49,15 @@ tests are NON-NEGOTIABLE and must exist (and fail) before implementing any diagr
 work — see `.specify/memory/constitution.md` Principle IV.
 
 ## Recent Changes
+- `canvas-7rr`: `Canvas.tsx`'s connect-mode `addEdge` call had no arrow parameter — every
+  interactively-drawn connector defaulted to a plain forward arrow, with no way to reverse it or
+  make it bidirectional/arrowless short of drawing a second edge on top to fake it.
+  `DiagramEdge.arrow` already supported `'none'`/`'both'` with both renderers already drawing them
+  correctly — purely an interactive-authoring gap. `addEdge` (diagram-core) gained an optional
+  `arrow` input; the toolbar shows a "Direction" picker (Forward/Reversed/Bidirectional/No
+  arrowhead) only while connect mode is active. "Reversed" needs no `arrow` value — it's just
+  `sourceId`/`targetId` swapped at the moment the second shape is clicked, so one connection
+  replaces what used to require two.
 - `canvas-kwa`: `createDiagramTools` exposed exactly 6 tools (add/remove node, add/remove edge,
   update node/edge label) — none could set or change a node's or edge's style, even though
   `NodeStyle` (fillColor/strokeColor/strokeWidth/strokeDasharray) was already a full model field,
