@@ -147,6 +147,9 @@ export function Canvas({ model, onChange, dslFamily, toolbarContainer }: CanvasP
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [connectMode, setConnectMode] = useState(false);
   const [connectSourceId, setConnectSourceId] = useState<string | null>(null);
+  // canvas-7rr: chosen once per connection, applied when the second shape is clicked. 'reversed'
+  // needs no DiagramEdge.arrow value — it is just sourceId/targetId swapped at that point.
+  const [connectArrowStyle, setConnectArrowStyle] = useState<'forward' | 'reversed' | 'both' | 'none'>('forward');
   const [editingNodeId, setEditingNodeId] = useState<string | null>(null);
   const [editingEdgeId, setEditingEdgeId] = useState<string | null>(null);
   const [editingContainerId, setEditingContainerId] = useState<string | null>(null);
@@ -250,7 +253,14 @@ export function Canvas({ model, onChange, dslFamily, toolbarContainer }: CanvasP
       if (!connectSourceId) {
         setConnectSourceId(node.id);
       } else if (connectSourceId !== node.id) {
-        onChange(addEdge(model, { sourceId: connectSourceId, targetId: node.id }));
+        const reversed = connectArrowStyle === 'reversed';
+        onChange(
+          addEdge(model, {
+            sourceId: reversed ? node.id : connectSourceId,
+            targetId: reversed ? connectSourceId : node.id,
+            arrow: connectArrowStyle === 'both' || connectArrowStyle === 'none' ? connectArrowStyle : undefined,
+          }),
+        );
         setConnectSourceId(null);
         setConnectMode(false);
       }
@@ -485,6 +495,25 @@ export function Canvas({ model, onChange, dslFamily, toolbarContainer }: CanvasP
             <Icon name="arrow-right" />
             {connectMode ? 'Cancel Connect' : 'Connect'}
           </button>
+          {/* canvas-7rr: chosen before clicking the second shape — the only way to draw a
+              bidirectional or no-arrowhead connector interactively used to be two separate edges
+              faking it (A->B and B->A). */}
+          {connectMode && (
+            <label className="field__label" htmlFor="connect-arrow-style">
+              Direction
+              <select
+                id="connect-arrow-style"
+                data-testid="connect-arrow-style"
+                value={connectArrowStyle}
+                onChange={(e) => setConnectArrowStyle(e.target.value as typeof connectArrowStyle)}
+              >
+                <option value="forward">Forward (A → B)</option>
+                <option value="reversed">Reversed (B → A)</option>
+                <option value="both">Bidirectional (A ↔ B)</option>
+                <option value="none">No arrowhead (A — B)</option>
+              </select>
+            </label>
+          )}
           <button
             type="button"
             className="btn btn--secondary"

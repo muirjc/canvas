@@ -45,6 +45,10 @@ export interface AddEdgeInput {
   sourceId: string;
   targetId: string;
   label?: string;
+  /** Omitted means a plain forward arrow (source -> target), same as always. 'both' draws an
+   *  arrowhead at each end (canvas-7rr); 'none' draws no arrowhead at either end. A "reversed"
+   *  connector needs no value here — it is just sourceId/targetId swapped by the caller. */
+  arrow?: DiagramEdge['arrow'];
 }
 
 /**
@@ -58,6 +62,7 @@ export function addEdge(model: DiagramModel, input: AddEdgeInput): DiagramModel 
     sourceId: input.sourceId,
     targetId: input.targetId,
     label: input.label,
+    arrow: input.arrow,
   };
   return { ...model, edges: [...model.edges, edge] };
 }
