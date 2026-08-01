@@ -32,6 +32,16 @@ describe('Project list API contract', () => {
     return response.json().project.id;
   }
 
+  async function createDiagram(cookie: string, projectId: string, name: string): Promise<string> {
+    const response = await app.inject({
+      method: 'POST',
+      url: `/projects/${projectId}/diagrams`,
+      headers: { cookie },
+      payload: { name, diagramTypeId: 'flowchart' },
+    });
+    return response.json().diagram.id;
+  }
+
   beforeAll(async () => {
     app = await buildTestApp();
   });
@@ -112,5 +122,30 @@ describe('Project list API contract', () => {
   it('requires authentication', async () => {
     const response = await app.inject({ method: 'GET', url: '/projects' });
     expect(response.statusCode).toBe(401);
+  });
+
+  it('canvas-228.1: includes each project\'s direct diagram count', async () => {
+    const projectId = await createProject(aliceCookie, 'Has Diagrams');
+    await createDiagram(aliceCookie, projectId, 'One');
+    await createDiagram(aliceCookie, projectId, 'Two');
+
+    const response = await app.inject({ method: 'GET', url: '/projects', headers: { cookie: aliceCookie } });
+    expect(response.json().projects).toEqual([expect.objectContaining({ name: 'Has Diagrams', diagramCount: 2 })]);
+  });
+
+  it('canvas-228.1: a project with no diagrams has a count of 0, not null/undefined', async () => {
+    await createProject(aliceCookie, 'Empty Project');
+
+    const response = await app.inject({ method: 'GET', url: '/projects', headers: { cookie: aliceCookie } });
+    expect(response.json().projects).toEqual([expect.objectContaining({ name: 'Empty Project', diagramCount: 0 })]);
+  });
+
+  it('canvas-228.1: a soft-deleted diagram does not count', async () => {
+    const projectId = await createProject(aliceCookie, 'One Deleted');
+    const diagramId = await createDiagram(aliceCookie, projectId, 'Gone');
+    await app.inject({ method: 'DELETE', url: `/diagrams/${diagramId}`, headers: { cookie: aliceCookie } });
+
+    const response = await app.inject({ method: 'GET', url: '/projects', headers: { cookie: aliceCookie } });
+    expect(response.json().projects).toEqual([expect.objectContaining({ name: 'One Deleted', diagramCount: 0 })]);
   });
 });

@@ -11,6 +11,7 @@ import { UsersPage } from '../admin/UsersPage';
 import { AdminOverview } from '../admin/AdminOverview';
 import { DeletedDiagramsPage } from '../admin/DeletedDiagramsPage';
 import { ProjectBrowser } from '../projects/ProjectBrowser';
+import { ProjectsPage } from '../projects/ProjectsPage';
 import { SharedDiagramsList } from '../projects/SharedDiagramsList';
 import { ImportDialog } from '../projects/ImportDialog';
 import { CreateViaChatDialog } from '../ai/CreateViaChatDialog';
@@ -40,6 +41,12 @@ export function App() {
   const [pendingProjectId, setPendingProjectId] = useState<string | null>(null);
   const [confirmingHome, setConfirmingHome] = useState(false);
   const [creatingProject, setCreatingProject] = useState(false);
+  // canvas-228.1: a third navigation destination alongside "go home" and "switch project", with
+  // its own pending-confirm state rather than folding into either — it needs the exact same
+  // unsaved-changes guard, but lands somewhere else (the new Projects screen, not the current
+  // project's diagram list).
+  const [viewingProjects, setViewingProjects] = useState(false);
+  const [confirmingViewProjects, setConfirmingViewProjects] = useState(false);
   // canvas-eow: read synchronously at switch-time via ref, not mirrored into a parent useState —
   // see DiagramEditorHandle's doc comment for why the mirrored-state version was a genuine race.
   const diagramEditorRef = useRef<DiagramEditorHandle>(null);
@@ -135,6 +142,17 @@ export function App() {
     setError(null);
   };
 
+  /** canvas-228.1: reaches the new Projects screen, guarded exactly like requestGoHome. */
+  const requestViewProjects = () => {
+    if (diagram && diagramEditorRef.current?.hasUnsavedChanges()) {
+      setConfirmingViewProjects(true);
+      return;
+    }
+    setDiagram(null);
+    setError(null);
+    setViewingProjects(true);
+  };
+
   const createDiagram = async (diagramTypeId: string) => {
     // The guard runs BEFORE the picker closes. It used to run after, so a failure threw away the
     // diagram type the user had just chosen and made them pick again (FR-003).
@@ -204,6 +222,18 @@ export function App() {
       <AdminShell activeParam={adminParam} projectId={projectId}>
         {adminScreen}
       </AdminShell>
+    );
+  } else if (viewingProjects) {
+    content = (
+      <ProjectsPage
+        projects={projects ?? []}
+        onCreated={(project) => {
+          setProjects((current) => [...(current ?? []), project]);
+          setProjectId(project.id);
+          setViewingProjects(false);
+        }}
+        onClose={() => setViewingProjects(false)}
+      />
     );
   } else if (diagram) {
     content = <DiagramEditor diagram={diagram} ref={diagramEditorRef} onRequestClose={requestGoHome} />;
@@ -322,6 +352,18 @@ export function App() {
           <ProjectPicker projects={projects} currentProjectId={projectId} onSelect={requestProjectChange} />
         ) : null
       }
+      projectsLink={
+        projects !== null ? (
+          <button
+            type="button"
+            className="btn btn--secondary btn--compact"
+            data-testid="view-projects"
+            onClick={requestViewProjects}
+          >
+            Projects
+          </button>
+        ) : null
+      }
     >
       {content}
       {/* Dialogs render alongside the current screen rather than replacing it, so the context
@@ -415,6 +457,42 @@ export function App() {
           }
         >
           <p>This diagram has unsaved changes. Returning to Diagrams will discard them.</p>
+        </Modal>
+      )}
+      {confirmingViewProjects && (
+        <Modal
+          role="alertdialog"
+          label="Unsaved changes"
+          title={null}
+          testId="view-projects-confirm"
+          onClose={() => setConfirmingViewProjects(false)}
+          footer={
+            <>
+              <button
+                type="button"
+                className="btn btn--secondary"
+                data-testid="cancel-view-projects"
+                onClick={() => setConfirmingViewProjects(false)}
+              >
+                Keep editing
+              </button>
+              <button
+                type="button"
+                className="btn btn--primary"
+                data-testid="confirm-view-projects"
+                onClick={() => {
+                  setDiagram(null);
+                  setError(null);
+                  setViewingProjects(true);
+                  setConfirmingViewProjects(false);
+                }}
+              >
+                Discard and leave
+              </button>
+            </>
+          }
+        >
+          <p>This diagram has unsaved changes. Viewing Projects will discard them.</p>
         </Modal>
       )}
     </AppShell>
