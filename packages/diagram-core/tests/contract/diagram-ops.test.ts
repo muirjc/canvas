@@ -6,6 +6,8 @@ import {
   removeEdge,
   updateNodeLabel,
   updateEdgeLabel,
+  updateNodeStyle,
+  updateEdgeStyle,
   addContainer,
   updateContainerLabel,
   moveContainer,
@@ -212,6 +214,77 @@ describe('updateEdgeLabel', () => {
     const result = updateEdgeLabel(model, 'e1', 'x');
     expect(result.nodes).toEqual(model.nodes);
     expect(result.containers).toEqual(model.containers);
+  });
+});
+
+describe('updateNodeStyle', () => {
+  it('sets fillColor/strokeColor on the named node', () => {
+    const model = baseModel();
+    const result = updateNodeStyle(model, 'a', { fillColor: '#1168bd', strokeColor: '#0b4884' });
+    expect(result.nodes.find((n) => n.id === 'a')!.style).toEqual({ fillColor: '#1168bd', strokeColor: '#0b4884' });
+  });
+
+  it('sets strokeWidth/strokeDasharray on the named node', () => {
+    const result = updateNodeStyle(baseModel(), 'a', { strokeWidth: 3, strokeDasharray: '5 5' });
+    expect(result.nodes.find((n) => n.id === 'a')!.style).toEqual({ strokeWidth: 3, strokeDasharray: '5 5' });
+  });
+
+  it('merges into an existing style rather than replacing it', () => {
+    const model = baseModel();
+    model.nodes[0].style = { fillColor: '#ffffff', strokeWidth: 1 };
+    const result = updateNodeStyle(model, 'a', { strokeColor: '#000000' });
+    expect(result.nodes.find((n) => n.id === 'a')!.style).toEqual({
+      fillColor: '#ffffff',
+      strokeWidth: 1,
+      strokeColor: '#000000',
+    });
+  });
+
+  it('overwrites only the fields present in the patch', () => {
+    const model = baseModel();
+    model.nodes[0].style = { fillColor: '#ffffff' };
+    const result = updateNodeStyle(model, 'a', { fillColor: '#000000' });
+    expect(result.nodes.find((n) => n.id === 'a')!.style).toEqual({ fillColor: '#000000' });
+  });
+
+  it('leaves other nodes, edges, and containers untouched', () => {
+    const model = baseModel();
+    const result = updateNodeStyle(model, 'a', { fillColor: '#1168bd' });
+    expect(result.nodes.find((n) => n.id === 'b')).toEqual(model.nodes.find((n) => n.id === 'b'));
+    expect(result.edges).toEqual(model.edges);
+    expect(result.containers).toEqual(model.containers);
+  });
+
+  it('is a no-op for an unknown id', () => {
+    const model = baseModel();
+    expect(updateNodeStyle(model, 'nope', { fillColor: '#000000' })).toEqual(model);
+  });
+});
+
+describe('updateEdgeStyle', () => {
+  it('sets fillColor/strokeColor on the named edge', () => {
+    const result = updateEdgeStyle(baseModel(), 'e1', { strokeColor: '#c0392b' });
+    expect(result.edges.find((e) => e.id === 'e1')!.style).toEqual({ strokeColor: '#c0392b' });
+  });
+
+  it('merges into an existing style rather than replacing it', () => {
+    const model = baseModel();
+    model.edges[0].style = { strokeColor: '#c0392b' };
+    const result = updateEdgeStyle(model, 'e1', { strokeWidth: 2 });
+    expect(result.edges.find((e) => e.id === 'e1')!.style).toEqual({ strokeColor: '#c0392b', strokeWidth: 2 });
+  });
+
+  it('leaves nodes, other edges, and containers untouched', () => {
+    const model = baseModel();
+    const result = updateEdgeStyle(model, 'e1', { strokeColor: '#c0392b' });
+    expect(result.nodes).toEqual(model.nodes);
+    expect(result.edges.find((e) => e.id === 'e2')).toEqual(model.edges.find((e) => e.id === 'e2'));
+    expect(result.containers).toEqual(model.containers);
+  });
+
+  it('is a no-op for an unknown id', () => {
+    const model = baseModel();
+    expect(updateEdgeStyle(model, 'nope', { strokeColor: '#000000' })).toEqual(model);
   });
 });
 
