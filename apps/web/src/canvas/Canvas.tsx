@@ -12,7 +12,9 @@ import {
   resizeContainer,
   updateContainerLabel,
   updateEdgeLabel,
+  updateEdgeStyle,
   updateNodeLabel,
+  updateNodeStyle,
   splitLabelLines,
   clipEdgeEndpoint,
   sanitizeSvgFragment,
@@ -46,6 +48,19 @@ const SHAPE_GLYPHS: Partial<Record<NodeShape, string>> = {
 // canvas and export never disagree about what a dotted/thick edge looks like (SC-004).
 const DEFAULT_DOTTED_DASHARRAY = '4 2';
 const DEFAULT_THICK_STROKE_WIDTH = 3;
+
+// canvas-xig: the style popup's own fixed size — a color swatch plus two `.btn--compact` buttons
+// on one row. 232 leaves ~30px of slack over the measured minimum (~200px, at the 40px swatch
+// width set on the input below) so the row doesn't wrap under normal font-metric variance; 48
+// covers the 28px control height plus the card's padding and border.
+const STYLE_POPUP_WIDTH = 232;
+const STYLE_POPUP_HEIGHT = 48;
+
+// The canvas SVG's own fixed intrinsic size (canvas-0s3: no pan/scroll yet — a known, separately-
+// tracked limitation this feature must not make worse). Named here so popupPosition below and the
+// <svg>'s own width/height attributes can't drift apart.
+const CANVAS_WIDTH = 800;
+const CANVAS_HEIGHT = 500;
 
 export interface CanvasProps {
   model: DiagramModel;
@@ -113,6 +128,25 @@ function iconMarkupToDataUri(markup: string): string {
   return `data:image/svg+xml;base64,${btoa(unescape(encodeURIComponent(svg)))}`;
 }
 
+/**
+ * canvas-xig: where the style popup renders relative to its anchor shape/edge. Prefers just below
+ * the anchor (`anchorBottom`, matching the original placement below a node / below an edge's
+ * midpoint) and only flips above it (`anchorTop`) when there isn't room below — then clamps
+ * horizontally so it never crosses the canvas's own left/right edge either. The canvas is a fixed
+ * 800x500 SVG with no pan/scroll (canvas-0s3, a known, separately-tracked limitation); this only
+ * keeps the popup from making that worse for an ordinary shape placement, not a general fix.
+ */
+function popupPosition(anchorTop: number, anchorBottom: number, desiredX: number): { x: number; y: number } {
+  const margin = 4;
+  const below = anchorBottom + margin;
+  const fitsBelow = below + STYLE_POPUP_HEIGHT <= CANVAS_HEIGHT - margin;
+  const y = fitsBelow ? below : anchorTop - STYLE_POPUP_HEIGHT - margin;
+  return {
+    x: Math.min(Math.max(desiredX, margin), CANVAS_WIDTH - STYLE_POPUP_WIDTH - margin),
+    y: Math.min(Math.max(y, margin), CANVAS_HEIGHT - STYLE_POPUP_HEIGHT - margin),
+  };
+}
+
 function containerBounds(container: DiagramContainer) {
   const size = container.size ?? { width: 300, height: 200 };
   return {
@@ -153,6 +187,11 @@ export function Canvas({ model, onChange, dslFamily, toolbarContainer }: CanvasP
   const [editingNodeId, setEditingNodeId] = useState<string | null>(null);
   const [editingEdgeId, setEditingEdgeId] = useState<string | null>(null);
   const [editingContainerId, setEditingContainerId] = useState<string | null>(null);
+  // canvas-xig: separate from editingNodeId/editingEdgeId (label editing) — a distinct affordance
+  // next to the pencil, not merged into it, so the existing rename flow's e2e coverage
+  // (label-affordance.spec.ts) stays untouched.
+  const [stylingNodeId, setStylingNodeId] = useState<string | null>(null);
+  const [stylingEdgeId, setStylingEdgeId] = useState<string | null>(null);
   const [selectedContainerId, setSelectedContainerId] = useState<string | null>(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   // Which element the pointer is over. Paired with selection below so the edit affordance is
@@ -384,6 +423,74 @@ export function Canvas({ model, onChange, dslFamily, toolbarContainer }: CanvasP
     </foreignObject>
   );
 
+  /** canvas-xig: a second, separate small control next to renderEditAffordance — deliberately not
+   *  merged into the same popup/button, so the existing rename flow (label-affordance.spec.ts)
+   *  is untouched. Same hover/selection/focus reveal rule as the pencil. */
+  const renderStyleAffordance = (id: string, x: number, y: number, onActivate: () => void, label: string) => (
+    <foreignObject x={x} y={y} width={22} height={22}>
+      <button
+        type="button"
+        className="canvas-edit-affordance"
+        data-testid={`edit-style-${id}`}
+        aria-label={label}
+        title={label}
+        onClick={(event) => {
+          event.stopPropagation();
+          onActivate();
+        }}
+        onPointerDown={(event) => event.stopPropagation()}
+      >
+        <Icon name="palette" size={12} />
+      </button>
+    </foreignObject>
+  );
+
+  /** Small color-picker popup opened by renderStyleAffordance. Uses an explicit Done button
+   *  rather than blur-to-commit (unlike the label editors) — a native OS color-picker dialog has
+   *  inconsistent focus/blur timing across browsers, so relying on blur alone here would be a real
+   *  flakiness risk for a brand-new control. Escape also closes it, matching the label editors. */
+  const renderStylePopup = (
+    id: string,
+    x: number,
+    y: number,
+    currentColor: string | undefined,
+    onPick: (color: string) => void,
+    onClear: () => void,
+    onClose: () => void,
+  ) => (
+    <foreignObject x={x} y={y} width={STYLE_POPUP_WIDTH} height={STYLE_POPUP_HEIGHT}>
+      <div
+        className="card cluster"
+        style={{ padding: 'var(--space-2)', flexWrap: 'nowrap' }}
+        onClick={(event) => event.stopPropagation()}
+        onPointerDown={(event) => event.stopPropagation()}
+        onKeyDown={(event) => {
+          if (event.key === 'Escape') onClose();
+        }}
+      >
+        {/* Trimmed to match the compact buttons' 28px height and given padding: 0 — the global
+            `input` rule's default min-height (36px) and 12px inline padding, applied to a native
+            color swatch, wasted popup width on empty space around a tiny swatch and was part of
+            why 3 controls no longer fit on one row at 200px. */}
+        <input
+          type="color"
+          data-testid={`style-color-input-${id}`}
+          aria-label="Choose a color"
+          autoFocus
+          value={currentColor ?? '#ffffff'}
+          onChange={(event) => onPick(event.target.value)}
+          style={{ width: 40, height: 28, minHeight: 0, padding: 0, flexShrink: 0 }}
+        />
+        <button type="button" className="btn btn--tertiary btn--compact" data-testid={`style-clear-${id}`} onClick={onClear}>
+          Clear
+        </button>
+        <button type="button" className="btn btn--primary btn--compact" data-testid={`style-done-${id}`} onClick={onClose}>
+          Done
+        </button>
+      </div>
+    </foreignObject>
+  );
+
   const commitContainerLabel = (containerId: string, label: string) => {
     onChange(updateContainerLabel(model, containerId, label || 'Container'));
     setEditingContainerId(null);
@@ -564,8 +671,8 @@ export function Canvas({ model, onChange, dslFamily, toolbarContainer }: CanvasP
         ref={svgRef}
         data-testid="diagram-canvas"
         className="canvas-svg"
-        width={800}
-        height={500}
+        width={CANVAS_WIDTH}
+        height={CANVAS_HEIGHT}
         // The border moved to the surrounding container so the SVG can fill it and let the
         // dot-grid background show through; `touchAction` stays inline because it is behaviour,
         // not styling. Width/height remain as the intrinsic size — CSS stretches it, and the
@@ -664,6 +771,9 @@ export function Canvas({ model, onChange, dslFamily, toolbarContainer }: CanvasP
           const clippedFrom = clipEdgeEndpoint(from, nodeSize(source), source.shape, to.x, to.y);
           const clippedTo = clipEdgeEndpoint(to, nodeSize(target), target.shape, from.x, from.y);
           const isEditingThisEdge = editingEdgeId === edge.id;
+          // canvas-xig: centered under the connector's midpoint, clamped/flipped by popupPosition
+          // so it never renders past the canvas's own edges (research note in that function).
+          const stylePopupPos = popupPosition(midY, midY, midX - STYLE_POPUP_WIDTH / 2);
           return (
             <g
               key={edge.id}
@@ -721,8 +831,39 @@ export function Canvas({ model, onChange, dslFamily, toolbarContainer }: CanvasP
                   edge.id,
                   midX + 8,
                   midY - 26,
-                  () => setEditingEdgeId(edge.id),
+                  () => {
+                    setStylingEdgeId(null);
+                    setEditingEdgeId(edge.id);
+                  },
                   `Edit label for connector ${edge.id}`,
+                )}
+              {!isEditingThisEdge &&
+                !connectMode &&
+                hoveredId === edge.id &&
+                renderStyleAffordance(
+                  // Stacked directly above the pencil (same x range) rather than beside it: a
+                  // horizontal offset here can land inside the adjacent node's own rect for the
+                  // common close-together layout every canvas e2e spec uses, making the button
+                  // unclickable (nodes paint on top of edges). Vertical stacking never extends
+                  // the affordance cluster's x-range at all, so it can't introduce that collision.
+                  edge.id,
+                  midX + 8,
+                  midY - 52,
+                  () => {
+                    setEditingEdgeId(null);
+                    setStylingEdgeId(edge.id);
+                  },
+                  `Choose connector color for ${edge.id}`,
+                )}
+              {stylingEdgeId === edge.id &&
+                renderStylePopup(
+                  edge.id,
+                  stylePopupPos.x,
+                  stylePopupPos.y,
+                  edge.style?.strokeColor,
+                  (color) => onChange(updateEdgeStyle(model, edge.id, { strokeColor: color })),
+                  () => onChange(updateEdgeStyle(model, edge.id, { strokeColor: null })),
+                  () => setStylingEdgeId(null),
                 )}
             </g>
           );
@@ -738,6 +879,10 @@ export function Canvas({ model, onChange, dslFamily, toolbarContainer }: CanvasP
 
         {model.nodes.map((node) => {
           const size = nodeSize(node);
+          // canvas-xig: below the node (matching the original placement), clamped/flipped by
+          // popupPosition so it never renders past the canvas's own edges for a node placed near
+          // the border (research note on popupPosition).
+          const stylePopupPos = popupPosition(node.position.y, node.position.y + size.height, node.position.x);
           // canvas-8n7: mirrors svg-renderer.ts's renderNode icon branch exactly (same 0.6 scale
           // factor, same -8 vertical nudge, same 48x48 normalized icon viewBox, same smaller
           // below-icon caption instead of a centered label) so canvas and export agree (SC-004).
@@ -794,8 +939,34 @@ export function Canvas({ model, onChange, dslFamily, toolbarContainer }: CanvasP
                   node.id,
                   node.position.x + size.width - 24,
                   node.position.y + 2,
-                  () => setEditingNodeId(node.id),
+                  () => {
+                    setStylingNodeId(null);
+                    setEditingNodeId(node.id);
+                  },
                   `Edit label for ${node.label}`,
+                )}
+              {editingNodeId !== node.id &&
+                !connectMode &&
+                (hoveredId === node.id || selectedIds.has(node.id)) &&
+                renderStyleAffordance(
+                  node.id,
+                  node.position.x + size.width - 50,
+                  node.position.y + 2,
+                  () => {
+                    setEditingNodeId(null);
+                    setStylingNodeId(node.id);
+                  },
+                  `Choose fill color for ${node.label}`,
+                )}
+              {stylingNodeId === node.id &&
+                renderStylePopup(
+                  node.id,
+                  stylePopupPos.x,
+                  stylePopupPos.y,
+                  node.style?.fillColor,
+                  (color) => onChange(updateNodeStyle(model, node.id, { fillColor: color })),
+                  () => onChange(updateNodeStyle(model, node.id, { fillColor: null })),
+                  () => setStylingNodeId(null),
                 )}
             </g>
           );

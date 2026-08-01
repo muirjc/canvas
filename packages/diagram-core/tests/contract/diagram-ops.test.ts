@@ -269,6 +269,20 @@ describe('updateNodeStyle', () => {
     const model = baseModel();
     expect(updateNodeStyle(model, 'nope', { fillColor: '#000000' })).toEqual(model);
   });
+
+  it('an explicit null clears a field back to unset, unlike omitting it', () => {
+    const model = baseModel();
+    model.nodes[0].style = { fillColor: '#ffffff', strokeColor: '#000000' };
+    const result = updateNodeStyle(model, 'a', { fillColor: null });
+    expect(result.nodes.find((n) => n.id === 'a')!.style).toEqual({ strokeColor: '#000000' });
+  });
+
+  it('clearing every field leaves an empty style object, not undefined', () => {
+    const model = baseModel();
+    model.nodes[0].style = { fillColor: '#ffffff' };
+    const result = updateNodeStyle(model, 'a', { fillColor: null });
+    expect(result.nodes.find((n) => n.id === 'a')!.style).toEqual({});
+  });
 });
 
 describe('updateEdgeStyle', () => {
@@ -295,6 +309,13 @@ describe('updateEdgeStyle', () => {
   it('is a no-op for an unknown id', () => {
     const model = baseModel();
     expect(updateEdgeStyle(model, 'nope', { strokeColor: '#000000' })).toEqual(model);
+  });
+
+  it('an explicit null clears a field back to unset, unlike omitting it', () => {
+    const model = baseModel();
+    model.edges[0].style = { strokeColor: '#c0392b', strokeWidth: 2 };
+    const result = updateEdgeStyle(model, 'e1', { strokeColor: null });
+    expect(result.edges.find((e) => e.id === 'e1')!.style).toEqual({ strokeWidth: 2 });
   });
 });
 

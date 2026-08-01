@@ -28,7 +28,8 @@ export type IconName =
   | 'warning'
   | 'history'
   | 'send'
-  | 'pencil';
+  | 'pencil'
+  | 'palette';
 
 /** Path data only — the wrapper supplies sizing, colour, and ARIA. `diamond` and `check` are
  *  filled; the rest are 1.5px strokes on a 16-unit grid. */
@@ -51,6 +52,11 @@ const PATHS: Record<IconName, { d: string; filled?: boolean }[]> = {
   history: [{ d: 'M2.75 8a5.25 5.25 0 1 0 1.6-3.77M2.5 3v2.5H5M8 5.5V8l2 1.5' }],
   send: [{ d: 'M14 2 2 7l4.5 1.8L8.5 13 14 2ZM6.5 8.8 14 2' }],
   pencil: [{ d: 'M11.5 2.5 13.5 4.5 5.5 12.5 2.5 13.5 3.5 10.5 11.5 2.5Z' }],
+  // Solid fill/color droplet — canvas-xig's style affordance, distinct from pencil (label
+  // editing). Filled (like `diamond`) rather than stroked: a thin 1.5px outline on a teardrop's
+  // curves loses definition at the 12px size this renders at here, while a solid silhouette stays
+  // legible at any size.
+  palette: [{ d: 'M8 1.5c0 0 5.3 6.4 5.3 9.3a5.3 5.3 0 0 1-10.6 0c0-2.9 5.3-9.3 5.3-9.3Z', filled: true }],
 };
 
 export interface IconProps {

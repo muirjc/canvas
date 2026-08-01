@@ -119,20 +119,25 @@ export function updateEdgeLabel(model: DiagramModel, edgeId: string, label: stri
 }
 
 export interface StylePatch {
-  fillColor?: string;
-  strokeColor?: string;
-  strokeWidth?: number;
-  strokeDasharray?: string;
+  /** Omit a field to leave it untouched. `null` explicitly clears it back to unset (canvas-xig's
+   *  Clear/Reset control) — distinct from omitting, which the AI tool-calling layer relies on to
+   *  patch just one field at a time. */
+  fillColor?: string | null;
+  strokeColor?: string | null;
+  strokeWidth?: number | null;
+  strokeDasharray?: string | null;
 }
 
-/** Merges only the fields present in `patch` onto `existing` — a field simply absent from the
- *  patch (as opposed to explicitly cleared) leaves whatever the style already had untouched. */
+/** Merges only the fields present in `patch` onto `existing`: omitted leaves the existing value
+ *  untouched, an explicit `null` clears it, a real value sets it. */
 function mergeStyle(existing: NodeStyle | undefined, patch: StylePatch): NodeStyle {
   const merged: NodeStyle = { ...existing };
-  if (patch.fillColor !== undefined) merged.fillColor = patch.fillColor;
-  if (patch.strokeColor !== undefined) merged.strokeColor = patch.strokeColor;
-  if (patch.strokeWidth !== undefined) merged.strokeWidth = patch.strokeWidth;
-  if (patch.strokeDasharray !== undefined) merged.strokeDasharray = patch.strokeDasharray;
+  for (const key of ['fillColor', 'strokeColor', 'strokeWidth', 'strokeDasharray'] as const) {
+    const value = patch[key];
+    if (value === undefined) continue;
+    if (value === null) delete merged[key];
+    else (merged[key] as typeof value) = value;
+  }
   return merged;
 }
 
