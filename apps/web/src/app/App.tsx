@@ -10,6 +10,7 @@ import { StandardsEditor } from '../admin/StandardsEditor';
 import { UsersPage } from '../admin/UsersPage';
 import { AdminOverview } from '../admin/AdminOverview';
 import { DeletedDiagramsPage } from '../admin/DeletedDiagramsPage';
+import { DeletedProjectsPage } from '../admin/DeletedProjectsPage';
 import { ProjectBrowser } from '../projects/ProjectBrowser';
 import { ProjectsPage } from '../projects/ProjectsPage';
 import { SharedDiagramsList } from '../projects/SharedDiagramsList';
@@ -214,6 +215,7 @@ export function App() {
     if (adminParam === 'users') adminScreen = <UsersPage />;
     else if (adminParam === 'overview') adminScreen = <AdminOverview />;
     else if (adminParam === 'deleted') adminScreen = <DeletedDiagramsPage />;
+    else if (adminParam === 'deleted-projects') adminScreen = <DeletedProjectsPage />;
     else if (adminParam === 'ai-personas') adminScreen = <PersonaAdminPage />;
     else adminScreen = <StandardsEditor diagramTypeId="flowchart" />;
     // Wrapping here rather than inside each screen is what centres and navigates all five
@@ -233,8 +235,19 @@ export function App() {
           setProjectId(project.id);
           setViewingProjects(false);
         }}
-        onRenamed={(projectId, name) => {
-          setProjects((current) => current?.map((p) => (p.id === projectId ? { ...p, name } : p)) ?? current);
+        onRenamed={(renamedProjectId, name) => {
+          setProjects((current) => current?.map((p) => (p.id === renamedProjectId ? { ...p, name } : p)) ?? current);
+        }}
+        onDeleted={(deletedProjectId) => {
+          const remaining = (projects ?? []).filter((p) => p.id !== deletedProjectId);
+          setProjects(remaining);
+          // The current project just got deleted out from under the user — same "never invent
+          // one, fall back to the first available" rule the initial project-resolution effect
+          // already uses (App.tsx's own useEffect for user/projects above).
+          if (projectId === deletedProjectId) {
+            setDiagram(null);
+            setProjectId(remaining[0]?.id ?? null);
+          }
         }}
         onClose={() => setViewingProjects(false)}
       />

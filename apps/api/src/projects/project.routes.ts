@@ -1,14 +1,19 @@
 import type { FastifyInstance, FastifyReply } from 'fastify';
 import { requireProjectAccess, requireProjectOwnerOrAdmin } from '../auth/access-control.middleware.js';
-import { requireAuth } from '../auth/middleware.js';
+import { requireAuth, requireRole } from '../auth/middleware.js';
 import {
   createProject,
+  deleteProject,
   getProject,
   getProjectTree,
+  listDeletedProjects,
   listProjectsForUser,
   ProjectCycleError,
+  ProjectHasContentError,
   ProjectNotFoundError,
+  ProjectRetentionExpiredError,
   renameProject,
+  restoreProject,
 } from './project.service.js';
 
 function handleServiceError(error: unknown, reply: FastifyReply): void {
@@ -18,6 +23,10 @@ function handleServiceError(error: unknown, reply: FastifyReply): void {
   }
   if (error instanceof ProjectCycleError) {
     reply.code(400).send({ error: error.message });
+    return;
+  }
+  if (error instanceof ProjectHasContentError || error instanceof ProjectRetentionExpiredError) {
+    reply.code(409).send({ error: error.message });
     return;
   }
   throw error;
@@ -85,6 +94,37 @@ export async function registerProjectRoutes(app: FastifyInstance): Promise<void>
       }
       try {
         const project = await renameProject(request.params.id, name);
+        reply.send({ project });
+      } catch (error) {
+        handleServiceError(error, reply);
+      }
+    },
+  );
+
+  app.delete<{ Params: { id: string } }>(
+    '/projects/:id',
+    { preHandler: [requireAuth, requireProjectOwnerOrAdmin()] },
+    async (request, reply) => {
+      try {
+        await deleteProject(request.params.id, request.session.user!.id);
+        reply.code(204).send();
+      } catch (error) {
+        handleServiceError(error, reply);
+      }
+    },
+  );
+
+  app.get('/admin/deleted-projects', { preHandler: requireRole('admin') }, async (_request, reply) => {
+    reply.send({ projects: await listDeletedProjects() });
+  });
+
+  app.post<{ Params: { id: string } }>(
+    '/projects/:id/restore',
+    { preHandler: requireRole('admin') },
+    async (request, reply) => {
+      try {
+        await restoreProject(request.params.id, request.session.user!.id);
+        const project = await getProject(request.params.id);
         reply.send({ project });
       } catch (error) {
         handleServiceError(error, reply);

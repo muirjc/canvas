@@ -22,10 +22,11 @@ async function ancestorChain(projectId: string): Promise<Array<{ id: string; own
   const { rows } = await pool.query<{ id: string; owner_id: string; depth: number }>(
     `WITH RECURSIVE chain AS (
        SELECT id, parent_project_id, owner_id, 0 AS depth
-       FROM projects WHERE id = $1
+       FROM projects WHERE id = $1 AND deleted_at IS NULL
        UNION ALL
        SELECT p.id, p.parent_project_id, p.owner_id, c.depth + 1
        FROM projects p JOIN chain c ON p.id = c.parent_project_id
+       WHERE p.deleted_at IS NULL
      )
      SELECT id, owner_id, depth FROM chain ORDER BY depth`,
     [projectId],
@@ -33,9 +34,11 @@ async function ancestorChain(projectId: string): Promise<Array<{ id: string; own
   return rows.map((r) => ({ id: r.id, owner_id: r.owner_id }));
 }
 
+/** canvas-228.2: a soft-deleted project counts as not existing for every regular (non-admin-
+ *  recovery) purpose — matches how a soft-deleted diagram's getDiagram already behaves. */
 export async function projectExists(projectId: string): Promise<boolean> {
   const pool = getPool();
-  const { rows } = await pool.query('SELECT 1 FROM projects WHERE id = $1', [projectId]);
+  const { rows } = await pool.query('SELECT 1 FROM projects WHERE id = $1 AND deleted_at IS NULL', [projectId]);
   return Boolean(rows[0]);
 }
 
@@ -86,17 +89,18 @@ export async function resolveProjectAccess(
  */
 export const ACCESSIBLE_PROJECT_IDS_SQL = `
   WITH RECURSIVE roots AS (
-    SELECT p.id FROM projects p WHERE p.owner_id = $1
+    SELECT p.id FROM projects p WHERE p.owner_id = $1 AND p.deleted_at IS NULL
     UNION
     SELECT sg.subject_id FROM share_grants sg
-      WHERE sg.subject_type = 'project' AND sg.grantee_user_id = $1
+      JOIN projects p ON p.id = sg.subject_id
+      WHERE sg.subject_type = 'project' AND sg.grantee_user_id = $1 AND p.deleted_at IS NULL
     UNION
     SELECT p.id FROM projects p
-      WHERE EXISTS (SELECT 1 FROM users u WHERE u.id = $1 AND u.role = 'admin')
+      WHERE EXISTS (SELECT 1 FROM users u WHERE u.id = $1 AND u.role = 'admin') AND p.deleted_at IS NULL
   ),
   accessible AS (
     SELECT id FROM roots
     UNION
-    SELECT p.id FROM projects p JOIN accessible a ON p.parent_project_id = a.id
+    SELECT p.id FROM projects p JOIN accessible a ON p.parent_project_id = a.id WHERE p.deleted_at IS NULL
   )
 `;
