@@ -49,6 +49,17 @@ tests are NON-NEGOTIABLE and must exist (and fail) before implementing any diagr
 work — see `.specify/memory/constitution.md` Principle IV.
 
 ## Recent Changes
+- `canvas-228.3` (second of three canvas-228 "project management" sub-features): no
+  `updateProject` route existed — a project's name was permanent once created — and there was no
+  way to move an existing diagram to a different project. Rename: new `PATCH /projects/:id`,
+  gated by a new `requireProjectOwnerOrAdmin` middleware (a direct copy of the existing
+  `requireDiagramOwnerOrAdmin` pattern — ownership only, not the permissive edit-share ladder),
+  surfaced as a click-to-edit control on each owned row of the Projects screen (canvas-228.1).
+  Move: new `PATCH /diagrams/:id/project`, needing a two-resource check with no existing
+  precedent — `requireDiagramAccess('edit')` on the diagram plus a manual destination-project
+  edit check inside the handler (the destination id arrives in the body, not a route param) —
+  surfaced as a new "Move" action on each `ProjectBrowser` diagram row, opening a `Modal` with a
+  destination-project picker. Written test-first (13 new contract tests).
 - `canvas-228.1` (first of three canvas-228 "project management" sub-features): `createFirstProject`
   in `App.tsx` only rendered when the user had zero projects — once they had one, there was no way
   to create another, and no dedicated project-management surface existed at all. Adds a new
