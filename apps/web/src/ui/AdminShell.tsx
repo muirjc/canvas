@@ -2,7 +2,7 @@ import type { ReactNode } from 'react';
 import { withProjectContext } from '../app/project-context';
 import { Icon } from './Icon';
 
-/** The five admin destinations, in the order they appear in the navigation. `param` is the
+/** The six admin destinations, in the order they appear in the navigation. `param` is the
  *  `?admin=` value that reaches each one — "true" is the standards editor, for historical
  *  reasons predating the other destinations. */
 const DESTINATIONS = [
@@ -10,6 +10,7 @@ const DESTINATIONS = [
   { id: 'standards', param: 'true', label: 'Standards' },
   { id: 'users', param: 'users', label: 'Users' },
   { id: 'deleted', param: 'deleted', label: 'Deleted Diagrams' },
+  { id: 'deleted-projects', param: 'deleted-projects', label: 'Deleted Projects' },
   { id: 'ai-personas', param: 'ai-personas', label: 'AI Personas' },
 ] as const;
 

@@ -105,6 +105,13 @@ export interface ProjectDto {
   ownerId: string;
 }
 
+export interface DeletedProjectDto {
+  id: string;
+  name: string;
+  ownerId: string;
+  deletedAt: string;
+}
+
 export interface ProjectTreeNodeDto {
   id: string;
   name: string;
@@ -253,6 +260,15 @@ export const api = {
    *  and on the destination project. */
   moveDiagram: (diagramId: string, projectId: string) =>
     request<{ diagram: DiagramDto }>(`/diagrams/${diagramId}/project`, { method: 'PATCH', body: JSON.stringify({ projectId }) }),
+  /** Owner-or-admin only, and only if the project has no diagrams and no sub-projects
+   *  (canvas-228.2) — soft-deleted, recoverable by an admin within the retention window. */
+  deleteProject: (id: string) => request<void>(`/projects/${id}`, { method: 'DELETE' }),
+  listDeletedProjects: () => request<{ projects: DeletedProjectDto[] }>('/admin/deleted-projects'),
+  restoreProject: (id: string) =>
+    request<{ project: { id: string; name: string; parentProjectId: string | null; createdAt: string } }>(
+      `/projects/${id}/restore`,
+      { method: 'POST' },
+    ),
   listDiagramVersions: (diagramId: string, options: { limit?: number; q?: string } = {}) => {
     const params = new URLSearchParams();
     if (options.limit !== undefined) params.set('limit', String(options.limit));

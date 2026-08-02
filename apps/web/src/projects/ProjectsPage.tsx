@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { api, ApiError, type ProjectDto, type SessionUser } from '../app/api';
+import { ConfirmDialog } from '../canvas/ConfirmDialog';
 import { Icon } from '../ui/Icon';
 
 export interface ProjectsPageProps {
@@ -7,6 +8,7 @@ export interface ProjectsPageProps {
   currentUser: SessionUser;
   onCreated: (project: ProjectDto) => void;
   onRenamed: (projectId: string, name: string) => void;
+  onDeleted: (projectId: string) => void;
   onClose: () => void;
 }
 
@@ -14,9 +16,9 @@ export interface ProjectsPageProps {
  * canvas-228.1: the only way to create a project used to be App.tsx's zero-projects onboarding
  * flow (createFirstProject) — once a user had one, there was no way to create another. This
  * screen generalizes that (same createProject API), and gives every project a permanent,
- * navigable home for the rename (canvas-228.3) and delete (canvas-228.2) actions.
+ * navigable home for the rename and delete (canvas-228.3/canvas-228.2) actions.
  */
-export function ProjectsPage({ projects, currentUser, onCreated, onRenamed, onClose }: ProjectsPageProps) {
+export function ProjectsPage({ projects, currentUser, onCreated, onRenamed, onDeleted, onClose }: ProjectsPageProps) {
   const [creating, setCreating] = useState(false);
   const [name, setName] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -24,6 +26,9 @@ export function ProjectsPage({ projects, currentUser, onCreated, onRenamed, onCl
   // most one row is ever in rename mode, so a single id is enough rather than a Set.
   const [renamingId, setRenamingId] = useState<string | null>(null);
   const [renameError, setRenameError] = useState<string | null>(null);
+  // canvas-228.2: same shape as ProjectBrowser's own pendingDelete/deleteError pair.
+  const [pendingDelete, setPendingDelete] = useState<{ id: string; name: string } | null>(null);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
 
   const handleCreate = async () => {
     setError(null);
@@ -49,6 +54,19 @@ export function ProjectsPage({ projects, currentUser, onCreated, onRenamed, onCl
       setRenamingId(null);
     } catch (err) {
       setRenameError(err instanceof ApiError ? err.message : (err as Error).message);
+    }
+  };
+
+  const confirmDelete = async () => {
+    if (!pendingDelete) return;
+    setDeleteError(null);
+    try {
+      await api.deleteProject(pendingDelete.id);
+      onDeleted(pendingDelete.id);
+      setPendingDelete(null);
+    } catch (err) {
+      setPendingDelete(null);
+      setDeleteError(err instanceof ApiError ? err.message : 'Failed to delete project.');
     }
   };
 
@@ -161,6 +179,17 @@ export function ProjectsPage({ projects, currentUser, onCreated, onRenamed, onCl
                       <Icon name="pencil" size={12} />
                       Rename
                     </button>
+                    <button
+                      type="button"
+                      className="btn btn--tertiary-danger btn--compact"
+                      data-testid={`projects-page-delete-${project.id}`}
+                      disabled={project.diagramCount > 0}
+                      title={project.diagramCount > 0 ? 'Only a project with no diagrams can be deleted.' : undefined}
+                      onClick={() => setPendingDelete({ id: project.id, name: project.name })}
+                    >
+                      <Icon name="trash" size={12} />
+                      Delete
+                    </button>
                   </span>
                 )}
               </li>
@@ -171,6 +200,18 @@ export function ProjectsPage({ projects, currentUser, onCreated, onRenamed, onCl
       {renameError && (
         <p role="alert" data-testid="projects-page-rename-error">
           {renameError}
+        </p>
+      )}
+      {pendingDelete && (
+        <ConfirmDialog
+          message={`Delete "${pendingDelete.name}"? It can be recovered by an admin for a limited time.`}
+          onConfirm={confirmDelete}
+          onCancel={() => setPendingDelete(null)}
+        />
+      )}
+      {deleteError && (
+        <p role="alert" data-testid="projects-page-delete-error">
+          {deleteError}
         </p>
       )}
     </main>
