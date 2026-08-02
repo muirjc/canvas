@@ -217,6 +217,22 @@ export async function saveDiagram(id: string, input: SaveDiagramInput): Promise<
 }
 
 /**
+ * Moves a diagram to a different project (canvas-228.3). Access (edit on the diagram, edit on
+ * the destination project) is enforced by the route, not here — this function trusts its caller.
+ * No versioning/soft-delete implications: the diagram's own history and identity are unchanged,
+ * only which project's tree it appears in.
+ */
+export async function moveDiagram(id: string, destinationProjectId: string): Promise<DiagramRecord> {
+  const pool = getPool();
+  const { rows } = await pool.query('SELECT 1 FROM diagrams WHERE id = $1 AND deleted_at IS NULL', [id]);
+  if (!rows[0]) {
+    throw new DiagramNotFoundError(`No diagram with id ${id}`);
+  }
+  await pool.query('UPDATE diagrams SET project_id = $2 WHERE id = $1', [id, destinationProjectId]);
+  return getDiagram(id);
+}
+
+/**
  * Soft-deletes a diagram (FR-011/FR-012). Idempotent: deleting an already-deleted diagram
  * succeeds silently rather than erroring, since the end state the caller wants ("this diagram
  * is deleted") already holds.

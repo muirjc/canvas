@@ -15,6 +15,9 @@ export interface ProjectListItem extends ProjectRecord {
   /** Direct (non-recursive) count of the project's own non-deleted diagrams — canvas-228.1's
    *  Projects screen shows this per row, and canvas-228.2's delete guard rejects unless it's 0. */
   diagramCount: number;
+  /** Who owns this project — canvas-228.3's Projects screen only offers rename/delete for
+   *  projects the current user owns (or if they're an admin). */
+  ownerId: string;
 }
 
 export interface CreateProjectInput {
@@ -43,8 +46,16 @@ export async function createProject(input: CreateProjectInput): Promise<ProjectL
      RETURNING id, name, parent_project_id, created_at`,
     [input.name, input.parentProjectId ?? null, input.ownerId],
   );
-  // Always 0 — a brand-new project cannot already have a diagram in it.
-  return { id: rows[0].id, name: rows[0].name, parentProjectId: rows[0].parent_project_id, createdAt: rows[0].created_at, diagramCount: 0 };
+  // Always 0 — a brand-new project cannot already have a diagram in it. ownerId is already known
+  // (it's the input, not read back) — no need to re-query for it.
+  return {
+    id: rows[0].id,
+    name: rows[0].name,
+    parentProjectId: rows[0].parent_project_id,
+    createdAt: rows[0].created_at,
+    diagramCount: 0,
+    ownerId: input.ownerId,
+  };
 }
 
 /**
@@ -62,10 +73,11 @@ export async function listProjectsForUser(userId: string): Promise<ProjectListIt
     name: string;
     parent_project_id: string | null;
     created_at: string;
+    owner_id: string;
     diagram_count: string;
   }>(
     `${ACCESSIBLE_PROJECT_IDS_SQL}
-     SELECT p.id, p.name, p.parent_project_id, p.created_at, COUNT(d.id) AS diagram_count
+     SELECT p.id, p.name, p.parent_project_id, p.created_at, p.owner_id, COUNT(d.id) AS diagram_count
      FROM projects p
      LEFT JOIN diagrams d ON d.project_id = p.id AND d.deleted_at IS NULL
      WHERE p.id IN (SELECT id FROM accessible)
@@ -78,6 +90,7 @@ export async function listProjectsForUser(userId: string): Promise<ProjectListIt
     name: r.name,
     parentProjectId: r.parent_project_id,
     createdAt: r.created_at,
+    ownerId: r.owner_id,
     diagramCount: Number(r.diagram_count),
   }));
 }
@@ -87,6 +100,18 @@ export async function getProject(id: string): Promise<ProjectRecord> {
   const { rows } = await pool.query<{ id: string; name: string; parent_project_id: string | null; created_at: string }>(
     'SELECT id, name, parent_project_id, created_at FROM projects WHERE id = $1',
     [id],
+  );
+  if (!rows[0]) throw new ProjectNotFoundError(`No project with id ${id}`);
+  return { id: rows[0].id, name: rows[0].name, parentProjectId: rows[0].parent_project_id, createdAt: rows[0].created_at };
+}
+
+/** Renames a project (canvas-228.3). Access (owner-or-admin) is enforced by the route's
+ *  `requireProjectOwnerOrAdmin` preHandler, not here — this function trusts its caller. */
+export async function renameProject(id: string, name: string): Promise<ProjectRecord> {
+  const pool = getPool();
+  const { rows } = await pool.query<{ id: string; name: string; parent_project_id: string | null; created_at: string }>(
+    'UPDATE projects SET name = $2 WHERE id = $1 RETURNING id, name, parent_project_id, created_at',
+    [id, name],
   );
   if (!rows[0]) throw new ProjectNotFoundError(`No project with id ${id}`);
   return { id: rows[0].id, name: rows[0].name, parentProjectId: rows[0].parent_project_id, createdAt: rows[0].created_at };
