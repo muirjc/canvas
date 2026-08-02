@@ -49,6 +49,18 @@ tests are NON-NEGOTIABLE and must exist (and fail) before implementing any diagr
 work — see `.specify/memory/constitution.md` Principle IV.
 
 ## Recent Changes
+- `canvas-3vq.1` (first of the canvas-3vq "Option A" navigation-flow epic, from
+  `docs/navigation-flow-brief.md` Finding B): `GET /projects/:projectId/diagrams?query=&type=`
+  already existed, fully implemented (`search.service.ts`) and perf-tested at 1,200 diagrams
+  (`search.perf.test.ts`, SC-007), but had zero frontend callers — `ProjectBrowser.tsx` always
+  rendered the full recursive project/diagram tree with no way to narrow it. Adds a search input
+  and diagram-type filter above the tree; while either is active, results render as a flat list via
+  a new shared `DiagramRow` component (Open/Move/Delete identical to the tree view, same testids)
+  instead of the recursive tree, and clearing both returns to the unmodified tree view. Known,
+  documented (not fixed) limitation carried over from the brief itself: the search only covers the
+  current project's own direct diagrams, not recursively into child projects — harmless today since
+  this app has no UI to create nested projects, so every project's diagram set is one level deep in
+  practice. No backend changes.
 - `canvas-23t.4`: every diagram type's `default_palette_library_ids` included `"generic"`, whose
   five entries (Rectangle, Rounded Rectangle, Circle, Diamond, Cylinder) are non-visual shape-alias
   sentinels, not real icon artwork — they duplicated the shape toolbar and rendered as broken,
