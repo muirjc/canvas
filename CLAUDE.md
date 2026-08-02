@@ -49,6 +49,15 @@ tests are NON-NEGOTIABLE and must exist (and fail) before implementing any diagr
 work — see `.specify/memory/constitution.md` Principle IV.
 
 ## Recent Changes
+- `canvas-23t.4`: every diagram type's `default_palette_library_ids` included `"generic"`, whose
+  five entries (Rectangle, Rounded Rectangle, Circle, Diamond, Cylinder) are non-visual shape-alias
+  sentinels, not real icon artwork — they duplicated the shape toolbar and rendered as broken,
+  artwork-less boxes when placed via the icon search path. Drops `"generic"` from `CLOUD_LIBRARIES`
+  and every c4-* type (already have azure-icons/aws-icons or c4-notation); kept as the sole entry
+  for diagram types with no other icon library at all (plain flowchart variants, sequence, erd,
+  uml). Written test-first against the real `seedDiagramTypes()` function — `libraries.test.ts`'s
+  existing cloud-infrastructure test already hardcoded the "correct" answer via a manual `INSERT`,
+  which never exercised the real seed data and would not have caught this bug.
 - `canvas-228.2` (third and last of the canvas-228 "project management" sub-features — the epic
   is now complete): no `deleteProject` route existed at all. New migration
   (`0008_project_soft_delete.sql`) adds `deleted_at`/`deleted_by_user_id`/`restored_at`/
