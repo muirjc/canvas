@@ -569,3 +569,13 @@
   padding: var(--space-2) var(--space-4);
   flex-shrink: 0;
 }
+
+/* ---- Project browser search/filter (canvas-3vq.1) ----------------------- */
+
+.project-browser__filters {
+  margin-block-end: var(--space-4);
+}
+
+.project-browser__filters input {
+  flex: 1 1 240px;
+}
