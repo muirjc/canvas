@@ -1,5 +1,5 @@
 import type { FastifyInstance, FastifyReply } from 'fastify';
-import { requireProjectAccess } from '../auth/access-control.middleware.js';
+import { requireProjectAccess, requireProjectOwnerOrAdmin } from '../auth/access-control.middleware.js';
 import { requireAuth } from '../auth/middleware.js';
 import {
   createProject,
@@ -8,6 +8,7 @@ import {
   listProjectsForUser,
   ProjectCycleError,
   ProjectNotFoundError,
+  renameProject,
 } from './project.service.js';
 
 function handleServiceError(error: unknown, reply: FastifyReply): void {
@@ -67,6 +68,24 @@ export async function registerProjectRoutes(app: FastifyInstance): Promise<void>
     async (request, reply) => {
       try {
         reply.send({ tree: await getProjectTree(request.params.id) });
+      } catch (error) {
+        handleServiceError(error, reply);
+      }
+    },
+  );
+
+  app.patch<{ Params: { id: string }; Body: { name: string } }>(
+    '/projects/:id',
+    { preHandler: [requireAuth, requireProjectOwnerOrAdmin()] },
+    async (request, reply) => {
+      const { name } = request.body;
+      if (!name) {
+        reply.code(400).send({ error: 'name is required' });
+        return;
+      }
+      try {
+        const project = await renameProject(request.params.id, name);
+        reply.send({ project });
       } catch (error) {
         handleServiceError(error, reply);
       }

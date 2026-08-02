@@ -1,6 +1,8 @@
 import type { FastifyInstance, FastifyReply } from 'fastify';
 import { requireAuth, requireRole } from '../auth/middleware.js';
 import { requireDiagramAccess, requireDiagramOwnerOrAdmin, requireProjectAccess } from '../auth/access-control.middleware.js';
+import { projectExists, resolveProjectAccess } from '../projects/project.access.js';
+import { accessAtLeast } from '../sharing/sharing.service.js';
 import {
   createDiagram,
   deleteDiagram,
@@ -9,6 +11,7 @@ import {
   DslValidationError,
   getDiagram,
   listDeletedDiagrams,
+  moveDiagram,
   restoreDiagram,
   saveDiagram,
   UnknownDiagramTypeError,
@@ -100,6 +103,44 @@ export async function registerDiagramRoutes(app: FastifyInstance): Promise<void>
           dslContent,
           authorId: request.session.user!.id,
         });
+        reply.send({ diagram });
+      } catch (error) {
+        handleServiceError(error, reply);
+      }
+    },
+  );
+
+  /**
+   * Moves a diagram to a different project (canvas-228.3). Two resources need checking, which no
+   * existing preHandler covers in one shot: `requireDiagramAccess('edit')` guards the diagram (the
+   * :id param), then the destination project id — which arrives in the body, not a route param —
+   * is checked by hand here, the same rule `requireProjectAccess` enforces but for a param name
+   * that middleware has no way to see (it's not part of this route's own params).
+   */
+  app.patch<{ Params: { id: string }; Body: { projectId: string } }>(
+    '/diagrams/:id/project',
+    { preHandler: [requireAuth, requireDiagramAccess('edit')] },
+    async (request, reply) => {
+      const { projectId } = request.body;
+      if (!projectId) {
+        reply.code(400).send({ error: 'projectId is required' });
+        return;
+      }
+      if (!(await projectExists(projectId))) {
+        reply.code(404).send({ error: `No project with id ${projectId}` });
+        return;
+      }
+      const level = await resolveProjectAccess(request.session.user!.id, projectId);
+      if (!accessAtLeast(level, 'edit')) {
+        reply.code(403).send({
+          error: level
+            ? `This action requires "edit" access, but you only have "${level}" access to the destination project.`
+            : 'You do not have access to the destination project.',
+        });
+        return;
+      }
+      try {
+        const diagram = await moveDiagram(request.params.id, projectId);
         reply.send({ diagram });
       } catch (error) {
         handleServiceError(error, reply);

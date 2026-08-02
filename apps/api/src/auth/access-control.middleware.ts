@@ -38,6 +38,31 @@ export function requireDiagramOwnerOrAdmin() {
 }
 
 /**
+ * Authorizes project rename/delete (canvas-228.3/canvas-228.2): ownership or the admin role,
+ * mirroring `requireDiagramOwnerOrAdmin` above exactly and for the same reason — the permissive
+ * edit-share ladder (`requireProjectAccess`) must not let a user rename or delete a project out
+ * from under its owner. A nonexistent project id is let through for the same reason.
+ */
+export function requireProjectOwnerOrAdmin() {
+  return async (request: FastifyRequest<{ Params: { id: string } }>, reply: FastifyReply): Promise<void> => {
+    const user = request.session.user;
+    if (!user) {
+      reply.code(401).send({ error: 'Authentication required' });
+      return;
+    }
+    const pool = getPool();
+    const { rows } = await pool.query<{ owner_id: string }>('SELECT owner_id FROM projects WHERE id = $1', [
+      request.params.id,
+    ]);
+    if (!rows[0]) return; // let the route's own not-found handling fire
+
+    if (rows[0].owner_id !== user.id && user.role !== 'admin') {
+      reply.code(403).send({ error: 'Only this project\'s owner or an admin can do that.' });
+    }
+  };
+}
+
+/**
  * Enforces a minimum access level on a route that takes a project id (feature 007, FR-013a).
  * Before this, every such route was guarded by `requireAuth` alone, so any signed-in user could
  * read any project's entire diagram tree by id.

@@ -101,6 +101,8 @@ export interface ProjectDto {
   createdAt: string;
   /** Direct (non-recursive) count of the project's own non-deleted diagrams (canvas-228.1). */
   diagramCount: number;
+  /** Who owns this project — only the owner (or an admin) may rename/delete it (canvas-228.3). */
+  ownerId: string;
 }
 
 export interface ProjectTreeNodeDto {
@@ -235,9 +237,22 @@ export const api = {
     ),
   createProject: (body: { name: string; parentProjectId?: string }) =>
     request<{ project: ProjectDto }>('/projects', { method: 'POST', body: JSON.stringify(body) }),
+  /** Owner-or-admin only (canvas-228.3) — same bar as deleteDiagram below. Returns only the
+   *  fields the server actually has available to return (no diagramCount re-query for a value
+   *  a rename can't change) — callers should merge `.name` into their own ProjectDto, not treat
+   *  this as a complete one. */
+  renameProject: (id: string, name: string) =>
+    request<{ project: { id: string; name: string; parentProjectId: string | null; createdAt: string } }>(
+      `/projects/${id}`,
+      { method: 'PATCH', body: JSON.stringify({ name }) },
+    ),
   getProjectTree: (id: string) => request<{ tree: ProjectTreeNodeDto }>(`/projects/${id}/tree`),
   /** Projects available to the signed-in user — owned or shared (feature 007, FR-013a). */
   listProjects: () => request<{ projects: ProjectDto[] }>('/projects'),
+  /** Moves a diagram to a different project (canvas-228.3) — requires edit access on the diagram
+   *  and on the destination project. */
+  moveDiagram: (diagramId: string, projectId: string) =>
+    request<{ diagram: DiagramDto }>(`/diagrams/${diagramId}/project`, { method: 'PATCH', body: JSON.stringify({ projectId }) }),
   listDiagramVersions: (diagramId: string, options: { limit?: number; q?: string } = {}) => {
     const params = new URLSearchParams();
     if (options.limit !== undefined) params.set('limit', String(options.limit));

@@ -227,10 +227,14 @@ export function App() {
     content = (
       <ProjectsPage
         projects={projects ?? []}
+        currentUser={user}
         onCreated={(project) => {
           setProjects((current) => [...(current ?? []), project]);
           setProjectId(project.id);
           setViewingProjects(false);
+        }}
+        onRenamed={(projectId, name) => {
+          setProjects((current) => current?.map((p) => (p.id === projectId ? { ...p, name } : p)) ?? current);
         }}
         onClose={() => setViewingProjects(false)}
       />
@@ -315,7 +319,7 @@ export function App() {
             {error}
           </p>
         )}
-        {projectId && <ProjectBrowser rootProjectId={projectId} onOpenDiagram={openDiagram} />}
+        {projectId && <ProjectBrowser rootProjectId={projectId} projects={projects ?? []} onOpenDiagram={openDiagram} />}
         {user.role === 'admin' && (
           <nav className="home__admin" aria-label="Admin">
             <span className="section-label">Admin</span>
