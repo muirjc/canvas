@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react';
-import { api, ApiError, type ProjectDto, type ProjectTreeNodeDto } from '../app/api';
+import { useCallback, useEffect, useState } from 'react';
+import { api, ApiError, type DiagramSummaryDto, type DiagramTypeDto, type ProjectDto, type ProjectTreeNodeDto } from '../app/api';
 import { ConfirmDialog } from '../canvas/ConfirmDialog';
 import { Modal } from '../ui/Modal';
 import { Icon } from '../ui/Icon';
@@ -11,6 +11,54 @@ export interface ProjectBrowserProps {
    *  doesn't need its own copy of App.tsx's already-loaded project list. */
   projects: ProjectDto[];
   onOpenDiagram: (diagramId: string) => void;
+}
+
+interface DiagramActionsProps {
+  diagramId: string;
+  diagramName: string;
+  currentProjectId: string;
+  onOpenDiagram: (id: string) => void;
+  onRequestDelete: (diagramId: string, diagramName: string) => void;
+  onRequestMove: (diagramId: string, diagramName: string, currentProjectId: string) => void;
+}
+
+/** One diagram row's Open/Move/Delete actions — shared by the recursive tree view and the flat
+ *  search-results view (canvas-3vq.1) so the two can't drift apart on testids or behavior. */
+function DiagramRow({ diagramId, diagramName, currentProjectId, onOpenDiagram, onRequestDelete, onRequestMove }: DiagramActionsProps) {
+  return (
+    <li className="row">
+      <Icon name="diamond" />
+      <span className="row__main">
+        <span className="row__title">{diagramName}</span>
+      </span>
+      <span className="row__actions">
+        <button
+          type="button"
+          className="btn btn--tertiary btn--compact"
+          data-testid={`open-diagram-${diagramId}`}
+          onClick={() => onOpenDiagram(diagramId)}
+        >
+          Open
+        </button>
+        <button
+          type="button"
+          className="btn btn--tertiary btn--compact"
+          data-testid={`move-diagram-${diagramId}`}
+          onClick={() => onRequestMove(diagramId, diagramName, currentProjectId)}
+        >
+          Move
+        </button>
+        <button
+          type="button"
+          className="btn btn--tertiary-danger btn--compact"
+          data-testid={`delete-diagram-${diagramId}`}
+          onClick={() => onRequestDelete(diagramId, diagramName)}
+        >
+          Delete
+        </button>
+      </span>
+    </li>
+  );
 }
 
 interface TreeNodeProps {
@@ -40,38 +88,15 @@ function TreeNode({ node, onOpenDiagram, onRequestDelete, onRequestMove }: TreeN
       </div>
       <ul className="project-node__list">
         {node.diagrams.map((diagram) => (
-          <li key={diagram.id} className="row">
-            <Icon name="diamond" />
-            <span className="row__main">
-              <span className="row__title">{diagram.name}</span>
-            </span>
-            <span className="row__actions">
-              <button
-                type="button"
-                className="btn btn--tertiary btn--compact"
-                data-testid={`open-diagram-${diagram.id}`}
-                onClick={() => onOpenDiagram(diagram.id)}
-              >
-                Open
-              </button>
-              <button
-                type="button"
-                className="btn btn--tertiary btn--compact"
-                data-testid={`move-diagram-${diagram.id}`}
-                onClick={() => onRequestMove(diagram.id, diagram.name, node.id)}
-              >
-                Move
-              </button>
-              <button
-                type="button"
-                className="btn btn--tertiary-danger btn--compact"
-                data-testid={`delete-diagram-${diagram.id}`}
-                onClick={() => onRequestDelete(diagram.id, diagram.name)}
-              >
-                Delete
-              </button>
-            </span>
-          </li>
+          <DiagramRow
+            key={diagram.id}
+            diagramId={diagram.id}
+            diagramName={diagram.name}
+            currentProjectId={node.id}
+            onOpenDiagram={onOpenDiagram}
+            onRequestDelete={onRequestDelete}
+            onRequestMove={onRequestMove}
+          />
         ))}
         {node.children.map((child) => (
           <TreeNode key={child.id} node={child} onOpenDiagram={onOpenDiagram} onRequestDelete={onRequestDelete} onRequestMove={onRequestMove} />
@@ -98,6 +123,22 @@ export function ProjectBrowser({ rootProjectId, projects, onOpenDiagram }: Proje
   const [movingDiagram, setMovingDiagram] = useState<{ id: string; name: string; projectId: string } | null>(null);
   const [destinationProjectId, setDestinationProjectId] = useState('');
   const [moveError, setMoveError] = useState<string | null>(null);
+  // canvas-3vq.1: search/type-filter over this project's direct diagrams, via the pre-existing
+  // GET /projects/:projectId/diagrams?query=&type= endpoint (perf-tested at 1,200 diagrams) that
+  // had no frontend caller until now. Not recursive into child projects — same limitation
+  // `searchDiagrams` already has server-side; harmless today since this app has no UI to create
+  // nested projects, so every tree is in practice one level deep.
+  const [query, setQuery] = useState('');
+  const [typeFilter, setTypeFilter] = useState('');
+  const [diagramTypes, setDiagramTypes] = useState<DiagramTypeDto[]>([]);
+  const [searchResults, setSearchResults] = useState<DiagramSummaryDto[]>([]);
+  const [searchStatus, setSearchStatus] = useState<'idle' | 'loading' | 'ready' | 'error'>('idle');
+
+  const isFiltering = query.trim() !== '' || typeFilter !== '';
+
+  useEffect(() => {
+    api.listDiagramTypes().then(({ diagramTypes }) => setDiagramTypes(diagramTypes)).catch(() => {});
+  }, []);
 
   const refresh = () => {
     setStatus('loading');
@@ -112,6 +153,23 @@ export function ProjectBrowser({ rootProjectId, projects, onOpenDiagram }: Proje
 
   useEffect(refresh, [rootProjectId]);
 
+  const runSearch = useCallback(() => {
+    if (!isFiltering) {
+      setSearchStatus('idle');
+      return;
+    }
+    setSearchStatus('loading');
+    api
+      .searchProjectDiagrams(rootProjectId, { query: query.trim() || undefined, type: typeFilter || undefined })
+      .then(({ diagrams }) => {
+        setSearchResults(diagrams);
+        setSearchStatus('ready');
+      })
+      .catch(() => setSearchStatus('error'));
+  }, [rootProjectId, query, typeFilter, isFiltering]);
+
+  useEffect(runSearch, [runSearch]);
+
   const confirmDelete = async () => {
     if (!pendingDelete) return;
     setDeleteError(null);
@@ -119,6 +177,7 @@ export function ProjectBrowser({ rootProjectId, projects, onOpenDiagram }: Proje
       await api.deleteDiagram(pendingDelete.id);
       setPendingDelete(null);
       refresh();
+      runSearch();
     } catch (err) {
       setPendingDelete(null);
       setDeleteError(err instanceof ApiError ? err.message : 'Failed to delete diagram.');
@@ -133,6 +192,7 @@ export function ProjectBrowser({ rootProjectId, projects, onOpenDiagram }: Proje
       setMovingDiagram(null);
       setDestinationProjectId('');
       refresh();
+      runSearch();
     } catch (err) {
       setMoveError(err instanceof ApiError ? err.message : 'Failed to move diagram.');
     }
@@ -165,25 +225,89 @@ export function ProjectBrowser({ rootProjectId, projects, onOpenDiagram }: Proje
   }
 
   const isEmpty = countDiagrams(tree) === 0;
+  const requestDelete = (id: string, name: string) => setPendingDelete({ id, name });
+  const requestMove = (id: string, name: string, projectId: string) => {
+    setDestinationProjectId('');
+    setMoveError(null);
+    setMovingDiagram({ id, name, projectId });
+  };
 
   return (
     <div>
-      <ul className="card" data-testid="project-browser">
-        <TreeNode
-          node={tree}
-          onOpenDiagram={onOpenDiagram}
-          onRequestDelete={(id, name) => setPendingDelete({ id, name })}
-          onRequestMove={(id, name, projectId) => {
-            setDestinationProjectId('');
-            setMoveError(null);
-            setMovingDiagram({ id, name, projectId });
-          }}
+      <div className="cluster project-browser__filters">
+        <input
+          data-testid="project-browser-search"
+          aria-label="Search diagrams by name"
+          placeholder="Search diagrams…"
+          value={query}
+          onChange={(event) => setQuery(event.target.value)}
         />
-      </ul>
-      {isEmpty && (
-        <p className="state" data-testid="project-browser-empty">
-          No diagrams yet — create one to get started.
-        </p>
+        <select
+          data-testid="project-browser-type-filter"
+          aria-label="Filter by diagram type"
+          value={typeFilter}
+          onChange={(event) => setTypeFilter(event.target.value)}
+        >
+          <option value="">All types</option>
+          {diagramTypes.map((type) => (
+            <option key={type.id} value={type.id}>
+              {type.name}
+            </option>
+          ))}
+        </select>
+      </div>
+
+      {isFiltering ? (
+        <>
+          {searchStatus === 'loading' && (
+            <div className="card" data-testid="project-browser-search-loading" aria-busy="true">
+              <div style={{ padding: 'var(--space-4)' }}>
+                <div className="skeleton skeleton--row" />
+                <div className="skeleton skeleton--row" />
+              </div>
+            </div>
+          )}
+          {searchStatus === 'error' && (
+            <p className="state state--error" data-testid="project-browser-search-error">
+              <Icon name="warning" className="state__icon" />
+              Could not search diagrams.
+              <button type="button" className="btn btn--tertiary btn--compact" onClick={runSearch}>
+                Retry
+              </button>
+            </p>
+          )}
+          {searchStatus === 'ready' && searchResults.length === 0 && (
+            <p className="state" data-testid="project-browser-search-empty">
+              No diagrams match your search.
+            </p>
+          )}
+          {searchStatus === 'ready' && searchResults.length > 0 && (
+            <ul className="card project-node__list" data-testid="project-browser-search-results">
+              {searchResults.map((diagram) => (
+                <DiagramRow
+                  key={diagram.id}
+                  diagramId={diagram.id}
+                  diagramName={diagram.name}
+                  currentProjectId={diagram.projectId}
+                  onOpenDiagram={onOpenDiagram}
+                  onRequestDelete={requestDelete}
+                  onRequestMove={requestMove}
+                />
+              ))}
+            </ul>
+          )}
+        </>
+      ) : (
+        <>
+          <ul className="card" data-testid="project-browser">
+            <TreeNode node={tree} onOpenDiagram={onOpenDiagram} onRequestDelete={requestDelete} onRequestMove={requestMove} />
+          </ul>
+          {isEmpty && (
+            <p className="state" data-testid="project-browser-empty">
+              No diagrams yet — create one to get started.
+            </p>
+          )}
+        </>
       )}
       {pendingDelete && (
         <ConfirmDialog

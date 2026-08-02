@@ -119,6 +119,17 @@ export interface ProjectTreeNodeDto {
   children: ProjectTreeNodeDto[];
 }
 
+/** A project's direct (non-recursive) diagrams as returned by the search endpoint below —
+ *  narrower than DiagramDto (no dslContent/lastValidationResult), matching what the list route
+ *  actually sends. */
+export interface DiagramSummaryDto {
+  id: string;
+  name: string;
+  diagramTypeId: string;
+  projectId: string;
+  updatedAt: string;
+}
+
 export interface DiagramVersionDto {
   id: string;
   sequenceNumber: number;
@@ -254,6 +265,16 @@ export const api = {
       { method: 'PATCH', body: JSON.stringify({ name }) },
     ),
   getProjectTree: (id: string) => request<{ tree: ProjectTreeNodeDto }>(`/projects/${id}/tree`),
+  /** canvas-3vq.1: GET /projects/:projectId/diagrams already existed (search.service.ts) but had
+   *  no frontend caller — wires ProjectBrowser's search/type-filter to it. Direct diagrams of
+   *  `projectId` only, not recursive into child projects (see ProjectBrowser.tsx's own note). */
+  searchProjectDiagrams: (projectId: string, options: { query?: string; type?: string } = {}) => {
+    const params = new URLSearchParams();
+    if (options.query) params.set('query', options.query);
+    if (options.type) params.set('type', options.type);
+    const qs = params.toString();
+    return request<{ diagrams: DiagramSummaryDto[] }>(`/projects/${projectId}/diagrams${qs ? `?${qs}` : ''}`);
+  },
   /** Projects available to the signed-in user — owned or shared (feature 007, FR-013a). */
   listProjects: () => request<{ projects: ProjectDto[] }>('/projects'),
   /** Moves a diagram to a different project (canvas-228.3) — requires edit access on the diagram
