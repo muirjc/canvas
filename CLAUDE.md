@@ -49,6 +49,20 @@ tests are NON-NEGOTIABLE and must exist (and fail) before implementing any diagr
 work — see `.specify/memory/constitution.md` Principle IV.
 
 ## Recent Changes
+- `canvas-228.2` (third and last of the canvas-228 "project management" sub-features — the epic
+  is now complete): no `deleteProject` route existed at all. New migration
+  (`0008_project_soft_delete.sql`) adds `deleted_at`/`deleted_by_user_id`/`restored_at`/
+  `restored_by_user_id` to `projects`, mirroring diagrams' own soft-delete columns exactly. `DELETE
+  /projects/:id` (owner-or-admin) rejects with a 409 unless the project has zero direct diagrams
+  and zero child projects (the latter a defensive guard — this app has no UI to ever create a
+  nested project). `projectExists`/`ancestorChain`/`ACCESSIBLE_PROJECT_IDS_SQL` and
+  `getProject`/`renameProject`/`getProjectTree` all now treat a soft-deleted project as not-found
+  for every regular purpose, matching a soft-deleted diagram's existing behavior. Admin recovery
+  mirrors `DeletedDiagramsPage` exactly: new `GET /admin/deleted-projects` +
+  `POST /projects/:id/restore` (admin-only, 30-day window) and a new `DeletedProjectsPage.tsx`, a
+  sixth `AdminShell` destination. Delete surfaces as a button on each manageable row of the
+  Projects screen, disabled with an explanatory title whenever the project still has diagrams.
+  Written test-first (14 new contract tests).
 - `canvas-228.3` (second of three canvas-228 "project management" sub-features): no
   `updateProject` route existed — a project's name was permanent once created — and there was no
   way to move an existing diagram to a different project. Rename: new `PATCH /projects/:id`,
