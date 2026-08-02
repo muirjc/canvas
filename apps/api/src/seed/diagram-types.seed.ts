@@ -10,20 +10,25 @@ interface DiagramTypeSeed {
 }
 
 const ALL_PERSONAS = ['Business', 'Enterprise', 'Solution', 'Technical'];
-const CLOUD_LIBRARIES = ['azure-icons', 'aws-icons', 'generic'];
+// canvas-23t.4: "generic"'s five entries (Rectangle, Circle, ...) are non-visual shape-alias
+// sentinels, not real icon artwork (packages/diagram-core/src/libraries/generic.ts) — they
+// duplicate the shape toolbar and render as broken, artwork-less boxes when placed via the icon
+// search path. Only worth including for a diagram type with no OTHER icon library at all, where
+// it's the sole way to place any icon/shape through that path — never alongside a real library.
+const CLOUD_LIBRARIES = ['azure-icons', 'aws-icons'];
 
 /** The full built-in DiagramType catalog required by FR-006, scoped by persona per Constitution III. */
 const DIAGRAM_TYPES: DiagramTypeSeed[] = [
   { id: 'flowchart', name: 'Generic Flowchart', personas: ALL_PERSONAS, abstractionLevel: 'N/A', dslFamily: 'flowchart', defaultPaletteLibraryIds: ['generic'] },
-  { id: 'c4-context', name: 'C4 Context', personas: ['Solution', 'Technical'], abstractionLevel: 'Context', dslFamily: 'c4', defaultPaletteLibraryIds: ['c4-notation', 'generic'] },
-  { id: 'c4-container', name: 'C4 Container', personas: ['Solution', 'Technical'], abstractionLevel: 'Container', dslFamily: 'c4', defaultPaletteLibraryIds: ['c4-notation', 'generic'] },
-  { id: 'c4-component', name: 'C4 Component', personas: ['Technical'], abstractionLevel: 'Component', dslFamily: 'c4', defaultPaletteLibraryIds: ['c4-notation', 'generic'] },
-  { id: 'c4-code', name: 'C4 Code', personas: ['Technical'], abstractionLevel: 'Code', dslFamily: 'c4', defaultPaletteLibraryIds: ['c4-notation', 'generic'] },
+  { id: 'c4-context', name: 'C4 Context', personas: ['Solution', 'Technical'], abstractionLevel: 'Context', dslFamily: 'c4', defaultPaletteLibraryIds: ['c4-notation'] },
+  { id: 'c4-container', name: 'C4 Container', personas: ['Solution', 'Technical'], abstractionLevel: 'Container', dslFamily: 'c4', defaultPaletteLibraryIds: ['c4-notation'] },
+  { id: 'c4-component', name: 'C4 Component', personas: ['Technical'], abstractionLevel: 'Component', dslFamily: 'c4', defaultPaletteLibraryIds: ['c4-notation'] },
+  { id: 'c4-code', name: 'C4 Code', personas: ['Technical'], abstractionLevel: 'Code', dslFamily: 'c4', defaultPaletteLibraryIds: ['c4-notation'] },
   { id: 'business-capability-map', name: 'Business Capability Map', personas: ['Business'], abstractionLevel: 'N/A', dslFamily: 'flowchart', defaultPaletteLibraryIds: ['generic'] },
   { id: 'value-stream', name: 'Value Stream Diagram', personas: ['Business'], abstractionLevel: 'N/A', dslFamily: 'flowchart', defaultPaletteLibraryIds: ['generic'] },
   { id: 'application-landscape', name: 'Application/Enterprise Landscape', personas: ['Enterprise'], abstractionLevel: 'N/A', dslFamily: 'flowchart', defaultPaletteLibraryIds: ['generic'] },
   { id: 'roadmap', name: 'Roadmap', personas: ['Enterprise'], abstractionLevel: 'N/A', dslFamily: 'flowchart', defaultPaletteLibraryIds: ['generic'] },
-  { id: 'solution-architecture', name: 'Solution Architecture', personas: ['Solution'], abstractionLevel: 'N/A', dslFamily: 'flowchart', defaultPaletteLibraryIds: ['generic', ...CLOUD_LIBRARIES] },
+  { id: 'solution-architecture', name: 'Solution Architecture', personas: ['Solution'], abstractionLevel: 'N/A', dslFamily: 'flowchart', defaultPaletteLibraryIds: CLOUD_LIBRARIES },
   { id: 'sequence', name: 'Sequence Diagram', personas: ['Solution', 'Technical'], abstractionLevel: 'N/A', dslFamily: 'sequence', defaultPaletteLibraryIds: ['generic'] },
   { id: 'network', name: 'Network Diagram', personas: ['Technical'], abstractionLevel: 'N/A', dslFamily: 'architecture', defaultPaletteLibraryIds: CLOUD_LIBRARIES },
   { id: 'deployment', name: 'Deployment Diagram', personas: ['Technical'], abstractionLevel: 'N/A', dslFamily: 'architecture', defaultPaletteLibraryIds: CLOUD_LIBRARIES },
