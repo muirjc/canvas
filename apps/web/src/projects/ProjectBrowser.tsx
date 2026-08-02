@@ -11,6 +11,9 @@ export interface ProjectBrowserProps {
    *  doesn't need its own copy of App.tsx's already-loaded project list. */
   projects: ProjectDto[];
   onOpenDiagram: (diagramId: string) => void;
+  /** canvas-3vq.2: the breadcrumb's link back to the Projects screen — reuses App.tsx's existing
+   *  requestViewProjects, same unsaved-changes guard as the header's own "Projects" button. */
+  onBackToProjects: () => void;
 }
 
 interface DiagramActionsProps {
@@ -107,7 +110,7 @@ function TreeNode({ node, onOpenDiagram, onRequestDelete, onRequestMove }: TreeN
 }
 
 /** Project/folder browser (FR-016): browse a nested project hierarchy, open, or delete a diagram. */
-export function ProjectBrowser({ rootProjectId, projects, onOpenDiagram }: ProjectBrowserProps) {
+export function ProjectBrowser({ rootProjectId, projects, onOpenDiagram, onBackToProjects }: ProjectBrowserProps) {
   const [tree, setTree] = useState<ProjectTreeNodeDto | null>(null);
   const [status, setStatus] = useState<'loading' | 'ready' | 'error'>('loading');
   const [pendingDelete, setPendingDelete] = useState<{ id: string; name: string } | null>(null);
@@ -234,6 +237,20 @@ export function ProjectBrowser({ rootProjectId, projects, onOpenDiagram }: Proje
 
   return (
     <div>
+      <nav className="project-browser__breadcrumb" data-testid="project-browser-breadcrumb" aria-label="Breadcrumb">
+        <button
+          type="button"
+          className="btn btn--tertiary btn--compact"
+          data-testid="project-browser-breadcrumb-back"
+          onClick={onBackToProjects}
+        >
+          <Icon name="chevron-right" className="icon--flip" />
+          Projects
+        </button>
+        <Icon name="chevron-right" size={12} />
+        <span data-testid="project-browser-breadcrumb-current">{tree.name}</span>
+      </nav>
+
       <div className="cluster project-browser__filters">
         <input
           data-testid="project-browser-search"
