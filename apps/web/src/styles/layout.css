@@ -579,3 +579,13 @@
 .project-browser__filters input {
   flex: 1 1 240px;
 }
+
+/* ---- Project browser breadcrumb (canvas-3vq.2) --------------------------- */
+
+.project-browser__breadcrumb {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  margin-block-end: var(--space-3);
+  color: var(--text-secondary);
+}

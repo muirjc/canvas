@@ -9,6 +9,9 @@ export interface ProjectsPageProps {
   onCreated: (project: ProjectDto) => void;
   onRenamed: (projectId: string, name: string) => void;
   onDeleted: (projectId: string) => void;
+  /** canvas-3vq.2: switches to that project and returns to the diagram browser — this screen
+   *  used to be a dead end with no way to actually go look at a project's diagrams. */
+  onViewDiagrams: (projectId: string) => void;
   onClose: () => void;
 }
 
@@ -18,7 +21,7 @@ export interface ProjectsPageProps {
  * screen generalizes that (same createProject API), and gives every project a permanent,
  * navigable home for the rename and delete (canvas-228.3/canvas-228.2) actions.
  */
-export function ProjectsPage({ projects, currentUser, onCreated, onRenamed, onDeleted, onClose }: ProjectsPageProps) {
+export function ProjectsPage({ projects, currentUser, onCreated, onRenamed, onDeleted, onViewDiagrams, onClose }: ProjectsPageProps) {
   const [creating, setCreating] = useState(false);
   const [name, setName] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -168,28 +171,40 @@ export function ProjectsPage({ projects, currentUser, onCreated, onRenamed, onDe
                     {project.diagramCount} diagram{project.diagramCount === 1 ? '' : 's'}
                   </span>
                 </span>
-                {canManage && !isRenaming && (
+                {!isRenaming && (
                   <span className="row__actions">
                     <button
                       type="button"
                       className="btn btn--tertiary btn--compact"
-                      data-testid={`projects-page-rename-${project.id}`}
-                      onClick={() => setRenamingId(project.id)}
+                      data-testid={`projects-page-view-diagrams-${project.id}`}
+                      onClick={() => onViewDiagrams(project.id)}
                     >
-                      <Icon name="pencil" size={12} />
-                      Rename
+                      View Diagrams
                     </button>
-                    <button
-                      type="button"
-                      className="btn btn--tertiary-danger btn--compact"
-                      data-testid={`projects-page-delete-${project.id}`}
-                      disabled={project.diagramCount > 0}
-                      title={project.diagramCount > 0 ? 'Only a project with no diagrams can be deleted.' : undefined}
-                      onClick={() => setPendingDelete({ id: project.id, name: project.name })}
-                    >
-                      <Icon name="trash" size={12} />
-                      Delete
-                    </button>
+                    {canManage && (
+                      <>
+                        <button
+                          type="button"
+                          className="btn btn--tertiary btn--compact"
+                          data-testid={`projects-page-rename-${project.id}`}
+                          onClick={() => setRenamingId(project.id)}
+                        >
+                          <Icon name="pencil" size={12} />
+                          Rename
+                        </button>
+                        <button
+                          type="button"
+                          className="btn btn--tertiary-danger btn--compact"
+                          data-testid={`projects-page-delete-${project.id}`}
+                          disabled={project.diagramCount > 0}
+                          title={project.diagramCount > 0 ? 'Only a project with no diagrams can be deleted.' : undefined}
+                          onClick={() => setPendingDelete({ id: project.id, name: project.name })}
+                        >
+                          <Icon name="trash" size={12} />
+                          Delete
+                        </button>
+                      </>
+                    )}
                   </span>
                 )}
               </li>
