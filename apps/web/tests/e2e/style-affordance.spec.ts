@@ -102,13 +102,16 @@ test('clicking Clear removes the color override from the DSL', async ({ page }) 
 
   await pickColor(page, 'style-color-input-one', '#ff0000');
 
-  let dsl = await page.getByTestId('dsl-panel').inputValue();
+  const dsl = await page.getByTestId('dsl-panel').inputValue();
   expect(dsl).toContain('#ff0000');
 
   await page.getByTestId('style-clear-one').click();
 
-  dsl = await page.getByTestId('dsl-panel').inputValue();
-  expect(dsl).not.toContain('#ff0000');
+  // canvas-mup: a single-shot inputValue() read here raced the Clear click's React state update
+  // (onChange -> updateNodeStyle -> re-render -> DSL panel content), intermittently reading a
+  // stale value that still contained the cleared color (canvas-i2q). expect.poll retries within
+  // its default timeout instead of reading once immediately.
+  await expect.poll(() => page.getByTestId('dsl-panel').inputValue()).not.toContain('#ff0000');
 });
 
 test('clicking Done closes the popup without further changes', async ({ page }) => {
