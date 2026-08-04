@@ -289,7 +289,10 @@ function renderEdge(edge: DiagramModel['edges'][number], nodesById: Map<string, 
   return `<g data-edge-id="${escapeXml(edge.id)}"><line x1="${clippedFrom.x}" y1="${clippedFrom.y}" x2="${clippedTo.x}" y2="${clippedTo.y}" stroke="${stroke}"${strokeWidth}${strokeDasharray}${markerStart}${markerEnd} />${label}</g>`;
 }
 
-function computeBounds(model: DiagramModel): { width: number; height: number } {
+/** Exported so the interactive canvas can size itself to match actual content exactly the way
+ *  export does (canvas-0s3) — a single source of truth rather than a second, hand-duplicated
+ *  bounds calculation the two could silently disagree on. */
+export function computeBounds(model: DiagramModel): { width: number; height: number } {
   let maxX = 400;
   let maxY = 300;
   for (const node of model.nodes) {
