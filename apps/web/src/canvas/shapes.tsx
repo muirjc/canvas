@@ -15,7 +15,7 @@ export function nodeSize(node: DiagramNode): { width: number; height: number } {
  * Node fill, stroke, and label styling are untouched — those come from admin-defined standards
  * and are produced by both renderers, which must agree for exports to match the canvas (SC-004).
  */
-const SELECTION_STROKE = '#2563eb';
+export const SELECTION_STROKE = '#2563eb';
 
 export function renderNodeShape(node: DiagramNode, selected: boolean): JSX.Element {
   const { x, y } = node.position;

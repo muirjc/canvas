@@ -7,6 +7,7 @@ import {
   assignNodeToContainer,
   moveContainer,
   removeContainer,
+  removeEdge,
   removeNode,
   removeNodeFromContainer,
   resizeContainer,
@@ -24,7 +25,7 @@ import {
   type DiagramNode,
   type NodeShape,
 } from '@canvas/diagram-core';
-import { getAddableShapes, nodeSize, renderNodeShape } from './shapes';
+import { getAddableShapes, nodeSize, renderNodeShape, SELECTION_STROKE } from './shapes';
 import { ConfirmDialog } from './ConfirmDialog';
 import { api } from '../app/api';
 import { Icon } from '../ui/Icon';
@@ -200,6 +201,12 @@ export function Canvas({ model, onChange, dslFamily, toolbarContainer }: CanvasP
   const [stylingNodeId, setStylingNodeId] = useState<string | null>(null);
   const [stylingEdgeId, setStylingEdgeId] = useState<string | null>(null);
   const [selectedContainerId, setSelectedContainerId] = useState<string | null>(null);
+  // canvas-u7e: edges had no selection state at all — the only ways to remove a connector were
+  // deleting one of its endpoint nodes (which cascades but also destroys the node) or hand-editing
+  // the DSL. Single-select only (no shift-multi-select precedent for edges), mirroring
+  // selectedContainerId's own pattern rather than folding into selectedIds (which would need
+  // groupSelected/its button to start distinguishing node ids from edge ids within the same Set).
+  const [selectedEdgeId, setSelectedEdgeId] = useState<string | null>(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   // Which element the pointer is over. Paired with selection below so the edit affordance is
   // reachable by keyboard too — hover alone would be unusable without a pointer (FR-017).
@@ -339,10 +346,12 @@ export function Canvas({ model, onChange, dslFamily, toolbarContainer }: CanvasP
         else next.add(node.id);
         return next;
       });
+      setSelectedEdgeId(null);
       return;
     }
     setSelectedIds(new Set([node.id]));
     setSelectedContainerId(null);
+    setSelectedEdgeId(null);
 
     const point = toClientPoint(event);
     dragState.current = {
@@ -351,6 +360,16 @@ export function Canvas({ model, onChange, dslFamily, toolbarContainer }: CanvasP
       offsetX: point.x - node.position.x,
       offsetY: point.y - node.position.y,
     };
+  };
+
+  // canvas-u7e: edges aren't draggable, so unlike node/container pointer-down this only sets
+  // selection — no dragState entry.
+  const handleEdgePointerDown = (edgeId: string) => (event: React.PointerEvent) => {
+    event.stopPropagation();
+    if (connectMode) return;
+    setSelectedEdgeId(edgeId);
+    setSelectedIds(new Set());
+    setSelectedContainerId(null);
   };
 
   const handleAddContainer = () => {
@@ -363,6 +382,7 @@ export function Canvas({ model, onChange, dslFamily, toolbarContainer }: CanvasP
     if (connectMode) return;
     setSelectedContainerId(container.id);
     setSelectedIds(new Set());
+    setSelectedEdgeId(null);
 
     const point = toClientPoint(event);
     dragState.current = {
@@ -555,7 +575,7 @@ export function Canvas({ model, onChange, dslFamily, toolbarContainer }: CanvasP
   };
 
   const requestDeleteSelected = () => {
-    if (selectedIds.size === 0 && !selectedContainerId) return;
+    if (selectedIds.size === 0 && !selectedContainerId && !selectedEdgeId) return;
     setShowDeleteConfirm(true);
   };
 
@@ -568,15 +588,22 @@ export function Canvas({ model, onChange, dslFamily, toolbarContainer }: CanvasP
     if (selectedContainerId) {
       next = removeContainer(next, selectedContainerId);
     }
+    // canvas-u7e: removeEdge only ever touches the edge itself — its endpoint nodes are untouched.
+    if (selectedEdgeId) {
+      next = removeEdge(next, selectedEdgeId);
+    }
     onChange(next);
     setSelectedIds(new Set());
     setSelectedContainerId(null);
+    setSelectedEdgeId(null);
     setShowDeleteConfirm(false);
   };
 
   const deleteConfirmMessage = selectedContainerId
     ? 'Delete this container? The shapes inside it will be kept on the canvas.'
-    : `Delete ${selectedIds.size} selected shape${selectedIds.size === 1 ? '' : 's'}? This cannot be undone.`;
+    : selectedEdgeId
+      ? 'Delete this connector? This cannot be undone.'
+      : `Delete ${selectedIds.size} selected shape${selectedIds.size === 1 ? '' : 's'}? This cannot be undone.`;
 
   const cancelDeleteSelected = () => setShowDeleteConfirm(false);
 
@@ -585,7 +612,7 @@ export function Canvas({ model, onChange, dslFamily, toolbarContainer }: CanvasP
     if (editingNodeId || editingEdgeId) return;
     const tag = (event.target as HTMLElement).tagName;
     if (tag === 'INPUT' || tag === 'TEXTAREA') return;
-    if ((event.key === 'Delete' || event.key === 'Backspace') && selectedIds.size > 0) {
+    if ((event.key === 'Delete' || event.key === 'Backspace') && (selectedIds.size > 0 || selectedEdgeId)) {
       event.preventDefault();
       requestDeleteSelected();
     }
@@ -670,7 +697,7 @@ export function Canvas({ model, onChange, dslFamily, toolbarContainer }: CanvasP
             type="button"
             className="btn btn--secondary"
             data-testid="delete-selected"
-            disabled={selectedIds.size === 0 && !selectedContainerId}
+            disabled={selectedIds.size === 0 && !selectedContainerId && !selectedEdgeId}
             onClick={requestDeleteSelected}
           >
             <Icon name="trash" />
@@ -721,6 +748,7 @@ export function Canvas({ model, onChange, dslFamily, toolbarContainer }: CanvasP
           if (event.target === event.currentTarget) {
             setSelectedIds(new Set());
             setSelectedContainerId(null);
+            setSelectedEdgeId(null);
           }
         }}
       >
@@ -805,6 +833,7 @@ export function Canvas({ model, onChange, dslFamily, toolbarContainer }: CanvasP
           const clippedFrom = clipEdgeEndpoint(from, nodeSize(source), source.shape, to.x, to.y);
           const clippedTo = clipEdgeEndpoint(to, nodeSize(target), target.shape, from.x, from.y);
           const isEditingThisEdge = editingEdgeId === edge.id;
+          const isSelected = selectedEdgeId === edge.id;
           // canvas-xig: centered under the connector's midpoint, clamped/flipped by popupPosition
           // so it never renders past the canvas's own edges (research note in that function).
           const stylePopupPos = popupPosition(midY, midY, midX - STYLE_POPUP_WIDTH / 2, canvasWidth, canvasHeight);
@@ -812,6 +841,7 @@ export function Canvas({ model, onChange, dslFamily, toolbarContainer }: CanvasP
             <g
               key={edge.id}
               data-testid={`edge-${edge.id}`}
+              onPointerDown={handleEdgePointerDown(edge.id)}
               onPointerEnter={() => setHoveredId(edge.id)}
               onPointerLeave={() => setHoveredId((current) => (current === edge.id ? null : current))}
               onDoubleClick={(event) => {
@@ -824,8 +854,12 @@ export function Canvas({ model, onChange, dslFamily, toolbarContainer }: CanvasP
                 y1={clippedFrom.y}
                 x2={clippedTo.x}
                 y2={clippedTo.y}
-                stroke={edge.lineStyle === 'invisible' ? 'none' : (edge.style?.strokeColor ?? '#333')}
-                strokeWidth={edge.style?.strokeWidth ?? (edge.lineStyle === 'thick' ? DEFAULT_THICK_STROKE_WIDTH : undefined)}
+                // canvas-u7e: selection overrides color the same way node selection does
+                // (shapes.tsx's SELECTION_STROKE) — including for an invisible connector, so a
+                // selected-but-invisible edge still gives visible feedback about what's about to
+                // be deleted.
+                stroke={isSelected ? SELECTION_STROKE : edge.lineStyle === 'invisible' ? 'none' : (edge.style?.strokeColor ?? '#333')}
+                strokeWidth={isSelected ? 2 : (edge.style?.strokeWidth ?? (edge.lineStyle === 'thick' ? DEFAULT_THICK_STROKE_WIDTH : undefined))}
                 strokeDasharray={edge.style?.strokeDasharray ?? (edge.lineStyle === 'dotted' ? DEFAULT_DOTTED_DASHARRAY : undefined)}
                 markerStart={edge.lineStyle !== 'invisible' && edge.arrow === 'both' ? 'url(#arrow)' : undefined}
                 markerEnd={edge.lineStyle === 'invisible' || edge.arrow === 'none' ? undefined : 'url(#arrow)'}
