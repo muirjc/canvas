@@ -17,6 +17,7 @@ import {
   updateNodeStyle,
   splitLabelLines,
   clipEdgeEndpoint,
+  computeBounds,
   sanitizeSvgFragment,
   type DiagramContainer,
   type DiagramModel,
@@ -56,11 +57,11 @@ const DEFAULT_THICK_STROKE_WIDTH = 3;
 const STYLE_POPUP_WIDTH = 232;
 const STYLE_POPUP_HEIGHT = 48;
 
-// The canvas SVG's own fixed intrinsic size (canvas-0s3: no pan/scroll yet — a known, separately-
-// tracked limitation this feature must not make worse). Named here so popupPosition below and the
-// <svg>'s own width/height attributes can't drift apart.
-const CANVAS_WIDTH = 800;
-const CANVAS_HEIGHT = 500;
+// canvas-0s3: fallback size used before the container's ResizeObserver has measured anything, and
+// the effective floor beneath whatever's larger of the visible container or actual content
+// bounds (see containerSize state / computeBounds below) — no longer the canvas's true fixed size.
+const DEFAULT_CANVAS_WIDTH = 800;
+const DEFAULT_CANVAS_HEIGHT = 500;
 
 export interface CanvasProps {
   model: DiagramModel;
@@ -132,18 +133,24 @@ function iconMarkupToDataUri(markup: string): string {
  * canvas-xig: where the style popup renders relative to its anchor shape/edge. Prefers just below
  * the anchor (`anchorBottom`, matching the original placement below a node / below an edge's
  * midpoint) and only flips above it (`anchorTop`) when there isn't room below — then clamps
- * horizontally so it never crosses the canvas's own left/right edge either. The canvas is a fixed
- * 800x500 SVG with no pan/scroll (canvas-0s3, a known, separately-tracked limitation); this only
- * keeps the popup from making that worse for an ordinary shape placement, not a general fix.
+ * horizontally so it never crosses the canvas's own left/right edge either. `canvasWidth`/
+ * `canvasHeight` are the SVG's *current* actual size (canvas-0s3: no longer a fixed 800x500 —
+ * clamping against a stale constant would misplace the popup once the canvas grows past it).
  */
-function popupPosition(anchorTop: number, anchorBottom: number, desiredX: number): { x: number; y: number } {
+function popupPosition(
+  anchorTop: number,
+  anchorBottom: number,
+  desiredX: number,
+  canvasWidth: number,
+  canvasHeight: number,
+): { x: number; y: number } {
   const margin = 4;
   const below = anchorBottom + margin;
-  const fitsBelow = below + STYLE_POPUP_HEIGHT <= CANVAS_HEIGHT - margin;
+  const fitsBelow = below + STYLE_POPUP_HEIGHT <= canvasHeight - margin;
   const y = fitsBelow ? below : anchorTop - STYLE_POPUP_HEIGHT - margin;
   return {
-    x: Math.min(Math.max(desiredX, margin), CANVAS_WIDTH - STYLE_POPUP_WIDTH - margin),
-    y: Math.min(Math.max(y, margin), CANVAS_HEIGHT - STYLE_POPUP_HEIGHT - margin),
+    x: Math.min(Math.max(desiredX, margin), canvasWidth - STYLE_POPUP_WIDTH - margin),
+    y: Math.min(Math.max(y, margin), canvasHeight - STYLE_POPUP_HEIGHT - margin),
   };
 }
 
@@ -205,6 +212,25 @@ export function Canvas({ model, onChange, dslFamily, toolbarContainer }: CanvasP
     | null
   >(null);
   const svgRef = useRef<SVGSVGElement>(null);
+
+  // canvas-0s3: the canvas SVG is sized to fit whichever is larger of the actual visible
+  // container or real content bounds, so a shape placed beyond the initial viewport becomes
+  // scrollable (via the container's existing overflow:auto) rather than clipped/unreachable.
+  // Defaults to the old fixed size until the ResizeObserver below reports a real measurement —
+  // Canvas is only ever rendered inside `.editor__canvas` (DiagramEditor.tsx), so a class-selector
+  // `closest()` lookup is reliable without needing a ref forwarded across that component boundary.
+  const [containerSize, setContainerSize] = useState({ width: DEFAULT_CANVAS_WIDTH, height: DEFAULT_CANVAS_HEIGHT });
+
+  useEffect(() => {
+    const container = svgRef.current?.closest('.editor__canvas');
+    if (!container) return;
+    const observer = new ResizeObserver((entries) => {
+      const { width, height } = entries[0].contentRect;
+      setContainerSize({ width, height });
+    });
+    observer.observe(container);
+    return () => observer.disconnect();
+  }, []);
 
   // canvas-8n7: a node only stores an icon *reference* (Constitution V), not its artwork, so the
   // canvas must resolve refs to real SVG markup at render time — mirroring how svg-renderer.ts's
@@ -655,6 +681,13 @@ export function Canvas({ model, onChange, dslFamily, toolbarContainer }: CanvasP
     </div>
   );
 
+  // canvas-0s3: whichever is larger of the visible container and actual content — never smaller
+  // than the container (so the drawable area always fills the visible viewport, matching what the
+  // dot-grid background already implies is drawable) and grows past it for content that needs more.
+  const contentBounds = computeBounds(model);
+  const canvasWidth = Math.max(containerSize.width, contentBounds.width);
+  const canvasHeight = Math.max(containerSize.height, contentBounds.height);
+
   return (
     <div className="canvas-root" tabIndex={0} onKeyDown={handleKeyDown} data-testid="canvas-root">
       {toolbarContainer ? createPortal(toolbar, toolbarContainer) : toolbar}
@@ -671,12 +704,13 @@ export function Canvas({ model, onChange, dslFamily, toolbarContainer }: CanvasP
         ref={svgRef}
         data-testid="diagram-canvas"
         className="canvas-svg"
-        width={CANVAS_WIDTH}
-        height={CANVAS_HEIGHT}
+        width={canvasWidth}
+        height={canvasHeight}
         // The border moved to the surrounding container so the SVG can fill it and let the
         // dot-grid background show through; `touchAction` stays inline because it is behaviour,
-        // not styling. Width/height remain as the intrinsic size — CSS stretches it, and the
-        // origin stays at the container's top-left so drag coordinate maths is unchanged.
+        // not styling. width/height above are computed (canvas-0s3), not CSS-stretched — no
+        // viewBox, so the origin stays at the container's top-left and drag coordinate maths
+        // (1 SVG unit = 1 CSS pixel) is unchanged regardless of how large the canvas grows.
         style={{ touchAction: 'none' }}
         onPointerMove={handlePointerMove}
         onPointerUp={handlePointerUp}
@@ -773,7 +807,7 @@ export function Canvas({ model, onChange, dslFamily, toolbarContainer }: CanvasP
           const isEditingThisEdge = editingEdgeId === edge.id;
           // canvas-xig: centered under the connector's midpoint, clamped/flipped by popupPosition
           // so it never renders past the canvas's own edges (research note in that function).
-          const stylePopupPos = popupPosition(midY, midY, midX - STYLE_POPUP_WIDTH / 2);
+          const stylePopupPos = popupPosition(midY, midY, midX - STYLE_POPUP_WIDTH / 2, canvasWidth, canvasHeight);
           return (
             <g
               key={edge.id}
@@ -882,7 +916,7 @@ export function Canvas({ model, onChange, dslFamily, toolbarContainer }: CanvasP
           // canvas-xig: below the node (matching the original placement), clamped/flipped by
           // popupPosition so it never renders past the canvas's own edges for a node placed near
           // the border (research note on popupPosition).
-          const stylePopupPos = popupPosition(node.position.y, node.position.y + size.height, node.position.x);
+          const stylePopupPos = popupPosition(node.position.y, node.position.y + size.height, node.position.x, canvasWidth, canvasHeight);
           // canvas-8n7: mirrors svg-renderer.ts's renderNode icon branch exactly (same 0.6 scale
           // factor, same -8 vertical nudge, same 48x48 normalized icon viewBox, same smaller
           // below-icon caption instead of a centered label) so canvas and export agree (SC-004).

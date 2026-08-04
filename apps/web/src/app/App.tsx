@@ -249,6 +249,10 @@ export function App() {
             setProjectId(remaining[0]?.id ?? null);
           }
         }}
+        onViewDiagrams={(viewProjectId) => {
+          applyProjectChange(viewProjectId);
+          setViewingProjects(false);
+        }}
         onClose={() => setViewingProjects(false)}
       />
     );
@@ -332,7 +336,14 @@ export function App() {
             {error}
           </p>
         )}
-        {projectId && <ProjectBrowser rootProjectId={projectId} projects={projects ?? []} onOpenDiagram={openDiagram} />}
+        {projectId && (
+          <ProjectBrowser
+            rootProjectId={projectId}
+            projects={projects ?? []}
+            onOpenDiagram={openDiagram}
+            onBackToProjects={requestViewProjects}
+          />
+        )}
         {user.role === 'admin' && (
           <nav className="home__admin" aria-label="Admin">
             <span className="section-label">Admin</span>

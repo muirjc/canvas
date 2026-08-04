@@ -10,7 +10,13 @@
 .app-shell {
   display: flex;
   flex-direction: column;
-  min-height: 100vh;
+  /* canvas-0s3: was min-height, a floor rather than a cap — nothing then bounded the page to the
+     viewport, so a tall descendant (the diagram editor's canvas, once it grows to fit real
+     content instead of a fixed 500px) just grew the whole document and triggered the browser's
+     own page-level scrollbar instead of any internal region's own overflow:auto ever engaging.
+     A true height cap here, plus .app-content below taking over as the one scrolling region for
+     screens that need it, is what actually lets .editor__canvas's overflow:auto do its job. */
+  height: 100vh;
 }
 
 .app-header {
@@ -44,6 +50,13 @@
   min-height: 0;
   display: flex;
   flex-direction: column;
+  /* canvas-0s3: now that .app-shell is a true height:100vh cap, this is the one scrolling region
+     for screens whose content is naturally taller than the viewport (e.g. the Projects list with
+     hundreds of rows) — same visible behavior as the page-level scrollbar this replaces. The
+     diagram editor itself never needs this to engage: .editor sizes to exactly fill the available
+     space via flex:1/min-height:0, and .editor__canvas's own overflow:auto is what handles an
+     oversized diagram instead. */
+  overflow-y: auto;
 }
 
 /* ---- Centred page (home, admin) ---------------------------------------- */
@@ -159,6 +172,13 @@
   min-height: 0;
   display: grid;
   grid-template-columns: var(--rail-left-w) minmax(var(--canvas-min-w), 1fr) var(--rail-right-w);
+  /* canvas-0s3: without this, the single implicit row defaults to auto (content-based) sizing —
+     harmless while the canvas SVG was a fixed 500px tall, but once it grows to fit real content
+     (computeBounds), an auto row grows right along with it instead of capping at the available
+     space, so .editor__canvas's own overflow:auto never gets a chance to kick in and the whole
+     editor becomes page-scrollable instead of just the canvas column. minmax(0, 1fr) caps the row
+     at the container's actual available height regardless of any child's content size. */
+  grid-template-rows: minmax(0, 1fr);
 }
 
 .editor__rail-left {
@@ -450,18 +470,21 @@
   gap: var(--space-2);
 }
 
-/* The SVG fills its container so the dot grid shows through the whole drawing area rather than
-   stopping at a fixed 800x500 box. min-* keeps the original intrinsic size as a floor, so a
-   diagram larger than the viewport still scrolls. */
+/* canvas-0s3: the SVG's width/height attributes are computed in Canvas.tsx from the visible
+   container's own measured size and actual content bounds (never smaller than the container, so
+   the dot grid never shows through an area that isn't really drawable; grows past it so content
+   placed beyond the initial viewport becomes reachable via the container's own overflow:auto
+   instead of clipped). No `width: 100%`/min-width/min-height here — a CSS floor bigger than an
+   actual (possibly narrower) container would force spurious horizontal/vertical scrollbars on
+   small viewports; Canvas.tsx's own containerSize state already covers the brief pre-measurement
+   window with the exact same 800x500 default this rule used to hardcode. max-width override is
+   needed because base.css's `img, svg, video, canvas { max-width: 100% }` responsive-media reset
+   otherwise caps the rendered box at the container's width regardless of the width attribute —
+   harmless before (the SVG was never wider than its container anyway) but it silently defeated
+   real horizontal overflow once the SVG needs to grow past the container for real content. */
 .canvas-svg {
   display: block;
-  /* Spans the available width; height follows its intrinsic size. The SVG has no background of
-     its own, so the container's dot grid shows through the whole drawing area. There is no
-     viewBox, so this resizes the viewport without scaling content — drag coordinates stay 1:1
-     with CSS pixels. */
-  width: 100%;
-  min-width: 800px;
-  min-height: 500px;
+  max-width: none;
 }
 
 /* A rail panel must fill the rail, otherwise the DSL editor collapses to its content height and
@@ -578,4 +601,14 @@
 
 .project-browser__filters input {
   flex: 1 1 240px;
+}
+
+/* ---- Project browser breadcrumb (canvas-3vq.2) --------------------------- */
+
+.project-browser__breadcrumb {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  margin-block-end: var(--space-3);
+  color: var(--text-secondary);
 }
