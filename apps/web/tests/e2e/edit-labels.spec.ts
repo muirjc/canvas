@@ -1,10 +1,28 @@
-import { expect, test } from '@playwright/test';
+import { expect, test, type Locator } from '@playwright/test';
 
 const PROJECT_ID = process.env.E2E_PROJECT_ID;
 const ADMIN_EMAIL = 'admin@example.com';
 const ADMIN_PASSWORD = 'admin-dev-password';
 
 test.skip(!PROJECT_ID, 'E2E_PROJECT_ID env var not set — run `npm run seed` and export it first');
+
+/**
+ * canvas-0s3: an edge's `<g>` also contains hover-revealed affordance icons (edit-label/
+ * edit-style foreignObjects) once a label exists, which grow the group's overall bounding box
+ * well beyond the visible line — Playwright's default dblclick targets that bbox's raw center,
+ * which can land in real empty space between the label text and the icons rather than on any
+ * visible element. Targeting the `<line>` element's own midpoint instead is what a real user
+ * would actually see and click, and is stable regardless of which affordances happen to be
+ * showing.
+ */
+async function dblclickEdgeLine(edge: Locator): Promise<void> {
+  const groupBox = await edge.boundingBox();
+  const lineBox = await edge.locator('line').boundingBox();
+  if (!groupBox || !lineBox) throw new Error('edge or its line not found');
+  await edge.dblclick({
+    position: { x: lineBox.x - groupBox.x + lineBox.width / 2, y: lineBox.y - groupBox.y + lineBox.height / 2 },
+  });
+}
 
 /**
  * User Story 1 (feature 002) end-to-end: rename a shape, and add/edit/clear a connector label —
@@ -40,14 +58,14 @@ test('edits shape and connector labels', async ({ page }) => {
   await nodes.nth(1).click();
 
   const edge = page.locator('[data-testid^="edge-"]').first();
-  await edge.dblclick();
+  await dblclickEdgeLine(edge);
   const edgeInput = page.locator('[data-testid^="edge-label-input-"]').first();
   await edgeInput.fill('flows to');
   await edgeInput.press('Enter');
   await expect(page.getByTestId('dsl-panel')).toContainText('flows to');
 
   // Edit the connector label to a new value.
-  await edge.dblclick();
+  await dblclickEdgeLine(edge);
   const edgeInputAgain = page.locator('[data-testid^="edge-label-input-"]').first();
   await edgeInputAgain.fill('updated label');
   await edgeInputAgain.press('Enter');
@@ -55,7 +73,7 @@ test('edits shape and connector labels', async ({ page }) => {
   await expect(page.getByTestId('dsl-panel')).not.toContainText('flows to');
 
   // Clear the connector label entirely.
-  await edge.dblclick();
+  await dblclickEdgeLine(edge);
   const edgeInputClear = page.locator('[data-testid^="edge-label-input-"]').first();
   await edgeInputClear.fill('');
   await edgeInputClear.press('Enter');
