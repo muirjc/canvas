@@ -49,6 +49,50 @@ tests are NON-NEGOTIABLE and must exist (and fail) before implementing any diagr
 work — see `.specify/memory/constitution.md` Principle IV.
 
 ## Recent Changes
+- `canvas-u7e`: `Canvas.tsx` imported `removeEdge` but never called it — edges had no selection
+  state, no click handler, and no way to delete one short of removing an endpoint node (which
+  cascades but also destroys the node) or hand-editing the DSL. A new `selectedEdgeId` state
+  (single-select, mirroring `selectedContainerId`'s own pattern rather than folding into the
+  multi-select `selectedIds` used for nodes) tracks which edge, if any, is selected; a new
+  `handleEdgePointerDown` sets it and clears any node/container selection (and vice versa — the
+  three selection kinds are mutually exclusive). A selected edge's `<line>` turns the same
+  `SELECTION_STROKE` blue used for node selection (now exported from `shapes.tsx` for reuse). The
+  existing Delete Selected button and Delete/Backspace shortcut now also work when only an edge is
+  selected, calling the existing `removeEdge` operation via the same confirm-dialog flow, with a
+  new connector-specific message. `removeEdge` only ever touches the edge itself — endpoint nodes
+  are untouched.
+- `canvas-0s3`: `Canvas.tsx` rendered its `<svg>` at a hardcoded 800x500 regardless of actual
+  content, so a shape placed beyond that became clipped and unreachable — no scrollbar, no pan.
+  The SVG now sizes itself to `Math.max(measured visible container via ResizeObserver, actual
+  content bounds via a newly-exported `computeBounds` from `svg-renderer.ts`)`, so
+  `.editor__canvas`'s existing `overflow: auto` finally has something to scroll to. Two additional
+  CSS bugs were found and fixed along the way: `.editor__body`'s grid had no `grid-template-rows`
+  (its implicit row auto-sized to content instead of staying capped at available viewport space),
+  and `.app-shell` used `min-height: 100vh` (a floor, not a cap, so a tall canvas grew the entire
+  page instead of scrolling internally) — changed to `height: 100vh` with `.app-content` gaining
+  `overflow-y: auto` as the one scroll region other screens (e.g. the Projects list) now rely on
+  instead of page-level scroll.
+- `canvas-mup`: `style-affordance.spec.ts`'s "clicking Clear" test flaked intermittently since
+  PR #41 (`canvas-i2q`), then started reproducing on every CI run. Root cause: a single-shot
+  `dsl-panel.inputValue()` read immediately after clicking Clear raced the click's React state
+  update, occasionally reading stale content still containing the cleared color. `updateNodeStyle`/
+  `mergeStyle` themselves were already correct — this was a test-timing bug, not a product bug.
+  Fixed with `expect.poll()` instead of a single-shot read.
+- `canvas-3vq.3` (third and last of the canvas-3vq "Option A" navigation-flow epic, now complete):
+  `GET /projects` takes no query params (the clarified scale was assumed to be "tens of projects"),
+  but the dev DB alone had 600+ accumulated test-debris projects rendered unpaginated in one page.
+  Since the full list is already fetched in one call, adds a plain client-side filter
+  (`projects-page-filter`) over the already-fetched array — zero API change, no network request per
+  keystroke.
+- `canvas-3vq.2` (second of the canvas-3vq "Option A" navigation-flow epic): `ProjectsPage.tsx` was
+  a dead end (`docs/navigation-flow-brief.md` Finding A) — clicking a project's name did nothing,
+  and there was no way to reach that project's diagrams short of closing the screen and using the
+  header's `ProjectPicker` `<select>` instead. Adds an always-visible "View Diagrams" button per
+  row that switches to that project and returns to `ProjectBrowser`, reusing `App.tsx`'s existing
+  `applyProjectChange`/`setViewingProjects(false)` — no new state shape. `ProjectBrowser` gains a
+  breadcrumb naming the current project with a link back to Projects, wired to the existing
+  `requestViewProjects` guard — same unsaved-changes confirm dialog the header's own "Projects"
+  button already uses.
 - `canvas-3vq.1` (first of the canvas-3vq "Option A" navigation-flow epic, from
   `docs/navigation-flow-brief.md` Finding B): `GET /projects/:projectId/diagrams?query=&type=`
   already existed, fully implemented (`search.service.ts`) and perf-tested at 1,200 diagrams
