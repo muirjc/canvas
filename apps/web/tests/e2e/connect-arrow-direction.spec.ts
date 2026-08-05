@@ -53,6 +53,11 @@ test('draws a connector with no arrowhead when No arrowhead is chosen', async ({
   await nodes.nth(0).click();
   await nodes.nth(1).click();
 
+  // canvas-i2q: without this wait, the DSL panel read below can race the second click's React
+  // state update (onChange -> addEdge -> re-render -> DSL sync) and see stale content with zero
+  // edges — matching the already-working pattern in the "bidirectional"/"reversed" tests below.
+  await expect(page.locator('[data-testid^="edge-"]')).toHaveCount(1);
+
   const dsl = await page.getByTestId('dsl-panel').inputValue();
   // Plain no-arrowhead connector syntax, not the default `-->` or the bidirectional `<-->`.
   expect(dsl).toMatch(/---/);
@@ -90,6 +95,14 @@ test('defaults to a plain forward arrow when no direction is chosen', async ({ p
   const nodes = page.locator('[data-testid^="node-"]');
   await nodes.nth(0).click();
   await nodes.nth(1).click();
+
+  // canvas-i2q: this test flaked repeatedly across many unrelated PRs this session (zero edges
+  // in the resulting DSL) — a single-shot read here raced the second click's React state update
+  // (onChange -> addEdge -> re-render -> DSL sync), same class of bug already root-caused and
+  // fixed for style-affordance.spec.ts's Clear button via canvas-mup. Waiting for the edge to
+  // actually appear first (the already-working pattern in the "bidirectional"/"reversed" tests
+  // above) fixes it the same way, rather than a longer arbitrary timeout.
+  await expect(page.locator('[data-testid^="edge-"]')).toHaveCount(1);
 
   const dsl = await page.getByTestId('dsl-panel').inputValue();
   expect(dsl).toContain('-->');
