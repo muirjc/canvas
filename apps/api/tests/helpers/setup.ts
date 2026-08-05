@@ -15,6 +15,17 @@ export async function buildTestApp(): Promise<FastifyInstance> {
 
 export async function resetDatabase(): Promise<void> {
   const pool = getPool();
+  // canvas-uw8: defense-in-depth on top of config.ts's own hard test-mode override — refuses to
+  // run this TRUNCATE against anything that isn't clearly a test database, so a future code path
+  // that somehow bypasses loadConfig()'s guard still can't wipe the real dev/prod data.
+  const { rows } = await pool.query<{ current_database: string }>('SELECT current_database()');
+  const dbName = rows[0].current_database;
+  if (!dbName.endsWith('_test')) {
+    throw new Error(
+      `resetDatabase() refused to TRUNCATE database "${dbName}" — expected a name ending in ` +
+        `"_test". This guard exists specifically to prevent wiping the dev database (canvas-uw8).`,
+    );
+  }
   await pool.query(
     `TRUNCATE TABLE
        chat_messages, diagram_chats, ai_personas,
