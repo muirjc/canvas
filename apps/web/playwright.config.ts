@@ -2,6 +2,11 @@ import { defineConfig } from '@playwright/test';
 
 export default defineConfig({
   testDir: './tests/e2e',
+  // canvas-i86: resolves E2E_PROJECT_ID automatically (idempotent seed lookup-or-create of a
+  // project literally named "Smoke Test") if nothing has already set it — no more manually
+  // exporting a value that inevitably goes stale once that project gets deleted by some other
+  // test/script run. An explicit E2E_PROJECT_ID (e.g. CI's own workflow) always wins.
+  globalSetup: './tests/e2e/global-setup.ts',
   // Every spec shares one seeded project (E2E_PROJECT_ID) and asserts on its diagram count —
   // running spec files in parallel workers races those counts against each other (e.g. one
   // worker's diagram creation lands between another worker's "before" and "after" count
