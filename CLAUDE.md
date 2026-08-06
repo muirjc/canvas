@@ -1,8 +1,13 @@
 # canvas Development Guidelines
 
-Auto-generated from all feature plans. Last updated: 2026-07-29
+Auto-generated from all feature plans. Last updated: 2026-08-06
 
 ## Active Technologies
+- `@dagrejs/dagre` (canvas-esn) added to `packages/diagram-core` — its first real runtime
+  dependency besides `yaml`. Powers a new `autoLayout()` pure operation (DAG ranking/positioning)
+  used by a new canvas toolbar action, flowchart-family only. No persistence/schema change; the
+  computed positions round-trip through the existing DSL `canvas.positions` front-matter and
+  `graph <direction>` header token exactly like a manually-dragged shape's position would.
 - No new technology added in 005-modern-ui-redesign — a frontend-only visual redesign in
   `apps/web`. Zero runtime dependencies added: plain global CSS with custom properties, the
   native `<dialog>` element, and inline SVG icons. No persistence, schema, or API change.
@@ -49,6 +54,25 @@ tests are NON-NEGOTIABLE and must exist (and fail) before implementing any diagr
 work — see `.specify/memory/constitution.md` Principle IV.
 
 ## Recent Changes
+- `canvas-esn`: no way existed to auto-arrange a diagram — every node/container position was set
+  manually (drag, or the grid-placement fallback used when adding a shape).
+  `DiagramModel.direction`/`DiagramContainer.direction` already round-tripped through the DSL but
+  neither drove layout, per both fields' own doc comments. Adds a new `autoLayout()` pure operation
+  in `packages/diagram-core` (backed by the newly-added `@dagrejs/dagre`) and a "Auto Layout"
+  button + TD/LR/BT/RL direction picker in `Canvas.tsx`'s toolbar, gated to flowchart-family
+  diagrams (`dslFamily === 'flowchart'`, the same scoping `getAddableShapes` already uses) — C4,
+  architecture, ERD, UML, and sequence are out of scope (sequence in particular is fundamentally
+  not a DAG-layout problem). v1 is deliberately FLAT: only container-less nodes and top-level
+  containers (as one sized unit each) are laid out directly by dagre; a container's own contents
+  keep their existing position *relative to* it via the existing `moveContainer` (already handles
+  arbitrary-depth nested descendants) — full dagre compound-graph/`setParent` support, which would
+  lay out *inside* every container too, is an explicit fast-follow, not attempted here since the
+  dagre wiki doesn't document that feature in enough depth to commit to without its own spike.
+  `nodeSize`/a new `containerSize` were exported from `svg-renderer.ts` (matching the existing
+  `computeBounds`/`clipEdgeEndpoint` reuse pattern) so `autoLayout` sizes dagre's input nodes
+  identically to how both renderers already do, rather than adding a third/fourth hand-copied
+  default. Edges are untouched — still drawn as straight lines between the new positions; no use of
+  dagre's `points` polyline output in v1.
 - `canvas-u7e`: `Canvas.tsx` imported `removeEdge` but never called it — edges had no selection
   state, no click handler, and no way to delete one short of removing an endpoint node (which
   cascades but also destroys the node) or hand-editing the DSL. A new `selectedEdgeId` state

@@ -1,6 +1,10 @@
 import type { DiagramContainer, DiagramModel, DiagramNode, Size } from '../model/diagram-model.js';
 
 const DEFAULT_NODE_SIZE: Size = { width: 140, height: 60 };
+// Matches diagram-ops.ts's own (module-private) DEFAULT_CONTAINER_SIZE — kept as a separate literal
+// rather than a shared import since the two packages/modules don't otherwise share constants, but
+// both must agree with computeBounds' own inline fallback below.
+const DEFAULT_CONTAINER_SIZE: Size = { width: 300, height: 200 };
 const FONT_FAMILY = 'system-ui, -apple-system, "Segoe UI", Roboto, sans-serif';
 const DEFAULT_DOTTED_DASHARRAY = '4 2';
 const DEFAULT_THICK_STROKE_WIDTH = 3;
@@ -40,8 +44,16 @@ function renderLabelText(x: number, y: number, label: string, fontSize: number, 
   return `<text x="${x}" y="${y}" text-anchor="middle" font-size="${fontSize}" font-family='${FONT_FAMILY}'>${tspans}</text>`;
 }
 
-function nodeSize(node: DiagramNode): Size {
+// Exported (same pattern as computeBounds/clipEdgeEndpoint/splitLabelLines below) so auto-layout.ts
+// can size dagre's input nodes identically to how this renderer and the canvas already do, rather
+// than adding a third hand-copied {140, 60} default (shapes.tsx has its own copy with a "must
+// match" comment — this avoids a fourth).
+export function nodeSize(node: DiagramNode): Size {
   return node.size ?? DEFAULT_NODE_SIZE;
+}
+
+export function containerSize(container: DiagramContainer): Size {
+  return container.size ?? DEFAULT_CONTAINER_SIZE;
 }
 
 function nodeCenter(node: DiagramNode): { x: number; y: number } {
@@ -301,7 +313,7 @@ export function computeBounds(model: DiagramModel): { width: number; height: num
     maxY = Math.max(maxY, node.position.y + size.height + 40);
   }
   for (const container of model.containers) {
-    const size = container.size ?? { width: 300, height: 200 };
+    const size = containerSize(container);
     maxX = Math.max(maxX, container.position.x + size.width + 40);
     maxY = Math.max(maxY, container.position.y + size.height + 40);
   }

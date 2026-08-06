@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Mermaid + dagre auto-layout demo</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/mermaid/10.9.1/mermaid.min.js"></script>
+<style>
+  :root {
+    --bg: #0f1117;
+    --panel: #171a23;
+    --border: #2a2e3a;
+    --text: #e6e6e6;
+    --muted: #9aa0ac;
+    --accent: #7dd3fc;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    padding: 24px;
+  }
+  h1 { font-size: 18px; font-weight: 600; margin: 0 0 4px; }
+  p.sub { color: var(--muted); font-size: 13px; margin: 0 0 20px; }
+  .layout {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+  }
+  @media (max-width: 800px) {
+    .layout { grid-template-columns: 1fr; }
+  }
+  .panel {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 14px;
+  }
+  .panel h2 {
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--muted);
+    margin: 0 0 10px;
+    font-weight: 600;
+  }
+  textarea {
+    width: 100%;
+    height: 220px;
+    background: #0b0d12;
+    color: #d7ffb8;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 12.5px;
+    padding: 10px;
+    resize: vertical;
+  }
+  .controls {
+    display: flex;
+    gap: 8px;
+    margin-top: 10px;
+    flex-wrap: wrap;
+  }
+  button, select {
+    background: #1f2430;
+    color: var(--text);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 7px 12px;
+    font-size: 12.5px;
+    cursor: pointer;
+  }
+  button:hover, select:hover { border-color: var(--accent); }
+  #graph {
+    min-height: 300px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: auto;
+  }
+  .note {
+    font-size: 11.5px;
+    color: var(--muted);
+    margin-top: 10px;
+    line-height: 1.5;
+  }
+  code { color: var(--accent); }
+</style>
+</head>
+<body>
+
+<h1>Mermaid DSL → dagre auto-layout</h1>
+<p class="sub">Edit the DSL or flip direction — dagre recomputes ranks, ordering, and coordinates from scratch each time.</p>
+
+<div class="layout">
+  <div class="panel">
+    <h2>Input: Mermaid DSL (graph description)</h2>
+    <textarea id="dsl">graph TD
+  A[Request In] --> B{Auth Valid?}
+  B -->|No| C[Reject 401]
+  B -->|Yes| D[Parse Payload]
+  D --> E[Validate Schema]
+  E --> F{Valid?}
+  F -->|No| G[Reject 400]
+  F -->|Yes| H[Call Service]
+  H --> I[(Database)]
+  H --> J[Cache Layer]
+  I --> K[Build Response]
+  J --> K
+  K --> L[Return 200]</textarea>
+    <div class="controls">
+      <select id="direction">
+        <option value="TD">Top → Down (TD)</option>
+        <option value="LR">Left → Right (LR)</option>
+        <option value="BT">Bottom → Up (BT)</option>
+        <option value="RL">Right → Left (RL)</option>
+      </select>
+      <button id="render">Re-run layout</button>
+    </div>
+    <div class="note">
+      Only the DSL text changes — no coordinates are ever specified.
+      Swapping <code>TD</code>/<code>LR</code> tells dagre to run its ranking
+      pass on the opposite axis, which is why the whole diagram re-flows.
+    </div>
+  </div>
+
+  <div class="panel">
+    <h2>Output: dagre-computed layout (rendered SVG)</h2>
+    <div id="graph"></div>
+  </div>
+</div>
+
+<script>
+  mermaid.initialize({ startOnLoad: false, theme: 'dark', securityLevel: 'loose' });
+
+  async function render() {
+    const dir = document.getElementById('direction').value;
+    let dsl = document.getElementById('dsl').value.trim();
+    // swap the direction token on the first line (graph TD / LR / etc.)
+    dsl = dsl.replace(/^graph\s+\w+/, 'graph ' + dir);
+    document.getElementById('dsl').value = dsl;
+
+    const container = document.getElementById('graph');
+    container.innerHTML = '';
+    try {
+      const { svg } = await mermaid.render('dagreGraph_' + Date.now(), dsl);
+      container.innerHTML = svg;
+    } catch (e) {
+      container.innerHTML = '<pre style="color:#f88;font-size:12px;">' + e.message + '</pre>';
+    }
+  }
+
+  document.getElementById('render').addEventListener('click', render);
+  document.getElementById('direction').addEventListener('change', render);
+  window.addEventListener('load', render);
+</script>
+
+</body>
+</html>

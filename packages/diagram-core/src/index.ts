@@ -1,5 +1,6 @@
 export * from './model/diagram-model.js';
 export * from './model/diagram-ops.js';
+export * from './model/auto-layout.js';
 export * from './libraries/library-loader.js';
 export * from './libraries/svg-sanitizer.js';
 export * from './libraries/azure-icons.js';
