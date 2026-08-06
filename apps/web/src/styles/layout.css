@@ -165,6 +165,35 @@
   max-width: 40ch;
 }
 
+/* canvas-8x1: the title is a real <button> (click-to-edit trigger), but should read as plain
+   text with just a click affordance, not as another toolbar control — resets the global button
+   chrome (border/background/min-height/padding) that would otherwise make it look like a third
+   thing sitting between "Diagrams" and the save status. */
+.editor__title-text--editable {
+  background: none;
+  border: none;
+  min-height: 0;
+  padding: 0;
+  font: inherit;
+  font-weight: inherit;
+  color: inherit;
+  cursor: text;
+  text-align: left;
+}
+
+.editor__title-text--editable:hover:not(:disabled) {
+  background: none;
+  text-decoration: underline;
+}
+
+.editor__title-input {
+  min-height: 0;
+  padding: 0 var(--space-2);
+  font-size: var(--text-title-size);
+  font-weight: var(--text-title-weight);
+  max-width: 40ch;
+}
+
 .editor__title svg { color: var(--accent); flex-shrink: 0; }
 
 .editor__body {

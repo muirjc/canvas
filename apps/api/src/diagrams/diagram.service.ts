@@ -233,6 +233,22 @@ export async function moveDiagram(id: string, destinationProjectId: string): Pro
 }
 
 /**
+ * Renames a diagram (canvas-8x1). Access (edit on the diagram) is enforced by the route, not
+ * here — this function trusts its caller, mirroring moveDiagram above. No versioning
+ * implications: the name lives on the diagrams row itself, not in diagram_versions, so renaming
+ * doesn't touch history or the current DSL content.
+ */
+export async function renameDiagram(id: string, name: string): Promise<DiagramRecord> {
+  const pool = getPool();
+  const { rows } = await pool.query('SELECT 1 FROM diagrams WHERE id = $1 AND deleted_at IS NULL', [id]);
+  if (!rows[0]) {
+    throw new DiagramNotFoundError(`No diagram with id ${id}`);
+  }
+  await pool.query('UPDATE diagrams SET name = $2 WHERE id = $1', [id, name]);
+  return getDiagram(id);
+}
+
+/**
  * Soft-deletes a diagram (FR-011/FR-012). Idempotent: deleting an already-deleted diagram
  * succeeds silently rather than erroring, since the end state the caller wants ("this diagram
  * is deleted") already holds.

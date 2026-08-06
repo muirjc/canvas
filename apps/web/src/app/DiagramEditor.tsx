@@ -9,7 +9,7 @@ import { ChatPanel } from '../ai/ChatPanel';
 import { Palette } from '../palette/Palette';
 import { VersionHistory } from '../projects/VersionHistory';
 import { ShareDialog } from '../projects/ShareDialog';
-import { api, type DiagramDto, type IconDto } from './api';
+import { api, ApiError, type DiagramDto, type IconDto } from './api';
 import { Icon } from '../ui/Icon';
 import { RailTabs } from '../ui/RailTabs';
 
@@ -59,6 +59,10 @@ export const DiagramEditor = forwardRef<DiagramEditorHandle, DiagramEditorProps>
   const [violations, setViolations] = useState(diagram.lastValidationResult);
   const [versionRefreshToken, setVersionRefreshToken] = useState(0);
   const [sharing, setSharing] = useState(false);
+  // canvas-8x1: click-to-edit, mirroring ProjectsPage.tsx's own rename pattern for a project row —
+  // same commit-on-Enter/blur, cancel-on-Escape shape, just scoped to this one diagram's title.
+  const [editingName, setEditingName] = useState(false);
+  const [renameError, setRenameError] = useState<string | null>(null);
   // State rather than a ref: the portal target must trigger a re-render once it is attached,
   // otherwise Canvas renders its toolbar in place on the first pass and never moves it.
   const [toolbarContainer, setToolbarContainer] = useState<HTMLDivElement | null>(null);
@@ -105,6 +109,21 @@ export const DiagramEditor = forwardRef<DiagramEditorHandle, DiagramEditorProps>
     });
   };
 
+  const commitRename = async (newName: string) => {
+    if (!newName.trim() || newName === diagram.name) {
+      setEditingName(false);
+      return;
+    }
+    setRenameError(null);
+    try {
+      const { diagram: renamed } = await api.renameDiagram(diagram.id, newName);
+      setDiagram(renamed);
+      setEditingName(false);
+    } catch (err) {
+      setRenameError(err instanceof ApiError ? err.message : (err as Error).message);
+    }
+  };
+
   const handleSave = async () => {
     setSaveStatus('saving');
     try {
@@ -137,7 +156,30 @@ export const DiagramEditor = forwardRef<DiagramEditorHandle, DiagramEditorProps>
         )}
         <span className="editor__title">
           <Icon name="diamond" />
-          <span className="editor__title-text">{diagram.name}</span>
+          {editingName ? (
+            <input
+              data-testid="diagram-title-input"
+              className="editor__title-input"
+              autoFocus
+              defaultValue={diagram.name}
+              onClick={(event) => event.stopPropagation()}
+              onKeyDown={(event) => {
+                if (event.key === 'Enter') void commitRename((event.target as HTMLInputElement).value);
+                if (event.key === 'Escape') setEditingName(false);
+              }}
+              onBlur={(event) => void commitRename(event.target.value)}
+            />
+          ) : (
+            <button
+              type="button"
+              className="editor__title-text editor__title-text--editable"
+              data-testid="diagram-title"
+              onClick={() => setEditingName(true)}
+              title="Rename diagram"
+            >
+              {diagram.name}
+            </button>
+          )}
         </span>
         <span className="spacer" />
         {/* The dot sits BESIDE `save-status`, never inside it: five existing spec files assert
@@ -161,6 +203,12 @@ export const DiagramEditor = forwardRef<DiagramEditorHandle, DiagramEditorProps>
           Share
         </button>
       </div>
+
+      {renameError && (
+        <p role="alert" data-testid="diagram-rename-error">
+          {renameError}
+        </p>
+      )}
 
       <div className="editor__body">
         <div className="editor__rail-left">
