@@ -39,13 +39,25 @@ async function createDiagram(page: Page, projectId: string, name: string): Promi
   return (await response.json()).diagram.id;
 }
 
-/** Shares a diagram with the seeded guest account, acting as whoever `page` is signed in as. */
-async function shareWithGuest(page: Page, diagramId: string, accessLevel: 'view' | 'comment' | 'edit'): Promise<void> {
+/**
+ * Shares a diagram with the seeded guest account, acting as whoever `page` is signed in as.
+ * Returns the grant id so callers can revoke it afterward (canvas-mt3) — `guest@example.com` is a
+ * persistent fixture, not reset between tests, so a grant left behind here permanently changes
+ * guest's state for every test that runs later (including this file's own first test, which
+ * asserts guest has nothing shared).
+ */
+async function shareWithGuest(page: Page, diagramId: string, accessLevel: 'view' | 'comment' | 'edit'): Promise<string> {
   const lookup = await page.request.get(`${API_BASE_URL}/users/lookup?email=${encodeURIComponent(GUEST_EMAIL)}`);
   const { user } = await lookup.json();
-  await page.request.post(`${API_BASE_URL}/diagrams/${diagramId}/shares`, {
+  const response = await page.request.post(`${API_BASE_URL}/diagrams/${diagramId}/shares`, {
     data: { granteeUserId: user.id, accessLevel },
   });
+  return (await response.json()).grant.id;
+}
+
+/** Mirrors accessibility.spec.ts's own finally-block cleanup for the same fixture (canvas-mt3). */
+async function revokeGuestShare(page: Page, grantId: string): Promise<void> {
+  await page.request.delete(`${API_BASE_URL}/shares/${grantId}`);
 }
 
 test('a user with nothing shared and no project access still sees the ordinary invitation', async ({ browser }) => {
@@ -69,26 +81,29 @@ test('a user with a diagram-level grant and no project access finds and opens it
   const projectId = await createProject(adminPage, `Shared Access Source ${Date.now()}`);
   const diagramName = `Shared Diagram ${Date.now()}`;
   const diagramId = await createDiagram(adminPage, projectId, diagramName);
-  await shareWithGuest(adminPage, diagramId, 'view');
+  const grantId = await shareWithGuest(adminPage, diagramId, 'view');
 
-  await signIn(guestPage, GUEST_EMAIL, GUEST_PASSWORD);
-  await expect(guestPage.getByTestId(`shared-diagram-${diagramId}`)).toBeVisible();
-  await expect(guestPage.getByTestId(`shared-diagram-project-${diagramId}`)).toContainText('Shared Access Source');
+  try {
+    await signIn(guestPage, GUEST_EMAIL, GUEST_PASSWORD);
+    await expect(guestPage.getByTestId(`shared-diagram-${diagramId}`)).toBeVisible();
+    await expect(guestPage.getByTestId(`shared-diagram-project-${diagramId}`)).toContainText('Shared Access Source');
 
-  // Regression guard (feature 007's FR-013a, narrowed): the project name must be inert text, not
-  // a disguised link — the natural instinct is wrong here, since every other project reference in
-  // this codebase IS a real link.
-  const projectNameElement = guestPage.getByTestId(`shared-diagram-project-${diagramId}`);
-  await expect(projectNameElement).not.toHaveJSProperty('tagName', 'A');
-  const urlBeforeClick = guestPage.url();
-  await projectNameElement.click();
-  await expect(guestPage).toHaveURL(urlBeforeClick);
+    // Regression guard (feature 007's FR-013a, narrowed): the project name must be inert text, not
+    // a disguised link — the natural instinct is wrong here, since every other project reference in
+    // this codebase IS a real link.
+    const projectNameElement = guestPage.getByTestId(`shared-diagram-project-${diagramId}`);
+    await expect(projectNameElement).not.toHaveJSProperty('tagName', 'A');
+    const urlBeforeClick = guestPage.url();
+    await projectNameElement.click();
+    await expect(guestPage).toHaveURL(urlBeforeClick);
 
-  await guestPage.getByTestId(`open-shared-diagram-${diagramId}`).click();
-  await expect(guestPage.getByTestId('diagram-canvas')).toBeVisible();
-
-  await adminContext.close();
-  await guestContext.close();
+    await guestPage.getByTestId(`open-shared-diagram-${diagramId}`).click();
+    await expect(guestPage.getByTestId('diagram-canvas')).toBeVisible();
+  } finally {
+    await revokeGuestShare(adminPage, grantId);
+    await adminContext.close();
+    await guestContext.close();
+  }
 });
 
 test('a shared-diagram row identifies who granted access', async ({ browser }) => {
@@ -100,13 +115,16 @@ test('a shared-diagram row identifies who granted access', async ({ browser }) =
   await signIn(adminPage, ADMIN_EMAIL, ADMIN_PASSWORD);
   const projectId = await createProject(adminPage, `Sharer Identity Source ${Date.now()}`);
   const diagramId = await createDiagram(adminPage, projectId, `Sharer Identity Diagram ${Date.now()}`);
-  await shareWithGuest(adminPage, diagramId, 'view');
+  const grantId = await shareWithGuest(adminPage, diagramId, 'view');
 
-  await signIn(guestPage, GUEST_EMAIL, GUEST_PASSWORD);
-  await expect(guestPage.getByTestId(`shared-diagram-shared-by-${diagramId}`)).toContainText('Admin');
-
-  await adminContext.close();
-  await guestContext.close();
+  try {
+    await signIn(guestPage, GUEST_EMAIL, GUEST_PASSWORD);
+    await expect(guestPage.getByTestId(`shared-diagram-shared-by-${diagramId}`)).toContainText('Admin');
+  } finally {
+    await revokeGuestShare(adminPage, grantId);
+    await adminContext.close();
+    await guestContext.close();
+  }
 });
 
 test('the open action on a shared-diagram row is reachable and operable by keyboard alone', async ({ browser }) => {
@@ -118,26 +136,29 @@ test('the open action on a shared-diagram row is reachable and operable by keybo
   await signIn(adminPage, ADMIN_EMAIL, ADMIN_PASSWORD);
   const projectId = await createProject(adminPage, `Keyboard Reach ${Date.now()}`);
   const diagramId = await createDiagram(adminPage, projectId, `Keyboard Reach Diagram ${Date.now()}`);
-  await shareWithGuest(adminPage, diagramId, 'view');
+  const grantId = await shareWithGuest(adminPage, diagramId, 'view');
 
-  await signIn(guestPage, GUEST_EMAIL, GUEST_PASSWORD);
-  const openTestId = `open-shared-diagram-${diagramId}`;
-  await expect(guestPage.getByTestId(openTestId)).toBeVisible();
+  try {
+    await signIn(guestPage, GUEST_EMAIL, GUEST_PASSWORD);
+    const openTestId = `open-shared-diagram-${diagramId}`;
+    await expect(guestPage.getByTestId(openTestId)).toBeVisible();
 
-  // Walk the real tab order rather than calling .focus(), which would prove nothing about
-  // whether a keyboard user can actually get there.
-  let reached = false;
-  for (let i = 0; i < 30 && !reached; i += 1) {
-    await guestPage.keyboard.press('Tab');
-    reached = await guestPage.evaluate((testId) => document.activeElement?.getAttribute('data-testid') === testId, openTestId);
+    // Walk the real tab order rather than calling .focus(), which would prove nothing about
+    // whether a keyboard user can actually get there.
+    let reached = false;
+    for (let i = 0; i < 30 && !reached; i += 1) {
+      await guestPage.keyboard.press('Tab');
+      reached = await guestPage.evaluate((testId) => document.activeElement?.getAttribute('data-testid') === testId, openTestId);
+    }
+    expect(reached).toBe(true);
+
+    await guestPage.keyboard.press('Enter');
+    await expect(guestPage.getByTestId('diagram-canvas')).toBeVisible();
+  } finally {
+    await revokeGuestShare(adminPage, grantId);
+    await adminContext.close();
+    await guestContext.close();
   }
-  expect(reached).toBe(true);
-
-  await guestPage.keyboard.press('Enter');
-  await expect(guestPage.getByTestId('diagram-canvas')).toBeVisible();
-
-  await adminContext.close();
-  await guestContext.close();
 });
 
 test('a user with a shared diagram and no projects no longer sees the false "no projects" invitation', async ({
@@ -151,12 +172,15 @@ test('a user with a shared diagram and no projects no longer sees the false "no 
   await signIn(adminPage, ADMIN_EMAIL, ADMIN_PASSWORD);
   const projectId = await createProject(adminPage, `Invitation Suppression Source ${Date.now()}`);
   const diagramId = await createDiagram(adminPage, projectId, `Invitation Suppression Diagram ${Date.now()}`);
-  await shareWithGuest(adminPage, diagramId, 'view');
+  const grantId = await shareWithGuest(adminPage, diagramId, 'view');
 
-  await signIn(guestPage, GUEST_EMAIL, GUEST_PASSWORD);
-  await expect(guestPage.getByTestId('shared-diagrams')).toBeVisible();
-  await expect(guestPage.getByTestId('create-first-project')).toHaveCount(0);
-
-  await adminContext.close();
-  await guestContext.close();
+  try {
+    await signIn(guestPage, GUEST_EMAIL, GUEST_PASSWORD);
+    await expect(guestPage.getByTestId('shared-diagrams')).toBeVisible();
+    await expect(guestPage.getByTestId('create-first-project')).toHaveCount(0);
+  } finally {
+    await revokeGuestShare(adminPage, grantId);
+    await adminContext.close();
+    await guestContext.close();
+  }
 });
