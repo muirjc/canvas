@@ -173,6 +173,18 @@ textarea {
   resize: vertical;
 }
 
+/* A native <select> sizes itself once at initial layout — in this environment, to whichever
+   option happens to be selected at that moment, not the widest option overall — and does not
+   recompute that width when a later selection changes to longer text (e.g. connect-arrow-style's
+   "Bidirectional (A ↔ B)" vs the shorter default "Forward (A → B)"). The new value's text then
+   overflows the box's own border uncontained (`text-overflow`/`overflow` are not respected on a
+   native select's own closed-box text in this environment, confirmed empirically — they render
+   no differently with or without). `min-width: max-content` sizes the box to fit whatever text is
+   *currently* selected, live, rather than trusting the browser's stale initial-layout width. */
+select {
+  min-width: max-content;
+}
+
 input:hover:not(:disabled),
 select:hover:not(:disabled),
 textarea:hover:not(:disabled) {
