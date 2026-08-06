@@ -379,8 +379,30 @@ create_new_agent_file() {
     return 0
 }
 
-
-
+# canvas-m3u: returns success (0) only if every "+"-joined, whitespace-trimmed
+# component of $1 (e.g. "TypeScript 5.x + React 18") already appears literally
+# somewhere in file $2. A previous whole-string grep against the freshly
+# formatted "$lang + $framework" combination almost never matched, because
+# this project's Active Technologies entries are full prose bullets (e.g.
+# "TypeScript 5.x end-to-end: React frontend, Fastify backend, Node.js 22
+# LTS.") rather than a literal recurrence of that exact joined phrase -- so a
+# feature reusing an already-listed stack still got a redundant new entry.
+# Checking each component individually correctly recognizes prose that
+# mentions the same technologies in different words/order/punctuation.
+_stack_already_covered() {
+    local combined="$1" file="$2"
+    local IFS_orig="$IFS"
+    local parts=()
+    IFS='+' read -ra parts <<< "$combined"
+    IFS="$IFS_orig"
+    local part
+    for part in "${parts[@]}"; do
+        part="$(echo "$part" | sed 's/^[ \t]*//;s/[ \t]*$//')"
+        [[ -z "$part" ]] && continue
+        grep -qF -- "$part" "$file" || return 1
+    done
+    return 0
+}
 
 update_existing_agent_file() {
     local target_file="$1"
@@ -401,11 +423,11 @@ update_existing_agent_file() {
     local new_change_entry=""
     
     # Prepare new technology entries
-    if [[ -n "$tech_stack" ]] && ! grep -q "$tech_stack" "$target_file"; then
+    if [[ -n "$tech_stack" ]] && ! _stack_already_covered "$tech_stack" "$target_file"; then
         new_tech_entries+=("- $tech_stack ($CURRENT_BRANCH)")
     fi
-    
-    if [[ -n "$NEW_DB" ]] && [[ "$NEW_DB" != "N/A" ]] && [[ "$NEW_DB" != "NEEDS CLARIFICATION" ]] && ! grep -q "$NEW_DB" "$target_file"; then
+
+    if [[ -n "$NEW_DB" ]] && [[ "$NEW_DB" != "N/A" ]] && [[ "$NEW_DB" != "NEEDS CLARIFICATION" ]] && ! _stack_already_covered "$NEW_DB" "$target_file"; then
         new_tech_entries+=("- $NEW_DB ($CURRENT_BRANCH)")
     fi
     
@@ -433,7 +455,6 @@ update_existing_agent_file() {
     local in_changes_section=false
     local tech_entries_added=false
     local changes_entries_added=false
-    local existing_changes_count=0
     local file_ended=false
     
     while IFS= read -r line || [[ -n "$line" ]]; do
@@ -475,14 +496,19 @@ update_existing_agent_file() {
             echo "$line" >> "$temp_file"
             in_changes_section=false
             continue
-        elif [[ $in_changes_section == true ]] && [[ "$line" == "- "* ]]; then
-            # Keep only first 2 existing changes
-            if [[ $existing_changes_count -lt 2 ]]; then
-                echo "$line" >> "$temp_file"
-                ((existing_changes_count++))
-            fi
-            continue
         fi
+        # canvas-m3u: every other line inside the Recent Changes section --
+        # bullet headers ("- 00N-...") AND their indented continuation lines
+        # alike -- falls through to the generic echo at the bottom of this
+        # loop and is kept as-is. A previous version of this branch dropped
+        # bullet headers past the first 2 (to cap the section's length) but
+        # had no matching logic to drop THEIR continuation lines, which don't
+        # start with "- " and so always fell through anyway -- silently
+        # orphaning continuation text that then read as belonging to whatever
+        # bullet preceded it. Simplest correct fix: stop truncating here at
+        # all, so a dropped header can never leave orphaned continuation text
+        # behind. Every existing entry is preserved verbatim; only the new
+        # entry is prepended.
         
         # Update timestamp
         if [[ "$line" =~ (\*\*)?Last\ updated(\*\*)?:.*[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9] ]]; then
