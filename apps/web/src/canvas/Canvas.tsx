@@ -94,8 +94,9 @@ function renderLabelLines(
   label: string,
   fontSize: number,
   centered: boolean,
+  maxWidth?: number,
 ): JSX.Element {
-  const lines = splitLabelLines(label);
+  const lines = splitLabelLines(label, maxWidth, fontSize);
   if (lines.length === 1) {
     return (
       <text x={x} y={y} textAnchor="middle" dominantBaseline={centered ? 'middle' : undefined} fontSize={fontSize}>
@@ -981,8 +982,22 @@ export function Canvas({ model, onChange, dslFamily, toolbarContainer }: CanvasP
                 })()}
               {editingNodeId !== node.id &&
                 (iconMarkup
-                  ? renderLabelLines(node.position.x + size.width / 2, node.position.y + size.height - 10, node.label, 12, false)
-                  : renderLabelLines(node.position.x + size.width / 2, node.position.y + size.height / 2, node.label, 14, true))}
+                  ? renderLabelLines(
+                      node.position.x + size.width / 2,
+                      node.position.y + size.height - 10,
+                      node.label,
+                      12,
+                      false,
+                      Math.max(size.width - 16, 40),
+                    )
+                  : renderLabelLines(
+                      node.position.x + size.width / 2,
+                      node.position.y + size.height / 2,
+                      node.label,
+                      14,
+                      true,
+                      Math.max(size.width - 16, 40),
+                    ))}
               {editingNodeId === node.id && (
                 <foreignObject x={node.position.x} y={node.position.y} width={size.width} height={size.height}>
                   <input
