@@ -12,6 +12,7 @@ import {
   getDiagram,
   listDeletedDiagrams,
   moveDiagram,
+  renameDiagram,
   restoreDiagram,
   saveDiagram,
   UnknownDiagramTypeError,
@@ -103,6 +104,29 @@ export async function registerDiagramRoutes(app: FastifyInstance): Promise<void>
           dslContent,
           authorId: request.session.user!.id,
         });
+        reply.send({ diagram });
+      } catch (error) {
+        handleServiceError(error, reply);
+      }
+    },
+  );
+
+  /**
+   * Renames a diagram (canvas-8x1). Edit access is enough — unlike renaming a project
+   * (requireProjectOwnerOrAdmin), a diagram's name is just another editable field, the same bar
+   * as PATCH /diagrams/:id's dslContent above.
+   */
+  app.patch<{ Params: { id: string }; Body: { name: string } }>(
+    '/diagrams/:id/name',
+    { preHandler: [requireAuth, requireDiagramAccess('edit')] },
+    async (request, reply) => {
+      const { name } = request.body;
+      if (!name || !name.trim()) {
+        reply.code(400).send({ error: 'name is required' });
+        return;
+      }
+      try {
+        const diagram = await renameDiagram(request.params.id, name);
         reply.send({ diagram });
       } catch (error) {
         handleServiceError(error, reply);

@@ -281,6 +281,10 @@ export const api = {
    *  and on the destination project. */
   moveDiagram: (diagramId: string, projectId: string) =>
     request<{ diagram: DiagramDto }>(`/diagrams/${diagramId}/project`, { method: 'PATCH', body: JSON.stringify({ projectId }) }),
+  /** Renames a diagram (canvas-8x1) — requires edit access on the diagram (same bar as saving its
+   *  DSL), unlike renameProject which is owner-or-admin only. */
+  renameDiagram: (diagramId: string, name: string) =>
+    request<{ diagram: DiagramDto }>(`/diagrams/${diagramId}/name`, { method: 'PATCH', body: JSON.stringify({ name }) }),
   /** Owner-or-admin only, and only if the project has no diagrams and no sub-projects
    *  (canvas-228.2) — soft-deleted, recoverable by an admin within the retention window. */
   deleteProject: (id: string) => request<void>(`/projects/${id}`, { method: 'DELETE' }),
