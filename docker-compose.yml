@@ -11,5 +11,29 @@ services:
     volumes:
       - canvas_postgres_data:/var/lib/postgresql/data
 
+  # canvas-mi9: local Keycloak with a reproducible, version-controlled realm import (no manual
+  # admin-console clickthrough needed for local iteration) -- see RUNBOOK.md's "Keycloak SSO"
+  # section and infra/keycloak/CanvasRealm-realm.json. start-dev (not `start`) is Keycloak's own
+  # documented local-dev mode: no HTTPS/hostname flags needed, matching this repo's other
+  # services' plain-HTTP local-dev posture. `--import-realm` skips the import if the realm
+  # already exists, so restarting this container against the same volume is safe.
+  #
+  # `profiles: [sso]` -- deliberately NOT started by a bare `docker compose up -d`, the existing
+  # "cold clone" quickstart every contributor already runs. Keycloak is a ~150MB image + a JVM
+  # boot; most local iteration needs none of it (ALLOW_LOCAL_AUTH=true is still the easy default
+  # path). Opt in explicitly with `docker compose --profile sso up -d keycloak`.
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.2
+    profiles: [sso]
+    command: start-dev --import-realm
+    environment:
+      KEYCLOAK_ADMIN: admin
+      KEYCLOAK_ADMIN_PASSWORD: keycloak_dev_admin_password
+    ports:
+      # Host port 8180 (not 8080) to avoid colliding with a pre-existing local service on 8080.
+      - '8180:8080'
+    volumes:
+      - ./infra/keycloak/CanvasRealm-realm.json:/opt/keycloak/data/import/CanvasRealm-realm.json:ro
+
 volumes:
   canvas_postgres_data:

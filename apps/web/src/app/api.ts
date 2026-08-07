@@ -238,6 +238,10 @@ export const api = {
   login: (email: string, password: string) =>
     request<{ user: SessionUser }>('/auth/local/login', { method: 'POST', body: JSON.stringify({ email, password }) }),
   logout: () => request<void>('/auth/logout', { method: 'POST' }),
+  /** canvas-mi9: unauthenticated, always registered (unlike the SSO login/callback routes
+   *  themselves, which don't exist at all server-side when OIDC is unconfigured) -- lets
+   *  LoginForm.tsx decide whether to show a "Sign in with SSO" link without it 404ing. */
+  getAuthConfig: () => request<{ oidcEnabled: boolean }>('/auth/config'),
   createDiagram: (projectId: string, body: { name: string; diagramTypeId: string; initialDslContent?: string }) =>
     request<{ diagram: DiagramDto }>(`/projects/${projectId}/diagrams`, { method: 'POST', body: JSON.stringify(body) }),
   importDiagram: (projectId: string, body: { name: string; dslContent: string; diagramTypeHint?: string }) =>
