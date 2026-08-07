@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test';
+import { expect, test, type Page } from '@playwright/test';
 
 const PROJECT_ID = process.env.E2E_PROJECT_ID;
 const ADMIN_EMAIL = 'admin@example.com';
@@ -7,6 +7,14 @@ const ARCHITECT_EMAIL = 'architect@example.com';
 const ARCHITECT_PASSWORD = 'architect-dev-password';
 
 test.skip(!PROJECT_ID, 'E2E_PROJECT_ID env var not set — run `npm run seed` and export it first');
+
+async function signIn(page: Page, email: string, password: string, url: string) {
+  await page.goto(url);
+  await page.getByTestId('login-email').fill(email);
+  await page.getByTestId('login-password').fill(password);
+  await page.getByTestId('login-submit').click();
+  await expect(page.getByTestId('sign-out')).toBeVisible();
+}
 
 /**
  * User Story 3 (feature 004) end-to-end: an admin creates, edits, and archives a persona, and
@@ -42,16 +50,33 @@ test('admin manages the persona library; a non-admin cannot reach the screen', a
   await expect(personaSelect.locator('optgroup[label="Enterprise"] option', { hasText: personaName })).toHaveCount(1);
   await page.getByTestId('ai-create-cancel').click();
 
-  // Edit the persona's system prompt; a persisted change confirms via a reload (state comes
-  // straight from the API, not React state alone).
+  // Edit the persona's system prompt via the explicit Save action (canvas-ddx) — blur alone no
+  // longer commits. A persisted change confirms via a reload (state comes straight from the API,
+  // not React state alone).
   await page.getByTestId('admin-ai-personas-link').click();
   const row = page.locator('li', { has: page.locator('strong', { hasText: personaName }) });
   const rowPrompt = row.locator('textarea');
+  const rowSave = row.locator('[data-testid^="persona-prompt-save-"]');
+  await expect(rowSave).toBeDisabled();
   await rowPrompt.fill('Updated E2E system prompt.');
-  await rowPrompt.blur();
+  await expect(row.locator('[data-testid^="persona-prompt-status-"]')).toHaveText('Unsaved changes');
+  await expect(rowSave).toBeEnabled();
+  await rowSave.click();
+  await expect(row.locator('[data-testid^="persona-prompt-status-"]')).toHaveText('Saved');
+  await expect(rowSave).toBeDisabled();
+
+  // Starting a NEW edit clears the stale "Saved" status rather than leaving it lingering next to
+  // an input that no longer matches what was actually saved.
+  await rowPrompt.fill('Updated E2E system prompt, take two — never saved.');
+  await expect(row.locator('[data-testid^="persona-prompt-status-"]')).toHaveText('Unsaved changes');
+  await expect(rowSave).toBeEnabled();
+
+  // That second edit is never saved. A reload (a real GET, not just React state) proves it never
+  // reached the backend — the persisted value is still the FIRST save, not this second unsaved one.
   await page.reload();
   const reloadedRow = page.locator('li', { has: page.locator('strong', { hasText: personaName }) });
   await expect(reloadedRow.locator('textarea')).toHaveValue('Updated E2E system prompt.');
+  await expect(reloadedRow.locator('[data-testid^="persona-prompt-save-"]')).toBeDisabled();
 
   // Archive it: by default (canvas-rbu) the row disappears from the list entirely, since
   // archived entries are hidden unless explicitly shown.
@@ -89,4 +114,32 @@ test('admin manages the persona library; a non-admin cannot reach the screen', a
   await page.goto(`/?projectId=${PROJECT_ID}&admin=ai-personas`);
   await expect(page.getByTestId('persona-create-submit')).toHaveCount(0);
   await expect(page.getByTestId('new-diagram')).toBeVisible();
+});
+
+/**
+ * canvas-ddx: each persona's Save button/dirty state is derived purely from that persona's own
+ * `drafts` entry — confirms editing one persona's textarea can't leak dirty/enabled state onto a
+ * sibling's Save button. Uses two of the always-seeded one-per-category personas (Business
+ * Architect, Enterprise Architect) so no extra persona creation is needed; neither Save button is
+ * ever clicked, so this never mutates seeded persona data.
+ */
+test('editing one persona\'s prompt does not affect another persona\'s save state', async ({ page }) => {
+  await signIn(page, ADMIN_EMAIL, ADMIN_PASSWORD, '/?admin=ai-personas');
+
+  const rowA = page.locator('li', { has: page.locator('strong', { hasText: 'Business Architect' }) });
+  const rowB = page.locator('li', { has: page.locator('strong', { hasText: 'Enterprise Architect' }) });
+  const saveA = rowA.locator('[data-testid^="persona-prompt-save-"]');
+  const saveB = rowB.locator('[data-testid^="persona-prompt-save-"]');
+
+  await expect(saveA).toBeDisabled();
+  await expect(saveB).toBeDisabled();
+
+  await rowA.locator('textarea').fill('Independent edit for Business Architect only — never saved.');
+  await expect(saveA).toBeEnabled();
+  await expect(rowA.locator('[data-testid^="persona-prompt-status-"]')).toHaveText('Unsaved changes');
+
+  // Persona B is untouched: still disabled, and no stray "Unsaved changes"/"Saved" status renders
+  // for it at all (the status span only renders when dirty or just-saved — see PersonaAdminPage).
+  await expect(saveB).toBeDisabled();
+  await expect(rowB.locator('[data-testid^="persona-prompt-status-"]')).toHaveCount(0);
 });

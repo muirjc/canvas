@@ -18,6 +18,17 @@ export function PersonaAdminPage() {
   // screen as the library grows, so the reduce-clutter direction is the more useful default. A
   // persona's status is still shown via the existing persona-status-<id> badge when this is on.
   const [showArchived, setShowArchived] = useState(false);
+  // canvas-ddx: the prompt textareas used to be uncontrolled (defaultValue) and commit silently on
+  // blur -- no explicit action, no save-state feedback, unlike every other edit surface in this
+  // app (diagram Save button, standards editor). Now controlled per-persona: `drafts` holds only
+  // entries a user has actually typed into (a persona with none falls back to its own
+  // systemPrompt), so a persona is "dirty" purely by comparing the two -- refreshing the list after
+  // a successful save naturally clears dirty state without needing to separately reset `drafts`,
+  // since the fetched systemPrompt then matches what was just typed.
+  const [drafts, setDrafts] = useState<Record<string, string>>({});
+  const [savingId, setSavingId] = useState<string | null>(null);
+  const [savedId, setSavedId] = useState<string | null>(null);
+  const [promptError, setPromptError] = useState<{ id: string; message: string } | null>(null);
 
   const refresh = () => {
     api.listAllAiPersonas().then(({ personas }) => setPersonas(personas));
@@ -45,10 +56,24 @@ export function PersonaAdminPage() {
     refresh();
   };
 
-  const handlePromptEdit = async (id: string, newSystemPrompt: string, previous: string) => {
-    if (newSystemPrompt === previous) return;
-    await api.updateAiPersona(id, { systemPrompt: newSystemPrompt });
-    refresh();
+  const promptValue = (persona: AiPersonaDto) => drafts[persona.id] ?? persona.systemPrompt;
+  const isPromptDirty = (persona: AiPersonaDto) => promptValue(persona) !== persona.systemPrompt;
+
+  const handlePromptSave = async (persona: AiPersonaDto) => {
+    const value = promptValue(persona);
+    if (value === persona.systemPrompt) return;
+    setSavingId(persona.id);
+    setSavedId(null);
+    setPromptError(null);
+    try {
+      await api.updateAiPersona(persona.id, { systemPrompt: value });
+      refresh();
+      setSavedId(persona.id);
+    } catch (err) {
+      setPromptError({ id: persona.id, message: err instanceof ApiError ? err.message : (err as Error).message });
+    } finally {
+      setSavingId((current) => (current === persona.id ? null : current));
+    }
   };
 
   const handleToggleChat = async (chatEnabled: boolean) => {
@@ -124,11 +149,40 @@ export function PersonaAdminPage() {
                     <textarea
                       data-testid={`persona-prompt-${persona.id}`}
                       aria-label={`System prompt for ${persona.name}`}
-                      defaultValue={persona.systemPrompt}
-                      onBlur={(e) => handlePromptEdit(persona.id, e.target.value, persona.systemPrompt)}
+                      value={promptValue(persona)}
+                      onChange={(e) => {
+                        setDrafts((prev) => ({ ...prev, [persona.id]: e.target.value }));
+                        setSavedId((current) => (current === persona.id ? null : current));
+                      }}
                       rows={3}
                       style={{ width: '100%' }}
                     />
+                    <div className="row">
+                      <button
+                        type="button"
+                        className="btn btn--primary btn--compact"
+                        data-testid={`persona-prompt-save-${persona.id}`}
+                        disabled={!isPromptDirty(persona) || savingId === persona.id}
+                        onClick={() => handlePromptSave(persona)}
+                      >
+                        {savingId === persona.id ? 'Saving…' : 'Save'}
+                      </button>
+                      {isPromptDirty(persona) && (
+                        <span className="meta" data-testid={`persona-prompt-status-${persona.id}`}>
+                          Unsaved changes
+                        </span>
+                      )}
+                      {!isPromptDirty(persona) && savedId === persona.id && (
+                        <span className="meta" data-testid={`persona-prompt-status-${persona.id}`}>
+                          Saved
+                        </span>
+                      )}
+                    </div>
+                    {promptError?.id === persona.id && (
+                      <p role="alert" data-testid={`persona-prompt-error-${persona.id}`}>
+                        {promptError.message}
+                      </p>
+                    )}
                   </div>
                 </li>
               ))}
