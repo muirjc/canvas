@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { api, type DiagramDto, type ProjectDto, type SessionUser, type SharedDiagramDto } from './api';
+import { api, type AiSettingsDto, type DiagramDto, type ProjectDto, type SessionUser, type SharedDiagramDto } from './api';
 import { LoginForm } from './LoginForm';
 import { AppShell } from './AppShell';
 import { DiagramEditor, type DiagramEditorHandle } from './DiagramEditor';
@@ -20,6 +20,7 @@ import { PersonaAdminPage } from '../ai/PersonaAdminPage';
 import { Icon } from '../ui/Icon';
 import { AdminShell } from '../ui/AdminShell';
 import { Modal } from '../ui/Modal';
+import { AI_CHAT_DISABLED_MESSAGE, AI_MOCK_MODE_MESSAGE } from '../ai/ai-status-messages';
 
 export function App() {
   const [user, setUser] = useState<SessionUser | null>(null);
@@ -39,6 +40,11 @@ export function App() {
   // FR-001/FR-002). Fetched alongside — not gated on — the project list, since a user with zero
   // projects still needs to see this.
   const [sharedDiagrams, setSharedDiagrams] = useState<SharedDiagramDto[]>([]);
+  // canvas-wuc: gates the "Create with AI" button client-side (chatEnabled) and warns when the
+  // configured provider is the mock/placeholder one, rather than only surfacing either as a 503
+  // after the user has already typed a request. `null` while unknown — kept enabled during that
+  // brief window rather than flashing disabled-then-enabled on every load.
+  const [aiStatus, setAiStatus] = useState<AiSettingsDto | null>(null);
   const [pendingProjectId, setPendingProjectId] = useState<string | null>(null);
   const [confirmingHome, setConfirmingHome] = useState(false);
   const [creatingProject, setCreatingProject] = useState(false);
@@ -101,6 +107,24 @@ export function App() {
       })
       .catch(() => {
         if (!cancelled) setSharedDiagrams([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [user]);
+
+  // canvas-wuc: whether AI chat is admin-enabled, and which provider is actually configured.
+  useEffect(() => {
+    if (!user) return;
+    let cancelled = false;
+    api
+      .getAiStatus()
+      .then((status) => {
+        if (!cancelled) setAiStatus(status);
+      })
+      .catch(() => {
+        // Unreachable/erroring is treated the same as "unknown" — the button stays enabled and
+        // simply surfaces its own error if actually clicked, same as before this bead.
       });
     return () => {
       cancelled = true;
@@ -323,11 +347,23 @@ export function App() {
               type="button"
               className="btn btn--secondary"
               data-testid="create-via-ai-chat"
+              disabled={aiStatus?.chatEnabled === false}
+              title={aiStatus?.chatEnabled === false ? AI_CHAT_DISABLED_MESSAGE : undefined}
               onClick={() => setCreatingViaChat(true)}
             >
               <Icon name="sparkle" />
               Create with AI
             </button>
+            {aiStatus?.chatEnabled === false && (
+              <span className="meta" data-testid="create-via-ai-disabled-note">
+                {AI_CHAT_DISABLED_MESSAGE}
+              </span>
+            )}
+            {aiStatus?.provider === 'mock' && (
+              <span className="meta" data-testid="ai-mock-mode-note" title={AI_MOCK_MODE_MESSAGE}>
+                {AI_MOCK_MODE_MESSAGE}
+              </span>
+            )}
           </div>
         )}
 
