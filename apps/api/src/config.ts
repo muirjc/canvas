@@ -13,6 +13,20 @@ export interface AppConfig {
   /** Origins allowed to make credentialed cross-origin requests (CORS). Reflecting all origins
    * with credentials enabled would let any website ride a signed-in user's session cookie. */
   webOrigins: string[];
+  /**
+   * Session cookie attributes (canvas-azure-deploy). Local dev serves the web app and API as
+   * same-site (different ports of localhost, which browsers still treat as one site for cookie
+   * purposes) over plain HTTP, so the historical defaults — no Secure flag, SameSite=Lax — work
+   * unmodified. A split-origin deployment (e.g. a static-hosted frontend calling a separately
+   * hosted API, as on Azure) is genuinely cross-site: SameSite=Lax cookies are not attached to
+   * cross-site fetch/XHR calls at all (only top-level navigation), so the session cookie would
+   * silently never be sent back after being set. SameSite=None is required for that topology, and
+   * browsers reject SameSite=None without the Secure flag — so the two are set together. Kept
+   * configurable (not just switched on NODE_ENV) since a same-origin production deployment (the
+   * frontend and API served from one host) has no reason to opt into cross-site cookie semantics.
+   */
+  cookieSecure: boolean;
+  cookieSameSite: 'lax' | 'none' | 'strict';
 }
 
 function requireEnv(name: string, fallback?: string): string {
@@ -35,8 +49,21 @@ function requireEnv(name: string, fallback?: string): string {
 const TEST_DATABASE_URL = 'postgres://canvas:canvas_dev_password@localhost:5433/canvas_test';
 const TEST_SESSION_SECRET = 'test-secret-at-least-32-characters-long';
 
+const VALID_SAME_SITE = new Set(['lax', 'none', 'strict']);
+
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
   const isTest = env.NODE_ENV === 'test';
+
+  const rawSameSite = env.COOKIE_SAME_SITE ?? 'lax';
+  if (!VALID_SAME_SITE.has(rawSameSite)) {
+    throw new Error(`COOKIE_SAME_SITE must be one of "lax", "none", "strict" (got: ${rawSameSite})`);
+  }
+  const cookieSameSite = rawSameSite as AppConfig['cookieSameSite'];
+  // SameSite=None without Secure is never valid — browsers reject it outright — so this can't be
+  // a deliberate configuration; treat it as the same "always required together" fact a developer
+  // setting COOKIE_SAME_SITE=none almost certainly meant, rather than a foot-gun to fail on later.
+  const cookieSecure = cookieSameSite === 'none' ? true : env.COOKIE_SECURE === 'true';
+
   return {
     port: Number(env.PORT ?? 3000),
     databaseUrl: isTest ? TEST_DATABASE_URL : requireEnv('DATABASE_URL'),
@@ -49,5 +76,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
     },
     allowLocalAuth: env.ALLOW_LOCAL_AUTH === 'true',
     webOrigins: (env.WEB_ORIGINS ?? 'http://localhost:5173').split(',').map((origin) => origin.trim()),
+    cookieSecure,
+    cookieSameSite,
   };
 }

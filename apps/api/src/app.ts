@@ -34,6 +34,14 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
     logger: options.logger ?? {
       transport: process.env.NODE_ENV === 'production' ? undefined : { target: 'pino-pretty' },
     },
+    // canvas-azure-deploy: most real deployments (Azure App Service among them) terminate TLS at
+    // a reverse proxy/load balancer and forward to this process over plain HTTP internally.
+    // Without trustProxy, Fastify has no way to know the original request was HTTPS, so a
+    // Secure-flagged session cookie (see auth/session.ts) is silently never issued — no error,
+    // just a login that "succeeds" but never actually signs the user in on their next request.
+    // Harmless with no reverse proxy in front (e.g. local dev): it only takes effect when
+    // X-Forwarded-* headers are actually present on the request.
+    trustProxy: true,
   });
 
   app.setErrorHandler((error: FastifyError, request, reply) => {
