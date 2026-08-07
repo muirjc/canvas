@@ -173,3 +173,127 @@ describe('Diagram delete/restore API contract', () => {
     expect(response.statusCode).toBe(404);
   });
 });
+
+/**
+ * Feature canvas-23t.3: the deleted-diagrams admin listing previously showed raw owner/project
+ * UUIDs with no cap or search. `listDeletedDiagrams` now resolves owner/project *names* via a
+ * join, bounds the response by default (mirroring version.service.ts's own
+ * DEFAULT_VERSION_LIMIT/hasMore pattern — see versions.test.ts's "default cap and search"
+ * describe block, which this mirrors), and supports searching by diagram, owner, or project name.
+ */
+describe('Deleted diagrams listing: names, search, and cap (canvas-23t.3)', () => {
+  let app: FastifyInstance;
+  let adminCookie: string;
+  let aliceId: string;
+  let bobId: string;
+  let apolloProjectId: string;
+  let zetaProjectId: string;
+
+  beforeAll(async () => {
+    app = await buildTestApp();
+  });
+
+  afterAll(async () => {
+    await app.close();
+    await closeTestDb();
+  });
+
+  async function login(email: string, password: string): Promise<string> {
+    const response = await app.inject({ method: 'POST', url: '/auth/local/login', payload: { email, password } });
+    const setCookie = response.headers['set-cookie'];
+    return (Array.isArray(setCookie) ? setCookie[0] : setCookie)!.split(';')[0];
+  }
+
+  beforeEach(async () => {
+    await resetDatabase();
+    await seedFlowchartDiagramType();
+    aliceId = (await seedUser({ email: 'alice@example.com', name: 'Alice Anderson', password: 'alice-pass' })).id;
+    bobId = (await seedUser({ email: 'bob@example.com', name: 'Bob Baker', password: 'bob-pass' })).id;
+    await seedUser({ email: 'admin@example.com', password: 'admin-pass', role: 'admin' });
+    apolloProjectId = (await seedProject('Project Apollo', aliceId)).id;
+    zetaProjectId = (await seedProject('Project Zeta', bobId)).id;
+    adminCookie = await login('admin@example.com', 'admin-pass');
+  });
+
+  async function createAndDeleteDiagram(name: string, projectId: string, ownerEmail: string, ownerPassword: string): Promise<string> {
+    const ownerCookie = await login(ownerEmail, ownerPassword);
+    const createResponse = await app.inject({
+      method: 'POST',
+      url: `/projects/${projectId}/diagrams`,
+      headers: { cookie: ownerCookie },
+      payload: { name, diagramTypeId: 'flowchart' },
+    });
+    const id = createResponse.json().diagram.id;
+    await app.inject({ method: 'DELETE', url: `/diagrams/${id}`, headers: { cookie: ownerCookie } });
+    return id;
+  }
+
+  it('resolves owner and project names, not just raw ids', async () => {
+    const diagramId = await createAndDeleteDiagram('Flowchart One', apolloProjectId, 'alice@example.com', 'alice-pass');
+
+    const response = await app.inject({ method: 'GET', url: '/admin/deleted-diagrams', headers: { cookie: adminCookie } });
+    expect(response.statusCode).toBe(200);
+    const entry = response.json().diagrams.find((d: { id: string }) => d.id === diagramId);
+    expect(entry).toMatchObject({
+      ownerId: aliceId,
+      ownerName: 'Alice Anderson',
+      projectId: apolloProjectId,
+      projectName: 'Project Apollo',
+    });
+  });
+
+  it('search (q=) matches diagram name, owner name, or project name', async () => {
+    const flowchartOneId = await createAndDeleteDiagram('Flowchart One', apolloProjectId, 'alice@example.com', 'alice-pass');
+    const diagramTwoId = await createAndDeleteDiagram('Diagram Two', zetaProjectId, 'bob@example.com', 'bob-pass');
+
+    async function searchIds(q: string): Promise<string[]> {
+      const response = await app.inject({
+        method: 'GET',
+        url: `/admin/deleted-diagrams?q=${encodeURIComponent(q)}`,
+        headers: { cookie: adminCookie },
+      });
+      expect(response.statusCode).toBe(200);
+      return response.json().diagrams.map((d: { id: string }) => d.id);
+    }
+
+    // By diagram name.
+    expect(await searchIds('Flowchart')).toEqual([flowchartOneId]);
+    // By owner name.
+    expect(await searchIds('Bob Baker')).toEqual([diagramTwoId]);
+    // By project name.
+    expect(await searchIds('Zeta')).toEqual([diagramTwoId]);
+    // Case-insensitive substring, and no match returns an empty array rather than an error.
+    expect(await searchIds('apollo')).toEqual([flowchartOneId]);
+    expect(await searchIds('zzzznomatch')).toEqual([]);
+  });
+
+  it('caps results at the given limit and reports hasMore, without a "more" signal when everything fits', async () => {
+    const id1 = await createAndDeleteDiagram('Diagram One', apolloProjectId, 'alice@example.com', 'alice-pass');
+    const id2 = await createAndDeleteDiagram('Diagram Two', apolloProjectId, 'alice@example.com', 'alice-pass');
+    const id3 = await createAndDeleteDiagram('Diagram Three', apolloProjectId, 'alice@example.com', 'alice-pass');
+
+    const capped = await app.inject({
+      method: 'GET',
+      url: '/admin/deleted-diagrams?limit=2',
+      headers: { cookie: adminCookie },
+    });
+    expect(capped.statusCode).toBe(200);
+    const cappedBody = capped.json();
+    expect(cappedBody.diagrams).toHaveLength(2);
+    expect(cappedBody.hasMore).toBe(true);
+    // Newest-deleted first, mirroring listDiagramVersions' own ordering.
+    expect(cappedBody.diagrams.map((d: { id: string }) => d.id)).toEqual([id3, id2]);
+
+    const uncapped = await app.inject({
+      method: 'GET',
+      url: '/admin/deleted-diagrams?limit=10',
+      headers: { cookie: adminCookie },
+    });
+    const uncappedBody = uncapped.json();
+    expect(uncappedBody.diagrams).toHaveLength(3);
+    expect(uncappedBody.hasMore).toBe(false);
+    expect(uncappedBody.diagrams.map((d: { id: string }) => d.id)).toEqual(
+      expect.arrayContaining([id1, id2, id3]),
+    );
+  });
+});
