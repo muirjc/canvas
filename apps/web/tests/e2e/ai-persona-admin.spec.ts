@@ -53,10 +53,21 @@ test('admin manages the persona library; a non-admin cannot reach the screen', a
   const reloadedRow = page.locator('li', { has: page.locator('strong', { hasText: personaName }) });
   await expect(reloadedRow.locator('textarea')).toHaveValue('Updated E2E system prompt.');
 
-  // Archive it: the row shows "archived" and its archive action disappears.
+  // Archive it: by default (canvas-rbu) the row disappears from the list entirely, since
+  // archived entries are hidden unless explicitly shown.
   await reloadedRow.locator('button', { hasText: 'Archive' }).click();
-  await expect(reloadedRow.locator('[data-testid^="persona-status-"]')).toContainText('archived');
-  await expect(reloadedRow.locator('button', { hasText: 'Archive' })).toHaveCount(0);
+  await expect(page.locator('li', { has: page.locator('strong', { hasText: personaName }) })).toHaveCount(0);
+
+  // The "Show archived" toggle reveals it again, with the "archived" status badge and no
+  // Archive action (it's already archived).
+  await page.getByTestId('show-archived-personas-toggle').check();
+  const archivedRow = page.locator('li', { has: page.locator('strong', { hasText: personaName }) });
+  await expect(archivedRow.locator('[data-testid^="persona-status-"]')).toContainText('archived');
+  await expect(archivedRow.locator('button', { hasText: 'Archive' })).toHaveCount(0);
+
+  // Unchecking hides it again.
+  await page.getByTestId('show-archived-personas-toggle').uncheck();
+  await expect(page.locator('li', { has: page.locator('strong', { hasText: personaName }) })).toHaveCount(0);
 
   // It no longer appears in the chat dropdown for new chats.
   await page.goto(`/?projectId=${PROJECT_ID}`);
