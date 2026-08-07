@@ -96,6 +96,24 @@ test.describe('Accessibility (WCAG 2.1 AA)', () => {
     await auditPage(page);
   });
 
+  test('admin overview console has no violations', async ({ page }) => {
+    await page.goto('/?admin=overview');
+    await page.getByTestId('login-email').fill(ADMIN_EMAIL);
+    await page.getByTestId('login-password').fill(ADMIN_PASSWORD);
+    await page.getByTestId('login-submit').click();
+    await page.waitForURL('**/*?admin=overview');
+    await auditPage(page);
+  });
+
+  test('admin AI personas console has no violations', async ({ page }) => {
+    await page.goto('/?admin=ai-personas');
+    await page.getByTestId('login-email').fill(ADMIN_EMAIL);
+    await page.getByTestId('login-password').fill(ADMIN_PASSWORD);
+    await page.getByTestId('login-submit').click();
+    await page.waitForURL('**/*?admin=ai-personas');
+    await auditPage(page);
+  });
+
   test('the home screen with a shared-diagrams section has no violations', async ({ browser }) => {
     // Feature 008 — none of the audited states above include this section, so it is otherwise
     // unvalidated by omission (contracts/ui-contract.md).

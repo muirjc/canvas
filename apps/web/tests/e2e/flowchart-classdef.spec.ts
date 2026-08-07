@@ -49,6 +49,7 @@ test('exports the class-assigned node with the same fill/stroke', async ({ page 
   await login(page);
   await importClassDefDiagram(page, 'ClassDef Export');
 
+  await page.getByTestId('export-menu-trigger').click();
   const [download] = await Promise.all([page.waitForEvent('download'), page.getByTestId('export-svg').click()]);
   const path = await download.path();
   expect(path).not.toBeNull();

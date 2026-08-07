@@ -38,6 +38,7 @@ test('admin publishes a standard; a violating diagram is soft-flagged, not block
   await expect(page.getByTestId('violation-item').first()).toContainText('allowed-shapes');
 
   // Save succeeded despite the violation — soft-flag, never a hard block.
+  await page.getByTestId('export-menu-trigger').click();
   const [download] = await Promise.all([page.waitForEvent('download'), page.getByTestId('export-svg').click()]);
   expect(download.suggestedFilename()).toMatch(/\.svg$/);
 });
