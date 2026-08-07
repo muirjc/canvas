@@ -46,5 +46,12 @@ COPY --from=build /app/apps/api/dist apps/api/dist
 COPY --from=build /app/apps/api/package.json apps/api/package.json
 COPY --from=build /app/apps/api/migrations apps/api/migrations
 
+# Semgrep (dockerfile.security.missing-user) correctly flags running as root by default -- the
+# official node:20-slim base already ships a non-root `node` user (uid/gid 1000) for exactly this,
+# no separate useradd needed. chown happens as one layer over everything already copied, rather
+# than --chown on each COPY above, so file ownership can't drift between them.
+RUN chown -R node:node /app
+USER node
+
 EXPOSE 3000
 CMD ["node", "apps/api/dist/server.js"]
