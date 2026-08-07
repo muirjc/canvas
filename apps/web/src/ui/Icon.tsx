@@ -29,7 +29,8 @@ export type IconName =
   | 'history'
   | 'send'
   | 'pencil'
-  | 'palette';
+  | 'palette'
+  | 'layout';
 
 /** Path data only — the wrapper supplies sizing, colour, and ARIA. `diamond` and `check` are
  *  filled; the rest are 1.5px strokes on a 16-unit grid. */
@@ -57,6 +58,9 @@ const PATHS: Record<IconName, { d: string; filled?: boolean }[]> = {
   // curves loses definition at the 12px size this renders at here, while a solid silhouette stays
   // legible at any size.
   palette: [{ d: 'M8 1.5c0 0 5.3 6.4 5.3 9.3a5.3 5.3 0 0 1-10.6 0c0-2.9 5.3-9.3 5.3-9.3Z', filled: true }],
+  // Auto Layout — a small hierarchy/tree glyph (one box branching to two) suggesting "arrange
+  // into ranks", distinct from `group`'s overlapping-boxes grouping metaphor.
+  layout: [{ d: 'M6 2h4v3h-4zM2 11h4v3h-4zM10 11h4v3h-4zM8 5v3M8 8 4 11M8 8 12 11' }],
 };
 
 export interface IconProps {
