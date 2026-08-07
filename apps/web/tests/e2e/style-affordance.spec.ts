@@ -129,16 +129,12 @@ test('clicking Done closes the popup without further changes', async ({ page }) 
 });
 
 test('pressing Escape while the popup is open closes it', async ({ page }) => {
-  // KNOWN BUG (found by this test, reported rather than worked around): opening the popup via
-  // the trigger button leaves focus ON THE TRIGGER BUTTON, not inside the popup — nothing moves
-  // focus into it (no autoFocus on the color input, no effect-driven focus()). The popup's
-  // Escape handler is a plain onKeyDown on its wrapping div, which only ever sees the event if
-  // focus is already somewhere inside that div when Escape is pressed. In the normal
-  // click-the-palette-icon flow, it never is, so Escape does nothing — confirmed by manually
-  // focusing an element inside the popup first (e.g. the Done button), at which point Escape
-  // does close it. This assertion intentionally reflects the *intended* behavior (documented in
-  // Canvas.tsx's own comment: "Escape also closes it, matching the label editors") and is
-  // expected to fail until focus is actually moved into the popup on open.
+  // This test originally caught a real bug (canvas-xig): opening the popup via the trigger
+  // button left focus on the trigger, not inside the popup, so the Escape handler — a plain
+  // onKeyDown on the popup's wrapping div — never saw the keypress. Fixed before canvas-xig
+  // shipped by adding autoFocus to the popup's color input (canvas-th1: this comment previously
+  // described the bug as still open and the test as expected to fail, which stopped being true
+  // once the fix landed but was never updated).
   await openDiagramWithTwoConnectedShapes(page);
 
   await page.getByTestId('node-one').click();
@@ -150,15 +146,15 @@ test('pressing Escape while the popup is open closes it', async ({ page }) => {
 });
 
 test('picking a connector color updates canvas.edgeStyles in the DSL', async ({ page }) => {
-  // KNOWN BUG (found by this test, reported rather than worked around): edges are drawn before
-  // nodes in the SVG, so a node painted afterwards sits on top of any earlier edge's
-  // foreignObject content. For two nodes as close together as this suite's standard default
-  // two-node layout (the exact layout label-affordance.spec.ts and every other canvas e2e spec
-  // already uses), the connector's style affordance — offset further from the midpoint
-  // (`midX + 34`) than the pre-existing pencil affordance (`midX + 8`) to sit beside it without
-  // overlapping — lands inside the target node's own rectangle and is genuinely unclickable by a
-  // real pointer, not just by Playwright. A shorter timeout here just fails fast; it does not
-  // change what's being asserted.
+  // This test originally caught a real bug (canvas-xig): edges are drawn before nodes in the
+  // SVG, so for this suite's standard close-together two-node layout, the connector's style
+  // affordance (offset further from the midpoint than the pencil affordance to sit beside it)
+  // landed inside the target node's own rectangle and was genuinely unclickable. Fixed before
+  // canvas-xig shipped by stacking the connector affordance vertically above the pencil instead
+  // of beside it (canvas-th1: this comment previously described the bug as still open and the
+  // test as expected to fail, which stopped being true once the fix landed but was never
+  // updated). The shorter timeout is just a leftover fail-fast habit from that investigation; it
+  // doesn't change what's being asserted.
   test.setTimeout(10_000);
   await openDiagramWithTwoConnectedShapes(page);
   const edgeId = await firstEdgeId(page);
