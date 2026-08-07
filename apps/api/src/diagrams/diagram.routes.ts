@@ -215,9 +215,18 @@ export async function registerDiagramRoutes(app: FastifyInstance): Promise<void>
     },
   );
 
-  app.get('/admin/deleted-diagrams', { preHandler: requireRole('admin') }, async (_request, reply) => {
-    reply.send({ diagrams: await listDeletedDiagrams() });
-  });
+  app.get<{ Querystring: { limit?: string; q?: string } }>(
+    '/admin/deleted-diagrams',
+    { preHandler: requireRole('admin') },
+    async (request, reply) => {
+      const parsedLimit = Number.parseInt(request.query.limit ?? '', 10);
+      const page = await listDeletedDiagrams({
+        limit: Number.isFinite(parsedLimit) ? parsedLimit : undefined,
+        search: request.query.q,
+      });
+      reply.send(page);
+    },
+  );
 
   app.post<{ Params: { id: string } }>(
     '/diagrams/:id/restore',

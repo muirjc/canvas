@@ -53,6 +53,7 @@ test('exports the linkStyle-targeted edge with the same color/width/dash', async
   await login(page);
   await importLinkStyleDiagram(page, 'Link Style Export');
 
+  await page.getByTestId('export-menu-trigger').click();
   const [download] = await Promise.all([page.waitForEvent('download'), page.getByTestId('export-svg').click()]);
   const path = await download.path();
   expect(path).not.toBeNull();

@@ -11,8 +11,9 @@ test.skip(!PROJECT_ID, 'E2E_PROJECT_ID env var not set — run `npm run seed` an
  * canvas-uaq: export always reads the diagram's last-SAVED dslContent from the server, never live
  * editor state. Exporting right after adding shapes but before Save silently downloaded stale
  * content — a freshly-created diagram's export was just its empty initial template, and SVG/PNG
- * came out technically valid but completely blank, with no warning at all. All three export
- * buttons are now disabled (with an explanatory tooltip) while there are unsaved changes, and a
+ * came out technically valid but completely blank, with no warning at all. The `export-menu-trigger`
+ * (canvas-23t.5: the three format buttons are now inside a dropdown it opens, no longer disabled
+ * individually) is disabled — with an explanatory tooltip — while there are unsaved changes, and a
  * visible `export-unsaved-warning` explains why — turning a silent, confusing gap into a one-click
  * fix (Save sits right next to Export already).
  */
@@ -30,12 +31,20 @@ test('export is disabled with unsaved changes and a warning shown; re-enabled an
   await page.getByTestId('confirm-new-diagram').click();
   await expect(page.getByTestId('diagram-canvas')).toBeVisible();
 
-  // A brand-new diagram starts with nothing unsaved yet to lose — export should be enabled and no
-  // warning shown.
+  const trigger = page.getByTestId('export-menu-trigger');
+  const menuList = page.getByTestId('export-menu-list');
+
+  // A brand-new diagram starts with nothing unsaved yet to lose — the export trigger should be
+  // enabled and no warning shown, and opening it reveals all three formats.
   await expect(page.getByTestId('export-unsaved-warning')).not.toBeVisible();
-  await expect(page.getByTestId('export-mermaid')).toBeEnabled();
-  await expect(page.getByTestId('export-svg')).toBeEnabled();
-  await expect(page.getByTestId('export-png')).toBeEnabled();
+  await expect(trigger).toBeEnabled();
+  await trigger.click();
+  await expect(menuList).toBeVisible();
+  await expect(page.getByTestId('export-mermaid')).toBeVisible();
+  await expect(page.getByTestId('export-svg')).toBeVisible();
+  await expect(page.getByTestId('export-png')).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(menuList).not.toBeVisible();
 
   // Make an edit without saving — the exact scenario that used to silently export stale/blank
   // content.
@@ -45,28 +54,28 @@ test('export is disabled with unsaved changes and a warning shown; re-enabled an
   await expect(warning).toBeVisible();
   await expect(warning).toHaveText('Save to enable export');
 
-  const mermaidButton = page.getByTestId('export-mermaid');
-  const svgButton = page.getByTestId('export-svg');
-  const pngButton = page.getByTestId('export-png');
-  await expect(mermaidButton).toBeDisabled();
-  await expect(svgButton).toBeDisabled();
-  await expect(pngButton).toBeDisabled();
-  await expect(mermaidButton).toHaveAttribute(
+  await expect(trigger).toBeDisabled();
+  await expect(trigger).toHaveAttribute(
     'title',
     "Save your changes first — export always reflects the diagram's last saved version.",
   );
+
+  // Clicking a disabled trigger is a no-op — the menu can't be opened at all while unsaved.
+  await trigger.click({ force: true });
+  await expect(menuList).not.toBeVisible();
 
   // Save — export re-enables and the warning disappears.
   await page.getByTestId('save-diagram').click();
   await expect(page.getByTestId('save-status')).toHaveText('saved');
 
   await expect(warning).not.toBeVisible();
-  await expect(mermaidButton).toBeEnabled();
-  await expect(svgButton).toBeEnabled();
-  await expect(pngButton).toBeEnabled();
+  await expect(trigger).toBeEnabled();
 
   // A real export now succeeds and reflects the saved shape, not stale/blank content.
-  const [svgDownload] = await Promise.all([page.waitForEvent('download'), svgButton.click()]);
+  await trigger.click();
+  await expect(menuList).toBeVisible();
+  const [svgDownload] = await Promise.all([page.waitForEvent('download'), page.getByTestId('export-svg').click()]);
+  await expect(menuList).not.toBeVisible();
   const path = await svgDownload.path();
   expect(path).not.toBeNull();
   const svg = readFileSync(path!, 'utf-8');
@@ -74,7 +83,12 @@ test('export is disabled with unsaved changes and a warning shown; re-enabled an
   await expect(page.locator('[data-testid^="node-"]')).toHaveCount(1);
   expect(svg.match(/<rect/g)?.length).toBeGreaterThanOrEqual(1);
 
-  const [mermaidDownload] = await Promise.all([page.waitForEvent('download'), mermaidButton.click()]);
+  await trigger.click();
+  await expect(menuList).toBeVisible();
+  const [mermaidDownload] = await Promise.all([
+    page.waitForEvent('download'),
+    page.getByTestId('export-mermaid').click(),
+  ]);
   const mermaidPath = await mermaidDownload.path();
   expect(mermaidPath).not.toBeNull();
   const mermaid = readFileSync(mermaidPath!, 'utf-8');

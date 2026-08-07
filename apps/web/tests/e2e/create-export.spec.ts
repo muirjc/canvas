@@ -43,18 +43,21 @@ test('create, edit, and export a diagram', async ({ page }) => {
   await page.getByTestId('save-diagram').click();
   await expect(page.getByTestId('save-status')).toHaveText('saved');
 
+  await page.getByTestId('export-menu-trigger').click();
   const [mermaidDownload] = await Promise.all([
     page.waitForEvent('download'),
     page.getByTestId('export-mermaid').click(),
   ]);
   expect(mermaidDownload.suggestedFilename()).toMatch(/\.mmd$/);
 
+  await page.getByTestId('export-menu-trigger').click();
   const [svgDownload] = await Promise.all([
     page.waitForEvent('download'),
     page.getByTestId('export-svg').click(),
   ]);
   expect(svgDownload.suggestedFilename()).toMatch(/\.svg$/);
 
+  await page.getByTestId('export-menu-trigger').click();
   const [pngDownload] = await Promise.all([
     page.waitForEvent('download'),
     page.getByTestId('export-png').click(),

@@ -270,20 +270,84 @@ export interface DeletedDiagramSummary {
   id: string;
   name: string;
   ownerId: string;
+  ownerName: string;
   projectId: string;
+  projectName: string;
   deletedAt: string;
 }
 
-/** Admin-only, metadata-only listing of soft-deleted diagrams still within their retention window (FR-020). */
-export async function listDeletedDiagrams(): Promise<DeletedDiagramSummary[]> {
+/** How many deleted diagrams a listing returns when the caller does not say (canvas-23t.3) — a
+ *  display/transfer default only, mirroring version.service.ts's own DEFAULT_VERSION_LIMIT
+ *  pattern; nothing is ever hidden permanently, just reachable by search beyond this. */
+export const DEFAULT_DELETED_DIAGRAMS_LIMIT = 20;
+
+export interface ListDeletedDiagramsOptions {
+  limit?: number;
+  /** Matches diagram, owner, or project name (canvas-23t.3). */
+  search?: string;
+}
+
+export interface DeletedDiagramsPage {
+  diagrams: DeletedDiagramSummary[];
+  hasMore: boolean;
+}
+
+/**
+ * Admin-only, metadata-only listing of soft-deleted diagrams still within their retention window
+ * (FR-020). Resolves owner/project names via a join rather than leaving the caller to resolve
+ * them client-side against an already-fetched *active* project/user list (canvas-23t.3) — a
+ * diagram's project (or, less commonly, its owner) can itself be soft-deleted later, which would
+ * silently drop it from any such active-only list, making exactly the diagrams most in need of
+ * identification the ones a client-side lookup would fail to resolve. LEFT JOIN defensively:
+ * both users and projects are soft-delete-only in this schema (the row always still exists), so
+ * an unmatched join is not expected, but the fallback avoids a crash/blank row over an admin
+ * screen if that invariant is ever violated.
+ */
+export async function listDeletedDiagrams(options: ListDeletedDiagramsOptions = {}): Promise<DeletedDiagramsPage> {
   const pool = getPool();
-  const { rows } = await pool.query<{ id: string; name: string; owner_id: string; project_id: string; deleted_at: string }>(
-    `SELECT id, name, owner_id, project_id, deleted_at FROM diagrams
-     WHERE deleted_at IS NOT NULL AND deleted_at > now() - make_interval(days => $1)
-     ORDER BY deleted_at DESC`,
-    [DIAGRAM_RETENTION_DAYS],
+  const limit = Math.max(1, options.limit ?? DEFAULT_DELETED_DIAGRAMS_LIMIT);
+  const search = options.search?.trim();
+
+  const filters = ['d.deleted_at IS NOT NULL', 'd.deleted_at > now() - make_interval(days => $1)'];
+  const params: unknown[] = [DIAGRAM_RETENTION_DAYS];
+  if (search) {
+    params.push(`%${search}%`);
+    filters.push(`(d.name ILIKE $${params.length} OR u.name ILIKE $${params.length} OR p.name ILIKE $${params.length})`);
+  }
+
+  // Fetch one extra row to learn whether more exist, without a second COUNT query.
+  params.push(limit + 1);
+  const { rows } = await pool.query<{
+    id: string;
+    name: string;
+    owner_id: string;
+    owner_name: string | null;
+    project_id: string;
+    project_name: string | null;
+    deleted_at: string;
+  }>(
+    `SELECT d.id, d.name, d.owner_id, u.name AS owner_name, d.project_id, p.name AS project_name, d.deleted_at
+     FROM diagrams d
+     LEFT JOIN users u ON u.id = d.owner_id
+     LEFT JOIN projects p ON p.id = d.project_id
+     WHERE ${filters.join(' AND ')}
+     ORDER BY d.deleted_at DESC LIMIT $${params.length}`,
+    params,
   );
-  return rows.map((r) => ({ id: r.id, name: r.name, ownerId: r.owner_id, projectId: r.project_id, deletedAt: r.deleted_at }));
+
+  const hasMore = rows.length > limit;
+  return {
+    diagrams: rows.slice(0, limit).map((r) => ({
+      id: r.id,
+      name: r.name,
+      ownerId: r.owner_id,
+      ownerName: r.owner_name ?? '(unknown)',
+      projectId: r.project_id,
+      projectName: r.project_name ?? '(unknown)',
+      deletedAt: r.deleted_at,
+    })),
+    hasMore,
+  };
 }
 
 /** Restores a soft-deleted diagram within its retention window, recording who/when (FR-014/FR-021). */

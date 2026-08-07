@@ -50,6 +50,7 @@ test('exports the <br/>-containing label as two stacked tspans', async ({ page }
   await login(page);
   await importMultilineDiagram(page, 'Multiline Export');
 
+  await page.getByTestId('export-menu-trigger').click();
   const [download] = await Promise.all([page.waitForEvent('download'), page.getByTestId('export-svg').click()]);
   const path = await download.path();
   expect(path).not.toBeNull();

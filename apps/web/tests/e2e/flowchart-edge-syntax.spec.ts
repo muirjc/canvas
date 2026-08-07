@@ -63,6 +63,7 @@ test('exports every additional edge/link syntax with the same distinct rendering
   await login(page);
   await importEdgeSyntaxDiagram(page, 'Edge Syntax Export');
 
+  await page.getByTestId('export-menu-trigger').click();
   const [download] = await Promise.all([page.waitForEvent('download'), page.getByTestId('export-svg').click()]);
   const path = await download.path();
   expect(path).not.toBeNull();

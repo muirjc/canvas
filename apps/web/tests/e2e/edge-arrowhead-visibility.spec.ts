@@ -47,6 +47,7 @@ test('exports the edge line clipped the same way as the canvas', async ({ page }
   await login(page);
   await importArrowheadDiagram(page, 'Arrowhead Export');
 
+  await page.getByTestId('export-menu-trigger').click();
   const [download] = await Promise.all([page.waitForEvent('download'), page.getByTestId('export-svg').click()]);
   const path = await download.path();
   expect(path).not.toBeNull();

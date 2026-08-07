@@ -181,7 +181,9 @@ export interface DeletedDiagramDto {
   id: string;
   name: string;
   ownerId: string;
+  ownerName: string;
   projectId: string;
+  projectName: string;
   deletedAt: string;
 }
 
@@ -321,7 +323,15 @@ export const api = {
     request<{ user: UserRecordDto }>(`/admin/users/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
   getAdminOverview: () => request<{ overview: AdminOverviewDto }>('/admin/overview'),
   deleteDiagram: (id: string) => request<void>(`/diagrams/${id}`, { method: 'DELETE' }),
-  listDeletedDiagrams: () => request<{ diagrams: DeletedDiagramDto[] }>('/admin/deleted-diagrams'),
+  listDeletedDiagrams: (options: { limit?: number; q?: string } = {}) => {
+    const params = new URLSearchParams();
+    if (options.limit !== undefined) params.set('limit', String(options.limit));
+    if (options.q) params.set('q', options.q);
+    const query = params.toString();
+    return request<{ diagrams: DeletedDiagramDto[]; hasMore: boolean }>(
+      `/admin/deleted-diagrams${query ? `?${query}` : ''}`,
+    );
+  },
   restoreDiagram: (id: string) => request<{ diagram: DiagramDto }>(`/diagrams/${id}/restore`, { method: 'POST' }),
   listAiPersonas: () => request<{ personas: AiPersonaDto[] }>('/ai-personas'),
   listAllAiPersonas: () => request<{ personas: AiPersonaDto[] }>('/admin/ai-personas'),

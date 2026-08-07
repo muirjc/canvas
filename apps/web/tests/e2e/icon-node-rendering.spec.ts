@@ -119,6 +119,7 @@ test('exports the icon node with the same real artwork', async ({ page }) => {
   await page.getByTestId('save-diagram').click();
   await expect(page.getByTestId('save-status')).toHaveText('saved');
 
+  await page.getByTestId('export-menu-trigger').click();
   const [download] = await Promise.all([page.waitForEvent('download'), page.getByTestId('export-svg').click()]);
   const path = await download.path();
   expect(path).not.toBeNull();

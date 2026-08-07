@@ -30,6 +30,7 @@ test('imports a pasted Mermaid diagram and it becomes fully editable', async ({ 
   await page.getByTestId('save-diagram').click();
   await expect(page.getByTestId('save-status')).toHaveText('saved');
 
+  await page.getByTestId('export-menu-trigger').click();
   const [download] = await Promise.all([page.waitForEvent('download'), page.getByTestId('export-svg').click()]);
   expect(download.suggestedFilename()).toMatch(/\.svg$/);
 });
