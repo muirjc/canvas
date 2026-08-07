@@ -169,6 +169,21 @@ function containerBounds(container: DiagramContainer) {
   };
 }
 
+interface Rect {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
+/** canvas-558: marquee hit-test — ANY overlap selects, not full containment. Picked over
+ *  containment as the more forgiving/discoverable default for a first version (a marquee that
+ *  only grazes a node's edge still catches it, matching how most users expect a drag-select to
+ *  behave without first learning a directional containment-vs-intersection rule like Visio's). */
+function rectsIntersect(a: Rect, b: Rect): boolean {
+  return a.x < b.x + b.width && a.x + a.width > b.x && a.y < b.y + b.height && a.y + a.height > b.y;
+}
+
 /** Which container, if any, a dropped shape lands in — decided by the shape's centre point.
  *  Geometry decides membership only at the moment of a drop; `containerId` is authoritative
  *  afterwards, so resizing a container never ejects anything (research §3). */
@@ -226,14 +241,24 @@ export function Canvas({ model, onChange, dslFamily, toolbarContainer }: CanvasP
   // Which element the pointer is over. Paired with selection below so the edit affordance is
   // reachable by keyboard too — hover alone would be unusable without a pointer (FR-017).
   const [hoveredId, setHoveredId] = useState<string | null>(null);
-  // `kind` distinguishes the three drags that share the pointer handlers: moving a shape, moving
-  // a container (which carries its members), and resizing a container.
+  // `kind` distinguishes the four drags that share the pointer handlers: moving a shape, moving
+  // a container (which carries its members), resizing a container, and (canvas-558) a
+  // rubber-band marquee selection started on empty canvas background.
   const dragState = useRef<
     { kind: 'node' | 'container'; id: string; offsetX: number; offsetY: number }
     | { kind: 'resize'; id: string; originX: number; originY: number }
+    | { kind: 'marquee'; startX: number; startY: number; additive: boolean }
     | null
   >(null);
   const svgRef = useRef<SVGSVGElement>(null);
+  // canvas-558: the live selection rectangle, rendered as an overlay and cleared on pointerup —
+  // separate from dragState (a ref, so updating it wouldn't re-render the visible rectangle).
+  const [marqueeRect, setMarqueeRect] = useState<Rect | null>(null);
+  // A completed marquee drag finalizes selectedIds in handlePointerUp; the browser then still
+  // fires a plain `click` on the same target right after (mouseup/mousedown landed on the same
+  // element regardless of how far the pointer travelled between them) — without this flag the
+  // svg's own onClick handler below would immediately clear the selection the drag just made.
+  const suppressNextCanvasClick = useRef(false);
 
   // canvas-0s3: the canvas SVG is sized to fit whichever is larger of the actual visible
   // container or real content bounds, so a shape placed beyond the initial viewport becomes
@@ -358,7 +383,11 @@ export function Canvas({ model, onChange, dslFamily, toolbarContainer }: CanvasP
       return;
     }
 
-    if (event.shiftKey) {
+    // canvas-558: Ctrl/Cmd+click toggles a node into/out of the selection exactly like
+    // Shift+click already did — standard Windows diagram-app convention (Visio, PowerPoint,
+    // draw.io) treats either modifier interchangeably on a freeform canvas, rather than reserving
+    // Shift for range-select (which has no natural meaning here — nodes have no inherent order).
+    if (event.shiftKey || event.ctrlKey || event.metaKey) {
       setSelectedIds((prev) => {
         const next = new Set(prev);
         if (next.has(node.id)) next.delete(node.id);
@@ -427,6 +456,16 @@ export function Canvas({ model, onChange, dslFamily, toolbarContainer }: CanvasP
     if (!drag) return;
     const point = toClientPoint(event);
 
+    if (drag.kind === 'marquee') {
+      setMarqueeRect({
+        x: Math.min(drag.startX, point.x),
+        y: Math.min(drag.startY, point.y),
+        width: Math.abs(point.x - drag.startX),
+        height: Math.abs(point.y - drag.startY),
+      });
+      return;
+    }
+
     if (drag.kind === 'node') {
       updateNode(drag.id, { position: { x: point.x - drag.offsetX, y: point.y - drag.offsetY } });
       return;
@@ -447,9 +486,34 @@ export function Canvas({ model, onChange, dslFamily, toolbarContainer }: CanvasP
     onChange(moveContainer(model, drag.id, { x: point.x - drag.offsetX, y: point.y - drag.offsetY }));
   };
 
-  const handlePointerUp = () => {
+  const handlePointerUp = (event: React.PointerEvent) => {
     const drag = dragState.current;
     dragState.current = null;
+
+    if (drag?.kind === 'marquee') {
+      setMarqueeRect(null);
+      const point = toClientPoint(event);
+      const rect: Rect = {
+        x: Math.min(drag.startX, point.x),
+        y: Math.min(drag.startY, point.y),
+        width: Math.abs(point.x - drag.startX),
+        height: Math.abs(point.y - drag.startY),
+      };
+      // A drag that barely moved is really just a click on empty background — let the svg's own
+      // onClick handler clear the selection as usual instead of treating it as a (trivial,
+      // empty-rect) marquee.
+      if (rect.width < 3 && rect.height < 3) return;
+
+      const hitIds = model.nodes.filter((n) => rectsIntersect(rect, { ...n.position, ...nodeSize(n) })).map((n) => n.id);
+      setSelectedIds((prev) => (drag.additive ? new Set([...prev, ...hitIds]) : new Set(hitIds)));
+      setSelectedContainerId(null);
+      setSelectedEdgeId(null);
+      // The click that follows this pointerup lands on the same <svg> background and would
+      // otherwise immediately clear the selection just made above.
+      suppressNextCanvasClick.current = true;
+      return;
+    }
+
     if (!drag || drag.kind !== 'node') return;
 
     // Membership is resolved once, on drop, from the shape's centre (FR-011, research §3).
@@ -784,10 +848,30 @@ export function Canvas({ model, onChange, dslFamily, toolbarContainer }: CanvasP
         // viewBox, so the origin stays at the container's top-left and drag coordinate maths
         // (1 SVG unit = 1 CSS pixel) is unchanged regardless of how large the canvas grows.
         style={{ touchAction: 'none' }}
+        onPointerDown={(event) => {
+          // canvas-558: a pointer-down that reaches here (not stopped by a node/edge/container's
+          // own handler) is on empty canvas background — start a marquee-select drag. Every other
+          // shape's pointerdown handler already calls stopPropagation, so this can't fire for one
+          // of those; the `target === currentTarget` check is defense in depth, not the only
+          // guard.
+          if (event.target !== event.currentTarget || connectMode) return;
+          const point = toClientPoint(event);
+          dragState.current = {
+            kind: 'marquee',
+            startX: point.x,
+            startY: point.y,
+            additive: event.shiftKey || event.ctrlKey || event.metaKey,
+          };
+          setMarqueeRect({ x: point.x, y: point.y, width: 0, height: 0 });
+        }}
         onPointerMove={handlePointerMove}
         onPointerUp={handlePointerUp}
         onPointerLeave={handlePointerUp}
         onClick={(event) => {
+          if (suppressNextCanvasClick.current) {
+            suppressNextCanvasClick.current = false;
+            return;
+          }
           // Only deselect on a genuine click on the canvas background — not one that bubbled up
           // from a node/edge click, which already set the selection this same interaction.
           if (event.target === event.currentTarget) {
@@ -1101,6 +1185,22 @@ export function Canvas({ model, onChange, dslFamily, toolbarContainer }: CanvasP
             </g>
           );
         })}
+
+        {/* canvas-558: live marquee-select rectangle, drawn on top of everything else and
+            non-interactive so it never itself becomes a hit-test target mid-drag. */}
+        {marqueeRect && (
+          <rect
+            data-testid="selection-marquee"
+            x={marqueeRect.x}
+            y={marqueeRect.y}
+            width={marqueeRect.width}
+            height={marqueeRect.height}
+            fill="rgba(37, 99, 235, 0.08)"
+            stroke={SELECTION_STROKE}
+            strokeDasharray="4 2"
+            pointerEvents="none"
+          />
+        )}
       </svg>
     </div>
   );
