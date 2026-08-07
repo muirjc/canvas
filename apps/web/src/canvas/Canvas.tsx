@@ -21,6 +21,7 @@ import {
   computeBounds,
   sanitizeSvgFragment,
   autoLayout,
+  iconNodeLayout,
   type DiagramContainer,
   type DiagramModel,
   type DiagramNode,
@@ -995,13 +996,14 @@ export function Canvas({ model, onChange, dslFamily, toolbarContainer }: CanvasP
           // popupPosition so it never renders past the canvas's own edges for a node placed near
           // the border (research note on popupPosition).
           const stylePopupPos = popupPosition(node.position.y, node.position.y + size.height, node.position.x, canvasWidth, canvasHeight);
-          // canvas-8n7: mirrors svg-renderer.ts's renderNode icon branch exactly (same 0.6 scale
-          // factor, same -8 vertical nudge, same 48x48 normalized icon viewBox, same smaller
-          // below-icon caption instead of a centered label) so canvas and export agree (SC-004).
+          // canvas-23t.5: mirrors svg-renderer.ts's renderNode icon branch exactly — glyph
+          // top-aligned, caption stacked below it, both from the shared iconNodeLayout
+          // calculation, so canvas and export agree (SC-004).
           const iconMarkup =
             node.shape === 'icon' && node.icon
               ? iconArtwork.get(`${node.icon.libraryId}@${node.icon.libraryVersion}@${node.icon.iconId}`)
               : undefined;
+          const iconLayout = iconMarkup ? iconNodeLayout(node) : null;
           return (
             <g
               key={node.id}
@@ -1016,22 +1018,24 @@ export function Canvas({ model, onChange, dslFamily, toolbarContainer }: CanvasP
               style={{ cursor: connectMode ? 'crosshair' : 'move' }}
             >
               {renderNodeShape(node, selectedIds.has(node.id))}
-              {iconMarkup &&
-                (() => {
-                  const iconSize = Math.min(size.width, size.height) * 0.6;
-                  const iconX = node.position.x + (size.width - iconSize) / 2;
-                  const iconY = node.position.y + (size.height - iconSize) / 2 - 8;
-                  return <image x={iconX} y={iconY} width={iconSize} height={iconSize} href={iconMarkupToDataUri(iconMarkup)} />;
-                })()}
+              {iconMarkup && iconLayout && (
+                <image
+                  x={iconLayout.iconX}
+                  y={iconLayout.iconY}
+                  width={iconLayout.iconSize}
+                  height={iconLayout.iconSize}
+                  href={iconMarkupToDataUri(iconMarkup)}
+                />
+              )}
               {editingNodeId !== node.id &&
-                (iconMarkup
+                (iconMarkup && iconLayout
                   ? renderLabelLines(
-                      node.position.x + size.width / 2,
-                      node.position.y + size.height - 10,
+                      iconLayout.labelX,
+                      iconLayout.labelY,
                       node.label,
-                      12,
+                      iconLayout.labelFontSize,
                       false,
-                      Math.max(size.width - 16, 40),
+                      iconLayout.labelMaxWidth,
                     )
                   : renderLabelLines(
                       node.position.x + size.width / 2,

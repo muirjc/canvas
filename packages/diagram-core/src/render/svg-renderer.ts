@@ -87,12 +87,84 @@ function renderLabelText(x: number, y: number, label: string, fontSize: number, 
   return `<text x="${x}" y="${y}" text-anchor="middle" font-size="${fontSize}" font-family='${FONT_FAMILY}'>${tspans}</text>`;
 }
 
+// canvas-23t.5: an icon node with no explicit size used to fall back to DEFAULT_NODE_SIZE — a box
+// built for a short text label, not an icon glyph plus a caption that (for real library icon
+// names like "Azure Data Lake Storage Gen1") routinely wraps to two or three lines. The glyph sat
+// far too small inside a mostly-empty box, and the caption overflowed past the bottom edge. Icon
+// nodes now get a dedicated content-fit box instead: a fixed width sized for the glyph plus a
+// comfortably wrapping caption, and a height that grows with however many caption lines that
+// wrapping actually produces — computed with the exact same `splitLabelLines` heuristic used to
+// render it, so the box can never under-size what it was measured against. An explicit `node.size`
+// (the user dragged a resize handle) always wins — this default only applies when one is absent.
+const ICON_GLYPH_SIZE = 48;
+const ICON_PADDING = 10;
+const ICON_LABEL_GAP = 4;
+const ICON_LABEL_MAX_WIDTH = ICON_GLYPH_SIZE + 40;
+
+// The caption renders 2px smaller than the node's configured font size (10px floor) — mirrors the
+// original hand-tuned "Math.max(fontSize - 2, 10)" this replaces, just centralized so both the
+// box-sizing math and the actual render use the identical value rather than two separate literals
+// that could drift (Canvas.tsx used to hardcode a bare `12` here, ignoring node.style.fontSize
+// entirely — folded into this one shared helper instead of carrying that inconsistency forward).
+function iconCaptionFontSize(node: DiagramNode): number {
+  return Math.max((node.style?.fontSize ?? 14) - 2, 10);
+}
+
+/** Content-fit size for an icon node with no explicit `node.size` (canvas-23t.5). Exported so
+ *  `nodeSize` below and `iconNodeLayout` share one calculation, and so the interactive canvas
+ *  (apps/web/src/canvas/shapes.tsx) can reuse it rather than re-deriving the same numbers. */
+export function iconNodeSize(node: DiagramNode): Size {
+  const fontSize = iconCaptionFontSize(node);
+  const lines = splitLabelLines(node.label, ICON_LABEL_MAX_WIDTH, fontSize);
+  const lineHeight = fontSize * 1.2;
+  return {
+    width: ICON_LABEL_MAX_WIDTH + ICON_PADDING * 2,
+    height: ICON_PADDING * 2 + ICON_GLYPH_SIZE + ICON_LABEL_GAP + lines.length * lineHeight,
+  };
+}
+
 // Exported (same pattern as computeBounds/clipEdgeEndpoint/splitLabelLines below) so auto-layout.ts
 // can size dagre's input nodes identically to how this renderer and the canvas already do, rather
 // than adding a third hand-copied {140, 60} default (shapes.tsx has its own copy with a "must
 // match" comment — this avoids a fourth).
 export function nodeSize(node: DiagramNode): Size {
+  if (node.shape === 'icon' && !node.size) return iconNodeSize(node);
   return node.size ?? DEFAULT_NODE_SIZE;
+}
+
+/** Full render geometry for an icon node's glyph + caption (canvas-23t.5) — one shared calculation
+ *  so the export renderer (`renderNode` below) and the interactive canvas (Canvas.tsx) can't
+ *  disagree about where the icon sits or where the caption starts (SC-004). The glyph is drawn at
+ *  its native `ICON_GLYPH_SIZE`, clamped down only if an explicit `node.size` is smaller than that
+ *  (a user-shrunk icon node) — never enlarged just because the box is bigger. */
+export function iconNodeLayout(node: DiagramNode): {
+  width: number;
+  height: number;
+  iconSize: number;
+  iconX: number;
+  iconY: number;
+  labelX: number;
+  labelY: number;
+  labelFontSize: number;
+  labelMaxWidth: number;
+} {
+  const { x, y } = node.position;
+  const { width, height } = nodeSize(node);
+  const labelFontSize = iconCaptionFontSize(node);
+  const iconSize = Math.min(ICON_GLYPH_SIZE, width - ICON_PADDING * 2, height - ICON_PADDING * 2);
+  const iconX = x + (width - iconSize) / 2;
+  const iconY = y + ICON_PADDING;
+  return {
+    width,
+    height,
+    iconSize,
+    iconX,
+    iconY,
+    labelX: x + width / 2,
+    labelY: iconY + iconSize + ICON_LABEL_GAP + labelFontSize,
+    labelFontSize,
+    labelMaxWidth: ICON_LABEL_MAX_WIDTH,
+  };
 }
 
 export function containerSize(container: DiagramContainer): Size {
@@ -289,15 +361,14 @@ function renderNode(node: DiagramNode, resolveIcon?: IconResolver): string {
 
   const iconMarkup = node.icon ? resolveIcon?.(node.icon) : undefined;
   if (iconMarkup) {
-    // Icon assets are authored on a normalized 48x48 viewBox; scale/position into the node's box.
-    const iconSize = Math.min(width, height) * 0.6;
-    const iconX = x + (width - iconSize) / 2;
-    const iconY = y + (height - iconSize) / 2 - 8;
+    // canvas-23t.5: glyph top-aligned, caption stacked below it — both positions and the box
+    // itself come from iconNodeLayout, the same calculation the canvas uses (SC-004).
+    const layout = iconNodeLayout(node);
     return [
       `<g data-node-id="${escapeXml(node.id)}">`,
       renderNodeShape(node),
-      `<g transform="translate(${iconX}, ${iconY}) scale(${iconSize / 48})">${iconMarkup}</g>`,
-      renderLabelText(x + width / 2, y + height - 10, node.label, Math.max(fontSize - 2, 10), false, labelMaxWidth),
+      `<g transform="translate(${layout.iconX}, ${layout.iconY}) scale(${layout.iconSize / 48})">${iconMarkup}</g>`,
+      renderLabelText(layout.labelX, layout.labelY, node.label, layout.labelFontSize, false, layout.labelMaxWidth),
       '</g>',
     ].join('');
   }

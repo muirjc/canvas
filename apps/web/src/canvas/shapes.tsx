@@ -1,8 +1,13 @@
-import type { DiagramNode, NodeShape } from '@canvas/diagram-core';
+import { iconNodeSize, type DiagramNode, type NodeShape } from '@canvas/diagram-core';
 
 export const DEFAULT_NODE_SIZE = { width: 140, height: 60 };
 
+// canvas-23t.5: an icon node with no explicit size gets a content-fit box (icon glyph + wrapped
+// caption) instead of the flat text-node default — `iconNodeSize` is the single shared
+// calculation (packages/diagram-core/src/render/svg-renderer.ts), reused here rather than
+// re-derived, so the canvas and the export renderer can't disagree about an icon node's size.
 export function nodeSize(node: DiagramNode): { width: number; height: number } {
+  if (node.shape === 'icon' && !node.size) return iconNodeSize(node);
   return node.size ?? DEFAULT_NODE_SIZE;
 }
 

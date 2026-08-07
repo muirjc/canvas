@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { renderToSvg, splitLabelLines } from '../../src/render/svg-renderer.js';
-import type { DiagramModel } from '../../src/model/diagram-model.js';
+import { renderToSvg, splitLabelLines, iconNodeSize, nodeSize } from '../../src/render/svg-renderer.js';
+import type { DiagramModel, DiagramNode } from '../../src/model/diagram-model.js';
 
 /**
  * Constitution's export constraint: exported SVG/PNG MUST NOT embed tracking pixels, telemetry,
@@ -519,5 +519,139 @@ describe('renderToSvg edge endpoint clipping (canvas-1rq)', () => {
       containers: [],
     });
     expect(svg).toMatch(/<line[^>]*marker-end="url\(#arrowhead\)"/);
+  });
+});
+
+/**
+ * canvas-23t.5: an icon node with no explicit `node.size` used to fall back to the flat
+ * DEFAULT_NODE_SIZE (140x60) — built for a short text label, not an icon glyph plus a caption
+ * that (for real library icon names, e.g. "Azure Data Lake Storage Gen1") routinely wraps to two
+ * or three lines. `iconNodeSize` now derives a content-fit box whose height grows with however
+ * many lines the caption actually wraps into, computed with the same `splitLabelLines` heuristic
+ * used to render it. An explicit `node.size` (user resize) still always wins.
+ */
+describe('iconNodeSize / nodeSize content-fit box (canvas-23t.5)', () => {
+  function iconNode(label: string, overrides: Partial<DiagramNode> = {}): DiagramNode {
+    return {
+      id: 'A',
+      label,
+      shape: 'icon',
+      position: { x: 0, y: 0 },
+      icon: { libraryId: 'azure-icons', libraryVersion: '2024.1', iconId: 'storage-accounts' },
+      ...overrides,
+    };
+  }
+
+  it('gives a longer, multi-line-wrapping label a taller box than a short one-line label', () => {
+    const shortSize = nodeSize(iconNode('VM'));
+    const longSize = nodeSize(iconNode('Azure Data Lake Storage Gen1 Extended Analytics Workspace'));
+    expect(longSize.height).toBeGreaterThan(shortSize.height);
+    // Width is a fixed content-fit budget regardless of label length -- only height grows with
+    // however many lines the label actually wraps into.
+    expect(longSize.width).toBe(shortSize.width);
+  });
+
+  it('nodeSize delegates to iconNodeSize exactly for an unsized icon node', () => {
+    const node = iconNode('Azure Storage Accounts');
+    expect(nodeSize(node)).toEqual(iconNodeSize(node));
+  });
+
+  it('an explicit node.size always wins over the content-fit calculation', () => {
+    const node = iconNode('Azure Data Lake Storage Gen1 Extended Long Caption', {
+      size: { width: 999, height: 5 },
+    });
+    expect(nodeSize(node)).toEqual({ width: 999, height: 5 });
+  });
+
+  it('leaves a non-icon shape node completely unaffected: flat DEFAULT_NODE_SIZE unless sized', () => {
+    const rect: DiagramNode = {
+      id: 'B',
+      label: 'A Rectangle With A Fairly Long Label Too, For Comparison',
+      shape: 'rectangle',
+      position: { x: 0, y: 0 },
+    };
+    expect(nodeSize(rect)).toEqual({ width: 140, height: 60 });
+
+    const sizedRect: DiagramNode = { ...rect, size: { width: 200, height: 80 } };
+    expect(nodeSize(sizedRect)).toEqual({ width: 200, height: 80 });
+  });
+});
+
+/**
+ * canvas-23t.5 continued: the rendered SVG itself must actually stay within the content-fit box
+ * `iconNodeSize` computes -- no caption `<tspan>` may render past the node's own `<rect>` height.
+ */
+describe('renderToSvg icon node caption fits its content-fit box (canvas-23t.5)', () => {
+  const resolveIcon = () => '<rect width="48" height="48" />'; // minimal markup so the icon render branch is taken
+
+  function svgForIconLabel(label: string): string {
+    return renderToSvg(
+      {
+        diagramTypeId: 'flowchart',
+        nodes: [
+          {
+            id: 'A',
+            label,
+            shape: 'icon',
+            position: { x: 0, y: 0 },
+            icon: { libraryId: 'azure-icons', libraryVersion: '2024.1', iconId: 'data-lake' },
+          },
+        ],
+        edges: [],
+        containers: [],
+      },
+      resolveIcon,
+    );
+  }
+
+  it("keeps every rendered caption line within the node's own box height for a long wrapping label", () => {
+    const longLabel = 'Azure Data Lake Storage Gen1 Extended Analytics Workspace';
+    const svg = svgForIconLabel(longLabel);
+
+    const rectMatch = svg.match(/<rect x="0" y="0" width="[\d.]+" height="([\d.]+)"/);
+    expect(rectMatch, `no node box rect found in: ${svg}`).not.toBeNull();
+    const boxHeight = Number(rectMatch![1]);
+
+    const textMatch = svg.match(
+      /<text x="[\d.-]+" y="([\d.-]+)" text-anchor="middle" font-size="([\d.]+)"[^>]*>([\s\S]*?)<\/text>/,
+    );
+    expect(textMatch, `no caption <text> found in: ${svg}`).not.toBeNull();
+    const baseY = Number(textMatch![1]);
+    const fontSize = Number(textMatch![2]);
+    const dyValues = [...textMatch![3].matchAll(/dy="(-?[\d.]+)em"/g)].map((m) => Number(m[1]));
+    // Confirms this label really did wrap to multiple lines, not a false-positive pass on a
+    // single-line label that trivially "fits".
+    expect(dyValues.length).toBeGreaterThan(1);
+
+    const lastLineY = dyValues.reduce((y, dy) => y + dy * fontSize, baseY);
+    expect(lastLineY).toBeLessThanOrEqual(boxHeight);
+  });
+
+  it('renders a short single-line icon label as one tspan-free line with no unnecessary extra height', () => {
+    const svg = svgForIconLabel('VM');
+
+    // Icon glyph itself is drawn.
+    expect(svg).toContain('<rect width="48" height="48" />');
+
+    const textMatch = svg.match(
+      /<text x="[\d.-]+" y="[\d.-]+" text-anchor="middle" font-size="[\d.]+"[^>]*>([\s\S]*?)<\/text>/,
+    );
+    expect(textMatch, `no caption <text> found in: ${svg}`).not.toBeNull();
+    expect(textMatch![1]).not.toContain('<tspan');
+    expect(textMatch![1]).toContain('VM');
+
+    // Box height matches the exact single-line content-fit size -- no leftover flat-default
+    // padding carried over from the old DEFAULT_NODE_SIZE fallback.
+    const node: DiagramNode = {
+      id: 'A',
+      label: 'VM',
+      shape: 'icon',
+      position: { x: 0, y: 0 },
+      icon: { libraryId: 'azure-icons', libraryVersion: '2024.1', iconId: 'data-lake' },
+    };
+    const expectedHeight = iconNodeSize(node).height;
+    const rectMatch = svg.match(/<rect x="0" y="0" width="[\d.]+" height="([\d.]+)"/);
+    expect(rectMatch, `no node box rect found in: ${svg}`).not.toBeNull();
+    expect(Number(rectMatch![1])).toBeCloseTo(expectedHeight);
   });
 });
