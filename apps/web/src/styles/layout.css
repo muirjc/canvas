@@ -104,6 +104,26 @@
 
 .auth__brand svg { color: var(--accent); }
 
+/* canvas-mi9: separates local email/password from the SSO link below it -- a plain centred
+   word between two rules is the common "or" divider pattern, not unique to this screen, but
+   this is currently its only user. */
+.auth__divider {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  margin-block: var(--space-4);
+  color: var(--text-tertiary);
+  font-size: var(--text-small-size);
+}
+
+.auth__divider::before,
+.auth__divider::after {
+  content: '';
+  flex: 1;
+  height: var(--border-width);
+  background: var(--border-default);
+}
+
 /* ---- Home ------------------------------------------------------------- */
 
 .home__actions {

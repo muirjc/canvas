@@ -35,7 +35,7 @@ param webOrigin string
 @description('Port the API listens on inside the container (matches apps/api/src/config.ts PORT).')
 param apiPort int = 3000
 
-@description('canvas-mi9 (Keycloak/MFA) has not landed yet -- with no OIDC provider configured there is no way to sign in at all unless local email/password auth stays enabled. Revisit once Keycloak is the primary path (see canvas-mi9\'s own ALLOW_LOCAL_AUTH note); defaults to true so this deployment is actually usable on its own.')
+@description('canvas-mi9 (Keycloak/MFA) shipped the code integration (real, verified against a live Keycloak instance -- see RUNBOOK.md) but this Bicep foundation does not yet deploy Keycloak itself as an Azure resource (tracked as explicit follow-up work, not silently dropped). With no OIDC provider actually reachable from THIS deployment, there is currently no way to sign in at all unless local email/password auth stays enabled. DECIDED, not deferred: once a Keycloak container app module is added here, this default MUST flip to false (or MFA becomes bypassable via the local-auth path) -- until then, true is what makes this deployment usable on its own.')
 param allowLocalAuth bool = true
 
 @description('AI_PROVIDER value -- "mock" keeps AI chat on the deterministic fake NLU (no real API calls, no cost) until a real key is provided via Key Vault; switch to anthropic/openai once ANTHROPIC_API_KEY/OPENAI_API_KEY are set as real Key Vault secret values.')

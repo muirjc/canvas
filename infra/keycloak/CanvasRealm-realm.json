@@ -1,0 +1,86 @@
+{
+  "realm": "CanvasRealm",
+  "enabled": true,
+  "sslRequired": "none",
+  "registrationAllowed": false,
+  "otpPolicyType": "totp",
+  "otpPolicyAlgorithm": "HmacSHA1",
+  "otpPolicyDigits": 6,
+  "otpPolicyPeriod": 30,
+  "otpPolicyInitialCounter": 0,
+  "otpPolicyLookAheadWindow": 1,
+  "otpPolicyCodeReusable": false,
+  "otpSupportedApplications": ["FreeOTP", "Google Authenticator"],
+  "requiredActions": [
+    {
+      "alias": "CONFIGURE_TOTP",
+      "name": "Configure OTP",
+      "providerId": "CONFIGURE_TOTP",
+      "enabled": true,
+      "defaultAction": true,
+      "priority": 10,
+      "config": {}
+    }
+  ],
+  "roles": {
+    "realm": [
+      { "name": "admin", "description": "Maps to canvas UserRole 'admin' -- full administrative access." },
+      { "name": "architect", "description": "Maps to canvas UserRole 'architect' -- standard authoring access." },
+      { "name": "viewer", "description": "Maps to canvas UserRole 'viewer' -- read-only access." }
+    ]
+  },
+  "clients": [
+    {
+      "clientId": "canvas-api",
+      "enabled": true,
+      "protocol": "openid-connect",
+      "publicClient": false,
+      "standardFlowEnabled": true,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": false,
+      "secret": "canvas-dev-client-secret-do-not-use-in-production",
+      "redirectUris": ["http://localhost:3000/auth/callback"],
+      "webOrigins": ["http://localhost:5173"],
+      "protocolMappers": [
+        {
+          "name": "realm roles",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-usermodel-realm-role-mapper",
+          "consentRequired": false,
+          "config": {
+            "multivalued": "true",
+            "id.token.claim": "true",
+            "access.token.claim": "true",
+            "userinfo.token.claim": "true",
+            "claim.name": "realm_access.roles"
+          }
+        }
+      ]
+    }
+  ],
+  "users": [
+    {
+      "username": "sso-admin@example.com",
+      "email": "sso-admin@example.com",
+      "emailVerified": true,
+      "enabled": true,
+      "firstName": "SSO",
+      "lastName": "Admin",
+      "credentials": [{ "type": "password", "value": "sso-admin-dev-password", "temporary": false }],
+      "requiredActions": ["CONFIGURE_TOTP"],
+      "realmRoles": ["admin"]
+    },
+    {
+      "username": "sso-architect@example.com",
+      "email": "sso-architect@example.com",
+      "emailVerified": true,
+      "enabled": true,
+      "firstName": "SSO",
+      "lastName": "Architect",
+      "credentials": [{ "type": "password", "value": "sso-architect-dev-password", "temporary": false }],
+      "requiredActions": ["CONFIGURE_TOTP"],
+      "realmRoles": ["architect"]
+    }
+  ]
+}

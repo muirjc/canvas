@@ -12,7 +12,7 @@ walkthroughs, see `specs/*/quickstart.md`. For the "what is this project" overvi
 | `DATABASE_URL` | **yes**, unless `NODE_ENV=test` | `postgres://canvas:canvas_dev_password@localhost:5433/canvas`. Falls back to `.../canvas_test` automatically when `NODE_ENV=test` — see `apps/api/src/config.ts`. |
 | `SESSION_SECRET` | **yes**, unless `NODE_ENV=test` | ≥32 characters. Falls back to a fixed test string when `NODE_ENV=test`. |
 | `ALLOW_LOCAL_AUTH` | no (default `false`) | Set `true` for local dev/demo — enables email/password login without OIDC. |
-| `OIDC_ISSUER_URL` / `OIDC_CLIENT_ID` / `OIDC_CLIENT_SECRET` / `OIDC_REDIRECT_URI` | no | Leave blank locally; SSO routes are disabled when unset (logged at startup). |
+| `OIDC_ISSUER_URL` / `OIDC_CLIENT_ID` / `OIDC_CLIENT_SECRET` / `OIDC_REDIRECT_URI` | no | Leave blank locally; SSO routes are disabled when unset (logged at startup). See "Keycloak SSO" below to actually try it locally. |
 | `WEB_ORIGINS` | no (default `http://localhost:5173`) | Comma-separated list of origins allowed to make credentialed CORS requests. |
 | `COOKIE_SECURE` | no (default `false`) | Set `true` for a split-origin deployment (frontend and API on different hosts, e.g. Azure — see `docs/azure-deployment.md` for a quick demo, or `infra/azure/README.md` for a proper IaC deployment). Forced `true` automatically whenever `COOKIE_SAME_SITE=none`. |
 | `COOKIE_SAME_SITE` | no (default `lax`) | `lax`/`none`/`strict`. Leave at the default for local dev and any same-origin deployment. `none` is required for a split-origin deployment — `lax` cookies are never attached to cross-site fetch/XHR calls. |
@@ -35,6 +35,65 @@ npm run dev --workspace=@canvas/web                     # separate terminal; for
 
 Sign in at `http://localhost:5173/?projectId=<seed-printed-id>` with `admin@example.com` /
 `admin-dev-password` (or `architect@example.com` / `architect-dev-password`).
+
+## Keycloak SSO (canvas-mi9)
+
+Local Keycloak with a reproducible, version-controlled realm import — no manual admin-console
+clickthrough needed. Not started by the plain `docker compose up -d` above (see
+`docker-compose.yml`'s own comment); opt in explicitly:
+
+```bash
+docker compose --profile sso up -d keycloak
+```
+
+Wait for `curl http://localhost:8180/realms/CanvasRealm/.well-known/openid-configuration` to
+return `200` (a JVM boot takes a few seconds), then point the API at it:
+
+```bash
+# apps/api/.env — see .env.example's own comment on these four
+OIDC_ISSUER_URL=http://localhost:8180/realms/CanvasRealm
+OIDC_CLIENT_ID=canvas-api
+OIDC_CLIENT_SECRET=canvas-dev-client-secret-do-not-use-in-production
+OIDC_REDIRECT_URI=http://localhost:3000/auth/callback
+```
+
+Restart `npm run dev --workspace=@canvas/api` to pick up the new env vars (OIDC discovery runs
+once at startup, not per-request) and reload the frontend — `LoginForm.tsx` now shows a
+"Sign in with SSO" link. `infra/keycloak/CanvasRealm-realm.json` seeds two test users, each
+forced through Keycloak's own TOTP (MFA) enrollment on first login — there is no way to complete
+Keycloak SSO login without it, realm policy, not just app code:
+
+| Email | Password | Keycloak realm role | canvas `UserRole` |
+|---|---|---|---|
+| `sso-admin@example.com` | `sso-admin-dev-password` | `admin` | `admin` |
+| `sso-architect@example.com` | `sso-architect-dev-password` | `architect` | `architect` |
+
+Role mapping (`apps/api/src/auth/oidc.ts`'s `mapRealmRolesToUserRole`) reads the realm roles
+claim (`realm_access.roles` in the ID token, via the realm's own "realm roles" protocol mapper)
+and re-syncs it on every login — Keycloak is the source of truth once a user signs in via SSO, so
+a role change there takes effect on that user's very next login, not just at some later manual
+re-provisioning step. A user with none of `admin`/`architect`/`viewer` as a realm role defaults to
+`viewer` (least privilege), never silently escalated.
+
+**Verified against a real Keycloak instance, not just realm config that's never exercised** —
+`apps/web/tests/e2e/sso-login.spec.ts` drives the actual login + first-time MFA enrollment
+through Keycloak's own login theme (reads the enrollment page's live TOTP secret, computes a real
+code with `otplib`, submits it) and confirms the resulting canvas session has the correctly
+mapped role. Two real bugs in the pre-existing OIDC callback code were found and fixed doing this
+(see `oidc.ts`'s own comments): a `request.hostname`-derived redirect URI silently missing its
+port, and a post-login redirect assuming same-origin frontend/API when canvas is deliberately
+split-origin. Neither was previously reachable by any test, since nothing had exercised a real
+OIDC round-trip before. This spec needs `E2E_SSO_READY=1` (on top of the usual `E2E_PROJECT_ID`)
+and a **freshly (re)started** Keycloak container — `docker compose --profile sso down keycloak &&
+docker compose --profile sso up -d keycloak` — its realm-imported users carry no persistent
+volume, so a `restart` (not a full recreate) leaves a completed enrollment from a prior run in
+place and the spec's "first-time enrollment" assumption no longer holds. Not run in CI today
+(standing up Keycloak there is tracked separately).
+
+`ALLOW_LOCAL_AUTH=true` still works alongside SSO — both entry points render whenever both are
+configured; this is a genuine platform-wide, not-yet-revisited decision for a *deployed*
+environment (see `infra/azure/modules/apiapp.bicep`'s own `allowLocalAuth` param comment for why
+it currently defaults `true` there too, and what has to happen before that changes).
 
 ### Running servers detached, for scripted/agent workflows
 

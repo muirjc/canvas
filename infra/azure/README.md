@@ -26,10 +26,33 @@ One resource group (`canvas-rg` by default), from `main.bicep`:
 | Dev/demo seed job | `modules/seedjob.bicep` | Manual-trigger, **not run automatically** — creates a demo admin login. |
 | Storage account (frontend) | `modules/storage.bicep` | Static website hosting enabled by `deploy.sh` (no ARM resource for that setting). |
 
-**Not included**: Keycloak. That's `canvas-mi9` (Keycloak/MFA integration), separate follow-on
-work. If/when it lands, it should add its own module here (mirroring ADP's own
-`modules/keycloak.bicep` + `/auth` reverse-proxy pattern), not stand up a second, disconnected
-resource group.
+**Not included**: Keycloak as an Azure resource. `canvas-mi9` shipped the *code* integration
+(SSO login flow, role mapping, MFA enforcement — verified against a real local Keycloak instance,
+see `RUNBOOK.md`'s "Keycloak SSO" section) but does not yet add a Keycloak container app to this
+Bicep foundation; that remains explicit follow-on work, not silently dropped. When it lands, it
+should add its own module here (mirroring ADP's own `modules/keycloak.bicep` +
+`/auth`-reverse-proxy pattern), not stand up a second, disconnected resource group. Concretely,
+that follow-up needs:
+- A `keycloak.bicep` module: internal-ingress-only container app (never reachable from a browser
+  directly, matching ADP's `modules/keycloak.bicep`) on this same `containerAppsEnv`.
+- A reverse-proxy route on `apiapp.bicep`'s own container (mirroring ADP's
+  `src/adp/api/routers/auth_proxy.py`) forwarding `/auth/*` (or a similar prefix) to Keycloak's
+  internal FQDN, so the browser only ever talks to the one already-public `canvas-api` hostname —
+  the same trick that avoids a browser-facing-vs-backend-facing issuer URL mismatch, the exact
+  class of bug this bead's own investigation flagged as a real risk for Keycloak behind a proxy.
+- `OIDC_ISSUER_URL` on `apiapp.bicep` set to that public `https://<api-fqdn>/auth/realms/
+  CanvasRealm` address; Keycloak's own `KC_HOSTNAME` told to believe the same address is its own,
+  so its issuer claim and generated URLs already match without further rewriting (ADP's exact
+  pattern, `modules/keycloak.bicep`'s own `keycloakPublicBaseUrl` param).
+- A realm-provisioning story for real (non-dev-fixture) users — `infra/keycloak/
+  CanvasRealm-realm.json`'s two seeded test users are for local iteration only; a real deployment
+  needs either an admin-API-driven provisioning job (mirroring ADP's `keycloak_create_users.py` —
+  including its own documented gotcha: `requiredActions[].defaultAction` does NOT auto-assign to
+  users created via the admin API, only Keycloak's own self-registration/first-login flow, so MFA
+  enrollment must be set explicitly per user) or a real user-management process, not decided here.
+- `apiapp.bicep`'s `allowLocalAuth` default flipped to `false` once the above actually lands (see
+  its own param comment) — otherwise MFA stays bypassable via the local-auth path even with
+  Keycloak deployed.
 
 ## Architecture decisions (and why)
 
@@ -48,9 +71,11 @@ resource group.
   matches ADP's own deliberate simplification (and canvas's `docker-compose.yml`, which already
   uses one `canvas` user for everything). Not a best practice to copy uncritically — revisit if
   this deployment ever needs finer-grained DB access control.
-- **`ALLOW_LOCAL_AUTH=true` by default** (`apiapp.bicep`'s `allowLocalAuth` param) — with no OIDC
-  provider configured yet (`canvas-mi9` hasn't landed), there is currently no other way to sign
-  in at all. Revisit this default once Keycloak is the primary path.
+- **`ALLOW_LOCAL_AUTH=true` by default** (`apiapp.bicep`'s `allowLocalAuth` param) — this Bicep
+  foundation does not yet deploy Keycloak itself as an Azure resource (see "Not included" above),
+  so there is currently no other way to sign in to a deployment of *this* IaC at all. Decided, not
+  deferred: this default MUST flip to `false` once a Keycloak module is actually added here, or
+  MFA becomes bypassable via the local-auth path.
 
 ## First deploy
 
