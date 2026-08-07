@@ -15,6 +15,7 @@ import {
   renameDiagram,
   restoreDiagram,
   saveDiagram,
+  updateDiagramDescription,
   UnknownDiagramTypeError,
 } from './diagram.service.js';
 import { searchDiagrams } from './search.service.js';
@@ -127,6 +128,29 @@ export async function registerDiagramRoutes(app: FastifyInstance): Promise<void>
       }
       try {
         const diagram = await renameDiagram(request.params.id, name);
+        reply.send({ diagram });
+      } catch (error) {
+        handleServiceError(error, reply);
+      }
+    },
+  );
+
+  /**
+   * Sets a diagram's free-text description (canvas-hbk). Same access bar as renaming — edit
+   * access is enough, no owner-or-admin restriction — and unlike name, an empty string is a
+   * valid value (clears it back to "none set"), not rejected.
+   */
+  app.patch<{ Params: { id: string }; Body: { description: string } }>(
+    '/diagrams/:id/description',
+    { preHandler: [requireAuth, requireDiagramAccess('edit')] },
+    async (request, reply) => {
+      const { description } = request.body;
+      if (typeof description !== 'string') {
+        reply.code(400).send({ error: 'description must be a string' });
+        return;
+      }
+      try {
+        const diagram = await updateDiagramDescription(request.params.id, description);
         reply.send({ diagram });
       } catch (error) {
         handleServiceError(error, reply);
