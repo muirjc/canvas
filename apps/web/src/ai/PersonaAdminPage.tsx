@@ -1,8 +1,17 @@
 import { useEffect, useState } from 'react';
-import { api, ApiError, type AiPersonaDto, type AiSettingsDto } from '../app/api';
+import { api, ApiError, type AiPersonaDto, type AiProviderKind, type AiSettingsDto } from '../app/api';
 import { groupPersonasByCategory } from './persona-grouping';
 
 const CATEGORIES = ['Business', 'Enterprise', 'Solution', 'Technical'] as const;
+
+// canvas-wuc: lets an admin self-diagnose the exact drift that motivated this bead — a real
+// deployment unexpectedly running the mock/placeholder provider (or none configured at all).
+const PROVIDER_LABEL: Record<AiProviderKind, string> = {
+  anthropic: 'Anthropic (live)',
+  openai: 'OpenAI (live)',
+  mock: 'Mock / test provider — responses are simulated, not from a real AI model',
+  unconfigured: 'Not configured — AI requests will fail',
+};
 
 /** User Story 3: admin persona library management (create/edit/archive), plus the platform-wide
  * "Enable AI Chat" toggle (FR-020) — tasks.md has no dedicated task for that toggle's admin UI,
@@ -77,6 +86,11 @@ export function PersonaAdminPage() {
           />
           Enable AI Chat
         </label>
+        {settings && (
+          <p className="meta" data-testid="ai-provider-indicator">
+            Provider: {PROVIDER_LABEL[settings.provider]}
+          </p>
+        )}
         {archivedCount > 0 && (
           <label className="row">
             <input

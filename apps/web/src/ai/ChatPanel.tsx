@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
-import { api, ApiError, type AiPersonaDto, type ChatMessageDto, type ToolCallOutcomeDto } from '../app/api';
+import { api, ApiError, type AiPersonaDto, type AiSettingsDto, type ChatMessageDto, type ToolCallOutcomeDto } from '../app/api';
 import { Icon } from '../ui/Icon';
 import { groupPersonasByCategory } from './persona-grouping';
+import { AI_CHAT_DISABLED_MESSAGE, AI_MOCK_MODE_MESSAGE } from './ai-status-messages';
 
 export interface ChatPanelProps {
   diagramId: string;
@@ -35,10 +36,26 @@ export function ChatPanel({ diagramId, currentDslContent, onDiagramUpdated }: Ch
   const [input, setInput] = useState('');
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // canvas-wuc: checked client-side before the user can even start typing, not just surfaced as a
+  // 503 after a send attempt. `null` while unknown — the composer stays enabled during that brief
+  // window rather than flashing disabled-then-enabled on every panel open.
+  const [aiStatus, setAiStatus] = useState<AiSettingsDto | null>(null);
 
   useEffect(() => {
     api.listAiPersonas().then(({ personas }) => setPersonas(personas));
   }, []);
+
+  useEffect(() => {
+    api
+      .getAiStatus()
+      .then(setAiStatus)
+      .catch(() => {
+        // Unreachable/erroring is treated the same as "unknown" — the composer stays enabled and
+        // simply surfaces its own error if actually used, same as before this bead.
+      });
+  }, []);
+
+  const chatDisabled = aiStatus?.chatEnabled === false;
 
   useEffect(() => {
     setMessages([]);
@@ -63,7 +80,7 @@ export function ChatPanel({ diagramId, currentDslContent, onDiagramUpdated }: Ch
 
   const handleSend = async () => {
     const message = input.trim();
-    if (!message) return;
+    if (!message || chatDisabled) return;
     setError(null);
     setSending(true);
     setMessages((prev) => [...prev, { role: 'user', content: message }]);
@@ -116,6 +133,17 @@ export function ChatPanel({ diagramId, currentDslContent, onDiagramUpdated }: Ch
           </li>
         )}
       </ul>
+      {chatDisabled && (
+        <p className="state" data-testid="chat-disabled-notice">
+          <Icon name="warning" className="state__icon" />
+          {AI_CHAT_DISABLED_MESSAGE}
+        </p>
+      )}
+      {aiStatus?.provider === 'mock' && (
+        <p className="meta" data-testid="chat-mock-mode-notice">
+          {AI_MOCK_MODE_MESSAGE}
+        </p>
+      )}
       {showPersonaPicker && (
         <div className="panel__footer">
           <div className="field">
@@ -150,13 +178,14 @@ export function ChatPanel({ diagramId, currentDslContent, onDiagramUpdated }: Ch
           placeholder="Describe a change…"
           value={input}
           onChange={(e) => setInput(e.target.value)}
+          disabled={chatDisabled}
           rows={2}
         />
         <button
           type="button"
           className="btn btn--primary btn--compact"
           data-testid="chat-send"
-          disabled={!input.trim() || sending}
+          disabled={!input.trim() || sending || chatDisabled}
           onClick={handleSend}
         >
           <Icon name="send" />
@@ -167,7 +196,12 @@ export function ChatPanel({ diagramId, currentDslContent, onDiagramUpdated }: Ch
         <p role="alert" className="chat-error" data-testid="chat-error">
           <Icon name="warning" />
           {error}
-          <button type="button" className="btn btn--tertiary btn--compact" onClick={handleSend} disabled={!input.trim()}>
+          <button
+            type="button"
+            className="btn btn--tertiary btn--compact"
+            onClick={handleSend}
+            disabled={!input.trim() || chatDisabled}
+          >
             Retry
           </button>
         </p>

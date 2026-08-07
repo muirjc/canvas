@@ -215,8 +215,14 @@ export interface SendChatMessageResultDto {
   toolCalls: ToolCallOutcomeDto[];
 }
 
+export type AiProviderKind = 'anthropic' | 'openai' | 'mock' | 'unconfigured';
+
 export interface AiSettingsDto {
   chatEnabled: boolean;
+  /** canvas-wuc: which provider AI_PROVIDER currently resolves to, for display only — lets the AI
+   *  entry points (Create with AI, Chat panel) warn when a deployment is unexpectedly running the
+   *  'mock' fake-NLU provider instead of a real one. */
+  provider: AiProviderKind;
 }
 
 export const api = {
@@ -344,5 +350,10 @@ export const api = {
     request<SendChatMessageResultDto>(`/diagrams/${diagramId}/chat/messages`, { method: 'POST', body: JSON.stringify(body) }),
   getChatMessages: (diagramId: string) => request<{ messages: ChatMessageDto[] }>(`/diagrams/${diagramId}/chat/messages`),
   getAiSettings: () => request<AiSettingsDto>('/admin/ai-settings'),
-  setAiSettings: (body: AiSettingsDto) => request<AiSettingsDto>('/admin/ai-settings', { method: 'PATCH', body: JSON.stringify(body) }),
+  setAiSettings: (body: { chatEnabled: boolean }) =>
+    request<AiSettingsDto>('/admin/ai-settings', { method: 'PATCH', body: JSON.stringify(body) }),
+  /** canvas-wuc: any authenticated user, not just admins — read-only, mirrors listAiPersonas vs
+   *  listAllAiPersonas' split. Used to gate the AI entry points (Create with AI, Chat panel)
+   *  client-side before the user can even start typing, rather than only after a 503. */
+  getAiStatus: () => request<AiSettingsDto>('/ai-settings'),
 };
