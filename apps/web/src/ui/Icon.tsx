@@ -30,7 +30,8 @@ export type IconName =
   | 'send'
   | 'pencil'
   | 'palette'
-  | 'layout';
+  | 'layout'
+  | 'info';
 
 /** Path data only — the wrapper supplies sizing, colour, and ARIA. `diamond` and `check` are
  *  filled; the rest are 1.5px strokes on a 16-unit grid. */
@@ -61,6 +62,9 @@ const PATHS: Record<IconName, { d: string; filled?: boolean }[]> = {
   // Auto Layout — a small hierarchy/tree glyph (one box branching to two) suggesting "arrange
   // into ranks", distinct from `group`'s overlapping-boxes grouping metaphor.
   layout: [{ d: 'M6 2h4v3h-4zM2 11h4v3h-4zM10 11h4v3h-4zM8 5v3M8 8 4 11M8 8 12 11' }],
+  // canvas-hbk: Diagram Details trigger — a circled "i", distinct from `warning`'s triangle. The
+  // dot is a zero-length stroked segment, rendered as a circle by the shared strokeLinecap="round".
+  info: [{ d: 'M8 14.5a6.5 6.5 0 1 0 0-13 6.5 6.5 0 0 0 0 13ZM8 7.25v4M8 5.25v.01' }],
 };
 
 export interface IconProps {

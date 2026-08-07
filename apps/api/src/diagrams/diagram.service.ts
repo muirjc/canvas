@@ -7,6 +7,10 @@ import type { Violation } from '@canvas/diagram-core';
 export interface DiagramRecord {
   id: string;
   name: string;
+  /** canvas-hbk: a few lines of free text describing what the diagram represents — distinct from
+   *  Mermaid's inline `%%` comments, which live inside the DSL body. Null until an architect sets
+   *  one; never backfilled with a guess. */
+  description: string | null;
   diagramTypeId: string;
   /** The DSL family (e.g. "c4", "architecture") this diagram type serializes to — not the
    * diagram type id itself, which callers must not confuse with it (they only coincide for
@@ -14,6 +18,10 @@ export interface DiagramRecord {
   dslFamily: string;
   projectId: string;
   ownerId: string;
+  /** canvas-hbk: resolved from owner_id — the diagrams table only stores the UUID, and the
+   *  client has no way to resolve it itself (same "can't identify who" gap canvas-23t.3 already
+   *  fixed for Deleted Diagrams). */
+  ownerName: string;
   dslContent: string;
   lastValidationResult: Violation[];
   createdAt: string;
@@ -94,54 +102,45 @@ export async function createDiagram(input: CreateDiagramInput): Promise<DiagramR
 
   const pool = getPool();
   const client = await pool.connect();
+  let diagramId: string;
   try {
     await client.query('BEGIN');
-    const diagramResult = await client.query<{ id: string; created_at: string; updated_at: string }>(
+    const diagramResult = await client.query<{ id: string }>(
       `INSERT INTO diagrams (name, diagram_type_id, project_id, owner_id, last_validation_result, standard_version_at_last_check)
-       VALUES ($1, $2, $3, $4, $5, $6) RETURNING id, created_at, updated_at`,
+       VALUES ($1, $2, $3, $4, $5, $6) RETURNING id`,
       [input.name, input.diagramTypeId, input.projectId, input.ownerId, JSON.stringify(violations), standardVersion],
     );
-    const diagram = diagramResult.rows[0];
+    diagramId = diagramResult.rows[0].id;
 
     const versionId = await recordDiagramVersion(client, {
-      diagramId: diagram.id,
+      diagramId,
       dslContent: initialDslContent,
       authorId: input.ownerId,
     });
 
-    await client.query('UPDATE diagrams SET current_version_id = $1 WHERE id = $2', [
-      versionId,
-      diagram.id,
-    ]);
+    await client.query('UPDATE diagrams SET current_version_id = $1 WHERE id = $2', [versionId, diagramId]);
     await client.query('COMMIT');
-
-    return {
-      id: diagram.id,
-      name: input.name,
-      diagramTypeId: input.diagramTypeId,
-      dslFamily: dslFamilyId,
-      projectId: input.projectId,
-      ownerId: input.ownerId,
-      dslContent: initialDslContent,
-      lastValidationResult: violations,
-      createdAt: diagram.created_at,
-      updatedAt: diagram.updated_at,
-    };
   } catch (error) {
     await client.query('ROLLBACK');
     throw error;
   } finally {
     client.release();
   }
+  // canvas-hbk: re-fetches rather than hand-assembling the record, so createDiagram picks up
+  // ownerName resolution (and description's null default) via the same single code path getDiagram
+  // already has, instead of a second copy of that mapping logic.
+  return getDiagram(diagramId);
 }
 
 interface DiagramRow {
   id: string;
   name: string;
+  description: string | null;
   diagram_type_id: string;
   dsl_family: string;
   project_id: string;
   owner_id: string;
+  owner_name: string | null;
   last_validation_result: Violation[];
   created_at: string;
   updated_at: string;
@@ -151,11 +150,12 @@ interface DiagramRow {
 export async function getDiagram(id: string): Promise<DiagramRecord> {
   const pool = getPool();
   const { rows } = await pool.query<DiagramRow>(
-    `SELECT d.id, d.name, d.diagram_type_id, dt.dsl_family, d.project_id, d.owner_id,
-            d.last_validation_result, d.created_at, d.updated_at, v.dsl_content
+    `SELECT d.id, d.name, d.description, d.diagram_type_id, dt.dsl_family, d.project_id, d.owner_id,
+            u.name AS owner_name, d.last_validation_result, d.created_at, d.updated_at, v.dsl_content
      FROM diagrams d
      JOIN diagram_versions v ON v.id = d.current_version_id
      JOIN diagram_types dt ON dt.id = d.diagram_type_id
+     LEFT JOIN users u ON u.id = d.owner_id
      WHERE d.id = $1 AND d.deleted_at IS NULL`,
     [id],
   );
@@ -166,10 +166,12 @@ export async function getDiagram(id: string): Promise<DiagramRecord> {
   return {
     id: row.id,
     name: row.name,
+    description: row.description,
     diagramTypeId: row.diagram_type_id,
     dslFamily: row.dsl_family,
     projectId: row.project_id,
     ownerId: row.owner_id,
+    ownerName: row.owner_name ?? '(unknown)',
     dslContent: row.dsl_content,
     lastValidationResult: row.last_validation_result,
     createdAt: row.created_at,
@@ -245,6 +247,23 @@ export async function renameDiagram(id: string, name: string): Promise<DiagramRe
     throw new DiagramNotFoundError(`No diagram with id ${id}`);
   }
   await pool.query('UPDATE diagrams SET name = $2 WHERE id = $1', [id, name]);
+  return getDiagram(id);
+}
+
+/**
+ * Sets a diagram's free-text description (canvas-hbk), mirroring renameDiagram exactly — same
+ * access model (enforced by the route, not here), same no-versioning-implications shape. Unlike
+ * name, an empty string is valid (clears the description back to "none set") rather than being
+ * rejected — a diagram is never required to carry a description the way it's required to carry
+ * a name.
+ */
+export async function updateDiagramDescription(id: string, description: string): Promise<DiagramRecord> {
+  const pool = getPool();
+  const { rows } = await pool.query('SELECT 1 FROM diagrams WHERE id = $1 AND deleted_at IS NULL', [id]);
+  if (!rows[0]) {
+    throw new DiagramNotFoundError(`No diagram with id ${id}`);
+  }
+  await pool.query('UPDATE diagrams SET description = $2 WHERE id = $1', [id, description || null]);
   return getDiagram(id);
 }
 

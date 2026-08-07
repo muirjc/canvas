@@ -12,6 +12,7 @@ import { ShareDialog } from '../projects/ShareDialog';
 import { api, ApiError, type DiagramDto, type IconDto } from './api';
 import { Icon } from '../ui/Icon';
 import { RailTabs } from '../ui/RailTabs';
+import { Modal } from '../ui/Modal';
 
 let iconNodeCounter = 0;
 function nextIconNodeId(): string {
@@ -63,6 +64,16 @@ export const DiagramEditor = forwardRef<DiagramEditorHandle, DiagramEditorProps>
   // same commit-on-Enter/blur, cancel-on-Escape shape, just scoped to this one diagram's title.
   const [editingName, setEditingName] = useState(false);
   const [renameError, setRenameError] = useState<string | null>(null);
+  // canvas-hbk: Diagram Details dialog — owner/created-date display plus an editable description.
+  // The description textarea follows the same controlled-draft + explicit-Save pattern as
+  // PersonaAdminPage.tsx's prompt editor (canvas-ddx): `descriptionDraft` is null until the user
+  // actually types, falling back to diagram.description otherwise, so dirty state is a plain
+  // comparison with no separate reset needed after a successful save.
+  const [showDetails, setShowDetails] = useState(false);
+  const [descriptionDraft, setDescriptionDraft] = useState<string | null>(null);
+  const [savingDescription, setSavingDescription] = useState(false);
+  const [descriptionSaved, setDescriptionSaved] = useState(false);
+  const [descriptionError, setDescriptionError] = useState<string | null>(null);
   // State rather than a ref: the portal target must trigger a re-render once it is attached,
   // otherwise Canvas renders its toolbar in place on the first pass and never moves it.
   const [toolbarContainer, setToolbarContainer] = useState<HTMLDivElement | null>(null);
@@ -124,6 +135,24 @@ export const DiagramEditor = forwardRef<DiagramEditorHandle, DiagramEditorProps>
     }
   };
 
+  const descriptionValue = descriptionDraft ?? diagram.description ?? '';
+  const descriptionDirty = descriptionValue !== (diagram.description ?? '');
+
+  const handleSaveDescription = async () => {
+    setSavingDescription(true);
+    setDescriptionError(null);
+    try {
+      const { diagram: updated } = await api.updateDiagramDescription(diagram.id, descriptionValue);
+      setDiagram(updated);
+      setDescriptionDraft(null);
+      setDescriptionSaved(true);
+    } catch (err) {
+      setDescriptionError(err instanceof ApiError ? err.message : (err as Error).message);
+    } finally {
+      setSavingDescription(false);
+    }
+  };
+
   const handleSave = async () => {
     setSaveStatus('saving');
     try {
@@ -181,6 +210,16 @@ export const DiagramEditor = forwardRef<DiagramEditorHandle, DiagramEditorProps>
             </button>
           )}
         </span>
+        <button
+          type="button"
+          className="btn btn--tertiary btn--compact btn--icon"
+          data-testid="open-diagram-details"
+          aria-label="Diagram details"
+          title="Diagram details"
+          onClick={() => setShowDetails(true)}
+        >
+          <Icon name="info" />
+        </button>
         <span className="spacer" />
         {/* The dot sits BESIDE `save-status`, never inside it: five existing spec files assert
             that element's text exactly (`toHaveText('saved')`), and SC-003 forbids changing an
@@ -264,6 +303,59 @@ export const DiagramEditor = forwardRef<DiagramEditorHandle, DiagramEditorProps>
       </div>
 
       {sharing && <ShareDialog diagramId={diagram.id} onClose={() => setSharing(false)} />}
+
+      {showDetails && (
+        <Modal label="Diagram details" testId="diagram-details" onClose={() => setShowDetails(false)}>
+          <dl>
+            <dt>Owner</dt>
+            <dd data-testid="diagram-details-owner">{diagram.ownerName}</dd>
+            <dt>Created</dt>
+            <dd data-testid="diagram-details-created">{new Date(diagram.createdAt).toLocaleString()}</dd>
+          </dl>
+          <div className="field">
+            <label className="field__label" htmlFor="diagram-description-input">
+              Description
+            </label>
+            <textarea
+              id="diagram-description-input"
+              data-testid="diagram-description-input"
+              value={descriptionValue}
+              onChange={(e) => {
+                setDescriptionDraft(e.target.value);
+                setDescriptionSaved(false);
+              }}
+              rows={4}
+              style={{ width: '100%' }}
+            />
+          </div>
+          <div className="row">
+            <button
+              type="button"
+              className="btn btn--primary btn--compact"
+              data-testid="diagram-description-save"
+              disabled={!descriptionDirty || savingDescription}
+              onClick={handleSaveDescription}
+            >
+              {savingDescription ? 'Saving…' : 'Save'}
+            </button>
+            {descriptionDirty && (
+              <span className="meta" data-testid="diagram-description-status">
+                Unsaved changes
+              </span>
+            )}
+            {!descriptionDirty && descriptionSaved && (
+              <span className="meta" data-testid="diagram-description-status">
+                Saved
+              </span>
+            )}
+          </div>
+          {descriptionError && (
+            <p role="alert" data-testid="diagram-description-error">
+              {descriptionError}
+            </p>
+          )}
+        </Modal>
+      )}
     </div>
   );
 });
