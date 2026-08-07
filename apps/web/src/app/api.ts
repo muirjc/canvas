@@ -48,10 +48,18 @@ export interface SessionUser {
 export interface DiagramDto {
   id: string;
   name: string;
+  /** canvas-hbk: a few lines of free text describing the diagram — null until an architect sets
+   *  one. Distinct from Mermaid's inline `%%` comments inside the DSL body. */
+  description: string | null;
   diagramTypeId: string;
   dslFamily: string;
   dslContent: string;
   lastValidationResult: { elementId: string; rule: string; message: string; severity: string }[];
+  /** canvas-hbk: resolved owner name (not a raw UUID) and creation/last-modified timestamps —
+   *  already stored server-side, previously never sent to the client. */
+  ownerName: string;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface StandardRulesDto {
@@ -293,6 +301,13 @@ export const api = {
    *  DSL), unlike renameProject which is owner-or-admin only. */
   renameDiagram: (diagramId: string, name: string) =>
     request<{ diagram: DiagramDto }>(`/diagrams/${diagramId}/name`, { method: 'PATCH', body: JSON.stringify({ name }) }),
+  /** canvas-hbk: same access bar as renaming — edit access on the diagram. Unlike name, an empty
+   *  string is a valid value (clears the description back to "none set"). */
+  updateDiagramDescription: (diagramId: string, description: string) =>
+    request<{ diagram: DiagramDto }>(`/diagrams/${diagramId}/description`, {
+      method: 'PATCH',
+      body: JSON.stringify({ description }),
+    }),
   /** Owner-or-admin only, and only if the project has no diagrams and no sub-projects
    *  (canvas-228.2) — soft-deleted, recoverable by an admin within the retention window. */
   deleteProject: (id: string) => request<void>(`/projects/${id}`, { method: 'DELETE' }),
