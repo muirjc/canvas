@@ -14,6 +14,10 @@ export function PersonaAdminPage() {
   const [category, setCategory] = useState<string>(CATEGORIES[0]);
   const [systemPrompt, setSystemPrompt] = useState('');
   const [error, setError] = useState<string | null>(null);
+  // canvas-rbu: hidden by default -- the bead's own complaint is archived entries cluttering the
+  // screen as the library grows, so the reduce-clutter direction is the more useful default. A
+  // persona's status is still shown via the existing persona-status-<id> badge when this is on.
+  const [showArchived, setShowArchived] = useState(false);
 
   const refresh = () => {
     api.listAllAiPersonas().then(({ personas }) => setPersonas(personas));
@@ -51,7 +55,9 @@ export function PersonaAdminPage() {
     setSettings(await api.setAiSettings({ chatEnabled }));
   };
 
-  const groups = groupPersonasByCategory(personas);
+  const visiblePersonas = showArchived ? personas : personas.filter((p) => p.status !== 'archived');
+  const archivedCount = personas.length - personas.filter((p) => p.status !== 'archived').length;
+  const groups = groupPersonasByCategory(visiblePersonas);
 
   return (
     <div className="stack">
@@ -71,6 +77,17 @@ export function PersonaAdminPage() {
           />
           Enable AI Chat
         </label>
+        {archivedCount > 0 && (
+          <label className="row">
+            <input
+              type="checkbox"
+              data-testid="show-archived-personas-toggle"
+              checked={showArchived}
+              onChange={(e) => setShowArchived(e.target.checked)}
+            />
+            Show archived personas ({archivedCount})
+          </label>
+        )}
       </section>
 
       {CATEGORIES.map((cat) => {
