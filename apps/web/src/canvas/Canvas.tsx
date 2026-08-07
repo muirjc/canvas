@@ -20,9 +20,11 @@ import {
   clipEdgeEndpoint,
   computeBounds,
   sanitizeSvgFragment,
+  autoLayout,
   type DiagramContainer,
   type DiagramModel,
   type DiagramNode,
+  type FlowchartDirection,
   type NodeShape,
 } from '@canvas/diagram-core';
 import { getAddableShapes, nodeSize, renderNodeShape, SELECTION_STROKE } from './shapes';
@@ -193,6 +195,17 @@ export function Canvas({ model, onChange, dslFamily, toolbarContainer }: CanvasP
   // canvas-7rr: chosen once per connection, applied when the second shape is clicked. 'reversed'
   // needs no DiagramEdge.arrow value — it is just sourceId/targetId swapped at that point.
   const [connectArrowStyle, setConnectArrowStyle] = useState<'forward' | 'reversed' | 'both' | 'none'>('forward');
+  // canvas-esn: the direction Auto Layout runs with, always visible (unlike connectArrowStyle,
+  // which only matters mid-connect) — defaults to the model's own already-parsed direction so
+  // re-running layout on an imported diagram doesn't silently flip its axis.
+  const [layoutDirection, setLayoutDirection] = useState<FlowchartDirection>(model.direction ?? 'TD');
+  // Re-syncs the picker whenever model.direction changes for a reason OTHER than this picker
+  // itself (a DSL-panel edit setting `graph LR`, a version restore) — a plain useState initializer
+  // only runs once at mount, so without this the picker would silently go stale and a later Auto
+  // Layout click could stomp a direction the user just set a different way.
+  useEffect(() => {
+    if (model.direction) setLayoutDirection(model.direction);
+  }, [model.direction]);
   const [editingNodeId, setEditingNodeId] = useState<string | null>(null);
   const [editingEdgeId, setEditingEdgeId] = useState<string | null>(null);
   const [editingContainerId, setEditingContainerId] = useState<string | null>(null);
@@ -311,6 +324,10 @@ export function Canvas({ model, onChange, dslFamily, toolbarContainer }: CanvasP
 
   const handleAddShape = (shape: NodeShape) => {
     onChange(addNode(model, { shape }));
+  };
+
+  const handleAutoLayout = () => {
+    onChange(autoLayout(model, layoutDirection));
   };
 
   const toClientPoint = (event: React.PointerEvent): { x: number; y: number } => {
@@ -704,6 +721,32 @@ export function Canvas({ model, onChange, dslFamily, toolbarContainer }: CanvasP
             <Icon name="trash" />
             Delete Selected
           </button>
+          {/* canvas-esn: flowchart-family only (v1) — the same dslFamily scoping already used for
+              getAddableShapes above. Not a mode like Connect: one click rearranges the whole
+              diagram in the picked direction and the picker stays visible so it can be changed and
+              re-run at any time, mirroring docs/mermaid_dagre_demo.html's own select+button shape. */}
+          {dslFamily === 'flowchart' && (
+            <>
+              <label className="field__label" htmlFor="auto-layout-direction">
+                Layout Direction
+                <select
+                  id="auto-layout-direction"
+                  data-testid="auto-layout-direction"
+                  value={layoutDirection}
+                  onChange={(e) => setLayoutDirection(e.target.value as FlowchartDirection)}
+                >
+                  <option value="TD">Top → Down</option>
+                  <option value="LR">Left → Right</option>
+                  <option value="BT">Bottom → Up</option>
+                  <option value="RL">Right → Left</option>
+                </select>
+              </label>
+              <button type="button" className="btn btn--secondary" data-testid="auto-layout" onClick={handleAutoLayout}>
+                <Icon name="layout" />
+                Auto Layout
+              </button>
+            </>
+          )}
         </div>
       </div>
     </div>
