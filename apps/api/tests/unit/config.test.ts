@@ -66,3 +66,39 @@ describe('loadConfig()', () => {
     }
   });
 });
+
+/**
+ * canvas-azure-deploy: a split-origin deployment (static-hosted frontend, separately hosted API —
+ * e.g. Azure) needs SameSite=None + Secure session cookies, since SameSite=Lax cookies are never
+ * attached to cross-site fetch/XHR calls. Defaults must stay same-origin-safe (local dev and any
+ * same-origin production deployment need neither), and SameSite=None without Secure must never be
+ * reachable — browsers reject that combination outright.
+ */
+describe('loadConfig() cookie attributes', () => {
+  it('defaults to a same-origin-safe cookie config when unset', () => {
+    const config = loadConfig({ NODE_ENV: 'test' });
+    expect(config.cookieSecure).toBe(false);
+    expect(config.cookieSameSite).toBe('lax');
+  });
+
+  it('honors an explicit COOKIE_SECURE/COOKIE_SAME_SITE', () => {
+    const config = loadConfig({ NODE_ENV: 'test', COOKIE_SECURE: 'true', COOKIE_SAME_SITE: 'strict' });
+    expect(config.cookieSecure).toBe(true);
+    expect(config.cookieSameSite).toBe('strict');
+  });
+
+  it('forces cookieSecure=true whenever COOKIE_SAME_SITE=none, regardless of COOKIE_SECURE', () => {
+    const config = loadConfig({ NODE_ENV: 'test', COOKIE_SAME_SITE: 'none' });
+    expect(config.cookieSecure).toBe(true);
+    expect(config.cookieSameSite).toBe('none');
+
+    const explicitlyFalse = loadConfig({ NODE_ENV: 'test', COOKIE_SAME_SITE: 'none', COOKIE_SECURE: 'false' });
+    expect(explicitlyFalse.cookieSecure).toBe(true);
+  });
+
+  it('rejects an invalid COOKIE_SAME_SITE value', () => {
+    expect(() => loadConfig({ NODE_ENV: 'test', COOKIE_SAME_SITE: 'nope' })).toThrow(
+      'COOKIE_SAME_SITE must be one of "lax", "none", "strict" (got: nope)',
+    );
+  });
+});

@@ -8,9 +8,9 @@ export async function registerSession(app: FastifyInstance, config: AppConfig): 
   await app.register(session, {
     secret: config.sessionSecret,
     cookie: {
-      secure: process.env.NODE_ENV === 'production',
+      secure: config.cookieSecure,
       httpOnly: true,
-      sameSite: 'lax',
+      sameSite: config.cookieSameSite,
     },
   });
 }
