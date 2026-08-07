@@ -23,15 +23,58 @@ function escapeXml(value: string): string {
 // label rendering for exports to match the canvas (per shapes.tsx's own SC-004 note).
 const LINE_BREAK = /<br\s*\/?>|\r?\n/gi;
 
-export function splitLabelLines(label: string): string[] {
-  return label.split(LINE_BREAK);
+// canvas-3zb: average character width as a fraction of font-size, for this app's sans-serif font
+// stack — a heuristic estimate, not real glyph metrics. svg-renderer.ts's export path is pure
+// string generation with no DOM and no font measurement available, and the interactive canvas
+// must wrap identically for SC-004, so both use this same heuristic rather than one measuring
+// real rendered glyphs and the other guessing independently.
+const AVG_CHAR_WIDTH_RATIO = 0.56;
+
+/** Greedy word-wrap of a single line to fit within maxWidth, using the character-count heuristic
+ *  above. Never splits a single word, even if that word alone exceeds maxWidth (matches ordinary
+ *  browser text-wrapping behavior — an unbreakable long token overflows rather than being cut
+ *  mid-word, which would make it unreadable). */
+function wrapLine(line: string, maxWidth: number, fontSize: number): string[] {
+  const maxChars = Math.max(1, Math.floor(maxWidth / (fontSize * AVG_CHAR_WIDTH_RATIO)));
+  if (line.length <= maxChars) return [line];
+  const words = line.split(' ');
+  const wrapped: string[] = [];
+  let current = '';
+  for (const word of words) {
+    const candidate = current ? `${current} ${word}` : word;
+    if (candidate.length > maxChars && current) {
+      wrapped.push(current);
+      current = word;
+    } else {
+      current = candidate;
+    }
+  }
+  if (current) wrapped.push(current);
+  return wrapped.length > 0 ? wrapped : [line];
+}
+
+/**
+ * Splits a label into its rendered lines: first on any explicit break (grouping F — a literal
+ * `<br/>` or raw newline), then — when `maxWidth`/`fontSize` are supplied — further word-wraps
+ * any line still too wide to fit its node's box (canvas-3zb: an icon's displayName is routinely
+ * longer than the default 140px node width, e.g. "Azure Storage Accounts", and previously
+ * overflowed both edges uncontained). Omitting `maxWidth`/`fontSize` preserves the original
+ * explicit-breaks-only behavior exactly, for callers with no fixed width to wrap against (e.g.
+ * edge labels, which float at a connector's midpoint rather than living inside a sized box).
+ */
+export function splitLabelLines(label: string, maxWidth?: number, fontSize?: number): string[] {
+  const explicitLines = label.split(LINE_BREAK);
+  if (maxWidth === undefined || fontSize === undefined) return explicitLines;
+  return explicitLines.flatMap((line) => wrapLine(line, maxWidth, fontSize));
 }
 
 /** Renders a horizontally-centered `<text>` label, stacking `<tspan>`s when the label contains a
  *  line break. `centered` mirrors `dominant-baseline="middle"`'s effect for the single-line case,
- *  vertically centering the whole stacked block around `y` instead of just the first line. */
-function renderLabelText(x: number, y: number, label: string, fontSize: number, centered: boolean): string {
-  const lines = splitLabelLines(label);
+ *  vertically centering the whole stacked block around `y` instead of just the first line.
+ *  `maxWidth`, when supplied, word-wraps a too-long label to fit (canvas-3zb) instead of letting
+ *  it overflow the node's box. */
+function renderLabelText(x: number, y: number, label: string, fontSize: number, centered: boolean, maxWidth?: number): string {
+  const lines = splitLabelLines(label, maxWidth, fontSize);
   if (lines.length === 1) {
     const baseline = centered ? ' dominant-baseline="middle"' : '';
     return `<text x="${x}" y="${y}"${baseline} text-anchor="middle" font-size="${fontSize}" font-family='${FONT_FAMILY}'>${escapeXml(label)}</text>`;
@@ -239,6 +282,11 @@ function renderNode(node: DiagramNode, resolveIcon?: IconResolver): string {
   const { width, height } = nodeSize(node);
   const fontSize = node.style?.fontSize ?? 14;
 
+  // canvas-3zb: 16px total horizontal padding (8px each side) before wrapping — an icon's
+  // displayName (e.g. "Azure Storage Accounts") is routinely wider than the default 140px node,
+  // previously overflowing both edges uncontained.
+  const labelMaxWidth = Math.max(width - 16, 40);
+
   const iconMarkup = node.icon ? resolveIcon?.(node.icon) : undefined;
   if (iconMarkup) {
     // Icon assets are authored on a normalized 48x48 viewBox; scale/position into the node's box.
@@ -249,7 +297,7 @@ function renderNode(node: DiagramNode, resolveIcon?: IconResolver): string {
       `<g data-node-id="${escapeXml(node.id)}">`,
       renderNodeShape(node),
       `<g transform="translate(${iconX}, ${iconY}) scale(${iconSize / 48})">${iconMarkup}</g>`,
-      renderLabelText(x + width / 2, y + height - 10, node.label, Math.max(fontSize - 2, 10), false),
+      renderLabelText(x + width / 2, y + height - 10, node.label, Math.max(fontSize - 2, 10), false, labelMaxWidth),
       '</g>',
     ].join('');
   }
@@ -258,7 +306,7 @@ function renderNode(node: DiagramNode, resolveIcon?: IconResolver): string {
   return [
     `<g data-node-id="${escapeXml(node.id)}">`,
     renderNodeShape(node),
-    renderLabelText(x + width / 2, y + height / 2, rawLabel, fontSize, true),
+    renderLabelText(x + width / 2, y + height / 2, rawLabel, fontSize, true, labelMaxWidth),
     '</g>',
   ].join('');
 }

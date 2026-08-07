@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { renderToSvg } from '../../src/render/svg-renderer.js';
+import { renderToSvg, splitLabelLines } from '../../src/render/svg-renderer.js';
 import type { DiagramModel } from '../../src/model/diagram-model.js';
 
 /**
@@ -355,6 +355,82 @@ describe('renderToSvg multi-line labels (grouping F)', () => {
     const svg = svgForNodeLabel('First<br/>Second<br/>Third');
     const order = [...svg.matchAll(/<tspan[^>]*>([^<]*)<\/tspan>/g)].map((m) => m[1]);
     expect(order).toEqual(['First', 'Second', 'Third']);
+  });
+});
+
+/**
+ * canvas-3zb: a label wider than its node's own box (most commonly an icon's displayName, e.g.
+ * "Azure Storage Accounts") previously overflowed both edges uncontained -- `splitLabelLines`
+ * gained optional `maxWidth`/`fontSize` params to word-wrap a too-long line, on top of (not
+ * instead of) grouping F's own explicit-break splitting above.
+ */
+describe('splitLabelLines word-wrap (canvas-3zb)', () => {
+  it('returns the label unchanged when maxWidth/fontSize are omitted (backward compatible)', () => {
+    expect(splitLabelLines('Azure Storage Accounts')).toEqual(['Azure Storage Accounts']);
+  });
+
+  it('does not wrap a label that already fits within maxWidth', () => {
+    expect(splitLabelLines('Short', 200, 14)).toEqual(['Short']);
+  });
+
+  it('wraps a label wider than maxWidth onto multiple lines', () => {
+    const lines = splitLabelLines('Azure Storage Accounts', 124, 14);
+    expect(lines.length).toBeGreaterThan(1);
+    // Every line individually fits the same width budget the wrap decision was made against.
+    for (const line of lines) {
+      expect(line.length).toBeLessThanOrEqual(Math.floor(124 / (14 * 0.56)));
+    }
+  });
+
+  it('never drops or reorders words while wrapping', () => {
+    const label = 'Azure Data Virtualization Gateway Service';
+    const lines = splitLabelLines(label, 100, 14);
+    expect(lines.join(' ')).toBe(label);
+  });
+
+  it('does not split a single word wider than maxWidth (overflows rather than breaking mid-word)', () => {
+    const lines = splitLabelLines('Supercalifragilisticexpialidocious', 40, 14);
+    expect(lines).toEqual(['Supercalifragilisticexpialidocious']);
+  });
+
+  it('word-wraps each explicit-break line independently, combining with grouping F', () => {
+    const lines = splitLabelLines('Azure Storage Accounts<br/>Second Explicit Line', 124, 14);
+    expect(lines.length).toBeGreaterThan(2);
+    expect(lines.join(' ')).toBe('Azure Storage Accounts Second Explicit Line');
+  });
+
+  it('renderToSvg wraps an icon node label too wide for its box into multiple tspans', () => {
+    const svg = renderToSvg(
+      {
+        diagramTypeId: 'flowchart',
+        nodes: [
+          {
+            id: 'A',
+            label: 'Azure Storage Accounts',
+            shape: 'icon',
+            position: { x: 0, y: 0 },
+            icon: { libraryId: 'azure-icons', libraryVersion: '2024.1', iconId: 'storage-accounts' },
+          },
+        ],
+        edges: [],
+        containers: [],
+      },
+      () => '<rect width="48" height="48" />', // minimal resolveIcon so the icon render branch is actually taken
+    );
+    const tspanTexts = [...svg.matchAll(/<tspan[^>]*>([^<]*)<\/tspan>/g)].map((m) => m[1]);
+    expect(tspanTexts.length).toBeGreaterThan(1);
+    expect(tspanTexts.join(' ')).toBe('Azure Storage Accounts');
+  });
+
+  it('renderToSvg leaves a short label single-line and unwrapped', () => {
+    const svg = renderToSvg({
+      diagramTypeId: 'flowchart',
+      nodes: [{ id: 'A', label: 'Start', shape: 'rectangle', position: { x: 0, y: 0 } }],
+      edges: [],
+      containers: [],
+    });
+    expect(svg).toContain('>Start</text>');
+    expect(svg).not.toContain('<tspan');
   });
 });
 
