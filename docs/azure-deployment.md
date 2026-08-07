@@ -1,4 +1,12 @@
-# Deploying to Azure
+# Deploying to Azure (quick demo path)
+
+> **For anything longer-lived than a quick demo, use `infra/azure/` instead** (canvas-ycu) — a
+> version-controlled Bicep IaC deployment with a private (no public network access) Postgres
+> server, secrets in Key Vault, and `deploy.sh`/`pause.sh`/`resume.sh`/`destroy.sh` lifecycle
+> scripts. See `infra/azure/README.md`. This document is kept for a fast, disposable,
+> no-tooling-required demo only — it opens Postgres to the entire internet
+> (`--public-access 0.0.0.0-255.255.255.255`) and has no lifecycle management beyond a single
+> `az group delete`.
 
 A minimal, no-Dockerfile path to a working Canvas deployment on Azure: PostgreSQL Flexible
 Server, an App Service (Linux, Node) for `apps/api`, and static-website hosting (Azure Storage)

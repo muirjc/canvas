@@ -7,6 +7,11 @@ build
 coverage
 **/coverage
 *.log
+# canvas-ycu: a stale local incremental-build cache left over from a plain `tsc -p` invocation
+# (composite: true in every package's tsconfig.json) fools a later build into thinking it's
+# already up to date and silently emitting nothing, even with dist/ itself excluded above --
+# discovered building this Dockerfile against a working tree with leftover *.tsbuildinfo files.
+*.tsbuildinfo
 .env
 .env.*
 .git
