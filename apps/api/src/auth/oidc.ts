@@ -39,6 +39,23 @@ export function mapRealmRolesToUserRole(realmRoles: string[]): UserRole {
   return 'viewer';
 }
 
+/**
+ * canvas-ycu.1: rewrites `url`'s protocol+host to `internalUrl`'s, leaving path+query+hash
+ * untouched -- used to redirect discovery/token/userinfo requests to an internal-ingress
+ * Keycloak while the public issuer URL stays what's validated against the discovered metadata's
+ * own `issuer` field (see `registerOidcRoutes`'s `customFetch` comment for the full rationale).
+ * Extracted as a pure, standalone function so this rewrite can be unit-tested directly rather
+ * than only indirectly through a full `client.discovery()` call (which would require mocking
+ * `openid-client` itself).
+ */
+export function rewriteToInternalUrl(url: string | URL, internalUrl: string | URL): URL {
+  const internal = internalUrl instanceof URL ? internalUrl : new URL(internalUrl);
+  const target = new URL(url);
+  target.protocol = internal.protocol;
+  target.host = internal.host;
+  return target;
+}
+
 async function findOrCreateUserFromClaims(claims: {
   sub: string;
   email?: string;
@@ -121,12 +138,37 @@ export async function registerOidcRoutes(app: FastifyInstance, config: AppConfig
   // production the way a boolean toggle could be forgotten-on. Only ever true for a local
   // Keycloak reachable at http://localhost:<port> (see infra/keycloak/, RUNBOOK.md).
   const allowInsecure = issuer.protocol === 'http:';
+  const execute: ((config: client.Configuration) => void)[] = [];
+  if (allowInsecure) execute.push(client.allowInsecureRequests);
+
+  const discoveryOptions: client.DiscoveryRequestOptions = {};
+  let hasDiscoveryOptions = false;
+  if (execute.length > 0) {
+    discoveryOptions.execute = execute;
+    hasDiscoveryOptions = true;
+  }
+  if (config.oidc.internalIssuerUrl) {
+    // canvas-ycu.1: rewrites every outgoing discovery/token/userinfo request's origin from the
+    // public issuer to the internal one, keeping the path unchanged -- see config.ts's own
+    // internalIssuerUrl comment for why this is needed (an internal-ingress Keycloak behind the
+    // API's own reverse proxy, mirroring a real gotcha a sibling project hit with the identical
+    // topology). `issuer` itself (passed to discovery() below) stays the PUBLIC URL: openid-client
+    // validates the discovered metadata's own `issuer` field against it, and Keycloak -- told its
+    // own public address via KC_HOSTNAME -- reports that public URL as its issuer regardless of
+    // which address actually served the request.
+    const internal = new URL(config.oidc.internalIssuerUrl);
+    discoveryOptions[client.customFetch] = (url: string | URL | Request, init?: RequestInit) => {
+      const target = rewriteToInternalUrl(url instanceof Request ? url.url : url, internal);
+      return fetch(target, init);
+    };
+    hasDiscoveryOptions = true;
+  }
   const oidcConfig = await client.discovery(
     issuer,
     clientId,
     clientSecret,
     undefined,
-    allowInsecure ? { execute: [client.allowInsecureRequests] } : undefined,
+    hasDiscoveryOptions ? discoveryOptions : undefined,
   );
 
   app.get('/auth/login', async (request, reply) => {

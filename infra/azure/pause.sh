@@ -11,10 +11,11 @@
 #   - canvas-api container app compute (min=0/max=1 -- Container Apps rejects max-replicas=0
 #     outright, so "paused" means "eligible to scale to zero", not a hard-forced zero). It's
 #     already min=0/max=1 normally (apiapp.bicep) and scales down on its own when idle, so this
-#     script is mostly a no-op for it today -- kept here anyway so this stays the one command to
-#     run regardless of which apps this environment ends up running (e.g. once canvas-mi9's
-#     Keycloak container app lands, which -- like ADP's own Keycloak -- will likely stay warm at
-#     min=1/max=1 normally and need an actual drop to min=0 here).
+#     script is mostly a no-op for it.
+#   - canvas-keycloak container app compute (canvas-ycu.1, modules/keycloak.bicep) -- unlike
+#     canvas-api, this one runs min=1/max=1 (always warm) normally, so THIS is where pausing
+#     actually saves real compute cost; dropped to min=0/max=1 here, same "eligible to scale to
+#     zero, not hard-forced" caveat as canvas-api above.
 #
 # What STILL costs money while paused (small, but non-zero):
 #   - Postgres storage (the 32GB volume itself, ~$4/month) and backups.
@@ -36,6 +37,12 @@ az containerapp update --name canvas-api --resource-group "$RESOURCE_GROUP" \
 echo "  Set to min=0/max=1. Actual replica count drops to 0 after the environment's cooldown"
 echo "  period (~5 min) once traffic stops -- not instant. Confirm with:"
 echo "    az containerapp replica list --name canvas-api --resource-group $RESOURCE_GROUP"
+
+echo "== Dropping canvas-keycloak to scale-to-zero-eligible (normally always-warm min=1) =="
+az containerapp update --name canvas-keycloak --resource-group "$RESOURCE_GROUP" \
+  --min-replicas 0 --max-replicas 1 --output none
+echo "  Set to min=0/max=1. SSO login will fail while scaled to 0 (no running replica to route"
+echo "  the /idp/* reverse proxy to) until the next request wakes it back up or resume.sh runs."
 
 echo "== Stopping canvas-postgres (compute only -- storage/data retained) =="
 az postgres flexible-server stop --resource-group "$RESOURCE_GROUP" --name canvas-postgres --output none

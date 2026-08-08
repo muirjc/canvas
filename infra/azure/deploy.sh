@@ -29,6 +29,8 @@ REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 SECRETS_DIR="$SCRIPT_DIR/.secrets"
 PG_PASSWORD_FILE="$SECRETS_DIR/postgres-admin-password"
 SESSION_SECRET_FILE="$SECRETS_DIR/session-secret"
+KC_ADMIN_PASSWORD_FILE="$SECRETS_DIR/keycloak-admin-password"
+OIDC_CLIENT_SECRET_FILE="$SECRETS_DIR/oidc-client-secret"
 RESOURCE_GROUP="canvas-rg"
 
 mkdir -p "$SECRETS_DIR"
@@ -47,6 +49,26 @@ if [[ ! -f "$SESSION_SECRET_FILE" ]]; then
   chmod 600 "$SESSION_SECRET_FILE"
 fi
 SESSION_SECRET="$(cat "$SESSION_SECRET_FILE")"
+
+# canvas-ycu.1: Keycloak's own master-realm admin password, and the canvas-api confidential
+# client's OIDC secret -- generated and cached exactly like the two secrets above, NEVER the
+# infra/keycloak/CanvasRealm-realm.json dev placeholder ("canvas-dev-client-secret-do-not-use-
+# in-production", named that for exactly this reason). The realm import only bakes that
+# placeholder in on first boot; this script's post-deploy step further down (Reconciling
+# Keycloak's canvas-api client) overwrites it on the running server to match this real value.
+if [[ ! -f "$KC_ADMIN_PASSWORD_FILE" ]]; then
+  echo "Generating Keycloak admin password (first run) -> $KC_ADMIN_PASSWORD_FILE"
+  openssl rand -base64 24 > "$KC_ADMIN_PASSWORD_FILE"
+  chmod 600 "$KC_ADMIN_PASSWORD_FILE"
+fi
+KC_ADMIN_PASSWORD="$(cat "$KC_ADMIN_PASSWORD_FILE")"
+
+if [[ ! -f "$OIDC_CLIENT_SECRET_FILE" ]]; then
+  echo "Generating OIDC client secret (first run) -> $OIDC_CLIENT_SECRET_FILE"
+  openssl rand -base64 32 > "$OIDC_CLIENT_SECRET_FILE"
+  chmod 600 "$OIDC_CLIENT_SECRET_FILE"
+fi
+OIDC_CLIENT_SECRET="$(cat "$OIDC_CLIENT_SECRET_FILE")"
 
 DEPLOYER_PRINCIPAL_ID="$(az ad signed-in-user show --query id -o tsv)"
 
@@ -75,7 +97,11 @@ if [[ -n "$EXISTING_KEY_VAULT" ]]; then
     --value "$PG_ADMIN_PASSWORD" --output none
   az keyvault secret set --vault-name "$EXISTING_KEY_VAULT" --name "session-secret" \
     --value "$SESSION_SECRET" --output none
-  echo "  postgres-admin-password, session-secret set."
+  az keyvault secret set --vault-name "$EXISTING_KEY_VAULT" --name "keycloak-admin-password" \
+    --value "$KC_ADMIN_PASSWORD" --output none
+  az keyvault secret set --vault-name "$EXISTING_KEY_VAULT" --name "oidc-client-secret" \
+    --value "$OIDC_CLIENT_SECRET" --output none
+  echo "  postgres-admin-password, session-secret, keycloak-admin-password, oidc-client-secret set."
 
   # The connection string needs the server's real FQDN/DB name; both are fixed/known after this
   # script's first-ever successful run, so a live lookup is safe even before this run's own
@@ -105,9 +131,18 @@ else
   echo "== No existing Key Vault found -- skipping secret pre-seed (first-ever run) =="
 fi
 
+# Same commit -> same tag for both images (infra/keycloak/create-users.mjs now lives inside the
+# API image too, and CanvasRealm-realm.json's own content is what the Keycloak image bakes in --
+# both need a rebuild whenever either changes, and re-using API_IMAGE_TAG keeps that automatic
+# rather than needing a second independent tag scheme).
+KEYCLOAK_IMAGE_TAG="$API_IMAGE_TAG"
+
 if [[ -n "$EXISTING_ACR" ]]; then
   echo "== Building API image (repo root Dockerfile) to $EXISTING_ACR, tag $API_IMAGE_TAG =="
   az acr build --registry "$EXISTING_ACR" --image "canvas-api:${API_IMAGE_TAG}" "$REPO_ROOT" --output none
+  echo "== Building Keycloak image (infra/keycloak/) to $EXISTING_ACR, tag $KEYCLOAK_IMAGE_TAG =="
+  az acr build --registry "$EXISTING_ACR" --image "canvas-keycloak:${KEYCLOAK_IMAGE_TAG}" \
+    "$SCRIPT_DIR/../keycloak" --output none
 else
   echo "== No existing ACR found -- skipping image build (first-ever run) =="
 fi
@@ -118,7 +153,8 @@ az deployment sub what-if \
   --location "$LOCATION" \
   --template-file "$SCRIPT_DIR/main.bicep" \
   --parameters location="$LOCATION" postgresAdminPassword="$PG_ADMIN_PASSWORD" \
-    deployerPrincipalId="$DEPLOYER_PRINCIPAL_ID" apiImageTag="$API_IMAGE_TAG" webOrigin="$WEB_ORIGIN"
+    deployerPrincipalId="$DEPLOYER_PRINCIPAL_ID" apiImageTag="$API_IMAGE_TAG" \
+    keycloakImageTag="$KEYCLOAK_IMAGE_TAG" webOrigin="$WEB_ORIGIN"
 
 echo
 read -r -p "Proceed with deployment? [y/N] " confirm
@@ -133,13 +169,77 @@ az deployment sub create \
   --location "$LOCATION" \
   --template-file "$SCRIPT_DIR/main.bicep" \
   --parameters location="$LOCATION" postgresAdminPassword="$PG_ADMIN_PASSWORD" \
-    deployerPrincipalId="$DEPLOYER_PRINCIPAL_ID" apiImageTag="$API_IMAGE_TAG" webOrigin="$WEB_ORIGIN" \
+    deployerPrincipalId="$DEPLOYER_PRINCIPAL_ID" apiImageTag="$API_IMAGE_TAG" \
+    keycloakImageTag="$KEYCLOAK_IMAGE_TAG" webOrigin="$WEB_ORIGIN" \
   --output table
 
 STORAGE_ACCOUNT="$(az deployment sub show --name "canvas-foundation" --query "properties.outputs.storageAccountName.value" -o tsv)"
 KEY_VAULT_NAME="$(az deployment sub show --name "canvas-foundation" --query "properties.outputs.keyVaultName.value" -o tsv)"
 API_FQDN="$(az deployment sub show --name "canvas-foundation" --query "properties.outputs.apiFqdn.value" -o tsv)"
+KEYCLOAK_FQDN="$(az deployment sub show --name "canvas-foundation" --query "properties.outputs.keycloakFqdn.value" -o tsv)"
+KEYCLOAK_PUBLIC_BASE_URL="$(az deployment sub show --name "canvas-foundation" --query "properties.outputs.keycloakPublicBaseUrl.value" -o tsv)"
 MIGRATION_JOB="$(az deployment sub show --name "canvas-foundation" --query "properties.outputs.migrationJobName.value" -o tsv)"
+USERS_JOB="$(az deployment sub show --name "canvas-foundation" --query "properties.outputs.usersJobName.value" -o tsv)"
+
+# canvas-ycu.1: reconcile the CanvasRealm-realm.json-imported canvas-api client's redirectUris/
+# webOrigins/secret against reality. The image bakes in infra/keycloak/CanvasRealm-realm.json's
+# own placeholder values (localhost redirect URI, the checked-in dev secret) -- correct for local
+# docker-compose, but Keycloak's own default `start --import-realm` is IGNORE_EXISTING, so a
+# realm that already exists from a prior run of this script is never re-imported even after
+# rebuilding the image with different baked-in values. The only way to correct an already-running
+# realm's client, on every run (not just the first), is this admin-API PATCH -- talked to over
+# canvas-api's own /idp/* reverse proxy (apps/api/src/auth/idp-proxy.routes.ts), since Keycloak
+# itself has internal-only ingress and this script runs from outside the VNet.
+echo "== Reconciling Keycloak's canvas-api client (redirect URI, web origin, client secret) =="
+KC_ADMIN_TOKEN=""
+for attempt in 1 2 3 4 5 6; do
+  KC_ADMIN_TOKEN="$(curl -s -f -X POST "https://${API_FQDN}/idp/realms/master/protocol/openid-connect/token" \
+    -d grant_type=password -d client_id=admin-cli \
+    -d username=admin -d password="$KC_ADMIN_PASSWORD" \
+    | python3 -c "import sys,json; print(json.load(sys.stdin)['access_token'])" 2>/dev/null || true)"
+  if [[ -n "$KC_ADMIN_TOKEN" ]]; then
+    break
+  fi
+  if [[ "$attempt" == 6 ]]; then
+    echo "  WARNING: could not reach Keycloak's admin token endpoint after 6 attempts -- skipping"
+    echo "  client reconciliation. SSO login will use whatever redirectUris/secret are already"
+    echo "  imported (likely wrong on a first deploy) until you re-run this script."
+  else
+    echo "  Attempt $attempt: Keycloak not reachable/ready yet -- retrying in 15s..."
+    sleep 15
+  fi
+done
+
+if [[ -n "$KC_ADMIN_TOKEN" ]]; then
+  KC_CLIENT_ID="$(curl -s -f "https://${API_FQDN}/idp/admin/realms/CanvasRealm/clients?clientId=canvas-api" \
+    -H "Authorization: Bearer $KC_ADMIN_TOKEN" | python3 -c "import sys,json; print(json.load(sys.stdin)[0]['id'])")"
+  python3 -c "
+import json, urllib.request
+
+api_fqdn = '$API_FQDN'
+client_id = '$KC_CLIENT_ID'
+token = '$KC_ADMIN_TOKEN'
+secret = '''$OIDC_CLIENT_SECRET'''
+
+url = f'https://{api_fqdn}/idp/admin/realms/CanvasRealm/clients/{client_id}'
+req = urllib.request.Request(url, headers={'Authorization': f'Bearer {token}'})
+with urllib.request.urlopen(req) as resp:
+    client = json.load(resp)
+
+client['redirectUris'] = [f'https://{api_fqdn}/auth/callback']
+client['webOrigins'] = [f'https://{api_fqdn}']
+client['secret'] = secret
+
+body = json.dumps(client).encode()
+req = urllib.request.Request(url, data=body, method='PUT', headers={
+    'Authorization': f'Bearer {token}',
+    'Content-Type': 'application/json',
+})
+with urllib.request.urlopen(req) as resp:
+    pass
+print('  canvas-api client redirectUris/webOrigins/secret updated.')
+"
+fi
 
 echo "== Enabling static website hosting on $STORAGE_ACCOUNT (data-plane -- no Bicep resource for this, see modules/storage.bicep) =="
 # storage.bicep's Storage Blob Data Contributor role assignment for the deployer may have been
@@ -192,6 +292,8 @@ echo
 echo "== Done =="
 echo "  API:      https://${API_FQDN}"
 echo "  Frontend: ${REAL_WEB_ORIGIN}"
+echo "  Keycloak: ${KEYCLOAK_PUBLIC_BASE_URL} (internal-ingress -- only reachable through the"
+echo "            above /idp reverse proxy, never directly; internal FQDN: ${KEYCLOAK_FQDN})"
 echo "  Key Vault: $KEY_VAULT_NAME"
 echo
 echo "Once the migration job above completes, seed dev/demo data (full DiagramType catalog,"
@@ -200,3 +302,14 @@ echo "  az containerapp job start --name $SEED_JOB --resource-group $RESOURCE_GR
 echo "NOT run automatically -- it creates a demo admin account with a published local password"
 echo "(apps/api/src/seed/run.ts), appropriate for a throwaway/demo environment, not unprompted"
 echo "on every deploy of something meant to hold real data."
+echo
+echo "ALLOW_LOCAL_AUTH defaults to false for this deployment (apiapp.bicep) -- create real"
+echo "accounts in Keycloak (infra/keycloak/create-users.mjs, run as the canvas-keycloak-users"
+echo "job) before anyone can sign in. KC_USERS is real user data, so it's supplied per-invocation,"
+echo "never baked into this template or state:"
+echo '  az containerapp job start --name '"$USERS_JOB"' --resource-group '"$RESOURCE_GROUP"' \'
+echo '    --env-vars KC_USERS='"'"'[{"username":"jane","email":"jane@example.com","password":"...","role":"architect"}]'"'"''
+echo "role is one of admin/architect/viewer (apps/api/src/auth/oidc.ts's mapRealmRolesToUserRole)."
+echo "Each new user's first login is forced through Keycloak's own MFA (TOTP) enrollment --"
+echo "requiredActions is set explicitly per user by the script itself (see its own header comment"
+echo "for why the realm's defaultAction alone doesn't reach admin-API-created users)."

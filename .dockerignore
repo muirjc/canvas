@@ -11,7 +11,15 @@ coverage
 # (composite: true in every package's tsconfig.json) fools a later build into thinking it's
 # already up to date and silently emitting nothing, even with dist/ itself excluded above --
 # discovered building this Dockerfile against a working tree with leftover *.tsbuildinfo files.
+# canvas-ycu.1: the bare `*.tsbuildinfo` pattern above only ever matched a build-context-ROOT
+# file, exactly like `node_modules`/`dist` on their own (lines 1/3/5/7 above) needed their own
+# `**/` sibling line -- unlike .gitignore, a plain dockerignore pattern with no `**/` prefix does
+# NOT match at any depth. packages/diagram-core/tsconfig.tsbuildinfo (created by any ordinary
+# local `npm run build`) was silently slipping through into every real `docker build`/`az acr
+# build` since canvas-ycu shipped, undetected until a from-scratch --no-cache build was actually
+# exercised for canvas-ycu.1 -- confirmed via a minimal isolated dockerignore repro, not guessed.
 *.tsbuildinfo
+**/*.tsbuildinfo
 .env
 .env.*
 .git

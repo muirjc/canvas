@@ -23,6 +23,13 @@ az containerapp update --name canvas-api --resource-group "$RESOURCE_GROUP" \
   --min-replicas 0 --max-replicas 1 --output none
 echo "  canvas-api restored to 0/1 (scales up on next request)."
 
+echo "== Restoring canvas-keycloak scale settings =="
+# canvas-keycloak: minReplicas=1/maxReplicas=1 -- its normal always-warm config
+# (modules/keycloak.bicep), unlike canvas-api's scale-to-zero. Reverses pause.sh's drop to 0.
+az containerapp update --name canvas-keycloak --resource-group "$RESOURCE_GROUP" \
+  --min-replicas 1 --max-replicas 1 --output none
+echo "  canvas-keycloak restored to 1/1 (always warm)."
+
 echo
 echo "== Waiting for Postgres to be Ready =="
 until [[ "$(az postgres flexible-server show --resource-group "$RESOURCE_GROUP" --name canvas-postgres --query state -o tsv 2>/dev/null)" == "Ready" ]]; do
