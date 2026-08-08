@@ -54,6 +54,35 @@ tests are NON-NEGOTIABLE and must exist (and fail) before implementing any diagr
 work — see `.specify/memory/constitution.md` Principle IV.
 
 ## Recent Changes
+- `jmuir-dtu.2`: Class/UML diagram gaps beyond feature 003 — closes the previously-disclosed
+  "class bodies are recognized but their contents skipped entirely" limitation, the largest single
+  gap left in the `jmuir-dtu` epic. `packages/diagram-core/src/dsl/uml.ts` was almost entirely
+  rewritten to add: class members (a new `ClassMember`/`DiagramNode.members`) — attributes
+  (`visibility type name`) and methods (`visibility name(params) returnType`), visibility markers
+  (`+`/`-`/`#`/`~`), generics via `~T~` (including types with internal spaces/commas like
+  `Map~string, int~`, handled by treating "everything except the last whitespace token" as the
+  type rather than assuming a single token), and static (`$`)/abstract (`*`) modifiers — always
+  the very last character, after the return type for methods, not right after `()`; the full
+  relationship-token set with cardinality (`<|--` inheritance, `*--` composition, `o--`
+  aggregation, `-->` association, `--` link-solid, `..>` dependency, `..|>` realization, `..`
+  link-dashed, plus optional quoted multiplicity labels on either side) via a new
+  `DiagramEdge.umlRelationKind`/`sourceCardinality`/`targetCardinality` — a dedicated field rather
+  than overloading the shared `arrow`/`lineStyle` vocabulary, since a class diagram's arrowhead
+  shape carries real semantic meaning those fields' existing values don't fit; `<<Stereotype>>`
+  annotations in all three documented placement forms (inline, standalone-referencing-by-name,
+  nested-in-body) via a new `DiagramNode.umlStereotype`; `namespace Name { ... }` grouping
+  (nestable, member classes reference it via `containerId` like every other container-membership
+  pattern in this codebase) — using the namespace's own given name as its container id (stable
+  across re-saves, like C4 boundaries/ERD entities' own author-given ids) rather than a counter;
+  notes (`note "text"` / `note for ClassName "text"`); style/classDef/class/`:::` (resolving a
+  real ambiguity unique to this family: UML's `class` keyword is BOTH the node-declaration keyword
+  AND, in its multi-identifier form, the style-assignment keyword — disambiguated purely by
+  pattern specificity/anchoring, no special-case logic needed); and `direction`. Namespace/note
+  container positions now round-trip via a new `canvas.containers` front-matter block (mirroring
+  C4's own) — a real gap found while writing tests (serialize→reparse silently drifted their
+  auto-assigned positions every time) and fixed as part of this same pass, not deferred. Lollipop
+  interface syntax, namespace dot-notation, and the v11.15+ bracketed namespace-label form are
+  deliberately out of scope — filed as `jmuir-dtu.2.1`.
 - `jmuir-dtu.4`: Sequence diagram gaps beyond feature 003 — the largest of the `jmuir-dtu` DSL
   sub-beads tackled so far. `packages/diagram-core/src/dsl/sequence.ts` gains the `actor` keyword
   (`role: 'actor'`, `shape: 'person'`, vs `participant`'s `role: 'participant'`, `shape:
