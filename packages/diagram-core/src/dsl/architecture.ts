@@ -8,8 +8,26 @@ const ID = String.raw`[A-Za-z0-9_]+`;
 const GROUP_PATTERN = new RegExp(`^group\\s+(${ID})\\(([^)]*)\\)\\[(.+)\\]$`);
 // service serviceId(icon)[Title] in groupId
 const SERVICE_PATTERN = new RegExp(`^service\\s+(${ID})\\(([^)]*)\\)\\[(.+?)\\](?:\\s+in\\s+(${ID}))?$`);
+// jmuir-dtu.5: junction junctionId (in groupId)? -- "a special type of node which acts as a
+// potential 4-way split between edges" (Mermaid docs). No icon/label, unlike service.
+const JUNCTION_PATTERN = new RegExp(`^junction\\s+(${ID})(?:\\s+in\\s+(${ID}))?$`);
 // serviceA:R --> L:serviceB   or   serviceA <-- serviceB   or   serviceA -- serviceB
-const EDGE_PATTERN = new RegExp(`^(${ID})(?::([TBLR]))?\\s*(-->|<--|--)\\s*(?:([TBLR]):)?(${ID})$`);
+// jmuir-dtu.5: the {group} modifier escalates an endpoint to its service's parent group boundary
+// -- per Mermaid's own docs, it can ONLY follow a serviceId (never a bare groupId; "groupIds
+// cannot be used for specifying edges"), so the id captured here always still names a service.
+const EDGE_PATTERN = new RegExp(
+  `^(${ID})(\\{group\\})?(?::([TBLR]))?\\s*(-->|<--|--)\\s*(?:([TBLR]):)?(${ID})(\\{group\\})?$`,
+);
+// jmuir-dtu.5: align row/column <id> <id> ... -- declares a shared row (same y) or column (same
+// x) for a set of service/group ids. Real Mermaid grammar (unlike positions/styles/icons, which
+// are this app's own front-matter extension), so it round-trips as a literal body line, matching
+// direction's own precedent, not tucked into front-matter.
+const ALIGN_PATTERN = new RegExp(`^align\\s+(row|column)\\s+((?:${ID})(?:\\s+${ID})*)$`);
+// jmuir-dtu.5: an iconify.design custom icon pack reference ("name:icon-name" -- e.g.
+// "logos:aws-lambda"), distinct from this app's own bare curated-library icon ids (which never
+// contain a colon). Only matters for a first-time import with no front-matter icons[id] entry yet
+// (front-matter is the canonical round-trip mechanism once an icon has been resolved once).
+const ICONIFY_ICON_PATTERN = /^([a-z0-9-]+):(.+)$/i;
 
 let autoPositionCounter = 0;
 function nextAutoPosition(): { x: number; y: number } {
@@ -42,7 +60,10 @@ export function parseArchitecture(dsl: string): ParseResult {
     arrow?: 'source' | 'target';
     sourceAnchor?: 'T' | 'B' | 'L' | 'R';
     targetAnchor?: 'T' | 'B' | 'L' | 'R';
+    sourceIsGroup?: boolean;
+    targetIsGroup?: boolean;
   }[] = [];
+  const alignments: { axis: 'row' | 'column'; ids: string[] }[] = [];
   let headerSeen = false;
   let edgeCounter = 0;
 
@@ -84,14 +105,37 @@ export function parseArchitecture(dsl: string): ParseResult {
         shape: 'icon',
         position: positions[id] ?? nextAutoPosition(),
         containerId: groupId,
-        icon: iconRef ?? (iconName ? { libraryId: 'generic', libraryVersion: '1.0.0', iconId: iconName } : undefined),
+        icon: iconRef ?? resolveIconFromName(iconName),
       });
+      continue;
+    }
+
+    const junctionMatch = line.match(JUNCTION_PATTERN);
+    if (junctionMatch) {
+      const [, id, groupId] = junctionMatch;
+      // No icon/label -- a junction is a pure routing point, not a service (Mermaid's own docs:
+      // "a special type of node which acts as a potential 4-way split between edges").
+      nodesById.set(id, {
+        id,
+        label: '',
+        shape: 'circle',
+        role: 'junction',
+        position: positions[id] ?? nextAutoPosition(),
+        containerId: groupId,
+      });
+      continue;
+    }
+
+    const alignMatch = line.match(ALIGN_PATTERN);
+    if (alignMatch) {
+      const [, axis, idList] = alignMatch;
+      alignments.push({ axis: axis as 'row' | 'column', ids: idList.split(/\s+/) });
       continue;
     }
 
     const edgeMatch = line.match(EDGE_PATTERN);
     if (edgeMatch) {
-      const [, source, sourceAnchor, connector, targetAnchor, target] = edgeMatch;
+      const [, source, sourceGroup, sourceAnchor, connector, targetAnchor, target, targetGroup] = edgeMatch;
       edgeCounter += 1;
       const arrow: 'source' | 'target' | undefined =
         connector === '-->' ? 'target' : connector === '<--' ? 'source' : undefined;
@@ -102,11 +146,13 @@ export function parseArchitecture(dsl: string): ParseResult {
         arrow,
         sourceAnchor: sourceAnchor as 'T' | 'B' | 'L' | 'R' | undefined,
         targetAnchor: targetAnchor as 'T' | 'B' | 'L' | 'R' | undefined,
+        sourceIsGroup: sourceGroup ? true : undefined,
+        targetIsGroup: targetGroup ? true : undefined,
       });
       continue;
     }
 
-    errors.push({ line: i + 1, content: rawLine, message: `Could not interpret line as a group, service, or edge: "${line}"` });
+    errors.push({ line: i + 1, content: rawLine, message: `Could not interpret line as a group, service, junction, align, or edge: "${line}"` });
   }
 
   if (errors.length > 0) return { errors };
@@ -115,6 +161,7 @@ export function parseArchitecture(dsl: string): ParseResult {
   model.nodes = Array.from(nodesById.values());
   model.containers = Array.from(containersById.values());
   model.edges = edges;
+  if (alignments.length > 0) model.architectureAlignments = alignments;
   return { model };
 }
 
@@ -136,16 +183,54 @@ export function serializeArchitecture(model: DiagramModel): string {
     lines.push(`group ${group.id}(cloud)[${group.label}]`);
   }
   for (const node of model.nodes) {
-    const iconName = node.icon?.iconId ?? 'default';
     const inClause = node.containerId ? ` in ${node.containerId}` : '';
+    if (node.role === 'junction') {
+      lines.push(`junction ${node.id}${inClause}`);
+      continue;
+    }
+    // Iconify-sourced icons (jmuir-dtu.5) re-emit as "prefix:iconId" so the reference survives
+    // textually too, not just via the front-matter icons[id] entry -- matters for a fresh export
+    // with no prior front-matter round-trip yet.
+    const iconName = node.icon
+      ? node.icon.libraryVersion === 'iconify'
+        ? `${node.icon.libraryId}:${node.icon.iconId}`
+        : node.icon.iconId
+      : 'default';
     lines.push(`service ${node.id}(${iconName})[${node.label}]${inClause}`);
   }
   for (const edge of model.edges) {
     const connector = edge.arrow === 'target' ? '-->' : edge.arrow === 'source' ? '<--' : '--';
-    const sourcePart = edge.sourceAnchor ? `${edge.sourceId}:${edge.sourceAnchor}` : edge.sourceId;
-    const targetPart = edge.targetAnchor ? `${edge.targetAnchor}:${edge.targetId}` : edge.targetId;
+    const sourceGroupSuffix = edge.sourceIsGroup ? '{group}' : '';
+    const targetGroupSuffix = edge.targetIsGroup ? '{group}' : '';
+    const sourcePart = edge.sourceAnchor
+      ? `${edge.sourceId}${sourceGroupSuffix}:${edge.sourceAnchor}`
+      : `${edge.sourceId}${sourceGroupSuffix}`;
+    const targetPart = edge.targetAnchor
+      ? `${edge.targetAnchor}:${edge.targetId}${targetGroupSuffix}`
+      : `${edge.targetId}${targetGroupSuffix}`;
     lines.push(`${sourcePart} ${connector} ${targetPart}`);
+  }
+  for (const alignment of model.architectureAlignments ?? []) {
+    lines.push(`align ${alignment.axis} ${alignment.ids.join(' ')}`);
   }
 
   return joinFrontMatter(frontMatter, `${lines.join('\n')}\n`);
+}
+
+/** jmuir-dtu.5: resolves a service's `(iconName)` token to an IconRef on first import (no
+ *  front-matter icons[id] entry yet). Detects the iconify.design "prefix:icon-name" custom-pack
+ *  format (e.g. "logos:aws-lambda") distinctly from this app's own bare curated-library icon ids
+ *  (azure-icons/aws-icons/c4-notation/generic, none of which ever contain a colon) -- tagging it
+ *  with libraryVersion 'iconify' rather than mislabeling it as this app's own 'generic' library,
+ *  which would point at a nonexistent icon and silently render as a placeholder. Resolving real
+ *  iconify artwork (network fetch, caching) is a separate, much larger feature, not attempted
+ *  here -- this is parse/model/round-trip fidelity only, matching this epic's consistent scope. */
+function resolveIconFromName(iconName: string): DiagramNode['icon'] {
+  if (!iconName) return undefined;
+  const iconifyMatch = iconName.match(ICONIFY_ICON_PATTERN);
+  if (iconifyMatch) {
+    const [, libraryId, iconId] = iconifyMatch;
+    return { libraryId, libraryVersion: 'iconify', iconId };
+  }
+  return { libraryId: 'generic', libraryVersion: '1.0.0', iconId: iconName };
 }
