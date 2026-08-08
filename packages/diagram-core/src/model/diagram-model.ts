@@ -64,6 +64,26 @@ export interface EntityAttribute {
   keys: string[];
 }
 
+/** jmuir-dtu.2: a single UML class member — either an attribute (`type` set, no `params`) or a
+ *  method (`params` set, possibly empty string for `()`). Both share the same visibility/modifier
+ *  vocabulary, so one shape covers both rather than two near-duplicate interfaces. */
+export interface ClassMember {
+  kind: 'attribute' | 'method';
+  /** '+' public, '-' private, '#' protected, '~' package/internal; absent if unmarked. */
+  visibility?: '+' | '-' | '#' | '~';
+  name: string;
+  /** Attributes only: the declared type (e.g. "List~string~", generics included verbatim). */
+  type?: string;
+  /** Methods only: the raw parameter-list text between the parens (possibly empty). */
+  params?: string;
+  /** Methods only: the return type, if any (e.g. "List~string~"). */
+  returnType?: string;
+  /** `$` suffix. */
+  isStatic?: boolean;
+  /** `*` suffix. */
+  isAbstract?: boolean;
+}
+
 export interface DiagramNode {
   id: ElementId;
   label: string;
@@ -78,6 +98,15 @@ export interface DiagramNode {
   containerId?: ElementId;
   /** ERD only: this entity's declared attributes, in declaration order. */
   attributes?: EntityAttribute[];
+  /** jmuir-dtu.2: UML only — this class's declared members (attributes and methods), in
+   *  declaration order, from its `class Foo { ... }` body. */
+  members?: ClassMember[];
+  /** jmuir-dtu.2: UML only — a `<<Stereotype>>` annotation (e.g. "Interface", "Abstract",
+   *  "Service", "Enumeration", or any custom word — Mermaid doesn't restrict this to a fixed
+   *  set). Distinct from `role` (always 'class' for every UML node — the `class` keyword itself
+   *  never changes regardless of stereotype); this is a supplementary tag, not the node's
+   *  primary kind. */
+  umlStereotype?: string;
 }
 
 export interface DiagramEdge {
@@ -108,6 +137,17 @@ export interface DiagramEdge {
    *  group"), so this is a purely visual escalation hint, not a change to what the edge connects. */
   sourceIsGroup?: boolean;
   targetIsGroup?: boolean;
+  /** jmuir-dtu.2: UML only — the relationship kind, since a class diagram's arrowhead shape
+   *  (hollow triangle, filled diamond, ...) carries real semantic meaning `arrow`/`lineStyle`'s
+   *  shared, family-agnostic vocabulary doesn't fit (unlike sequence's arrows, which really are
+   *  just filled/open/cross/none + solid/dotted). A dedicated field, matching this model's own
+   *  precedent of adding a narrowly-scoped field when the shared one doesn't fit (e.g.
+   *  `sourceIsGroup` above), rather than overloading `arrow` with meanings only UML uses. */
+  umlRelationKind?: 'inheritance' | 'composition' | 'aggregation' | 'association' | 'link-solid' | 'dependency' | 'realization' | 'link-dashed';
+  /** jmuir-dtu.2: UML only — the quoted multiplicity/cardinality label at each end of a
+   *  relationship (e.g. "1", "0..1", "*", "1..*"), if given. */
+  sourceCardinality?: string;
+  targetCardinality?: string;
   /** Sequence diagrams only: source-order position, used to interleave with note/block
    * containers (which live in a separate array) on serialization. */
   sequenceOrder?: number;
@@ -135,11 +175,17 @@ export interface DiagramContainer {
    * <id>`/`deactivate <id>` statement or the `+`/`-` message-arrow shorthand — is its own
    * independent point-in-time item via `attachedNodeIds: [participantId]`, not a linked
    * start/end pair; nothing nests "inside" one the way it does inside loop/alt/rect, so stacked
-   * activations for the same participant just become multiple same-role items in sequence). */
+   * activations for the same participant just become multiple same-role items in sequence).
+   * jmuir-dtu.2: UML also uses 'namespace' (a `namespace Name { ... }` grouping — member classes
+   * reference it via their own `containerId`, mirroring 'box' above, not `attachedNodeIds`) and
+   * 'note' (`note "text"` or `note for ClassName "text"` — a standalone or class-attached note,
+   * see `attachedNodeIds` below). */
   role?: string;
-  /** Sequence notes only (role starts with 'note-'), and 'activate'/'deactivate' (a single id):
-   * the participant id(s) this item is attached to — one for 'note-left'/'note-right'/
-   * 'activate'/'deactivate', one or more for 'note-over'. */
+  /** Sequence notes only (role starts with 'note-'), 'activate'/'deactivate' (a single id), and
+   * UML 'note' (jmuir-dtu.2: zero ids for a standalone `note "text"`, one id for `note for
+   * ClassName "text"`): the participant/class id(s) this item is attached to — one for
+   * 'note-left'/'note-right'/'activate'/'deactivate'/UML's attached-note form, one or more for
+   * 'note-over', zero for UML's standalone-note form. */
   attachedNodeIds?: ElementId[];
   /** Sequence diagrams only: source-order position — see DiagramEdge.sequenceOrder. */
   sequenceOrder?: number;
