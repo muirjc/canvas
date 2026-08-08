@@ -100,6 +100,14 @@ export interface DiagramEdge {
   /** Architecture diagrams only: the `:T`/`:B`/`:L`/`:R` anchor hint at each endpoint, if any. */
   sourceAnchor?: 'T' | 'B' | 'L' | 'R';
   targetAnchor?: 'T' | 'B' | 'L' | 'R';
+  /** jmuir-dtu.5: architecture diagrams only — the `{group}` edge modifier, escalating this
+   *  endpoint's connection point to the service's parent group boundary rather than the service
+   *  itself. `sourceId`/`targetId` still reference the SERVICE, never the group directly — real
+   *  Mermaid's own grammar forbids a bare group id in an edge line at all ("groupIds cannot be
+   *  used for specifying edges and the {group} modifier can only be used for services within a
+   *  group"), so this is a purely visual escalation hint, not a change to what the edge connects. */
+  sourceIsGroup?: boolean;
+  targetIsGroup?: boolean;
   /** Sequence diagrams only: source-order position, used to interleave with note/block
    * containers (which live in a separate array) on serialization. */
   sequenceOrder?: number;
@@ -160,6 +168,12 @@ export interface DiagramModel {
    *  wins) — a disclosed simplification, not a silent-drop bug, since a lone `autonumber off`
    *  with nothing preceding it is already a no-op in real Mermaid too. */
   sequenceAutonumber?: { start?: number; step?: number };
+  /** jmuir-dtu.5: architecture diagrams only — `align row <id> <id> ...` / `align column <id>
+   *  <id> ...` statements, declaring that a set of service/group ids share a row (same y) or
+   *  column (same x). Round-trips as a literal DSL body line (real Mermaid grammar, unlike
+   *  `direction`'s own front-matter-free flowchart/ER precedent this mirrors) — this app has no
+   *  auto-layout for architecture diagrams yet, so it doesn't drive positioning. */
+  architectureAlignments?: { axis: 'row' | 'column'; ids: string[] }[];
 }
 
 export function createEmptyDiagramModel(diagramTypeId: string): DiagramModel {

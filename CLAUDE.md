@@ -99,6 +99,22 @@ work — see `.specify/memory/constitution.md` Principle IV.
   parse error rather than a silent misparse): `create`/`destroy` participant lifecycle statements
   (need a new node-level ordering concept nothing else in the model requires), the newer "half-arrow"
   tokens (v11.12.3+, niche), and actor `link`/`links` menu directives — filed as `jmuir-dtu.4.1`.
+- `jmuir-dtu.5`: Architecture diagram (`architecture-beta`) gaps beyond feature 003.
+  `packages/diagram-core/src/dsl/architecture.ts` gains junction nodes (`junction <id> (in
+  <groupId>)?` — a routing-point node with no icon/label, `role: 'junction'`, `shape: 'circle'`;
+  edges reference a junction's id exactly like any service); the `{group}` edge modifier
+  (`serviceId{group}:ANCHOR --> ANCHOR:serviceId{group}`), escalating an edge endpoint's
+  connection point to the *service's parent group boundary* — new `DiagramEdge.sourceIsGroup`/
+  `targetIsGroup` booleans, purely a rendering-escalation hint since `sourceId`/`targetId` still
+  reference the service (real Mermaid forbids bare group ids in edge lines entirely); `align row/
+  column <id> <id> ...`, round-tripping as a literal DSL body line (real Mermaid grammar, unlike
+  `positions`/`styles`/`icons`) via a new `DiagramModel.architectureAlignments` field, mirroring
+  `direction`'s own front-matter-free precedent — no auto-layout consumes it yet, preserved for
+  round-trip only; and iconify.design custom icon packs (`service s(logos:aws-lambda)[...]`) via a
+  new `resolveIconFromName()` helper detecting the `prefix:name` format and tagging it
+  `libraryVersion: 'iconify'`, distinct from this app's own bare curated-library icon ids (none of
+  which ever contain a colon) — parse/model/round-trip fidelity only, no actual iconify artwork
+  fetching implemented or attempted.
 - `canvas-ycu.1`: `canvas-ycu`'s Bicep foundation (`infra/azure/`) had no way to actually run
   `canvas-mi9`'s Keycloak/MFA code — `ALLOW_LOCAL_AUTH` stayed `true` by default there since no
   OIDC provider was reachable at all. Adds `modules/keycloak.bicep` (internal-ingress-only
