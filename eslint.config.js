@@ -26,11 +26,20 @@ export default tseslint.config(
     },
   },
   {
-    // Standalone Node tooling scripts (e.g. apps/web/scripts/check-contrast.mjs) run under Node,
-    // not in the browser, so they legitimately use process/console/URL.
-    files: ['**/scripts/**/*.mjs'],
+    // Standalone Node tooling scripts (e.g. apps/web/scripts/check-contrast.mjs,
+    // infra/keycloak/create-users.mjs) run under Node, not in the browser, so they legitimately
+    // use process/console/URL/fetch/URLSearchParams -- canvas-ycu.1's create-users.mjs sits under
+    // infra/keycloak/, not a scripts/ dir, so the glob covers both shapes rather than requiring
+    // every future standalone Node script to live under a scripts/ directory specifically.
+    files: ['**/scripts/**/*.mjs', 'infra/**/*.mjs'],
     languageOptions: {
-      globals: { process: 'readonly', console: 'readonly', URL: 'readonly' },
+      globals: {
+        process: 'readonly',
+        console: 'readonly',
+        URL: 'readonly',
+        URLSearchParams: 'readonly',
+        fetch: 'readonly',
+      },
     },
   },
 );
