@@ -1,6 +1,6 @@
 # canvas Development Guidelines
 
-Auto-generated from all feature plans. Last updated: 2026-08-06
+Auto-generated from all feature plans. Last updated: 2026-08-08
 
 ## Active Technologies
 - `@dagrejs/dagre` (canvas-esn) added to `packages/diagram-core` — its first real runtime
@@ -54,6 +54,26 @@ tests are NON-NEGOTIABLE and must exist (and fail) before implementing any diagr
 work — see `.specify/memory/constitution.md` Principle IV.
 
 ## Recent Changes
+- `jmuir-dtu.3`: C4 diagram gaps beyond feature 003, first child of the `jmuir-dtu` "Mermaid DSL
+  full-compliance roadmap" epic to be picked up. `packages/diagram-core/src/dsl/c4.ts` gains the
+  full Db/Queue/`_Ext` element-kind matrix (`SystemDb_Ext`, `SystemQueue(_Ext)`, `ContainerDb(_Ext)`,
+  `ContainerQueue(_Ext)`, `ComponentDb(_Ext)`, `ComponentQueue(_Ext)` — Db reuses the existing
+  `cylinder` shape, Queue reuses `stadium`, `_Ext` variants collapse to their base kind's role+shape
+  exactly like the pre-existing `Person_Ext`/`System_Ext`/etc already did); `BiRel`/`Rel_Back`/
+  directional `Rel_U`/`D`/`L`/`R` (and `Up`/`Down`/`Left`/`Right` long forms) — `BiRel` sets
+  `arrow: 'both'`, `Rel_Back` swaps source/target endpoints (mirrors canvas-7rr's "Reversed" edge
+  direction, no new arrow value needed), directional hints parse successfully but have no
+  layout-model equivalent here (accepted, not modeled, same treatment as the new
+  `UpdateLayoutConfig` macro); and `UpdateElementStyle`/`UpdateRelStyle` (both the positional and
+  named `$key="value"` argument forms) folding into the existing `NodeStyle` fill/stroke fields —
+  properties with no modeled equivalent (`textColor`, `offsetX`/`offsetY`, `shadowing`, ...) are
+  silently ignored, matching flowchart's own `style`/`classDef` "other properties silently ignored"
+  precedent exactly, including applying styling macros as a second pass after all elements/edges
+  are parsed so a forward reference or an unknown id doesn't hard-error. Edge styles now round-trip
+  via a new `canvas.edgeStyles` front-matter block, mirroring flowchart's `linkStyle` round-trip.
+  `C4Deployment` (`Deployment_Node`/`Node_L`/`Node_R`) was explicitly excluded from this pass — a
+  distinct C4 diagram type, not just more vocabulary within the existing four — per this session's
+  "no new diagram types" scoping; filed as `jmuir-dtu.3.2`, not silently dropped.
 - `canvas-esn`: no way existed to auto-arrange a diagram — every node/container position was set
   manually (drag, or the grid-placement fallback used when adding a shape).
   `DiagramModel.direction`/`DiagramContainer.direction` already round-tripped through the DSL but
