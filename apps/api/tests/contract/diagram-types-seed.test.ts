@@ -52,7 +52,7 @@ describe('Diagram type seed data: generic shape-alias scoping', () => {
     },
   );
 
-  it.each(['c4-context', 'c4-container', 'c4-component', 'c4-code'])(
+  it.each(['c4-context', 'c4-container', 'c4-component', 'c4-code', 'c4-deployment'])(
     '%s already has c4-notation — generic is excluded',
     async (diagramTypeId) => {
       const palette = await paletteFor(diagramTypeId);

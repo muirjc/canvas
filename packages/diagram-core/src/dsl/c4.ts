@@ -9,6 +9,7 @@ const HEADER_TO_LEVEL: Record<string, string> = {
   C4Container: 'c4-container',
   C4Component: 'c4-component',
   C4Dynamic: 'c4-code',
+  C4Deployment: 'c4-deployment',
 };
 const LEVEL_TO_HEADER: Record<string, string> = Object.fromEntries(
   Object.entries(HEADER_TO_LEVEL).map(([header, level]) => [level, header]),
@@ -20,9 +21,7 @@ const LEVEL_TO_HEADER: Record<string, string> = Object.fromEntries(
 // silently rejecting any real C4 diagram using e.g. ContainerQueue or SystemDb_Ext. _Ext variants
 // collapse to the same role+shape as their base kind (no separate "external" visual marker) —
 // matches the pre-existing Person_Ext/System_Ext/Container_Ext/Component_Ext simplification
-// exactly, not a new gap. C4Deployment (Deployment_Node/Node_L/Node_R) is deliberately NOT
-// included here — a distinct diagram type from C4Context/Container/Component/Dynamic, out of
-// scope for this pass (see jmuir-dtu.3's follow-up child bead).
+// exactly, not a new gap.
 const ELEMENT_KINDS = [
   'Person',
   'Person_Ext',
@@ -56,7 +55,20 @@ const REL_KINDS = ['Rel', 'BiRel', 'Rel_Back', 'Rel_U', 'Rel_D', 'Rel_L', 'Rel_R
 const REL_PATTERN = new RegExp(
   `^(${REL_KINDS.join('|')})\\(\\s*(${ID})\\s*,\\s*(${ID})\\s*,\\s*"([^"]*)"\\s*\\)$`,
 );
-const BOUNDARY_START = new RegExp(`^(System_Boundary|Container_Boundary|Enterprise_Boundary)\\(\\s*(${ID})\\s*,\\s*"([^"]*)"\\s*\\)\\s*\\{$`);
+// jmuir-dtu.3.2: Deployment_Node (and its Node/Node_L/Node_R shortcuts -- Node is documented as
+// simply "short name of Deployment_Node()", Node_L/Node_R the same with a left/right layout
+// alignment hint) are grammatically the exact same nestable-boundary construct as System_Boundary/
+// Container_Boundary/Enterprise_Boundary (confirmed against Mermaid's own c4Diagram.jison grammar:
+// all six keywords feed the same boundaryStartStatement production) -- a C4Deployment diagram's
+// infrastructure tree (e.g. "Live" -> "Web Server" -> a Container running on it) is expressed as
+// nested Deployment_Node blocks exactly like a nested System_Boundary. The alignment hint
+// (Node_L vs Node_R) has no equivalent in this app's rendering (positions come from
+// canvas.positions front-matter, not a left/right layout algorithm) -- accepted, not modeled, same
+// treatment as C4's other pure layout hints (Rel_U/D/L/R, UpdateLayoutConfig).
+const DEPLOYMENT_NODE_KINDS = ['Deployment_Node', 'Node_L', 'Node_R', 'Node'] as const;
+const BOUNDARY_START = new RegExp(
+  `^(System_Boundary|Container_Boundary|Enterprise_Boundary|${DEPLOYMENT_NODE_KINDS.join('|')})\\(\\s*(${ID})\\s*,\\s*"([^"]*)"(?:\\s*,\\s*"[^"]*")?\\s*\\)\\s*\\{$`,
+);
 const BOUNDARY_END = /^\}$/;
 
 // jmuir-dtu.3: styling macros. Both of Mermaid's documented argument forms are accepted --
@@ -366,9 +378,16 @@ export function serializeC4(model: import('../model/diagram-model.js').DiagramMo
   const header = LEVEL_TO_HEADER[model.diagramTypeId] ?? 'C4Context';
   const lines: string[] = [header];
   const emitted = new Set<string>();
+  // jmuir-dtu.3.2: a C4Deployment model's containers always re-emit as Deployment_Node (not
+  // System_Boundary, which isn't semantically valid there) -- driven purely by diagramTypeId,
+  // not a per-container flag, since every container in a c4-deployment model necessarily came
+  // from Deployment_Node/Node/Node_L/Node_R parsing in the first place (BOUNDARY_START accepts
+  // all six keywords regardless of header, same lenient precedent System_Boundary itself already
+  // has, but only c4-deployment's own header re-emits this way).
+  const boundaryKeyword = model.diagramTypeId === 'c4-deployment' ? 'Deployment_Node' : 'System_Boundary';
 
   const emitContainer = (container: DiagramContainer): string[] => {
-    const out: string[] = [`System_Boundary(${container.id}, "${container.label}") {`];
+    const out: string[] = [`${boundaryKeyword}(${container.id}, "${container.label}") {`];
     for (const node of model.nodes) {
       if (node.containerId === container.id) {
         out.push(`  ${elementKindFor(node)}(${node.id}, "${node.label}")`);

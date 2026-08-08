@@ -24,6 +24,12 @@ const DIAGRAM_TYPES: DiagramTypeSeed[] = [
   { id: 'c4-container', name: 'C4 Container', personas: ['Solution', 'Technical'], abstractionLevel: 'Container', dslFamily: 'c4', defaultPaletteLibraryIds: ['c4-notation'] },
   { id: 'c4-component', name: 'C4 Component', personas: ['Technical'], abstractionLevel: 'Component', dslFamily: 'c4', defaultPaletteLibraryIds: ['c4-notation'] },
   { id: 'c4-code', name: 'C4 Code', personas: ['Technical'], abstractionLevel: 'Code', dslFamily: 'c4', defaultPaletteLibraryIds: ['c4-notation'] },
+  // jmuir-dtu.3.2: distinct from the pre-existing 'deployment' id below (architecture dslFamily,
+  // a generic cloud-infra deployment diagram) -- this is specifically the C4 model's own
+  // Deployment_Node-based infrastructure-topology diagram (packages/diagram-core/src/dsl/c4.ts).
+  // Technical-only, matching c4-component/c4-code's precedent: infrastructure topology is an
+  // implementation-level artifact, not something a Solution Architect typically curates.
+  { id: 'c4-deployment', name: 'C4 Deployment', personas: ['Technical'], abstractionLevel: 'Deployment', dslFamily: 'c4', defaultPaletteLibraryIds: ['c4-notation'] },
   { id: 'business-capability-map', name: 'Business Capability Map', personas: ['Business'], abstractionLevel: 'N/A', dslFamily: 'flowchart', defaultPaletteLibraryIds: ['generic'] },
   { id: 'value-stream', name: 'Value Stream Diagram', personas: ['Business'], abstractionLevel: 'N/A', dslFamily: 'flowchart', defaultPaletteLibraryIds: ['generic'] },
   { id: 'application-landscape', name: 'Application/Enterprise Landscape', personas: ['Enterprise'], abstractionLevel: 'N/A', dslFamily: 'flowchart', defaultPaletteLibraryIds: ['generic'] },
