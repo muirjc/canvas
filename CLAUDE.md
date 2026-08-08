@@ -54,6 +54,30 @@ tests are NON-NEGOTIABLE and must exist (and fail) before implementing any diagr
 work — see `.specify/memory/constitution.md` Principle IV.
 
 ## Recent Changes
+- `jmuir-dtu.6`: ER diagram gaps beyond feature 003, second `jmuir-dtu` child picked up.
+  `packages/diagram-core/src/dsl/erd.ts` gains entity aliases (`id[Alias Label]`, standalone or
+  combined with an attribute block start `id[Alias Label] {`) — the entity's own `id` stays the
+  identifier used everywhere else (relationships, attribute blocks), alias resolution is
+  order-independent (a relationship referencing the entity before its alias line appears later in
+  the file still ends up correctly aliased); a top-level `direction TB|BT|LR|RL` statement, reusing
+  `DiagramModel.direction`/`FlowchartDirection` (now documented as shared by both flowchart and ER,
+  not flowchart-only); and `style`/`classDef`/`class`/the `:::` shorthand, identical grammar and
+  second-pass-application precedent to flowchart's own `style`/`classDef` support (jmuir-dzd
+  grouping C) — folds into the existing `NodeStyle` fill/stroke fields, unrecognized properties and
+  unknown ids silently ignored. Entity styles now round-trip via a `canvas.styles` front-matter
+  block that `serializeErd` previously never emitted at all (a real, separate pre-existing gap this
+  closes as a side effect). Also fixes a genuine, independently-confirmed bug: an entity with no
+  attribute block and no relationship (an alias-only declaration, or any bare standalone entity —
+  now also valid syntax on its own, matching Mermaid's own grammar where the relationship half of
+  an entity line is optional) used to vanish entirely on serialize; FR-003 requires no element be
+  silently dropped. Two more bugs found and fixed during test-writing: `style`/`classDef`/`class`
+  directives were checked *after* the relationship pattern, so a single-character entity id like
+  `o` (a plausible abbreviation for "Order") collided with the relationship regex's cardinality
+  character class and misparsed `style o ...` as a bogus relationship — reordered to match
+  flowchart-parser.ts's own directive-before-edge ordering; and an aliased entity appearing only in
+  a relationship (no attribute block) lost its alias on serialize, since a relationship line only
+  ever references an entity by its bare id — fixed with an explicit alias-declaration pass before
+  the edges loop.
 - `jmuir-dtu.3`: C4 diagram gaps beyond feature 003, first child of the `jmuir-dtu` "Mermaid DSL
   full-compliance roadmap" epic to be picked up. `packages/diagram-core/src/dsl/c4.ts` gains the
   full Db/Queue/`_Ext` element-kind matrix (`SystemDb_Ext`, `SystemQueue(_Ext)`, `ContainerDb(_Ext)`,

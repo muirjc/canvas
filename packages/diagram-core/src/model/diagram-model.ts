@@ -132,7 +132,9 @@ export type FlowchartDirection = 'TD' | 'LR' | 'TB' | 'RL' | 'BT';
 
 export interface DiagramModel {
   diagramTypeId: string;
-  /** Flowchart-only: the parsed direction, preserved for round-trip serialization. */
+  /** Flowchart and ER diagrams (`graph <direction>` / `direction <direction>` respectively): the
+   *  parsed top-level direction, preserved for round-trip serialization. Not yet used to drive
+   *  auto-layout for either family (see `autoLayout()`'s own flowchart-only scoping). */
   direction?: FlowchartDirection;
   nodes: DiagramNode[];
   edges: DiagramEdge[];
