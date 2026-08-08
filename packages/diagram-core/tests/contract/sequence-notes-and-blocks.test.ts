@@ -159,10 +159,10 @@ describe('sequence parser: notes and control-flow blocks', () => {
 });
 
 /**
- * jmuir-dtu.4: `actor` keyword, the full arrow-token set, explicit/shorthand activation,
- * `rect`/`box` blocks, and `autonumber` — see sequence.ts's own comments for the grammar this is
- * asserting against (especially ARROW_TOKEN_TO_STYLE / ARROW_STYLE_TO_TOKEN and the +/- activation
- * asymmetry).
+ * jmuir-dtu.4: `actor` keyword, the full arrow-token set, activation (both the explicit
+ * statements and the +/- shorthand form), `rect`/`box` blocks, and `autonumber` — see
+ * sequence.ts's own comments for the grammar this is asserting against (especially
+ * ARROW_TOKEN_TO_STYLE / ARROW_STYLE_TO_TOKEN and the +/- activation asymmetry).
  */
 describe('sequence parser: actor keyword, arrow tokens, activation, rect/box, autonumber', () => {
   describe('actor vs participant', () => {
