@@ -324,25 +324,182 @@ describe('C4 DSL family (Context/Container/Component/Code)', () => {
     expect(reparsed.model.nodes.find((n) => n.id === 'a')!.style?.fillColor).toBe('#ff0000');
   });
 
-  describe('jmuir-dtu.3: out-of-scope C4Deployment syntax still errors', () => {
-    it('rejects C4Deployment as an unrecognized header', () => {
-      const result = parseC4('C4Deployment\n  Deployment_Node(n, "Node") {\n  }\n');
-      expect(isParseSuccess(result)).toBe(false);
-    });
-
-    it('rejects Deployment_Node inside an otherwise-valid C4Context body', () => {
-      const result = parseC4('C4Context\n  Deployment_Node(n, "Node") {\n  }\n');
-      expect(isParseSuccess(result)).toBe(false);
-    });
-
-    it('rejects Node_L/Node_R (deployment relationship syntax)', () => {
-      const result = parseC4('C4Context\n  System(a, "A")\n  System(b, "B")\n  Node_L(a, b, "Rel")\n');
+  // jmuir-dtu.3.2 superseded jmuir-dtu.3's original "C4Deployment is out of scope" tests here —
+  // C4Deployment/Deployment_Node/Node/Node_L/Node_R are now supported (see the describe block
+  // below). RelIndex remains genuinely out of scope, not part of either bead.
+  describe('jmuir-dtu.3: still out of scope', () => {
+    it('rejects a Node_L call missing its required "{" block opener', () => {
+      const result = parseC4('C4Context\n  System(a, "A")\n  System(b, "B")\n  Node_L(a, "Not a boundary")\n');
       expect(isParseSuccess(result)).toBe(false);
     });
 
     it('rejects RelIndex', () => {
       const result = parseC4('C4Context\n  System(a, "A")\n  System(b, "B")\n  RelIndex(0, a, b, "Rel")\n');
       expect(isParseSuccess(result)).toBe(false);
+    });
+  });
+
+  describe('jmuir-dtu.3.2: C4Deployment', () => {
+    it('parses a C4Deployment header to diagramTypeId "c4-deployment"', () => {
+      const result = parseC4('C4Deployment\n');
+      expect(isParseSuccess(result)).toBe(true);
+      if (isParseSuccess(result)) {
+        expect(result.model.diagramTypeId).toBe('c4-deployment');
+      }
+    });
+
+    it('Deployment_Node(id, "Label") (no type arg) creates a container with the right id/label', () => {
+      const result = parseC4('C4Deployment\n  Deployment_Node(live, "Live") {\n  }\n');
+      expect(isParseSuccess(result)).toBe(true);
+      if (isParseSuccess(result)) {
+        expect(result.model.containers).toHaveLength(1);
+        const container = result.model.containers[0];
+        expect(container.id).toBe('live');
+        expect(container.label).toBe('Live');
+      }
+    });
+
+    it('Deployment_Node(id, "Label", "Type") (with optional type arg) parses; the type is not retained anywhere and does not leak into the label', () => {
+      const result = parseC4('C4Deployment\n  Deployment_Node(live, "Live", "Azure") {\n  }\n');
+      expect(isParseSuccess(result)).toBe(true);
+      if (isParseSuccess(result)) {
+        expect(result.model.containers).toHaveLength(1);
+        const container = result.model.containers[0];
+        expect(container.label).toBe('Live');
+        expect(JSON.stringify(result.model)).not.toContain('Azure');
+      }
+    });
+
+    it('nested Deployment_Node blocks (2+ levels) produce the correct parentContainerId chain', () => {
+      const result = parseC4(
+        [
+          'C4Deployment',
+          '  Deployment_Node(live, "Live") {',
+          '    Deployment_Node(zone1, "Zone 1") {',
+          '      Deployment_Node(server1, "Server 1") {',
+          '      }',
+          '    }',
+          '  }',
+          '',
+        ].join('\n'),
+      );
+      expect(isParseSuccess(result)).toBe(true);
+      if (isParseSuccess(result)) {
+        const byId = new Map(result.model.containers.map((c) => [c.id, c]));
+        expect(byId.get('live')?.parentContainerId).toBeUndefined();
+        expect(byId.get('zone1')?.parentContainerId).toBe('live');
+        expect(byId.get('server1')?.parentContainerId).toBe('zone1');
+      }
+    });
+
+    it('regular C4 elements nested inside a Deployment_Node get the correct containerId', () => {
+      const result = parseC4(
+        [
+          'C4Deployment',
+          '  Deployment_Node(live, "Live") {',
+          '    Container(web, "Web Server")',
+          '    Component(app, "App Component")',
+          '  }',
+          '',
+        ].join('\n'),
+      );
+      expect(isParseSuccess(result)).toBe(true);
+      if (isParseSuccess(result)) {
+        expect(result.model.nodes.find((n) => n.id === 'web')?.containerId).toBe('live');
+        expect(result.model.nodes.find((n) => n.id === 'app')?.containerId).toBe('live');
+      }
+    });
+
+    it.each(['Deployment_Node', 'Node', 'Node_L', 'Node_R'] as const)(
+      '%s works identically to Deployment_Node: parses to a container of the same shape',
+      (kind) => {
+        const result = parseC4(`C4Deployment\n  ${kind}(live, "Live") {\n  }\n`);
+        expect(isParseSuccess(result)).toBe(true);
+        if (isParseSuccess(result)) {
+          expect(result.model.containers).toHaveLength(1);
+          const container = result.model.containers[0];
+          expect(container.id).toBe('live');
+          expect(container.label).toBe('Live');
+          expect(container.parentContainerId).toBeUndefined();
+        }
+      },
+    );
+
+    it('a Rel between two elements nested in different Deployment_Nodes resolves sourceId/targetId regardless of nesting', () => {
+      const result = parseC4(
+        [
+          'C4Deployment',
+          '  Deployment_Node(zoneA, "Zone A") {',
+          '    Container(web, "Web Server")',
+          '  }',
+          '  Deployment_Node(zoneB, "Zone B") {',
+          '    ContainerDb(db, "Database")',
+          '  }',
+          '  Rel(web, db, "Reads/Writes")',
+          '',
+        ].join('\n'),
+      );
+      expect(isParseSuccess(result)).toBe(true);
+      if (isParseSuccess(result)) {
+        expect(result.model.edges).toHaveLength(1);
+        const edge = result.model.edges[0];
+        expect(edge.sourceId).toBe('web');
+        expect(edge.targetId).toBe('db');
+      }
+    });
+
+    it('round-trips a full C4Deployment diagram (nesting + elements + a Rel): serialized output uses Deployment_Node(, never System_Boundary(', () => {
+      const model: DiagramModel = {
+        diagramTypeId: 'c4-deployment',
+        nodes: [
+          { id: 'web', label: 'Web Server', shape: 'rounded-rectangle', role: 'container', position: { x: 0, y: 0 }, containerId: 'zone1' },
+          { id: 'db', label: 'Database', shape: 'cylinder', role: 'container', position: { x: 200, y: 0 }, containerId: 'live' },
+        ],
+        edges: [{ id: 'e1', sourceId: 'web', targetId: 'db', label: 'Reads/Writes' }],
+        containers: [
+          { id: 'live', label: 'Live', position: { x: 0, y: 0 } },
+          { id: 'zone1', label: 'Zone 1', position: { x: 0, y: 0 }, parentContainerId: 'live' },
+        ],
+      };
+      const serialized = serializeC4(model);
+      expect(serialized).toContain('Deployment_Node(');
+      expect(serialized).not.toContain('System_Boundary(');
+      expect(normalize(roundTrip(model))).toEqual(normalize(model));
+    });
+
+    it('regression guard: a System_Boundary/Container_Boundary diagram (non-c4-deployment diagramTypeId) is unchanged — still round-trips as System_Boundary(, never Deployment_Node(', () => {
+      const model: DiagramModel = {
+        diagramTypeId: 'c4-container',
+        nodes: [
+          { id: 'web', label: 'Web App', shape: 'rounded-rectangle', role: 'container', position: { x: 0, y: 0 }, containerId: 'b1' },
+          { id: 'db', label: 'Database', shape: 'cylinder', role: 'system', position: { x: 200, y: 0 } },
+        ],
+        edges: [{ id: 'e1', sourceId: 'web', targetId: 'db', label: 'Reads/Writes' }],
+        containers: [{ id: 'b1', label: 'Our System', position: { x: 0, y: 0 } }],
+      };
+      const serialized = serializeC4(model);
+      expect(serialized).toContain('System_Boundary(');
+      expect(serialized).not.toContain('Deployment_Node(');
+      expect(normalize(roundTrip(model))).toEqual(normalize(model));
+    });
+
+    it('regression guard: Deployment_Node used inside a C4Context diagram parses successfully (deliberate leniency, same precedent as System_Boundary)', () => {
+      const result = parseC4(
+        [
+          'C4Context',
+          '  Deployment_Node(live, "Live") {',
+          '    System(a, "A")',
+          '  }',
+          '',
+        ].join('\n'),
+      );
+      expect(isParseSuccess(result)).toBe(true);
+      if (isParseSuccess(result)) {
+        expect(result.model.diagramTypeId).toBe('c4-context');
+        expect(result.model.containers).toHaveLength(1);
+        expect(result.model.containers[0].id).toBe('live');
+        expect(result.model.nodes.find((n) => n.id === 'a')?.containerId).toBe('live');
+      }
     });
   });
 });

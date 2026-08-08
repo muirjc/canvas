@@ -82,6 +82,28 @@ work — see `.specify/memory/constitution.md` Principle IV.
   entirely with zero errors — added a `**/*.tsbuildinfo` sibling line, matching the `**/node_modules`/
   `**/dist` pattern already used elsewhere in the same file, and verified against a from-scratch
   `--no-cache` build with a real leftover host tsbuildinfo file present.
+- `jmuir-dtu.3.2`: C4Deployment diagram support, the follow-up `jmuir-dtu.3` deliberately deferred
+  (a distinct diagram type, out of scope for that pass's "no new diagram types" instruction) —
+  picked up as its own explicit follow-up. New `diagramTypeId: 'c4-deployment'`
+  (`C4Deployment` header, added to `packages/diagram-core/src/dsl/c4.ts`'s `HEADER_TO_LEVEL`) and
+  a matching `apps/api` seed catalog entry (Technical-only persona, matching `c4-component`/
+  `c4-code`'s precedent — infrastructure topology is an implementation-level artifact). Confirmed
+  against Mermaid's own `c4Diagram.jison` grammar that `Deployment_Node`/`Node`/`Node_L`/`Node_R`
+  (`Node` is documented as simply "short name of `Deployment_Node()`", `Node_L`/`Node_R` add a
+  left/right layout-alignment hint with no rendering equivalent here — accepted, not modeled, same
+  treatment as the other pure layout hints already in this file) are grammatically the *exact same*
+  nestable-boundary construct as `System_Boundary`/`Container_Boundary`/`Enterprise_Boundary` — so
+  implemented as more accepted keywords on the same `BOUNDARY_START` pattern rather than a parallel
+  code path, with arbitrary-depth `Deployment_Node` nesting (an infrastructure tree) and regular C4
+  elements (`Container`, `Component`, ...) nesting inside exactly like inside a `System_Boundary`
+  already did. Serialization picks `Deployment_Node(...)` vs `System_Boundary(...)` purely from
+  `model.diagramTypeId`, not a per-container flag, since every container in a `c4-deployment` model
+  necessarily came from `Deployment_Node`-family parsing. Deliberately lenient, matching
+  `System_Boundary`'s own pre-existing (unenforced) header-scoping: `Deployment_Node` parses
+  successfully even inside a `C4Context` diagram, same as `System_Boundary` always could. The
+  optional third `"type"` string arg (e.g. `Deployment_Node(live, "Live", "Azure")`) is accepted
+  but not modeled/round-tripped, matching this file's established "capture optionally, don't
+  model" precedent for `Person(...)`'s own optional description arg.
 - `jmuir-dtu.6`: ER diagram gaps beyond feature 003, second `jmuir-dtu` child picked up.
   `packages/diagram-core/src/dsl/erd.ts` gains entity aliases (`id[Alias Label]`, standalone or
   combined with an attribute block start `id[Alias Label] {`) — the entity's own `id` stays the
