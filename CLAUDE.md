@@ -54,6 +54,30 @@ tests are NON-NEGOTIABLE and must exist (and fail) before implementing any diagr
 work — see `.specify/memory/constitution.md` Principle IV.
 
 ## Recent Changes
+- `jmuir-dtu.4`: Sequence diagram gaps beyond feature 003 — the largest of the `jmuir-dtu` DSL
+  sub-beads tackled so far. `packages/diagram-core/src/dsl/sequence.ts` gains the `actor` keyword
+  (`role: 'actor'`, `shape: 'person'`, vs `participant`'s `role: 'participant'`, `shape:
+  'rectangle'`) plus `as <alias>` on both, order-independent like every other alias convention this
+  epic has built; the full arrow-token set (`->`, `-->`, `-x`, `--x`, `-)`, `--)`, `<<->>`,
+  `<<-->>`, alongside the pre-existing `->>`/`-->>` — the latter two now actually distinguished by
+  `lineStyle` instead of collapsing to one shape, closing a previously-disclosed limitation) via a
+  new `ARROW_TOKEN_TO_STYLE` map, adding two sequence-only `DiagramEdge.arrow` values (`'cross'`,
+  `'open'`); activation (`activate`/`deactivate` statements and the `+`/`-` message-arrow
+  shorthand) — confirmed against Mermaid's own `sequenceDiagram.jison` grammar source (not
+  guessed) that `+` activates the arrow's TARGET while `-` deactivates the arrow's SOURCE, a real
+  asymmetry easy to get backwards by eye alone; each occurrence becomes its own independent
+  `DiagramContainer` (`role: 'activate'`/`'deactivate'`) rather than a linked start/end pair, so
+  stacked activations for one participant just work with no special-casing; `rect <color> ... end`
+  background highlighting, joining the same block-with-`end` family as `loop`/`alt`/etc but storing
+  its color in `style.fillColor` rather than `label`; `box <color>? <title>? ... end` participant
+  grouping, sitting outside the message timeline entirely — members reference it via their own
+  `containerId`, mirroring C4/ERD container membership; and `autonumber`/`autonumber off`/
+  `autonumber <start> <step>` via a new single model-wide `DiagramModel.sequenceAutonumber` field
+  (last statement wins — a disclosed simplification for the rare multi-toggle-mid-diagram case).
+  Deliberately deferred (confirmed via live reproduction to still fail with a clean, structured
+  parse error rather than a silent misparse): `create`/`destroy` participant lifecycle statements
+  (need a new node-level ordering concept nothing else in the model requires), the newer "half-arrow"
+  tokens (v11.12.3+, niche), and actor `link`/`links` menu directives — filed as `jmuir-dtu.4.1`.
 - `canvas-ycu.1`: `canvas-ycu`'s Bicep foundation (`infra/azure/`) had no way to actually run
   `canvas-mi9`'s Keycloak/MFA code — `ALLOW_LOCAL_AUTH` stayed `true` by default there since no
   OIDC provider was reachable at all. Adds `modules/keycloak.bicep` (internal-ingress-only

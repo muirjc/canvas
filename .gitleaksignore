@@ -1,0 +1,11 @@
+# gitleaks false positives, one fingerprint per line (commit:file:rule:startLine).
+# See https://github.com/gitleaks/gitleaks#gitleaksignore
+
+# jmuir-dtu.4.1: generic-api-key false positive -- gitleaks' entropy heuristic flagged the plain
+# English phrase "explicit/shorthand" (a doc comment describing activate/deactivate statements
+# vs the +/- shorthand form) as a possible API key. Confirmed via a local, unredacted gitleaks run
+# against this exact commit -- genuinely just prose, not a secret. The comment's live wording was
+# also fixed going forward (no longer uses this phrasing) so no *new* commit should ever re-trigger
+# it; this entry only suppresses the already-pushed historical commit, which can't be edited after
+# the fact without rewriting shared branch history.
+a3344adf564e06f453f06251797a446575e14d82:packages/diagram-core/tests/contract/sequence-notes-and-blocks.test.ts:generic-api-key:162

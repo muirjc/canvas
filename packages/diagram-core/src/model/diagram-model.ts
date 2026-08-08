@@ -87,10 +87,15 @@ export interface DiagramEdge {
   label?: string;
   style?: NodeStyle;
   /** Which endpoint(s) carry an arrowhead. Architecture diagrams use 'source'/'target' for
-   *  directional anchors; flowchart additionally uses 'both' for a bidirectional edge (`<-->`). */
-  arrow?: 'none' | 'source' | 'target' | 'both';
+   *  directional anchors; flowchart additionally uses 'both' for a bidirectional edge (`<-->`).
+   *  jmuir-dtu.4: sequence diagrams also use 'both' (`<<->>`/`<<-->>`), plus two sequence-only
+   *  values: 'cross' (`-x`/`--x`, a failed/erroring message) and 'open' (`-)`/`--)`, an
+   *  asynchronous message with an unfilled arrowhead). */
+  arrow?: 'none' | 'source' | 'target' | 'both' | 'cross' | 'open';
   /** Flowchart only: the connector's line rendering — undefined means 'solid' (the default,
-   *  ordinary `-->`). 'invisible' is Mermaid's `~~~`, used purely as a layout hint. */
+   *  ordinary `-->`). 'invisible' is Mermaid's `~~~`, used purely as a layout hint.
+   *  jmuir-dtu.4: sequence diagrams reuse 'solid'/'dotted' for their own solid-vs-dashed arrow
+   *  tokens (e.g. `->>` vs `-->>`) — 'thick'/'invisible' don't apply there. */
   lineStyle?: 'solid' | 'dotted' | 'thick' | 'invisible';
   /** Architecture diagrams only: the `:T`/`:B`/`:L`/`:R` anchor hint at each endpoint, if any. */
   sourceAnchor?: 'T' | 'B' | 'L' | 'R';
@@ -114,10 +119,19 @@ export interface DiagramContainer {
   parentContainerId?: ElementId;
   /** Semantic kind, mirroring DiagramNode.role. Sequence diagrams only: 'note-left',
    * 'note-right', 'note-over', 'loop', 'alt', 'else', 'opt', 'par', 'and', 'critical', 'option',
-   * or 'break'. */
+   * 'break', 'rect' (a `rect <color> ... end` background highlight — the color lives in `style`,
+   * not `label`, which stays empty), 'box' (a `box ... end` participant grouping — members
+   * reference it via their own `containerId`, not `attachedNodeIds`, and it sits outside the
+   * ordered timeline entirely, so `sequenceOrder`/`parentContainerId` are unset for it), or
+   * 'activate'/'deactivate' (jmuir-dtu.4: each occurrence — whether from an explicit `activate
+   * <id>`/`deactivate <id>` statement or the `+`/`-` message-arrow shorthand — is its own
+   * independent point-in-time item via `attachedNodeIds: [participantId]`, not a linked
+   * start/end pair; nothing nests "inside" one the way it does inside loop/alt/rect, so stacked
+   * activations for the same participant just become multiple same-role items in sequence). */
   role?: string;
-  /** Sequence notes only (role starts with 'note-'): the participant id(s) the note is attached
-   * to — one for 'note-left'/'note-right', one or more for 'note-over'. */
+  /** Sequence notes only (role starts with 'note-'), and 'activate'/'deactivate' (a single id):
+   * the participant id(s) this item is attached to — one for 'note-left'/'note-right'/
+   * 'activate'/'deactivate', one or more for 'note-over'. */
   attachedNodeIds?: ElementId[];
   /** Sequence diagrams only: source-order position — see DiagramEdge.sequenceOrder. */
   sequenceOrder?: number;
@@ -139,6 +153,13 @@ export interface DiagramModel {
   nodes: DiagramNode[];
   edges: DiagramEdge[];
   containers: DiagramContainer[];
+  /** jmuir-dtu.4: sequence diagrams only — an `autonumber` statement turns on automatic message
+   *  numbering, with optional custom start/step values; `autonumber off` turns it back off. Real
+   *  Mermaid allows toggling this at multiple points through a diagram to reset numbering
+   *  partway through; this app models only the common single-toggle case (last statement seen
+   *  wins) — a disclosed simplification, not a silent-drop bug, since a lone `autonumber off`
+   *  with nothing preceding it is already a no-op in real Mermaid too. */
+  sequenceAutonumber?: { start?: number; step?: number };
 }
 
 export function createEmptyDiagramModel(diagramTypeId: string): DiagramModel {
