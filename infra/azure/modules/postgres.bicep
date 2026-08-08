@@ -44,6 +44,9 @@ param privateDnsZoneId string
 @description('Name of the application database to create.')
 param databaseName string = 'canvas'
 
+@description('Name of the Keycloak database to create (canvas-ycu.1) -- its own DB on the same server, not sharing the app schema.')
+param keycloakDatabaseName string = 'keycloak'
+
 resource server 'Microsoft.DBforPostgreSQL/flexibleServers@2025-08-01' = {
   name: serverName
   location: location
@@ -97,9 +100,19 @@ resource database 'Microsoft.DBforPostgreSQL/flexibleServers/databases@2025-08-0
   }
 }
 
+resource keycloakDatabase 'Microsoft.DBforPostgreSQL/flexibleServers/databases@2025-08-01' = {
+  parent: server
+  name: keycloakDatabaseName
+  properties: {
+    charset: 'UTF8'
+    collation: 'en_US.utf8'
+  }
+}
+
 output serverName string = server.name
 output serverFqdn string = server.properties.fullyQualifiedDomainName
 output databaseName string = database.name
+output keycloakDatabaseName string = keycloakDatabase.name
 // canvas expects postgres://user:password@host:5432/db?sslmode=require -- password is
 // deliberately NOT interpolated into this output (it's @secure() and this output isn't marked
 // secure); deploy.sh assembles the full connection string from this plus the password it already

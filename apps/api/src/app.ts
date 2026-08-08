@@ -4,6 +4,7 @@ import type { LanguageModel } from 'ai';
 import { loadConfig, type AppConfig } from './config.js';
 import { registerSession } from './auth/session.js';
 import { registerOidcRoutes } from './auth/oidc.js';
+import { registerIdpProxyRoutes } from './auth/idp-proxy.routes.js';
 import { registerLocalAuthRoutes } from './auth/local.js';
 import { registerDiagramRoutes } from './diagrams/diagram.routes.js';
 import { registerDiagramTypeRoutes } from './diagrams/diagram-type.routes.js';
@@ -64,6 +65,7 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
   });
   await registerSession(app, config);
   await registerOidcRoutes(app, config);
+  await registerIdpProxyRoutes(app, config);
   if (config.allowLocalAuth) {
     await registerLocalAuthRoutes(app);
   }

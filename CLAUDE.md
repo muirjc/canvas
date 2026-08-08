@@ -54,6 +54,34 @@ tests are NON-NEGOTIABLE and must exist (and fail) before implementing any diagr
 work — see `.specify/memory/constitution.md` Principle IV.
 
 ## Recent Changes
+- `canvas-ycu.1`: `canvas-ycu`'s Bicep foundation (`infra/azure/`) had no way to actually run
+  `canvas-mi9`'s Keycloak/MFA code — `ALLOW_LOCAL_AUTH` stayed `true` by default there since no
+  OIDC provider was reachable at all. Adds `modules/keycloak.bicep` (internal-ingress-only
+  Container App, never reachable from a browser directly, its own `keycloak` Postgres database) and
+  a transparent `/idp/*` reverse proxy on `canvas-api`'s own container
+  (`apps/api/src/auth/idp-proxy.routes.ts`) forwarding to it — `/idp`, not `/auth`, since canvas's
+  own API already owns the `/auth/*` route namespace for its session routes, unlike the sibling
+  reference project this mirrors. `apiapp.bicep`'s `allowLocalAuth` now defaults to `false`. A new
+  internal/public issuer split (`OIDC_INTERNAL_ISSUER_URL`/`KEYCLOAK_INTERNAL_URL`, `oidc.ts`'s
+  `customFetch` override) works around a real, independently-reproduced Container Apps limitation:
+  a container calling its own public ingress FQDN from inside the same environment doesn't reliably
+  route back to itself. Real user provisioning is decided, not deferred again:
+  `infra/keycloak/create-users.mjs` (admin-REST-API, idempotent, assigns one of
+  admin/architect/viewer as a realm role, sets `requiredActions: ["CONFIGURE_TOTP"]` explicitly per
+  user since a realm's own `defaultAction` never reaches admin-API-created users) runs via a new
+  manual-trigger `canvas-keycloak-users` Container Apps Job
+  (`modules/usersjob.bicep`) — `KC_USERS` (real account data) is supplied per-invocation, never
+  baked into the template. `deploy.sh` reconciles the realm-imported `canvas-api` client's
+  redirect URI/web origin/secret against the real, only-known-after-first-deploy API FQDN via the
+  admin REST API on every run, since Keycloak's `--import-realm` is skip-if-exists. Also fixed a
+  real, independently confirmed latent bug found while validating this: `.dockerignore`'s bare
+  `*.tsbuildinfo` pattern only ever excluded a build-context-ROOT file (unlike `.gitignore`
+  semantics) — a nested `packages/diagram-core/tsconfig.tsbuildinfo` (created by any ordinary local
+  `npm run build`) was silently slipping into every real `docker build`/`az acr build`, since
+  canvas-ycu shipped, fooling `tsc`'s incremental cache into skipping `diagram-core`'s emit
+  entirely with zero errors — added a `**/*.tsbuildinfo` sibling line, matching the `**/node_modules`/
+  `**/dist` pattern already used elsewhere in the same file, and verified against a from-scratch
+  `--no-cache` build with a real leftover host tsbuildinfo file present.
 - `jmuir-dtu.6`: ER diagram gaps beyond feature 003, second `jmuir-dtu` child picked up.
   `packages/diagram-core/src/dsl/erd.ts` gains entity aliases (`id[Alias Label]`, standalone or
   combined with an attribute block start `id[Alias Label] {`) — the entity's own `id` stays the

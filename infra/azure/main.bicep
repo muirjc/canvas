@@ -1,14 +1,15 @@
-// canvas Azure deployment -- entry point (canvas-ycu, mirrors ADP's infra/azure/main.bicep).
+// canvas Azure deployment -- entry point (canvas-ycu + canvas-ycu.1, mirrors ADP's infra/azure/
+// main.bicep).
 //
 // Subscription-scope: creates the resource group everything else deploys into, then hands off to
 // per-resource modules scoped to it. The whole environment builds from this one file and tears
 // down as one resource group (destroy.sh) -- see infra/azure/README.md for the full operational
 // picture (deploy/pause/resume/destroy).
 //
-// Deliberately does NOT include a Keycloak module -- canvas-mi9 (Keycloak/MFA integration) is
-// separate, follow-on work. If/when it lands, it should add its own module here (mirroring
-// ADP's modules/keycloak.bicep + the /auth reverse-proxy pattern) rather than standing up a
-// second, disconnected resource group.
+// Keycloak (modules/keycloak.bicep) is internal-ingress only; canvas-api reverse-proxies /idp/*
+// to it (apps/api/src/auth/idp-proxy.routes.ts) so the browser only ever reaches the one already-
+// public canvas-api hostname -- avoids the browser-facing-vs-backend-facing issuer URL mismatch
+// class of bug a sibling project (ADP) hit with the identical topology.
 
 targetScope = 'subscription'
 
@@ -35,7 +36,10 @@ param deployerPrincipalId string
 @description('Tag of the API image (repo-root Dockerfile), already built+pushed to ACR by deploy.sh before this runs. No default -- deploy.sh always supplies a unique tag (git short SHA) so a rebuild reliably produces a new revision, unlike a floating :latest tag (a real gotcha ADP hit: Container Apps revision diffing treats a same-tag image as a no-op even when the digest changed).')
 param apiImageTag string
 
-@description('Public URL the frontend is served from (WEB_ORIGINS). Empty on a from-scratch first deploy -- deploy.sh patches the real Storage static website URL in as a second pass once storage.bicep has actually created the account and static website hosting has been enabled on it (see storage.bicep\'s own comment for why this can\'t be known ahead of time the way ADP\'s Keycloak public URL is).')
+@description('Tag of the custom Keycloak image (infra/keycloak/Dockerfile), already built+pushed to ACR by deploy.sh before this runs.')
+param keycloakImageTag string = 'latest'
+
+@description('Public URL the frontend is served from (WEB_ORIGINS). Empty on a from-scratch first deploy -- deploy.sh patches the real Storage static website URL in as a second pass once storage.bicep has actually created the account and static website hosting has been enabled on it (see storage.bicep\'s own comment for why this can\'t be known ahead of time the way the API/Keycloak public URL below can).')
 param webOrigin string = ''
 
 resource rg 'Microsoft.Resources/resourceGroups@2023-07-01' = {
@@ -99,6 +103,32 @@ module storage 'modules/storage.bicep' = {
   }
 }
 
+// canvas-api's own public URL, known before it deploys (Container Apps environments give every
+// app a predictable FQDN of <app-name>.<environmentDefaultDomain>) -- avoids a circular
+// dependency between apiApp and keycloak, each of which needs to know the other's address
+// (keycloak.bicep's keycloakPublicBaseUrl is derived from this same value, matching ADP's own
+// keycloakPublicBaseUrl pattern exactly).
+var apiPublicBaseUrl = 'https://canvas-api.${containerAppsEnv.outputs.environmentDefaultDomain}'
+var keycloakPublicBaseUrl = '${apiPublicBaseUrl}/idp'
+var oidcRedirectUri = '${apiPublicBaseUrl}/auth/callback'
+
+module keycloak 'modules/keycloak.bicep' = {
+  name: 'keycloakDeploy'
+  scope: rg
+  params: {
+    location: location
+    environmentId: containerAppsEnv.outputs.environmentId
+    identityId: keyVault.outputs.identityId
+    acrId: acr.outputs.acrId
+    acrLoginServer: acr.outputs.loginServer
+    keycloakImageTag: keycloakImageTag
+    keyVaultUri: keyVault.outputs.keyVaultUri
+    postgresFqdn: postgres.outputs.serverFqdn
+    keycloakDatabaseName: postgres.outputs.keycloakDatabaseName
+    keycloakPublicBaseUrl: keycloakPublicBaseUrl
+  }
+}
+
 module apiApp 'modules/apiapp.bicep' = {
   name: 'apiAppDeploy'
   scope: rg
@@ -111,6 +141,9 @@ module apiApp 'modules/apiapp.bicep' = {
     apiImageTag: apiImageTag
     keyVaultUri: keyVault.outputs.keyVaultUri
     webOrigin: webOrigin
+    keycloakFqdn: keycloak.outputs.fqdn
+    keycloakPublicBaseUrl: keycloakPublicBaseUrl
+    oidcRedirectUri: oidcRedirectUri
   }
 }
 
@@ -140,6 +173,20 @@ module seedJob 'modules/seedjob.bicep' = {
   }
 }
 
+module usersJob 'modules/usersjob.bicep' = {
+  name: 'usersJobDeploy'
+  scope: rg
+  params: {
+    location: location
+    environmentId: containerAppsEnv.outputs.environmentId
+    identityId: keyVault.outputs.identityId
+    acrLoginServer: acr.outputs.loginServer
+    apiImageTag: apiImageTag
+    keyVaultUri: keyVault.outputs.keyVaultUri
+    keycloakFqdn: keycloak.outputs.fqdn
+  }
+}
+
 output resourceGroupName string = rg.name
 output acrName string = acr.outputs.acrName
 output acrLoginServer string = acr.outputs.loginServer
@@ -154,5 +201,9 @@ output containerAppsEnvironmentId string = containerAppsEnv.outputs.environmentI
 output containerAppsEnvironmentName string = containerAppsEnv.outputs.environmentName
 output storageAccountName string = storage.outputs.storageAccountName
 output apiFqdn string = apiApp.outputs.fqdn
+output keycloakFqdn string = keycloak.outputs.fqdn
+output keycloakName string = keycloak.outputs.name
+output keycloakPublicBaseUrl string = keycloakPublicBaseUrl
 output migrationJobName string = migrationJob.outputs.jobName
 output seedJobName string = seedJob.outputs.jobName
+output usersJobName string = usersJob.outputs.jobName

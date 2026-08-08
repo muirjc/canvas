@@ -45,6 +45,10 @@ COPY --from=build /app/packages/diagram-core/package.json packages/diagram-core/
 COPY --from=build /app/apps/api/dist apps/api/dist
 COPY --from=build /app/apps/api/package.json apps/api/package.json
 COPY --from=build /app/apps/api/migrations apps/api/migrations
+# canvas-ycu.1: infra/keycloak/create-users.mjs (Keycloak admin-API user provisioning, invoked by
+# modules/usersjob.bicep's canvas-keycloak-users job overriding this image's own command) --
+# a small static ops script, reusing this image rather than building a second one for it.
+COPY infra/keycloak/create-users.mjs infra/keycloak/create-users.mjs
 
 # Semgrep (dockerfile.security.missing-user) correctly flags running as root by default -- the
 # official node:20-slim base already ships a non-root `node` user (uid/gid 1000) for exactly this,

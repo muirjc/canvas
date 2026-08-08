@@ -7,6 +7,23 @@ export interface AppConfig {
     clientId?: string;
     clientSecret?: string;
     redirectUri?: string;
+    /** canvas-ycu.1: when the IdP sits behind an internal-only Container App with the API's own
+     * container reverse-proxying to it (see infra/azure/modules/keycloak.bicep), the API calling
+     * `issuerUrl` (its own public FQDN) for discovery/token/userinfo requests does not reliably
+     * route back to itself within Container Apps' network — the fix ADP hit the hard way for the
+     * identical topology. When set, oidc.ts rewrites the origin of every such outgoing request
+     * from `issuerUrl`'s to this one, while `issuerUrl` itself stays the public address used for
+     * the browser-facing authorization redirect and for validating the token's own `iss` claim
+     * (which Keycloak, told its own public address via KC_HOSTNAME, still reports as `issuerUrl`,
+     * not this internal one). Unset locally — a local Keycloak has no internal/public split. */
+    internalIssuerUrl?: string;
+    /** canvas-ycu.1: internal (VNet-only) base URL of the Keycloak Container App, e.g.
+     * https://canvas-keycloak.internal.<env>.azurecontainerapps.io -- when set, idp-proxy.routes.ts
+     * registers a transparent reverse proxy at /idp/* forwarding to it, since Keycloak's own
+     * ingress is internal-only and a real browser can never reach it directly. Unset locally --
+     * a local Keycloak (infra/keycloak/) has no internal/public split, OIDC_ISSUER_URL points
+     * straight at it. */
+    keycloakInternalUrl?: string;
   };
   /** Local email/password auth fallback (research.md §7) — disabled unless explicitly enabled. */
   allowLocalAuth: boolean;
@@ -73,6 +90,8 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
       clientId: env.OIDC_CLIENT_ID,
       clientSecret: env.OIDC_CLIENT_SECRET,
       redirectUri: env.OIDC_REDIRECT_URI,
+      internalIssuerUrl: env.OIDC_INTERNAL_ISSUER_URL,
+      keycloakInternalUrl: env.KEYCLOAK_INTERNAL_URL,
     },
     allowLocalAuth: env.ALLOW_LOCAL_AUTH === 'true',
     webOrigins: (env.WEB_ORIGINS ?? 'http://localhost:5173').split(',').map((origin) => origin.trim()),

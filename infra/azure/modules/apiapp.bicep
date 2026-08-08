@@ -35,11 +35,26 @@ param webOrigin string
 @description('Port the API listens on inside the container (matches apps/api/src/config.ts PORT).')
 param apiPort int = 3000
 
-@description('canvas-mi9 (Keycloak/MFA) shipped the code integration (real, verified against a live Keycloak instance -- see RUNBOOK.md) but this Bicep foundation does not yet deploy Keycloak itself as an Azure resource (tracked as explicit follow-up work, not silently dropped). With no OIDC provider actually reachable from THIS deployment, there is currently no way to sign in at all unless local email/password auth stays enabled. DECIDED, not deferred: once a Keycloak container app module is added here, this default MUST flip to false (or MFA becomes bypassable via the local-auth path) -- until then, true is what makes this deployment usable on its own.')
-param allowLocalAuth bool = true
+@description('canvas-ycu.1: Keycloak is now deployed alongside this app (modules/keycloak.bicep), so local email/password auth is no longer the only way to sign in -- defaults to false, requiring SSO + MFA for this deployment. Kept as a param, not hardcoded, purely as an emergency break-glass switch (e.g. Keycloak itself is unreachable) -- flip it back to true only for that, never as a standing configuration, or MFA becomes silently bypassable.')
+param allowLocalAuth bool = false
 
 @description('AI_PROVIDER value -- "mock" keeps AI chat on the deterministic fake NLU (no real API calls, no cost) until a real key is provided via Key Vault; switch to anthropic/openai once ANTHROPIC_API_KEY/OPENAI_API_KEY are set as real Key Vault secret values.')
 param aiProvider string = 'mock'
+
+@description('canvas-ycu.1: Keycloak container app FQDN (internal-only) from modules/keycloak.bicep -- canvas-api proxies /idp/* to this (apps/api/src/auth/idp-proxy.routes.ts).')
+param keycloakFqdn string
+
+@description('Public base URL the browser reaches Keycloak through: https://<this-api-fqdn>/idp. Keycloak is configured (KC_HOSTNAME, modules/keycloak.bicep) to believe this is its own address, so its issuer claim and generated URLs already match this exactly.')
+param keycloakPublicBaseUrl string
+
+@description('This app\'s own OIDC callback URL: https://<this-api-fqdn>/auth/callback -- computed in main.bicep from the same stable base keycloakPublicBaseUrl is derived from (this app\'s own FQDN isn\'t knowable from within its own resource definition), rather than string-manipulated out of keycloakPublicBaseUrl here.')
+param oidcRedirectUri string
+
+@description('Keycloak realm name -- must match infra/keycloak/CanvasRealm-realm.json\'s own "realm" field.')
+param keycloakRealm string = 'CanvasRealm'
+
+@description('Keycloak client ID -- must match the confidential client baked into the realm export.')
+param keycloakClientId string = 'canvas-api'
 
 var acrPullRoleId = subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '7f951dda-4ed3-4680-a7ca-43fe172d538d')
 
@@ -98,6 +113,11 @@ resource apiApp 'Microsoft.App/containerApps@2025-01-01' = {
           keyVaultUrl: '${keyVaultUri}secrets/openai-api-key'
           identity: identityId
         }
+        {
+          name: 'oidc-client-secret'
+          keyVaultUrl: '${keyVaultUri}secrets/oidc-client-secret'
+          identity: identityId
+        }
       ]
     }
     template: {
@@ -121,6 +141,22 @@ resource apiApp 'Microsoft.App/containerApps@2025-01-01' = {
             { name: 'COOKIE_SAME_SITE', value: 'none' }
             { name: 'WEB_ORIGINS', value: webOrigin }
             { name: 'AI_PROVIDER', value: aiProvider }
+            // canvas-ycu.1: OIDC_ISSUER_URL is the PUBLIC address (matches Keycloak's own KC_
+            // HOSTNAME-reported issuer claim, and is what the browser is redirected to). The
+            // API calling that same public address for its own server-side discovery/token/
+            // userinfo calls does not reliably route back to itself within Container Apps'
+            // network (confirmed: the request can't even succeed before this process itself has
+            // started listening, an ordering problem independent of Container Apps specifics,
+            // not just an optimization) -- OIDC_INTERNAL_ISSUER_URL redirects those specific
+            // calls straight to Keycloak's own internal FQDN instead (oidc.ts's customFetch
+            // override), while KEYCLOAK_INTERNAL_URL is the separate target the /idp/* reverse
+            // proxy itself forwards browser-facing requests to.
+            { name: 'OIDC_ISSUER_URL', value: '${keycloakPublicBaseUrl}/realms/${keycloakRealm}' }
+            { name: 'OIDC_INTERNAL_ISSUER_URL', value: 'https://${keycloakFqdn}/idp/realms/${keycloakRealm}' }
+            { name: 'KEYCLOAK_INTERNAL_URL', value: 'https://${keycloakFqdn}' }
+            { name: 'OIDC_CLIENT_ID', value: keycloakClientId }
+            { name: 'OIDC_CLIENT_SECRET', secretRef: 'oidc-client-secret' }
+            { name: 'OIDC_REDIRECT_URI', value: oidcRedirectUri }
             { name: 'DATABASE_URL', secretRef: 'database-url' }
             { name: 'SESSION_SECRET', secretRef: 'session-secret' }
             { name: 'ANTHROPIC_API_KEY', secretRef: 'anthropic-api-key' }
