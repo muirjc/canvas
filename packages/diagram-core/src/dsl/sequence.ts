@@ -51,6 +51,15 @@ const NOTE_POSITION_TO_ROLE: Record<string, string> = {
 // same model shape, see MESSAGE_PATTERN's own comment).
 const ACTIVATE_PATTERN = new RegExp(`^activate\\s+(${ID})$`);
 const DEACTIVATE_PATTERN = new RegExp(`^deactivate\\s+(${ID})$`);
+// jmuir-dtu.4.1: `create participant X (as Alias)?` / `create actor X (as Alias)?` marks a
+// participant as first appearing mid-timeline rather than pre-declared at the top; `destroy X`
+// marks it as removed at that point. Modeled exactly like activate/deactivate above (their own
+// role:'create'/'destroy' DiagramContainer, attachedNodeIds:[participantId], point-in-time, no
+// linked pairing) rather than a new DiagramNode ordering field -- reuses 100% of the existing
+// container/emitScope machinery, including correct nesting inside loop/alt/rect via
+// currentContainerId(), which a separate node-level field would not have gotten for free.
+const CREATE_PATTERN = new RegExp(`^create\\s+(participant|actor)\\s+(${ID})(?:\\s+as\\s+(.+))?$`);
+const DESTROY_PATTERN = new RegExp(`^destroy\\s+(${ID})$`);
 // jmuir-dtu.4: `box <color>? <title>? ... end` groups participants — NOT part of the ordered
 // message timeline (no `end`-matching against BLOCK_END's own loop/alt/rect stack; tracked
 // separately below). Color is optional and, if present, is always the FIRST token — only the
@@ -138,9 +147,12 @@ export function parseSequence(dsl: string): ParseResult {
     }
   };
 
-  const pushActivation = (role: 'activate' | 'deactivate', participantId: string) => {
+  // jmuir-dtu.4/.4.1: shared shape for every point-in-time, single-participant timeline item
+  // (activate/deactivate/create/destroy) -- none of them link to a matching counterpart in the
+  // model itself; pairing is purely whatever the diagram's own sequential structure implies.
+  const pushPointItem = (role: 'activate' | 'deactivate' | 'create' | 'destroy', participantId: string) => {
     containerCounter += 1;
-    const id = `act${containerCounter}`;
+    const id = `pt${containerCounter}`;
     containersById.set(id, {
       id,
       label: '',
@@ -228,14 +240,29 @@ export function parseSequence(dsl: string): ParseResult {
     const activateMatch = line.match(ACTIVATE_PATTERN);
     if (activateMatch) {
       ensureParticipant(activateMatch[1]);
-      pushActivation('activate', activateMatch[1]);
+      pushPointItem('activate', activateMatch[1]);
       continue;
     }
 
     const deactivateMatch = line.match(DEACTIVATE_PATTERN);
     if (deactivateMatch) {
       ensureParticipant(deactivateMatch[1]);
-      pushActivation('deactivate', deactivateMatch[1]);
+      pushPointItem('deactivate', deactivateMatch[1]);
+      continue;
+    }
+
+    const createMatch = line.match(CREATE_PATTERN);
+    if (createMatch) {
+      const [, kind, id, alias] = createMatch;
+      ensureParticipant(id, kind as 'participant' | 'actor', alias);
+      pushPointItem('create', id);
+      continue;
+    }
+
+    const destroyMatch = line.match(DESTROY_PATTERN);
+    if (destroyMatch) {
+      ensureParticipant(destroyMatch[1]);
+      pushPointItem('destroy', destroyMatch[1]);
       continue;
     }
 
@@ -314,8 +341,8 @@ export function parseSequence(dsl: string): ParseResult {
       // MESSAGE_PATTERN's own comment for why these aren't symmetric) — re-serializes as the
       // equivalent dedicated activate/deactivate statement rather than reconstructing the
       // shorthand, same "canonical form on serialize" convention already used for C4's Rel_Back.
-      if (activationSign === '+') pushActivation('activate', target);
-      else if (activationSign === '-') pushActivation('deactivate', source);
+      if (activationSign === '+') pushPointItem('activate', target);
+      else if (activationSign === '-') pushPointItem('deactivate', source);
       continue;
     }
 
@@ -364,6 +391,16 @@ const ARROW_STYLE_TO_TOKEN: Record<string, string> = {
 function serializeContainer(container: DiagramContainer, model: DiagramModel, indent: string): string[] {
   if (container.role === 'activate' || container.role === 'deactivate') {
     return [`${indent}${container.role} ${container.attachedNodeIds?.[0] ?? ''}`];
+  }
+  if (container.role === 'create') {
+    const participantId = container.attachedNodeIds?.[0] ?? '';
+    const node = model.nodes.find((n) => n.id === participantId);
+    const kind = node?.role === 'actor' ? 'actor' : 'participant';
+    const alias = node && node.label !== node.id ? ` as ${node.label}` : '';
+    return [`${indent}create ${kind} ${participantId}${alias}`];
+  }
+  if (container.role === 'destroy') {
+    return [`${indent}destroy ${container.attachedNodeIds?.[0] ?? ''}`];
   }
   const noteKeyword = container.role ? NOTE_ROLE_TO_KEYWORD[container.role] : undefined;
   if (noteKeyword) {
@@ -418,6 +455,9 @@ export function serializeSequence(model: DiagramModel): string {
 
   const boxes = model.containers.filter((c) => c.role === 'box');
   const boxedNodeIds = new Set(boxes.flatMap((box) => model.nodes.filter((n) => n.containerId === box.id).map((n) => n.id)));
+  // jmuir-dtu.4.1: a node introduced via a "create" statement gets that inline declaration
+  // instead of the plain top-of-file one, wherever emitScope places its "create" container item.
+  const createdNodeIds = new Set(model.containers.filter((c) => c.role === 'create').flatMap((c) => c.attachedNodeIds ?? []));
   for (const box of boxes) {
     const colorPart = box.style?.fillColor ? ` ${box.style.fillColor}` : '';
     const titlePart = box.label ? ` ${box.label}` : '';
@@ -428,7 +468,7 @@ export function serializeSequence(model: DiagramModel): string {
     lines.push('end');
   }
   for (const node of model.nodes) {
-    if (boxedNodeIds.has(node.id)) continue;
+    if (boxedNodeIds.has(node.id) || createdNodeIds.has(node.id)) continue;
     const alias = node.label !== node.id ? ` as ${node.label}` : '';
     lines.push(`${node.role === 'actor' ? 'actor' : 'participant'} ${node.id}${alias}`);
   }

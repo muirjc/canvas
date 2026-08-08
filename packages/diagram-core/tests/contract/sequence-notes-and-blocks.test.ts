@@ -333,6 +333,249 @@ describe('sequence parser: actor keyword, arrow tokens, activation, rect/box, au
     });
   });
 
+  describe('create/destroy participants (jmuir-dtu.4.1)', () => {
+    it('"create participant X"/"create actor X" produce correctly typed/shaped nodes, a create-role container, and round-trip as an inline "create ..." line (not a top-of-file declaration)', () => {
+      const dsl = 'sequenceDiagram\nparticipant Existing\ncreate participant P\ncreate actor Q\nExisting->>P: hi\n';
+      const result = parseSequence(dsl);
+      expect(isParseSuccess(result)).toBe(true);
+      if (!isParseSuccess(result)) return;
+
+      const p = result.model.nodes.find((n) => n.id === 'P')!;
+      const q = result.model.nodes.find((n) => n.id === 'Q')!;
+      expect(p.role).toBe('participant');
+      expect(p.shape).toBe('rectangle');
+      expect(q.role).toBe('actor');
+      expect(q.shape).toBe('person');
+
+      const createP = result.model.containers.find((c) => c.role === 'create' && c.attachedNodeIds?.[0] === 'P');
+      const createQ = result.model.containers.find((c) => c.role === 'create' && c.attachedNodeIds?.[0] === 'Q');
+      expect(createP).toBeDefined();
+      expect(createP?.attachedNodeIds).toEqual(['P']);
+      expect(createQ).toBeDefined();
+      expect(createQ?.attachedNodeIds).toEqual(['Q']);
+
+      const reexported = serializeSequence(result.model);
+      expect(reexported).toContain('create participant P');
+      expect(reexported).toContain('create actor Q');
+      const lines = reexported.split(/\r?\n/);
+      // Not declared as a plain top-of-file participant/actor line.
+      expect(lines).not.toContain('participant P');
+      expect(lines).not.toContain('actor Q');
+      // The pre-existing, non-created participant is unaffected.
+      expect(lines).toContain('participant Existing');
+    });
+
+    it('"create ... as <alias>" sets the label and round-trips the alias on the inline "create" line', () => {
+      const dsl = 'sequenceDiagram\ncreate participant P as Payment Service\n';
+      const result = parseSequence(dsl);
+      expect(isParseSuccess(result)).toBe(true);
+      if (!isParseSuccess(result)) return;
+      const p = result.model.nodes.find((n) => n.id === 'P')!;
+      expect(p.label).toBe('Payment Service');
+
+      const reexported = serializeSequence(result.model);
+      expect(reexported).toContain('create participant P as Payment Service');
+
+      const reparsed = parseSequence(reexported);
+      expect(isParseSuccess(reparsed)).toBe(true);
+      if (!isParseSuccess(reparsed)) return;
+      expect(reparsed.model.nodes.find((n) => n.id === 'P')!.label).toBe('Payment Service');
+    });
+
+    it('"destroy X" produces a destroy-role container and round-trips as a "destroy X" line', () => {
+      const dsl = 'sequenceDiagram\nparticipant A\ndestroy A\n';
+      const result = parseSequence(dsl);
+      expect(isParseSuccess(result)).toBe(true);
+      if (!isParseSuccess(result)) return;
+      const destroyContainer = result.model.containers.find((c) => c.role === 'destroy')!;
+      expect(destroyContainer).toBeDefined();
+      expect(destroyContainer.attachedNodeIds).toEqual(['A']);
+
+      const reexported = serializeSequence(result.model);
+      expect(reexported).toContain('destroy A');
+
+      const reparsed = parseSequence(reexported);
+      expect(isParseSuccess(reparsed)).toBe(true);
+      if (!isParseSuccess(reparsed)) return;
+      expect(reparsed.model.containers.find((c) => c.role === 'destroy')?.attachedNodeIds).toEqual(['A']);
+    });
+
+    it('"destroy X" round-trips at its correct position relative to surrounding messages', () => {
+      const dsl = 'sequenceDiagram\nparticipant A\nparticipant B\nA->>B: hi\ndestroy B\nA->>B: bye\n';
+      const result = parseSequence(dsl);
+      expect(isParseSuccess(result)).toBe(true);
+      if (!isParseSuccess(result)) return;
+      const reexported = serializeSequence(result.model);
+      const lines = reexported.split(/\r?\n/).filter((l) => l.trim());
+      const hiIndex = lines.findIndex((l) => l.includes('hi'));
+      const destroyIndex = lines.findIndex((l) => l.trim() === 'destroy B');
+      const byeIndex = lines.findIndex((l) => l.includes('bye'));
+      expect(hiIndex).toBeLessThan(destroyIndex);
+      expect(destroyIndex).toBeLessThan(byeIndex);
+    });
+
+    it('order-independent: a message referencing a participant before its own "create" line still produces the node and create container correctly', () => {
+      const dsl = 'sequenceDiagram\nA->>B: hi\ncreate participant B\n';
+      const result = parseSequence(dsl);
+      expect(isParseSuccess(result)).toBe(true);
+      if (!isParseSuccess(result)) return;
+      const b = result.model.nodes.find((n) => n.id === 'B')!;
+      expect(b).toBeDefined();
+      expect(b.role).toBe('participant');
+      const createB = result.model.containers.find((c) => c.role === 'create' && c.attachedNodeIds?.[0] === 'B');
+      expect(createB).toBeDefined();
+      const reexported = serializeSequence(result.model);
+      expect(reexported.split(/\r?\n/)).not.toContain('participant B');
+      expect(reexported).toContain('create participant B');
+    });
+
+    it('order-independent: a "destroy" line for a participant declared only afterward via a message still resolves correctly', () => {
+      const dsl = 'sequenceDiagram\ndestroy X\nX->>Y: msg\n';
+      const result = parseSequence(dsl);
+      expect(isParseSuccess(result)).toBe(true);
+      if (!isParseSuccess(result)) return;
+      const x = result.model.nodes.find((n) => n.id === 'X')!;
+      expect(x).toBeDefined();
+      const destroyX = result.model.containers.find((c) => c.role === 'destroy');
+      expect(destroyX?.attachedNodeIds).toEqual(['X']);
+      const edge = result.model.edges.find((e) => e.label === 'msg')!;
+      expect(edge.sourceId).toBe('X');
+      expect(edge.targetId).toBe('Y');
+    });
+
+    it('"create" nested inside a loop/alt/rect block gets the correct parentContainerId and round-trips nested inside that block\'s own "... end"', () => {
+      const dsl = 'sequenceDiagram\nparticipant A\nloop Retry\ncreate participant P\nA->>P: hi\nend\n';
+      const result = parseSequence(dsl);
+      expect(isParseSuccess(result)).toBe(true);
+      if (!isParseSuccess(result)) return;
+      const loop = result.model.containers.find((c) => c.role === 'loop')!;
+      const createContainer = result.model.containers.find((c) => c.role === 'create')!;
+      expect(createContainer.parentContainerId).toBe(loop.id);
+
+      const reexported = serializeSequence(result.model);
+      const lines = reexported.split(/\r?\n/).filter((l) => l.trim());
+      const loopIndex = lines.findIndex((l) => l.trim().startsWith('loop'));
+      const createIndex = lines.findIndex((l) => l.trim().startsWith('create participant P'));
+      const endIndex = lines.findIndex((l, idx) => idx > loopIndex && l.trim() === 'end');
+      expect(loopIndex).toBeLessThan(createIndex);
+      expect(createIndex).toBeLessThan(endIndex);
+      // The "create" line is indented inside the loop, same as a plain message would be.
+      const rawCreateLine = lines.find((l) => l.trim().startsWith('create participant P'))!;
+      expect(rawCreateLine.startsWith('  ')).toBe(true);
+
+      const reparsed = parseSequence(reexported);
+      expect(isParseSuccess(reparsed)).toBe(true);
+      if (!isParseSuccess(reparsed)) return;
+      const reparsedLoop = reparsed.model.containers.find((c) => c.role === 'loop')!;
+      const reparsedCreate = reparsed.model.containers.find((c) => c.role === 'create')!;
+      expect(reparsedCreate.parentContainerId).toBe(reparsedLoop.id);
+    });
+
+    it('a node with no "create" container still gets a normal top-of-file participant/actor declaration (regression guard)', () => {
+      const dsl = 'sequenceDiagram\nparticipant Normal\nactor Regular\n';
+      const result = parseSequence(dsl);
+      expect(isParseSuccess(result)).toBe(true);
+      if (!isParseSuccess(result)) return;
+      const reexported = serializeSequence(result.model);
+      const lines = reexported.split(/\r?\n/);
+      expect(lines).toContain('participant Normal');
+      expect(lines).toContain('actor Regular');
+    });
+
+    it('multiple participants, some created inline and some declared normally, in one diagram: top-of-file declarations only include the non-created ones, and created ones appear at their correct inline positions', () => {
+      const dsl = [
+        'sequenceDiagram',
+        'participant Alice',
+        'participant Bob',
+        'Alice->>Bob: hi',
+        'create participant Carol',
+        'Bob->>Carol: welcome',
+        'create actor Dave',
+        'Carol->>Dave: hello',
+        '',
+      ].join('\n');
+      const result = parseSequence(dsl);
+      expect(isParseSuccess(result)).toBe(true);
+      if (!isParseSuccess(result)) return;
+
+      const reexported = serializeSequence(result.model);
+      const allLines = reexported.split(/\r?\n/).filter((l) => l.trim());
+      // Skip the front-matter block (position coordinates would otherwise contain lines
+      // literally naming "Carol"/"Dave", producing a false positive below).
+      const lines = allLines.slice(allLines.indexOf('sequenceDiagram'));
+
+      // Top-of-file declarations (everything before the first message) only include the
+      // non-created participants.
+      const firstMessageIndex = lines.findIndex((l) => l.includes('->>'));
+      const topDeclarations = lines.slice(0, firstMessageIndex);
+      expect(topDeclarations).toContain('participant Alice');
+      expect(topDeclarations).toContain('participant Bob');
+      expect(topDeclarations.some((l) => l.includes('Carol'))).toBe(false);
+      expect(topDeclarations.some((l) => l.includes('Dave'))).toBe(false);
+
+      // Created participants appear inline, at their correct position relative to surrounding messages.
+      const hiIndex = lines.findIndex((l) => l.includes('hi'));
+      const createCarolIndex = lines.findIndex((l) => l.trim() === 'create participant Carol');
+      const welcomeIndex = lines.findIndex((l) => l.includes('welcome'));
+      const createDaveIndex = lines.findIndex((l) => l.trim() === 'create actor Dave');
+      const helloIndex = lines.findIndex((l) => l.includes('hello'));
+      expect(hiIndex).toBeLessThan(createCarolIndex);
+      expect(createCarolIndex).toBeLessThan(welcomeIndex);
+      expect(welcomeIndex).toBeLessThan(createDaveIndex);
+      expect(createDaveIndex).toBeLessThan(helloIndex);
+    });
+
+    it('round-trips a normal participant, a created participant with an alias, a message between them, and a destroy, all in one diagram', () => {
+      const dsl = [
+        'sequenceDiagram',
+        'participant Client',
+        'create participant Server as App Server',
+        'Client->>Server: request',
+        'destroy Server',
+        '',
+      ].join('\n');
+      const result = parseSequence(dsl);
+      expect(isParseSuccess(result)).toBe(true);
+      if (!isParseSuccess(result)) return;
+
+      const reexported = serializeSequence(result.model);
+      const reparsed = parseSequence(reexported);
+      expect(isParseSuccess(reparsed)).toBe(true);
+      if (!isParseSuccess(reparsed)) return;
+      const model = reparsed.model;
+
+      expect(model.nodes).toHaveLength(2);
+      const client = model.nodes.find((n) => n.id === 'Client')!;
+      const server = model.nodes.find((n) => n.id === 'Server')!;
+      expect(client.label).toBe('Client');
+      expect(server.label).toBe('App Server');
+
+      const createContainer = model.containers.find((c) => c.role === 'create')!;
+      expect(createContainer.attachedNodeIds).toEqual(['Server']);
+      const destroyContainer = model.containers.find((c) => c.role === 'destroy')!;
+      expect(destroyContainer.attachedNodeIds).toEqual(['Server']);
+
+      const edge = model.edges.find((e) => e.label === 'request')!;
+      expect(edge.sourceId).toBe('Client');
+      expect(edge.targetId).toBe('Server');
+
+      // "Client" stays a normal top-of-file declaration; "Server" doesn't.
+      const lines = reexported.split(/\r?\n/);
+      expect(lines).toContain('participant Client');
+      expect(lines).not.toContain('participant Server');
+      expect(reexported).toContain('create participant Server as App Server');
+      expect(reexported).toContain('destroy Server');
+
+      // Original interleaved order preserved: create -> request -> destroy.
+      const contentLines = lines.filter((l) => l.trim());
+      const createIndex = contentLines.findIndex((l) => l.includes('create participant Server'));
+      const requestIndex = contentLines.findIndex((l) => l.includes('request'));
+      const destroyIndex = contentLines.findIndex((l) => l.trim() === 'destroy Server');
+      expect(createIndex).toBeLessThan(requestIndex);
+      expect(requestIndex).toBeLessThan(destroyIndex);
+    });
+  });
+
   describe('rect block', () => {
     it('"rect <color> ... end" puts the color into style.fillColor, keeps label empty, and nests messages inside', () => {
       const dsl = 'sequenceDiagram\nparticipant A\nparticipant B\nrect rgb(200, 200, 200)\nA->>B: one\nA->>B: two\nend\n';
@@ -538,21 +781,21 @@ describe('sequence parser: actor keyword, arrow tokens, activation, rect/box, au
     });
   });
 
-  describe('out-of-scope constructs still fail to parse (jmuir-dtu.4.1 follow-up)', () => {
-    it('"create participant X" (mid-diagram lifecycle) is not silently accepted', () => {
-      const dsl = 'sequenceDiagram\ncreate participant X\n';
-      const result = parseSequence(dsl);
-      expect(isParseSuccess(result)).toBe(false);
-    });
-
-    it('"destroy X" (mid-diagram lifecycle) is not silently accepted', () => {
-      const dsl = 'sequenceDiagram\nparticipant X\ndestroy X\n';
-      const result = parseSequence(dsl);
-      expect(isParseSuccess(result)).toBe(false);
-    });
-
+  // jmuir-dtu.4.1 implemented create/destroy (see the "create/destroy participants" describe
+  // block below) -- superseding jmuir-dtu.4's own "still out of scope" guards for them. Only the
+  // half-arrow tokens remain genuinely deferred (see jmuir-dtu.4.1's own decision notes: too
+  // new/niche relative to their implementation cost, a closed decision, not a further-deferred
+  // one) and actor link/links menu directives (deferred pending flowchart's own not-yet-
+  // implemented click/href security design, jmuir-dzd grouping G).
+  describe('out-of-scope constructs still fail to parse', () => {
     it('a half-arrow token (e.g. "-|\\") is not silently accepted', () => {
       const dsl = 'sequenceDiagram\nparticipant A\nparticipant B\nA-|\\B: msg\n';
+      const result = parseSequence(dsl);
+      expect(isParseSuccess(result)).toBe(false);
+    });
+
+    it('an actor "link" directive is not silently accepted', () => {
+      const dsl = 'sequenceDiagram\nactor A\nlink A: Dashboard @ https://example.com\n';
       const result = parseSequence(dsl);
       expect(isParseSuccess(result)).toBe(false);
     });
