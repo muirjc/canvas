@@ -54,6 +54,27 @@ tests are NON-NEGOTIABLE and must exist (and fail) before implementing any diagr
 work — see `.specify/memory/constitution.md` Principle IV.
 
 ## Recent Changes
+- `jmuir-dtu.4.1`: the follow-up `jmuir-dtu.4` filed for its own three deliberately-scoped-down
+  items, each given a real decision (per the bead's own acceptance criteria) rather than left as
+  an unexplained parse error forever. **Implemented**: `create participant/actor <id> (as
+  <alias>)?` and `destroy <id>` participant-lifecycle statements — modeled exactly like
+  `activate`/`deactivate` (their own `role: 'create'`/`'destroy'` `DiagramContainer`,
+  point-in-time, no linked pairing) via a shared `pushPointItem()` helper, rather than the
+  node-level ordering field the original bead description sketched — turned out unnecessary, and
+  nesting inside `loop`/`alt`/`rect` works correctly for free via the same `currentContainerId()`
+  mechanism activation already used (live-verified, not assumed). A `create`d node is skipped from
+  the top-of-file participant declarations and instead emitted inline at its own position.
+  **Deferred permanently, not implemented**: the newer "half-arrow" tokens (v11.12.3+, 14 token
+  variants) — too new/niche relative to their implementation cost, a closed decision. **Deferred,
+  tied to an existing open decision**: actor `link`/`links` menu directives — the same security
+  class as flowchart's own still-unimplemented `click <id> href` (`jmuir-dzd` grouping G, which
+  needs scheme-allowlisting + XML-escaping to avoid a stored-XSS vector); implementing this first
+  would mean solving that shared problem twice independently, so it waits for grouping G instead.
+  Also fixed a real (if non-security) CI defect found along the way: gitleaks' `generic-api-key`
+  entropy heuristic flagged the plain-English phrase "explicit/shorthand" in a doc comment as a
+  possible secret — confirmed via a local, unredacted gitleaks run. New root `.gitleaksignore`
+  suppresses the already-pushed historical commit (content can't be edited after the fact without
+  rewriting shared history); the live wording was also fixed so no future commit re-triggers it.
 - `jmuir-dtu.4`: Sequence diagram gaps beyond feature 003 — the largest of the `jmuir-dtu` DSL
   sub-beads tackled so far. `packages/diagram-core/src/dsl/sequence.ts` gains the `actor` keyword
   (`role: 'actor'`, `shape: 'person'`, vs `participant`'s `role: 'participant'`, `shape:
