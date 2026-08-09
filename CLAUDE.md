@@ -54,6 +54,33 @@ tests are NON-NEGOTIABLE and must exist (and fail) before implementing any diagr
 work — see `.specify/memory/constitution.md` Principle IV.
 
 ## Recent Changes
+- `jmuir-dtu.2.1`: the follow-up `jmuir-dtu.2` filed for its own three deliberately-scoped-down
+  items — all three now given a real decision and implemented, none left deferred further.
+  **Lollipop interfaces** (`Foo ()-- Bar` / `Foo --() Bar`): added as two more literal tokens in
+  `uml.ts`'s existing relationship-token table (`'lollipop-source'`/`'lollipop-target'` on
+  `DiagramEdge.umlRelationKind`, one kind per token like every other relationship already there) —
+  confirmed against Mermaid's own `classDiagram.jison` grammar (LOLLIPOP as a `relationType`
+  combinable with `lineType` on either side) and its docs example ("the interface with the
+  lollipop connects to the class") that the circle always renders on whichever endpoint sits
+  textually adjacent to the `()` token, independent of source/target position — parse/model/
+  round-trip fidelity only, matching this field's own pre-existing "no renderer differentiates
+  relationship kinds yet" precedent, not a new gap. **Namespace dot-notation**
+  (`namespace A.B.C { ... }`): confirmed against Mermaid's `classDb.ts` that this auto-creates
+  parent namespaces `A` and `A.B`, chained via `parentContainerId`; implemented by qualifying
+  EVERY namespace's container id by its full enclosing-namespace chain, not just its own
+  dot-notation segments — needed so an explicit `namespace X { namespace Y { ... } } ` block
+  produces the identical id as the equivalent dot-notation form, which in turn is what makes
+  serialize→reparse idempotent (`serializeUml` always canonicalizes dot-notation to the
+  equivalent nested-block form, mirroring flowchart's own chained-edge/fan-out canonicalization
+  precedent) and, as a side effect, closes jmuir-dtu.2's own disclosed same-name-different-parent
+  namespace id collision risk. **Bracketed namespace display label**
+  (`namespace Name["Label"]`): the declaration identifier is always derived from the container id's
+  own last dot-segment, kept distinct from `label` (which the bracket form overrides) — the
+  bracket form is only re-emitted on serialize when `label` actually differs from that short name,
+  so an unrelabeled namespace still round-trips to its own plain form. Also corrected two now-stale
+  claims left over from `jmuir-dtu.2`'s own test-file comments (`serializeUml` DOES emit a
+  `canvas.containers` position block, contrary to what that file's header comment said) while
+  touching the same file for this bead's own coverage.
 - `jmuir-dtu.4.1`: the follow-up `jmuir-dtu.4` filed for its own three deliberately-scoped-down
   items, each given a real decision (per the bead's own acceptance criteria) rather than left as
   an unexplained parse error forever. **Implemented**: `create participant/actor <id> (as

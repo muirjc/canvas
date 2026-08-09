@@ -29,7 +29,13 @@ const BLOCK_END = /^\}$/;
 // `..>` and `..|>`; `--` is a literal prefix of `-->`) purely for clarity/convention -- JS regex
 // alternation backtracks across the whole pattern, so correctness doesn't actually depend on the
 // order here, only readability does.
-const REL_TOKEN = String.raw`\.\.\|>|<\|--|\*--|o--|-->|\.\.>|--|\.\.`;
+// jmuir-dtu.2.1: adds the two lollipop-interface tokens, `()--` (circle at the SOURCE end) and
+// `--()` (circle at the TARGET end) -- confirmed against Mermaid's real grammar
+// (classDiagram.jison: `relation: relationType lineType | lineType relationType`, with LOLLIPOP a
+// valid `relationType`) and its own docs example ("bar ()-- foo" / "foo --() bar", "the interface
+// (bar) with the lollipop connects to the class (foo)"): the circle sits on whichever endpoint is
+// textually adjacent to the `()` token, not tied to source/target position.
+const REL_TOKEN = String.raw`\.\.\|>|<\|--|\*--|o--|-->|\.\.>|\(\)--|--\(\)|--|\.\.`;
 const RELATIONSHIP = new RegExp(
   `^(${ID})\\s*(?:"([^"]*)"\\s*)?(${REL_TOKEN})\\s*(?:"([^"]*)"\\s*)?(${ID})(?:\\s*:\\s*(.+))?$`,
 );
@@ -42,6 +48,8 @@ const REL_TOKEN_TO_KIND: Record<string, NonNullable<import('../model/diagram-mod
   '..>': 'dependency',
   '--': 'link-solid',
   '..': 'link-dashed',
+  '()--': 'lollipop-source',
+  '--()': 'lollipop-target',
 };
 const REL_KIND_TO_TOKEN: Record<string, string> = Object.fromEntries(
   Object.entries(REL_TOKEN_TO_KIND).map(([token, kind]) => [kind, token]),
@@ -54,10 +62,17 @@ const NOTE_STANDALONE = /^note\s+"([^"]*)"$/;
 
 // jmuir-dtu.2: `namespace Name { class A class B }` groups classes -- member classes reference it
 // via their own containerId, exactly like box/C4-boundary membership elsewhere in this codebase,
-// not via attachedNodeIds. Dot-notation (`namespace A.B.C`, auto-creating parent namespaces) and
-// the v11.15+ bracketed display-label form (`namespace Name["Label"]`) are deliberately not
-// supported -- see this bead's own follow-up notes for the scope decision.
-const NAMESPACE_START = new RegExp(`^namespace\\s+(${ID})\\s*\\{$`);
+// not via attachedNodeIds.
+// jmuir-dtu.2.1: adds dot-notation (`namespace A.B.C { ... }`, confirmed against Mermaid's own
+// grammar/classDb.ts to auto-create parent namespaces A and A.B, chained via parentContainerId,
+// each keyed by its own qualified id "A"/"A.B"/"A.B.C" so a later `namespace A.D { ... }`
+// elsewhere in the file correctly reuses the already-created "A") and the v11.15+ bracketed
+// display-label form (`namespace Name["Label"]`, applying only to the leaf level being declared).
+// Inherits this codebase's existing disclosed collision limit for namespace nesting (two
+// same-named/same-qualified-id namespaces nested under different explicit parent blocks would
+// collide, since ids aren't prefixed by an enclosing explicit `namespace X { ... }` block's own
+// id) -- a real but rare edge case, not worth a synthetic disambiguating suffix for this pass.
+const NAMESPACE_START = new RegExp(`^namespace\\s+(${ID}(?:\\.${ID})*)(?:\\["([^"]*)"\\])?\\s*\\{$`);
 
 const DIRECTION_PATTERN = /^direction\s+(TB|BT|LR|RL)$/i;
 
@@ -264,21 +279,44 @@ export function parseUml(dsl: string): ParseResult {
 
     const namespaceStart = line.match(NAMESPACE_START);
     if (namespaceStart) {
-      const [, name] = namespaceStart;
-      // Uses the namespace's own given name as its container id (like C4 boundaries/ERD entities
-      // use their DSL-authored id) rather than a counter -- stable across re-saves, unlike a
-      // counter-based id that shifts if a namespace/note is added or removed elsewhere in the
-      // file. Two same-named namespaces nested under different parents would collide (a real but
-      // rare edge case, not worth a synthetic disambiguating suffix for this pass).
-      const meta = containerMeta[name];
-      containersById.set(name, {
-        id: name,
-        label: name,
-        role: 'namespace',
-        position: meta ? { x: meta.x, y: meta.y } : nextPosition(),
-        parentContainerId: currentNamespaceId(),
-      });
-      namespaceStack.push({ id: name, line: i + 1, content: rawLine });
+      const [, qualifiedName, bracketLabel] = namespaceStart;
+      // Uses the namespace's own given (qualified, for dot-notation) name as its container id
+      // (like C4 boundaries/ERD entities use their DSL-authored id) rather than a counter --
+      // stable across re-saves, unlike a counter-based id that shifts if a namespace/note is added
+      // or removed elsewhere in the file. jmuir-dtu.2.1: each dot-separated segment becomes its
+      // own container, created only if not already seen (so a later statement referencing an
+      // already-auto-created ancestor, e.g. `namespace A.D { ... }` after `namespace A.B { ... }`,
+      // reuses the existing "A" rather than resetting its position) -- the bracket label, if
+      // given, applies only to the leaf (deepest) level being declared by this statement. Every
+      // level's id is qualified by its FULL enclosing-namespace chain (not just its own
+      // dot-notation segments) -- including when nesting comes from an explicit `namespace X {
+      // namespace Y { ... } }` block rather than dot-notation -- so the two forms produce
+      // identical ids for identical structure (serializeUml always emits the nested-block form;
+      // without this, reparsing dot-notation's canonicalized output would relabel "A.B" as bare
+      // "B", breaking round-trip idempotency) and the pre-existing same-name-different-parent
+      // collision case this comment used to flag no longer applies at all.
+      const segments = qualifiedName.split('.');
+      let parentId = currentNamespaceId();
+      let currentId = parentId ?? '';
+      for (let segIdx = 0; segIdx < segments.length; segIdx += 1) {
+        currentId = currentId ? `${currentId}.${segments[segIdx]}` : segments[segIdx];
+        const isLeaf = segIdx === segments.length - 1;
+        const existing = containersById.get(currentId);
+        if (!existing) {
+          const meta = containerMeta[currentId];
+          containersById.set(currentId, {
+            id: currentId,
+            label: isLeaf && bracketLabel !== undefined ? bracketLabel : segments[segIdx],
+            role: 'namespace',
+            position: meta ? { x: meta.x, y: meta.y } : nextPosition(),
+            parentContainerId: parentId,
+          });
+        } else if (isLeaf && bracketLabel !== undefined) {
+          existing.label = bracketLabel;
+        }
+        parentId = currentId;
+      }
+      namespaceStack.push({ id: currentId, line: i + 1, content: rawLine });
       continue;
     }
     if (namespaceStack.length > 0 && BLOCK_END.test(line)) {
@@ -449,8 +487,20 @@ export function serializeUml(model: DiagramModel): string {
   };
 
   const namespaces = model.containers.filter((c) => c.role === 'namespace' && !c.parentContainerId);
+  // jmuir-dtu.2.1: the declaration identifier is always the id's own last dot-segment (its
+  // "short name" relative to its parent) -- not the qualified id itself and not `label`, which
+  // may have been overridden by a bracket display-label. Dot-notation itself doesn't round-trip
+  // literally (a `namespace A.B.C { ... }` on read canonicalizes to the equivalent nested-block
+  // form on write, same "canonicalizes to a simpler equivalent form" precedent already used for
+  // flowchart's chained-edge/fan-out syntax) -- nesting still reconstructs correctly since each
+  // level's own container already carries the right parentContainerId chain either way. The
+  // bracket-label form is only re-emitted when `label` actually differs from the short name, so a
+  // plain (non-relabeled) namespace round-trips back to its own plain form, not a redundant
+  // `namespace Foo["Foo"] {}`.
   const emitNamespace = (container: DiagramContainer): string[] => {
-    const out = [`namespace ${container.label} {`];
+    const shortName = container.id.split('.').pop()!;
+    const header = container.label !== shortName ? `namespace ${shortName}["${container.label}"] {` : `namespace ${shortName} {`;
+    const out = [header];
     for (const node of model.nodes) {
       if (node.containerId === container.id) out.push(...classLines(node).map((l) => `  ${l}`));
     }

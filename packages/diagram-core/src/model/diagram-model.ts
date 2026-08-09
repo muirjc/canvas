@@ -143,7 +143,14 @@ export interface DiagramEdge {
    *  just filled/open/cross/none + solid/dotted). A dedicated field, matching this model's own
    *  precedent of adding a narrowly-scoped field when the shared one doesn't fit (e.g.
    *  `sourceIsGroup` above), rather than overloading `arrow` with meanings only UML uses. */
-  umlRelationKind?: 'inheritance' | 'composition' | 'aggregation' | 'association' | 'link-solid' | 'dependency' | 'realization' | 'link-dashed';
+  /** jmuir-dtu.2.1: adds the two lollipop-interface tokens (`()--`/`--()`) to the set jmuir-dtu.2
+   *  already modeled — 'lollipop-source' means the circle sits at `sourceId` (`Foo ()-- Bar`),
+   *  'lollipop-target' means it sits at `targetId` (`Foo --() Bar`); confirmed against Mermaid's
+   *  own docs ("the interface with the lollipop connects to the class") that the circle always
+   *  renders on whichever endpoint is textually adjacent to the `()` token, independent of which
+   *  side is source vs target — so two kinds (not a single 'lollipop' plus a separate boolean) is
+   *  the natural fit, matching this field's own existing one-kind-per-literal-token precedent. */
+  umlRelationKind?: 'inheritance' | 'composition' | 'aggregation' | 'association' | 'link-solid' | 'dependency' | 'realization' | 'link-dashed' | 'lollipop-source' | 'lollipop-target';
   /** jmuir-dtu.2: UML only — the quoted multiplicity/cardinality label at each end of a
    *  relationship (e.g. "1", "0..1", "*", "1..*"), if given. */
   sourceCardinality?: string;

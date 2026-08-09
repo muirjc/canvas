@@ -14,20 +14,16 @@ import type { DiagramModel } from '../../src/model/diagram-model.js';
  * nodes/edges/containers to compare, not just entity attribute blocks (erd-attributes.test.ts's
  * own, simpler idiom).
  *
- * One deliberate deviation from dsl-c4.test.ts's normalize(): `serializeUml` never writes a
- * `canvas.containers` position/size block the way `serializeC4`/flowchart-parser.ts do for their
- * own containers — a namespace's or note's `position` is therefore NOT guaranteed to survive a
- * serialize -> reparse hop (its value depends on an auto-incrementing counter whose sequence
- * shifts whenever a preceding node's own position is instead supplied via `canvas.positions`
- * front matter and so no longer consumes a counter slot). This does not affect any node's own
- * position, and it does not affect a container's id/label/role/parentContainerId/attachedNodeIds
- * — only its `position` — so normalize() below strips container position rather than asserting on
- * it. Confirmed live: namespace containers happen to stay stable in every case tried here (their
- * block always opens before any member node can consume a counter slot), but notes are not
- * guaranteed to, so this is treated as a general rule, not special-cased per container role. This
- * is a real, minor round-trip gap relative to C4/flowchart's own container-position handling, but
- * it doesn't touch any semantic field this bead's contract cares about, so it's disclosed here
- * rather than fixed.
+ * One deliberate deviation from dsl-c4.test.ts's normalize(): `serializeUml` DOES write a
+ * `canvas.containers` position block (mirroring `serializeC4`/flowchart-parser.ts), and a
+ * namespace's position round-trips reliably off it since its id is the author-given (qualified,
+ * as of jmuir-dtu.2.1) name — stable across saves. A note's position remains best-effort only: its
+ * id is an auto-incrementing counter (`note1`, `note2`, ...) with no author-given identifier to
+ * key off in Mermaid's own grammar, so its position can still drift if notes are added, removed,
+ * or reordered between saves (confirmed stable for the untouched-reparse case this file exercises;
+ * not guaranteed beyond that). normalize() below strips container position rather than asserting
+ * on it, uniformly across roles, since that's the one field with a known (disclosed, not fixed)
+ * gap rather than special-casing per role.
  */
 
 function normalize(model: DiagramModel) {
@@ -632,24 +628,115 @@ describe('uml parser/serializer: combined round-trip', () => {
 });
 
 /**
- * jmuir-dtu.2.1 (filed follow-up): lollipop interface syntax, namespace dot-notation, and the
- * bracketed namespace label form are all deliberately out of scope for this bead. Regression
- * guards confirming each still fails to parse cleanly (a structured error, not a crash or a
- * silently-wrong model) rather than each becoming an accidental future no-op.
+ * jmuir-dtu.2.1: the three items jmuir-dtu.2 deliberately deferred — lollipop interface syntax,
+ * namespace dot-notation, and the v11.15+ bracketed namespace label form — all implemented here.
  */
-describe('uml parser: deliberately out of scope (jmuir-dtu.2.1 follow-up)', () => {
-  it('rejects lollipop interface syntax (Class1 --() Interface1)', () => {
-    const result = parseUml('classDiagram\nClass1 --() Interface1\n');
-    expect(isParseSuccess(result)).toBe(false);
+describe('uml parser: lollipop interfaces (jmuir-dtu.2.1)', () => {
+  it('parses "()--" as a lollipop circle at the source end', () => {
+    const model = parseOk('classDiagram\nBar ()-- Foo\n');
+    const edge = model.edges[0];
+    expect(edge.sourceId).toBe('Bar');
+    expect(edge.targetId).toBe('Foo');
+    expect(edge.umlRelationKind).toBe('lollipop-source');
   });
 
-  it('rejects namespace dot-notation (namespace A.B.C)', () => {
-    const result = parseUml('classDiagram\nnamespace A.B.C {\n  class X\n}\n');
-    expect(isParseSuccess(result)).toBe(false);
+  it('parses "--()" as a lollipop circle at the target end', () => {
+    const model = parseOk('classDiagram\nFoo --() Bar\n');
+    const edge = model.edges[0];
+    expect(edge.sourceId).toBe('Foo');
+    expect(edge.targetId).toBe('Bar');
+    expect(edge.umlRelationKind).toBe('lollipop-target');
   });
 
-  it('rejects the bracketed namespace label form (namespace Name["Label"])', () => {
-    const result = parseUml('classDiagram\nnamespace Name["Label"] {\n  class X\n}\n');
-    expect(isParseSuccess(result)).toBe(false);
+  it('round-trips both lollipop tokens back to their own literal form', () => {
+    const model = parseOk('classDiagram\nclass Foo\nclass Bar\nBar ()-- Foo\nFoo --() Bar\n');
+    const reparsed = roundTrip(model);
+    expect(normalize(reparsed)).toEqual(normalize(model));
+    const dsl = serializeUml(model);
+    expect(dsl).toContain('Bar ()-- Foo');
+    expect(dsl).toContain('Foo --() Bar');
+  });
+
+  it('coexists with an ordinary relationship between the same two classes', () => {
+    const model = parseOk('classDiagram\nclass Shape\nclass Drawable\nDrawable <|-- Shape\nShape --() Drawable\n');
+    expect(model.edges).toHaveLength(2);
+    expect(model.edges[0].umlRelationKind).toBe('inheritance');
+    expect(model.edges[1].umlRelationKind).toBe('lollipop-target');
+  });
+
+  it('auto-creates classes referenced only in a lollipop relation, like any other relation', () => {
+    const model = parseOk('classDiagram\nClass1 --() Interface1\n');
+    expect(model.nodes.map((n) => n.id).sort()).toEqual(['Class1', 'Interface1']);
+  });
+});
+
+describe('uml parser: namespace dot-notation (jmuir-dtu.2.1)', () => {
+  it('auto-creates parent namespaces for "namespace A.B.C"', () => {
+    const model = parseOk('classDiagram\nnamespace A.B.C {\n  class Widget\n}\n');
+    const a = model.containers.find((c) => c.id === 'A')!;
+    const ab = model.containers.find((c) => c.id === 'A.B')!;
+    const abc = model.containers.find((c) => c.id === 'A.B.C')!;
+    expect(a.parentContainerId).toBeUndefined();
+    expect(ab.parentContainerId).toBe('A');
+    expect(abc.parentContainerId).toBe('A.B');
+    expect(model.nodes.find((n) => n.id === 'Widget')!.containerId).toBe('A.B.C');
+  });
+
+  it('reuses an already-created ancestor for a later dot-notation statement', () => {
+    const model = parseOk('classDiagram\nnamespace A.B {\n  class Widget\n}\nnamespace A.C {\n  class Gadget\n}\n');
+    expect(model.containers.filter((c) => c.id === 'A')).toHaveLength(1);
+    expect(model.nodes.find((n) => n.id === 'Widget')!.containerId).toBe('A.B');
+    expect(model.nodes.find((n) => n.id === 'Gadget')!.containerId).toBe('A.C');
+  });
+
+  it('gives explicit-block nesting and dot-notation nesting the same qualified id, so different parents with a same-named child no longer collide', () => {
+    const model = parseOk(
+      ['classDiagram', 'namespace A {', '  namespace X {', '    class Foo', '  }', '}', 'namespace B {', '  namespace X {', '    class Bar', '  }', '}', ''].join(
+        '\n',
+      ),
+    );
+    const ax = model.containers.find((c) => c.parentContainerId === 'A')!;
+    const bx = model.containers.find((c) => c.parentContainerId === 'B')!;
+    expect(ax.id).toBe('A.X');
+    expect(bx.id).toBe('B.X');
+    expect(model.nodes.find((n) => n.id === 'Foo')!.containerId).toBe('A.X');
+    expect(model.nodes.find((n) => n.id === 'Bar')!.containerId).toBe('B.X');
+  });
+
+  it('round-trips dot-notation to the equivalent nested-block form, stable on a second round-trip', () => {
+    const model = parseOk('classDiagram\nnamespace A.B.C {\n  class Widget\n}\n');
+    const dsl = serializeUml(model);
+    expect(dsl).toContain('namespace A {');
+    expect(dsl).toContain('namespace B {');
+    expect(dsl).toContain('namespace C {');
+    const reparsed = roundTrip(model);
+    expect(normalize(reparsed)).toEqual(normalize(model));
+    expect(serializeUml(reparsed)).toBe(dsl);
+  });
+});
+
+describe('uml parser: bracketed namespace display label (jmuir-dtu.2.1)', () => {
+  it('applies the label to the leaf namespace only, distinct from its declaration id', () => {
+    const model = parseOk('classDiagram\nnamespace A.B["Business Layer"] {\n  class Widget\n}\n');
+    const a = model.containers.find((c) => c.id === 'A')!;
+    const ab = model.containers.find((c) => c.id === 'A.B')!;
+    expect(a.label).toBe('A');
+    expect(ab.label).toBe('Business Layer');
+  });
+
+  it('round-trips the bracketed form only when the label differs from the id, stable on a second round-trip', () => {
+    const model = parseOk('classDiagram\nnamespace Team["The A Team"] {\n  class Widget\n}\n');
+    const dsl = serializeUml(model);
+    expect(dsl).toContain('namespace Team["The A Team"] {');
+    const reparsed = roundTrip(model);
+    expect(normalize(reparsed)).toEqual(normalize(model));
+    expect(serializeUml(reparsed)).toBe(dsl);
+  });
+
+  it('does not re-emit a redundant bracketed label when it equals the plain name', () => {
+    const model = parseOk('classDiagram\nnamespace Plain["Plain"] {\n  class Widget\n}\n');
+    const dsl = serializeUml(model);
+    expect(dsl).toContain('namespace Plain {');
+    expect(dsl).not.toContain('["Plain"]');
   });
 });
