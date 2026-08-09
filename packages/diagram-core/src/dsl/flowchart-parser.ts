@@ -118,6 +118,14 @@ const LINK_STYLE_DIRECTIVE = /^linkStyle\s+(default|\d+(?:\s*,\s*\d+)*)\s+(.+)$/
 // since the very next character after "class" is "D", not whitespace.
 const CLASSDEF_DIRECTIVE = new RegExp(`^classDef\\s+(${ID})\\s+(.+?);?$`);
 const CLASS_ASSIGN_DIRECTIVE = new RegExp(`^class\\s+((?:${ID})(?:\\s*,\\s*${ID})*)\\s+(${ID})\\s*;?$`);
+// jmuir-dzd.2: the `id:::className` shorthand, equivalent to a separate `class id className`
+// line — already supported by erd.ts/uml.ts, missing here. Real Mermaid's own grammar
+// (flow.jison: `vertex STYLE_SEPARATOR idString`) only ever accepts a SINGLE class name after
+// `:::`, not a comma-separated list; this mirrors erd.ts/uml.ts's own already-shipped, slightly
+// more lenient convention of accepting (but only applying the first of) a comma list, for
+// consistency across this codebase's three `:::`-supporting parsers rather than introducing a
+// fourth, stricter variant.
+const CLASS_SHORTHAND = new RegExp(`^(${ID}):::(${ID}(?:\\s*,\\s*${ID})*)$`);
 
 /** Shared by both `style <nodeId> ...` and `linkStyle <index> ...` — same prop grammar. */
 function parseStyleProps(propsRaw: string): NodeStyle {
@@ -311,6 +319,14 @@ export function parseFlowchart(dsl: string): ParseResult {
     if (classAssignMatch) {
       const [, idList, className] = classAssignMatch;
       classAssignments.push({ nodeIds: idList.split(',').map((id) => id.trim()), className });
+      continue;
+    }
+
+    const classShorthandMatch = line.match(CLASS_SHORTHAND);
+    if (classShorthandMatch) {
+      const [, id, classNames] = classShorthandMatch;
+      ensureNode(id, id, 'rectangle');
+      classAssignments.push({ nodeIds: [id], className: classNames.split(',')[0].trim() });
       continue;
     }
 

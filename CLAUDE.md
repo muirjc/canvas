@@ -54,6 +54,23 @@ tests are NON-NEGOTIABLE and must exist (and fail) before implementing any diagr
 work — see `.specify/memory/constitution.md` Principle IV.
 
 ## Recent Changes
+- `jmuir-dzd.2`: flowchart's own `:::` classDef-shorthand (`A:::className`, equivalent to a
+  separate `class A className` line) was missing — `erd.ts`/`uml.ts` both gained it earlier this
+  session, but `flowchart-parser.ts`'s own `classDef`/`class` support (grouping C) never picked it
+  up, so a real flowchart file using the shorthand hard-errored. New `CLASS_SHORTHAND` pattern,
+  applying the same second-pass `classDefs`/`classAssignments` timing/precedence the explicit
+  `class` form already had (forward-referenced `classDef`s resolve correctly; an explicit `style`
+  line on the same node still wins). Matches erd.ts/uml.ts's own established convention of
+  accepting (but only applying the first of) a comma-separated class list after `:::` — real
+  Mermaid's own `flow.jison` grammar (`vertex STYLE_SEPARATOR idString`) only ever accepts a
+  single class name there, but staying consistent with this codebase's own two prior `:::`
+  implementations was judged more valuable than a third, stricter variant. A node referenced only
+  via the shorthand is auto-created as an implicit rectangle, matching every other "no element
+  silently dropped" convention already established for edge endpoints. Deliberately out of scope
+  (fails cleanly with a structured parse error, not a silent misparse): combining the shorthand
+  with an inline shape+label on the same token (`A[Label]:::className`) — would need touching
+  every one of `NODE_PATTERNS`' ~13 shape regexes plus the edge-endpoint token matcher, a
+  meaningfully larger surface than the bare-id case — filed as `jmuir-dzd.3`.
 - `jmuir-dtu.2.1`: the follow-up `jmuir-dtu.2` filed for its own three deliberately-scoped-down
   items — all three now given a real decision and implemented, none left deferred further.
   **Lollipop interfaces** (`Foo ()-- Bar` / `Foo --() Bar`): added as two more literal tokens in
