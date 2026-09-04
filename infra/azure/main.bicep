@@ -119,6 +119,7 @@ module keycloak 'modules/keycloak.bicep' = {
     location: location
     environmentId: containerAppsEnv.outputs.environmentId
     identityId: keyVault.outputs.identityId
+    identityPrincipalId: keyVault.outputs.identityPrincipalId
     acrId: acr.outputs.acrId
     acrLoginServer: acr.outputs.loginServer
     keycloakImageTag: keycloakImageTag
@@ -136,7 +137,6 @@ module apiApp 'modules/apiapp.bicep' = {
     location: location
     environmentId: containerAppsEnv.outputs.environmentId
     identityId: keyVault.outputs.identityId
-    acrId: acr.outputs.acrId
     acrLoginServer: acr.outputs.loginServer
     apiImageTag: apiImageTag
     keyVaultUri: keyVault.outputs.keyVaultUri

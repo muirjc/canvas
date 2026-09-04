@@ -37,7 +37,20 @@ export async function registerIdpProxyRoutes(app: FastifyInstance, config: AppCo
   // application/x-www-form-urlencoded, which Fastify has no built-in parser for at all (would
   // 415 before ever reaching this handler) without @fastify/formbody -- but this proxy has no
   // business parsing ANY body it forwards, JSON included, just relaying whatever bytes arrived.
+  //
+  // A `'*'` wildcard parser alone is NOT enough: Fastify's own built-in `application/json` (and
+  // `text/plain`) parsers always take precedence over a wildcard registration regardless of
+  // registration order (confirmed against Fastify's own ContentTypeParser docs/source, not
+  // guessed) -- so any JSON-bodied request forwarded through this proxy (e.g. every Keycloak
+  // admin-API write: PUT .../clients/{id}, POST .../clients, ...) was silently being parsed into
+  // a JS object by Fastify's default parser instead of staying a raw Buffer, then handed to
+  // `fetch()`'s `body` option as that object -- which stringifies to the literal text
+  // "[object Object]", not valid JSON, so Keycloak rejected every one with a generic
+  // "Cannot parse the JSON" error. `removeAllContentTypeParsers()` clears Fastify's defaults
+  // first so the wildcard below is genuinely the only parser and every content type reaches
+  // Keycloak as the exact bytes the client sent.
   await app.register(async (scoped) => {
+    scoped.removeAllContentTypeParsers();
     scoped.addContentTypeParser('*', { parseAs: 'buffer' }, (_request, body, done) => {
       done(null, body);
     });

@@ -1,9 +1,15 @@
 // API container app (canvas-ycu, mirrors ADP's infra/azure/modules/apiapp.bicep) -- the one
-// component the public actually reaches. External ingress; managed identity gets AcrPull
-// (granted here, since this is the only/first consumer -- ADP granted it in its Keycloak module
-// instead, only because that happened to deploy first there) and Key Vault Secrets User
-// (modules/keyvault.bicep). /health has no auth guard and is wired as the liveness/readiness
-// probe (apps/api/src/app.ts).
+// component the public actually reaches. Managed identity gets Key Vault Secrets User
+// (modules/keyvault.bicep) here; AcrPull on the shared identity is granted once, by
+// modules/keycloak.bicep (the first consumer to deploy) -- RBAC role assignments are scope-based
+// and additive, so that single grant already covers every container app using this same
+// identity, this one included, not just keycloak's own image pulls. This module used to declare
+// its own separate (functionally redundant) AcrPull grant; removed after a real deploy failure
+// (RoleAssignmentExists) proved that redeploying an already-existing role assignment resource is
+// not reliably idempotent even when its principalId is provably unchanged -- one authoritative
+// declaration avoids the whole class of conflict rather than trying to make a second one
+// re-deploy cleanly. /health has no auth guard and is wired as the liveness/readiness probe
+// (apps/api/src/app.ts).
 //
 // minReplicas=0: a Node/Fastify cold start is a couple of seconds, not disruptive, so
 // scale-to-zero when idle is a real cost saving -- this app costs ~$0 while nothing is using it.
@@ -16,9 +22,6 @@ param environmentId string
 
 @description('User-assigned managed identity resource ID.')
 param identityId string
-
-@description('ACR resource ID -- the identity is granted AcrPull on this scope.')
-param acrId string
 
 @description('ACR login server.')
 param acrLoginServer string
@@ -55,18 +58,6 @@ param keycloakRealm string = 'CanvasRealm'
 
 @description('Keycloak client ID -- must match the confidential client baked into the realm export.')
 param keycloakClientId string = 'canvas-api'
-
-var acrPullRoleId = subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '7f951dda-4ed3-4680-a7ca-43fe172d538d')
-
-resource acrPullAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
-  name: guid(acrId, identityId, 'AcrPull')
-  scope: resourceGroup()
-  properties: {
-    roleDefinitionId: acrPullRoleId
-    principalId: reference(identityId, '2024-11-30', 'Full').properties.principalId
-    principalType: 'ServicePrincipal'
-  }
-}
 
 resource apiApp 'Microsoft.App/containerApps@2025-01-01' = {
   name: 'canvas-api'
@@ -194,9 +185,11 @@ resource apiApp 'Microsoft.App/containerApps@2025-01-01' = {
       }
     }
   }
-  dependsOn: [
-    acrPullAssignment
-  ]
+  // No explicit dependsOn for the AcrPull grant needed here (see this file's own header comment
+  // -- that grant now lives solely in modules/keycloak.bicep): main.bicep's apiApp module already
+  // consumes keycloak.outputs.fqdn (keycloakFqdn below), which gives Bicep an implicit dependency
+  // on the keycloak module completing -- including its AcrPull role assignment -- before this one
+  // deploys.
 }
 
 output fqdn string = apiApp.properties.configuration.ingress.fqdn

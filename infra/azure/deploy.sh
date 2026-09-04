@@ -38,7 +38,18 @@ chmod 700 "$SECRETS_DIR"
 
 if [[ ! -f "$PG_PASSWORD_FILE" ]]; then
   echo "Generating Postgres admin password (first run) -> $PG_PASSWORD_FILE"
-  openssl rand -base64 24 > "$PG_PASSWORD_FILE"
+  # Alphanumeric-only, not raw base64: this password gets embedded directly in the DATABASE_URL
+  # connection string canvas-migrate/canvas-api build (postgres://user:PASSWORD@host/db) -- a
+  # real deploy hit this the hard way: pg-connection-string's parser uses a strict WHATWG URL(),
+  # and base64's own +/= (and occasionally /) characters are not valid unescaped there, so a
+  # generated password containing one silently broke every DB connection with "TypeError: Invalid
+  # URL" until this was diagnosed. Filtering to [A-Za-z0-9] avoids the whole class of "needs
+  # percent-encoding" bugs rather than adding escaping logic; 24 alphanumeric characters is still
+  # ~140 bits of entropy, comfortably above Azure Postgres Flexible Server's own complexity floor
+  # (needs 3 of upper/lower/digit/special -- alphanumeric alone already covers upper+lower+digit).
+  # Keycloak's own KC_DB_PASSWORD (modules/keycloak.bicep) passes this same value as a separate,
+  # non-URL-embedded env var, so it was never at risk from this specific bug.
+  openssl rand -base64 32 | tr -dc 'A-Za-z0-9' | head -c 24 > "$PG_PASSWORD_FILE"
   chmod 600 "$PG_PASSWORD_FILE"
 fi
 PG_ADMIN_PASSWORD="$(cat "$PG_PASSWORD_FILE")"
