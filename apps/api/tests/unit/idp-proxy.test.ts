@@ -125,6 +125,33 @@ describe('registerIdpProxyRoutes() proxying', () => {
     expect(JSON.parse(response.body)).toEqual({ access_token: 'xyz' });
   });
 
+  it('proxies a PUT with an application/json body byte-for-byte, not re-serialized (real bug found live)', async () => {
+    // Found via a real deployed environment: Fastify's own built-in application/json content-type
+    // parser always takes precedence over a '*' wildcard parser regardless of registration order
+    // (confirmed against Fastify's own docs, not guessed) -- so without removeAllContentTypeParsers()
+    // first, a JSON-bodied request reaching this proxy was parsed into a JS object by that default
+    // parser, then handed to fetch()'s `body` option as that object, which stringifies to the
+    // literal text "[object Object]" -- Keycloak's admin API (every write is JSON: PUT a client,
+    // POST a new one, ...) rejected every single one with a generic "Cannot parse the JSON" error.
+    fetchMock.mockResolvedValueOnce(new Response('ok', { status: 200 }));
+
+    const jsonBody = JSON.stringify({ redirectUris: ['https://example.com/auth/callback'], secret: 'sh+are/me=' });
+    const response = await app.inject({
+      method: 'PUT',
+      url: '/idp/admin/realms/CanvasRealm/clients/abc-123',
+      headers: { 'content-type': 'application/json' },
+      payload: jsonBody,
+    });
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    const [, init] = fetchMock.mock.calls[0];
+    expect(init.method).toBe('PUT');
+    // The forwarded body must be the exact original bytes -- not "[object Object]", not
+    // re-serialized/reformatted JSON that could reorder keys or otherwise diverge byte-for-byte.
+    expect(Buffer.from(init.body).toString('utf8')).toBe(jsonBody);
+    expect(response.statusCode).toBe(200);
+  });
+
   it('does not attach a body to GET/HEAD forwarded requests', async () => {
     fetchMock.mockResolvedValueOnce(new Response('ok', { status: 200 }));
 

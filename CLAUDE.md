@@ -54,6 +54,48 @@ tests are NON-NEGOTIABLE and must exist (and fail) before implementing any diagr
 work — see `.specify/memory/constitution.md` Principle IV.
 
 ## Recent Changes
+- Azure deployment fixes, found live during the first-ever real deploy of `infra/azure/`
+  (canvas-ycu/canvas-ycu.1's infrastructure), not anticipated in advance:
+  - **`apps/api/src/auth/idp-proxy.routes.ts`**: Fastify's own built-in `application/json`
+    content-type parser always takes precedence over a `'*'` wildcard registration, regardless of
+    order (confirmed against Fastify's own `ContentTypeParser` docs) — so every JSON-bodied
+    request forwarded through the `/idp` reverse proxy (every Keycloak admin-API write: `PUT` a
+    client, `POST` a new one, ...) was silently parsed into a JS object by that default parser,
+    then handed to `fetch()`'s `body` option as that object, which stringifies to the literal text
+    `"[object Object]"` — Keycloak rejected every one with a generic `"Cannot parse the JSON"`.
+    Fixed with `removeAllContentTypeParsers()` before registering the wildcard buffer parser, so
+    the proxy is genuinely a byte-for-byte pass-through for every content type, not just the ones
+    Fastify has no built-in opinion about (`application/x-www-form-urlencoded`, which is why
+    Keycloak's own login-form POSTs already worked and this went undetected). New regression test
+    in `idp-proxy.test.ts` sends a JSON-bodied `PUT` and asserts the forwarded bytes match exactly.
+  - **`infra/azure/deploy.sh`**: the Postgres admin password was generated via
+    `openssl rand -base64 24`, which can (and did) produce `+`/`/`/`=` — embedded directly in
+    `DATABASE_URL`, this broke `pg-connection-string`'s strict WHATWG `URL()` parsing with
+    `TypeError: Invalid URL`, failing every DB connection (migrations, the API itself) with no
+    indication the password was the cause. Now filtered to alphanumeric-only
+    (`tr -dc 'A-Za-z0-9'`), still ~140 bits of entropy from 24 characters, comfortably above Azure
+    Postgres Flexible Server's own complexity floor.
+  - **`infra/azure/modules/apiapp.bicep`** / **`modules/keycloak.bicep`** / **`main.bicep`**: both
+    modules independently declared their own `AcrPull` role assignment for the same shared managed
+    identity — functionally redundant, since RBAC grants are additive per identity+role+scope, but
+    redeploying both hit `RoleAssignmentExists`, which Azure's Role Assignments API won't resolve
+    via a normal incremental redeploy (a role assignment's `principalId` is effectively immutable
+    once created, and `what-if`'s own comparison of an unresolved `reference()` expression against
+    an already-resolved literal value made Azure think a real change was being requested). Fixed
+    by removing `apiapp.bicep`'s redundant declaration entirely — `keycloak.bicep`'s alone already
+    covers both apps, with an implicit deploy-order dependency already in place via
+    `keycloak.outputs.fqdn`.
+  - Not yet fixed, known and documented instead: `deploy.sh`'s own Keycloak-client reconciliation
+    step (redirect URI / web origin / client secret) authenticates as the Keycloak master-realm
+    admin via `grant_type=password` direct-grant, but Keycloak 25+/26's
+    `KC_BOOTSTRAP_ADMIN_PASSWORD`-created admin is explicitly *temporary* and REST direct-grant
+    rejects it outright (`invalid_user_credentials`) — only the browser-style Authorization Code
+    flow (PKCE) accepts it, confirmed by successfully logging in that way and patching the client
+    manually. `deploy.sh` silently skips reconciliation every time
+    (`WARNING: could not reach Keycloak's admin token endpoint after 6 attempts`), leaving the
+    realm's dev-placeholder `redirectUris`/`webOrigins` (`http://localhost:3000`) in place — this
+    is why a fresh deploy's real SSO login fails with `Invalid parameter: redirect_uri` until the
+    client is patched by hand. Filed as follow-up work, not fixed in this pass.
 - `jmuir-dzd.2`: flowchart's own `:::` classDef-shorthand (`A:::className`, equivalent to a
   separate `class A className` line) was missing — `erd.ts`/`uml.ts` both gained it earlier this
   session, but `flowchart-parser.ts`'s own `classDef`/`class` support (grouping C) never picked it

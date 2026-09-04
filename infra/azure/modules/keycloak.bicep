@@ -19,6 +19,9 @@ param environmentId string
 @description('User-assigned managed identity resource ID from modules/keyvault.bicep.')
 param identityId string
 
+@description('User-assigned managed identity principal ID (modules/keyvault.bicep\'s own identityPrincipalId output) -- plain value, not re-derived via reference(identityId, ...).properties.principalId (see apiapp.bicep\'s own identityPrincipalId param comment for why: that pattern makes what-if see a spurious principalId "change" on an already-created role assignment, which the Role Assignments API then rejects with RoleAssignmentExists on redeploy).')
+param identityPrincipalId string
+
 @description('ACR resource ID -- the identity is granted AcrPull on this scope.')
 param acrId string
 
@@ -48,7 +51,7 @@ resource acrPullAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' 
   scope: resourceGroup()
   properties: {
     roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '7f951dda-4ed3-4680-a7ca-43fe172d538d')
-    principalId: reference(identityId, '2024-11-30', 'Full').properties.principalId
+    principalId: identityPrincipalId
     principalType: 'ServicePrincipal'
   }
 }
