@@ -135,11 +135,11 @@ the addition without a separate manual content update.
 
 ### Tests for User Story 3 ⚠️
 
-- [ ] T023 [P] [US3] Contract test (drift guard, research.md §6): for each family, every enum value currently exposed by that family's tool set (read from each tool's own Zod schema at test time, not hand-copied into the test) is mentioned somewhere in that family's primer text in apps/api/tests/contract/diagram-type-primers.test.ts (NEW) (depends on T007, T019)
+- [X] T023 [P] [US3] Contract test (drift guard, research.md §6): for each family, every enum value currently exposed by that family's tool set (read from each tool's own Zod schema at test time, not hand-copied into the test) is mentioned somewhere in that family's primer text in apps/api/tests/contract/diagram-type-primers.test.ts (NEW) (depends on T007, T019)
 
 ### Implementation for User Story 3
 
-- [ ] T024 [US3] If T023 fails against the primer wording drafted in T007, revise `diagram-type-primers.ts`'s prose until every currently-exposed enum value is covered (depends on T023)
+- [X] T024 [US3] If T023 fails against the primer wording drafted in T007, revise `diagram-type-primers.ts`'s prose until every currently-exposed enum value is covered (depends on T023)
 
 **Checkpoint**: All three of Stories 1–3 work independently; the anti-drift guard from FR-005 is
 enforced by a real, automated test, not a documentation promise.
