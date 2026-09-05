@@ -75,6 +75,7 @@ const NOTE_STANDALONE = /^note\s+"([^"]*)"$/;
 const NAMESPACE_START = new RegExp(`^namespace\\s+(${ID}(?:\\.${ID})*)(?:\\["([^"]*)"\\])?\\s*\\{$`);
 
 const DIRECTION_PATTERN = /^direction\s+(TB|BT|LR|RL)$/i;
+const TITLE_PATTERN = /^title\s+(.+)$/;
 
 // jmuir-dtu.2: style/classDef/class/::: -- identical grammar and second-pass-application
 // precedent to flowchart-parser.ts's own support (and ERD's own copy of it). UML's own `class`
@@ -210,6 +211,7 @@ export function parseUml(dsl: string): ParseResult {
   let edgeCounter = 0;
   let containerCounter = 0;
   let direction: FlowchartDirection | undefined;
+  let title: string | undefined;
 
   const namespaceStack: { id: string; line: number; content: string }[] = [];
   const currentNamespaceId = (): string | undefined => namespaceStack[namespaceStack.length - 1]?.id;
@@ -274,6 +276,14 @@ export function parseUml(dsl: string): ParseResult {
     const directionMatch = line.match(DIRECTION_PATTERN);
     if (directionMatch) {
       direction = directionMatch[1].toUpperCase() as FlowchartDirection;
+      continue;
+    }
+
+    // canvas-vtg: mirrors c4.ts's own TITLE_PATTERN/handling exactly (canvas-79b introduced it
+    // there first) -- a real, cross-family Mermaid top-level statement.
+    const titleMatch = line.match(TITLE_PATTERN);
+    if (titleMatch) {
+      title = titleMatch[1];
       continue;
     }
 
@@ -457,6 +467,7 @@ export function parseUml(dsl: string): ParseResult {
   model.edges = edges;
   model.containers = Array.from(containersById.values());
   model.direction = direction;
+  model.title = title;
   return { model };
 }
 
@@ -473,6 +484,7 @@ export function serializeUml(model: DiagramModel): string {
   };
 
   const lines: string[] = ['classDiagram'];
+  if (model.title) lines.push(`title ${model.title}`);
   if (model.direction) lines.push(`direction ${model.direction}`);
 
   const classLines = (node: DiagramNode): string[] => {

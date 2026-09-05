@@ -56,3 +56,27 @@ describe('flowchart parser: "graph" header alias', () => {
     }
   });
 });
+
+// canvas-vtg: 'title <text>' now recognized outside C4 too (canvas-79b introduced it there
+// first) -- previously hard-errored the whole parse for every one of the other 5 families.
+describe('flowchart parser: "title" directive (canvas-vtg)', () => {
+  it('parses a top-level "title" line and round-trips it through serialize -> reparse', () => {
+    const result = parseFlowchart('flowchart TD\n  title My Diagram\n  A[Start]\n');
+    expect(isParseSuccess(result)).toBe(true);
+    if (!isParseSuccess(result)) return;
+    expect(result.model.title).toBe('My Diagram');
+
+    const reparsed = parseFlowchart(serializeFlowchart(result.model));
+    expect(isParseSuccess(reparsed)).toBe(true);
+    if (!isParseSuccess(reparsed)) return;
+    expect(reparsed.model.title).toBe('My Diagram');
+  });
+
+  it('a model with no title omits the "title" line entirely on serialize (no regression)', () => {
+    const result = parseFlowchart('flowchart TD\n  A[Start]\n');
+    expect(isParseSuccess(result)).toBe(true);
+    if (!isParseSuccess(result)) return;
+    expect(result.model.title).toBeUndefined();
+    expect(serializeFlowchart(result.model)).not.toContain('title');
+  });
+});

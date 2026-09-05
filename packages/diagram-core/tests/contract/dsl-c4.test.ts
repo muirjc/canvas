@@ -502,4 +502,92 @@ describe('C4 DSL family (Context/Container/Component/Code)', () => {
       }
     });
   });
+
+  describe('canvas-79b: title, generic Boundary macro, Rel technology arg', () => {
+    it('parses a top-level "title" line and round-trips it through serialize -> reparse', () => {
+      const result = parseC4('C4Context\n  title System Context diagram for Internet Banking System\n  System(a, "A")\n');
+      expect(isParseSuccess(result)).toBe(true);
+      if (!isParseSuccess(result)) return;
+      expect(result.model.title).toBe('System Context diagram for Internet Banking System');
+
+      const reparsed = roundTrip(result.model);
+      expect(reparsed.title).toBe('System Context diagram for Internet Banking System');
+    });
+
+    it('a model with no title omits the "title" line entirely on serialize', () => {
+      const result = parseC4('C4Context\n  System(a, "A")\n');
+      expect(isParseSuccess(result)).toBe(true);
+      if (!isParseSuccess(result)) return;
+      expect(result.model.title).toBeUndefined();
+      expect(serializeC4(result.model)).not.toContain('title');
+    });
+
+    it('Boundary(id, "label", ?"type") -- the generic boundary macro -- parses like System_Boundary', () => {
+      const result = parseC4('C4Context\n  Boundary(b3, "Bank Boundary 3", "boundary") {\n    System(a, "A")\n  }\n');
+      expect(isParseSuccess(result)).toBe(true);
+      if (!isParseSuccess(result)) return;
+      expect(result.model.containers).toHaveLength(1);
+      expect(result.model.containers[0]).toMatchObject({ id: 'b3', label: 'Bank Boundary 3' });
+      expect(result.model.nodes.find((n) => n.id === 'a')?.containerId).toBe('b3');
+      // The optional "type" arg is captured-but-discarded, matching this file's own established
+      // precedent (Deployment_Node's optional type arg) -- not modeled, not leaked into the label.
+      expect(JSON.stringify(result.model)).not.toContain('boundary');
+    });
+
+    it('Rel(from, to, "label", "technology") -- the optional 4th arg -- parses without error', () => {
+      const result = parseC4('C4Context\n  System(a, "A")\n  System(b, "B")\n  Rel(a, b, "Sends e-mails", "SMTP")\n');
+      expect(isParseSuccess(result)).toBe(true);
+      if (!isParseSuccess(result)) return;
+      expect(result.model.edges).toHaveLength(1);
+      expect(result.model.edges[0].label).toBe('Sends e-mails');
+      // Captured-but-discarded, matching ELEMENT_PATTERN's own established treatment of the
+      // optional description arg -- not modeled, not leaked into the label.
+      expect(JSON.stringify(result.model)).not.toContain('SMTP');
+    });
+
+    it('a 3-arg Rel (no technology) still parses exactly as before -- no regression', () => {
+      const result = parseC4('C4Context\n  System(a, "A")\n  System(b, "B")\n  Rel(a, b, "Sends e-mails")\n');
+      expect(isParseSuccess(result)).toBe(true);
+      if (!isParseSuccess(result)) return;
+      expect(result.model.edges[0].label).toBe('Sends e-mails');
+    });
+
+    it('the real reported bank-boundary example (title + nested Enterprise_Boundary/System_Boundary/Boundary + BiRel + 4-arg Rel) parses end-to-end with zero errors', () => {
+      const dsl = [
+        'C4Context',
+        '    title System Context diagram for Internet Banking System',
+        '    Enterprise_Boundary(b0, "BankBoundary0") {',
+        '        Person(customerA, "Banking Customer A", "A customer of the bank, with personal bank accounts.")',
+        '        System(SystemAA, "Internet Banking System", "Allows customers to view information about their bank accounts, and make payments.")',
+        '        Enterprise_Boundary(b1, "BankBoundary") {',
+        '            SystemDb_Ext(SystemE, "Mainframe Banking System", "Stores all of the core banking information.")',
+        '            System_Boundary(b2, "BankBoundary2") {',
+        '                System(SystemA, "Banking System A")',
+        '            }',
+        '            System_Ext(SystemC, "E-mail system", "The internal Microsoft Exchange e-mail system.")',
+        '            Boundary(b3, "BankBoundary3", "boundary") {',
+        '                SystemQueue(SystemF, "Banking System F Queue", "A system of the bank.")',
+        '            }',
+        '        }',
+        '    }',
+        '    BiRel(customerA, SystemAA, "Uses")',
+        '    Rel(SystemAA, SystemC, "Sends e-mails", "SMTP")',
+        '',
+      ].join('\n');
+      const result = parseC4(dsl);
+      expect(isParseSuccess(result)).toBe(true);
+      if (!isParseSuccess(result)) return;
+      // customerA, SystemAA, SystemE, SystemA, SystemC, SystemF
+      expect(result.model.nodes).toHaveLength(6);
+      expect(result.model.containers).toHaveLength(4);
+      expect(result.model.edges).toHaveLength(2);
+
+      // Full round-trip, not just a one-way parse.
+      const reparsed = roundTrip(result.model);
+      expect(reparsed.title).toBe(result.model.title);
+      expect(reparsed.nodes).toHaveLength(6);
+      expect(reparsed.containers).toHaveLength(4);
+      expect(reparsed.edges).toHaveLength(2);
+    });
+  });
 });

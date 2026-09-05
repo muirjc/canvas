@@ -27,6 +27,7 @@ const ALIAS_PATTERN = new RegExp(`^(${ID})\\s*\\[([^\\]]+)\\]$`);
 const BARE_ENTITY = new RegExp(`^(${ID})$`);
 // direction TB|BT|LR|RL — top-level only (ER has no subgraph-equivalent nesting to scope it to).
 const DIRECTION_PATTERN = /^direction\s+(TB|BT|LR|RL)$/i;
+const TITLE_PATTERN = /^title\s+(.+)$/;
 // style/classDef/class/::: — identical grammar and precedence to flowchart-parser.ts's own
 // versions (style/classDef/class groupings, docs/flowchart-completeness-brief.md grouping C) —
 // each DSL family's parser is self-contained by this codebase's own convention, so this is a
@@ -51,6 +52,21 @@ function parseStyleProps(propsRaw: string): NodeStyle {
   return style;
 }
 
+// canvas-2ut: splits a relationship's full middle token (e.g. "||--o{", "}o..||") into its two
+// 2-character crow's-foot cardinality tokens plus whether the line is dashed (non-identifying,
+// `..`) or solid (identifying, `--`) — real Mermaid grammar always uses exactly one of those two
+// fixed-length separators between two fixed-length cardinality tokens. Returns null for a
+// malformed token (defensive only — RELATIONSHIP_PATTERN's own character class already
+// constrains what can reach here); parsing/rendering simply proceeds without cardinality data in
+// that case, rather than hard-erroring the whole line, matching this file's existing
+// unrecognized-detail-is-silently-ignored convention (e.g. parseStyleProps above).
+function parseCardinalityToken(token: string): { source: string; target: string; dashed: boolean } | null {
+  const match = token.match(/^([|o{}]{2})(--|\.\.)([|o{}]{2})$/);
+  if (!match) return null;
+  const [, source, line, target] = match;
+  return { source, target, dashed: line === '..' };
+}
+
 let autoPositionCounter = 0;
 function nextPosition(): { x: number; y: number } {
   const position = { x: (autoPositionCounter % 4) * 200 + 40, y: Math.floor(autoPositionCounter / 4) * 140 + 40 };
@@ -59,11 +75,11 @@ function nextPosition(): { x: number; y: number } {
 }
 
 /**
- * Parses Mermaid `erDiagram` (entity-relationship). Any cardinality notation (`||--o{`, `||--||`,
- * etc.) parses correctly, but — like sequence.ts's arrow style — DiagramEdge has no cardinality
- * field, so serialization always emits the common one-to-many token (`||--o{`). A disclosed
- * scope limitation: import preserves the *entities and relationship labels* exactly; the exact
- * cardinality symbol is not modeled and is normalized on export.
+ * Parses Mermaid `erDiagram` (entity-relationship). canvas-2ut: the crow's-foot cardinality
+ * notation (`||--o{`, `||--||`, etc.) is captured into `DiagramEdge.erSourceCardinality`/
+ * `erTargetCardinality` (raw 2-character tokens, `lineStyle: 'dotted'` for a non-identifying
+ * `..` relationship) and round-trips exactly on serialize — previously parsed and discarded
+ * entirely, silently normalizing every relationship to the default one-to-many token on export.
  */
 export function parseErd(dsl: string): ParseResult {
   autoPositionCounter = 0;
@@ -74,11 +90,20 @@ export function parseErd(dsl: string): ParseResult {
   const lines = body.split(/\r?\n/);
   const errors: ParseError[] = [];
   const nodesById = new Map<string, DiagramNode>();
-  const edges: { id: string; sourceId: string; targetId: string; label?: string }[] = [];
+  const edges: {
+    id: string;
+    sourceId: string;
+    targetId: string;
+    label?: string;
+    erSourceCardinality?: string;
+    erTargetCardinality?: string;
+    lineStyle?: 'dotted';
+  }[] = [];
   let headerSeen = false;
   let edgeCounter = 0;
   let openEntity: { id: string; line: number; content: string } | null = null;
   let direction: FlowchartDirection | undefined;
+  let title: string | undefined;
 
   // jmuir-dtu.6: style/classDef/class(+shorthand) are applied as a second pass once every entity
   // is known — mirrors flowchart-parser.ts's own style/classDef second-pass convention exactly,
@@ -131,12 +156,16 @@ export function parseErd(dsl: string): ParseResult {
       }
       const attrMatch = line.match(ATTRIBUTE_LINE);
       if (attrMatch) {
-        const [, type, name, constraintsRaw] = attrMatch;
+        const [, type, name, constraintsRaw, comment] = attrMatch;
         const keys = (constraintsRaw ?? '')
           .split(',')
           .map((k) => k.trim().toUpperCase())
           .filter((k) => RECOGNIZED_KEYS.has(k));
-        pushAttribute(openEntity.id, { type, name, keys });
+        // canvas-??? (attribute comment round-trip): previously captured by ATTRIBUTE_LINE's own
+        // 4th group and immediately discarded — a real Mermaid attribute comment ("does not
+        // impact the rendering of the diagram" per Mermaid's own docs, but is still real authored
+        // content) silently vanished on every save.
+        pushAttribute(openEntity.id, { type, name, keys, comment: comment || undefined });
         continue;
       }
       errors.push({ line: i + 1, content: rawLine, message: `Could not interpret line as an entity attribute: "${line}"` });
@@ -146,6 +175,14 @@ export function parseErd(dsl: string): ParseResult {
     const directionMatch = line.match(DIRECTION_PATTERN);
     if (directionMatch) {
       direction = directionMatch[1].toUpperCase() as FlowchartDirection;
+      continue;
+    }
+
+    // canvas-vtg: mirrors c4.ts's own TITLE_PATTERN/handling exactly (canvas-79b introduced it
+    // there first) -- a real, cross-family Mermaid top-level statement.
+    const titleMatch = line.match(TITLE_PATTERN);
+    if (titleMatch) {
+      title = titleMatch[1];
       continue;
     }
 
@@ -203,11 +240,29 @@ export function parseErd(dsl: string): ParseResult {
 
     const relMatch = line.match(RELATIONSHIP_PATTERN);
     if (relMatch) {
-      const [, source, , target, label] = relMatch;
+      const [, source, cardinalityToken, target, rawLabel] = relMatch;
       ensureEntity(source);
       ensureEntity(target);
       edgeCounter += 1;
-      edges.push({ id: `e${edgeCounter}`, sourceId: source, targetId: target, label });
+      const cardinality = parseCardinalityToken(cardinalityToken);
+      // canvas-??? (quoted relationship label): a label may be quoted in real Mermaid (needed
+      // if it contains a comma, or just written that way out of habit) — previously the literal
+      // quote characters were kept as part of the label text itself and rendered visibly (e.g.
+      // `"places, urgently"` shown with its quote marks), unlike every other quoted-string value
+      // elsewhere in this codebase (c4.ts's own POSITIONAL_MACRO_ARG strips its quotes the same
+      // way). Only stripped when the ENTIRE label is one quoted span start-to-end — a label with
+      // an internal quote not wrapping the whole string is left exactly as written.
+      const quotedLabel = rawLabel.match(/^"([\s\S]*)"$/);
+      const label = quotedLabel ? quotedLabel[1] : rawLabel;
+      edges.push({
+        id: `e${edgeCounter}`,
+        sourceId: source,
+        targetId: target,
+        label,
+        erSourceCardinality: cardinality?.source,
+        erTargetCardinality: cardinality?.target,
+        lineStyle: cardinality?.dashed ? 'dotted' : undefined,
+      });
       continue;
     }
 
@@ -258,6 +313,7 @@ export function parseErd(dsl: string): ParseResult {
   model.nodes = Array.from(nodesById.values());
   model.edges = edges;
   model.direction = direction;
+  model.title = title;
   return { model };
 }
 
@@ -270,6 +326,7 @@ export function serializeErd(model: DiagramModel): string {
   };
 
   const lines: string[] = ['erDiagram'];
+  if (model.title) lines.push(`title ${model.title}`);
   if (model.direction) lines.push(`direction ${model.direction}`);
 
   const declared = new Set<string>();
@@ -280,7 +337,8 @@ export function serializeErd(model: DiagramModel): string {
       lines.push(`${declarationFor(node)} {`);
       for (const attribute of node.attributes) {
         const keysPart = attribute.keys.length > 0 ? ` ${attribute.keys.join(', ')}` : '';
-        lines.push(`  ${attribute.type} ${attribute.name}${keysPart}`);
+        const commentPart = attribute.comment ? ` "${attribute.comment}"` : '';
+        lines.push(`  ${attribute.type} ${attribute.name}${keysPart}${commentPart}`);
       }
       lines.push('}');
       declared.add(node.id);
@@ -299,7 +357,15 @@ export function serializeErd(model: DiagramModel): string {
     }
   }
   for (const edge of model.edges) {
-    lines.push(`${edge.sourceId} ${DEFAULT_CARDINALITY} ${edge.targetId} : ${edge.label ?? ''}`);
+    // canvas-2ut: round-trips the real cardinality tokens when present (imported from DSL, or
+    // set some other way); DEFAULT_CARDINALITY only ever covers an edge that never had ER
+    // cardinality data at all — e.g. one added via the canvas UI's plain "add edge" action.
+    const lineToken = edge.lineStyle === 'dotted' ? '..' : '--';
+    const cardinalityToken =
+      edge.erSourceCardinality && edge.erTargetCardinality
+        ? `${edge.erSourceCardinality}${lineToken}${edge.erTargetCardinality}`
+        : DEFAULT_CARDINALITY;
+    lines.push(`${edge.sourceId} ${cardinalityToken} ${edge.targetId} : ${edge.label ?? ''}`);
     declared.add(edge.sourceId);
     declared.add(edge.targetId);
   }

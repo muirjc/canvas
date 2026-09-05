@@ -70,6 +70,7 @@ const DESTROY_PATTERN = new RegExp(`^destroy\\s+(${ID})$`);
 const BOX_START = /^box(?:\s+(rgba?\([^)]*\)|transparent))?(?:\s+(.+))?$/;
 // jmuir-dtu.4: `autonumber`, `autonumber off`, or `autonumber <start> <step>` (decimals allowed).
 const AUTONUMBER_PATTERN = /^autonumber(?:\s+(off)|\s+(\d+(?:\.\d+)?)\s+(\d+(?:\.\d+)?))?$/;
+const TITLE_PATTERN = /^title\s+(.+)$/;
 
 let autoPositionCounter = 0;
 function nextPosition(): { x: number; y: number } {
@@ -112,6 +113,7 @@ export function parseSequence(dsl: string): ParseResult {
   let containerCounter = 0;
   let orderCounter = 0;
   let autonumber: { start?: number; step?: number } | undefined;
+  let title: string | undefined;
 
   // Stack of currently-open top-level blocks (loop/alt/opt/par/critical/break/rect).
   // `currentChildId` tracks the most recent else/and/option branch, if any — messages attach to
@@ -176,6 +178,14 @@ export function parseSequence(dsl: string): ParseResult {
         continue;
       }
       errors.push({ line: i + 1, content: rawLine, message: 'Expected "sequenceDiagram" header line' });
+      continue;
+    }
+
+    // canvas-vtg: mirrors c4.ts's own TITLE_PATTERN/handling exactly (canvas-79b introduced it
+    // there first) -- a real, cross-family Mermaid top-level statement.
+    const titleMatch = line.match(TITLE_PATTERN);
+    if (titleMatch) {
+      title = titleMatch[1];
       continue;
     }
 
@@ -367,6 +377,7 @@ export function parseSequence(dsl: string): ParseResult {
   model.edges = edges;
   model.containers = Array.from(containersById.values());
   if (autonumber) model.sequenceAutonumber = autonumber;
+  model.title = title;
   return { model };
 }
 
@@ -448,6 +459,7 @@ export function serializeSequence(model: DiagramModel): string {
   };
 
   const lines: string[] = ['sequenceDiagram'];
+  if (model.title) lines.push(`title ${model.title}`);
   if (model.sequenceAutonumber) {
     const { start, step } = model.sequenceAutonumber;
     lines.push(start !== undefined && step !== undefined ? `autonumber ${start} ${step}` : 'autonumber');

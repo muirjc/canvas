@@ -62,6 +62,11 @@ export interface EntityAttribute {
   type: string;
   name: string;
   keys: string[];
+  /** An optional trailing quoted comment (e.g. `string id PK "the primary key"`) — real Mermaid
+   *  documents this as purely descriptive metadata that "does not impact the rendering of the
+   *  diagram", so no renderer needs to draw it, but it must still round-trip through save/reload
+   *  like any other authored content (FR-003). Previously parsed and discarded entirely. */
+  comment?: string;
 }
 
 /** jmuir-dtu.2: a single UML class member — either an attribute (`type` set, no `params`) or a
@@ -155,6 +160,21 @@ export interface DiagramEdge {
    *  relationship (e.g. "1", "0..1", "*", "1..*"), if given. */
   sourceCardinality?: string;
   targetCardinality?: string;
+  /** canvas-2ut: ERD only — the raw two-character crow's-foot cardinality token at each end of a
+   *  relationship, taken verbatim from the DSL in the order it was written there (e.g. `||`
+   *  exactly-one, `o|`/`|o` zero-or-one, `o{`/`}o` zero-or-many, `|{`/`}|` one-or-many — Mermaid's
+   *  own erDiagram grammar). Stored as the raw token rather than normalized to an enum, so
+   *  rendering can draw each of the two characters independently (a perpendicular tick for `|`,
+   *  a hollow circle for `o`, a three-pronged crow's-foot fork for `{`/`}`) without first having
+   *  to resolve which of the mirrored source/target forms was used. `lineStyle: 'dotted'` doubles
+   *  as ERD's own non-identifying-relationship (`..`) marker — no separate boolean needed, it's
+   *  already exactly the distinction that field draws elsewhere.
+   *  Previously this notation was parsed and then thrown away entirely (erd.ts's own
+   *  RELATIONSHIP_PATTERN captured it but the destructuring skipped the capture group) — every
+   *  relationship rendered with a generic plain arrowhead and, worse, silently normalized to the
+   *  default one-to-many token on every re-save regardless of what was actually specified. */
+  erSourceCardinality?: string;
+  erTargetCardinality?: string;
   /** Sequence diagrams only: source-order position, used to interleave with note/block
    * containers (which live in a separate array) on serialization. */
   sequenceOrder?: number;
@@ -207,6 +227,11 @@ export type FlowchartDirection = 'TD' | 'LR' | 'TB' | 'RL' | 'BT';
 
 export interface DiagramModel {
   diagramTypeId: string;
+  /** A real, cross-family Mermaid top-level statement (`title <text>`, right after the diagram's
+   *  own header line) — currently only recognized by C4 (parseC4/serializeC4). The other five
+   *  families don't accept it yet (a real `title` line there currently hard-errors); tracked as
+   *  its own follow-up rather than silently left inconsistent. */
+  title?: string;
   /** Flowchart and ER diagrams (`graph <direction>` / `direction <direction>` respectively): the
    *  parsed top-level direction, preserved for round-trip serialization. Not yet used to drive
    *  auto-layout for either family (see `autoLayout()`'s own flowchart-only scoping). */

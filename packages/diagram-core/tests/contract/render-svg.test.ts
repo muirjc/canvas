@@ -1,5 +1,14 @@
 import { describe, expect, it } from 'vitest';
-import { renderToSvg, splitLabelLines, iconNodeSize, nodeSize } from '../../src/render/svg-renderer.js';
+import {
+  renderToSvg,
+  splitLabelLines,
+  iconNodeSize,
+  nodeSize,
+  tableNodeLayout,
+  cardinalityGlyphs,
+  umlEndpointGlyph,
+  type CardinalityGlyph,
+} from '../../src/render/svg-renderer.js';
 import type { DiagramModel, DiagramNode } from '../../src/model/diagram-model.js';
 
 /**
@@ -112,6 +121,32 @@ describe('renderToSvg container fidelity', () => {
     // Selection highlight, drag cursor, and resize handles are canvas-only concerns.
     const svg = renderToSvg(withContainers);
     expect(svg).not.toMatch(/resize-handle|data-selected|cursor=/);
+  });
+
+  // canvas-7vs.2: a sequence `rect <color> ... end` background highlight's entire visual purpose
+  // is its fill color -- previously hardcoded to 'none' regardless of container.style.fillColor.
+  it('renders a container with style.fillColor set using that fill (canvas-7vs.2)', () => {
+    const svg = renderToSvg({
+      diagramTypeId: 'sequence',
+      nodes: [],
+      edges: [],
+      containers: [
+        {
+          id: 'block1',
+          label: '',
+          role: 'rect',
+          position: { x: 10, y: 10 },
+          size: { width: 200, height: 100 },
+          style: { fillColor: 'rgb(200, 150, 255)' },
+        },
+      ],
+    });
+    expect(svg).toContain('fill="rgb(200, 150, 255)"');
+  });
+
+  it('a container with no style.fillColor still falls back to fill="none" (no regression)', () => {
+    const svg = renderToSvg(withContainers);
+    expect(svg).toContain('<rect x="20" y="20" width="400" height="200" fill="none"');
   });
 });
 
@@ -653,5 +688,617 @@ describe('renderToSvg icon node caption fits its content-fit box (canvas-23t.5)'
     const rectMatch = svg.match(/<rect x="0" y="0" width="[\d.]+" height="([\d.]+)"/);
     expect(rectMatch, `no node box rect found in: ${svg}`).not.toBeNull();
     expect(Number(rectMatch![1])).toBeCloseTo(expectedHeight);
+  });
+});
+
+/**
+ * canvas-x66: an ER entity's `attributes` (EntityAttribute[]) or a UML class's `members`
+ * (ClassMember[]) were parsed and modeled correctly but never rendered — every entity/class drew
+ * as a bare labeled box, indistinguishable from one with no body at all. `tableNodeLayout` now
+ * returns real row geometry for a node carrying either field, and `renderNode` draws a header
+ * band + divider + one `<text>` row per attribute/member instead of falling through to the plain
+ * centered-label case.
+ */
+describe('renderToSvg ER attribute / UML member table body (canvas-x66)', () => {
+  function entityNode(overrides: Partial<DiagramNode> = {}): DiagramNode {
+    return {
+      id: 'CUSTOMER',
+      label: 'CUSTOMER',
+      shape: 'rectangle',
+      position: { x: 0, y: 0 },
+      ...overrides,
+    };
+  }
+
+  function classNode(overrides: Partial<DiagramNode> = {}): DiagramNode {
+    return {
+      id: 'Animal',
+      label: 'Animal',
+      shape: 'rectangle',
+      position: { x: 0, y: 0 },
+      ...overrides,
+    };
+  }
+
+  function svgForNode(node: DiagramNode): string {
+    return renderToSvg({
+      diagramTypeId: 'erd',
+      nodes: [node],
+      edges: [],
+      containers: [],
+    });
+  }
+
+  it('renders a divider line and one <text> row per ER attribute, correctly formatted', () => {
+    const node = entityNode({
+      attributes: [
+        { type: 'string', name: 'id', keys: ['PK'] },
+        { type: 'string', name: 'email', keys: ['UK', 'FK'] },
+        { type: 'string', name: 'name', keys: [] },
+      ],
+    });
+    const svg = svgForNode(node);
+
+    // Exactly one divider line under the header band, no other <line> in a node-only model.
+    expect(svg.match(/<line/g)?.length).toBe(1);
+
+    expect(svg).toContain('>string id PK<');
+    expect(svg).toContain('>string email UK, FK<');
+    expect(svg).toContain('>string name<');
+    // The keyless row must not carry a stray trailing space where the keys part would have gone.
+    expect(svg).not.toContain('>string name <');
+  });
+
+  // Corrects an earlier wrong assumption in this same session that Mermaid's own attribute
+  // comments (a trailing quoted string, e.g. `string id PK "the primary key"`) are metadata-only
+  // and never rendered — confirmed against Mermaid's real erRenderer.js source that they DO draw
+  // as their own rightmost column, after type/name/key. Live-reported: a real diagram with
+  // comments on several attributes showed none of them on the canvas.
+  it('renders an attribute comment as trailing text in its row, after type/name/keys', () => {
+    const node = entityNode({
+      attributes: [
+        { type: 'string', name: 'email', keys: ['UK'], comment: 'Used for login' },
+        { type: 'string', name: 'name', keys: [], comment: 'Basic, Standard or Premium' },
+        { type: 'string', name: 'id', keys: ['PK'] },
+      ],
+    });
+    const svg = svgForNode(node);
+
+    expect(svg).toContain('>string email UK &quot;Used for login&quot;<');
+    expect(svg).toContain('>string name &quot;Basic, Standard or Premium&quot;<');
+    // A comment-less row is completely unaffected — no stray quote marks.
+    expect(svg).toContain('>string id PK<');
+    expect(svg).not.toContain('id PK &quot;');
+  });
+
+  it('renders one <text> row per UML member, formatting an attribute and a method differently', () => {
+    const node = classNode({
+      members: [
+        { kind: 'attribute', visibility: '+', type: 'String', name: 'name' },
+        { kind: 'method', visibility: '+', name: 'makeSound', params: '', returnType: 'void' },
+        { kind: 'attribute', visibility: '-', type: 'int', name: 'age', isStatic: true },
+        { kind: 'method', visibility: '#', name: 'clone', params: '', isAbstract: true },
+      ],
+    });
+    const svg = svgForNode(node);
+
+    expect(svg.match(/<line/g)?.length).toBe(1);
+    expect(svg).toContain('>+String name<');
+    expect(svg).toContain('>+makeSound() void<');
+    expect(svg).toContain('>-int age$<');
+    expect(svg).toContain('>#clone()*<');
+  });
+
+  // canvas-7vs.4: a UML <<Stereotype>> annotation was parsed and modeled (umlStereotype) but
+  // never drawn anywhere -- both renderers just showed the plain class name with no indication a
+  // class carried an <<Interface>>/<<Abstract>>/etc annotation at all.
+  it('renders umlStereotype as its own line above the class name (canvas-7vs.4)', () => {
+    const node = classNode({
+      umlStereotype: 'Interface',
+      members: [{ kind: 'method', visibility: '+', name: 'draw', params: '', returnType: 'void' }],
+    });
+    const svg = svgForNode(node);
+    expect(svg).toContain('&lt;&lt;Interface&gt;&gt;');
+    expect(svg).toContain('>Animal<'); // classNode()'s default label -- still drawn, unaffected
+  });
+
+  it('a class with no umlStereotype renders no stray annotation text (no regression)', () => {
+    const node = classNode({
+      members: [{ kind: 'method', visibility: '+', name: 'draw', params: '', returnType: 'void' }],
+    });
+    const svg = svgForNode(node);
+    expect(svg).not.toContain('&lt;&lt;');
+  });
+
+  it('a class with a stereotype is taller than the same class without one (room for the annotation line)', () => {
+    const members = [{ kind: 'method' as const, visibility: '+' as const, name: 'draw', params: '', returnType: 'void' }];
+    const plainHeight = nodeSize(classNode({ members })).height;
+    const annotatedHeight = nodeSize(classNode({ umlStereotype: 'Interface', members })).height;
+    expect(annotatedHeight).toBeGreaterThan(plainHeight);
+  });
+
+  it('grows box height proportionally to row count', () => {
+    const twoRows = entityNode({
+      attributes: [
+        { type: 'string', name: 'id', keys: ['PK'] },
+        { type: 'string', name: 'name', keys: [] },
+      ],
+    });
+    const fiveRows = entityNode({
+      id: 'ORDER',
+      label: 'ORDER',
+      attributes: [
+        { type: 'string', name: 'id', keys: ['PK'] },
+        { type: 'string', name: 'a', keys: [] },
+        { type: 'string', name: 'b', keys: [] },
+        { type: 'string', name: 'c', keys: [] },
+        { type: 'string', name: 'd', keys: [] },
+      ],
+    });
+
+    const twoRowsSize = nodeSize(twoRows);
+    const fiveRowsSize = nodeSize(fiveRows);
+    expect(fiveRowsSize.height).toBeGreaterThan(twoRowsSize.height);
+
+    // Row height is fixed per row (independent of row count), so three extra rows must add
+    // exactly three rows' worth of height -- not some unrelated amount.
+    const twoRowsLayout = tableNodeLayout(twoRows)!;
+    const perRowHeight = twoRowsLayout.rows[1].y - twoRowsLayout.rows[0].y;
+    expect(perRowHeight).toBeGreaterThan(0);
+    expect(fiveRowsSize.height - twoRowsSize.height).toBeCloseTo(perRowHeight * 3);
+
+    const svgTwo = svgForNode(twoRows);
+    const svgFive = svgForNode(fiveRows);
+    const heightOf = (svg: string) => {
+      const match = svg.match(/<rect x="0" y="0" width="[\d.]+" height="([\d.]+)"/);
+      expect(match, `no node box rect found in: ${svg}`).not.toBeNull();
+      return Number(match![1]);
+    };
+    expect(heightOf(svgFive)).toBeGreaterThan(heightOf(svgTwo));
+  });
+
+  it('renders an EMPTY attributes array identically to a node with the field entirely absent', () => {
+    const withEmptyArray = entityNode({ attributes: [] });
+    const { attributes: _omit, ...rest } = withEmptyArray;
+    const withFieldAbsent = entityNode(rest);
+    expect(svgForNode(withEmptyArray)).toBe(svgForNode(withFieldAbsent));
+  });
+
+  it('renders an EMPTY members array identically to a node with the field entirely absent', () => {
+    const withEmptyArray = classNode({ members: [] });
+    const { members: _omit, ...rest } = withEmptyArray;
+    const withFieldAbsent = classNode(rest);
+    expect(svgForNode(withEmptyArray)).toBe(svgForNode(withFieldAbsent));
+  });
+
+  it('a node with no attributes/members renders exactly like the pre-existing plain-label case: no divider, one centered <text>', () => {
+    const plain = classNode();
+    const svg = svgForNode(plain);
+    expect(svg).not.toMatch(/<line/);
+    expect(svg.match(/<text/g)?.length).toBe(1);
+    expect(svg).toContain('>Animal</text>');
+    expect(svg).toMatch(/dominant-baseline="middle"/);
+  });
+
+  it('an explicit node.size on a table node is respected, not overridden by the content-fit calculation', () => {
+    const node = entityNode({
+      size: { width: 500, height: 40 },
+      attributes: [
+        { type: 'string', name: 'id', keys: ['PK'] },
+        { type: 'string', name: 'name', keys: [] },
+        { type: 'string', name: 'email', keys: [] },
+      ],
+    });
+    expect(nodeSize(node)).toEqual({ width: 500, height: 40 });
+    const layout = tableNodeLayout(node);
+    expect(layout).not.toBeNull();
+    expect(layout!.width).toBe(500);
+    expect(layout!.height).toBe(40);
+  });
+
+  it('tableNodeLayout returns null for a node with no attributes/members', () => {
+    expect(tableNodeLayout(entityNode())).toBeNull();
+    expect(tableNodeLayout(entityNode({ attributes: [] }))).toBeNull();
+    expect(tableNodeLayout(classNode({ members: [] }))).toBeNull();
+  });
+
+  it('tableNodeLayout returns one row entry per attribute, in declaration order, with formatted text', () => {
+    const node = entityNode({
+      attributes: [
+        { type: 'string', name: 'id', keys: ['PK'] },
+        { type: 'int', name: 'age', keys: [] },
+      ],
+    });
+    const layout = tableNodeLayout(node);
+    expect(layout).not.toBeNull();
+    expect(layout!.rows.map((r) => r.text)).toEqual(['string id PK', 'int age']);
+    // Row y-positions strictly increase with declaration order (stacked downward).
+    expect(layout!.rows[1].y).toBeGreaterThan(layout!.rows[0].y);
+    // Divider sits above every row.
+    expect(layout!.dividerY).toBeLessThan(layout!.rows[0].y);
+  });
+
+  it('nodeSize prefers members over attributes only when a node (invalidly) has both -- attributes wins, matching tableRows\' own precedence', () => {
+    // Not a real-world case (ER and UML are mutually exclusive diagram families), but pins down
+    // tableRows' documented behavior rather than leaving it as an accidental implementation detail.
+    const node = entityNode({
+      attributes: [{ type: 'string', name: 'id', keys: [] }],
+      members: [{ kind: 'attribute', name: 'ignored' }],
+    });
+    const layout = tableNodeLayout(node);
+    expect(layout!.rows.map((r) => r.text)).toEqual(['string id']);
+  });
+});
+
+/**
+ * canvas-2ut: an ER relationship's crow's-foot cardinality tokens (`erSourceCardinality`/
+ * `erTargetCardinality`) were parsed but never drawn — every relationship rendered a generic
+ * arrowhead, indistinguishable from a plain flowchart edge (see erd-attributes.test.ts's own
+ * coverage of the parse/serialize half of this fix — the token also used to be silently
+ * normalized to the default `||--o{` on every re-save regardless of what was actually specified).
+ * This covers the render half: `cardinalityGlyphs`' own geometry, and that `renderToSvg` draws it
+ * INSTEAD OF the generic arrowhead for a cardinality-bearing edge, while leaving every other edge
+ * completely unaffected (the critical regression-safety case).
+ */
+describe('cardinalityGlyphs geometry (canvas-2ut)', () => {
+  const point = { x: 0, y: 0 };
+
+  it("produces a single perpendicular tick glyph for a '|' token, centered on point", () => {
+    const glyphs: CardinalityGlyph[] = cardinalityGlyphs(point, 1, 0, '|');
+    expect(glyphs).toHaveLength(1);
+    const [glyph] = glyphs;
+    expect(glyph.kind).toBe('tick');
+    if (glyph.kind !== 'tick') return;
+    // The first character of a token is drawn right at `point` (distance 0 along the direction) —
+    // the tick's own midpoint must coincide with it.
+    expect((glyph.x1 + glyph.x2) / 2).toBeCloseTo(point.x);
+    expect((glyph.y1 + glyph.y2) / 2).toBeCloseTo(point.y);
+    // Perpendicular to the direction vector (1, 0): the tick's own vector must have zero dot
+    // product with the direction.
+    const tickDx = glyph.x2 - glyph.x1;
+    const tickDy = glyph.y2 - glyph.y1;
+    expect(tickDx * 1 + tickDy * 0).toBeCloseTo(0);
+    // Non-degenerate: the tick actually has visible length.
+    expect(Math.hypot(tickDx, tickDy)).toBeGreaterThan(0);
+  });
+
+  it("produces a single hollow-circle glyph for an 'o' token, offset outward from point", () => {
+    const glyphs: CardinalityGlyph[] = cardinalityGlyphs(point, 1, 0, 'o');
+    expect(glyphs).toHaveLength(1);
+    const [glyph] = glyphs;
+    expect(glyph.kind).toBe('circle');
+    if (glyph.kind !== 'circle') return;
+    expect(glyph.r).toBeGreaterThan(0);
+    // The circle's own center sits its own radius away from `point` along the direction — offset
+    // outward, not drawn exactly on the node boundary.
+    const distFromPoint = Math.hypot(glyph.cx - point.x, glyph.cy - point.y);
+    expect(distFromPoint).toBeCloseTo(glyph.r);
+  });
+
+  it.each(['{', '}'])("produces a three-pronged fork glyph for a '%s' token", (ch) => {
+    const glyphs: CardinalityGlyph[] = cardinalityGlyphs(point, 1, 0, ch);
+    expect(glyphs).toHaveLength(1);
+    const [glyph] = glyphs;
+    expect(glyph.kind).toBe('fork');
+    if (glyph.kind !== 'fork') return;
+    expect(glyph.prongs).toHaveLength(3);
+    // The apex opens outward: it sits further from `point` than any of the three prong bases.
+    const apexDist = Math.hypot(glyph.apexX - point.x, glyph.apexY - point.y);
+    for (const prong of glyph.prongs) {
+      const prongDist = Math.hypot(prong.x - point.x, prong.y - point.y);
+      expect(apexDist).toBeGreaterThan(prongDist);
+    }
+    // A real spread, not three coincident points collapsed to one.
+    const distinctPoints = new Set(glyph.prongs.map((p) => `${p.x.toFixed(3)},${p.y.toFixed(3)}`));
+    expect(distinctPoints.size).toBe(3);
+  });
+
+  it('reads a two-character token nearest-node-first: index 0 sits closer to point than index 1', () => {
+    const glyphs: CardinalityGlyph[] = cardinalityGlyphs(point, 1, 0, '|o');
+    expect(glyphs).toHaveLength(2);
+    const [tick, circle] = glyphs;
+    expect(tick.kind).toBe('tick');
+    expect(circle.kind).toBe('circle');
+    if (tick.kind !== 'tick' || circle.kind !== 'circle') return;
+    const tickDist = Math.hypot((tick.x1 + tick.x2) / 2 - point.x, (tick.y1 + tick.y2) / 2 - point.y);
+    const circleDist = Math.hypot(circle.cx - point.x, circle.cy - point.y);
+    expect(circleDist).toBeGreaterThan(tickDist);
+  });
+
+  it('does not overlap two glyphs of a token: the second glyph starts strictly beyond the first', () => {
+    const glyphs: CardinalityGlyph[] = cardinalityGlyphs(point, 1, 0, '|{');
+    expect(glyphs).toHaveLength(2);
+    const [tick, fork] = glyphs;
+    if (tick.kind !== 'tick' || fork.kind !== 'fork') throw new Error('unexpected glyph kinds');
+    const tickDist = Math.hypot((tick.x1 + tick.x2) / 2 - point.x, (tick.y1 + tick.y2) / 2 - point.y);
+    const forkBaseDist = Math.hypot(fork.prongs[0].x - point.x, fork.prongs[0].y - point.y);
+    expect(forkBaseDist).toBeGreaterThan(tickDist);
+  });
+
+  it('ignores an unrecognized character (defensive only -- erd.ts already constrains real input)', () => {
+    expect(cardinalityGlyphs(point, 1, 0, 'x')).toEqual([]);
+  });
+});
+
+describe('renderToSvg ER cardinality glyphs replace the generic arrowhead (canvas-2ut)', () => {
+  function erModel(edge: Partial<DiagramModel['edges'][number]>): DiagramModel {
+    return {
+      diagramTypeId: 'erd',
+      nodes: [
+        { id: 'CUSTOMER', label: 'CUSTOMER', shape: 'rectangle', position: { x: 0, y: 0 } },
+        { id: 'ORDER', label: 'ORDER', shape: 'rectangle', position: { x: 300, y: 0 } },
+      ],
+      edges: [{ id: 'e1', sourceId: 'CUSTOMER', targetId: 'ORDER', ...edge }],
+      containers: [],
+    };
+  }
+
+  it('draws a one-to-many (||--o{) relationship with no arrowhead marker and the correct glyph primitives', () => {
+    const svg = renderToSvg(erModel({ erSourceCardinality: '||', erTargetCardinality: 'o{' }));
+
+    // No generic arrowhead at all -- standard ERD notation has none.
+    expect(svg).not.toMatch(/marker-end/);
+    expect(svg).not.toMatch(/marker-start/);
+
+    // Source '||': two perpendicular ticks, no circle/fork. Target 'o{' is read nearest-node-first
+    // as written in the DSL ('o' nearest the "--", '{' nearest ORDER) -- reversed to '{o' before
+    // being drawn from the ORDER end, giving a fork (3 prong lines) then a circle.
+    expect(svg.match(/<circle/g)?.length).toBe(1);
+    // 1 main connector <line> + 2 source ticks + 3 target-fork prongs = 6.
+    expect(svg.match(/<line/g)?.length).toBe(6);
+  });
+
+  it('draws an exactly-one-to-exactly-one (||--||) relationship as four ticks and no circle/fork', () => {
+    const svg = renderToSvg(erModel({ erSourceCardinality: '||', erTargetCardinality: '||' }));
+    expect(svg).not.toMatch(/marker-end/);
+    expect(svg.match(/<circle/g)).toBeNull();
+    // 1 main connector line + 2 source ticks + 2 target ticks = 5.
+    expect(svg.match(/<line/g)?.length).toBe(5);
+  });
+
+  it('applies the dotted (non-identifying) line style alongside the cardinality glyphs, not instead of them', () => {
+    const svg = renderToSvg(
+      erModel({ erSourceCardinality: '}|', erTargetCardinality: '|{', lineStyle: 'dotted' }),
+    );
+    // Dashed treatment on the main connector line, exactly like any other dotted edge.
+    expect(svg).toMatch(/<line[^>]*stroke-dasharray="[^"]+"/);
+    // Still no generic arrowhead.
+    expect(svg).not.toMatch(/marker-end/);
+    // Source '}|' (fork + tick) and target '|{' reversed to '{|' (fork + tick): 3 + 1 + 3 + 1 = 8
+    // glyph lines, plus the 1 main connector line = 9. No circles in either token.
+    expect(svg.match(/<circle/g)).toBeNull();
+    expect(svg.match(/<line/g)?.length).toBe(9);
+  });
+
+  it('renders an edge with NEITHER cardinality field set exactly as before this fix: plain arrowhead, no glyphs', () => {
+    const svg = renderToSvg(erModel({}));
+    expect(svg).toMatch(/<line[^>]*marker-end="url\(#arrowhead\)"/);
+    expect(svg).not.toMatch(/marker-start/);
+    expect(svg.match(/<line/g)?.length).toBe(1);
+    expect(svg.match(/<circle/g)).toBeNull();
+  });
+
+  it('a plain flowchart edge (non-ERD model) is completely unaffected: same plain-arrowhead output as always', () => {
+    const svg = renderToSvg({
+      diagramTypeId: 'flowchart',
+      nodes: [
+        { id: 'A', label: 'A', shape: 'rectangle', position: { x: 0, y: 0 } },
+        { id: 'B', label: 'B', shape: 'rectangle', position: { x: 300, y: 0 } },
+      ],
+      edges: [{ id: 'e1', sourceId: 'A', targetId: 'B' }],
+      containers: [],
+    });
+    expect(svg).toMatch(/<line[^>]*marker-end="url\(#arrowhead\)"/);
+    expect(svg.match(/<line/g)?.length).toBe(1);
+    expect(svg.match(/<circle/g)).toBeNull();
+  });
+});
+
+describe('umlEndpointGlyph geometry (canvas-7vs.3)', () => {
+  const point = { x: 100, y: 100 };
+
+  it('triangle-hollow: a closed 3-point shape, unfilled, tip touching the node', () => {
+    const glyph = umlEndpointGlyph(point, 1, 0, 'triangle-hollow');
+    expect(glyph.kind).toBe('triangle');
+    if (glyph.kind !== 'triangle') return;
+    expect(glyph.tip).toEqual(point);
+    expect(glyph.filled).toBe(false);
+    expect(glyph.baseLeft.x).toBeGreaterThan(point.x);
+    expect(glyph.baseLeft.y).not.toBe(glyph.baseRight.y);
+  });
+
+  it('diamond-filled vs diamond-hollow differ only in `filled`, not geometry', () => {
+    const filled = umlEndpointGlyph(point, 1, 0, 'diamond-filled');
+    const hollow = umlEndpointGlyph(point, 1, 0, 'diamond-hollow');
+    expect(filled.kind).toBe('diamond');
+    expect(hollow.kind).toBe('diamond');
+    if (filled.kind !== 'diamond' || hollow.kind !== 'diamond') return;
+    expect(filled.filled).toBe(true);
+    expect(hollow.filled).toBe(false);
+    expect(filled.near).toEqual(hollow.near);
+    expect(filled.far).toEqual(hollow.far);
+  });
+
+  it('arrow-open: two wing points diverging from the tip, no closing third side (not a closed polygon)', () => {
+    const glyph = umlEndpointGlyph(point, 1, 0, 'arrow-open');
+    expect(glyph.kind).toBe('open-arrow');
+    if (glyph.kind !== 'open-arrow') return;
+    expect(glyph.tip).toEqual(point);
+    expect(glyph.wingLeft.y).not.toBe(glyph.wingRight.y);
+  });
+
+  it('circle: a small hollow circle offset from the node along the direction vector', () => {
+    const glyph = umlEndpointGlyph(point, 1, 0, 'circle');
+    expect(glyph.kind).toBe('circle');
+    if (glyph.kind !== 'circle') return;
+    expect(glyph.cx).toBeGreaterThan(point.x);
+    expect(glyph.cy).toBe(point.y);
+    expect(glyph.r).toBeGreaterThan(0);
+  });
+});
+
+describe('renderToSvg UML relationship markers replace the generic arrowhead (canvas-7vs.3)', () => {
+  function umlModel(edge: Partial<DiagramModel['edges'][number]>): DiagramModel {
+    return {
+      diagramTypeId: 'uml',
+      nodes: [
+        { id: 'A', label: 'A', shape: 'rectangle', position: { x: 0, y: 0 } },
+        { id: 'B', label: 'B', shape: 'rectangle', position: { x: 300, y: 0 } },
+      ],
+      edges: [{ id: 'e1', sourceId: 'A', targetId: 'B', ...edge }],
+      containers: [],
+    };
+  }
+
+  it('inheritance: a hollow (unfilled) triangle at the SOURCE end, solid line', () => {
+    const svg = renderToSvg(umlModel({ umlRelationKind: 'inheritance' }));
+    expect(svg).not.toMatch(/marker-end|marker-start/);
+    expect(svg).not.toMatch(/stroke-dasharray/);
+    const polygon = svg.match(/<polygon points="([^"]+)" fill="([^"]+)"/);
+    expect(polygon).not.toBeNull();
+    expect(polygon![2]).toBe('white');
+    // Tip of the triangle is the first point in the polygon -- must be the SOURCE-side clipped
+    // endpoint (x=140, the right edge of A's 140-wide box), not the target side.
+    expect(polygon![1].startsWith('140,')).toBe(true);
+  });
+
+  it('realization: a hollow triangle at the TARGET end, DASHED line', () => {
+    const svg = renderToSvg(umlModel({ umlRelationKind: 'realization' }));
+    expect(svg).toMatch(/stroke-dasharray/);
+    const polygon = svg.match(/<polygon points="([^"]+)" fill="([^"]+)"/);
+    expect(polygon).not.toBeNull();
+    expect(polygon![2]).toBe('white');
+    // Tip must be the TARGET-side clipped endpoint (x=300, the left edge of B's box).
+    expect(polygon![1].startsWith('300,')).toBe(true);
+  });
+
+  it('composition: a FILLED diamond at the source end', () => {
+    const svg = renderToSvg(umlModel({ umlRelationKind: 'composition' }));
+    const polygon = svg.match(/<polygon points="([^"]+)" fill="([^"]+)" stroke="(#333333)"/);
+    expect(polygon).not.toBeNull();
+    expect(polygon![2]).toBe('#333333'); // filled with the stroke color, not white
+  });
+
+  it('aggregation: a hollow diamond at the source end', () => {
+    const svg = renderToSvg(umlModel({ umlRelationKind: 'aggregation' }));
+    const polygon = svg.match(/<polygon points="([^"]+)" fill="([^"]+)"/);
+    expect(polygon![2]).toBe('white');
+  });
+
+  it('association: an open arrow (two <line> segments, no <polygon>) at the target end, solid', () => {
+    const svg = renderToSvg(umlModel({ umlRelationKind: 'association' }));
+    expect(svg).not.toMatch(/<polygon/);
+    expect(svg).not.toMatch(/stroke-dasharray/);
+    // 1 main connector line + 2 open-arrow wing lines = 3.
+    expect(svg.match(/<line/g)?.length).toBe(3);
+  });
+
+  it('dependency: an open arrow at the target end, DASHED', () => {
+    const svg = renderToSvg(umlModel({ umlRelationKind: 'dependency' }));
+    expect(svg).not.toMatch(/<polygon/);
+    expect(svg).toMatch(/stroke-dasharray/);
+  });
+
+  it('link-solid: a plain line, no marker of any kind', () => {
+    const svg = renderToSvg(umlModel({ umlRelationKind: 'link-solid' }));
+    expect(svg).not.toMatch(/<polygon|<circle/);
+    expect(svg).not.toMatch(/stroke-dasharray/);
+    expect(svg.match(/<line/g)?.length).toBe(1);
+  });
+
+  it('link-dashed: a plain dashed line, no marker', () => {
+    const svg = renderToSvg(umlModel({ umlRelationKind: 'link-dashed' }));
+    expect(svg).not.toMatch(/<polygon|<circle/);
+    expect(svg).toMatch(/stroke-dasharray/);
+  });
+
+  it.each(['lollipop-source', 'lollipop-target'] as const)('%s: a small circle at the named end', (kind) => {
+    const svg = renderToSvg(umlModel({ umlRelationKind: kind }));
+    expect(svg.match(/<circle/g)?.length).toBe(1);
+  });
+
+  it('an edge with no umlRelationKind renders exactly as before this fix: plain arrowhead, no glyphs (no regression)', () => {
+    const svg = renderToSvg(umlModel({}));
+    expect(svg).toMatch(/<line[^>]*marker-end="url\(#arrowhead\)"/);
+    expect(svg).not.toMatch(/<polygon|<circle/);
+  });
+});
+
+describe('renderToSvg UML relationship cardinality labels (canvas-7vs.5)', () => {
+  function umlModel(edge: Partial<DiagramModel['edges'][number]>): DiagramModel {
+    return {
+      diagramTypeId: 'uml',
+      nodes: [
+        { id: 'A', label: 'A', shape: 'rectangle', position: { x: 0, y: 0 } },
+        { id: 'B', label: 'B', shape: 'rectangle', position: { x: 300, y: 0 } },
+      ],
+      edges: [{ id: 'e1', sourceId: 'A', targetId: 'B', ...edge }],
+      containers: [],
+    };
+  }
+
+  it('renders sourceCardinality and targetCardinality as separate <text> elements', () => {
+    const svg = renderToSvg(umlModel({ umlRelationKind: 'association', sourceCardinality: '1', targetCardinality: '0..*' }));
+    expect(svg).toContain('>1<');
+    expect(svg).toContain('>0..*<');
+  });
+
+  it('renders a cardinality label even with no umlRelationKind set (a plain association can still carry one)', () => {
+    const svg = renderToSvg(umlModel({ sourceCardinality: '1' }));
+    expect(svg).toContain('>1<');
+  });
+
+  it('an edge with neither field renders no stray cardinality text (no regression)', () => {
+    const svg = renderToSvg(umlModel({ umlRelationKind: 'association' }));
+    expect(svg).not.toMatch(/font-size="11"/);
+  });
+});
+
+describe('renderToSvg architecture edge anchor hints and {group} escalation (canvas-7vs.6/.7)', () => {
+  function archModel(overrides: Partial<DiagramModel> = {}): DiagramModel {
+    return {
+      diagramTypeId: 'cloud-infrastructure',
+      nodes: [
+        { id: 'left', label: 'Left', shape: 'rectangle', position: { x: 40, y: 40 } },
+        { id: 'right', label: 'Right', shape: 'rectangle', position: { x: 220, y: 40 } },
+      ],
+      edges: [{ id: 'e1', sourceId: 'left', targetId: 'right' }],
+      containers: [],
+      ...overrides,
+    };
+  }
+
+  it('an explicit sourceAnchor/targetAnchor pins each endpoint to that literal side, not the direction-toward-the-other-node default', () => {
+    const withoutAnchor = renderToSvg(archModel());
+    const withAnchor = renderToSvg(archModel({ edges: [{ id: 'e1', sourceId: 'left', targetId: 'right', sourceAnchor: 'T', targetAnchor: 'T' }] }));
+    // Same two nodes, same positions -- only the anchor hint differs, so the line geometry must.
+    const lineOf = (svg: string) => svg.match(/<line x1="([\d.]+)" y1="([\d.]+)" x2="([\d.]+)" y2="([\d.]+)"/)!;
+    expect(lineOf(withAnchor)).not.toEqual(lineOf(withoutAnchor));
+    // 'T' on a 140x60 node at (40,40): top-center is (110, 40). Node size defaults to 140x60.
+    const [, x1, y1] = lineOf(withAnchor);
+    expect(Number(x1)).toBeCloseTo(40 + 70);
+    expect(Number(y1)).toBeCloseTo(40);
+  });
+
+  it('{group} (sourceIsGroup) escalates the clip point to the parent container boundary, not the node\'s own', () => {
+    const model = archModel({
+      nodes: [
+        { id: 'a', label: 'A', shape: 'rectangle', position: { x: 400, y: 40 }, containerId: 'g1' },
+        { id: 'right', label: 'Right', shape: 'rectangle', position: { x: 700, y: 40 } },
+      ],
+      containers: [{ id: 'g1', label: 'Group', position: { x: 40, y: 40 }, size: { width: 300, height: 200 } }],
+      edges: [{ id: 'e1', sourceId: 'a', targetId: 'right', sourceIsGroup: true, sourceAnchor: 'R' }],
+    });
+    const svg = renderToSvg(model);
+    const line = svg.match(/<line x1="([\d.]+)" y1="([\d.]+)"/)!;
+    // g1 spans x:[40,340], y:[40,240] -- its own right edge is x=340, y=140 (center), NOT node
+    // a's own box (which sits at x=400-508, far to the right, entirely outside g1).
+    expect(Number(line[1])).toBeCloseTo(340);
+    expect(Number(line[2])).toBeCloseTo(140);
+  });
+
+  it('an edge with no anchor/group fields renders exactly as before (no regression)', () => {
+    const svg = renderToSvg(archModel());
+    expect(svg).toContain('<line x1="180" y1="70" x2="220" y2="70"');
   });
 });

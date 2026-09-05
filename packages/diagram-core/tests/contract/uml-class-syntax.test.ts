@@ -740,3 +740,27 @@ describe('uml parser: bracketed namespace display label (jmuir-dtu.2.1)', () => 
     expect(dsl).not.toContain('["Plain"]');
   });
 });
+
+// canvas-vtg: 'title <text>' now recognized outside C4 too (canvas-79b introduced it there
+// first) -- previously hard-errored the whole parse for every one of the other 5 families.
+describe('uml parser: "title" directive (canvas-vtg)', () => {
+  it('parses a top-level "title" line and round-trips it through serialize -> reparse', () => {
+    const result = parseUml('classDiagram\ntitle My Diagram\nclass Animal\n');
+    expect(isParseSuccess(result)).toBe(true);
+    if (!isParseSuccess(result)) return;
+    expect(result.model.title).toBe('My Diagram');
+
+    const reparsed = parseUml(serializeUml(result.model));
+    expect(isParseSuccess(reparsed)).toBe(true);
+    if (!isParseSuccess(reparsed)) return;
+    expect(reparsed.model.title).toBe('My Diagram');
+  });
+
+  it('a model with no title omits the "title" line entirely on serialize (no regression)', () => {
+    const result = parseUml('classDiagram\nclass Animal\n');
+    expect(isParseSuccess(result)).toBe(true);
+    if (!isParseSuccess(result)) return;
+    expect(result.model.title).toBeUndefined();
+    expect(serializeUml(result.model)).not.toContain('title');
+  });
+});

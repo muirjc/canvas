@@ -801,3 +801,27 @@ describe('sequence parser: actor keyword, arrow tokens, activation, rect/box, au
     });
   });
 });
+
+// canvas-vtg: 'title <text>' now recognized outside C4 too (canvas-79b introduced it there
+// first) -- previously hard-errored the whole parse for every one of the other 5 families.
+describe('sequence parser: "title" directive (canvas-vtg)', () => {
+  it('parses a top-level "title" line and round-trips it through serialize -> reparse', () => {
+    const result = parseSequence('sequenceDiagram\ntitle My Diagram\nparticipant Alice\n');
+    expect(isParseSuccess(result)).toBe(true);
+    if (!isParseSuccess(result)) return;
+    expect(result.model.title).toBe('My Diagram');
+
+    const reparsed = parseSequence(serializeSequence(result.model));
+    expect(isParseSuccess(reparsed)).toBe(true);
+    if (!isParseSuccess(reparsed)) return;
+    expect(reparsed.model.title).toBe('My Diagram');
+  });
+
+  it('a model with no title omits the "title" line entirely on serialize (no regression)', () => {
+    const result = parseSequence('sequenceDiagram\nparticipant Alice\n');
+    expect(isParseSuccess(result)).toBe(true);
+    if (!isParseSuccess(result)) return;
+    expect(result.model.title).toBeUndefined();
+    expect(serializeSequence(result.model)).not.toContain('title');
+  });
+});
