@@ -2,7 +2,7 @@ import Fastify, { type FastifyError, type FastifyInstance } from 'fastify';
 import cors from '@fastify/cors';
 import type { LanguageModel } from 'ai';
 import { loadConfig, type AppConfig } from './config.js';
-import { registerSession } from './auth/session.js';
+import { registerSession, registerSessionInfoRoutes } from './auth/session.js';
 import { registerOidcRoutes } from './auth/oidc.js';
 import { registerIdpProxyRoutes } from './auth/idp-proxy.routes.js';
 import { registerLocalAuthRoutes } from './auth/local.js';
@@ -64,6 +64,9 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
     reply.header('Referrer-Policy', 'same-origin');
   });
   await registerSession(app, config);
+  // /auth/me and /auth/logout are needed regardless of login method (local password or SSO), so
+  // they're registered unconditionally -- see registerSessionInfoRoutes's own doc comment.
+  await registerSessionInfoRoutes(app);
   await registerOidcRoutes(app, config);
   await registerIdpProxyRoutes(app, config);
   if (config.allowLocalAuth) {

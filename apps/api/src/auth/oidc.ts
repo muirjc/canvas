@@ -115,7 +115,13 @@ export async function registerOidcRoutes(app: FastifyInstance, config: AppConfig
   // frontend has a public, unauthenticated way to know whether to show a "Sign in with SSO"
   // link at all, rather than always showing one that 404s when unset. No sensitive data —
   // whether SSO is configured isn't a secret the way OIDC_CLIENT_SECRET is.
-  app.get('/auth/config', async () => ({ oidcEnabled }));
+  //
+  // canvas-cpa: localAuthEnabled likewise tells the frontend, before the user ever submits
+  // anything, whether POST /auth/local/login exists at all -- it's gated behind
+  // config.allowLocalAuth exactly like this route registration is gated behind oidcEnabled, and
+  // an SSO-only deployment (the Azure default, canvas-ycu.1) would otherwise only find out via a
+  // raw 404 after submitting the password form.
+  app.get('/auth/config', async () => ({ oidcEnabled, localAuthEnabled: config.allowLocalAuth }));
 
   if (!oidcEnabled) {
     app.log.info('OIDC not configured (OIDC_ISSUER_URL/CLIENT_ID/REDIRECT_URI unset) — SSO routes disabled');
