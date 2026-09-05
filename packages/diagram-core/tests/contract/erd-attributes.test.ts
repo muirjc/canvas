@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { parseErd, serializeErd } from '../../src/dsl/erd.js';
 import { isParseSuccess } from '../../src/dsl/types.js';
-import type { DiagramModel } from '../../src/model/diagram-model.js';
+import { createEmptyDiagramModel, type DiagramModel } from '../../src/model/diagram-model.js';
 
 /**
  * Feature 003, User Story 2: ER diagrams must support entity attribute blocks
@@ -42,14 +42,37 @@ describe('erd parser: attribute blocks', () => {
     }
   });
 
-  it('does not fail on a trailing quoted comment', () => {
+  // Previously discarded entirely (asserted as "doesn't crash," never that the comment survives)
+  // — Mermaid's own docs describe this as descriptive metadata that "does not impact the
+  // rendering of the diagram," but it must still round-trip like any other authored content
+  // (FR-003). Fixed alongside canvas-2ut's cardinality fix.
+  it('captures a trailing quoted comment and round-trips it through export and re-import', () => {
     const dsl = 'erDiagram\n  CUSTOMER {\n    string id PK "the primary key"\n  }\n';
     const result = parseErd(dsl);
     expect(isParseSuccess(result)).toBe(true);
-    if (isParseSuccess(result)) {
-      const customer = result.model.nodes.find((n) => n.id === 'CUSTOMER')!;
-      expect(customer.attributes).toEqual([{ type: 'string', name: 'id', keys: ['PK'] }]);
-    }
+    if (!isParseSuccess(result)) return;
+    const customer = result.model.nodes.find((n) => n.id === 'CUSTOMER')!;
+    expect(customer.attributes).toEqual([{ type: 'string', name: 'id', keys: ['PK'], comment: 'the primary key' }]);
+
+    const serialized = serializeErd(result.model);
+    expect(serialized).toContain('string id PK "the primary key"');
+
+    const reparsed = parseErd(serialized);
+    expect(isParseSuccess(reparsed)).toBe(true);
+    if (!isParseSuccess(reparsed)) return;
+    expect(reparsed.model.nodes.find((n) => n.id === 'CUSTOMER')!.attributes).toEqual([
+      { type: 'string', name: 'id', keys: ['PK'], comment: 'the primary key' },
+    ]);
+  });
+
+  it('an attribute with no comment round-trips with no comment field at all (no regression)', () => {
+    const dsl = 'erDiagram\n  CUSTOMER {\n    string id PK\n  }\n';
+    const result = parseErd(dsl);
+    expect(isParseSuccess(result)).toBe(true);
+    if (!isParseSuccess(result)) return;
+    const customer = result.model.nodes.find((n) => n.id === 'CUSTOMER')!;
+    expect(customer.attributes![0].comment).toBeUndefined();
+    expect(serializeErd(result.model)).toContain('string id PK\n');
   });
 
   it('round-trips attribute type/name/keys through export and re-import', () => {
@@ -470,21 +493,122 @@ describe('erd parser/serializer: combined round-trip', () => {
 });
 
 /**
- * Pre-existing, documented scope limitation (see parseErd's own doc comment): DiagramEdge has no
- * cardinality field, so serialization always normalizes to the common one-to-many token
- * (`||--o{`) regardless of the cardinality notation originally imported. Not a bug to fix here —
- * this test only confirms the documented behavior still holds.
+ * canvas-2ut: previously a documented scope limitation — DiagramEdge had no cardinality field at
+ * all, so serialization always normalized to the common one-to-many token (`||--o{`) regardless
+ * of what was actually imported, and neither renderer drew real crow's-foot notation (both a
+ * real data-loss bug on re-save and a reported live rendering bug: "the diagram is rendering
+ * arrows and it should be rendering crows feet notation"). Now fixed: the real cardinality
+ * tokens round-trip exactly via erSourceCardinality/erTargetCardinality.
  */
-describe('erd parser/serializer: cardinality normalization (documented limitation)', () => {
-  it('normalizes a non-default imported cardinality to the default one-to-many token on serialize', () => {
-    const dsl = 'erDiagram\n  CUSTOMER ||--|| ORDER : owns\n';
+describe('erd parser/serializer: cardinality round-trips exactly (canvas-2ut)', () => {
+  it('captures the real cardinality token on each side, not just the default', () => {
+    const dsl = 'erDiagram\n  CUSTOMER ||--o{ ORDER : places\n';
     const result = parseErd(dsl);
     expect(isParseSuccess(result)).toBe(true);
     if (!isParseSuccess(result)) return;
     expect(result.model.edges).toHaveLength(1);
+    expect(result.model.edges[0]).toMatchObject({ erSourceCardinality: '||', erTargetCardinality: 'o{' });
+    expect(result.model.edges[0].lineStyle).toBeUndefined();
+  });
+
+  it('round-trips a non-default cardinality (exactly-one-to-exactly-one) through serialize -> reparse, unlike before', () => {
+    const dsl = 'erDiagram\n  CUSTOMER ||--|| ORDER : owns\n';
+    const result = parseErd(dsl);
+    expect(isParseSuccess(result)).toBe(true);
+    if (!isParseSuccess(result)) return;
+    expect(result.model.edges[0]).toMatchObject({ erSourceCardinality: '||', erTargetCardinality: '||' });
 
     const serialized = serializeErd(result.model);
-    expect(serialized).toContain('CUSTOMER ||--o{ ORDER : owns');
-    expect(serialized).not.toContain('||--||');
+    expect(serialized).toContain('CUSTOMER ||--|| ORDER : owns');
+    expect(serialized).not.toContain('||--o{');
+
+    const reparsed = parseErd(serialized);
+    expect(isParseSuccess(reparsed)).toBe(true);
+    if (!isParseSuccess(reparsed)) return;
+    expect(reparsed.model.edges[0]).toMatchObject({ erSourceCardinality: '||', erTargetCardinality: '||' });
+  });
+
+  it('round-trips a many-to-many relationship with the dashed (non-identifying) line style', () => {
+    const dsl = 'erDiagram\n  CUSTOMER }|..|{ ORDER : uses\n';
+    const result = parseErd(dsl);
+    expect(isParseSuccess(result)).toBe(true);
+    if (!isParseSuccess(result)) return;
+    expect(result.model.edges[0]).toMatchObject({
+      erSourceCardinality: '}|',
+      erTargetCardinality: '|{',
+      lineStyle: 'dotted',
+    });
+
+    const serialized = serializeErd(result.model);
+    expect(serialized).toContain('CUSTOMER }|..|{ ORDER : uses');
+  });
+
+  it('falls back to the default one-to-many token for an edge with no ER cardinality set (e.g. added via the canvas UI)', () => {
+    const model = createEmptyDiagramModel('erd');
+    model.nodes.push(
+      { id: 'A', label: 'A', shape: 'rectangle', position: { x: 0, y: 0 } },
+      { id: 'B', label: 'B', shape: 'rectangle', position: { x: 200, y: 0 } },
+    );
+    model.edges.push({ id: 'e1', sourceId: 'A', targetId: 'B' });
+
+    const serialized = serializeErd(model);
+    expect(serialized).toContain('A ||--o{ B :');
+  });
+});
+
+/**
+ * A relationship label may be quoted in real Mermaid (needed if it contains a comma, or just
+ * written that way) — previously the literal quote characters were kept as part of the label
+ * text and would render visibly, unlike every other quoted-string value elsewhere in this
+ * codebase (c4.ts's own macro-arg parsing strips its quotes the same way). Found and fixed
+ * alongside canvas-2ut's cardinality fix.
+ */
+describe('erd parser: quoted relationship labels', () => {
+  it('strips surrounding quotes from a fully-quoted label', () => {
+    const dsl = 'erDiagram\n  CUSTOMER ||--o{ ORDER : "places, urgently"\n';
+    const result = parseErd(dsl);
+    expect(isParseSuccess(result)).toBe(true);
+    if (!isParseSuccess(result)) return;
+    expect(result.model.edges[0].label).toBe('places, urgently');
+  });
+
+  it('leaves an unquoted label exactly as written (no regression)', () => {
+    const dsl = 'erDiagram\n  CUSTOMER ||--o{ ORDER : places (many)\n';
+    const result = parseErd(dsl);
+    expect(isParseSuccess(result)).toBe(true);
+    if (!isParseSuccess(result)) return;
+    expect(result.model.edges[0].label).toBe('places (many)');
+  });
+
+  it('leaves a label with an internal, non-wrapping quote untouched', () => {
+    const dsl = 'erDiagram\n  CUSTOMER ||--o{ ORDER : has a "special" status\n';
+    const result = parseErd(dsl);
+    expect(isParseSuccess(result)).toBe(true);
+    if (!isParseSuccess(result)) return;
+    expect(result.model.edges[0].label).toBe('has a "special" status');
+  });
+});
+
+// canvas-vtg: 'title <text>' now recognized outside C4 too (canvas-79b introduced it there
+// first) -- previously hard-errored the whole parse for every one of the other 5 families.
+describe('erd parser: "title" directive (canvas-vtg)', () => {
+  it('parses a top-level "title" line and round-trips it through serialize -> reparse', () => {
+    const result = parseErd('erDiagram\n  title My Diagram\n  CUSTOMER\n');
+    expect(isParseSuccess(result)).toBe(true);
+    if (!isParseSuccess(result)) return;
+    expect(result.model.title).toBe('My Diagram');
+
+    const reparsed = parseErd(serializeErd(result.model));
+    expect(isParseSuccess(reparsed)).toBe(true);
+    if (!isParseSuccess(reparsed)) return;
+    expect(reparsed.model.title).toBe('My Diagram');
+  });
+
+  it('a model with no title omits the "title" line entirely on serialize (no regression)', () => {
+    const result = parseErd('erDiagram\n  CUSTOMER\n');
+    expect(isParseSuccess(result)).toBe(true);
+    if (!isParseSuccess(result)) return;
+    expect(result.model.title).toBeUndefined();
+    expect(serializeErd(result.model)).not.toContain('title');
   });
 });

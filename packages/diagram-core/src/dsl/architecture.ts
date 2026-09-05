@@ -6,6 +6,7 @@ const ID = String.raw`[A-Za-z0-9_]+`;
 
 // group groupId(icon)[Title]
 const GROUP_PATTERN = new RegExp(`^group\\s+(${ID})\\(([^)]*)\\)\\[(.+)\\]$`);
+const TITLE_PATTERN = /^title\s+(.+)$/;
 // service serviceId(icon)[Title] in groupId
 const SERVICE_PATTERN = new RegExp(`^service\\s+(${ID})\\(([^)]*)\\)\\[(.+?)\\](?:\\s+in\\s+(${ID}))?$`);
 // jmuir-dtu.5: junction junctionId (in groupId)? -- "a special type of node which acts as a
@@ -66,6 +67,7 @@ export function parseArchitecture(dsl: string): ParseResult {
   const alignments: { axis: 'row' | 'column'; ids: string[] }[] = [];
   let headerSeen = false;
   let edgeCounter = 0;
+  let title: string | undefined;
 
   for (let i = 0; i < lines.length; i += 1) {
     const rawLine = lines[i];
@@ -79,6 +81,14 @@ export function parseArchitecture(dsl: string): ParseResult {
         continue;
       }
       errors.push({ line: i + 1, content: rawLine, message: 'Expected "architecture-beta" header line' });
+      continue;
+    }
+
+    // canvas-vtg: mirrors c4.ts's own TITLE_PATTERN/handling exactly (canvas-79b introduced it
+    // there first) -- a real, cross-family Mermaid top-level statement.
+    const titleMatch = line.match(TITLE_PATTERN);
+    if (titleMatch) {
+      title = titleMatch[1];
       continue;
     }
 
@@ -162,6 +172,7 @@ export function parseArchitecture(dsl: string): ParseResult {
   model.containers = Array.from(containersById.values());
   model.edges = edges;
   if (alignments.length > 0) model.architectureAlignments = alignments;
+  model.title = title;
   return { model };
 }
 
@@ -179,6 +190,7 @@ export function serializeArchitecture(model: DiagramModel): string {
   };
 
   const lines: string[] = ['architecture-beta'];
+  if (model.title) lines.push(`title ${model.title}`);
   for (const group of model.containers) {
     lines.push(`group ${group.id}(cloud)[${group.label}]`);
   }

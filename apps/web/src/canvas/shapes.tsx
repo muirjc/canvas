@@ -1,4 +1,4 @@
-import { iconNodeSize, type DiagramNode, type NodeShape } from '@canvas/diagram-core';
+import { iconNodeSize, tableNodeLayout, type DiagramNode, type NodeShape } from '@canvas/diagram-core';
 
 export const DEFAULT_NODE_SIZE = { width: 140, height: 60 };
 
@@ -6,8 +6,15 @@ export const DEFAULT_NODE_SIZE = { width: 140, height: 60 };
 // caption) instead of the flat text-node default — `iconNodeSize` is the single shared
 // calculation (packages/diagram-core/src/render/svg-renderer.ts), reused here rather than
 // re-derived, so the canvas and the export renderer can't disagree about an icon node's size.
+// canvas-x66: same precedent for a node with attribute/member rows (ER/UML) — `tableNodeLayout`
+// already computes the content-fit size as part of its own layout, so its `width`/`height` are
+// reused here rather than adding a third size calculation next to `iconNodeSize`'s.
 export function nodeSize(node: DiagramNode): { width: number; height: number } {
   if (node.shape === 'icon' && !node.size) return iconNodeSize(node);
+  if (!node.size) {
+    const tableLayout = tableNodeLayout(node);
+    if (tableLayout) return { width: tableLayout.width, height: tableLayout.height };
+  }
   return node.size ?? DEFAULT_NODE_SIZE;
 }
 

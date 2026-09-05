@@ -18,10 +18,19 @@ import {
   updateNodeStyle,
   splitLabelLines,
   clipEdgeEndpoint,
+  clipToAnchorSide,
+  architectureEndpointBox,
   computeBounds,
   sanitizeSvgFragment,
   autoLayout,
   iconNodeLayout,
+  tableNodeLayout,
+  cardinalityGlyphs,
+  umlEndpointGlyph,
+  umlEndpointMarkers,
+  umlCardinalityLabelPosition,
+  type CardinalityGlyph,
+  type UmlEndpointGlyph,
   type DiagramContainer,
   type DiagramModel,
   type DiagramNode,
@@ -116,6 +125,68 @@ function renderLabelLines(
           {line}
         </tspan>
       ))}
+    </text>
+  );
+}
+
+// canvas-2ut: JSX rendering for cardinalityGlyphs' geometry — mirrors svg-renderer.ts's own
+// renderCardinalityGlyph exactly (SC-004), just as `<line>`/`<circle>` JSX instead of raw SVG
+// strings.
+function renderCardinalityGlyphs(glyphs: CardinalityGlyph[], stroke: string): JSX.Element[] {
+  return glyphs.flatMap((glyph, i) => {
+    switch (glyph.kind) {
+      case 'tick':
+        return [<line key={i} x1={glyph.x1} y1={glyph.y1} x2={glyph.x2} y2={glyph.y2} stroke={stroke} />];
+      case 'circle':
+        return [<circle key={i} cx={glyph.cx} cy={glyph.cy} r={glyph.r} fill="white" stroke={stroke} />];
+      case 'fork':
+        return glyph.prongs.map((p, j) => (
+          <line key={`${i}-${j}`} x1={glyph.apexX} y1={glyph.apexY} x2={p.x} y2={p.y} stroke={stroke} />
+        ));
+    }
+  });
+}
+
+// canvas-7vs.3: JSX rendering for umlEndpointGlyph's geometry — mirrors svg-renderer.ts's own
+// renderUmlEndpointGlyph exactly (SC-004).
+function renderUmlEndpointGlyph(glyph: UmlEndpointGlyph, stroke: string, key: number | string): JSX.Element {
+  switch (glyph.kind) {
+    case 'triangle':
+      return (
+        <polygon
+          key={key}
+          points={`${glyph.tip.x},${glyph.tip.y} ${glyph.baseLeft.x},${glyph.baseLeft.y} ${glyph.baseRight.x},${glyph.baseRight.y}`}
+          fill={glyph.filled ? stroke : 'white'}
+          stroke={stroke}
+        />
+      );
+    case 'diamond':
+      return (
+        <polygon
+          key={key}
+          points={`${glyph.near.x},${glyph.near.y} ${glyph.right.x},${glyph.right.y} ${glyph.far.x},${glyph.far.y} ${glyph.left.x},${glyph.left.y}`}
+          fill={glyph.filled ? stroke : 'white'}
+          stroke={stroke}
+        />
+      );
+    case 'open-arrow':
+      return (
+        <g key={key}>
+          <line x1={glyph.tip.x} y1={glyph.tip.y} x2={glyph.wingLeft.x} y2={glyph.wingLeft.y} stroke={stroke} />
+          <line x1={glyph.tip.x} y1={glyph.tip.y} x2={glyph.wingRight.x} y2={glyph.wingRight.y} stroke={stroke} />
+        </g>
+      );
+    case 'circle':
+      return <circle key={key} cx={glyph.cx} cy={glyph.cy} r={glyph.r} fill="white" stroke={stroke} />;
+  }
+}
+
+// canvas-7vs.5: a UML relationship's multiplicity label (e.g. "1", "0..*") near one endpoint —
+// position comes from the shared umlCardinalityLabelPosition (SC-004).
+function UmlCardinalityLabel({ position, text }: { position: { x: number; y: number }; text: string }): JSX.Element {
+  return (
+    <text x={position.x} y={position.y} fontSize={11}>
+      {text}
     </text>
   );
 }
@@ -823,6 +894,9 @@ export function Canvas({ model, onChange, dslFamily, toolbarContainer }: CanvasP
   const contentBounds = computeBounds(model);
   const canvasWidth = Math.max(containerSize.width, contentBounds.width);
   const canvasHeight = Math.max(containerSize.height, contentBounds.height);
+  // canvas-7vs.7: built once per render, not per edge, for architectureEndpointBox's {group}
+  // parent-container lookup.
+  const containersById = new Map(model.containers.map((c) => [c.id, c]));
 
   return (
     <div className="canvas-root" tabIndex={0} onKeyDown={handleKeyDown} data-testid="canvas-root">
@@ -897,13 +971,21 @@ export function Canvas({ model, onChange, dslFamily, toolbarContainer }: CanvasP
             >
               {/* Appearance is deliberately unchanged from what the export renderer draws — this
                   feature adds interaction, not styling (research §7). Only the selection stroke
-                  differs, and it is screen-only. */}
+                  differs, and it is screen-only. canvas-7vs.2: an explicit style.fillColor now
+                  mirrors svg-renderer.ts's renderContainer exactly (a sequence
+                  `rect <color> ... end` highlight's whole point is this color). The no-color
+                  default deliberately stays 'transparent', NOT svg-renderer.ts's 'none' -- unlike
+                  the export renderer, this is an interactive canvas: fill="none" isn't painted at
+                  all, so (per SVG's default pointer-events behavior) clicks over the container's
+                  interior stop hitting it, breaking click-to-select/drag/resize on every
+                  container with no fillColor set (caught by containers.spec.ts's own e2e
+                  coverage failing in CI -- a real regression, not a cosmetic nit). */}
               <rect
                 x={container.position.x}
                 y={container.position.y}
                 width={size.width}
                 height={size.height}
-                fill="transparent"
+                fill={container.style?.fillColor ?? 'transparent'}
                 stroke={isSelected ? '#2563eb' : '#888'}
                 strokeWidth={isSelected ? 2 : 1}
                 strokeDasharray="6,4"
@@ -959,13 +1041,45 @@ export function Canvas({ model, onChange, dslFamily, toolbarContainer }: CanvasP
           // canvas-1rq: clip each endpoint to its own node's boundary — otherwise the arrowhead
           // (and the line segment inside each node) is hidden underneath the node's opaque fill,
           // since nodes render on top of edges. Must match svg-renderer.ts exactly (SC-004).
-          const clippedFrom = clipEdgeEndpoint(from, nodeSize(source), source.shape, to.x, to.y);
-          const clippedTo = clipEdgeEndpoint(to, nodeSize(target), target.shape, from.x, from.y);
+          // canvas-7vs.7: {group} escalates the clip box to the parent container's boundary
+          // instead of the node's own (architectureEndpointBox falls back to the node's own box
+          // for every non-architecture edge, since sourceIsGroup/targetIsGroup are always
+          // undefined there).
+          const sourceBox = architectureEndpointBox(source, edge.sourceIsGroup, containersById);
+          const targetBox = architectureEndpointBox(target, edge.targetIsGroup, containersById);
+          // canvas-7vs.6: an explicit :T/:B/:L/:R anchor hint pins the endpoint to that side
+          // instead of clipEdgeEndpoint's direction-toward-the-other-node default.
+          const clippedFrom = edge.sourceAnchor
+            ? clipToAnchorSide(sourceBox.center, sourceBox.size, edge.sourceAnchor)
+            : clipEdgeEndpoint(sourceBox.center, sourceBox.size, sourceBox.shape, targetBox.center.x, targetBox.center.y);
+          const clippedTo = edge.targetAnchor
+            ? clipToAnchorSide(targetBox.center, targetBox.size, edge.targetAnchor)
+            : clipEdgeEndpoint(targetBox.center, targetBox.size, targetBox.shape, sourceBox.center.x, sourceBox.center.y);
           const isEditingThisEdge = editingEdgeId === edge.id;
           const isSelected = selectedEdgeId === edge.id;
           // canvas-xig: centered under the connector's midpoint, clamped/flipped by popupPosition
           // so it never renders past the canvas's own edges (research note in that function).
           const stylePopupPos = popupPosition(midY, midY, midX - STYLE_POPUP_WIDTH / 2, canvasWidth, canvasHeight);
+          // canvas-2ut: mirrors svg-renderer.ts's renderEdge crow's-foot branch exactly — both
+          // endpoints' glyphs come from the shared cardinalityGlyphs calculation, so canvas and
+          // export agree (SC-004). The target token is reversed here for the same reason
+          // svg-renderer.ts's own comment explains: it's written nearest-line-character-first in
+          // the DSL, while cardinalityGlyphs expects nearest-node-first.
+          const hasErCardinality = Boolean(edge.erSourceCardinality && edge.erTargetCardinality);
+          const cardinalityGlyphList = hasErCardinality
+            ? [
+                ...cardinalityGlyphs(clippedFrom, to.x - from.x, to.y - from.y, edge.erSourceCardinality!),
+                ...cardinalityGlyphs(clippedTo, from.x - to.x, from.y - to.y, [...edge.erTargetCardinality!].reverse().join('')),
+              ]
+            : [];
+          // canvas-7vs.3: mirrors svg-renderer.ts's renderEdge UML branch exactly — same shared
+          // umlEndpointMarkers lookup + umlEndpointGlyph geometry, so canvas and export agree
+          // (SC-004). canvas-7vs.5: multiplicity labels are independent of umlRelationKind.
+          const umlMarkers = edge.umlRelationKind ? umlEndpointMarkers(edge.umlRelationKind) : undefined;
+          const umlGlyphList = [
+            umlMarkers?.source ? umlEndpointGlyph(clippedFrom, to.x - from.x, to.y - from.y, umlMarkers.source) : null,
+            umlMarkers?.target ? umlEndpointGlyph(clippedTo, from.x - to.x, from.y - to.y, umlMarkers.target) : null,
+          ].filter((glyph): glyph is UmlEndpointGlyph => glyph !== null);
           return (
             <g
               key={edge.id}
@@ -989,10 +1103,36 @@ export function Canvas({ model, onChange, dslFamily, toolbarContainer }: CanvasP
                 // be deleted.
                 stroke={isSelected ? SELECTION_STROKE : edge.lineStyle === 'invisible' ? 'none' : (edge.style?.strokeColor ?? '#333')}
                 strokeWidth={isSelected ? 2 : (edge.style?.strokeWidth ?? (edge.lineStyle === 'thick' ? DEFAULT_THICK_STROKE_WIDTH : undefined))}
-                strokeDasharray={edge.style?.strokeDasharray ?? (edge.lineStyle === 'dotted' ? DEFAULT_DOTTED_DASHARRAY : undefined)}
-                markerStart={edge.lineStyle !== 'invisible' && edge.arrow === 'both' ? 'url(#arrow)' : undefined}
-                markerEnd={edge.lineStyle === 'invisible' || edge.arrow === 'none' ? undefined : 'url(#arrow)'}
+                strokeDasharray={
+                  edge.style?.strokeDasharray ??
+                  (edge.lineStyle === 'dotted' || umlMarkers?.dashed ? DEFAULT_DOTTED_DASHARRAY : undefined)
+                }
+                // canvas-2ut/canvas-7vs.3: an ER relationship's crow's-foot glyphs or a UML
+                // relationship's own marker (below) replace the generic arrowhead entirely.
+                markerStart={
+                  edge.lineStyle !== 'invisible' && !hasErCardinality && !umlMarkers && edge.arrow === 'both'
+                    ? 'url(#arrow)'
+                    : undefined
+                }
+                markerEnd={
+                  edge.lineStyle === 'invisible' || hasErCardinality || umlMarkers || edge.arrow === 'none'
+                    ? undefined
+                    : 'url(#arrow)'
+                }
               />
+              {edge.lineStyle !== 'invisible' &&
+                hasErCardinality &&
+                renderCardinalityGlyphs(cardinalityGlyphList, isSelected ? SELECTION_STROKE : (edge.style?.strokeColor ?? '#333'))}
+              {edge.lineStyle !== 'invisible' &&
+                umlGlyphList.map((glyph, i) =>
+                  renderUmlEndpointGlyph(glyph, isSelected ? SELECTION_STROKE : (edge.style?.strokeColor ?? '#333'), i),
+                )}
+              {edge.lineStyle !== 'invisible' && edge.sourceCardinality && (
+                <UmlCardinalityLabel position={umlCardinalityLabelPosition(clippedFrom, to.x - from.x, to.y - from.y)} text={edge.sourceCardinality} />
+              )}
+              {edge.lineStyle !== 'invisible' && edge.targetCardinality && (
+                <UmlCardinalityLabel position={umlCardinalityLabelPosition(clippedTo, from.x - to.x, from.y - to.y)} text={edge.targetCardinality} />
+              )}
               {/* Padded invisible hit-target rect, not a thin line: a horizontal or vertical
                   connector's own geometry has a zero-height/width bounding box, which is not a
                   reliable click (or double-click) target for a user or for automated testing. */}
@@ -1088,6 +1228,10 @@ export function Canvas({ model, onChange, dslFamily, toolbarContainer }: CanvasP
               ? iconArtwork.get(`${node.icon.libraryId}@${node.icon.libraryVersion}@${node.icon.iconId}`)
               : undefined;
           const iconLayout = iconMarkup ? iconNodeLayout(node) : null;
+          // canvas-x66: mirrors svg-renderer.ts's renderNode table branch exactly — header band
+          // over a divider, one row below it per ER attribute/UML member, both from the shared
+          // tableNodeLayout calculation, so canvas and export agree (SC-004).
+          const tableLayout = tableNodeLayout(node);
           return (
             <g
               key={node.id}
@@ -1111,6 +1255,32 @@ export function Canvas({ model, onChange, dslFamily, toolbarContainer }: CanvasP
                   href={iconMarkupToDataUri(iconMarkup)}
                 />
               )}
+              {tableLayout && (
+                <>
+                  <line
+                    x1={node.position.x}
+                    y1={tableLayout.dividerY}
+                    x2={node.position.x + size.width}
+                    y2={tableLayout.dividerY}
+                    stroke={node.style?.strokeColor ?? '#333333'}
+                  />
+                  {tableLayout.stereotype && (
+                    <text
+                      x={tableLayout.stereotype.x}
+                      y={tableLayout.stereotype.y}
+                      textAnchor="middle"
+                      fontSize={tableLayout.stereotype.fontSize}
+                    >
+                      {tableLayout.stereotype.text}
+                    </text>
+                  )}
+                  {tableLayout.rows.map((row, i) => (
+                    <text key={i} x={row.x} y={row.y} dominantBaseline="middle" fontSize={row.fontSize}>
+                      {row.text}
+                    </text>
+                  ))}
+                </>
+              )}
               {editingNodeId !== node.id &&
                 (iconMarkup && iconLayout
                   ? renderLabelLines(
@@ -1121,14 +1291,23 @@ export function Canvas({ model, onChange, dslFamily, toolbarContainer }: CanvasP
                       false,
                       iconLayout.labelMaxWidth,
                     )
-                  : renderLabelLines(
-                      node.position.x + size.width / 2,
-                      node.position.y + size.height / 2,
-                      node.label,
-                      14,
-                      true,
-                      Math.max(size.width - 16, 40),
-                    ))}
+                  : tableLayout
+                    ? renderLabelLines(
+                        tableLayout.headerX,
+                        tableLayout.headerY,
+                        node.label,
+                        tableLayout.headerFontSize,
+                        true,
+                        Math.max(size.width - 16, 40),
+                      )
+                    : renderLabelLines(
+                        node.position.x + size.width / 2,
+                        node.position.y + size.height / 2,
+                        node.label,
+                        14,
+                        true,
+                        Math.max(size.width - 16, 40),
+                      ))}
               {editingNodeId === node.id && (
                 <foreignObject x={node.position.x} y={node.position.y} width={size.width} height={size.height}>
                   <input

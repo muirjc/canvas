@@ -107,6 +107,9 @@ const SUBGRAPH_END = /^end$/;
 const SUBGRAPH_DIRECTION = /^direction\s+(TD|LR|TB|RL|BT)$/i;
 const BARE_ID = new RegExp(`^(${ID})$`);
 const HEADER = /^(?:flowchart|graph)\s+(TD|LR|TB|RL|BT)$/i;
+// canvas-vtg: a real, cross-family Mermaid top-level statement -- mirrors c4.ts's own
+// TITLE_PATTERN/handling exactly (canvas-79b introduced it there first).
+const TITLE_PATTERN = /^title\s+(.+)$/;
 const STYLE_DIRECTIVE = new RegExp(`^style\\s+(${ID})\\s+(.+)$`);
 // Mermaid addresses links by their 0-based declaration order (the Nth edge line encountered),
 // not by the platform's internal e1/e2 ids — "default" applies the style to every edge.
@@ -196,6 +199,7 @@ export function parseFlowchart(dsl: string): ParseResult {
   let diagramTypeSeen = false;
   let direction: FlowchartDirection | undefined;
   let edgeCounter = 0;
+  let title: string | undefined;
 
   const ensureNode = (id: string, label: string, shape: NodeShape): DiagramNode => {
     let node = nodesById.get(id);
@@ -257,6 +261,12 @@ export function parseFlowchart(dsl: string): ParseResult {
         continue;
       }
       errors.push({ line: i + 1, content: rawLine, message: 'Expected a "flowchart <direction>" header line' });
+      continue;
+    }
+
+    const titleMatch = line.match(TITLE_PATTERN);
+    if (titleMatch) {
+      title = titleMatch[1];
       continue;
     }
 
@@ -444,6 +454,7 @@ export function parseFlowchart(dsl: string): ParseResult {
 
   const model = createEmptyDiagramModel('flowchart');
   model.direction = direction;
+  model.title = title;
   model.nodes = Array.from(nodesById.values());
   model.containers = Array.from(containersById.values());
   model.edges = edges;

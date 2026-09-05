@@ -57,6 +57,31 @@ test('creates an empty container without selecting anything first', async ({ pag
   await expect(page.locator('[data-testid^="node-"]')).toHaveCount(0);
 });
 
+// canvas-7vs.2 regression: the container <rect>'s fill briefly became "none" (matching
+// svg-renderer.ts's export-only default) instead of "transparent" for a container with no
+// style.fillColor -- SVG's default pointer-events behavior does not hit-test an unpainted
+// ("none") fill, only a painted-but-invisible ("transparent") one, so every drag/resize/select
+// interaction that targets a container's interior (not just its border stroke) silently stopped
+// working. Caught by every other test in this file failing in CI, not by this test itself
+// existing beforehand -- added after the fact so the exact mechanism has its own direct check.
+test('a container with no explicit fill color still has a hit-testable (not "none") fill, so its interior stays clickable', async ({
+  page,
+}) => {
+  await openNewDiagram(page);
+  await page.getByTestId('add-container').click();
+  const rect = page.locator('[data-testid^="container-"] rect').first();
+  await expect(rect).toHaveAttribute('fill', 'transparent');
+
+  // The actual behavior this attribute enables: clicking dead-center (not on the border) selects
+  // the container via its interior, not just its stroke -- selection recolors the stroke to the
+  // selection blue (Canvas.tsx: stroke={isSelected ? '#2563eb' : '#888'}), the same visible signal
+  // the rest of this file's own tests rely on implicitly.
+  const box = await rect.boundingBox();
+  if (!box) throw new Error('container rect has no bounding box');
+  await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
+  await expect(rect).toHaveAttribute('stroke', '#2563eb');
+});
+
 test('renames a container and the name survives save and reopen', async ({ page }) => {
   await openNewDiagram(page);
   await page.getByTestId('add-container').click();

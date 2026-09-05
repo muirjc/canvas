@@ -49,11 +49,15 @@ const ELEMENT_KINDS = [
 const ELEMENT_PATTERN = new RegExp(
   `^(${ELEMENT_KINDS.join('|')})\\(\\s*(${ID})\\s*,\\s*"([^"]*)"(?:\\s*,\\s*"([^"]*)")?\\s*\\)$`,
 );
-// Rel(from, to, "label") and its BiRel/Rel_Back/directional variants (jmuir-dtu.3) — the
-// Up/Down/Left/Right long forms and their U/D/L/R short forms are both real Mermaid syntax.
+// Rel(from, to, "label", ?"technology") and its BiRel/Rel_Back/directional variants
+// (jmuir-dtu.3) — the Up/Down/Left/Right long forms and their U/D/L/R short forms are both real
+// Mermaid syntax. The optional 4th "technology" arg (e.g. "SMTP", "JDBC") is captured but not
+// separately modeled, matching ELEMENT_PATTERN's own established treatment of Person/System's
+// optional description arg immediately above — a deliberate, already-reviewed "capture
+// optionally, don't model" precedent in this file, not a shortcut invented here.
 const REL_KINDS = ['Rel', 'BiRel', 'Rel_Back', 'Rel_U', 'Rel_D', 'Rel_L', 'Rel_R', 'Rel_Up', 'Rel_Down', 'Rel_Left', 'Rel_Right'] as const;
 const REL_PATTERN = new RegExp(
-  `^(${REL_KINDS.join('|')})\\(\\s*(${ID})\\s*,\\s*(${ID})\\s*,\\s*"([^"]*)"\\s*\\)$`,
+  `^(${REL_KINDS.join('|')})\\(\\s*(${ID})\\s*,\\s*(${ID})\\s*,\\s*"([^"]*)"(?:\\s*,\\s*"[^"]*")?\\s*\\)$`,
 );
 // jmuir-dtu.3.2: Deployment_Node (and its Node/Node_L/Node_R shortcuts -- Node is documented as
 // simply "short name of Deployment_Node()", Node_L/Node_R the same with a left/right layout
@@ -66,10 +70,19 @@ const REL_PATTERN = new RegExp(
 // canvas.positions front-matter, not a left/right layout algorithm) -- accepted, not modeled, same
 // treatment as C4's other pure layout hints (Rel_U/D/L/R, UpdateLayoutConfig).
 const DEPLOYMENT_NODE_KINDS = ['Deployment_Node', 'Node_L', 'Node_R', 'Node'] as const;
+// canvas-??? (Boundary): the generic, no-particular-semantic-type boundary macro
+// (Boundary(alias, label, ?"type")) was missing from this alternation entirely — every real C4
+// file using a plain custom-labeled grouping (real Mermaid docs' own bank-boundary example uses
+// exactly this) hard-errored. Grammatically identical to System_Boundary/etc (same optional
+// 3rd-arg "type" string, captured-but-discarded the same way) -- just another literal keyword on
+// the same production, not a new code path.
 const BOUNDARY_START = new RegExp(
-  `^(System_Boundary|Container_Boundary|Enterprise_Boundary|${DEPLOYMENT_NODE_KINDS.join('|')})\\(\\s*(${ID})\\s*,\\s*"([^"]*)"(?:\\s*,\\s*"[^"]*")?\\s*\\)\\s*\\{$`,
+  `^(Boundary|System_Boundary|Container_Boundary|Enterprise_Boundary|${DEPLOYMENT_NODE_KINDS.join('|')})\\(\\s*(${ID})\\s*,\\s*"([^"]*)"(?:\\s*,\\s*"[^"]*")?\\s*\\)\\s*\\{$`,
 );
 const BOUNDARY_END = /^\}$/;
+// canvas-??? (title): a real, cross-family Mermaid top-level statement -- only wired up for C4
+// so far (DiagramModel.title's own doc comment tracks the other five families as a follow-up).
+const TITLE_PATTERN = /^title\s+(.+)$/;
 
 // jmuir-dtu.3: styling macros. Both of Mermaid's documented argument forms are accepted --
 // positional (`UpdateRelStyle(a, b, "red", "blue", "-40", "60")`) and named
@@ -209,6 +222,7 @@ export function parseC4(dsl: string): ParseResult {
   // real Mermaid file conventionally puts Update* macros at the end anyway).
   const pendingElementStyles: { id: string; bgColor?: string; borderColor?: string }[] = [];
   const pendingRelStyles: { source: string; target: string; lineColor?: string }[] = [];
+  let title: string | undefined;
 
   for (let i = 0; i < lines.length; i += 1) {
     const rawLine = lines[i];
@@ -222,6 +236,12 @@ export function parseC4(dsl: string): ParseResult {
         continue;
       }
       errors.push({ line: i + 1, content: rawLine, message: 'Expected a C4 header (C4Context/C4Container/C4Component/C4Dynamic)' });
+      continue;
+    }
+
+    const titleMatch = line.match(TITLE_PATTERN);
+    if (titleMatch) {
+      title = titleMatch[1];
       continue;
     }
 
@@ -335,6 +355,7 @@ export function parseC4(dsl: string): ParseResult {
   model.nodes = Array.from(nodesById.values());
   model.containers = Array.from(containersById.values());
   model.edges = edges;
+  model.title = title;
   return { model };
 }
 
@@ -377,6 +398,7 @@ export function serializeC4(model: import('../model/diagram-model.js').DiagramMo
 
   const header = LEVEL_TO_HEADER[model.diagramTypeId] ?? 'C4Context';
   const lines: string[] = [header];
+  if (model.title) lines.push(`title ${model.title}`);
   const emitted = new Set<string>();
   // jmuir-dtu.3.2: a C4Deployment model's containers always re-emit as Deployment_Node (not
   // System_Boundary, which isn't semantically valid there) -- driven purely by diagramTypeId,

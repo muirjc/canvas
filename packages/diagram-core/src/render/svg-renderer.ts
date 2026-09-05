@@ -1,4 +1,4 @@
-import type { DiagramContainer, DiagramModel, DiagramNode, Size } from '../model/diagram-model.js';
+import type { ClassMember, DiagramContainer, DiagramEdge, DiagramModel, DiagramNode, EntityAttribute, Size } from '../model/diagram-model.js';
 
 const DEFAULT_NODE_SIZE: Size = { width: 140, height: 60 };
 // Matches diagram-ops.ts's own (module-private) DEFAULT_CONTAINER_SIZE — kept as a separate literal
@@ -123,13 +123,140 @@ export function iconNodeSize(node: DiagramNode): Size {
   };
 }
 
+// canvas-x66: an ER entity's attributes (EntityAttribute[]) or a UML class's members
+// (ClassMember[]) were parsed and modeled correctly but never drawn by either renderer — every
+// entity/class rendered as a bare labeled box, indistinguishable from one with no body at all.
+// Formats one row of text per attribute/member, deliberately duplicating (not importing)
+// erd.ts's/uml.ts's own line-formatting logic: this render module's only dependency is
+// ../model (see the single import above), and pulling in a specific DSL family's parser module
+// here would invert that layering for the sake of a few lines neither format needs to be
+// byte-identical to its own DSL round-trip form, only visually equivalent.
+function formatAttributeRow(attribute: EntityAttribute): string {
+  const keysPart = attribute.keys.length > 0 ? ` ${attribute.keys.join(', ')}` : '';
+  // canvas-??? (comment rendering): real Mermaid draws an attribute's comment as its own
+  // rightmost column, after type/name/key (confirmed against Mermaid's own erRenderer.js source,
+  // not assumed) — this codebase's simplified single-text-row-per-attribute convention (rather
+  // than true per-column grid cells) appends it in that same rightmost position instead.
+  const commentPart = attribute.comment ? ` "${attribute.comment}"` : '';
+  return `${attribute.type} ${attribute.name}${keysPart}${commentPart}`;
+}
+
+function formatMemberRow(member: ClassMember): string {
+  const visibility = member.visibility ?? '';
+  const modifier = member.isStatic ? '$' : member.isAbstract ? '*' : '';
+  if (member.kind === 'method') {
+    const returnPart = member.returnType ? ` ${member.returnType}` : '';
+    return `${visibility}${member.name}(${member.params ?? ''})${returnPart}${modifier}`;
+  }
+  const typePart = member.type ? `${member.type} ` : '';
+  return `${visibility}${typePart}${member.name}${modifier}`;
+}
+
+/** The row texts for a node's attribute/member "table" body, or `[]` for a node with neither
+ *  (every non-ER/UML node, or a bare entity/class declaration with no body) — the exact case
+ *  that must keep rendering exactly as it did before this table-body support existed. */
+function tableRows(node: DiagramNode): string[] {
+  if (node.attributes && node.attributes.length > 0) return node.attributes.map(formatAttributeRow);
+  if (node.members && node.members.length > 0) return node.members.map(formatMemberRow);
+  return [];
+}
+
+const TABLE_HEADER_PADDING_Y = 6;
+const TABLE_ROW_PADDING_Y = 3;
+const TABLE_ROW_PADDING_X = 8;
+
+/** canvas-7vs.4: a UML `<<Stereotype>>` annotation (`DiagramNode.umlStereotype`) renders as its
+ *  own smaller line stacked above the class name, inside the same header band `tableNodeLayout`
+ *  already draws — matches Mermaid's own placement and this file's own `<<Name>>` textual
+ *  convention (uml.ts's serializer emits the identical ` <<${stereotype}>>` form). `undefined`
+ *  for a class with no stereotype, so header height/layout are completely unaffected. */
+function formatStereotype(node: DiagramNode): string | undefined {
+  return node.umlStereotype ? `<<${node.umlStereotype}>>` : undefined;
+}
+
+/** Content-fit size for a node with attribute/member rows and no explicit `node.size` — mirrors
+ *  `iconNodeSize`'s own precedent exactly (content-fit default, explicit `node.size` always
+ *  wins). Grows both height (one band per row, below a header band for the entity/class name)
+ *  and width (to whichever row or the header is widest, using the same character-count
+ *  heuristic `wrapLine` uses elsewhere in this file — rows are never word-wrapped, matching how
+ *  Mermaid itself renders a fixed-width ER/class table). */
+function tableNodeSize(node: DiagramNode, rows: string[]): Size {
+  const fontSize = node.style?.fontSize ?? 14;
+  const rowFontSize = Math.max(fontSize - 2, 10);
+  const stereotype = formatStereotype(node);
+  const stereotypeHeight = stereotype ? rowFontSize * 1.2 + TABLE_HEADER_PADDING_Y : 0;
+  const headerHeight = stereotypeHeight + fontSize * 1.2 + TABLE_HEADER_PADDING_Y * 2;
+  const rowHeight = rowFontSize * 1.2 + TABLE_ROW_PADDING_Y * 2;
+  const widest = Math.max(
+    node.label.length * fontSize * AVG_CHAR_WIDTH_RATIO,
+    (stereotype?.length ?? 0) * rowFontSize * AVG_CHAR_WIDTH_RATIO,
+    ...rows.map((row) => row.length * rowFontSize * AVG_CHAR_WIDTH_RATIO),
+  );
+  return {
+    width: Math.max(DEFAULT_NODE_SIZE.width, widest + TABLE_ROW_PADDING_X * 2),
+    height: headerHeight + rows.length * rowHeight,
+  };
+}
+
 // Exported (same pattern as computeBounds/clipEdgeEndpoint/splitLabelLines below) so auto-layout.ts
 // can size dagre's input nodes identically to how this renderer and the canvas already do, rather
 // than adding a third hand-copied {140, 60} default (shapes.tsx has its own copy with a "must
 // match" comment — this avoids a fourth).
 export function nodeSize(node: DiagramNode): Size {
   if (node.shape === 'icon' && !node.size) return iconNodeSize(node);
+  if (!node.size) {
+    const rows = tableRows(node);
+    if (rows.length > 0) return tableNodeSize(node, rows);
+  }
   return node.size ?? DEFAULT_NODE_SIZE;
+}
+
+/** Full render geometry for a node's attribute/member table body (canvas-x66) — `null` for a
+ *  node with no rows, so callers can fall back to the plain centered-label rendering unchanged.
+ *  One shared calculation so the export renderer (`renderNode` below) and the interactive canvas
+ *  (apps/web/src/canvas/Canvas.tsx) can't disagree about row position/content (SC-004, same
+ *  convention `iconNodeLayout` above already established). */
+export function tableNodeLayout(node: DiagramNode): {
+  width: number;
+  height: number;
+  headerX: number;
+  headerY: number;
+  headerFontSize: number;
+  /** canvas-7vs.4: `<<Stereotype>>` text/position, stacked above headerX/headerY -- undefined
+   *  for a class with no umlStereotype, so callers can skip drawing it entirely. */
+  stereotype?: { text: string; x: number; y: number; fontSize: number };
+  dividerY: number;
+  rows: { text: string; x: number; y: number; fontSize: number }[];
+} | null {
+  const rows = tableRows(node);
+  if (rows.length === 0) return null;
+
+  const { x, y } = node.position;
+  const { width, height } = nodeSize(node);
+  const fontSize = node.style?.fontSize ?? 14;
+  const rowFontSize = Math.max(fontSize - 2, 10);
+  const stereotypeText = formatStereotype(node);
+  const stereotypeHeight = stereotypeText ? rowFontSize * 1.2 + TABLE_HEADER_PADDING_Y : 0;
+  const headerHeight = stereotypeHeight + fontSize * 1.2 + TABLE_HEADER_PADDING_Y * 2;
+  const rowHeight = rowFontSize * 1.2 + TABLE_ROW_PADDING_Y * 2;
+
+  return {
+    width,
+    height,
+    headerX: x + width / 2,
+    headerY: y + stereotypeHeight + (fontSize * 1.2 + TABLE_HEADER_PADDING_Y * 2) / 2,
+    headerFontSize: fontSize,
+    stereotype: stereotypeText
+      ? { text: stereotypeText, x: x + width / 2, y: y + TABLE_HEADER_PADDING_Y + rowFontSize, fontSize: rowFontSize }
+      : undefined,
+    dividerY: y + headerHeight,
+    rows: rows.map((text, i) => ({
+      text,
+      x: x + TABLE_ROW_PADDING_X,
+      y: y + headerHeight + i * rowHeight + rowHeight / 2,
+      fontSize: rowFontSize,
+    })),
+  };
 }
 
 /** Full render geometry for an icon node's glyph + caption (canvas-23t.5) — one shared calculation
@@ -176,6 +303,47 @@ function nodeCenter(node: DiagramNode): { x: number; y: number } {
   return { x: node.position.x + size.width / 2, y: node.position.y + size.height / 2 };
 }
 
+/** canvas-7vs.6: architecture diagrams' explicit `:T`/`:B`/`:L`/`:R` anchor hint pins an edge
+ *  endpoint to that literal side's midpoint, instead of `clipEdgeEndpoint`'s direction-toward-
+ *  the-other-node default. Exported so the interactive canvas clips identically (SC-004). */
+export function clipToAnchorSide(center: Point, size: Size, anchor: 'T' | 'B' | 'L' | 'R'): Point {
+  switch (anchor) {
+    case 'T':
+      return { x: center.x, y: center.y - size.height / 2 };
+    case 'B':
+      return { x: center.x, y: center.y + size.height / 2 };
+    case 'L':
+      return { x: center.x - size.width / 2, y: center.y };
+    case 'R':
+      return { x: center.x + size.width / 2, y: center.y };
+  }
+}
+
+/** canvas-7vs.7: architecture diagrams' `{group}` edge modifier escalates an endpoint's
+ *  connection point to the service's PARENT CONTAINER's boundary rather than the service node's
+ *  own — `sourceId`/`targetId` still reference the service; this only changes which box
+ *  `clipEdgeEndpoint`/`clipToAnchorSide` clips against. Falls back to the node's own box if it
+ *  has no parent container (defensive — real Mermaid grammar requires a `{group}` service to
+ *  actually sit inside a group). Exported for the same canvas/export parity reason (SC-004). */
+export function architectureEndpointBox(
+  node: DiagramNode,
+  isGroup: boolean | undefined,
+  containersById: Map<string, DiagramContainer>,
+): { center: Point; size: Size; shape: DiagramNode['shape'] } {
+  if (isGroup && node.containerId) {
+    const container = containersById.get(node.containerId);
+    if (container) {
+      const size = containerSize(container);
+      return {
+        center: { x: container.position.x + size.width / 2, y: container.position.y + size.height / 2 },
+        size,
+        shape: 'rectangle',
+      };
+    }
+  }
+  return { center: nodeCenter(node), size: nodeSize(node), shape: node.shape };
+}
+
 /**
  * canvas-1rq: an edge endpoint left at the node's raw center is hidden underneath the node's own
  * opaque fill (nodes render on top of edges) — the arrowhead never becomes visible. Clips the
@@ -215,6 +383,241 @@ export function clipEdgeEndpoint(
   // center (a malformed/zero-size node).
   t = Math.min(Math.max(t, 0), 1);
   return { x: center.x + t * dx, y: center.y + t * dy };
+}
+
+const CROWSFOOT_GLYPH_SPACING = 7;
+const CROWSFOOT_TICK_HALF = 5;
+const CROWSFOOT_CIRCLE_RADIUS = 4;
+const CROWSFOOT_FORK_LENGTH = 10;
+const CROWSFOOT_FORK_SPREAD = 5;
+
+export type CardinalityGlyph =
+  | { kind: 'tick'; x1: number; y1: number; x2: number; y2: number }
+  | { kind: 'circle'; cx: number; cy: number; r: number }
+  | { kind: 'fork'; apexX: number; apexY: number; prongs: [{ x: number; y: number }, { x: number; y: number }, { x: number; y: number }] };
+
+/**
+ * canvas-2ut: crow's-foot glyph geometry for one end of an ER relationship. `token`'s two
+ * characters are read nearest-node-first — index 0 drawn right at `point` (the node-boundary
+ * clipped endpoint), index 1 drawn one glyph-width further along the line toward the other
+ * endpoint: `|` a perpendicular tick (one/mandatory), `o` a hollow circle (zero/optional),
+ * `{`/`}` a three-pronged fork (many) — Mermaid's own erDiagram cardinality vocabulary. A
+ * character outside that set is silently skipped (defensive only — erd.ts's own
+ * parseCardinalityToken already constrains what reaches here).
+ *
+ * `dx`/`dy` need not be normalized — only their direction (from `point`, outward along the edge
+ * toward the other endpoint) is used. Exported so the interactive canvas draws pixel-identical
+ * glyphs to the export renderer (SC-004), the same shared-geometry convention `clipEdgeEndpoint`/
+ * `tableNodeLayout` above already establish.
+ */
+export function cardinalityGlyphs(point: { x: number; y: number }, dx: number, dy: number, token: string): CardinalityGlyph[] {
+  const len = Math.hypot(dx, dy) || 1;
+  const ux = dx / len;
+  const uy = dy / len;
+  const px = -uy;
+  const py = ux;
+  const glyphs: CardinalityGlyph[] = [];
+  let dist = 0;
+  for (const ch of token) {
+    const baseX = point.x + ux * dist;
+    const baseY = point.y + uy * dist;
+    if (ch === '|') {
+      glyphs.push({
+        kind: 'tick',
+        x1: baseX + px * CROWSFOOT_TICK_HALF,
+        y1: baseY + py * CROWSFOOT_TICK_HALF,
+        x2: baseX - px * CROWSFOOT_TICK_HALF,
+        y2: baseY - py * CROWSFOOT_TICK_HALF,
+      });
+      dist += CROWSFOOT_GLYPH_SPACING;
+    } else if (ch === 'o') {
+      glyphs.push({
+        kind: 'circle',
+        cx: point.x + ux * (dist + CROWSFOOT_CIRCLE_RADIUS),
+        cy: point.y + uy * (dist + CROWSFOOT_CIRCLE_RADIUS),
+        r: CROWSFOOT_CIRCLE_RADIUS,
+      });
+      dist += CROWSFOOT_CIRCLE_RADIUS * 2 + 2;
+    } else if (ch === '{' || ch === '}') {
+      glyphs.push({
+        kind: 'fork',
+        apexX: point.x + ux * (dist + CROWSFOOT_FORK_LENGTH),
+        apexY: point.y + uy * (dist + CROWSFOOT_FORK_LENGTH),
+        prongs: [
+          { x: baseX, y: baseY },
+          { x: baseX + px * CROWSFOOT_FORK_SPREAD, y: baseY + py * CROWSFOOT_FORK_SPREAD },
+          { x: baseX - px * CROWSFOOT_FORK_SPREAD, y: baseY - py * CROWSFOOT_FORK_SPREAD },
+        ],
+      });
+      dist += CROWSFOOT_FORK_LENGTH;
+    }
+  }
+  return glyphs;
+}
+
+function renderCardinalityGlyph(glyph: CardinalityGlyph, stroke: string): string {
+  switch (glyph.kind) {
+    case 'tick':
+      return `<line x1="${glyph.x1}" y1="${glyph.y1}" x2="${glyph.x2}" y2="${glyph.y2}" stroke="${stroke}" />`;
+    case 'circle':
+      return `<circle cx="${glyph.cx}" cy="${glyph.cy}" r="${glyph.r}" fill="white" stroke="${stroke}" />`;
+    case 'fork':
+      return glyph.prongs
+        .map((p) => `<line x1="${glyph.apexX}" y1="${glyph.apexY}" x2="${p.x}" y2="${p.y}" stroke="${stroke}" />`)
+        .join('');
+  }
+}
+
+// canvas-7vs.3: a UML class diagram's arrowhead shape carries real semantic meaning (hollow
+// triangle = inheritance/realization, filled diamond = composition, hollow diamond = aggregation,
+// plain open arrowhead = association/dependency, small circle = lollipop interface) that the
+// generic filled-triangle `#arrowhead` marker every other family shares doesn't distinguish at
+// all -- every UML edge previously rendered with that identical generic arrowhead regardless of
+// umlRelationKind.
+export type UmlMarkerKind = 'triangle-hollow' | 'diamond-filled' | 'diamond-hollow' | 'arrow-open' | 'circle';
+
+/** Which end(s) of a relationship carry a marker, and whether the line itself is dashed --
+ *  derived purely from `umlRelationKind` (uml.ts never sets `lineStyle` for these, so dashedness
+ *  isn't otherwise available). Token-adjacency in uml.ts's own REL_TOKEN_TO_KIND table decides
+ *  which end: inheritance's `<|--`/composition's `*--`/aggregation's `o--` all have their marker
+ *  character immediately after the source id, so the marker sits at the SOURCE end; realization's
+ *  `..|>`/association's `-->`/dependency's `..>` all have it immediately before the target id, so
+ *  TARGET. Lollipop kinds already encode which end directly in their own name. Exported so
+ *  Canvas.tsx shares this lookup rather than re-deriving it (SC-004). */
+export function umlEndpointMarkers(kind: DiagramEdge['umlRelationKind']): {
+  source?: UmlMarkerKind;
+  target?: UmlMarkerKind;
+  dashed: boolean;
+} {
+  switch (kind) {
+    case 'inheritance':
+      return { source: 'triangle-hollow', dashed: false };
+    case 'realization':
+      return { target: 'triangle-hollow', dashed: true };
+    case 'composition':
+      return { source: 'diamond-filled', dashed: false };
+    case 'aggregation':
+      return { source: 'diamond-hollow', dashed: false };
+    case 'association':
+      return { target: 'arrow-open', dashed: false };
+    case 'dependency':
+      return { target: 'arrow-open', dashed: true };
+    case 'link-dashed':
+      return { dashed: true };
+    case 'lollipop-source':
+      return { source: 'circle', dashed: false };
+    case 'lollipop-target':
+      return { target: 'circle', dashed: false };
+    case 'link-solid':
+    default:
+      return { dashed: false };
+  }
+}
+
+const UML_MARKER_LENGTH = 12;
+const UML_MARKER_HALF_WIDTH = 5;
+const UML_LOLLIPOP_RADIUS = 5;
+
+type Point = { x: number; y: number };
+
+export type UmlEndpointGlyph =
+  | { kind: 'triangle'; tip: Point; baseLeft: Point; baseRight: Point; filled: boolean }
+  | { kind: 'diamond'; near: Point; right: Point; far: Point; left: Point; filled: boolean }
+  | { kind: 'open-arrow'; tip: Point; wingLeft: Point; wingRight: Point }
+  | { kind: 'circle'; cx: number; cy: number; r: number };
+
+/** Geometry for one UML relationship-end marker — mirrors `cardinalityGlyphs`' own shared-geometry
+ *  convention exactly (`point` is the node-boundary clipped endpoint, `dx`/`dy`'s direction only
+ *  is used, pointing outward from the node toward the other endpoint) so the interactive canvas
+ *  draws pixel-identical markers to the export renderer (SC-004). */
+export function umlEndpointGlyph(point: Point, dx: number, dy: number, markerKind: UmlMarkerKind): UmlEndpointGlyph {
+  const len = Math.hypot(dx, dy) || 1;
+  const ux = dx / len;
+  const uy = dy / len;
+  const px = -uy;
+  const py = ux;
+
+  if (markerKind === 'circle') {
+    return { kind: 'circle', cx: point.x + ux * UML_LOLLIPOP_RADIUS, cy: point.y + uy * UML_LOLLIPOP_RADIUS, r: UML_LOLLIPOP_RADIUS };
+  }
+  if (markerKind === 'arrow-open') {
+    return {
+      kind: 'open-arrow',
+      tip: point,
+      wingLeft: {
+        x: point.x + ux * UML_MARKER_LENGTH + px * UML_MARKER_HALF_WIDTH,
+        y: point.y + uy * UML_MARKER_LENGTH + py * UML_MARKER_HALF_WIDTH,
+      },
+      wingRight: {
+        x: point.x + ux * UML_MARKER_LENGTH - px * UML_MARKER_HALF_WIDTH,
+        y: point.y + uy * UML_MARKER_LENGTH - py * UML_MARKER_HALF_WIDTH,
+      },
+    };
+  }
+  if (markerKind === 'triangle-hollow') {
+    return {
+      kind: 'triangle',
+      tip: point,
+      baseLeft: {
+        x: point.x + ux * UML_MARKER_LENGTH + px * UML_MARKER_HALF_WIDTH,
+        y: point.y + uy * UML_MARKER_LENGTH + py * UML_MARKER_HALF_WIDTH,
+      },
+      baseRight: {
+        x: point.x + ux * UML_MARKER_LENGTH - px * UML_MARKER_HALF_WIDTH,
+        y: point.y + uy * UML_MARKER_LENGTH - py * UML_MARKER_HALF_WIDTH,
+      },
+      filled: false,
+    };
+  }
+  // diamond-filled / diamond-hollow
+  const half = UML_MARKER_LENGTH / 2;
+  return {
+    kind: 'diamond',
+    near: point,
+    right: { x: point.x + ux * half + px * UML_MARKER_HALF_WIDTH, y: point.y + uy * half + py * UML_MARKER_HALF_WIDTH },
+    far: { x: point.x + ux * UML_MARKER_LENGTH, y: point.y + uy * UML_MARKER_LENGTH },
+    left: { x: point.x + ux * half - px * UML_MARKER_HALF_WIDTH, y: point.y + uy * half - py * UML_MARKER_HALF_WIDTH },
+    filled: markerKind === 'diamond-filled',
+  };
+}
+
+function renderUmlEndpointGlyph(glyph: UmlEndpointGlyph, stroke: string): string {
+  switch (glyph.kind) {
+    case 'triangle':
+      return `<polygon points="${glyph.tip.x},${glyph.tip.y} ${glyph.baseLeft.x},${glyph.baseLeft.y} ${glyph.baseRight.x},${glyph.baseRight.y}" fill="${glyph.filled ? stroke : 'white'}" stroke="${stroke}" />`;
+    case 'diamond':
+      return `<polygon points="${glyph.near.x},${glyph.near.y} ${glyph.right.x},${glyph.right.y} ${glyph.far.x},${glyph.far.y} ${glyph.left.x},${glyph.left.y}" fill="${glyph.filled ? stroke : 'white'}" stroke="${stroke}" />`;
+    case 'open-arrow':
+      return (
+        `<line x1="${glyph.tip.x}" y1="${glyph.tip.y}" x2="${glyph.wingLeft.x}" y2="${glyph.wingLeft.y}" stroke="${stroke}" />` +
+        `<line x1="${glyph.tip.x}" y1="${glyph.tip.y}" x2="${glyph.wingRight.x}" y2="${glyph.wingRight.y}" stroke="${stroke}" />`
+      );
+    case 'circle':
+      return `<circle cx="${glyph.cx}" cy="${glyph.cy}" r="${glyph.r}" fill="white" stroke="${stroke}" />`;
+  }
+}
+
+const UML_CARDINALITY_LABEL_OFFSET = 16;
+const UML_CARDINALITY_LABEL_SIDE_OFFSET = 8;
+
+/** canvas-7vs.5: position for a UML relationship's multiplicity label (e.g. "1", "0..*") near one
+ *  endpoint — offset further along the edge than a marker would reach (so it never overlaps one)
+ *  and to one side of the line (so it never sits directly on top of it either). Exported for the
+ *  same canvas/export-parity reason every other shared geometry helper in this file is. */
+export function umlCardinalityLabelPosition(point: Point, dx: number, dy: number): Point {
+  const len = Math.hypot(dx, dy) || 1;
+  const ux = dx / len;
+  const uy = dy / len;
+  const px = -uy;
+  const py = ux;
+  return {
+    x: point.x + ux * UML_CARDINALITY_LABEL_OFFSET + px * UML_CARDINALITY_LABEL_SIDE_OFFSET,
+    y: point.y + uy * UML_CARDINALITY_LABEL_OFFSET + py * UML_CARDINALITY_LABEL_SIDE_OFFSET,
+  };
+}
+
+function renderUmlCardinalityLabel(position: Point, text: string): string {
+  return `<text x="${position.x}" y="${position.y}" font-size="11" font-family='${FONT_FAMILY}'>${escapeXml(text)}</text>`;
 }
 
 function renderNodeShape(node: DiagramNode): string {
@@ -373,6 +776,30 @@ function renderNode(node: DiagramNode, resolveIcon?: IconResolver): string {
     ].join('');
   }
 
+  // canvas-x66: an ER entity's attributes or a UML class's members render as a Mermaid-style
+  // table body — header band (the entity/class name) over a divider, one row below it per
+  // attribute/member — instead of falling through to the plain centered-label case below.
+  const tableLayout = tableNodeLayout(node);
+  if (tableLayout) {
+    const stroke = node.style?.strokeColor ?? '#333333';
+    return [
+      `<g data-node-id="${escapeXml(node.id)}">`,
+      renderNodeShape(node),
+      `<line x1="${x}" y1="${tableLayout.dividerY}" x2="${x + width}" y2="${tableLayout.dividerY}" stroke="${stroke}" />`,
+      tableLayout.stereotype
+        ? `<text x="${tableLayout.stereotype.x}" y="${tableLayout.stereotype.y}" text-anchor="middle" font-size="${tableLayout.stereotype.fontSize}" font-family='${FONT_FAMILY}'>${escapeXml(tableLayout.stereotype.text)}</text>`
+        : '',
+      renderLabelText(tableLayout.headerX, tableLayout.headerY, node.label, tableLayout.headerFontSize, true, labelMaxWidth),
+      tableLayout.rows
+        .map(
+          (row) =>
+            `<text x="${row.x}" y="${row.y}" dominant-baseline="middle" font-size="${row.fontSize}" font-family='${FONT_FAMILY}'>${escapeXml(row.text)}</text>`,
+        )
+        .join(''),
+      '</g>',
+    ].join('');
+  }
+
   const rawLabel = node.icon ? `${node.label} [${node.icon.iconId}]` : node.label;
   return [
     `<g data-node-id="${escapeXml(node.id)}">`,
@@ -385,15 +812,25 @@ function renderNode(node: DiagramNode, resolveIcon?: IconResolver): string {
 function renderContainer(container: DiagramContainer): string {
   const { x, y } = container.position;
   const { width, height } = container.size ?? { width: 300, height: 200 };
+  // canvas-7vs.2: a sequence `rect <color> ... end` background highlight's entire visual purpose
+  // is its fill color (diagram-model.ts's own doc comment on DiagramContainer.role: "the color
+  // lives in style, not label, which stays empty") -- previously hardcoded to 'none', so the
+  // construct was accepted and positioned but rendered completely uncolored. Every other
+  // container role (loop/alt/box/note/etc, which never set style.fillColor) is unaffected.
+  const fill = container.style?.fillColor ?? 'none';
   return [
     `<g data-container-id="${escapeXml(container.id)}">`,
-    `<rect x="${x}" y="${y}" width="${width}" height="${height}" fill="none" stroke="#888888" stroke-dasharray="6,4" />`,
+    `<rect x="${x}" y="${y}" width="${width}" height="${height}" fill="${fill}" stroke="#888888" stroke-dasharray="6,4" />`,
     `<text x="${x + 8}" y="${y + 16}" font-size="12" font-family='${FONT_FAMILY}'>${escapeXml(container.label)}</text>`,
     '</g>',
   ].join('');
 }
 
-function renderEdge(edge: DiagramModel['edges'][number], nodesById: Map<string, DiagramNode>): string {
+function renderEdge(
+  edge: DiagramModel['edges'][number],
+  nodesById: Map<string, DiagramNode>,
+  containersById: Map<string, DiagramContainer>,
+): string {
   const source = nodesById.get(edge.sourceId);
   const target = nodesById.get(edge.targetId);
   if (!source || !target) return '';
@@ -404,8 +841,19 @@ function renderEdge(edge: DiagramModel['edges'][number], nodesById: Map<string, 
   // canvas-1rq: clip each endpoint to its own node's boundary so the arrowhead lands in open
   // space instead of underneath the target's opaque fill. Label position stays center-based —
   // unaffected by this fix and barely different in practice.
-  const clippedFrom = clipEdgeEndpoint(from, nodeSize(source), source.shape, to.x, to.y);
-  const clippedTo = clipEdgeEndpoint(to, nodeSize(target), target.shape, from.x, from.y);
+  // canvas-7vs.7: {group} escalates the clip box to the parent container's boundary instead of
+  // the node's own (architectureEndpointBox falls back to the node's own box for every non-
+  // architecture edge, since sourceIsGroup/targetIsGroup are always undefined there).
+  const sourceBox = architectureEndpointBox(source, edge.sourceIsGroup, containersById);
+  const targetBox = architectureEndpointBox(target, edge.targetIsGroup, containersById);
+  // canvas-7vs.6: an explicit :T/:B/:L/:R anchor hint pins the endpoint to that side instead of
+  // clipEdgeEndpoint's direction-toward-the-other-node default.
+  const clippedFrom = edge.sourceAnchor
+    ? clipToAnchorSide(sourceBox.center, sourceBox.size, edge.sourceAnchor)
+    : clipEdgeEndpoint(sourceBox.center, sourceBox.size, sourceBox.shape, targetBox.center.x, targetBox.center.y);
+  const clippedTo = edge.targetAnchor
+    ? clipToAnchorSide(targetBox.center, targetBox.size, edge.targetAnchor)
+    : clipEdgeEndpoint(targetBox.center, targetBox.size, targetBox.shape, sourceBox.center.x, sourceBox.center.y);
   const label = edge.label ? renderLabelText(midX, midY - 4, edge.label, 12, false) : '';
   // Grouping B: lineStyle supplies a default treatment (dotted dasharray, thick width) that an
   // explicit edge.style (linkStyle) override still wins over, since linkStyle is layered on top.
@@ -413,11 +861,56 @@ function renderEdge(edge: DiagramModel['edges'][number], nodesById: Map<string, 
   const stroke = isInvisible ? 'none' : (edge.style?.strokeColor ?? '#333333');
   const strokeWidthValue = edge.style?.strokeWidth ?? (edge.lineStyle === 'thick' ? DEFAULT_THICK_STROKE_WIDTH : undefined);
   const strokeWidth = strokeWidthValue ? ` stroke-width="${strokeWidthValue}"` : '';
-  const dasharrayValue = edge.style?.strokeDasharray ?? (edge.lineStyle === 'dotted' ? DEFAULT_DOTTED_DASHARRAY : undefined);
+  // canvas-7vs.3: uml.ts never sets lineStyle for these -- realization/dependency/link-dashed are
+  // dashed purely by umlRelationKind, so this is derived here rather than read off a field.
+  const umlMarkers = edge.umlRelationKind ? umlEndpointMarkers(edge.umlRelationKind) : undefined;
+  const dasharrayValue =
+    edge.style?.strokeDasharray ?? (edge.lineStyle === 'dotted' || umlMarkers?.dashed ? DEFAULT_DOTTED_DASHARRAY : undefined);
   const strokeDasharray = dasharrayValue ? ` stroke-dasharray="${dasharrayValue}"` : '';
-  const markerEnd = isInvisible || edge.arrow === 'none' ? '' : ' marker-end="url(#arrowhead)"';
-  const markerStart = !isInvisible && edge.arrow === 'both' ? ' marker-start="url(#arrowhead)"' : '';
-  return `<g data-edge-id="${escapeXml(edge.id)}"><line x1="${clippedFrom.x}" y1="${clippedFrom.y}" x2="${clippedTo.x}" y2="${clippedTo.y}" stroke="${stroke}"${strokeWidth}${strokeDasharray}${markerStart}${markerEnd} />${label}</g>`;
+  // canvas-2ut: an ER relationship's crow's-foot cardinality glyphs REPLACE the generic
+  // arrowhead entirely — standard ERD notation has no arrowheads at all, only these symbols.
+  const hasErCardinality = Boolean(edge.erSourceCardinality && edge.erTargetCardinality);
+  // canvas-7vs.3: likewise, any UML umlRelationKind draws its own marker (or deliberately none,
+  // for link-solid/link-dashed) instead of the generic arrowhead — never both.
+  const suppressGenericMarker = hasErCardinality || Boolean(umlMarkers);
+  const markerEnd = isInvisible || suppressGenericMarker || edge.arrow === 'none' ? '' : ' marker-end="url(#arrowhead)"';
+  const markerStart = !isInvisible && !suppressGenericMarker && edge.arrow === 'both' ? ' marker-start="url(#arrowhead)"' : '';
+  const cardinalityMarkup =
+    isInvisible || !hasErCardinality
+      ? ''
+      : [
+          ...cardinalityGlyphs(clippedFrom, to.x - from.x, to.y - from.y, edge.erSourceCardinality!),
+          // canvas-2ut: the target token is written nearest-line-character-first in the DSL
+          // (e.g. "o{" in `||--o{`, read left-to-right as [near the "--", near the target
+          // entity]) — reversed here so cardinalityGlyphs' own nearest-node-first convention
+          // (shared with the source side above) still applies without a second code path.
+          ...cardinalityGlyphs(clippedTo, from.x - to.x, from.y - to.y, [...edge.erTargetCardinality!].reverse().join('')),
+        ]
+          .map((glyph) => renderCardinalityGlyph(glyph, stroke))
+          .join('');
+  const umlMarkerMarkup =
+    isInvisible || !umlMarkers
+      ? ''
+      : [
+          umlMarkers.source ? umlEndpointGlyph(clippedFrom, to.x - from.x, to.y - from.y, umlMarkers.source) : null,
+          umlMarkers.target ? umlEndpointGlyph(clippedTo, from.x - to.x, from.y - to.y, umlMarkers.target) : null,
+        ]
+          .filter((glyph): glyph is UmlEndpointGlyph => glyph !== null)
+          .map((glyph) => renderUmlEndpointGlyph(glyph, stroke))
+          .join('');
+  // canvas-7vs.5: UML relationship multiplicity labels (e.g. "1", "0..*") near each endpoint --
+  // independent of umlRelationKind (a plain association can still carry cardinality).
+  const cardinalityLabelMarkup = isInvisible
+    ? ''
+    : [
+        edge.sourceCardinality
+          ? renderUmlCardinalityLabel(umlCardinalityLabelPosition(clippedFrom, to.x - from.x, to.y - from.y), edge.sourceCardinality)
+          : '',
+        edge.targetCardinality
+          ? renderUmlCardinalityLabel(umlCardinalityLabelPosition(clippedTo, from.x - to.x, from.y - to.y), edge.targetCardinality)
+          : '',
+      ].join('');
+  return `<g data-edge-id="${escapeXml(edge.id)}"><line x1="${clippedFrom.x}" y1="${clippedFrom.y}" x2="${clippedTo.x}" y2="${clippedTo.y}" stroke="${stroke}"${strokeWidth}${strokeDasharray}${markerStart}${markerEnd} />${cardinalityMarkup}${umlMarkerMarkup}${cardinalityLabelMarkup}${label}</g>`;
 }
 
 /** Exported so the interactive canvas can size itself to match actual content exactly the way
@@ -445,10 +938,11 @@ export function computeBounds(model: DiagramModel): { width: number; height: num
  */
 export function renderToSvg(model: DiagramModel, resolveIcon?: IconResolver): string {
   const nodesById = new Map(model.nodes.map((n) => [n.id, n]));
+  const containersById = new Map(model.containers.map((c) => [c.id, c]));
   const { width, height } = computeBounds(model);
 
   const containerMarkup = model.containers.map(renderContainer).join('');
-  const edgeMarkup = model.edges.map((e) => renderEdge(e, nodesById)).join('');
+  const edgeMarkup = model.edges.map((e) => renderEdge(e, nodesById, containersById)).join('');
   const nodeMarkup = model.nodes.map((n) => renderNode(n, resolveIcon)).join('');
 
   return [

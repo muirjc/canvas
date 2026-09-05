@@ -98,6 +98,7 @@ export function serializeFlowchart(model: DiagramModel): string {
   };
 
   const bodyLines: string[] = [`flowchart ${model.direction ?? 'TD'}`];
+  if (model.title) bodyLines.push(`title ${model.title}`);
   const emittedNodeIds = new Set<string>();
 
   const topLevelContainers = model.containers.filter((c) => !c.parentContainerId);
