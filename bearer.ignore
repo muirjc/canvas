@@ -1,0 +1,14 @@
+{
+  "f97fd904cba0a080f088fde91b7534fc_0": {
+    "author": "muir.jc@gmail.com",
+    "comment": "canvas-eil: TEST_SESSION_SECRET/TEST_DATABASE_URL (config.ts) are deliberate, non-sensitive test-only fixtures gated behind NODE_ENV=test (canvas-uw8) -- production always requires the real env var via requireEnv(), which throws if unset. Bearer's static heuristic pattern-matches a literal assigned to a *SECRET*-named const with no awareness of that gating. Confirmed via a local, unredacted full-repo bearer scan against this exact commit (fingerprint is repo-scan-scoped -- differs from a single-file scan of config.ts alone).",
+    "false_positive": true,
+    "ignored_at": "2026-09-05T21:26:56Z"
+  },
+  "f97fd904cba0a080f088fde91b7534fc_1": {
+    "author": "muir.jc@gmail.com",
+    "comment": "canvas-eil: same false positive as _0 (the isTest ? TEST_SESSION_SECRET : ... ternary that consumes it) -- see that entry's comment.",
+    "false_positive": true,
+    "ignored_at": "2026-09-05T21:26:57Z"
+  }
+}
