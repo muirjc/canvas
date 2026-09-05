@@ -18,6 +18,7 @@ import { registerLibraryRoutes } from './libraries/library.routes.js';
 import { registerProjectRoutes } from './projects/project.routes.js';
 import { registerAiSettingsRoutes } from './ai/ai-settings.routes.js';
 import { registerPersonaRoutes } from './ai/persona.routes.js';
+import { registerPersonaReferenceMaterialRoutes } from './ai/persona-reference-material.routes.js';
 import { registerDiagramChatRoutes } from './ai/diagram-chat.routes.js';
 
 export interface BuildAppOptions {
@@ -84,6 +85,7 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
   await registerProjectRoutes(app);
   await registerAiSettingsRoutes(app);
   await registerPersonaRoutes(app);
+  await registerPersonaReferenceMaterialRoutes(app);
   await registerDiagramChatRoutes(app, { languageModel: options.languageModel });
 
   app.get('/health', async () => ({ status: 'ok' }));

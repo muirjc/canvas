@@ -55,7 +55,11 @@ test('admin manages the persona library; a non-admin cannot reach the screen', a
   // not React state alone).
   await page.getByTestId('admin-ai-personas-link').click();
   const row = page.locator('li', { has: page.locator('strong', { hasText: personaName }) });
-  const rowPrompt = row.locator('textarea');
+  // Scoped to the tag AND the id-prefix: User Story 4 (010-ai-diagram-knowledge) added a second,
+  // sibling <textarea> per row for reference-material entries (data-testid
+  // `reference-material-create-content-<personaId>`), so a bare `row.locator('textarea')` is no
+  // longer unique -- this must keep targeting only the persona's own system-prompt textarea.
+  const rowPrompt = row.locator('textarea[data-testid^="persona-prompt-"]');
   const rowSave = row.locator('[data-testid^="persona-prompt-save-"]');
   await expect(rowSave).toBeDisabled();
   await rowPrompt.fill('Updated E2E system prompt.');
@@ -75,7 +79,9 @@ test('admin manages the persona library; a non-admin cannot reach the screen', a
   // reached the backend — the persisted value is still the FIRST save, not this second unsaved one.
   await page.reload();
   const reloadedRow = page.locator('li', { has: page.locator('strong', { hasText: personaName }) });
-  await expect(reloadedRow.locator('textarea')).toHaveValue('Updated E2E system prompt.');
+  await expect(reloadedRow.locator('textarea[data-testid^="persona-prompt-"]')).toHaveValue(
+    'Updated E2E system prompt.',
+  );
   await expect(reloadedRow.locator('[data-testid^="persona-prompt-save-"]')).toBeDisabled();
 
   // Archive it: by default (canvas-rbu) the row disappears from the list entirely, since
@@ -134,7 +140,9 @@ test('editing one persona\'s prompt does not affect another persona\'s save stat
   await expect(saveA).toBeDisabled();
   await expect(saveB).toBeDisabled();
 
-  await rowA.locator('textarea').fill('Independent edit for Business Architect only — never saved.');
+  await rowA
+    .locator('textarea[data-testid^="persona-prompt-"]')
+    .fill('Independent edit for Business Architect only — never saved.');
   await expect(saveA).toBeEnabled();
   await expect(rowA.locator('[data-testid^="persona-prompt-status-"]')).toHaveText('Unsaved changes');
 

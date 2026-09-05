@@ -34,10 +34,9 @@ Auto-generated from all feature plans. Last updated: 2026-09-05
 - No new technology added in 009-flowchart-node-shapes — zero runtime dependencies added. No
   persistence change (`NodeShape` is an in-memory/DSL-level type, not a database column); no new
   package or service. Touches `packages/diagram-core` and `apps/web` only.
-- No new runtime technology added so far in 010-ai-diagram-knowledge — reuses 004's existing
+- No new technology added in 010-ai-diagram-knowledge — reuses 004's existing
   `ai`/`@ai-sdk/anthropic`/`@ai-sdk/openai`/`zod` in `apps/api`. One additive Postgres migration
-  still planned for its remaining User Story 4 (`ai_persona_reference_material`); no new
-  workspace/package.
+  (`ai_persona_reference_material`); no new workspace/package.
 
 ## Project Structure
 
@@ -58,35 +57,55 @@ tests are NON-NEGOTIABLE and must exist (and fail) before implementing any diagr
 work — see `.specify/memory/constitution.md` Principle IV.
 
 ## Recent Changes
-- `010-ai-diagram-knowledge` (Foundational + User Story 1 + User Story 2 complete, canvas-tgf,
-  User Stories 3/4 still open): AI chat was hardcoded to `getDslFamily('flowchart')` regardless of
-  the diagram's real type — a confirmed, live bug, not a hypothetical gap — so a chat request
-  against any non-flowchart diagram errored out despite the chat panel being shown for every
-  diagram type. **Foundational**: `diagram-chat.routes.ts` now resolves the diagram's real
-  `dslFamily` via the existing `getDiagram`/`loadDiagramTypeDslFamily` lookup and threads it through
-  `sendChatMessage`/`createDiagramTools`; a new `diagram-type-primers.ts` supplies one short
-  plain-language orientation per family, composed into the system prompt between the persona's own
-  prompt and `describeModel()`'s summary. **User Story 1** (the confirmed bug fix itself) is
-  covered by dedicated contract/E2E tests against all 5 non-flowchart families, not just asserted
-  fixed by Foundational's own change. **User Story 2** (the actual requested value — type-correct
-  structured edits, not generic labeled boxes) adds 6 new pure `diagram-core` operations
-  (`updateNodeRole`, `updateEntityAttributes`, `updateClassMembers`, `updateEdgeRelationKind`,
-  `updateEdgeArrowStyle`, `addPointMarkerContainer`) and 8 new family-conditional AI tools
-  (`setNodeRole` on c4/sequence, `setEntityAttributes` on erd, `setClassMembers`/
-  `setRelationshipKind` on uml, `setConnectorStyle` on sequence/flowchart, `groupIntoContainer` on
-  architecture/c4/uml/sequence, `activateParticipant`/`deactivateParticipant` on sequence) —
-  `createDiagramTools(context, family)` only returns a tool when it applies to that diagram's own
-  family, so an out-of-family request has no tool call to make at all (FR-004), not merely a
-  refusal string layered on top of one; `addNode`'s own `shape` enum was likewise widened from a
-  single hardcoded flowchart list to each family's real `NodeShape` subset, confirmed against each
-  family's own `dsl/*.ts` parser. A dedicated regression test confirms an AI-tool-driven mutation
-  that violates the diagram's active Standard is flagged by the same `computeValidation` path a
-  manual edit already goes through (Constitution Principle II — no bypass for AI-tool-driven
-  mutations); 6 new mock-provider E2E scenarios cover every new tool plus the FR-004 decline case.
-  Deferred to their own follow-up work: User Story 3 (a drift-guard test tying each family's primer
-  wording to its tool schemas' own enum values) and User Story 4 (persona-scoped, admin-curated
-  reference-material entries). See `specs/010-ai-diagram-knowledge/` for the full spec/plan/
-  research/data-model/contracts.
+- `010-ai-diagram-knowledge` (all four user stories complete, canvas-tgf): AI chat was hardcoded to
+  `getDslFamily('flowchart')` regardless of the diagram's real type — a confirmed, live bug, not a
+  hypothetical gap — so a chat request against any non-flowchart diagram errored out despite the
+  chat panel being shown for every diagram type. **Foundational**: `diagram-chat.routes.ts` now
+  resolves the diagram's real `dslFamily` via the existing `getDiagram`/`loadDiagramTypeDslFamily`
+  lookup and threads it through `sendChatMessage`/`createDiagramTools`; a new
+  `diagram-type-primers.ts` supplies one short plain-language orientation per family, composed into
+  the system prompt between the persona's own prompt and `describeModel()`'s summary. **User Story
+  1** (the confirmed bug fix itself) is covered by dedicated contract/E2E tests against all 5
+  non-flowchart families, not just asserted fixed by Foundational's own change. **User Story 2**
+  (the actual requested value — type-correct structured edits, not generic labeled boxes) adds 6
+  new pure `diagram-core` operations (`updateNodeRole`, `updateEntityAttributes`,
+  `updateClassMembers`, `updateEdgeRelationKind`, `updateEdgeArrowStyle`,
+  `addPointMarkerContainer`) and 8 new family-conditional AI tools (`setNodeRole` on c4/sequence,
+  `setEntityAttributes` on erd, `setClassMembers`/`setRelationshipKind` on uml, `setConnectorStyle`
+  on sequence/flowchart, `groupIntoContainer` on architecture/c4/uml/sequence,
+  `activateParticipant`/`deactivateParticipant` on sequence) — `createDiagramTools(context,
+  family)` only returns a tool when it applies to that diagram's own family, so an out-of-family
+  request has no tool call to make at all (FR-004), not merely a refusal string layered on top of
+  one; `addNode`'s own `shape` enum was likewise widened from a single hardcoded flowchart list to
+  each family's real `NodeShape` subset, confirmed against each family's own `dsl/*.ts` parser. A
+  dedicated regression test confirms an AI-tool-driven mutation that violates the diagram's active
+  Standard is flagged by the same `computeValidation` path a manual edit already goes through
+  (Constitution Principle II — no bypass for AI-tool-driven mutations); 6 new mock-provider E2E
+  scenarios cover every new tool plus the FR-004 decline case. **User Story 3** adds the FR-005
+  anti-drift guard: a new contract test walks every tool's live Zod schema per family at test time
+  (not a hand-copied enum list), collects every reachable enum value, and asserts each is mentioned
+  in that family's primer text — ran red against the original T007 primer wording (all 6 families
+  had real gaps: several shape/arrow/line-style/visibility-marker/relationship-kind values were
+  never mentioned), fixed by revising `diagram-type-primers.ts`'s prose until every value is
+  covered. **User Story 4** adds persona-scoped reference material: a new
+  `ai_persona_reference_material` table (migration `0010`), `persona-reference-material.service.ts`
+  (CRUD + family-id validation mirroring `InvalidPersonaCategoryError`'s pattern), 4 new admin-only
+  routes, and `PersonaAdminPage.tsx` CRUD UI (per-entry content + 6 family-scoping checkboxes,
+  reusing canvas-23t.1's card/field primitives) — entries scoped to the diagram's own family, or
+  unscoped, are composed into the system prompt after the family primer and before
+  `describeModel()`'s summary, never ahead of or in place of the persona's own `systemPrompt`
+  (FR-008); editing/deleting an entry never touches already-persisted `chat_messages` rows
+  (FR-009). A real regression was found and fixed while writing User Story 4's E2E coverage: the
+  new per-entry `<textarea>` made `ai-persona-admin.spec.ts`'s bare `row.locator('textarea')`
+  selector ambiguous (two textareas per row now) — fixed by scoping to
+  `textarea[data-testid^="persona-prompt-"]`. **Polish**: full regression green
+  (`packages/diagram-core` 633/633, `apps/api` 303/304 + 1 skipped perf test, clean `tsc --noEmit`/
+  `eslint`/build across all three workspaces); SC-002's manual live-provider validation (User Story
+  2 against a real Anthropic model, following 004's own T033 precedent) was attempted but blocked —
+  the dev environment's `ANTHROPIC_API_KEY` is rejected by Anthropic as invalid (a real,
+  environment-specific credential problem unrelated to this feature's own code, not something an
+  agent session can fix), so this one manual check is still outstanding pending a working key. See
+  `specs/010-ai-diagram-knowledge/` for the full spec/plan/research/data-model/contracts.
 - Azure deployment fixes, found live during the first-ever real deploy of `infra/azure/`
   (canvas-ycu/canvas-ycu.1's infrastructure), not anticipated in advance:
   - **`apps/api/src/auth/idp-proxy.routes.ts`**: Fastify's own built-in `application/json`
