@@ -2,6 +2,7 @@ import { generateText, stepCountIs, type LanguageModel } from 'ai';
 import { getDslFamily, isParseSuccess, type DiagramModel } from '@canvas/diagram-core';
 import { getPool } from '../db/pool.js';
 import { getPersona } from './persona.service.js';
+import { listReferenceMaterialForFamily } from './persona-reference-material.service.js';
 import { createDiagramTools, type ToolCallOutcome } from './diagram-tools.js';
 import { getDiagramTypePrimer } from './diagram-type-primers.js';
 import { getLanguageModel } from './provider.js';
@@ -71,15 +72,26 @@ function describeModel(model: DiagramModel): string {
   return `Current shapes:\n${nodes}\n\nCurrent connectors:\n${edges}`;
 }
 
-/** 010-ai-diagram-knowledge, T008 (research.md §2, contracts/api-ai-chat-contract.md): composition
- * order is persona's own system prompt (or the default) → that family's domain-concept primer →
- * (T031 inserts the persona's family-relevant reference-material entries here) → the current
- * diagram's summary. Reference material is never placed ahead of or in place of the persona's own
- * system prompt (FR-008). */
-async function buildSystemPrompt(personaSystemPrompt: string | undefined, dslFamily: string, model: DiagramModel): Promise<string> {
+/** 010-ai-diagram-knowledge, T008/T031 (research.md §2, contracts/api-ai-chat-contract.md):
+ * composition order is persona's own system prompt (or the default) → that family's
+ * domain-concept primer → the persona's reference-material entries scoped to `dslFamily` or
+ * unscoped (User Story 4) → the current diagram's summary. Reference material is never placed
+ * ahead of or in place of the persona's own system prompt (FR-008); a persona with no matching
+ * entries (including one with none at all, e.g. no `personaId`) behaves identically to before
+ * User Story 4 existed. */
+async function buildSystemPrompt(
+  personaId: string | null,
+  personaSystemPrompt: string | undefined,
+  dslFamily: string,
+  model: DiagramModel,
+): Promise<string> {
   const parts = [personaSystemPrompt ?? DEFAULT_SYSTEM_PROMPT];
   const primer = getDiagramTypePrimer(dslFamily);
   if (primer) parts.push(primer.summary);
+  if (personaId) {
+    const referenceMaterial = await listReferenceMaterialForFamily(personaId, dslFamily);
+    for (const entry of referenceMaterial) parts.push(entry.content);
+  }
   parts.push(describeModel(model));
   return parts.join('\n\n');
 }
@@ -134,7 +146,7 @@ export async function sendChatMessage(input: SendChatMessageInput): Promise<Send
     input.dslFamily,
   );
 
-  const system = await buildSystemPrompt(persona?.systemPrompt, input.dslFamily, model);
+  const system = await buildSystemPrompt(chat.personaId, persona?.systemPrompt, input.dslFamily, model);
 
   const result = await generateText({
     model: input.model ?? getLanguageModel(),

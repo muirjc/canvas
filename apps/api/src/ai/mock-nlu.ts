@@ -96,6 +96,18 @@ export function createMockLanguageModel() {
       const text = lastUserText(options);
       const system = systemText(options);
 
+      // 010-ai-diagram-knowledge, T034: this file's other rules only ever inspect the system
+      // prompt to resolve an id from a label (findIdByLabel) — none of them expose its actual
+      // content anywhere the frontend/E2E layer can observe, so there was previously no way for
+      // an E2E test to confirm persona reference material (composed into the system prompt,
+      // diagram-chat.service.ts's buildSystemPrompt) actually reaches the model for one diagram
+      // family and not another. Echoing it back verbatim as the assistant's reply, behind an
+      // unambiguous fixed phrase, is a test-only introspection hook — not a real capability a
+      // real provider would need or have.
+      if (/^what do you know about this diagram\??$/i.test(text.trim())) {
+        return noToolCallResult(system);
+      }
+
       const addMatch = text.match(/add (?:an? )?(?:(\S+) )?shape (?:called|named) ['"]?([^'".]+)['"]?/i);
       if (addMatch) {
         const shape = SHAPE_WORDS.includes(addMatch[1] as (typeof SHAPE_WORDS)[number])

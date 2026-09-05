@@ -203,6 +203,17 @@ export interface AiPersonaDto {
   status: 'active' | 'archived';
 }
 
+/** 010-ai-diagram-knowledge, User Story 4: an admin-curated reference-material entry attached to
+ *  a persona, optionally scoped to specific diagram-type families (empty = unscoped). */
+export interface PersonaReferenceMaterialDto {
+  id: string;
+  personaId: string;
+  content: string;
+  diagramFamilies: string[];
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface ToolCallOutcomeDto {
   tool: string;
   applied: boolean;
@@ -367,6 +378,24 @@ export const api = {
   updateAiPersona: (id: string, body: { name?: string; category?: string; systemPrompt?: string }) =>
     request<{ persona: AiPersonaDto }>(`/admin/ai-personas/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
   archiveAiPersona: (id: string) => request<{ persona: AiPersonaDto }>(`/admin/ai-personas/${id}/archive`, { method: 'POST' }),
+  listPersonaReferenceMaterial: (personaId: string) =>
+    request<{ entries: PersonaReferenceMaterialDto[] }>(`/admin/ai-personas/${personaId}/reference-material`),
+  createPersonaReferenceMaterial: (personaId: string, body: { content: string; diagramFamilies?: string[] }) =>
+    request<{ entry: PersonaReferenceMaterialDto }>(`/admin/ai-personas/${personaId}/reference-material`, {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
+  updatePersonaReferenceMaterial: (
+    personaId: string,
+    entryId: string,
+    body: { content?: string; diagramFamilies?: string[] },
+  ) =>
+    request<{ entry: PersonaReferenceMaterialDto }>(`/admin/ai-personas/${personaId}/reference-material/${entryId}`, {
+      method: 'PATCH',
+      body: JSON.stringify(body),
+    }),
+  deletePersonaReferenceMaterial: (personaId: string, entryId: string) =>
+    request<void>(`/admin/ai-personas/${personaId}/reference-material/${entryId}`, { method: 'DELETE' }),
   sendChatMessage: (diagramId: string, body: { message: string; currentDslContent: string; personaId?: string }) =>
     request<SendChatMessageResultDto>(`/diagrams/${diagramId}/chat/messages`, { method: 'POST', body: JSON.stringify(body) }),
   getChatMessages: (diagramId: string) => request<{ messages: ChatMessageDto[] }>(`/diagrams/${diagramId}/chat/messages`),

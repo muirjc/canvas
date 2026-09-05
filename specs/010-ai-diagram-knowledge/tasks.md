@@ -158,19 +158,19 @@ type and not on a non-matching one, using the same persona.
 
 ### Tests for User Story 4 ⚠️
 
-- [ ] T025 [P] [US4] Contract test: create/list/edit/delete `ai_persona_reference_material` entries; `content` must be non-empty (400 otherwise); `diagramFamilies` values must be valid registered family ids (400 otherwise); admin-only; editing or deleting an entry leaves every existing `chat_messages` row byte-identical (FR-009's "existing history unaffected" clause); in apps/api/tests/contract/persona-reference-material.test.ts (NEW)
-- [ ] T026 [P] [US4] Contract test (mock provider): `sendChatMessage`'s system prompt includes only reference-material entries scoped to the current `dslFamily` or unscoped, composed after the family primer and before `describeModel()`'s summary, never ahead of or replacing the persona's own `systemPrompt`; a persona with no matching entries behaves identically to before this feature in apps/api/tests/contract/diagram-chat.test.ts (extend)
+- [X] T025 [P] [US4] Contract test: create/list/edit/delete `ai_persona_reference_material` entries; `content` must be non-empty (400 otherwise); `diagramFamilies` values must be valid registered family ids (400 otherwise); admin-only; editing or deleting an entry leaves every existing `chat_messages` row byte-identical (FR-009's "existing history unaffected" clause); in apps/api/tests/contract/persona-reference-material.test.ts (NEW)
+- [X] T026 [P] [US4] Contract test (mock provider): `sendChatMessage`'s system prompt includes only reference-material entries scoped to the current `dslFamily` or unscoped, composed after the family primer and before `describeModel()`'s summary, never ahead of or replacing the persona's own `systemPrompt`; a persona with no matching entries behaves identically to before this feature in apps/api/tests/contract/diagram-chat.test.ts (extend)
 
 ### Implementation for User Story 4
 
-- [ ] T027 [US4] Write migration `ai_persona_reference_material` (id, persona_id FK, content, diagram_families TEXT[], created_at, updated_at) per data-model.md in apps/api/migrations/0010_ai_persona_reference_material.sql (apply to both `canvas` and `canvas_test` databases)
-- [ ] T028 [US4] Implement `persona-reference-material.service.ts` (CRUD + family-id validation, mirroring `InvalidPersonaCategoryError`'s existing pattern) in apps/api/src/ai/ (depends on T027, T025)
-- [ ] T029 [US4] Implement `persona-reference-material.routes.ts` (`GET`/`POST /admin/ai-personas/:id/reference-material`, `PATCH`/`DELETE /admin/ai-personas/:personaId/reference-material/:entryId`, admin-only) per contracts/api-ai-chat-contract.md in apps/api/src/ai/ (depends on T028)
-- [ ] T030 [US4] Register the new route module in apps/api/src/app.ts (depends on T029)
-- [ ] T031 [US4] Wire reference-material fetching and composition into `diagram-chat.service.ts`'s system-prompt assembly (depends on T026, T030, T008)
-- [ ] T032 [US4] Add reference-material client calls to apps/web/src/app/api.ts (depends on T030)
-- [ ] T033 [US4] Extend `PersonaAdminPage.tsx` with reference-material entry CRUD UI (add/edit/remove, diagram-family scoping checkboxes), reusing the existing card/field patterns (canvas-23t.1 precedent) in apps/web/src/ai/PersonaAdminPage.tsx (depends on T032)
-- [ ] T034 [P] [US4] E2E test: attach a family-scoped entry, confirm it surfaces on a matching-family diagram and not on a non-matching one using the same persona; confirm non-admin users cannot reach the reference-material controls, in apps/web/tests/e2e/ai-persona-reference-material.spec.ts (NEW) (depends on T033, T031)
+- [X] T027 [US4] Write migration `ai_persona_reference_material` (id, persona_id FK, content, diagram_families TEXT[], created_at, updated_at) per data-model.md in apps/api/migrations/0010_ai_persona_reference_material.sql (apply to both `canvas` and `canvas_test` databases)
+- [X] T028 [US4] Implement `persona-reference-material.service.ts` (CRUD + family-id validation, mirroring `InvalidPersonaCategoryError`'s existing pattern) in apps/api/src/ai/ (depends on T027, T025)
+- [X] T029 [US4] Implement `persona-reference-material.routes.ts` (`GET`/`POST /admin/ai-personas/:id/reference-material`, `PATCH`/`DELETE /admin/ai-personas/:personaId/reference-material/:entryId`, admin-only) per contracts/api-ai-chat-contract.md in apps/api/src/ai/ (depends on T028)
+- [X] T030 [US4] Register the new route module in apps/api/src/app.ts (depends on T029)
+- [X] T031 [US4] Wire reference-material fetching and composition into `diagram-chat.service.ts`'s system-prompt assembly (depends on T026, T030, T008)
+- [X] T032 [US4] Add reference-material client calls to apps/web/src/app/api.ts (depends on T030)
+- [X] T033 [US4] Extend `PersonaAdminPage.tsx` with reference-material entry CRUD UI (add/edit/remove, diagram-family scoping checkboxes), reusing the existing card/field patterns (canvas-23t.1 precedent) in apps/web/src/ai/PersonaAdminPage.tsx (depends on T032)
+- [X] T034 [P] [US4] E2E test: attach a family-scoped entry, confirm it surfaces on a matching-family diagram and not on a non-matching one using the same persona; confirm non-admin users cannot reach the reference-material controls, in apps/web/tests/e2e/ai-persona-reference-material.spec.ts (NEW) (depends on T033, T031)
 
 **Checkpoint**: All four user stories are independently functional.
 
@@ -178,10 +178,10 @@ type and not on a non-matching one, using the same persona.
 
 ## Phase 7: Polish & Cross-Cutting Concerns
 
-- [ ] T035 [P] Run the full quickstart.md manual validation across all 4 stories
-- [ ] T036 Manual live-provider validation (SC-002): with a real AI provider configured, exercise User Story 2 against at least one non-flowchart diagram type (e.g. ERD or C4) and confirm the generated structure is correct — following 004's own T033 precedent (research.md §5); document the result in the shipping PR/CLAUDE.md entry
-- [ ] T037 [P] Update CLAUDE.md's Recent Changes with the final implementation summary, replacing the spec/plan-only entry already there
-- [ ] T038 Run full regression: `packages/diagram-core`, `apps/api`, `apps/web` test suites, `tsc --noEmit`, `eslint`, and a clean build across all three workspaces
+- [X] T035 [P] Run the full quickstart.md manual validation across all 4 stories
+- [~] T036 Manual live-provider validation (SC-002): with a real AI provider configured, exercise User Story 2 against at least one non-flowchart diagram type (e.g. ERD or C4) and confirm the generated structure is correct — following 004's own T033 precedent (research.md §5); document the result in the shipping PR/CLAUDE.md entry — BLOCKED: the dev environment's `ANTHROPIC_API_KEY` is rejected by Anthropic as invalid (confirmed via a real live request, `{"error":"API key is invalid."}`); not something fixable from within this session. Outstanding pending a working key — see CLAUDE.md's Recent Changes entry.
+- [X] T037 [P] Update CLAUDE.md's Recent Changes with the final implementation summary, replacing the spec/plan-only entry already there
+- [X] T038 Run full regression: `packages/diagram-core`, `apps/api`, `apps/web` test suites, `tsc --noEmit`, `eslint`, and a clean build across all three workspaces
 
 ---
 
