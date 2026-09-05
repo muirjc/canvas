@@ -52,6 +52,23 @@ function findIdByLabel(system: string, label: string): string | undefined {
   return match?.[1];
 }
 
+/** Resolves an edge id from its (already-resolved) source/target node ids, reading the same
+ * `describeModel()` summary's "Current connectors" section (`- <edgeId>: <sourceId> -> <targetId>...`). */
+function findEdgeIdBySourceTarget(system: string, sourceId: string, targetId: string): string | undefined {
+  const escape = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const match = system.match(new RegExp(`- (\\S+): ${escape(sourceId)} -> ${escape(targetId)}`));
+  return match?.[1];
+}
+
+/** 010-ai-diagram-knowledge, T022: `options.tools` is the actual family-conditional tool set
+ * offered THIS turn (`createDiagramTools(context, family)`) — checking this before returning a
+ * tool call is what makes the "decline an out-of-family request" scenario (FR-004) work with no
+ * hand-authored refusal string: the exact same matched phrase, tried against a family where the
+ * tool isn't offered, simply has nothing to return here and falls through to the final fallback. */
+function toolAvailable(options: LanguageModelV4CallOptions, name: string): boolean {
+  return options.tools?.some((t) => t.name === name) ?? false;
+}
+
 const SHAPE_WORDS = ['rectangle', 'rounded-rectangle', 'circle', 'diamond', 'cylinder'] as const;
 
 const COLOR_WORDS: Record<string, string> = {
@@ -116,6 +133,83 @@ export function createMockLanguageModel() {
       if (colorMatch) {
         const nodeId = findIdByLabel(system, colorMatch[1].trim()) ?? colorMatch[1].trim();
         return toolCallResult('updateNodeStyle', { nodeId, fillColor: COLOR_WORDS[colorMatch[2].toLowerCase()] });
+      }
+
+      // 010-ai-diagram-knowledge, T022 (User Story 2): one deterministic rule per new
+      // diagram-type-specific tool (diagram-tools.ts). Each checks `toolAvailable` before
+      // returning — if the phrase matches but this turn's family doesn't offer that tool, the
+      // `if` is skipped and execution falls through to the next rule (and ultimately the final
+      // fallback below), never returning a tool call that couldn't actually exist.
+      const roleMatch = text.match(
+        /set (?:the )?role of ['"]?([^'".]+?)['"]? to (person|system|container|component|participant|actor)\b/i,
+      );
+      if (roleMatch && toolAvailable(options, 'setNodeRole')) {
+        const nodeId = findIdByLabel(system, roleMatch[1].trim()) ?? roleMatch[1].trim();
+        return toolCallResult('setNodeRole', { nodeId, role: roleMatch[2].toLowerCase() });
+      }
+
+      const attributeMatch = text.match(
+        /give ['"]?([^'".]+?)['"]? an attribute (\S+) (\S+?)(?: (PK|FK|UK))?$/i,
+      );
+      if (attributeMatch && toolAvailable(options, 'setEntityAttributes')) {
+        const nodeId = findIdByLabel(system, attributeMatch[1].trim()) ?? attributeMatch[1].trim();
+        const keys = attributeMatch[4] ? [attributeMatch[4].toUpperCase()] : [];
+        return toolCallResult('setEntityAttributes', {
+          nodeId,
+          attributes: [{ type: attributeMatch[2], name: attributeMatch[3], keys }],
+        });
+      }
+
+      const VISIBILITY_WORDS: Record<string, string> = { private: '-', public: '+', protected: '#', package: '~' };
+      const classMembersMatch = text.match(
+        /give ['"]?([^'".]+?)['"]? an? (private|public|protected|package) (\S+) (\S+) attribute and an? (private|public|protected|package) (\S+) method/i,
+      );
+      if (classMembersMatch && toolAvailable(options, 'setClassMembers')) {
+        const nodeId = findIdByLabel(system, classMembersMatch[1].trim()) ?? classMembersMatch[1].trim();
+        return toolCallResult('setClassMembers', {
+          nodeId,
+          members: [
+            {
+              kind: 'attribute',
+              visibility: VISIBILITY_WORDS[classMembersMatch[2].toLowerCase()],
+              type: classMembersMatch[3],
+              name: classMembersMatch[4],
+            },
+            {
+              kind: 'method',
+              visibility: VISIBILITY_WORDS[classMembersMatch[5].toLowerCase()],
+              name: classMembersMatch[6],
+              params: '',
+            },
+          ],
+        });
+      }
+
+      const relationMatch = text.match(
+        /make (?:the )?connector between ['"]?([^'".]+?)['"]? and ['"]?([^'".]+?)['"]? an? (inheritance|composition|aggregation|association|dependency|realization)/i,
+      );
+      if (relationMatch && toolAvailable(options, 'setRelationshipKind')) {
+        const sourceId = findIdByLabel(system, relationMatch[1].trim()) ?? relationMatch[1].trim();
+        const targetId = findIdByLabel(system, relationMatch[2].trim()) ?? relationMatch[2].trim();
+        const edgeId = findEdgeIdBySourceTarget(system, sourceId, targetId);
+        if (edgeId) {
+          return toolCallResult('setRelationshipKind', { edgeId, umlRelationKind: relationMatch[3].toLowerCase() });
+        }
+      }
+
+      const groupMatch = text.match(
+        /group ['"]?([^'".]+?)['"]? and ['"]?([^'".]+?)['"]? into a (?:container|group|boundary|box) (?:called |named )?['"]?([^'".]+)['"]?/i,
+      );
+      if (groupMatch && toolAvailable(options, 'groupIntoContainer')) {
+        const idA = findIdByLabel(system, groupMatch[1].trim()) ?? groupMatch[1].trim();
+        const idB = findIdByLabel(system, groupMatch[2].trim()) ?? groupMatch[2].trim();
+        return toolCallResult('groupIntoContainer', { nodeIds: [idA, idB], label: groupMatch[3].trim() });
+      }
+
+      const activateMatch = text.match(/^activate ['"]?([^'".]+?)['"]?$/i);
+      if (activateMatch && toolAvailable(options, 'activateParticipant')) {
+        const participantId = findIdByLabel(system, activateMatch[1].trim()) ?? activateMatch[1].trim();
+        return toolCallResult('activateParticipant', { participantId });
       }
 
       return noToolCallResult("I'm not sure how to help with that.");

@@ -72,6 +72,21 @@ export async function seedFlowchartDiagramType(): Promise<void> {
   );
 }
 
+/** 010-ai-diagram-knowledge: a generic diagram-type seeder for the 5 non-flowchart families —
+ *  `seedFlowchartDiagramType` above stays as-is (many other test files already call it by name)
+ *  rather than being rewritten in terms of this one. `id` and `dslFamily` are the same value for
+ *  every one of this platform's own seeded diagram types today, but kept as separate parameters
+ *  since nothing requires that to remain true. */
+export async function seedDiagramType(id: string, dslFamily: string, name = id): Promise<void> {
+  const pool = getPool();
+  await pool.query(
+    `INSERT INTO diagram_types (id, name, personas, abstraction_level, dsl_family, default_palette_library_ids)
+     VALUES ($1, $2, ARRAY['Business','Enterprise','Solution','Technical'], 'N/A', $3, ARRAY['generic'])
+     ON CONFLICT (id) DO NOTHING`,
+    [id, name, dslFamily],
+  );
+}
+
 /**
  * `ownerId` became required with feature 007 (`projects.owner_id` is NOT NULL). Callers that
  * don't care who owns the project may omit it, in which case any existing user is used — seeding
