@@ -12,7 +12,11 @@ interface UserRow {
   active: boolean;
 }
 
-/** Local email/password login — only registered when config.allowLocalAuth is true. */
+/**
+ * Local email/password login — only registered when config.allowLocalAuth is true.
+ * `/auth/me` and `/auth/logout` are NOT here — see session.ts's registerSessionInfoRoutes, which
+ * both this route and the OIDC callback (auth/oidc.ts) rely on and which is always registered.
+ */
 export async function registerLocalAuthRoutes(app: FastifyInstance): Promise<void> {
   app.post<{ Body: { email: string; password: string } }>('/auth/local/login', async (request, reply) => {
     const { email, password } = request.body;
@@ -43,18 +47,5 @@ export async function registerLocalAuthRoutes(app: FastifyInstance): Promise<voi
     };
     request.session.user = user;
     reply.send({ user });
-  });
-
-  app.post('/auth/logout', async (request, reply) => {
-    await request.session.destroy();
-    reply.code(204).send();
-  });
-
-  app.get('/auth/me', async (request, reply) => {
-    if (!request.session.user) {
-      reply.code(401).send({ error: 'Not authenticated' });
-      return;
-    }
-    reply.send({ user: request.session.user });
   });
 }
