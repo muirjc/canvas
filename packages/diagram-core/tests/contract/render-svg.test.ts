@@ -151,6 +151,117 @@ describe('renderToSvg container fidelity', () => {
 });
 
 /**
+ * canvas-7vs.1: sequence diagrams get their own dedicated lifeline/timeline rendering path
+ * (renderSequenceSvg), consuming computeSequenceLayout()'s output instead of node/container
+ * .position (which is always a placeholder for this family — research.md §1). These assertions
+ * check real geometric relationships in the rendered markup, not just "it doesn't throw"
+ * (quickstart.md's own warning about a happy-path-only suite).
+ */
+describe('renderToSvg: sequence diagrams (canvas-7vs.1)', () => {
+  function extractLineX(svg: string, dataNodeId: string): number {
+    // Each participant's <line> (the lifeline) immediately precedes its <g data-node-id="...">
+    // header group in document order — see renderSequenceLifeline.
+    const marker = `data-node-id="${dataNodeId}"`;
+    const before = svg.slice(0, svg.indexOf(marker));
+    const match = [...before.matchAll(/<line x1="([\d.]+)" y1="[\d.]+" x2="[\d.]+" y2="[\d.]+" stroke="#888888"/g)].pop();
+    if (!match) throw new Error(`no lifeline found before ${marker}`);
+    return Number(match[1]);
+  }
+
+  it('renders one lifeline per participant, in declared left-to-right order', () => {
+    const model: DiagramModel = {
+      diagramTypeId: 'sequence',
+      nodes: [
+        { id: 'Alice', label: 'Alice', shape: 'rectangle', position: { x: 0, y: 0 } },
+        { id: 'Bob', label: 'Bob', shape: 'rectangle', position: { x: 0, y: 0 } },
+      ],
+      edges: [],
+      containers: [],
+    };
+    const svg = renderToSvg(model);
+    expect(svg.match(/stroke="#888888" stroke-dasharray="4,2"/g)?.length).toBeGreaterThanOrEqual(2);
+    expect(extractLineX(svg, 'Alice')).toBeLessThan(extractLineX(svg, 'Bob'));
+  });
+
+  it('renders 4 messages between the same 2 participants at 4 distinct y-positions, in order', () => {
+    const model: DiagramModel = {
+      diagramTypeId: 'sequence',
+      nodes: [
+        { id: 'Alice', label: 'Alice', shape: 'rectangle', position: { x: 0, y: 0 } },
+        { id: 'John', label: 'John', shape: 'rectangle', position: { x: 0, y: 0 } },
+      ],
+      edges: [
+        { id: 'e1', sourceId: 'Alice', targetId: 'John', label: 'm1', sequenceOrder: 0 },
+        { id: 'e2', sourceId: 'John', targetId: 'Alice', label: 'm2', sequenceOrder: 1 },
+        { id: 'e3', sourceId: 'Alice', targetId: 'John', label: 'm3', sequenceOrder: 2 },
+        { id: 'e4', sourceId: 'John', targetId: 'Alice', label: 'm4', sequenceOrder: 3 },
+      ],
+      containers: [],
+    };
+    const svg = renderToSvg(model);
+    const ys = ['e1', 'e2', 'e3', 'e4'].map((id) => {
+      const g = svg.slice(svg.indexOf(`data-edge-id="${id}"`));
+      return Number(g.match(/y1="([\d.]+)"/)![1]);
+    });
+    expect(new Set(ys).size).toBe(4);
+    expect(ys[0]).toBeLessThan(ys[1]);
+    expect(ys[1]).toBeLessThan(ys[2]);
+    expect(ys[2]).toBeLessThan(ys[3]);
+  });
+
+  it('renders a self-message as a path loop, not a zero-length line', () => {
+    const model: DiagramModel = {
+      diagramTypeId: 'sequence',
+      nodes: [{ id: 'A', label: 'A', shape: 'rectangle', position: { x: 0, y: 0 } }],
+      edges: [{ id: 'e1', sourceId: 'A', targetId: 'A', label: 'think', sequenceOrder: 0 }],
+      containers: [],
+    };
+    const svg = renderToSvg(model);
+    const g = svg.slice(svg.indexOf('data-edge-id="e1"'));
+    expect(g).toMatch(/<path d="M [\d.]+ [\d.]+ H [\d.]+ V [\d.]+ H [\d.]+"/);
+  });
+
+  it('renders an activate/deactivate pair as a bar on the correct participant', () => {
+    const model: DiagramModel = {
+      diagramTypeId: 'sequence',
+      nodes: [
+        { id: 'A', label: 'A', shape: 'rectangle', position: { x: 0, y: 0 } },
+        { id: 'B', label: 'B', shape: 'rectangle', position: { x: 0, y: 0 } },
+      ],
+      edges: [{ id: 'e1', sourceId: 'A', targetId: 'B', label: 'go', sequenceOrder: 1 }],
+      containers: [
+        { id: 'act1', label: '', role: 'activate', attachedNodeIds: ['B'], position: { x: 0, y: 0 }, sequenceOrder: 0 },
+        { id: 'deact1', label: '', role: 'deactivate', attachedNodeIds: ['B'], position: { x: 0, y: 0 }, sequenceOrder: 2 },
+      ],
+    };
+    const svg = renderToSvg(model);
+    expect(svg).toContain('data-container-id="act1"');
+    const g = svg.slice(svg.indexOf('data-container-id="act1"'));
+    expect(g).toMatch(/<rect x="[\d.]+" y="[\d.]+" width="10" height="[\d.]+" fill="#ffffff" stroke="#333333"/);
+  });
+
+  it('renders a loop block spanning only its referenced participants\' lifelines', () => {
+    const model: DiagramModel = {
+      diagramTypeId: 'sequence',
+      nodes: [
+        { id: 'Alice', label: 'Alice', shape: 'rectangle', position: { x: 0, y: 0 } },
+        { id: 'Bob', label: 'Bob', shape: 'rectangle', position: { x: 0, y: 0 } },
+        { id: 'Carol', label: 'Carol', shape: 'rectangle', position: { x: 0, y: 0 } },
+      ],
+      edges: [{ id: 'e1', sourceId: 'Alice', targetId: 'Bob', label: 'ping', sequenceOrder: 1, containerId: 'loop1' }],
+      containers: [{ id: 'loop1', label: 'Retry', role: 'loop', position: { x: 0, y: 0 }, sequenceOrder: 0 }],
+    };
+    const svg = renderToSvg(model);
+    expect(svg).toContain('loop Retry');
+    const carolX = extractLineX(svg, 'Carol');
+    const blockMatch = svg.match(/<rect x="([\d.]+)" y="[\d.]+" width="([\d.]+)" height="[\d.]+" fill="none" stroke="#888888" stroke-dasharray="4,2"/);
+    expect(blockMatch).toBeTruthy();
+    const [, blockX, blockWidth] = blockMatch!;
+    expect(Number(blockX) + Number(blockWidth)).toBeLessThan(carolX);
+  });
+});
+
+/**
  * Feature 009: the seven additional Mermaid flowchart shapes (plus double-circle and stadium,
  * both already implied by the DSL but never drawn) must render as themselves in export markup —
  * never silently fall through to the rectangle `default` case (data-model.md's rendering table).

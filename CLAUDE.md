@@ -37,6 +37,13 @@ Auto-generated from all feature plans. Last updated: 2026-09-05
 - No new technology added in 010-ai-diagram-knowledge — reuses 004's existing
   `ai`/`@ai-sdk/anthropic`/`@ai-sdk/openai`/`zod` in `apps/api`. One additive Postgres migration
   (`ai_persona_reference_material`); no new workspace/package.
+- No new technology added in 011-sequence-lifeline-rendering — a rendering-layer change only,
+  touching `packages/diagram-core` (`src/dsl/sequence.ts`, a new `src/render/sequence-layout.ts`)
+  and `apps/web/src/canvas/Canvas.tsx`. No new dependency, no new package, `apps/api` untouched.
+  One deliberate, disclosed round-trip exception: `canvas.positions`/`canvas.containers`
+  front-matter stops being read/written for this one diagram family, since sequence-diagram
+  layout becomes fully computed from DSL order (participant/message declaration order) rather than
+  a stored, draggable position — see `specs/011-sequence-lifeline-rendering/research.md` §1.
 
 ## Project Structure
 
@@ -57,6 +64,54 @@ tests are NON-NEGOTIABLE and must exist (and fail) before implementing any diagr
 work — see `.specify/memory/constitution.md` Principle IV.
 
 ## Recent Changes
+- `011-sequence-lifeline-rendering` (canvas-7vs.1, all four user stories complete): sequence
+  diagrams parsed and modeled every construct correctly but rendered through the exact same
+  flat-row code path a flowchart uses (`sequence.ts`'s own `nextPosition()`: every participant/
+  message/note/block placed at `y=40`, `x += 180`) — confirmed live, multiple messages between the
+  same two participants rendered fully coincident, the single biggest finding of the canvas-7vs
+  renderer-completeness audit. Adds one new shared, exported `computeSequenceLayout()` in a new
+  `packages/diagram-core/src/render/sequence-layout.ts` (participant lifeline x-order from
+  declaration order; message/activation/block/note y-position and horizontal bounds from the
+  existing `sequenceOrder`/`parentContainerId`/`attachedNodeIds` fields — no new model field)
+  called by BOTH `svg-renderer.ts` (a new `renderSequenceSvg`) and `Canvas.tsx` — deliberately
+  avoiding a second, independently-hand-copied geometry calculation, the same class of canvas/
+  export disagreement risk feature 009's research flagged for shape rendering (`cylinder`), here at
+  whole-diagram scale; confirmed no drift both by unit tests asserting real geometric relationships
+  (not just "renders without throwing") and by a live manual export check (`/export?format=svg`
+  and `?format=png` against a running API) matching the canvas exactly. Per a decision resolved
+  directly with the user: layout is computed-only, never dragged/stored — manual drag-to-reposition
+  is disabled for sequence-family elements (`handleNodePointerDown`/`handleContainerPointerDown`
+  skip starting a drag when `dslFamily === 'sequence'`), and `canvas.positions`/`canvas.containers`
+  front-matter round-trip is intentionally dropped for this one family (research.md §1) — position
+  was never real DSL content for sequence diagrams (declaration/message *order* is, and that's
+  unaffected), so continuing to store now-ignored values would be a worse trap than omitting them.
+  Participants get real vertical lifelines (full diagram height); messages (including a
+  self-message, rendered as a loop, not a collapsed zero-length line) are ordered strictly by
+  `sequenceOrder`; `activate`/`deactivate` pairs (statement or `+`/`-` shorthand) render as narrow
+  vertical bars, nested/stacked activations offset into separate lanes; `loop`/`alt`/`opt`/`par`/
+  `critical`/`break`/`rect` render as a bounding box spanning only the participants a message or
+  attached note/activation inside it actually references (not the full diagram width), with
+  `else`/`and`/`option` as a labeled divider inside the parent's bounds; `Note left/right/over` and
+  `box` groupings position correctly against the real lifeline geometry. Scope was deliberately
+  bounded, per the epic's own split: giving notes/boxes/blocks a genuinely distinct visual style
+  (canvas-7vs.8) and drawing an attachment connector line (canvas-7vs.9) remain their own sibling
+  beads, now unblocked by this feature's geometry but not delivered by it; a `create`/`destroy`'d
+  participant's lifeline visually starting/ending partway down the timeline (rather than always
+  spanning full height) was also deliberately left out of scope. A real, independent gap was found
+  during research and intentionally not fixed here (filed as a follow-up instead): the "Add Shape"
+  toolbar still offers sequence diagrams the four generic universal shapes, but `serializeSequence`
+  silently discards whatever shape a toolbar-added node actually has and re-emits every node as a
+  plain participant/actor line regardless. Full `packages/diagram-core` suite green (656/656, up
+  from 633 — 23 new contract-test cases); `apps/web` E2E validated via the new
+  `sequence-rendering.spec.ts` (7/7, exercising the real running app end to end: lifeline ordering,
+  the confirmed bug-report shape's 4 non-coincident messages, a self-message loop, an activation
+  bar, loop-block bounds, note positioning, and drag-disabled) plus a targeted 42-test regression
+  subset across the shared Canvas.tsx code paths this feature touches (containers, auto-layout,
+  edge selection, label/style affordances) — the full `apps/web` E2E suite was not run start-to-
+  finish in this environment (it exceeded a 550s budget with no output even before this feature's
+  changes) and is recommended as a final CI gate before merge. See
+  `specs/011-sequence-lifeline-rendering/` for the full spec/plan/research/data-model/contracts/
+  tasks (all 46 tasks complete).
 - `010-ai-diagram-knowledge` (all four user stories complete, canvas-tgf): AI chat was hardcoded to
   `getDslFamily('flowchart')` regardless of the diagram's real type — a confirmed, live bug, not a
   hypothetical gap — so a chat request against any non-flowchart diagram errored out despite the

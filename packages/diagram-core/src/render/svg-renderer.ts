@@ -1,4 +1,5 @@
 import type { ClassMember, DiagramContainer, DiagramEdge, DiagramModel, DiagramNode, EntityAttribute, Size } from '../model/diagram-model.js';
+import { computeSequenceLayout, SELF_MESSAGE_LOOP_WIDTH, type SequenceLayout } from './sequence-layout.js';
 
 const DEFAULT_NODE_SIZE: Size = { width: 140, height: 60 };
 // Matches diagram-ops.ts's own (module-private) DEFAULT_CONTAINER_SIZE — kept as a separate literal
@@ -917,6 +918,13 @@ function renderEdge(
  *  export does (canvas-0s3) — a single source of truth rather than a second, hand-duplicated
  *  bounds calculation the two could silently disagree on. */
 export function computeBounds(model: DiagramModel): { width: number; height: number } {
+  // canvas-7vs.1: a sequence diagram's bounds come entirely from computeSequenceLayout() —
+  // node/container.position is a placeholder for this family (research.md §1), so the generic
+  // position-scanning loop below would compute a meaningless (near-zero) size.
+  if (model.diagramTypeId === 'sequence') {
+    const layout = computeSequenceLayout(model);
+    return { width: layout.diagramWidth, height: layout.diagramHeight };
+  }
   let maxX = 400;
   let maxY = 300;
   for (const node of model.nodes) {
@@ -932,11 +940,146 @@ export function computeBounds(model: DiagramModel): { width: number; height: num
   return { width: maxX, height: maxY };
 }
 
+const LIFELINE_STROKE = '#888888';
+const LIFELINE_DASHARRAY = '4,2';
+const SELF_MESSAGE_LOOP_DROP = 20;
+const BLOCK_LABEL_FONT_SIZE = 12;
+
+/** canvas-7vs.1: draws one participant's header box (reusing the ordinary `renderNode`/
+ *  `renderNodeShape` shape rendering, just positioned at its computed lifeline column instead of
+ *  `node.position`) plus its vertical lifeline. Exported so `Canvas.tsx` renders identically
+ *  (SC-004, contracts/sequence-layout-contract.md). */
+export function renderSequenceLifeline(node: DiagramNode, layout: SequenceLayout, resolveIcon?: IconResolver): string {
+  const lifeline = layout.lifelines.get(node.id);
+  if (!lifeline) return '';
+  const positionedNode: DiagramNode = {
+    ...node,
+    position: { x: lifeline.headerX, y: lifeline.headerY },
+    size: { width: lifeline.headerWidth, height: lifeline.headerHeight },
+  };
+  const lineMarkup = `<line x1="${lifeline.x}" y1="${lifeline.top}" x2="${lifeline.x}" y2="${lifeline.bottom}" stroke="${LIFELINE_STROKE}" stroke-dasharray="${LIFELINE_DASHARRAY}" />`;
+  return `${lineMarkup}${renderNode(positionedNode, resolveIcon)}`;
+}
+
+/** canvas-7vs.1: one message line (or, for a self-message, a small loop — research.md §5) between
+ *  two lifelines at the message's computed row. No endpoint clipping needed (canvas-1rq's concern
+ *  doesn't apply — a message is drawn below the header row, never underneath a node). Exported for
+ *  canvas/export parity. */
+export function renderSequenceMessage(edge: DiagramEdge, layout: SequenceLayout): string {
+  const message = layout.messages.get(edge.id);
+  const source = layout.lifelines.get(edge.sourceId);
+  const target = layout.lifelines.get(edge.targetId);
+  if (!message || !source || !target) return '';
+  const stroke = edge.style?.strokeColor ?? '#333333';
+  const strokeWidthValue = edge.style?.strokeWidth ?? (edge.lineStyle === 'thick' ? DEFAULT_THICK_STROKE_WIDTH : undefined);
+  const strokeWidth = strokeWidthValue ? ` stroke-width="${strokeWidthValue}"` : '';
+  const dasharrayValue = edge.style?.strokeDasharray ?? (edge.lineStyle === 'dotted' ? DEFAULT_DOTTED_DASHARRAY : undefined);
+  const strokeDasharray = dasharrayValue ? ` stroke-dasharray="${dasharrayValue}"` : '';
+  const markerEnd = edge.arrow === 'none' ? '' : ' marker-end="url(#arrowhead)"';
+  const markerStart = edge.arrow === 'both' ? ' marker-start="url(#arrowhead)"' : '';
+  const y = message.y;
+  const labelX = message.isSelfMessage ? source.x + SELF_MESSAGE_LOOP_WIDTH / 2 : (source.x + target.x) / 2;
+  const label = edge.label ? renderLabelText(labelX, y - 4, edge.label, 12, false) : '';
+  const lineMarkup = message.isSelfMessage
+    ? `<path d="M ${source.x} ${y} H ${source.x + SELF_MESSAGE_LOOP_WIDTH} V ${y + SELF_MESSAGE_LOOP_DROP} H ${source.x}" fill="none" stroke="${stroke}"${strokeWidth}${strokeDasharray}${markerEnd} />`
+    : `<line x1="${source.x}" y1="${y}" x2="${target.x}" y2="${y}" stroke="${stroke}"${strokeWidth}${strokeDasharray}${markerStart}${markerEnd} />`;
+  return `<g data-edge-id="${escapeXml(edge.id)}">${lineMarkup}${label}</g>`;
+}
+
+/** canvas-7vs.1: activate/deactivate containers with a paired bar (layout.activations, keyed by
+ *  the ACTIVATE container's id) render as a narrow vertical bar segment on the participant's
+ *  lifeline instead of the generic dashed-container fallback. */
+function renderSequenceActivation(container: DiagramContainer, layout: SequenceLayout): string {
+  const bar = layout.activations.get(container.id);
+  if (!bar) return '';
+  return `<g data-container-id="${escapeXml(container.id)}"><rect x="${bar.x - bar.width / 2}" y="${bar.yStart}" width="${bar.width}" height="${bar.yEnd - bar.yStart}" fill="#ffffff" stroke="#333333" /></g>`;
+}
+
+/** canvas-7vs.1: loop/alt/opt/par/critical/break/rect render as a bounding box with a
+ *  role-appropriate corner label (FR-006); their else/and/option children render as a divider
+ *  line instead (data-model.md "Control-flow blocks"); rect keeps canvas-7vs.2's existing
+ *  fill-color behavior, now correctly positioned/sized (FR-008). */
+function renderSequenceBlock(container: DiagramContainer, layout: SequenceLayout): string {
+  const block = layout.blocks.get(container.id);
+  if (!block) return '';
+  const labelText = container.label ? `${container.role} ${container.label}` : (container.role ?? '');
+  if (block.isDivider) {
+    const dividerLabel = container.label ? renderLabelText(block.x + 8, block.y - 4, labelText, BLOCK_LABEL_FONT_SIZE, false) : '';
+    return `<g data-container-id="${escapeXml(container.id)}"><line x1="${block.x}" y1="${block.y}" x2="${block.x + block.width}" y2="${block.y}" stroke="${LIFELINE_STROKE}" stroke-dasharray="${LIFELINE_DASHARRAY}" />${dividerLabel}</g>`;
+  }
+  const fill = container.style?.fillColor ?? 'none';
+  const cornerLabel = container.role === 'rect' ? '' : renderLabelText(block.x + 8, block.y + 14, labelText, BLOCK_LABEL_FONT_SIZE, false);
+  return [
+    `<g data-container-id="${escapeXml(container.id)}">`,
+    `<rect x="${block.x}" y="${block.y}" width="${block.width}" height="${block.height}" fill="${fill}" stroke="${LIFELINE_STROKE}" stroke-dasharray="${LIFELINE_DASHARRAY}" />`,
+    cornerLabel,
+    '</g>',
+  ].join('');
+}
+
+/** canvas-7vs.1: notes and box groupings reuse the ordinary generic container visual
+ *  (canvas-7vs.8 tracks giving them a genuinely distinct style separately) — only position/size
+ *  now come from the computed layout instead of the flat-row placeholder. */
+function renderSequenceNoteOrBox(container: DiagramContainer, layout: SequenceLayout): string {
+  const note = layout.notes.get(container.id);
+  if (note) {
+    const positioned: DiagramContainer = { ...container, position: note };
+    return renderContainer(positioned);
+  }
+  const box = layout.boxes.get(container.id);
+  if (box) {
+    const positioned: DiagramContainer = { ...container, position: { x: box.x, y: box.y }, size: { width: box.width, height: box.height } };
+    return renderContainer(positioned);
+  }
+  return '';
+}
+
+function renderSequenceSvg(model: DiagramModel, resolveIcon?: IconResolver): string {
+  const layout = computeSequenceLayout(model);
+  const { width, height } = { width: layout.diagramWidth, height: layout.diagramHeight };
+
+  const boxMarkup = model.containers.filter((c) => c.role === 'box').map((c) => renderSequenceNoteOrBox(c, layout)).join('');
+  const blockMarkup = model.containers
+    .filter((c) => c.role && (TOP_LEVEL_BLOCK_ROLES_FOR_RENDER.has(c.role) || DIVIDER_ROLES_FOR_RENDER.has(c.role)))
+    .map((c) => renderSequenceBlock(c, layout))
+    .join('');
+  const messageMarkup = model.edges.map((e) => renderSequenceMessage(e, layout)).join('');
+  const activationMarkup = model.containers.filter((c) => c.role === 'activate').map((c) => renderSequenceActivation(c, layout)).join('');
+  const noteMarkup = model.containers.filter((c) => c.role && NOTE_ROLES_FOR_RENDER.has(c.role)).map((c) => renderSequenceNoteOrBox(c, layout)).join('');
+  const lifelineMarkup = model.nodes.map((n) => renderSequenceLifeline(n, layout, resolveIcon)).join('');
+
+  return [
+    `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">`,
+    '<defs>',
+    '<marker id="arrowhead" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto-start-reverse">',
+    '<path d="M0,0 L0,6 L9,3 z" fill="#333333" />',
+    '</marker>',
+    '</defs>',
+    boxMarkup,
+    blockMarkup,
+    messageMarkup,
+    activationMarkup,
+    noteMarkup,
+    lifelineMarkup,
+    '</svg>',
+  ].join('');
+}
+
+const TOP_LEVEL_BLOCK_ROLES_FOR_RENDER = new Set(['loop', 'alt', 'opt', 'par', 'critical', 'break', 'rect']);
+const DIVIDER_ROLES_FOR_RENDER = new Set(['else', 'and', 'option']);
+const NOTE_ROLES_FOR_RENDER = new Set(['note-left', 'note-right', 'note-over']);
+
 /**
  * Renders a DiagramModel to self-contained SVG: no external network calls, no remote fonts —
  * satisfies the constitution's export constraint and Contract IV's export-fidelity requirement.
  */
 export function renderToSvg(model: DiagramModel, resolveIcon?: IconResolver): string {
+  // canvas-7vs.1: sequence diagrams get their own dedicated lifeline/timeline rendering path —
+  // svg-renderer.ts had zero sequence-aware branching before this (confirmed at the epic's own
+  // audit); every other family's rendering below is completely unaffected.
+  if (model.diagramTypeId === 'sequence') {
+    return renderSequenceSvg(model, resolveIcon);
+  }
   const nodesById = new Map(model.nodes.map((n) => [n.id, n]));
   const containersById = new Map(model.containers.map((c) => [c.id, c]));
   const { width, height } = computeBounds(model);
