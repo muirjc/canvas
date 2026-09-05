@@ -5,15 +5,15 @@ import { buildApp } from '../../src/app.js';
 import { loadConfig } from '../../src/config.js';
 import { runMigrations } from '../../src/db/migrate.js';
 import { getPool } from '../../src/db/pool.js';
-import { closeTestDb, resetDatabase, seedFlowchartDiagramType, seedProject, seedUser } from '../helpers/setup.js';
-import { createDiagramTools } from '../../src/ai/diagram-tools.js';
-import type { DiagramModel } from '@canvas/diagram-core';
+import { closeTestDb, resetDatabase, seedDiagramType, seedFlowchartDiagramType, seedProject, seedUser } from '../helpers/setup.js';
 
 /**
- * Feature 004, User Story 1: the 6 AI tool wrappers (direct unit-style tests, no LLM involved)
- * and the `/diagrams/:id/chat/messages` endpoint's HTTP-level contract (auth, persona lock-in,
- * the ai_settings gate) — using a minimal mock language model for the latter, since those tests
- * are about wiring/gating, not tool-selection behavior.
+ * Feature 004 User Story 1 + 010-ai-diagram-knowledge: the `/diagrams/:id/chat/messages`
+ * endpoint's HTTP-level contract (auth, persona lock-in, the ai_settings gate, and — as of
+ * 010-ai-diagram-knowledge — dslFamily resolution, cross-family access-control parity, and
+ * standards-validation parity for AI-tool-driven edits), using a minimal mock language model,
+ * since these tests are about wiring/gating, not tool-selection behavior. The AI tool wrappers
+ * themselves (direct unit-style tests, no LLM involved) live in diagram-tools.test.ts.
  */
 function noToolCallResult(text: string) {
   return {
@@ -26,132 +26,6 @@ function noToolCallResult(text: string) {
     warnings: [],
   };
 }
-
-describe('diagram-tools (AI tool wrappers)', () => {
-  let model: DiagramModel;
-  const tools = createDiagramTools({
-    getModel: () => model,
-    setModel: (m) => {
-      model = m;
-    },
-  });
-
-  beforeEach(() => {
-    model = {
-      diagramTypeId: 'flowchart',
-      nodes: [{ id: 'a', label: 'A', shape: 'rectangle', position: { x: 0, y: 0 } }],
-      edges: [],
-      containers: [],
-    };
-  });
-
-  it('addNode adds a node', async () => {
-    const result = await tools.addNode.execute!({ shape: 'diamond', label: 'Decision' }, { toolCallId: 't1', messages: [] });
-    expect(result).toEqual({ applied: true, nodeId: expect.any(String) });
-    expect(model.nodes.some((n) => n.label === 'Decision' && n.shape === 'diamond')).toBe(true);
-  });
-
-  it('addNode\'s result carries the new node\'s id, so a same-turn addEdge can reference it', async () => {
-    // Real bug found via T033 (live-provider validation, not the mock path): a real model creates
-    // several nodes then tries to connect them within the same turn, but has no way to learn the
-    // opaque generated id addNode assigned — it can only guess (the label text, "node-1", "0", …),
-    // and every guess fails. The tool result must surface the id so the model can use it.
-    const created = await tools.addNode.execute!({ shape: 'rectangle', label: 'New Shape' }, { toolCallId: 't1', messages: [] });
-    expect(created.applied).toBe(true);
-    const newNodeId = (created as { nodeId: string }).nodeId;
-    expect(model.nodes.some((n) => n.id === newNodeId)).toBe(true);
-
-    const edgeResult = await tools.addEdge.execute!(
-      { sourceId: 'a', targetId: newNodeId },
-      { toolCallId: 't2', messages: [] },
-    );
-    expect(edgeResult).toEqual({ applied: true });
-    expect(model.edges.some((e) => e.sourceId === 'a' && e.targetId === newNodeId)).toBe(true);
-  });
-
-  it('addEdge adds an edge between two existing nodes', async () => {
-    model.nodes.push({ id: 'b', label: 'B', shape: 'rectangle', position: { x: 200, y: 0 } });
-    const result = await tools.addEdge.execute!({ sourceId: 'a', targetId: 'b' }, { toolCallId: 't1', messages: [] });
-    expect(result).toEqual({ applied: true });
-    expect(model.edges.some((e) => e.sourceId === 'a' && e.targetId === 'b')).toBe(true);
-  });
-
-  it('addEdge reports not-found when a referenced node does not exist', async () => {
-    const result = await tools.addEdge.execute!({ sourceId: 'a', targetId: 'does-not-exist' }, { toolCallId: 't1', messages: [] });
-    expect(result).toEqual({ applied: false, reason: expect.stringContaining('does-not-exist') });
-    expect(model.edges).toHaveLength(0);
-  });
-
-  it('removeNode removes an existing node', async () => {
-    const result = await tools.removeNode.execute!({ nodeId: 'a' }, { toolCallId: 't1', messages: [] });
-    expect(result).toEqual({ applied: true });
-    expect(model.nodes).toHaveLength(0);
-  });
-
-  it('removeNode reports not-found for a nonexistent id without changing the model', async () => {
-    const before = model;
-    const result = await tools.removeNode.execute!({ nodeId: 'does-not-exist' }, { toolCallId: 't1', messages: [] });
-    expect(result).toEqual({ applied: false, reason: expect.stringContaining('does-not-exist') });
-    expect(model).toBe(before);
-  });
-
-  it('removeEdge reports not-found for a nonexistent id', async () => {
-    const result = await tools.removeEdge.execute!({ edgeId: 'does-not-exist' }, { toolCallId: 't1', messages: [] });
-    expect(result).toEqual({ applied: false, reason: expect.stringContaining('does-not-exist') });
-  });
-
-  it('updateNodeLabel renames an existing node', async () => {
-    const result = await tools.updateNodeLabel.execute!({ nodeId: 'a', label: 'Renamed' }, { toolCallId: 't1', messages: [] });
-    expect(result).toEqual({ applied: true });
-    expect(model.nodes.find((n) => n.id === 'a')!.label).toBe('Renamed');
-  });
-
-  it('updateNodeLabel reports not-found for a nonexistent id', async () => {
-    const result = await tools.updateNodeLabel.execute!({ nodeId: 'does-not-exist', label: 'X' }, { toolCallId: 't1', messages: [] });
-    expect(result).toEqual({ applied: false, reason: expect.stringContaining('does-not-exist') });
-  });
-
-  it('updateEdgeLabel reports not-found for a nonexistent id', async () => {
-    const result = await tools.updateEdgeLabel.execute!({ edgeId: 'does-not-exist', label: 'X' }, { toolCallId: 't1', messages: [] });
-    expect(result).toEqual({ applied: false, reason: expect.stringContaining('does-not-exist') });
-  });
-
-  it('updateNodeStyle sets fillColor/strokeColor on an existing node', async () => {
-    const result = await tools.updateNodeStyle.execute!(
-      { nodeId: 'a', fillColor: '#1168bd', strokeColor: '#0b4884' },
-      { toolCallId: 't1', messages: [] },
-    );
-    expect(result).toEqual({ applied: true });
-    expect(model.nodes.find((n) => n.id === 'a')!.style).toEqual({ fillColor: '#1168bd', strokeColor: '#0b4884' });
-  });
-
-  it('updateNodeStyle reports not-found for a nonexistent id', async () => {
-    const result = await tools.updateNodeStyle.execute!(
-      { nodeId: 'does-not-exist', fillColor: '#000000' },
-      { toolCallId: 't1', messages: [] },
-    );
-    expect(result).toEqual({ applied: false, reason: expect.stringContaining('does-not-exist') });
-  });
-
-  it('updateEdgeStyle sets strokeColor on an existing edge', async () => {
-    model.nodes.push({ id: 'b', label: 'B', shape: 'rectangle', position: { x: 200, y: 0 } });
-    model.edges.push({ id: 'e1', sourceId: 'a', targetId: 'b' });
-    const result = await tools.updateEdgeStyle.execute!(
-      { edgeId: 'e1', strokeColor: '#c0392b' },
-      { toolCallId: 't1', messages: [] },
-    );
-    expect(result).toEqual({ applied: true });
-    expect(model.edges.find((e) => e.id === 'e1')!.style).toEqual({ strokeColor: '#c0392b' });
-  });
-
-  it('updateEdgeStyle reports not-found for a nonexistent id', async () => {
-    const result = await tools.updateEdgeStyle.execute!(
-      { edgeId: 'does-not-exist', strokeColor: '#c0392b' },
-      { toolCallId: 't1', messages: [] },
-    );
-    expect(result).toEqual({ applied: false, reason: expect.stringContaining('does-not-exist') });
-  });
-});
 
 describe('POST/GET /diagrams/:id/chat/messages', () => {
   let app: FastifyInstance;
@@ -296,5 +170,265 @@ describe('POST/GET /diagrams/:id/chat/messages', () => {
     const response = await app.inject({ method: 'GET', url: `/diagrams/${diagramId}/chat/messages`, headers: { cookie: architectCookie } });
     expect(response.statusCode).toBe(200);
     expect(response.json().messages).toEqual([]);
+  });
+});
+
+/**
+ * 010-ai-diagram-knowledge, T002/T009: `sendChatMessage` used to hardcode `getDslFamily('flowchart')`
+ * regardless of the diagram's real type — confirmed live, not hypothetical (research.md §1) — so a
+ * chat request against any non-flowchart diagram threw a 422 DslParseError. These tests exercise
+ * every one of the 6 registered families through the real HTTP endpoint, with a no-tool-call mock
+ * response (matching this file's own established wiring-test convention) so a 200 + a stable
+ * parse→serialize round-trip proves the CORRECT family's parser/serializer was used, not flowchart's.
+ */
+describe('POST /diagrams/:id/chat/messages — every diagram family (010-ai-diagram-knowledge)', () => {
+  let app: FastifyInstance;
+  let architectCookie: string;
+  let projectId: string;
+  let personaId: string;
+
+  const FAMILY_FIXTURES: { diagramTypeId: string; dslFamily: string; dslContent: string; needle: string }[] = [
+    { diagramTypeId: 'c4-test', dslFamily: 'c4', dslContent: 'C4Context\nPerson(user, "User")\n', needle: 'Person(user' },
+    { diagramTypeId: 'sequence-test', dslFamily: 'sequence', dslContent: 'sequenceDiagram\nAlice->>Bob: Hello\n', needle: 'Alice' },
+    { diagramTypeId: 'erd-test', dslFamily: 'erd', dslContent: 'erDiagram\nCUSTOMER {\n  string name\n}\n', needle: 'CUSTOMER' },
+    { diagramTypeId: 'uml-test', dslFamily: 'uml', dslContent: 'classDiagram\nclass Foo\n', needle: 'Foo' },
+    { diagramTypeId: 'architecture-test', dslFamily: 'architecture', dslContent: 'architecture-beta\nservice api(cloud)[API]\n', needle: 'api(cloud)' },
+  ];
+
+  beforeAll(async () => {
+    process.env.NODE_ENV = 'test';
+    const config = loadConfig();
+    config.allowLocalAuth = true;
+    await runMigrations();
+    app = await buildApp({
+      config,
+      logger: false,
+      languageModel: new MockLanguageModelV4({ doGenerate: noToolCallResult('Okay, done.') }),
+    });
+  });
+
+  afterAll(async () => {
+    await app.close();
+    await closeTestDb();
+  });
+
+  beforeEach(async () => {
+    await resetDatabase();
+    await seedFlowchartDiagramType();
+    for (const fixture of FAMILY_FIXTURES) {
+      await seedDiagramType(fixture.diagramTypeId, fixture.dslFamily);
+    }
+    const architect = await seedUser({ email: 'architect@example.com', password: 'architect-pass' });
+    projectId = (await seedProject('Test Project', architect.id)).id;
+
+    const login = await app.inject({ method: 'POST', url: '/auth/local/login', payload: { email: 'architect@example.com', password: 'architect-pass' } });
+    architectCookie = (Array.isArray(login.headers['set-cookie']) ? login.headers['set-cookie'][0] : login.headers['set-cookie'])!.split(';')[0];
+
+    const pool = getPool();
+    const { rows } = await pool.query<{ id: string }>(
+      "INSERT INTO ai_personas (name, category, system_prompt) VALUES ('Business Architect', 'Business', 'You are a business architect.') RETURNING id",
+    );
+    personaId = rows[0].id;
+    await pool.query('UPDATE ai_settings SET chat_enabled = true');
+  });
+
+  it.each(FAMILY_FIXTURES)(
+    'succeeds for $dslFamily and round-trips the diagram content through the correct family, not flowchart',
+    async ({ diagramTypeId, dslContent, needle }) => {
+      const createDiagramResponse = await app.inject({
+        method: 'POST',
+        url: `/projects/${projectId}/diagrams`,
+        headers: { cookie: architectCookie },
+        payload: { name: `${diagramTypeId} diagram`, diagramTypeId },
+      });
+      expect(createDiagramResponse.statusCode).toBe(201);
+      const diagramId = createDiagramResponse.json().diagram.id;
+
+      const response = await app.inject({
+        method: 'POST',
+        url: `/diagrams/${diagramId}/chat/messages`,
+        headers: { cookie: architectCookie },
+        payload: { message: 'hello', currentDslContent: dslContent, personaId },
+      });
+
+      expect(response.statusCode).toBe(200);
+      expect(response.json().updatedDslContent).toContain(needle);
+    },
+  );
+
+  it.each(FAMILY_FIXTURES)(
+    'denies a view-only user identically (403) on $dslFamily as it already does on flowchart (FR-011)',
+    async ({ diagramTypeId, dslContent }) => {
+      const createDiagramResponse = await app.inject({
+        method: 'POST',
+        url: `/projects/${projectId}/diagrams`,
+        headers: { cookie: architectCookie },
+        payload: { name: `${diagramTypeId} diagram`, diagramTypeId },
+      });
+      const diagramId = createDiagramResponse.json().diagram.id;
+
+      const viewer = await seedUser({ email: `viewer-${diagramTypeId}@example.com`, password: 'viewer-pass' });
+      await app.inject({
+        method: 'POST',
+        url: `/diagrams/${diagramId}/shares`,
+        headers: { cookie: architectCookie },
+        payload: { granteeUserId: viewer.id, accessLevel: 'view' },
+      });
+      const viewerLogin = await app.inject({
+        method: 'POST',
+        url: '/auth/local/login',
+        payload: { email: `viewer-${diagramTypeId}@example.com`, password: 'viewer-pass' },
+      });
+      const viewerCookie = (Array.isArray(viewerLogin.headers['set-cookie']) ? viewerLogin.headers['set-cookie'][0] : viewerLogin.headers['set-cookie'])!.split(';')[0];
+
+      const response = await app.inject({
+        method: 'POST',
+        url: `/diagrams/${diagramId}/chat/messages`,
+        headers: { cookie: viewerCookie },
+        payload: { message: 'hello', currentDslContent: dslContent, personaId },
+      });
+      expect(response.statusCode).toBe(403);
+    },
+  );
+});
+
+/**
+ * 010-ai-diagram-knowledge, T020: Constitution Principle II ("no bypass for AI-tool-driven
+ * mutations") — an AI-tool-driven edit that produces a value violating the diagram's active
+ * Standard must be flagged by the same computeValidation path a manual edit already goes
+ * through, once saved. sendChatMessage itself never calls computeValidation — it only returns
+ * updatedDslContent for the caller to persist through the ordinary PATCH /diagrams/:id ->
+ * saveDiagram save path, exactly like any manually-edited DSL content. This test confirms that
+ * composition holds for the new User Story 2 diagram-ops (here: setNodeRole), not just the
+ * pre-existing base 8 tools.
+ */
+describe('Standards validation parity for AI-tool-driven mutations (010-ai-diagram-knowledge, T020)', () => {
+  let app: FastifyInstance;
+  let architectCookie: string;
+  let adminCookie: string;
+  let projectId: string;
+
+  function toolCallResult(toolName: string, input: Record<string, unknown>) {
+    return {
+      content: [{ type: 'tool-call' as const, toolCallId: 'mock-t020', toolName, input: JSON.stringify(input) }],
+      finishReason: { unified: 'tool-calls' as const, raw: undefined },
+      usage: {
+        inputTokens: { total: undefined, noCache: undefined, cacheRead: undefined, cacheWrite: undefined },
+        outputTokens: { total: undefined, text: undefined, reasoning: undefined },
+      },
+      warnings: [],
+    };
+  }
+
+  beforeAll(async () => {
+    process.env.NODE_ENV = 'test';
+    const config = loadConfig();
+    config.allowLocalAuth = true;
+    await runMigrations();
+    app = await buildApp({
+      config,
+      logger: false,
+      // First turn: call setNodeRole on node 'sys' -> 'system'. Every subsequent turn (a tool
+      // result is now the last prompt message): finish with plain text, same as noToolCallResult.
+      languageModel: new MockLanguageModelV4({
+        doGenerate: async (options) => {
+          const lastIsToolResult = options.prompt[options.prompt.length - 1]?.role === 'tool';
+          if (lastIsToolResult) return noToolCallResult('Done.');
+          return toolCallResult('setNodeRole', { nodeId: 'sys', role: 'system' });
+        },
+      }),
+    });
+  });
+
+  afterAll(async () => {
+    await app.close();
+    await closeTestDb();
+  });
+
+  beforeEach(async () => {
+    await resetDatabase();
+    await seedDiagramType('c4-t020-test', 'c4');
+    const architect = await seedUser({ email: 'architect-t020@example.com', password: 'architect-pass' });
+    await seedUser({ email: 'admin-t020@example.com', password: 'admin-pass', role: 'admin' });
+    projectId = (await seedProject('T020 Project', architect.id)).id;
+
+    const architectLogin = await app.inject({
+      method: 'POST',
+      url: '/auth/local/login',
+      payload: { email: 'architect-t020@example.com', password: 'architect-pass' },
+    });
+    architectCookie = (Array.isArray(architectLogin.headers['set-cookie']) ? architectLogin.headers['set-cookie'][0] : architectLogin.headers['set-cookie'])!.split(';')[0];
+
+    const adminLogin = await app.inject({
+      method: 'POST',
+      url: '/auth/local/login',
+      payload: { email: 'admin-t020@example.com', password: 'admin-pass' },
+    });
+    adminCookie = (Array.isArray(adminLogin.headers['set-cookie']) ? adminLogin.headers['set-cookie'][0] : adminLogin.headers['set-cookie'])!.split(';')[0];
+
+    await getPool().query('UPDATE ai_settings SET chat_enabled = true');
+
+    // Standard: role "system" must use color #1168bd.
+    const createStandard = await app.inject({
+      method: 'POST',
+      url: '/diagram-types/c4-t020-test/standards',
+      headers: { cookie: adminCookie },
+      payload: { colorPalette: [{ role: 'system', colorHex: '#1168bd' }] },
+    });
+    const standardId = createStandard.json().standard.id;
+    await app.inject({ method: 'POST', url: `/standards/${standardId}/publish`, headers: { cookie: adminCookie } });
+  });
+
+  it('flags an AI-set node role identically to the same role set manually, once the chat result is saved', async () => {
+    // A Container element (role "container") that already carries the WRONG fill color for what
+    // role "system" would require. No violation yet — the palette rule only applies to role
+    // "system", and this node isn't that role (yet).
+    const initialDsl = 'C4Context\n  Container(sys, "Sys", "desc")\n  UpdateElementStyle(sys, $bgColor="#ff0000")\n';
+
+    const createDiagramResponse = await app.inject({
+      method: 'POST',
+      url: `/projects/${projectId}/diagrams`,
+      headers: { cookie: architectCookie },
+      payload: { name: 'T020 Diagram', diagramTypeId: 'c4-t020-test', initialDslContent: initialDsl },
+    });
+    expect(createDiagramResponse.statusCode).toBe(201);
+    const diagram = createDiagramResponse.json().diagram;
+    expect(diagram.lastValidationResult).toEqual([]);
+
+    // AI chat changes the node's role to "system" via the new setNodeRole tool (User Story 2).
+    const chatResponse = await app.inject({
+      method: 'POST',
+      url: `/diagrams/${diagram.id}/chat/messages`,
+      headers: { cookie: architectCookie },
+      payload: { message: 'make this a system', currentDslContent: diagram.dslContent },
+    });
+    expect(chatResponse.statusCode).toBe(200);
+    expect(chatResponse.json().toolCalls).toEqual([{ tool: 'setNodeRole', applied: true }]);
+
+    // Save the AI-updated content through the SAME save path a manual edit would use — no
+    // special AI bypass exists, and this test would fail if one were ever introduced.
+    const saveResponse = await app.inject({
+      method: 'PATCH',
+      url: `/diagrams/${diagram.id}`,
+      headers: { cookie: architectCookie },
+      payload: { dslContent: chatResponse.json().updatedDslContent },
+    });
+    expect(saveResponse.statusCode).toBe(200);
+    const aiViolations = saveResponse.json().diagram.lastValidationResult;
+    expect(aiViolations).toContainEqual(
+      expect.objectContaining({ elementId: 'sys', rule: 'color-palette' }),
+    );
+
+    // Parity check: manually authoring the SAME end state (role "system", same wrong fill color)
+    // on a fresh diagram, through the ordinary create path, produces the IDENTICAL violation.
+    const manualDsl = 'C4Context\n  System(sys, "Sys", "desc")\n  UpdateElementStyle(sys, $bgColor="#ff0000")\n';
+    const manualDiagramResponse = await app.inject({
+      method: 'POST',
+      url: `/projects/${projectId}/diagrams`,
+      headers: { cookie: architectCookie },
+      payload: { name: 'T020 Manual Diagram', diagramTypeId: 'c4-t020-test', initialDslContent: manualDsl },
+    });
+    expect(manualDiagramResponse.statusCode).toBe(201);
+    expect(manualDiagramResponse.json().diagram.lastValidationResult).toEqual(aiViolations);
   });
 });

@@ -1,6 +1,6 @@
 # canvas Development Guidelines
 
-Auto-generated from all feature plans. Last updated: 2026-08-08
+Auto-generated from all feature plans. Last updated: 2026-09-05
 
 ## Active Technologies
 - `@dagrejs/dagre` (canvas-esn) added to `packages/diagram-core` — its first real runtime
@@ -34,6 +34,10 @@ Auto-generated from all feature plans. Last updated: 2026-08-08
 - No new technology added in 009-flowchart-node-shapes — zero runtime dependencies added. No
   persistence change (`NodeShape` is an in-memory/DSL-level type, not a database column); no new
   package or service. Touches `packages/diagram-core` and `apps/web` only.
+- No new runtime technology added so far in 010-ai-diagram-knowledge — reuses 004's existing
+  `ai`/`@ai-sdk/anthropic`/`@ai-sdk/openai`/`zod` in `apps/api`. One additive Postgres migration
+  still planned for its remaining User Story 4 (`ai_persona_reference_material`); no new
+  workspace/package.
 
 ## Project Structure
 
@@ -54,6 +58,35 @@ tests are NON-NEGOTIABLE and must exist (and fail) before implementing any diagr
 work — see `.specify/memory/constitution.md` Principle IV.
 
 ## Recent Changes
+- `010-ai-diagram-knowledge` (Foundational + User Story 1 + User Story 2 complete, canvas-tgf,
+  User Stories 3/4 still open): AI chat was hardcoded to `getDslFamily('flowchart')` regardless of
+  the diagram's real type — a confirmed, live bug, not a hypothetical gap — so a chat request
+  against any non-flowchart diagram errored out despite the chat panel being shown for every
+  diagram type. **Foundational**: `diagram-chat.routes.ts` now resolves the diagram's real
+  `dslFamily` via the existing `getDiagram`/`loadDiagramTypeDslFamily` lookup and threads it through
+  `sendChatMessage`/`createDiagramTools`; a new `diagram-type-primers.ts` supplies one short
+  plain-language orientation per family, composed into the system prompt between the persona's own
+  prompt and `describeModel()`'s summary. **User Story 1** (the confirmed bug fix itself) is
+  covered by dedicated contract/E2E tests against all 5 non-flowchart families, not just asserted
+  fixed by Foundational's own change. **User Story 2** (the actual requested value — type-correct
+  structured edits, not generic labeled boxes) adds 6 new pure `diagram-core` operations
+  (`updateNodeRole`, `updateEntityAttributes`, `updateClassMembers`, `updateEdgeRelationKind`,
+  `updateEdgeArrowStyle`, `addPointMarkerContainer`) and 8 new family-conditional AI tools
+  (`setNodeRole` on c4/sequence, `setEntityAttributes` on erd, `setClassMembers`/
+  `setRelationshipKind` on uml, `setConnectorStyle` on sequence/flowchart, `groupIntoContainer` on
+  architecture/c4/uml/sequence, `activateParticipant`/`deactivateParticipant` on sequence) —
+  `createDiagramTools(context, family)` only returns a tool when it applies to that diagram's own
+  family, so an out-of-family request has no tool call to make at all (FR-004), not merely a
+  refusal string layered on top of one; `addNode`'s own `shape` enum was likewise widened from a
+  single hardcoded flowchart list to each family's real `NodeShape` subset, confirmed against each
+  family's own `dsl/*.ts` parser. A dedicated regression test confirms an AI-tool-driven mutation
+  that violates the diagram's active Standard is flagged by the same `computeValidation` path a
+  manual edit already goes through (Constitution Principle II — no bypass for AI-tool-driven
+  mutations); 6 new mock-provider E2E scenarios cover every new tool plus the FR-004 decline case.
+  Deferred to their own follow-up work: User Story 3 (a drift-guard test tying each family's primer
+  wording to its tool schemas' own enum values) and User Story 4 (persona-scoped, admin-curated
+  reference-material entries). See `specs/010-ai-diagram-knowledge/` for the full spec/plan/
+  research/data-model/contracts.
 - Azure deployment fixes, found live during the first-ever real deploy of `infra/azure/`
   (canvas-ycu/canvas-ycu.1's infrastructure), not anticipated in advance:
   - **`apps/api/src/auth/idp-proxy.routes.ts`**: Fastify's own built-in `application/json`

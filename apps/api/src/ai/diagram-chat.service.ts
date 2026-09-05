@@ -3,6 +3,7 @@ import { getDslFamily, isParseSuccess, type DiagramModel } from '@canvas/diagram
 import { getPool } from '../db/pool.js';
 import { getPersona } from './persona.service.js';
 import { createDiagramTools, type ToolCallOutcome } from './diagram-tools.js';
+import { getDiagramTypePrimer } from './diagram-type-primers.js';
 import { getLanguageModel } from './provider.js';
 
 export class DslParseError extends Error {}
@@ -70,10 +71,30 @@ function describeModel(model: DiagramModel): string {
   return `Current shapes:\n${nodes}\n\nCurrent connectors:\n${edges}`;
 }
 
+/** 010-ai-diagram-knowledge, T008 (research.md §2, contracts/api-ai-chat-contract.md): composition
+ * order is persona's own system prompt (or the default) → that family's domain-concept primer →
+ * (T031 inserts the persona's family-relevant reference-material entries here) → the current
+ * diagram's summary. Reference material is never placed ahead of or in place of the persona's own
+ * system prompt (FR-008). */
+async function buildSystemPrompt(personaSystemPrompt: string | undefined, dslFamily: string, model: DiagramModel): Promise<string> {
+  const parts = [personaSystemPrompt ?? DEFAULT_SYSTEM_PROMPT];
+  const primer = getDiagramTypePrimer(dslFamily);
+  if (primer) parts.push(primer.summary);
+  parts.push(describeModel(model));
+  return parts.join('\n\n');
+}
+
 export interface SendChatMessageInput {
   diagramId: string;
   message: string;
   currentDslContent: string;
+  /** 010-ai-diagram-knowledge, T003: the diagram's real DSL family (e.g. "erd", "c4"), resolved
+   * by the caller via the same `getDiagram`/`loadDiagramTypeDslFamily` lookup every other
+   * diagram-mutating code path already uses (research.md §1) — this function used to hardcode
+   * `getDslFamily('flowchart')` regardless of the diagram's actual type, a confirmed live bug
+   * (any non-flowchart diagram's chat request threw a 422 DslParseError). Required, not optional:
+   * there is no safe default family to fall back to. */
+  dslFamily: string;
   personaId?: string;
   /** Test injection point (research.md §8) — production callers omit this and the configured
    * provider (apps/api/src/ai/provider.ts) is used. */
@@ -87,7 +108,10 @@ export interface SendChatMessageResult {
 }
 
 export async function sendChatMessage(input: SendChatMessageInput): Promise<SendChatMessageResult> {
-  const family = getDslFamily('flowchart')!;
+  const family = getDslFamily(input.dslFamily);
+  if (!family) {
+    throw new DslParseError(`No DSL family registered for: ${input.dslFamily}`);
+  }
   const parsed = family.parse(input.currentDslContent);
   if (!isParseSuccess(parsed)) {
     throw new DslParseError('currentDslContent could not be parsed');
@@ -99,17 +123,22 @@ export async function sendChatMessage(input: SendChatMessageInput): Promise<Send
   const history = await getChatMessages(input.diagramId);
 
   const toolCalls: ToolCallOutcome[] = [];
-  const tools = createDiagramTools({
-    getModel: () => model,
-    setModel: (m) => {
-      model = m;
+  const tools = createDiagramTools(
+    {
+      getModel: () => model,
+      setModel: (m) => {
+        model = m;
+      },
+      recordOutcome: (outcome) => toolCalls.push(outcome),
     },
-    recordOutcome: (outcome) => toolCalls.push(outcome),
-  });
+    input.dslFamily,
+  );
+
+  const system = await buildSystemPrompt(persona?.systemPrompt, input.dslFamily, model);
 
   const result = await generateText({
     model: input.model ?? getLanguageModel(),
-    system: `${persona?.systemPrompt ?? DEFAULT_SYSTEM_PROMPT}\n\n${describeModel(model)}`,
+    system,
     messages: [
       ...history.map((m) => ({ role: m.role, content: m.content }) as const),
       { role: 'user' as const, content: input.message },

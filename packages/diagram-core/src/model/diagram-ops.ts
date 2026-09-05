@@ -1,8 +1,10 @@
 import type {
+  ClassMember,
   DiagramContainer,
   DiagramEdge,
   DiagramModel,
   DiagramNode,
+  EntityAttribute,
   NodeShape,
   NodeStyle,
   Position,
@@ -161,6 +163,143 @@ export function updateEdgeStyle(model: DiagramModel, edgeId: string, patch: Styl
     ...model,
     edges: model.edges.map((e) => (e.id === edgeId ? { ...e, style: mergeStyle(e.style, patch) } : e)),
   };
+}
+
+/* ------------------------------------------------------------------------- *
+ * Diagram-type-specific operations (010-ai-diagram-knowledge, User Story 2)
+ *
+ * Requests that only make sense for a specific diagram type (an ER attribute, a UML member/
+ * relationship, a C4/sequence role) previously had no way to actually produce that family's real
+ * structure through the AI tool-calling layer — only generic label/style edits existed. These
+ * follow the same merge-patch / no-op-on-missing-id conventions updateNodeStyle/updateEdgeStyle
+ * already established, so an AI-authored edit is indistinguishable from one made any other way.
+ * ------------------------------------------------------------------------- */
+
+/** Sets a node's semantic role (e.g. "person", "system", "container" — used by Standards
+ *  validation and by C4/sequence's own role vocabulary). No-op for an unknown id. */
+export function updateNodeRole(model: DiagramModel, nodeId: string, role: string): DiagramModel {
+  if (!model.nodes.some((n) => n.id === nodeId)) return model;
+  return {
+    ...model,
+    nodes: model.nodes.map((n) => (n.id === nodeId ? { ...n, role } : n)),
+  };
+}
+
+/** Replaces an ER entity's declared attributes wholesale (an attribute *list* is naturally
+ *  replace-whole rather than patched, since reordering/removal needs the same call shape as
+ *  addition) — passing `[]` clears every attribute rather than leaving the field untouched.
+ *  No-op for an unknown id. */
+export function updateEntityAttributes(
+  model: DiagramModel,
+  nodeId: string,
+  attributes: EntityAttribute[],
+): DiagramModel {
+  if (!model.nodes.some((n) => n.id === nodeId)) return model;
+  return {
+    ...model,
+    nodes: model.nodes.map((n) => (n.id === nodeId ? { ...n, attributes } : n)),
+  };
+}
+
+/** Replaces a UML class's declared members (attributes and methods) wholesale, same rationale as
+ *  updateEntityAttributes. No-op for an unknown id. */
+export function updateClassMembers(model: DiagramModel, nodeId: string, members: ClassMember[]): DiagramModel {
+  if (!model.nodes.some((n) => n.id === nodeId)) return model;
+  return {
+    ...model,
+    nodes: model.nodes.map((n) => (n.id === nodeId ? { ...n, members } : n)),
+  };
+}
+
+export interface EdgeRelationKindPatch {
+  /** Omit to leave untouched; `null` clears it back to unset; a value sets it — same convention
+   *  as StylePatch below. */
+  umlRelationKind?: DiagramEdge['umlRelationKind'] | null;
+  sourceCardinality?: string | null;
+  targetCardinality?: string | null;
+}
+
+/** Merge-patches a UML edge's relationship kind and cardinality labels, mirroring
+ *  updateEdgeStyle's merge semantics. No-op for an unknown id. */
+export function updateEdgeRelationKind(
+  model: DiagramModel,
+  edgeId: string,
+  patch: EdgeRelationKindPatch,
+): DiagramModel {
+  if (!model.edges.some((e) => e.id === edgeId)) return model;
+  return {
+    ...model,
+    edges: model.edges.map((e) => {
+      if (e.id !== edgeId) return e;
+      const next = { ...e };
+      for (const key of ['umlRelationKind', 'sourceCardinality', 'targetCardinality'] as const) {
+        const value = patch[key];
+        if (value === undefined) continue;
+        if (value === null) delete next[key];
+        else (next[key] as typeof value) = value;
+      }
+      return next;
+    }),
+  };
+}
+
+export interface EdgeArrowStylePatch {
+  arrow?: DiagramEdge['arrow'] | null;
+  lineStyle?: DiagramEdge['lineStyle'] | null;
+}
+
+/** Merge-patches an edge's arrowhead/line rendering, mirroring updateEdgeStyle's merge semantics.
+ *  No-op for an unknown id. */
+export function updateEdgeArrowStyle(model: DiagramModel, edgeId: string, patch: EdgeArrowStylePatch): DiagramModel {
+  if (!model.edges.some((e) => e.id === edgeId)) return model;
+  return {
+    ...model,
+    edges: model.edges.map((e) => {
+      if (e.id !== edgeId) return e;
+      const next = { ...e };
+      for (const key of ['arrow', 'lineStyle'] as const) {
+        const value = patch[key];
+        if (value === undefined) continue;
+        if (value === null) delete next[key];
+        else (next[key] as typeof value) = value;
+      }
+      return next;
+    }),
+  };
+}
+
+export interface AddPointMarkerContainerInput {
+  role: 'activate' | 'deactivate';
+  attachedNodeId: string;
+  /** Omit to place it after everything currently on the timeline. */
+  sequenceOrder?: number;
+}
+
+/**
+ * Appends a sequence-diagram activation/deactivation marker, matching the exact
+ * `DiagramContainer` shape `dsl/sequence.ts`'s own parser produces for `activate`/`deactivate`
+ * (its `pushPointItem` helper) — an AI-authored activation becomes indistinguishable from a
+ * DSL-parsed one. Does not validate that `attachedNodeId` references an existing node, mirroring
+ * addEdge's same "implicit reference" precedent.
+ */
+export function addPointMarkerContainer(
+  model: DiagramModel,
+  input: AddPointMarkerContainerInput,
+): DiagramModel {
+  const index = model.containers.length;
+  const maxOrder = model.containers.reduce(
+    (max, c) => (c.sequenceOrder !== undefined && c.sequenceOrder > max ? c.sequenceOrder : max),
+    -1,
+  );
+  const container: DiagramContainer = {
+    id: generateId('pt'),
+    label: '',
+    role: input.role,
+    attachedNodeIds: [input.attachedNodeId],
+    position: { x: 40 + (index % 3) * 360, y: 40 + Math.floor(index / 3) * 260 },
+    sequenceOrder: input.sequenceOrder ?? maxOrder + 1,
+  };
+  return { ...model, containers: [...model.containers, container] };
 }
 
 /* ------------------------------------------------------------------------- *

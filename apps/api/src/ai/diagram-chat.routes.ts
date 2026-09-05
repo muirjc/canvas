@@ -3,6 +3,7 @@ import type { LanguageModel } from 'ai';
 import { requireDiagramAccess } from '../auth/access-control.middleware.js';
 import { getAiSettings } from './ai-settings.service.js';
 import { DslParseError, getChatMessages, sendChatMessage } from './diagram-chat.service.js';
+import { getDiagram } from '../diagrams/diagram.service.js';
 
 export interface DiagramChatRoutesOptions {
   /** Test injection point (research.md §8); production omits this and each call resolves the
@@ -44,10 +45,15 @@ export async function registerDiagramChatRoutes(
     }
 
     try {
+      // 010-ai-diagram-knowledge, T003: resolve the diagram's real dslFamily the same way every
+      // other diagram-mutating route already does, instead of leaving sendChatMessage to assume
+      // flowchart — research.md §1.
+      const diagram = await getDiagram(request.params.id);
       const result = await sendChatMessage({
         diagramId: request.params.id,
         message,
         currentDslContent,
+        dslFamily: diagram.dslFamily,
         personaId,
         model: options.languageModel,
       });

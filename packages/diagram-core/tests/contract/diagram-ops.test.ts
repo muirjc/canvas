@@ -15,8 +15,14 @@ import {
   assignNodeToContainer,
   removeNodeFromContainer,
   removeContainer,
+  updateNodeRole,
+  updateEntityAttributes,
+  updateClassMembers,
+  updateEdgeRelationKind,
+  updateEdgeArrowStyle,
+  addPointMarkerContainer,
 } from '../../src/model/diagram-ops.js';
-import type { DiagramModel } from '../../src/model/diagram-model.js';
+import type { DiagramModel, EntityAttribute, ClassMember } from '../../src/model/diagram-model.js';
 
 /**
  * Feature 002, Foundational: pure DiagramModel operations shared by shape deletion (US2) and
@@ -560,5 +566,249 @@ describe('removeContainer', () => {
   it('is a no-op for an unknown id', () => {
     const model = baseModel();
     expect(removeContainer(model, 'nope')).toEqual(model);
+  });
+});
+
+/**
+ * Feature 010, User Story 2 (T011-T016): new narrow AI-tool-facing operations for ER attributes,
+ * UML members, UML/sequence-adjacent edge relation kind and arrow styling, node role, and
+ * sequence activation/deactivation point markers. Per Constitution IV, these are contract tests
+ * written before `diagram-ops.ts` implements the corresponding functions — they are EXPECTED to
+ * fail right now (import/"not a function") until that follow-up work lands.
+ */
+describe('updateNodeRole', () => {
+  it('sets the role field of the named node', () => {
+    const model = baseModel();
+    const result = updateNodeRole(model, 'a', 'system');
+    expect(result.nodes.find((n) => n.id === 'a')!.role).toBe('system');
+  });
+
+  it('is a no-op for an unknown node id', () => {
+    const model = baseModel();
+    expect(updateNodeRole(model, 'nope', 'x')).toEqual(model);
+  });
+
+  it('leaves every other field on the same node, and every other node/edge/container, untouched', () => {
+    const model = baseModel();
+    const result = updateNodeRole(model, 'a', 'system');
+    const node = result.nodes.find((n) => n.id === 'a')!;
+    expect(node.position).toEqual(model.nodes[0].position);
+    expect(node.shape).toBe(model.nodes[0].shape);
+    expect(node.label).toBe(model.nodes[0].label);
+    expect(result.nodes.find((n) => n.id === 'b')).toEqual(model.nodes.find((n) => n.id === 'b'));
+    expect(result.edges).toEqual(model.edges);
+    expect(result.containers).toEqual(model.containers);
+  });
+});
+
+describe('updateEntityAttributes', () => {
+  const attrsA: EntityAttribute[] = [{ type: 'string', name: 'id', keys: ['PK'] }];
+  const attrsB: EntityAttribute[] = [
+    { type: 'string', name: 'email', keys: [], comment: 'unique login' },
+    { type: 'int', name: 'age', keys: [] },
+  ];
+
+  it('replaces attributes wholesale, not merged, when the node already has some', () => {
+    const model = baseModel();
+    model.nodes[0].attributes = attrsA;
+    const result = updateEntityAttributes(model, 'a', attrsB);
+    expect(result.nodes.find((n) => n.id === 'a')!.attributes).toEqual(attrsB);
+  });
+
+  it('sets attributes on a node with none yet', () => {
+    const result = updateEntityAttributes(baseModel(), 'a', attrsA);
+    expect(result.nodes.find((n) => n.id === 'a')!.attributes).toEqual(attrsA);
+  });
+
+  it('passing [] clears attributes to an empty array, not undefined and not the old array', () => {
+    const model = baseModel();
+    model.nodes[0].attributes = attrsA;
+    const result = updateEntityAttributes(model, 'a', []);
+    expect(result.nodes.find((n) => n.id === 'a')!.attributes).toEqual([]);
+  });
+
+  it('is a no-op for an unknown node id', () => {
+    const model = baseModel();
+    expect(updateEntityAttributes(model, 'nope', attrsA)).toEqual(model);
+  });
+
+  it('leaves other nodes, edges, and containers untouched', () => {
+    const model = baseModel();
+    const result = updateEntityAttributes(model, 'a', attrsA);
+    expect(result.nodes.find((n) => n.id === 'b')).toEqual(model.nodes.find((n) => n.id === 'b'));
+    expect(result.edges).toEqual(model.edges);
+    expect(result.containers).toEqual(model.containers);
+  });
+});
+
+describe('updateClassMembers', () => {
+  const membersA: ClassMember[] = [
+    { kind: 'attribute', visibility: '+', name: 'name', type: 'string' },
+  ];
+  const membersB: ClassMember[] = [
+    { kind: 'method', visibility: '-', name: 'save', params: '', returnType: 'void', isStatic: true },
+    { kind: 'attribute', name: 'count', type: 'int', isAbstract: false },
+  ];
+
+  it('replaces members wholesale, not merged, when the node already has some', () => {
+    const model = baseModel();
+    model.nodes[0].members = membersA;
+    const result = updateClassMembers(model, 'a', membersB);
+    expect(result.nodes.find((n) => n.id === 'a')!.members).toEqual(membersB);
+  });
+
+  it('sets members on a node with none yet', () => {
+    const result = updateClassMembers(baseModel(), 'a', membersA);
+    expect(result.nodes.find((n) => n.id === 'a')!.members).toEqual(membersA);
+  });
+
+  it('passing [] clears members to an empty array, not undefined and not the old array', () => {
+    const model = baseModel();
+    model.nodes[0].members = membersA;
+    const result = updateClassMembers(model, 'a', []);
+    expect(result.nodes.find((n) => n.id === 'a')!.members).toEqual([]);
+  });
+
+  it('is a no-op for an unknown node id', () => {
+    const model = baseModel();
+    expect(updateClassMembers(model, 'nope', membersA)).toEqual(model);
+  });
+
+  it('leaves other nodes, edges, and containers untouched', () => {
+    const model = baseModel();
+    const result = updateClassMembers(model, 'a', membersA);
+    expect(result.nodes.find((n) => n.id === 'b')).toEqual(model.nodes.find((n) => n.id === 'b'));
+    expect(result.edges).toEqual(model.edges);
+    expect(result.containers).toEqual(model.containers);
+  });
+});
+
+describe('updateEdgeRelationKind', () => {
+  it('sets umlRelationKind while leaving sourceCardinality/targetCardinality alone when already set', () => {
+    const model = baseModel();
+    model.edges[0].sourceCardinality = '1';
+    model.edges[0].targetCardinality = '*';
+    const result = updateEdgeRelationKind(model, 'e1', { umlRelationKind: 'composition' });
+    const edge = result.edges.find((e) => e.id === 'e1')!;
+    expect(edge.umlRelationKind).toBe('composition');
+    expect(edge.sourceCardinality).toBe('1');
+    expect(edge.targetCardinality).toBe('*');
+  });
+
+  it('an explicit null clears a previously-set field back to unset, while a field set alongside it is untouched', () => {
+    const model = baseModel();
+    model.edges[0].umlRelationKind = 'association';
+    model.edges[0].sourceCardinality = '1';
+    model.edges[0].targetCardinality = '*';
+    const result = updateEdgeRelationKind(model, 'e1', { sourceCardinality: null, targetCardinality: '0..1' });
+    const edge = result.edges.find((e) => e.id === 'e1')!;
+    expect(edge.sourceCardinality).toBeUndefined();
+    expect(edge.targetCardinality).toBe('0..1');
+    expect(edge.umlRelationKind).toBe('association');
+  });
+
+  it('is a no-op for an unknown edge id', () => {
+    const model = baseModel();
+    expect(updateEdgeRelationKind(model, 'nope', { umlRelationKind: 'dependency' })).toEqual(model);
+  });
+
+  it('leaves nodes, other edges, and containers untouched', () => {
+    const model = baseModel();
+    const result = updateEdgeRelationKind(model, 'e1', { umlRelationKind: 'inheritance' });
+    expect(result.nodes).toEqual(model.nodes);
+    expect(result.edges.find((e) => e.id === 'e2')).toEqual(model.edges.find((e) => e.id === 'e2'));
+    expect(result.containers).toEqual(model.containers);
+  });
+});
+
+describe('updateEdgeArrowStyle', () => {
+  it('sets arrow while leaving lineStyle alone when omitted', () => {
+    const model = baseModel();
+    model.edges[0].lineStyle = 'dotted';
+    const result = updateEdgeArrowStyle(model, 'e1', { arrow: 'both' });
+    const edge = result.edges.find((e) => e.id === 'e1')!;
+    expect(edge.arrow).toBe('both');
+    expect(edge.lineStyle).toBe('dotted');
+  });
+
+  it('an explicit null clears a previously-set field back to unset, while a field set alongside it is untouched', () => {
+    const model = baseModel();
+    model.edges[0].arrow = 'both';
+    model.edges[0].lineStyle = 'dotted';
+    const result = updateEdgeArrowStyle(model, 'e1', { arrow: null, lineStyle: 'thick' });
+    const edge = result.edges.find((e) => e.id === 'e1')!;
+    expect(edge.arrow).toBeUndefined();
+    expect(edge.lineStyle).toBe('thick');
+  });
+
+  it('is a no-op for an unknown edge id', () => {
+    const model = baseModel();
+    expect(updateEdgeArrowStyle(model, 'nope', { arrow: 'cross' })).toEqual(model);
+  });
+
+  it('leaves nodes, other edges, and containers untouched', () => {
+    const model = baseModel();
+    const result = updateEdgeArrowStyle(model, 'e1', { arrow: 'none' });
+    expect(result.nodes).toEqual(model.nodes);
+    expect(result.edges.find((e) => e.id === 'e2')).toEqual(model.edges.find((e) => e.id === 'e2'));
+    expect(result.containers).toEqual(model.containers);
+  });
+});
+
+describe('addPointMarkerContainer', () => {
+  it('appends exactly one new activate container attached to the given node', () => {
+    const model = baseModel();
+    const result = addPointMarkerContainer(model, { role: 'activate', attachedNodeId: 'a' });
+    expect(result.containers).toHaveLength(model.containers.length + 1);
+    const added = result.containers.at(-1)!;
+    expect(added.label).toBe('');
+    expect(added.role).toBe('activate');
+    expect(added.attachedNodeIds).toEqual(['a']);
+    expect(added.position).toBeDefined();
+  });
+
+  it('appends exactly one new deactivate container attached to the given node', () => {
+    const model = baseModel();
+    const result = addPointMarkerContainer(model, { role: 'deactivate', attachedNodeId: 'b' });
+    expect(result.containers).toHaveLength(model.containers.length + 1);
+    const added = result.containers.at(-1)!;
+    expect(added.label).toBe('');
+    expect(added.role).toBe('deactivate');
+    expect(added.attachedNodeIds).toEqual(['b']);
+    expect(added.position).toBeDefined();
+  });
+
+  it('uses the given sequenceOrder exactly when supplied', () => {
+    const result = addPointMarkerContainer(baseModel(), { role: 'activate', attachedNodeId: 'a', sequenceOrder: 42 });
+    expect(result.containers.at(-1)!.sequenceOrder).toBe(42);
+  });
+
+  it('when sequenceOrder is omitted, assigns one greater than every existing container sequenceOrder', () => {
+    const model = baseModel();
+    model.containers[0].sequenceOrder = 5;
+    const result = addPointMarkerContainer(model, { role: 'activate', attachedNodeId: 'a' });
+    const added = result.containers.at(-1)!;
+    expect(added.sequenceOrder).toBeDefined();
+    expect(added.sequenceOrder!).toBeGreaterThan(5);
+  });
+
+  it('does not validate that attachedNodeId references an existing node', () => {
+    const result = addPointMarkerContainer(baseModel(), { role: 'activate', attachedNodeId: 'does-not-exist' });
+    expect(result.containers.at(-1)!.attachedNodeIds).toEqual(['does-not-exist']);
+  });
+
+  it('leaves every existing node, edge, and container untouched', () => {
+    const model = baseModel();
+    const result = addPointMarkerContainer(model, { role: 'activate', attachedNodeId: 'a' });
+    expect(result.nodes).toEqual(model.nodes);
+    expect(result.edges).toEqual(model.edges);
+    expect(result.containers.slice(0, model.containers.length)).toEqual(model.containers);
+  });
+
+  it('does not mutate the input model', () => {
+    const model = baseModel();
+    const snapshot = JSON.parse(JSON.stringify(model));
+    addPointMarkerContainer(model, { role: 'activate', attachedNodeId: 'a' });
+    expect(model).toEqual(snapshot);
   });
 });
