@@ -90,6 +90,30 @@ fi
 
 EXISTING_KEY_VAULT="$(az keyvault list --resource-group "$RESOURCE_GROUP" --query "[0].name" -o tsv 2>/dev/null || true)"
 EXISTING_ACR="$(az acr list --resource-group "$RESOURCE_GROUP" --query "[0].name" -o tsv 2>/dev/null || true)"
+
+# canvas-vp1: modules/keycloak.bicep's acrPullAssignment was being re-declared (and therefore
+# re-PUT by ARM) on literally every run, since main.bicep redeploys that module every time
+# regardless of which image tag changed -- and a role-assignment PUT with unchanged properties is
+# not reliably a safe no-op (reproduced live: "RoleAssignmentExists", 4 times in a row, including
+# immediately after deleting and letting a redeploy recreate it fresh). Rather than trying to make
+# a second PUT of an already-existing assignment land safely, skip it entirely once it's already
+# there: look up the shared identity (canvas-identity, created by modules/keyvault.bicep) and check
+# for an existing AcrPull grant AT THE RESOURCE GROUP -- keycloak.bicep's own acrPullAssignment
+# declares `scope: resourceGroup()`, not the ACR resource itself (broader than strictly needed, but
+# that's what's actually declared and re-PUT each run, so this must check the same scope or it will
+# never find what it's looking for -- confirmed live: an early version of this check queried the
+# ACR's own resource ID and always came back empty even with the grant present one level up).
+GRANT_ACR_PULL="true"
+EXISTING_IDENTITY_PRINCIPAL_ID="$(az identity show --resource-group "$RESOURCE_GROUP" --name canvas-identity \
+  --query principalId -o tsv 2>/dev/null || true)"
+if [[ -n "$EXISTING_IDENTITY_PRINCIPAL_ID" ]]; then
+  EXISTING_ACR_PULL_ASSIGNMENT="$(az role assignment list --assignee "$EXISTING_IDENTITY_PRINCIPAL_ID" \
+    --resource-group "$RESOURCE_GROUP" --role AcrPull --query "[0].id" -o tsv 2>/dev/null || true)"
+  if [[ -n "$EXISTING_ACR_PULL_ASSIGNMENT" ]]; then
+    GRANT_ACR_PULL="false"
+    echo "== Identity already holds AcrPull on $RESOURCE_GROUP -- skipping role assignment this run =="
+  fi
+fi
 # Real frontend origin, once the storage account exists AND static website hosting has been
 # enabled on it (see modules/storage.bicep's own comment for why this isn't predictable ahead of
 # time the way ADP's Keycloak public URL is). Empty on a from-scratch first run; a subsequent run
@@ -165,7 +189,7 @@ az deployment sub what-if \
   --template-file "$SCRIPT_DIR/main.bicep" \
   --parameters location="$LOCATION" postgresAdminPassword="$PG_ADMIN_PASSWORD" \
     deployerPrincipalId="$DEPLOYER_PRINCIPAL_ID" apiImageTag="$API_IMAGE_TAG" \
-    keycloakImageTag="$KEYCLOAK_IMAGE_TAG" webOrigin="$WEB_ORIGIN"
+    keycloakImageTag="$KEYCLOAK_IMAGE_TAG" webOrigin="$WEB_ORIGIN" grantAcrPull="$GRANT_ACR_PULL"
 
 echo
 read -r -p "Proceed with deployment? [y/N] " confirm
@@ -181,7 +205,7 @@ az deployment sub create \
   --template-file "$SCRIPT_DIR/main.bicep" \
   --parameters location="$LOCATION" postgresAdminPassword="$PG_ADMIN_PASSWORD" \
     deployerPrincipalId="$DEPLOYER_PRINCIPAL_ID" apiImageTag="$API_IMAGE_TAG" \
-    keycloakImageTag="$KEYCLOAK_IMAGE_TAG" webOrigin="$WEB_ORIGIN" \
+    keycloakImageTag="$KEYCLOAK_IMAGE_TAG" webOrigin="$WEB_ORIGIN" grantAcrPull="$GRANT_ACR_PULL" \
   --output table
 
 STORAGE_ACCOUNT="$(az deployment sub show --name "canvas-foundation" --query "properties.outputs.storageAccountName.value" -o tsv)"

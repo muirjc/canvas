@@ -42,6 +42,9 @@ param keycloakImageTag string = 'latest'
 @description('Public URL the frontend is served from (WEB_ORIGINS). Empty on a from-scratch first deploy -- deploy.sh patches the real Storage static website URL in as a second pass once storage.bicep has actually created the account and static website hosting has been enabled on it (see storage.bicep\'s own comment for why this can\'t be known ahead of time the way the API/Keycloak public URL below can).')
 param webOrigin string = ''
 
+@description('canvas-vp1: forwarded to modules/keycloak.bicep\'s own grantAcrPull -- see that file\'s header comment. deploy.sh sets this to false once it has confirmed the shared identity already holds AcrPull, since this whole template (and therefore that module) redeploys on every run regardless of which image tag actually changed.')
+param grantAcrPull bool = true
+
 resource rg 'Microsoft.Resources/resourceGroups@2023-07-01' = {
   name: resourceGroupName
   location: location
@@ -127,6 +130,7 @@ module keycloak 'modules/keycloak.bicep' = {
     postgresFqdn: postgres.outputs.serverFqdn
     keycloakDatabaseName: postgres.outputs.keycloakDatabaseName
     keycloakPublicBaseUrl: keycloakPublicBaseUrl
+    grantAcrPull: grantAcrPull
   }
 }
 
