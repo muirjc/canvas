@@ -46,9 +46,19 @@ const ELEMENT_KINDS = [
   'ComponentQueue_Ext',
 ] as const;
 
-// Person(alias, "label", "description") / Person_Ext(...) — description is optional.
+// Person(alias, "label", ?"description") / Person_Ext(...) -- Person/System's own real Mermaid
+// grammar takes at most one optional trailing arg, but Container/Component (and their Db/Queue/
+// _Ext variants) take TWO: "technology" then "description" (e.g. Container(api, "API
+// Application", "Java, Docker", "Provides banking functionality...") -- confirmed against a real
+// bank-example C4Container diagram that hard-errored on every Container(...)/ContainerDb(...)
+// line before this fix, since the pattern only ever allowed one trailing quoted group. Real
+// Mermaid's own c4Diagram.jison grammar in fact allows further optional args after that
+// (sprite/tags/link) for every element kind -- rather than hardcoding "exactly 0, 1, or 2"
+// trailing args, this accepts any number of them generically and discards all but the label,
+// extending this file's own pre-existing "capture optionally, don't model" precedent (already
+// used for Person's single optional description) to the whole element-macro family at once.
 const ELEMENT_PATTERN = new RegExp(
-  `^(${ELEMENT_KINDS.join('|')})\\(\\s*(${ID})\\s*,\\s*"([^"]*)"(?:\\s*,\\s*"([^"]*)")?\\s*\\)$`,
+  `^(${ELEMENT_KINDS.join('|')})\\(\\s*(${ID})\\s*,\\s*"([^"]*)"(?:\\s*,\\s*"[^"]*")*\\s*\\)$`,
 );
 // Rel(from, to, "label", ?"technology") and its BiRel/Rel_Back/directional variants
 // (jmuir-dtu.3) — the Up/Down/Left/Right long forms and their U/D/L/R short forms are both real
