@@ -97,22 +97,21 @@ EXISTING_ACR="$(az acr list --resource-group "$RESOURCE_GROUP" --query "[0].name
 # not reliably a safe no-op (reproduced live: "RoleAssignmentExists", 4 times in a row, including
 # immediately after deleting and letting a redeploy recreate it fresh). Rather than trying to make
 # a second PUT of an already-existing assignment land safely, skip it entirely once it's already
-# there: look up the shared identity (canvas-identity, created by modules/keyvault.bicep) and ACR
-# this run would otherwise target, and only pass grantAcrPull=true when neither exists yet or the
-# assignment itself genuinely isn't present.
+# there: look up the shared identity (canvas-identity, created by modules/keyvault.bicep) and check
+# for an existing AcrPull grant AT THE RESOURCE GROUP -- keycloak.bicep's own acrPullAssignment
+# declares `scope: resourceGroup()`, not the ACR resource itself (broader than strictly needed, but
+# that's what's actually declared and re-PUT each run, so this must check the same scope or it will
+# never find what it's looking for -- confirmed live: an early version of this check queried the
+# ACR's own resource ID and always came back empty even with the grant present one level up).
 GRANT_ACR_PULL="true"
 EXISTING_IDENTITY_PRINCIPAL_ID="$(az identity show --resource-group "$RESOURCE_GROUP" --name canvas-identity \
   --query principalId -o tsv 2>/dev/null || true)"
-if [[ -n "$EXISTING_IDENTITY_PRINCIPAL_ID" && -n "$EXISTING_ACR" ]]; then
-  EXISTING_ACR_ID="$(az acr show --name "$EXISTING_ACR" --resource-group "$RESOURCE_GROUP" \
-    --query id -o tsv 2>/dev/null || true)"
-  if [[ -n "$EXISTING_ACR_ID" ]]; then
-    EXISTING_ACR_PULL_ASSIGNMENT="$(az role assignment list --assignee "$EXISTING_IDENTITY_PRINCIPAL_ID" \
-      --scope "$EXISTING_ACR_ID" --role AcrPull --query "[0].id" -o tsv 2>/dev/null || true)"
-    if [[ -n "$EXISTING_ACR_PULL_ASSIGNMENT" ]]; then
-      GRANT_ACR_PULL="false"
-      echo "== Identity already holds AcrPull on $EXISTING_ACR -- skipping role assignment this run =="
-    fi
+if [[ -n "$EXISTING_IDENTITY_PRINCIPAL_ID" ]]; then
+  EXISTING_ACR_PULL_ASSIGNMENT="$(az role assignment list --assignee "$EXISTING_IDENTITY_PRINCIPAL_ID" \
+    --resource-group "$RESOURCE_GROUP" --role AcrPull --query "[0].id" -o tsv 2>/dev/null || true)"
+  if [[ -n "$EXISTING_ACR_PULL_ASSIGNMENT" ]]; then
+    GRANT_ACR_PULL="false"
+    echo "== Identity already holds AcrPull on $RESOURCE_GROUP -- skipping role assignment this run =="
   fi
 fi
 # Real frontend origin, once the storage account exists AND static website hosting has been
