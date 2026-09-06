@@ -676,5 +676,74 @@ describe('C4 DSL family (Context/Container/Component/Code)', () => {
       expect(reparsed.containers).toHaveLength(4);
       expect(reparsed.edges).toHaveLength(2);
     });
+
+    // Reported live: every Container(...)/ContainerDb(...) line in a real C4Container bank
+    // example hard-errored ("Could not interpret line as a C4 element, relationship, or
+    // boundary") because ELEMENT_PATTERN only ever allowed ONE optional trailing quoted arg
+    // (Person/System's own "?description"), but Container/Component's real Mermaid grammar takes
+    // TWO -- "technology" then "description" -- e.g. Container(api, "API Application", "Java,
+    // Docker", "Provides banking functionality..."). Fixed by accepting any number of trailing
+    // quoted args generically, matching this file's own pre-existing "capture optionally, don't
+    // model" precedent.
+    it('Container(id, "label", "technology", "description") -- the real 4-arg form -- parses without error', () => {
+      const result = parseC4(
+        'C4Container\n  Container_Boundary(c1, "Internet Banking") {\n' +
+          '    Container(web_app, "Web Application", "JavaScript, React", "Delivers the static content and the SPA")\n' +
+          '    ContainerDb(database, "Database", "SQL Database", "Stores user registration, hashed auth credentials, access logs")\n' +
+          '  }\n',
+      );
+      expect(isParseSuccess(result)).toBe(true);
+      if (!isParseSuccess(result)) return;
+      expect(result.model.nodes).toHaveLength(2);
+      const webApp = result.model.nodes.find((n) => n.id === 'web_app');
+      expect(webApp).toMatchObject({ label: 'Web Application', role: 'container', containerId: 'c1' });
+      const database = result.model.nodes.find((n) => n.id === 'database');
+      expect(database).toMatchObject({ label: 'Database', role: 'container', shape: 'cylinder' });
+      // Technology and description are captured-but-discarded, same as Person's own optional
+      // description arg -- not modeled, not leaked into the label.
+      expect(JSON.stringify(result.model)).not.toContain('JavaScript, React');
+      expect(JSON.stringify(result.model)).not.toContain('Stores user registration');
+    });
+
+    it('the real reported bank-boundary C4Container example (5 Container/ContainerDb macros, each with technology + description) parses end-to-end with zero errors', () => {
+      const dsl = [
+        'C4Container',
+        '    title Container diagram for Internet Banking System',
+        '',
+        '    Person(customer, "Banking Customer", "A customer of the bank, with personal bank accounts")',
+        '    System_Ext(email_system, "E-Mail System", "The internal Microsoft Exchange system")',
+        '',
+        '    Container_Boundary(c1, "Internet Banking") {',
+        '        Container(web_app, "Web Application", "JavaScript, React", "Delivers the static content and the SPA")',
+        '        Container(spa, "Single-Page App", "JavaScript, React", "Provides all banking functionality via the browser")',
+        '        Container(mobile_app, "Mobile App", "C#, Xamarin", "Provides a subset of banking functionality")',
+        '        ContainerDb(database, "Database", "SQL Database", "Stores user registration, hashed auth credentials, access logs")',
+        '        Container(backend_api, "API Application", "Java, Docker", "Provides banking functionality via JSON/HTTPS API")',
+        '    }',
+        '',
+        '    Rel(customer, web_app, "Uses", "HTTPS")',
+        '    Rel(customer, spa, "Uses", "HTTPS")',
+        '    Rel(customer, mobile_app, "Uses")',
+        '    Rel(web_app, spa, "Delivers")',
+        '    Rel(spa, backend_api, "Makes API calls to", "JSON/HTTPS")',
+        '    Rel(mobile_app, backend_api, "Makes API calls to", "JSON/HTTPS")',
+        '    Rel(backend_api, database, "Reads from and writes to", "JDBC")',
+        '    Rel(email_system, customer, "Sends e-mails to")',
+        '    Rel(backend_api, email_system, "Sends e-mails using", "SMTP")',
+        '',
+      ].join('\n');
+      const result = parseC4(dsl);
+      expect(isParseSuccess(result)).toBe(true);
+      if (!isParseSuccess(result)) return;
+      // customer, email_system, web_app, spa, mobile_app, database, backend_api
+      expect(result.model.nodes).toHaveLength(7);
+      expect(result.model.containers).toHaveLength(1);
+      expect(result.model.edges).toHaveLength(9);
+
+      const reparsed = roundTrip(result.model);
+      expect(reparsed.nodes).toHaveLength(7);
+      expect(reparsed.containers).toHaveLength(1);
+      expect(reparsed.edges).toHaveLength(9);
+    });
   });
 });
