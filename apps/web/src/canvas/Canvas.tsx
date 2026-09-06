@@ -16,6 +16,8 @@ import {
   updateEdgeStyle,
   updateNodeLabel,
   updateNodeStyle,
+  updateEntityAttributes,
+  updateClassMembers,
   splitLabelLines,
   clipEdgeEndpoint,
   clipToAnchorSide,
@@ -43,6 +45,8 @@ import {
   type DiagramNode,
   type FlowchartDirection,
   type NodeShape,
+  type EntityAttribute,
+  type ClassMember,
 } from '@canvas/diagram-core';
 import { getAddableShapes, nodeSize, renderNodeShape, SELECTION_STROKE } from './shapes';
 import { ConfirmDialog } from './ConfirmDialog';
@@ -76,6 +80,13 @@ const DEFAULT_THICK_STROKE_WIDTH = 3;
 // covers the 28px control height plus the card's padding and border.
 const STYLE_POPUP_WIDTH = 232;
 const STYLE_POPUP_HEIGHT = 48;
+
+// canvas-vcv: the ER attribute / UML member popup — a list (scrolling internally past ~5-6 rows)
+// plus a fixed add-row and header/Done row, so it needs real width (room for a type/name/keys
+// triple, or a kind/visibility/name/type-or-params-and-returnType row) and a taller fixed height
+// than the style popup's single-row box.
+const FIELDS_POPUP_WIDTH = 480;
+const FIELDS_POPUP_HEIGHT = 280;
 
 // canvas-0s3: fallback size used before the container's ResizeObserver has measured anything, and
 // the effective floor beneath whatever's larger of the visible container or actual content
@@ -198,6 +209,420 @@ function UmlCardinalityLabel({ position, text }: { position: { x: number; y: num
   );
 }
 
+const UML_VISIBILITY_OPTIONS: { value: '' | '+' | '-' | '#' | '~'; label: string }[] = [
+  { value: '', label: 'None' },
+  { value: '+', label: 'Public (+)' },
+  { value: '-', label: 'Private (-)' },
+  { value: '#', label: 'Protected (#)' },
+  { value: '~', label: 'Package (~)' },
+];
+
+/** Splits a comma-separated `PK,FK` string into EntityAttribute.keys — trims each token and
+ *  drops empties, so `"PK, "` / `" ,FK"` / `""` all behave sensibly rather than producing
+ *  stray blank entries. */
+function parseKeysInput(value: string): string[] {
+  return value
+    .split(',')
+    .map((k) => k.trim())
+    .filter((k) => k.length > 0);
+}
+
+interface FieldsPopupProps {
+  node: DiagramNode;
+  model: DiagramModel;
+  /** Only `'erd'` (attributes) or `'uml'` (members) ever render this popup — see the family gate
+   *  at the call site. */
+  dslFamily: string;
+  x: number;
+  y: number;
+  onChange: (model: DiagramModel) => void;
+  onClose: () => void;
+}
+
+/**
+ * canvas-vcv: the ER attribute / UML member editor opened by renderFieldsAffordance — a scrollable
+ * list of existing rows (each field commits on blur/Enter, mirroring the node/edge/container label
+ * inputs' own uncontrolled-input convention elsewhere in this file) plus a fixed "add new" row.
+ * A standalone component (unlike renderStylePopup, a plain closure) because the add-row needs its
+ * own local draft state — it must not "become" the model's state as an uncontrolled input can,
+ * since a brand-new attribute/member does not exist as a model row to commit onto until Add is
+ * clicked. Mounted only while `editingFieldsNodeId === node.id`, so its state resets cleanly each
+ * time it is reopened rather than needing an explicit reset after every Add.
+ */
+function FieldsPopup({ node, model, dslFamily, x, y, onChange, onClose }: FieldsPopupProps) {
+  const isErd = dslFamily === 'erd';
+  const attributes = node.attributes ?? [];
+  const members = node.members ?? [];
+
+  // ERD add-row draft.
+  const [newType, setNewType] = useState('');
+  const [newName, setNewName] = useState('');
+
+  // UML add-row draft.
+  const [newKind, setNewKind] = useState<'attribute' | 'method'>('attribute');
+  const [newVisibility, setNewVisibility] = useState<'' | '+' | '-' | '#' | '~'>('');
+  const [newMemberName, setNewMemberName] = useState('');
+  const [newMemberType, setNewMemberType] = useState('');
+  const [newParams, setNewParams] = useState('');
+  const [newReturnType, setNewReturnType] = useState('');
+
+  const commitAttribute = (index: number, patch: Partial<EntityAttribute>) => {
+    const next = attributes.map((a, i) => (i === index ? { ...a, ...patch } : a));
+    onChange(updateEntityAttributes(model, node.id, next));
+  };
+  const removeAttribute = (index: number) => {
+    onChange(updateEntityAttributes(model, node.id, attributes.filter((_, i) => i !== index)));
+  };
+  const addAttribute = () => {
+    if (!newName.trim()) return;
+    const attribute: EntityAttribute = { type: newType.trim(), name: newName.trim(), keys: [] };
+    onChange(updateEntityAttributes(model, node.id, [...attributes, attribute]));
+    setNewType('');
+    setNewName('');
+  };
+
+  const commitMember = (index: number, patch: Partial<ClassMember>) => {
+    const next = members.map((m, i) => (i === index ? { ...m, ...patch } : m));
+    onChange(updateClassMembers(model, node.id, next));
+  };
+  // Switching kind swaps which fields apply — clears the other kind's fields rather than leaving
+  // stale, no-longer-editable data (e.g. a `params` value hanging off a member now typed
+  // 'attribute') silently attached underneath.
+  const setMemberKind = (index: number, kind: 'attribute' | 'method') => {
+    const m = members[index];
+    const next: ClassMember =
+      kind === 'attribute'
+        ? { kind: 'attribute', visibility: m.visibility, name: m.name, type: m.type ?? '', isStatic: m.isStatic, isAbstract: m.isAbstract }
+        : { kind: 'method', visibility: m.visibility, name: m.name, params: m.params ?? '', returnType: m.returnType, isStatic: m.isStatic, isAbstract: m.isAbstract };
+    onChange(updateClassMembers(model, node.id, members.map((mm, i) => (i === index ? next : mm))));
+  };
+  const removeMember = (index: number) => {
+    onChange(updateClassMembers(model, node.id, members.filter((_, i) => i !== index)));
+  };
+  const addMember = () => {
+    if (!newMemberName.trim()) return;
+    const member: ClassMember =
+      newKind === 'attribute'
+        ? { kind: 'attribute', visibility: newVisibility || undefined, name: newMemberName.trim(), type: newMemberType.trim() || undefined }
+        : { kind: 'method', visibility: newVisibility || undefined, name: newMemberName.trim(), params: newParams, returnType: newReturnType.trim() || undefined };
+    onChange(updateClassMembers(model, node.id, [...members, member]));
+    setNewMemberName('');
+    setNewMemberType('');
+    setNewParams('');
+    setNewReturnType('');
+  };
+
+  return (
+    <foreignObject x={x} y={y} width={FIELDS_POPUP_WIDTH} height={FIELDS_POPUP_HEIGHT}>
+      <div
+        className="card"
+        style={{
+          padding: 'var(--space-3)',
+          height: FIELDS_POPUP_HEIGHT - 8,
+          boxSizing: 'border-box',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 'var(--space-2)',
+        }}
+        onClick={(event) => event.stopPropagation()}
+        onPointerDown={(event) => event.stopPropagation()}
+        onKeyDown={(event) => {
+          if (event.key === 'Escape') onClose();
+        }}
+      >
+        <div className="cluster" style={{ justifyContent: 'space-between', flexWrap: 'nowrap' }}>
+          <p className="section-label" style={{ margin: 0 }}>
+            {isErd ? 'Attributes' : 'Members'}
+          </p>
+          <button
+            type="button"
+            className="btn btn--primary btn--compact"
+            data-testid={`fields-done-${node.id}`}
+            onClick={onClose}
+          >
+            Done
+          </button>
+        </div>
+
+        <div style={{ overflowY: 'auto', flex: 1, display: 'flex', flexDirection: 'column', gap: 'var(--space-1)' }}>
+          {isErd
+            ? attributes.map((attr, i) => (
+                <div key={i} className="cluster cluster--tight" style={{ flexWrap: 'nowrap' }}>
+                  <input
+                    data-testid={`attr-type-${node.id}-${i}`}
+                    aria-label={`Attribute ${i + 1} type`}
+                    defaultValue={attr.type}
+                    placeholder="type"
+                    style={{ width: 90, minHeight: 28, padding: '0 6px' }}
+                    onClick={(e) => e.stopPropagation()}
+                    onPointerDown={(e) => e.stopPropagation()}
+                    onBlur={(e) => commitAttribute(i, { type: e.target.value })}
+                  />
+                  <input
+                    data-testid={`attr-name-${node.id}-${i}`}
+                    aria-label={`Attribute ${i + 1} name`}
+                    defaultValue={attr.name}
+                    placeholder="name"
+                    style={{ width: 110, minHeight: 28, padding: '0 6px' }}
+                    onClick={(e) => e.stopPropagation()}
+                    onPointerDown={(e) => e.stopPropagation()}
+                    onBlur={(e) => commitAttribute(i, { name: e.target.value || attr.name })}
+                  />
+                  <input
+                    data-testid={`attr-keys-${node.id}-${i}`}
+                    aria-label={`Attribute ${i + 1} keys, comma separated`}
+                    defaultValue={attr.keys.join(',')}
+                    placeholder="PK,FK"
+                    style={{ width: 70, minHeight: 28, padding: '0 6px' }}
+                    onClick={(e) => e.stopPropagation()}
+                    onPointerDown={(e) => e.stopPropagation()}
+                    onBlur={(e) => commitAttribute(i, { keys: parseKeysInput(e.target.value) })}
+                  />
+                  <button
+                    type="button"
+                    className="btn btn--tertiary-danger btn--compact"
+                    data-testid={`attr-remove-${node.id}-${i}`}
+                    aria-label={`Remove attribute ${attr.name}`}
+                    onClick={() => removeAttribute(i)}
+                  >
+                    <Icon name="trash" size={12} />
+                  </button>
+                </div>
+              ))
+            : members.map((member, i) => (
+                <div key={i} className="cluster cluster--tight" style={{ flexWrap: 'wrap' }}>
+                  <select
+                    data-testid={`member-kind-${node.id}-${i}`}
+                    aria-label={`Member ${i + 1} kind`}
+                    value={member.kind}
+                    style={{ width: 90, minHeight: 28 }}
+                    onClick={(e) => e.stopPropagation()}
+                    onPointerDown={(e) => e.stopPropagation()}
+                    onChange={(e) => setMemberKind(i, e.target.value as 'attribute' | 'method')}
+                  >
+                    <option value="attribute">Attribute</option>
+                    <option value="method">Method</option>
+                  </select>
+                  <select
+                    data-testid={`member-visibility-${node.id}-${i}`}
+                    aria-label={`Member ${i + 1} visibility`}
+                    value={member.visibility ?? ''}
+                    style={{ width: 110, minHeight: 28 }}
+                    onClick={(e) => e.stopPropagation()}
+                    onPointerDown={(e) => e.stopPropagation()}
+                    onChange={(e) => commitMember(i, { visibility: (e.target.value || undefined) as ClassMember['visibility'] })}
+                  >
+                    {UML_VISIBILITY_OPTIONS.map((opt) => (
+                      <option key={opt.value} value={opt.value}>
+                        {opt.label}
+                      </option>
+                    ))}
+                  </select>
+                  <input
+                    data-testid={`member-name-${node.id}-${i}`}
+                    aria-label={`Member ${i + 1} name`}
+                    defaultValue={member.name}
+                    placeholder="name"
+                    style={{ width: 100, minHeight: 28, padding: '0 6px' }}
+                    onClick={(e) => e.stopPropagation()}
+                    onPointerDown={(e) => e.stopPropagation()}
+                    onBlur={(e) => commitMember(i, { name: e.target.value || member.name })}
+                  />
+                  {member.kind === 'attribute' ? (
+                    <input
+                      data-testid={`member-type-${node.id}-${i}`}
+                      aria-label={`Member ${i + 1} type`}
+                      defaultValue={member.type ?? ''}
+                      placeholder="type"
+                      style={{ width: 90, minHeight: 28, padding: '0 6px' }}
+                      onClick={(e) => e.stopPropagation()}
+                      onPointerDown={(e) => e.stopPropagation()}
+                      onBlur={(e) => commitMember(i, { type: e.target.value })}
+                    />
+                  ) : (
+                    <>
+                      <input
+                        data-testid={`member-params-${node.id}-${i}`}
+                        aria-label={`Member ${i + 1} parameters`}
+                        defaultValue={member.params ?? ''}
+                        placeholder="params"
+                        style={{ width: 90, minHeight: 28, padding: '0 6px' }}
+                        onClick={(e) => e.stopPropagation()}
+                        onPointerDown={(e) => e.stopPropagation()}
+                        onBlur={(e) => commitMember(i, { params: e.target.value })}
+                      />
+                      <input
+                        data-testid={`member-return-${node.id}-${i}`}
+                        aria-label={`Member ${i + 1} return type`}
+                        defaultValue={member.returnType ?? ''}
+                        placeholder="return type"
+                        style={{ width: 90, minHeight: 28, padding: '0 6px' }}
+                        onClick={(e) => e.stopPropagation()}
+                        onPointerDown={(e) => e.stopPropagation()}
+                        onBlur={(e) => commitMember(i, { returnType: e.target.value || undefined })}
+                      />
+                    </>
+                  )}
+                  <button
+                    type="button"
+                    className="btn btn--tertiary-danger btn--compact"
+                    data-testid={`member-remove-${node.id}-${i}`}
+                    aria-label={`Remove member ${member.name}`}
+                    onClick={() => removeMember(i)}
+                  >
+                    <Icon name="trash" size={12} />
+                  </button>
+                </div>
+              ))}
+        </div>
+
+        {/* "Add new" row — always rendered regardless of list length (a brand-new entity/class with
+            zero attributes/members needs this most), and the one control guaranteed to exist for
+            Escape's autoFocus target below. */}
+        {isErd ? (
+          <div className="cluster cluster--tight" style={{ flexWrap: 'nowrap', borderTop: 'var(--border-width) solid var(--border-subtle)', paddingTop: 'var(--space-2)' }}>
+            <input
+              data-testid={`attr-new-type-${node.id}`}
+              aria-label="New attribute type"
+              autoFocus
+              value={newType}
+              placeholder="type"
+              style={{ width: 90, minHeight: 28, padding: '0 6px' }}
+              onClick={(e) => e.stopPropagation()}
+              onPointerDown={(e) => e.stopPropagation()}
+              onChange={(e) => setNewType(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') addAttribute();
+              }}
+            />
+            <input
+              data-testid={`attr-new-name-${node.id}`}
+              aria-label="New attribute name"
+              value={newName}
+              placeholder="name"
+              style={{ width: 110, minHeight: 28, padding: '0 6px' }}
+              onClick={(e) => e.stopPropagation()}
+              onPointerDown={(e) => e.stopPropagation()}
+              onChange={(e) => setNewName(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') addAttribute();
+              }}
+            />
+            <button
+              type="button"
+              className="btn btn--secondary btn--compact"
+              data-testid={`attr-add-${node.id}`}
+              disabled={!newName.trim()}
+              onClick={addAttribute}
+            >
+              <Icon name="plus" size={12} />
+              Add
+            </button>
+          </div>
+        ) : (
+          <div className="cluster cluster--tight" style={{ flexWrap: 'wrap', borderTop: 'var(--border-width) solid var(--border-subtle)', paddingTop: 'var(--space-2)' }}>
+            <select
+              data-testid={`member-new-kind-${node.id}`}
+              aria-label="New member kind"
+              autoFocus
+              value={newKind}
+              style={{ width: 90, minHeight: 28 }}
+              onClick={(e) => e.stopPropagation()}
+              onPointerDown={(e) => e.stopPropagation()}
+              onChange={(e) => setNewKind(e.target.value as 'attribute' | 'method')}
+            >
+              <option value="attribute">Attribute</option>
+              <option value="method">Method</option>
+            </select>
+            <select
+              data-testid={`member-new-visibility-${node.id}`}
+              aria-label="New member visibility"
+              value={newVisibility}
+              style={{ width: 110, minHeight: 28 }}
+              onClick={(e) => e.stopPropagation()}
+              onPointerDown={(e) => e.stopPropagation()}
+              onChange={(e) => setNewVisibility(e.target.value as '' | '+' | '-' | '#' | '~')}
+            >
+              {UML_VISIBILITY_OPTIONS.map((opt) => (
+                <option key={opt.value} value={opt.value}>
+                  {opt.label}
+                </option>
+              ))}
+            </select>
+            <input
+              data-testid={`member-new-name-${node.id}`}
+              aria-label="New member name"
+              value={newMemberName}
+              placeholder="name"
+              style={{ width: 100, minHeight: 28, padding: '0 6px' }}
+              onClick={(e) => e.stopPropagation()}
+              onPointerDown={(e) => e.stopPropagation()}
+              onChange={(e) => setNewMemberName(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') addMember();
+              }}
+            />
+            {newKind === 'attribute' ? (
+              <input
+                data-testid={`member-new-type-${node.id}`}
+                aria-label="New member type"
+                value={newMemberType}
+                placeholder="type"
+                style={{ width: 90, minHeight: 28, padding: '0 6px' }}
+                onClick={(e) => e.stopPropagation()}
+                onPointerDown={(e) => e.stopPropagation()}
+                onChange={(e) => setNewMemberType(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') addMember();
+                }}
+              />
+            ) : (
+              <>
+                <input
+                  data-testid={`member-new-params-${node.id}`}
+                  aria-label="New member parameters"
+                  value={newParams}
+                  placeholder="params"
+                  style={{ width: 90, minHeight: 28, padding: '0 6px' }}
+                  onClick={(e) => e.stopPropagation()}
+                  onPointerDown={(e) => e.stopPropagation()}
+                  onChange={(e) => setNewParams(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') addMember();
+                  }}
+                />
+                <input
+                  data-testid={`member-new-return-${node.id}`}
+                  aria-label="New member return type"
+                  value={newReturnType}
+                  placeholder="return type"
+                  style={{ width: 90, minHeight: 28, padding: '0 6px' }}
+                  onClick={(e) => e.stopPropagation()}
+                  onPointerDown={(e) => e.stopPropagation()}
+                  onChange={(e) => setNewReturnType(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') addMember();
+                  }}
+                />
+              </>
+            )}
+            <button
+              type="button"
+              className="btn btn--secondary btn--compact"
+              data-testid={`member-add-${node.id}`}
+              disabled={!newMemberName.trim()}
+              onClick={addMember}
+            >
+              <Icon name="plus" size={12} />
+              Add
+            </button>
+          </div>
+        )}
+      </div>
+    </foreignObject>
+  );
+}
+
 /**
  * canvas-8n7: renders resolved icon markup via an `<image>` element's `data:` URI rather than
  * `dangerouslySetInnerHTML`, so it is never inserted into the live DOM as executable markup in
@@ -226,14 +651,19 @@ function popupPosition(
   desiredX: number,
   canvasWidth: number,
   canvasHeight: number,
+  // canvas-vcv: defaulted to the style popup's own size so both pre-existing call sites (edge and
+  // node style popups) are unaffected — the fields popup below is the only caller passing its own,
+  // larger, explicit width/height.
+  popupWidth: number = STYLE_POPUP_WIDTH,
+  popupHeight: number = STYLE_POPUP_HEIGHT,
 ): { x: number; y: number } {
   const margin = 4;
   const below = anchorBottom + margin;
-  const fitsBelow = below + STYLE_POPUP_HEIGHT <= canvasHeight - margin;
-  const y = fitsBelow ? below : anchorTop - STYLE_POPUP_HEIGHT - margin;
+  const fitsBelow = below + popupHeight <= canvasHeight - margin;
+  const y = fitsBelow ? below : anchorTop - popupHeight - margin;
   return {
-    x: Math.min(Math.max(desiredX, margin), canvasWidth - STYLE_POPUP_WIDTH - margin),
-    y: Math.min(Math.max(y, margin), canvasHeight - STYLE_POPUP_HEIGHT - margin),
+    x: Math.min(Math.max(desiredX, margin), canvasWidth - popupWidth - margin),
+    y: Math.min(Math.max(y, margin), canvasHeight - popupHeight - margin),
   };
 }
 
@@ -308,6 +738,10 @@ export function Canvas({ model, onChange, dslFamily, toolbarContainer }: CanvasP
   // (label-affordance.spec.ts) stays untouched.
   const [stylingNodeId, setStylingNodeId] = useState<string | null>(null);
   const [stylingEdgeId, setStylingEdgeId] = useState<string | null>(null);
+  // canvas-vcv: a third, separate affordance next to the pencil/palette — node-only (ER attributes/
+  // UML members are node-level fields; edges/containers have neither), so unlike stylingNodeId/
+  // stylingEdgeId there is no matching "Edge" counterpart.
+  const [editingFieldsNodeId, setEditingFieldsNodeId] = useState<string | null>(null);
   const [selectedContainerId, setSelectedContainerId] = useState<string | null>(null);
   // canvas-u7e: edges had no selection state at all — the only ways to remove a connector were
   // deleting one of its endpoint nodes (which cascades but also destroys the node) or hand-editing
@@ -655,6 +1089,29 @@ export function Canvas({ model, onChange, dslFamily, toolbarContainer }: CanvasP
         onPointerDown={(event) => event.stopPropagation()}
       >
         <Icon name="palette" size={12} />
+      </button>
+    </foreignObject>
+  );
+
+  /** canvas-vcv: a third, separate control alongside the pencil/palette pair — opens FieldsPopup.
+   *  Node-only and gated to erd/uml at the call site (every node in an ERD diagram is an entity;
+   *  every node in a UML diagram is a class — there is no other node kind in either family). Same
+   *  hover/selection/focus reveal rule as the other two. */
+  const renderFieldsAffordance = (id: string, x: number, y: number, onActivate: () => void, label: string) => (
+    <foreignObject x={x} y={y} width={22} height={22}>
+      <button
+        type="button"
+        className="canvas-edit-affordance"
+        data-testid={`edit-fields-${id}`}
+        aria-label={label}
+        title={label}
+        onClick={(event) => {
+          event.stopPropagation();
+          onActivate();
+        }}
+        onPointerDown={(event) => event.stopPropagation()}
+      >
+        <Icon name="rows" size={12} />
       </button>
     </foreignObject>
   );
@@ -1393,6 +1850,17 @@ export function Canvas({ model, onChange, dslFamily, toolbarContainer }: CanvasP
           // popupPosition so it never renders past the canvas's own edges for a node placed near
           // the border (research note on popupPosition).
           const stylePopupPos = popupPosition(node.position.y, node.position.y + size.height, node.position.x, canvasWidth, canvasHeight);
+          // canvas-vcv: same below-the-node placement precedent as stylePopupPos, just with the
+          // fields popup's own larger width/height.
+          const fieldsPopupPos = popupPosition(
+            node.position.y,
+            node.position.y + size.height,
+            node.position.x,
+            canvasWidth,
+            canvasHeight,
+            FIELDS_POPUP_WIDTH,
+            FIELDS_POPUP_HEIGHT,
+          );
           // canvas-23t.5: mirrors svg-renderer.ts's renderNode icon branch exactly — glyph
           // top-aligned, caption stacked below it, both from the shared iconNodeLayout
           // calculation, so canvas and export agree (SC-004).
@@ -1511,6 +1979,7 @@ export function Canvas({ model, onChange, dslFamily, toolbarContainer }: CanvasP
                   node.position.y + 2,
                   () => {
                     setStylingNodeId(null);
+                    setEditingFieldsNodeId(null);
                     setEditingNodeId(node.id);
                   },
                   `Edit label for ${node.label}`,
@@ -1524,6 +1993,7 @@ export function Canvas({ model, onChange, dslFamily, toolbarContainer }: CanvasP
                   node.position.y + 2,
                   () => {
                     setEditingNodeId(null);
+                    setEditingFieldsNodeId(null);
                     setStylingNodeId(node.id);
                   },
                   `Choose fill color for ${node.label}`,
@@ -1538,6 +2008,37 @@ export function Canvas({ model, onChange, dslFamily, toolbarContainer }: CanvasP
                   () => onChange(updateNodeStyle(model, node.id, { fillColor: null })),
                   () => setStylingNodeId(null),
                 )}
+              {/* canvas-vcv: every node in an ERD diagram is an entity (attributes); every node in
+                  a UML diagram is a class (members) — there is no other node kind in either family
+                  today, so this is gated on dslFamily alone, not on whether the node already has
+                  any rows (a brand-new entity/class starts with none, which is exactly when this
+                  affordance matters most). */}
+              {editingNodeId !== node.id &&
+                !connectMode &&
+                (dslFamily === 'erd' || dslFamily === 'uml') &&
+                (hoveredId === node.id || selectedIds.has(node.id)) &&
+                renderFieldsAffordance(
+                  node.id,
+                  node.position.x + size.width - 76,
+                  node.position.y + 2,
+                  () => {
+                    setEditingNodeId(null);
+                    setStylingNodeId(null);
+                    setEditingFieldsNodeId(node.id);
+                  },
+                  dslFamily === 'erd' ? `Edit attributes for ${node.label}` : `Edit members for ${node.label}`,
+                )}
+              {editingFieldsNodeId === node.id && (
+                <FieldsPopup
+                  node={node}
+                  model={model}
+                  dslFamily={dslFamily}
+                  x={fieldsPopupPos.x}
+                  y={fieldsPopupPos.y}
+                  onChange={onChange}
+                  onClose={() => setEditingFieldsNodeId(null)}
+                />
+              )}
             </g>
           );
         })}
