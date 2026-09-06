@@ -16,7 +16,11 @@ import { nodeSize } from '../render/svg-renderer.js';
 
 const PADDING = 20;
 const HEADER_HEIGHT = 30;
-const SIBLING_GAP = 20;
+// Matches the old flat nextAutoPosition() counter's own implicit spacing exactly (each family's
+// counter advanced x by 180 for a 140-wide default node — a 40px gap) — chosen so the common case
+// (a flat top-level list, no containers at all) produces pixel-identical positions to before,
+// which several existing E2E tests hardcode (edge-arrowhead-visibility.spec.ts in particular).
+const SIBLING_GAP = 40;
 const MAX_ROW_WIDTH = 900;
 const EMPTY_CONTAINER_MIN_SIZE: Size = { width: 160, height: 100 };
 
@@ -86,8 +90,14 @@ export function computeContainmentLayout(
       return aIdx - bIdx;
     });
 
-    let cursorX = atX + PADDING;
-    let cursorY = atY + headerHeight + PADDING;
+    // The virtual root has no enclosing box of its own to inset away from — a real container's
+    // children sit PADDING/HEADER_HEIGHT in from its own border, but a top-level item sits
+    // directly at the origin, matching the old flat counter's own starting position exactly
+    // (pixel parity for the common no-containers-at-all case, per SIBLING_GAP's own comment).
+    const insetX = isRoot ? 0 : PADDING;
+    const insetY = isRoot ? 0 : headerHeight + PADDING;
+    let cursorX = atX + insetX;
+    let cursorY = atY + insetY;
     let rowHeight = 0;
     let maxRight = cursorX;
 
@@ -107,7 +117,7 @@ export function computeContainmentLayout(
       rowHeight = Math.max(rowHeight, size.height);
       maxRight = Math.max(maxRight, cursorX - SIBLING_GAP);
       if (cursorX - atX > MAX_ROW_WIDTH) {
-        cursorX = atX + PADDING;
+        cursorX = atX + insetX;
         cursorY += rowHeight + SIBLING_GAP;
         rowHeight = 0;
       }
