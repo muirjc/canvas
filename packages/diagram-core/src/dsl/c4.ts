@@ -80,6 +80,29 @@ const DEPLOYMENT_NODE_KINDS = ['Deployment_Node', 'Node_L', 'Node_R', 'Node'] as
 const BOUNDARY_START = new RegExp(
   `^(Boundary|System_Boundary|Container_Boundary|Enterprise_Boundary|${DEPLOYMENT_NODE_KINDS.join('|')})\\(\\s*(${ID})\\s*,\\s*"([^"]*)"(?:\\s*,\\s*"[^"]*")?\\s*\\)\\s*\\{$`,
 );
+// canvas-7vs.11: which boundary keyword was actually used used to be discarded entirely (every
+// one of the five collapsed into the same untyped DiagramContainer, role left undefined) — this
+// is the one container-role gap canvas-7vs.8's own audit found but explicitly deferred as a
+// parser/model issue, not a renderer one. The four Deployment_Node-family shortcuts (Node/Node_L/
+// Node_R) all collapse to the same 'deployment-node' role, matching ELEMENT_TO_ROLE's own
+// established precedent of variant keywords sharing one role.
+const BOUNDARY_KEYWORD_TO_ROLE: Record<string, string> = {
+  Boundary: 'boundary',
+  System_Boundary: 'system-boundary',
+  Container_Boundary: 'container-boundary',
+  Enterprise_Boundary: 'enterprise-boundary',
+  Deployment_Node: 'deployment-node',
+  Node: 'deployment-node',
+  Node_L: 'deployment-node',
+  Node_R: 'deployment-node',
+};
+const ROLE_TO_BOUNDARY_KEYWORD: Record<string, string> = {
+  boundary: 'Boundary',
+  'system-boundary': 'System_Boundary',
+  'container-boundary': 'Container_Boundary',
+  'enterprise-boundary': 'Enterprise_Boundary',
+  'deployment-node': 'Deployment_Node',
+};
 const BOUNDARY_END = /^\}$/;
 // canvas-??? (title): a real, cross-family Mermaid top-level statement -- only wired up for C4
 // so far (DiagramModel.title's own doc comment tracks the other five families as a follow-up).
@@ -319,11 +342,12 @@ export function parseC4(dsl: string): ParseResult {
 
     const boundaryStart = line.match(BOUNDARY_START);
     if (boundaryStart) {
-      const [, , id, label] = boundaryStart;
+      const [, keyword, id, label] = boundaryStart;
       const meta = containerMeta[id];
       containersById.set(id, {
         id,
         label,
+        role: BOUNDARY_KEYWORD_TO_ROLE[keyword],
         position: meta ? { x: meta.x, y: meta.y } : (isFreshImport ? PLACEHOLDER_POSITION : nextAutoPosition()),
         size: meta?.width !== undefined && meta?.height !== undefined ? { width: meta.width, height: meta.height } : undefined,
         parentContainerId: containerStack[containerStack.length - 1],
@@ -428,16 +452,20 @@ export function serializeC4(model: import('../model/diagram-model.js').DiagramMo
   const lines: string[] = [header];
   if (model.title) lines.push(`title ${model.title}`);
   const emitted = new Set<string>();
-  // jmuir-dtu.3.2: a C4Deployment model's containers always re-emit as Deployment_Node (not
-  // System_Boundary, which isn't semantically valid there) -- driven purely by diagramTypeId,
-  // not a per-container flag, since every container in a c4-deployment model necessarily came
-  // from Deployment_Node/Node/Node_L/Node_R parsing in the first place (BOUNDARY_START accepts
-  // all six keywords regardless of header, same lenient precedent System_Boundary itself already
-  // has, but only c4-deployment's own header re-emits this way).
-  const boundaryKeyword = model.diagramTypeId === 'c4-deployment' ? 'Deployment_Node' : 'System_Boundary';
+  // jmuir-dtu.3.2 / canvas-7vs.11: a container now round-trips the EXACT boundary keyword it was
+  // parsed from (captured in its own `role`, ROLE_TO_BOUNDARY_KEYWORD above) -- a real fidelity
+  // improvement over the previous behavior (every boundary collapsed to whichever one keyword a
+  // model's diagramTypeId implied, discarding which of the five was actually used). A container
+  // with no role at all (e.g. built directly via addContainer(), never having gone through
+  // BOUNDARY_START) falls back to that same diagramTypeId-driven default exactly as before -- a
+  // c4-deployment model's own infrastructure tree defaults to Deployment_Node, everything else to
+  // System_Boundary -- so nothing that never had a captured keyword changes behavior.
+  const defaultBoundaryKeyword = model.diagramTypeId === 'c4-deployment' ? 'Deployment_Node' : 'System_Boundary';
+  const boundaryKeywordFor = (container: DiagramContainer): string =>
+    (container.role && ROLE_TO_BOUNDARY_KEYWORD[container.role]) || defaultBoundaryKeyword;
 
   const emitContainer = (container: DiagramContainer): string[] => {
-    const out: string[] = [`${boundaryKeyword}(${container.id}, "${container.label}") {`];
+    const out: string[] = [`${boundaryKeywordFor(container)}(${container.id}, "${container.label}") {`];
     for (const node of model.nodes) {
       if (node.containerId === container.id) {
         out.push(`  ${elementKindFor(node)}(${node.id}, "${node.label}")`);

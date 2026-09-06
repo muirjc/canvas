@@ -44,7 +44,11 @@ describe('C4 DSL family (Context/Container/Component/Code)', () => {
         { id: 'db', label: 'Database', shape: 'cylinder', role: 'system', position: { x: 200, y: 0 } },
       ],
       edges: [{ id: 'e1', sourceId: 'web', targetId: 'db', label: 'Reads/Writes' }],
-      containers: [{ id: 'b1', label: 'Our System', position: { x: 0, y: 0 } }],
+      // canvas-7vs.11: role is now what picks the boundary keyword back on serialize -- a
+      // container built without one (as this fixture originally was) still round-trips fine, just
+      // via the diagramTypeId-driven default; giving it the role a real parse of "System_Boundary"
+      // would actually produce is the more realistic fixture and confirms that path too.
+      containers: [{ id: 'b1', label: 'Our System', role: 'system-boundary', position: { x: 0, y: 0 } }],
     };
     expect(normalize(roundTrip(model))).toEqual(normalize(model));
   });
@@ -456,9 +460,13 @@ describe('C4 DSL family (Context/Container/Component/Code)', () => {
           { id: 'db', label: 'Database', shape: 'cylinder', role: 'container', position: { x: 200, y: 0 }, containerId: 'live' },
         ],
         edges: [{ id: 'e1', sourceId: 'web', targetId: 'db', label: 'Reads/Writes' }],
+        // canvas-7vs.11: role now round-trips too (see the sibling fixture fix a few tests up) --
+        // these containers get it here so the round-trip below is a true fixed point; the
+        // diagramTypeId-driven default fallback (still exercised by this test's own serialize
+        // assertions) is what a role-LESS container would fall back to instead.
         containers: [
-          { id: 'live', label: 'Live', position: { x: 0, y: 0 } },
-          { id: 'zone1', label: 'Zone 1', position: { x: 0, y: 0 }, parentContainerId: 'live' },
+          { id: 'live', label: 'Live', role: 'deployment-node', position: { x: 0, y: 0 } },
+          { id: 'zone1', label: 'Zone 1', role: 'deployment-node', position: { x: 0, y: 0 }, parentContainerId: 'live' },
         ],
       };
       const serialized = serializeC4(model);
@@ -475,7 +483,7 @@ describe('C4 DSL family (Context/Container/Component/Code)', () => {
           { id: 'db', label: 'Database', shape: 'cylinder', role: 'system', position: { x: 200, y: 0 } },
         ],
         edges: [{ id: 'e1', sourceId: 'web', targetId: 'db', label: 'Reads/Writes' }],
-        containers: [{ id: 'b1', label: 'Our System', position: { x: 0, y: 0 } }],
+        containers: [{ id: 'b1', label: 'Our System', role: 'system-boundary', position: { x: 0, y: 0 } }],
       };
       const serialized = serializeC4(model);
       expect(serialized).toContain('System_Boundary(');
@@ -503,6 +511,81 @@ describe('C4 DSL family (Context/Container/Component/Code)', () => {
     });
   });
 
+  describe('canvas-7vs.11: which boundary keyword was used is now captured, not discarded', () => {
+    // The boundary keyword itself used to be discarded entirely -- every one of these five
+    // collapsed into the exact same untyped DiagramContainer (role left undefined), confirmed
+    // live against a real bank-boundary example that mixes several of them in one diagram.
+    const CASES: Array<{ keyword: string; role: string }> = [
+      { keyword: 'Boundary', role: 'boundary' },
+      { keyword: 'System_Boundary', role: 'system-boundary' },
+      { keyword: 'Container_Boundary', role: 'container-boundary' },
+      { keyword: 'Enterprise_Boundary', role: 'enterprise-boundary' },
+      { keyword: 'Deployment_Node', role: 'deployment-node' },
+    ];
+
+    it.each(CASES)('$keyword gets its own distinct role ($role), and round-trips back to the identical keyword', ({ keyword, role }) => {
+      const result = parseC4(`C4Context\n  ${keyword}(b1, "A Boundary") {\n    System(a, "A")\n  }\n`);
+      expect(isParseSuccess(result)).toBe(true);
+      if (!isParseSuccess(result)) return;
+      const container = result.model.containers.find((c) => c.id === 'b1')!;
+      expect(container.role).toBe(role);
+
+      const reexported = serializeC4(result.model);
+      // Exactly the one matching keyword, never a DIFFERENT one of the five (the exact bug this
+      // closes) -- extracts the actual emitted keyword token rather than a plain `.toContain`
+      // check, since e.g. "System_Boundary(b1," itself contains the substring "Boundary(b1,",
+      // which would give a false pass for the wrong keyword.
+      const actualKeyword = reexported.match(/(\w+)\(b1, "A Boundary"\)/)?.[1];
+      expect(actualKeyword).toBe(keyword);
+
+      const reparsed = parseC4(reexported);
+      expect(isParseSuccess(reparsed)).toBe(true);
+      if (!isParseSuccess(reparsed)) return;
+      expect(reparsed.model.containers.find((c) => c.id === 'b1')?.role).toBe(role);
+    });
+
+    it('the Node/Node_L/Node_R Deployment_Node shortcuts all collapse to the same deployment-node role (matching ELEMENT_TO_ROLE\'s own precedent for element-kind variants)', () => {
+      for (const keyword of ['Node', 'Node_L', 'Node_R']) {
+        const result = parseC4(`C4Deployment\n  ${keyword}(live, "Live") {\n    System(a, "A")\n  }\n`);
+        expect(isParseSuccess(result)).toBe(true);
+        if (!isParseSuccess(result)) return;
+        expect(result.model.containers.find((c) => c.id === 'live')?.role).toBe('deployment-node');
+      }
+    });
+
+    it('the real reported bank-boundary example mixes Enterprise_Boundary/System_Boundary/Boundary in one diagram, and each keeps its own distinct role', () => {
+      const dsl = [
+        'C4Context',
+        'Enterprise_Boundary(b0, "BankBoundary0") {',
+        '  System_Boundary(b1, "BankBoundary") {',
+        '    System_Boundary(b2, "BankBoundary2") {',
+        '      System(sysA, "System A")',
+        '    }',
+        '    Boundary(b3, "BankBoundary3") {',
+        '      System(sysB, "System B")',
+        '    }',
+        '  }',
+        '}',
+        '',
+      ].join('\n');
+      const result = parseC4(dsl);
+      expect(isParseSuccess(result)).toBe(true);
+      if (!isParseSuccess(result)) return;
+      const roleOf = (id: string) => result.model.containers.find((c) => c.id === id)?.role;
+      expect(roleOf('b0')).toBe('enterprise-boundary');
+      expect(roleOf('b1')).toBe('system-boundary');
+      expect(roleOf('b2')).toBe('system-boundary');
+      expect(roleOf('b3')).toBe('boundary');
+
+      // Stable through a full round-trip, each keyword distinct from the other two.
+      const reexported = serializeC4(result.model);
+      expect(reexported).toContain('Enterprise_Boundary(b0,');
+      expect(reexported).toContain('System_Boundary(b1,');
+      expect(reexported).toContain('System_Boundary(b2,');
+      expect(reexported).toContain('Boundary(b3,');
+    });
+  });
+
   describe('canvas-79b: title, generic Boundary macro, Rel technology arg', () => {
     it('parses a top-level "title" line and round-trips it through serialize -> reparse', () => {
       const result = parseC4('C4Context\n  title System Context diagram for Internet Banking System\n  System(a, "A")\n');
@@ -522,16 +605,20 @@ describe('C4 DSL family (Context/Container/Component/Code)', () => {
       expect(serializeC4(result.model)).not.toContain('title');
     });
 
-    it('Boundary(id, "label", ?"type") -- the generic boundary macro -- parses like System_Boundary', () => {
-      const result = parseC4('C4Context\n  Boundary(b3, "Bank Boundary 3", "boundary") {\n    System(a, "A")\n  }\n');
+    it('Boundary(id, "label", ?"type") -- the generic boundary macro -- parses with its own distinct role, not System_Boundary\'s', () => {
+      // canvas-7vs.11: "perimeter", not "boundary", as the throwaway 3rd-arg value -- the word
+      // "boundary" is now a real, meaningful substring of this container's own role
+      // ("role":"boundary"), so asserting the whole model never contains it (below) would
+      // otherwise collide with correct new behavior rather than catching an actual leak.
+      const result = parseC4('C4Context\n  Boundary(b3, "Bank Boundary 3", "perimeter") {\n    System(a, "A")\n  }\n');
       expect(isParseSuccess(result)).toBe(true);
       if (!isParseSuccess(result)) return;
       expect(result.model.containers).toHaveLength(1);
-      expect(result.model.containers[0]).toMatchObject({ id: 'b3', label: 'Bank Boundary 3' });
+      expect(result.model.containers[0]).toMatchObject({ id: 'b3', label: 'Bank Boundary 3', role: 'boundary' });
       expect(result.model.nodes.find((n) => n.id === 'a')?.containerId).toBe('b3');
       // The optional "type" arg is captured-but-discarded, matching this file's own established
       // precedent (Deployment_Node's optional type arg) -- not modeled, not leaked into the label.
-      expect(JSON.stringify(result.model)).not.toContain('boundary');
+      expect(JSON.stringify(result.model)).not.toContain('perimeter');
     });
 
     it('Rel(from, to, "label", "technology") -- the optional 4th arg -- parses without error', () => {

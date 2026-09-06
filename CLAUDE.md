@@ -64,6 +64,33 @@ tests are NON-NEGOTIABLE and must exist (and fail) before implementing any diagr
 work — see `.specify/memory/constitution.md` Principle IV.
 
 ## Recent Changes
+- `canvas-7vs.11` (found while scoping `canvas-7vs.8`, filed under `jmuir-dtu`'s own Mermaid
+  DSL-compliance roadmap since it's a parser/model gap, not a renderer one): C4's
+  `BOUNDARY_START` parsed all five real boundary keywords (`Boundary`, `System_Boundary`,
+  `Container_Boundary`, `Enterprise_Boundary`, `Deployment_Node`/`Node`/`Node_L`/`Node_R`) into the
+  exact same untyped `DiagramContainer` — which one was actually used was discarded entirely,
+  `role` left `undefined`, unlike every other container role in this codebase. A new
+  `BOUNDARY_KEYWORD_TO_ROLE` map now captures it (`'boundary'`, `'system-boundary'`,
+  `'container-boundary'`, `'enterprise-boundary'`, `'deployment-node'` — the four
+  `Deployment_Node`-family shortcuts collapse to one role, matching `ELEMENT_TO_ROLE`'s own
+  established precedent for element-kind variants), and `serializeC4` now picks the exact keyword
+  back from that role instead of collapsing every boundary in a model to one keyword chosen purely
+  from `diagramTypeId` (`Deployment_Node` for `c4-deployment`, `System_Boundary` for everything
+  else) — a real round-trip fidelity improvement: the real bank-boundary example (which mixes
+  `Enterprise_Boundary`/`System_Boundary`/`Boundary` in one diagram) now round-trips each one
+  correctly instead of silently normalizing all three to `System_Boundary`. A container with no
+  role at all (never having gone through C4's own boundary grammar — e.g. built directly via
+  `addContainer()`) still falls back to that same diagramTypeId-driven default exactly as before,
+  so nothing that never had a captured keyword changes behavior. Three existing tests needed
+  updating as a direct, expected consequence (role is a new, real field on their fixture
+  containers now) — not weakened, brought in line with what a real parse now correctly produces;
+  one existing test's own throwaway placeholder arg value ("boundary") happened to collide with
+  the new role string it was asserting the model never contained, fixed by picking a
+  non-colliding placeholder ("perimeter") instead. `packages/diagram-core` 684/684 (up from 677 —
+  7 new cases directly exercising this fix: all 5 keywords each getting their own role and
+  round-tripping correctly, the 3 Deployment_Node-family shortcuts collapsing to one role, and the
+  real mixed bank-boundary example keeping each of its three distinct keywords through a full
+  round-trip). `npx eslint .`: 0 errors, run explicitly before pushing.
 - `canvas-m0g`: nested containers (C4 `Enterprise_Boundary`/`System_Boundary`/`Container_Boundary`/
   `Deployment_Node`, UML `namespace`-within-`namespace`, flowchart nested `subgraph`) parsed their
   `parentContainerId` chain correctly but nothing ever converted that hierarchy into geometry —
