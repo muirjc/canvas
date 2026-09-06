@@ -1,6 +1,7 @@
 import { createEmptyDiagramModel, type DiagramContainer, type DiagramNode, type NodeStyle } from '../model/diagram-model.js';
 import { splitFrontMatter, joinFrontMatter, type CanvasFrontMatter } from './front-matter.js';
 import type { ParseError, ParseResult } from './types.js';
+import { computeContainmentLayout } from '../model/containment-layout.js';
 
 const ID = String.raw`[A-Za-z0-9_]+`;
 
@@ -207,6 +208,18 @@ export function parseC4(dsl: string): ParseResult {
   const styles = frontMatter.canvas?.styles ?? {};
   const edgeStyles = frontMatter.canvas?.edgeStyles ?? {};
   const containerMeta = frontMatter.canvas?.containers ?? {};
+  // canvas-m0g: a diagram with NO stored geometry at all (a fresh import/paste) gets a real
+  // containment-aware auto-layout instead of the flat nextAutoPosition() counter — every
+  // node/container gets a PLACEHOLDER_POSITION below, replaced by computeContainmentLayout's
+  // output in one post-pass once the whole tree is known. A diagram with SOME stored geometry
+  // (a prior save) keeps the old per-element nextAutoPosition() fallback unchanged for whatever
+  // individual element still lacks one — correctly laying out a fresh import's nested boundaries
+  // without attempting the harder "reconcile new auto-placed elements amid already-hand-positioned
+  // ones" problem, which nothing in this codebase solves today for ANY family (a disclosed scope
+  // boundary, not a regression: the old flat counter never avoided overlapping real positions
+  // either).
+  const isFreshImport = Object.keys(positions).length === 0 && Object.keys(containerMeta).length === 0;
+  const PLACEHOLDER_POSITION = { x: 0, y: 0 };
 
   const lines = body.split(/\r?\n/);
   const errors: ParseError[] = [];
@@ -253,7 +266,7 @@ export function parseC4(dsl: string): ParseResult {
         label,
         shape: ELEMENT_TO_SHAPE[kind],
         role: ELEMENT_TO_ROLE[kind],
-        position: positions[id] ?? nextAutoPosition(),
+        position: positions[id] ?? (isFreshImport ? PLACEHOLDER_POSITION : nextAutoPosition()),
         style: styles[id],
         containerId: containerStack[containerStack.length - 1],
       });
@@ -311,7 +324,7 @@ export function parseC4(dsl: string): ParseResult {
       containersById.set(id, {
         id,
         label,
-        position: meta ? { x: meta.x, y: meta.y } : nextAutoPosition(),
+        position: meta ? { x: meta.x, y: meta.y } : (isFreshImport ? PLACEHOLDER_POSITION : nextAutoPosition()),
         size: meta?.width !== undefined && meta?.height !== undefined ? { width: meta.width, height: meta.height } : undefined,
         parentContainerId: containerStack[containerStack.length - 1],
       });
@@ -348,6 +361,21 @@ export function parseC4(dsl: string): ParseResult {
       if (edge.sourceId === source && edge.targetId === target) {
         edge.style = { ...edge.style, strokeColor: lineColor };
       }
+    }
+  }
+
+  // canvas-m0g: fills in the PLACEHOLDER_POSITION every node/container above got, now that the
+  // whole parentContainerId/containerId tree is known — the whole point of doing this as a
+  // post-pass rather than inline is that a container's own size can't be known until every
+  // descendant (parsed on later lines) already has a position.
+  if (isFreshImport) {
+    const allNodes = Array.from(nodesById.values());
+    const allContainers = Array.from(containersById.values());
+    const layout = computeContainmentLayout(allNodes, allContainers);
+    for (const node of allNodes) node.position = layout.nodePositions.get(node.id) ?? node.position;
+    for (const container of allContainers) {
+      container.position = layout.containerPositions.get(container.id) ?? container.position;
+      container.size = layout.containerSizes.get(container.id);
     }
   }
 

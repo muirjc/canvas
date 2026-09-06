@@ -2,6 +2,7 @@ import { createEmptyDiagramModel, type ClassMember, type DiagramContainer, type 
 import { splitFrontMatter, joinFrontMatter, type CanvasFrontMatter } from './front-matter.js';
 import type { FlowchartDirection } from '../model/diagram-model.js';
 import type { ParseError, ParseResult } from './types.js';
+import { computeContainmentLayout } from '../model/containment-layout.js';
 
 const ID = String.raw`[A-Za-z0-9_]+`;
 
@@ -192,6 +193,11 @@ export function parseUml(dsl: string): ParseResult {
   const positions = frontMatter.canvas?.positions ?? {};
   const styles = frontMatter.canvas?.styles ?? {};
   const containerMeta = frontMatter.canvas?.containers ?? {};
+  // canvas-m0g: see c4.ts's identical comment — a fresh import/paste (no stored geometry at all)
+  // gets a real containment-aware auto-layout (namespaces-within-namespaces, jmuir-dtu.2) instead
+  // of the flat nextPosition() counter, via a post-pass once the whole tree is known.
+  const isFreshImport = Object.keys(positions).length === 0 && Object.keys(containerMeta).length === 0;
+  const PLACEHOLDER_POSITION = { x: 0, y: 0 };
 
   const lines = body.split(/\r?\n/);
   const errors: ParseError[] = [];
@@ -228,7 +234,7 @@ export function parseUml(dsl: string): ParseResult {
         label: id,
         shape: 'rectangle',
         role: 'class',
-        position: positions[id] ?? nextPosition(),
+        position: positions[id] ?? (isFreshImport ? PLACEHOLDER_POSITION : nextPosition()),
         style: styles[id],
         containerId,
         umlStereotype: annotation,
@@ -318,7 +324,8 @@ export function parseUml(dsl: string): ParseResult {
             id: currentId,
             label: isLeaf && bracketLabel !== undefined ? bracketLabel : segments[segIdx],
             role: 'namespace',
-            position: meta ? { x: meta.x, y: meta.y } : nextPosition(),
+            position: meta ? { x: meta.x, y: meta.y } : (isFreshImport ? PLACEHOLDER_POSITION : nextPosition()),
+            size: meta?.width !== undefined && meta?.height !== undefined ? { width: meta.width, height: meta.height } : undefined,
             parentContainerId: parentId,
           });
         } else if (isLeaf && bracketLabel !== undefined) {
@@ -347,7 +354,14 @@ export function parseUml(dsl: string): ParseResult {
       // elsewhere in the file between saves, same inherent limitation sequence.ts's own
       // note/block containers already carry.
       const meta = containerMeta[id];
-      containersById.set(id, { id, label: text, role: 'note', attachedNodeIds: [classId], position: meta ? { x: meta.x, y: meta.y } : nextPosition() });
+      containersById.set(id, {
+        id,
+        label: text,
+        role: 'note',
+        attachedNodeIds: [classId],
+        position: meta ? { x: meta.x, y: meta.y } : (isFreshImport ? PLACEHOLDER_POSITION : nextPosition()),
+        size: meta?.width !== undefined && meta?.height !== undefined ? { width: meta.width, height: meta.height } : undefined,
+      });
       continue;
     }
     const noteStandalone = line.match(NOTE_STANDALONE);
@@ -355,7 +369,14 @@ export function parseUml(dsl: string): ParseResult {
       containerCounter += 1;
       const id = `note${containerCounter}`;
       const meta = containerMeta[id];
-      containersById.set(id, { id, label: noteStandalone[1], role: 'note', attachedNodeIds: [], position: meta ? { x: meta.x, y: meta.y } : nextPosition() });
+      containersById.set(id, {
+        id,
+        label: noteStandalone[1],
+        role: 'note',
+        attachedNodeIds: [],
+        position: meta ? { x: meta.x, y: meta.y } : (isFreshImport ? PLACEHOLDER_POSITION : nextPosition()),
+        size: meta?.width !== undefined && meta?.height !== undefined ? { width: meta.width, height: meta.height } : undefined,
+      });
       continue;
     }
 
@@ -462,6 +483,18 @@ export function parseUml(dsl: string): ParseResult {
     node.style = { ...node.style, ...parseStyleProps(propsRaw) };
   }
 
+  // canvas-m0g: see c4.ts's identical post-pass comment.
+  if (isFreshImport) {
+    const allNodes = Array.from(nodesById.values());
+    const allContainers = Array.from(containersById.values());
+    const layout = computeContainmentLayout(allNodes, allContainers);
+    for (const node of allNodes) node.position = layout.nodePositions.get(node.id) ?? node.position;
+    for (const container of allContainers) {
+      container.position = layout.containerPositions.get(container.id) ?? container.position;
+      container.size = layout.containerSizes.get(container.id);
+    }
+  }
+
   const model = createEmptyDiagramModel('uml');
   model.nodes = Array.from(nodesById.values());
   model.edges = edges;
@@ -478,8 +511,19 @@ export function serializeUml(model: DiagramModel): string {
       styles: Object.fromEntries(model.nodes.filter((n) => n.style).map((n) => [n.id, n.style!])),
       // Namespace/note container positions round-trip via front-matter, mirroring C4's own
       // `containers` block -- see the parser's own comments on namespace ids being stable
-      // (author-given name) vs note ids being counter-based (best-effort only).
-      containers: Object.fromEntries(model.containers.map((c) => [c.id, { x: c.position.x, y: c.position.y }])),
+      // (author-given name) vs note ids being counter-based (best-effort only). canvas-m0g: size
+      // is now also round-tripped when present (a fresh import's containment-aware auto-layout
+      // computes a real one) -- omitted entirely otherwise, matching C4's own established
+      // convention exactly, so a namespace with no computed size still falls back to the generic
+      // renderer's own DEFAULT_CONTAINER_SIZE unchanged.
+      containers: Object.fromEntries(
+        model.containers.map((c) => [
+          c.id,
+          c.size
+            ? { x: c.position.x, y: c.position.y, width: c.size.width, height: c.size.height }
+            : { x: c.position.x, y: c.position.y },
+        ]),
+      ),
     },
   };
 
