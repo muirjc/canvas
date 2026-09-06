@@ -49,9 +49,9 @@ test('shows all 11 Add Shape buttons for the flowchart diagram type, but no -alt
   await expect(page.getByTestId('add-shape-trapezoid-alt')).toHaveCount(0);
 });
 
-test('shows only the 4 universal buttons for a non-flowchart-family diagram type (ERD)', async ({ page }) => {
+test('shows only the 4 universal buttons for a non-flowchart-family diagram type (UML)', async ({ page }) => {
   await login(page);
-  await createDiagramOfType(page, 'erd');
+  await createDiagramOfType(page, 'uml');
 
   for (const testId of UNIVERSAL_SHAPE_BUTTONS) {
     await expect(page.getByTestId(testId)).toBeVisible();
@@ -59,6 +59,25 @@ test('shows only the 4 universal buttons for a non-flowchart-family diagram type
   for (const testId of NEW_SHAPE_BUTTONS) {
     await expect(page.getByTestId(testId)).toHaveCount(0);
   }
+});
+
+// canvas-hox follow-up: reported live that ERD offered rounded-rectangle/circle/diamond even
+// though erd.ts's own parser only ever produces plain rectangles for an entity -- there is no
+// ER-notation equivalent of the other three shapes, so offering them authored a shape choice the
+// DSL itself has no room for. ERD now gets its own single-button case, not the 4-button
+// "universal" default every other non-flowchart family still gets (moved to the UML test above).
+test('shows ONLY the rectangle button for ERD -- no rounded-rectangle/circle/diamond, no icon palette', async ({ page }) => {
+  await login(page);
+  await createDiagramOfType(page, 'erd');
+
+  await expect(page.getByTestId('add-shape-rectangle')).toBeVisible();
+  for (const testId of ['add-shape-rounded-rectangle', 'add-shape-circle', 'add-shape-diamond', ...NEW_SHAPE_BUTTONS]) {
+    await expect(page.getByTestId(testId)).toHaveCount(0);
+  }
+  // There is no legitimate icon concept for an ER entity either -- the whole search-scoped Icons
+  // section is hidden, not just shown with the same handful of shape-alias sentinels it always
+  // offered before (canvas-23t.4).
+  await expect(page.getByTestId('palette-search')).toHaveCount(0);
 });
 
 test('shows the 7 new shapes for business-capability-map (dslFamily flowchart, id not "flowchart")', async ({ page }) => {

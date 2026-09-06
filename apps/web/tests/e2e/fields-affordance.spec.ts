@@ -126,6 +126,44 @@ test('ERD: editing an existing attribute updates the DSL', async ({ page }) => {
   expect(dsl).toContain('int customerId');
 });
 
+/**
+ * canvas-hox follow-up: reported live that the add-row only offered type/name, with no way to
+ * mark a new attribute as a key (PK/FK/UK) or attach a descriptive comment -- both real
+ * EntityAttribute fields already supported by updateEntityAttributes/erd.ts, just not reachable
+ * from this popup at all for a *new* attribute (an existing row already had a keys input).
+ */
+test('ERD: the add-row offers keys and comment, not just type/name', async ({ page }) => {
+  await openErdDiagram(page);
+
+  await page.getByTestId('node-CUSTOMER').click();
+  await page.getByTestId('edit-fields-CUSTOMER').click();
+
+  await page.getByTestId('attr-new-type-CUSTOMER').fill('string');
+  await page.getByTestId('attr-new-name-CUSTOMER').fill('id');
+  await page.getByTestId('attr-new-keys-CUSTOMER').fill('PK');
+  await page.getByTestId('attr-new-comment-CUSTOMER').fill('the primary key');
+  await page.getByTestId('attr-add-CUSTOMER').click();
+
+  await page.getByTestId('rail-tab-dsl').click();
+  const dsl = await page.getByTestId('dsl-panel').inputValue();
+  expect(dsl).toContain('string id PK "the primary key"');
+});
+
+test('ERD: an existing attribute\'s comment can be edited too, not just type/name/keys', async ({ page }) => {
+  await openErdDiagram(page);
+
+  await page.getByTestId('node-CUSTOMER').click();
+  await page.getByTestId('edit-fields-CUSTOMER').click();
+
+  const commentInput = page.getByTestId('attr-comment-CUSTOMER-0');
+  await commentInput.fill('a note about id');
+  await commentInput.blur();
+
+  await page.getByTestId('rail-tab-dsl').click();
+  const dsl = await page.getByTestId('dsl-panel').inputValue();
+  expect(dsl).toContain('"a note about id"');
+});
+
 test('ERD: removing an attribute removes it from the DSL', async ({ page }) => {
   await openErdDiagram(page);
 

@@ -253,7 +253,14 @@ export const DiagramEditor = forwardRef<DiagramEditorHandle, DiagramEditorProps>
         <div className="editor__rail-left">
           {/* Canvas portals its diagram-tools toolbar in here, above the icon palette. */}
           <div ref={setToolbarContainer} />
-          <Palette diagramTypeId={diagram.diagramTypeId} onSelectIcon={handleSelectIcon} />
+          {/* canvas-hox follow-up: every ER entity is a plain rectangle (erd.ts's own parser has
+              no other shape) -- there is no legitimate icon concept for an ER diagram, so the
+              search-scoped-to-the-"generic"-library section (which only ever offered the same
+              handful of shape-alias sentinels the toolbar's own Shapes section already covers,
+              canvas-23t.4) is hidden entirely rather than shown with nothing useful in it. */}
+          {diagram.dslFamily !== 'erd' && (
+            <Palette diagramTypeId={diagram.diagramTypeId} onSelectIcon={handleSelectIcon} />
+          )}
         </div>
 
         <div className="editor__canvas" data-testid="canvas-surface">

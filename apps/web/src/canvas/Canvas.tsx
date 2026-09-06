@@ -83,6 +83,25 @@ const DEFAULT_THICK_STROKE_WIDTH = 3;
 const STYLE_POPUP_WIDTH = 232;
 const STYLE_POPUP_HEIGHT = 48;
 
+// canvas-hox follow-up: real Mermaid erDiagram crow's-foot cardinality tokens are asymmetric --
+// the source (left) and target (right) side of a relationship use different two-character tokens
+// for the same four semantic options, confirmed against erd.ts's own parseCardinalityToken (which
+// accepts any of |,o,{,} on either side) and DEFAULT_CARDINALITY ('||--o{' = source "exactly one",
+// target "zero or many"). Kept local to Canvas.tsx (not exported from diagram-core) since these
+// are purely UI label/value pairs for the connect-mode picker below, not parse/model concerns.
+const ER_SOURCE_CARDINALITY_OPTIONS = [
+  { value: '||', label: 'Exactly one' },
+  { value: '|o', label: 'Zero or one' },
+  { value: '}|', label: 'One or many' },
+  { value: '}o', label: 'Zero or many' },
+];
+const ER_TARGET_CARDINALITY_OPTIONS = [
+  { value: '||', label: 'Exactly one' },
+  { value: 'o|', label: 'Zero or one' },
+  { value: '|{', label: 'One or many' },
+  { value: 'o{', label: 'Zero or many' },
+];
+
 // canvas-vcv: the ER attribute / UML member popup — a list (scrolling internally past ~5-6 rows)
 // plus a fixed add-row and header/Done row, so it needs real width (room for a type/name/keys
 // triple, or a kind/visibility/name/type-or-params-and-returnType row) and a taller fixed height
@@ -259,6 +278,8 @@ function FieldsPopup({ node, model, dslFamily, x, y, onChange, onClose }: Fields
   // ERD add-row draft.
   const [newType, setNewType] = useState('');
   const [newName, setNewName] = useState('');
+  const [newKeys, setNewKeys] = useState('');
+  const [newComment, setNewComment] = useState('');
 
   // UML add-row draft.
   const [newKind, setNewKind] = useState<'attribute' | 'method'>('attribute');
@@ -277,10 +298,17 @@ function FieldsPopup({ node, model, dslFamily, x, y, onChange, onClose }: Fields
   };
   const addAttribute = () => {
     if (!newName.trim()) return;
-    const attribute: EntityAttribute = { type: newType.trim(), name: newName.trim(), keys: [] };
+    const attribute: EntityAttribute = {
+      type: newType.trim(),
+      name: newName.trim(),
+      keys: parseKeysInput(newKeys),
+      comment: newComment.trim() || undefined,
+    };
     onChange(updateEntityAttributes(model, node.id, [...attributes, attribute]));
     setNewType('');
     setNewName('');
+    setNewKeys('');
+    setNewComment('');
   };
 
   const commitMember = (index: number, patch: Partial<ClassMember>) => {
@@ -349,13 +377,13 @@ function FieldsPopup({ node, model, dslFamily, x, y, onChange, onClose }: Fields
         <div style={{ overflowY: 'auto', flex: 1, display: 'flex', flexDirection: 'column', gap: 'var(--space-1)' }}>
           {isErd
             ? attributes.map((attr, i) => (
-                <div key={i} className="cluster cluster--tight" style={{ flexWrap: 'nowrap' }}>
+                <div key={i} className="cluster cluster--tight" style={{ flexWrap: 'wrap' }}>
                   <input
                     data-testid={`attr-type-${node.id}-${i}`}
                     aria-label={`Attribute ${i + 1} type`}
                     defaultValue={attr.type}
                     placeholder="type"
-                    style={{ width: 90, minHeight: 28, padding: '0 6px' }}
+                    style={{ width: 80, minHeight: 28, padding: '0 6px' }}
                     onClick={(e) => e.stopPropagation()}
                     onPointerDown={(e) => e.stopPropagation()}
                     onBlur={(e) => commitAttribute(i, { type: e.target.value })}
@@ -365,7 +393,7 @@ function FieldsPopup({ node, model, dslFamily, x, y, onChange, onClose }: Fields
                     aria-label={`Attribute ${i + 1} name`}
                     defaultValue={attr.name}
                     placeholder="name"
-                    style={{ width: 110, minHeight: 28, padding: '0 6px' }}
+                    style={{ width: 100, minHeight: 28, padding: '0 6px' }}
                     onClick={(e) => e.stopPropagation()}
                     onPointerDown={(e) => e.stopPropagation()}
                     onBlur={(e) => commitAttribute(i, { name: e.target.value || attr.name })}
@@ -375,10 +403,20 @@ function FieldsPopup({ node, model, dslFamily, x, y, onChange, onClose }: Fields
                     aria-label={`Attribute ${i + 1} keys, comma separated`}
                     defaultValue={attr.keys.join(',')}
                     placeholder="PK,FK"
-                    style={{ width: 70, minHeight: 28, padding: '0 6px' }}
+                    style={{ width: 60, minHeight: 28, padding: '0 6px' }}
                     onClick={(e) => e.stopPropagation()}
                     onPointerDown={(e) => e.stopPropagation()}
                     onBlur={(e) => commitAttribute(i, { keys: parseKeysInput(e.target.value) })}
+                  />
+                  <input
+                    data-testid={`attr-comment-${node.id}-${i}`}
+                    aria-label={`Attribute ${i + 1} comment`}
+                    defaultValue={attr.comment ?? ''}
+                    placeholder="comment"
+                    style={{ width: 110, minHeight: 28, padding: '0 6px' }}
+                    onClick={(e) => e.stopPropagation()}
+                    onPointerDown={(e) => e.stopPropagation()}
+                    onBlur={(e) => commitAttribute(i, { comment: e.target.value.trim() || undefined })}
                   />
                   <button
                     type="button"
@@ -482,14 +520,14 @@ function FieldsPopup({ node, model, dslFamily, x, y, onChange, onClose }: Fields
             zero attributes/members needs this most), and the one control guaranteed to exist for
             Escape's autoFocus target below. */}
         {isErd ? (
-          <div className="cluster cluster--tight" style={{ flexWrap: 'nowrap', borderTop: 'var(--border-width) solid var(--border-subtle)', paddingTop: 'var(--space-2)' }}>
+          <div className="cluster cluster--tight" style={{ flexWrap: 'wrap', borderTop: 'var(--border-width) solid var(--border-subtle)', paddingTop: 'var(--space-2)' }}>
             <input
               data-testid={`attr-new-type-${node.id}`}
               aria-label="New attribute type"
               autoFocus
               value={newType}
               placeholder="type"
-              style={{ width: 90, minHeight: 28, padding: '0 6px' }}
+              style={{ width: 80, minHeight: 28, padding: '0 6px' }}
               onClick={(e) => e.stopPropagation()}
               onPointerDown={(e) => e.stopPropagation()}
               onChange={(e) => setNewType(e.target.value)}
@@ -502,10 +540,36 @@ function FieldsPopup({ node, model, dslFamily, x, y, onChange, onClose }: Fields
               aria-label="New attribute name"
               value={newName}
               placeholder="name"
-              style={{ width: 110, minHeight: 28, padding: '0 6px' }}
+              style={{ width: 100, minHeight: 28, padding: '0 6px' }}
               onClick={(e) => e.stopPropagation()}
               onPointerDown={(e) => e.stopPropagation()}
               onChange={(e) => setNewName(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') addAttribute();
+              }}
+            />
+            <input
+              data-testid={`attr-new-keys-${node.id}`}
+              aria-label="New attribute keys, comma separated"
+              value={newKeys}
+              placeholder="PK,FK"
+              style={{ width: 60, minHeight: 28, padding: '0 6px' }}
+              onClick={(e) => e.stopPropagation()}
+              onPointerDown={(e) => e.stopPropagation()}
+              onChange={(e) => setNewKeys(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') addAttribute();
+              }}
+            />
+            <input
+              data-testid={`attr-new-comment-${node.id}`}
+              aria-label="New attribute comment"
+              value={newComment}
+              placeholder="comment"
+              style={{ width: 110, minHeight: 28, padding: '0 6px' }}
+              onClick={(e) => e.stopPropagation()}
+              onPointerDown={(e) => e.stopPropagation()}
+              onChange={(e) => setNewComment(e.target.value)}
               onKeyDown={(e) => {
                 if (e.key === 'Enter') addAttribute();
               }}
@@ -721,6 +785,16 @@ export function Canvas({ model, onChange, dslFamily, toolbarContainer }: CanvasP
   // canvas-7rr: chosen once per connection, applied when the second shape is clicked. 'reversed'
   // needs no DiagramEdge.arrow value — it is just sourceId/targetId swapped at that point.
   const [connectArrowStyle, setConnectArrowStyle] = useState<'forward' | 'reversed' | 'both' | 'none'>('forward');
+  // canvas-hox follow-up: ERD's connect-mode picker is cardinality, not arrow direction — real
+  // erDiagram relationships never have an arrowhead at all, and a plain "reversed/bidirectional/no
+  // arrowhead" choice makes no ER sense. Chosen once per connection, same timing as
+  // connectArrowStyle: applied to whichever entity ends up as sourceId (this one) vs targetId
+  // (the other one) when the second entity is clicked. Defaults match DEFAULT_ER_SOURCE_
+  // CARDINALITY/DEFAULT_ER_TARGET_CARDINALITY (erd.ts) exactly, so leaving both untouched
+  // reproduces the same one-to-many default a plain connect already used before this picker
+  // existed.
+  const [connectErSourceCardinality, setConnectErSourceCardinality] = useState(DEFAULT_ER_SOURCE_CARDINALITY);
+  const [connectErTargetCardinality, setConnectErTargetCardinality] = useState(DEFAULT_ER_TARGET_CARDINALITY);
   // canvas-esn: the direction Auto Layout runs with, always visible (unlike connectArrowStyle,
   // which only matters mid-connect) — defaults to the model's own already-parsed direction so
   // re-running layout on an imported diagram doesn't silently flip its axis.
@@ -884,16 +958,15 @@ export function Canvas({ model, onChange, dslFamily, toolbarContainer }: CanvasP
         setConnectSourceId(node.id);
       } else if (connectSourceId !== node.id) {
         const reversed = connectArrowStyle === 'reversed';
-        // canvas-vcv follow-up: a plain arrowhead is not valid ER notation at all -- real
+        // canvas-hox follow-up: a plain arrowhead is not valid ER notation at all -- real
         // erDiagram relationships always show crow's-foot cardinality on both ends, never a
-        // directional arrow. Without this, a connector drawn here in an ER diagram rendered as a
-        // plain arrow (wrong notation) until the DSL was saved and reparsed, at which point
-        // erd.ts's own DEFAULT_CARDINALITY fallback silently reinterpreted it as crow's-foot --
-        // an inconsistent, save-dependent visual. Giving the edge real cardinality data up front
-        // makes the canvas ER-correct from the moment it's drawn.
+        // directional arrow, so ERD ignores connectArrowStyle/reversed entirely and uses its own
+        // per-side cardinality picker instead (no "reversed" concept needed: the two sides are
+        // already chosen independently, source cardinality for whichever entity is clicked
+        // first, target cardinality for the second).
         const erDefaults =
           dslFamily === 'erd'
-            ? { erSourceCardinality: DEFAULT_ER_SOURCE_CARDINALITY, erTargetCardinality: DEFAULT_ER_TARGET_CARDINALITY }
+            ? { erSourceCardinality: connectErSourceCardinality, erTargetCardinality: connectErTargetCardinality }
             : {};
         onChange(
           addEdge(model, {
@@ -1302,8 +1375,9 @@ export function Canvas({ model, onChange, dslFamily, toolbarContainer }: CanvasP
           </button>
           {/* canvas-7rr: chosen before clicking the second shape — the only way to draw a
               bidirectional or no-arrowhead connector interactively used to be two separate edges
-              faking it (A->B and B->A). */}
-          {connectMode && (
+              faking it (A->B and B->A). Not shown for ERD, which has its own cardinality picker
+              below instead — a plain arrowhead is not valid ER notation at all. */}
+          {connectMode && dslFamily !== 'erd' && (
             <label className="field__label" htmlFor="connect-arrow-style">
               Direction
               <select
@@ -1318,6 +1392,43 @@ export function Canvas({ model, onChange, dslFamily, toolbarContainer }: CanvasP
                 <option value="none">No arrowhead (A — B)</option>
               </select>
             </label>
+          )}
+          {/* canvas-hox follow-up: real erDiagram relationships need a cardinality choice on EACH
+              side independently (e.g. "one customer has many orders" is not symmetric) — chosen
+              before clicking the second shape, same timing as connectArrowStyle above. */}
+          {connectMode && dslFamily === 'erd' && (
+            <>
+              <label className="field__label" htmlFor="connect-er-source-cardinality">
+                First entity
+                <select
+                  id="connect-er-source-cardinality"
+                  data-testid="connect-er-source-cardinality"
+                  value={connectErSourceCardinality}
+                  onChange={(e) => setConnectErSourceCardinality(e.target.value)}
+                >
+                  {ER_SOURCE_CARDINALITY_OPTIONS.map((opt) => (
+                    <option key={opt.value} value={opt.value}>
+                      {opt.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="field__label" htmlFor="connect-er-target-cardinality">
+                Second entity
+                <select
+                  id="connect-er-target-cardinality"
+                  data-testid="connect-er-target-cardinality"
+                  value={connectErTargetCardinality}
+                  onChange={(e) => setConnectErTargetCardinality(e.target.value)}
+                >
+                  {ER_TARGET_CARDINALITY_OPTIONS.map((opt) => (
+                    <option key={opt.value} value={opt.value}>
+                      {opt.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </>
           )}
           <button
             type="button"
