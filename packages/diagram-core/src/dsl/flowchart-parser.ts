@@ -12,31 +12,46 @@ import { computeContainmentLayout } from '../model/containment-layout.js';
 
 const ID = String.raw`[A-Za-z0-9_]+`;
 
+// jmuir-dzd.3: the `:::className` shorthand (jmuir-dzd.2) combined with an inline shape+label
+// declaration on the SAME token (`A[Label]:::className`) -- an optional trailing capturing group
+// shared by every shape regex below (NODE_PATTERNS) and by BARE_ID's own fallback, so a class name
+// is recognized identically regardless of which shape (or no shape at all) a node was declared
+// with. The greedy `(.+)` label group in each regex below still backtracks correctly to the
+// shape's own closing delimiter first -- a label that itself happens to contain literal `:::`
+// text (e.g. `A[foo:::bar]`, no trailing shorthand) is left alone, since the class-suffix group
+// only ever matches once a real closing delimiter is found immediately before it.
+const CLASS_SUFFIX_CAPTURE = `(?::::(${ID}(?:\\s*,\\s*${ID})*))?`;
+
 // Insertion order is a correctness requirement, not a style preference: each more-specific
 // delimiter must be tried before the less-specific pattern it would otherwise collide with
 // (see data-model.md's ordering table). `rectangle` must stay last.
 const NODE_PATTERNS: Array<{ shape: NodeShape; regex: RegExp }> = [
-  { shape: 'subroutine', regex: new RegExp(`^(${ID})\\[\\[(.+)\\]\\]$`) },
-  { shape: 'double-circle', regex: new RegExp(`^(${ID})\\(\\(\\((.+)\\)\\)\\)$`) },
-  { shape: 'hexagon', regex: new RegExp(`^(${ID})\\{\\{(.+)\\}\\}$`) },
-  { shape: 'stadium', regex: new RegExp(`^(${ID})\\(\\[(.+)\\]\\)$`) },
-  { shape: 'cylinder', regex: new RegExp(`^(${ID})\\[\\((.+)\\)\\]$`) },
-  { shape: 'parallelogram', regex: new RegExp(`^(${ID})\\[/(.+)/\\]$`) },
-  { shape: 'parallelogram-alt', regex: new RegExp(`^(${ID})\\[\\\\(.+)\\\\\\]$`) },
-  { shape: 'trapezoid', regex: new RegExp(`^(${ID})\\[/(.+)\\\\\\]$`) },
-  { shape: 'trapezoid-alt', regex: new RegExp(`^(${ID})\\[\\\\(.+)/\\]$`) },
-  { shape: 'asymmetric', regex: new RegExp(`^(${ID})>(.+)\\]$`) },
-  { shape: 'circle', regex: new RegExp(`^(${ID})\\(\\((.+)\\)\\)$`) },
-  { shape: 'diamond', regex: new RegExp(`^(${ID})\\{(.+)\\}$`) },
-  { shape: 'rounded-rectangle', regex: new RegExp(`^(${ID})\\((.+)\\)$`) },
-  { shape: 'rectangle', regex: new RegExp(`^(${ID})\\[(.+)\\]$`) },
+  { shape: 'subroutine', regex: new RegExp(`^(${ID})\\[\\[(.+)\\]\\]${CLASS_SUFFIX_CAPTURE}$`) },
+  { shape: 'double-circle', regex: new RegExp(`^(${ID})\\(\\(\\((.+)\\)\\)\\)${CLASS_SUFFIX_CAPTURE}$`) },
+  { shape: 'hexagon', regex: new RegExp(`^(${ID})\\{\\{(.+)\\}\\}${CLASS_SUFFIX_CAPTURE}$`) },
+  { shape: 'stadium', regex: new RegExp(`^(${ID})\\(\\[(.+)\\]\\)${CLASS_SUFFIX_CAPTURE}$`) },
+  { shape: 'cylinder', regex: new RegExp(`^(${ID})\\[\\((.+)\\)\\]${CLASS_SUFFIX_CAPTURE}$`) },
+  { shape: 'parallelogram', regex: new RegExp(`^(${ID})\\[/(.+)/\\]${CLASS_SUFFIX_CAPTURE}$`) },
+  { shape: 'parallelogram-alt', regex: new RegExp(`^(${ID})\\[\\\\(.+)\\\\\\]${CLASS_SUFFIX_CAPTURE}$`) },
+  { shape: 'trapezoid', regex: new RegExp(`^(${ID})\\[/(.+)\\\\\\]${CLASS_SUFFIX_CAPTURE}$`) },
+  { shape: 'trapezoid-alt', regex: new RegExp(`^(${ID})\\[\\\\(.+)/\\]${CLASS_SUFFIX_CAPTURE}$`) },
+  { shape: 'asymmetric', regex: new RegExp(`^(${ID})>(.+)\\]${CLASS_SUFFIX_CAPTURE}$`) },
+  { shape: 'circle', regex: new RegExp(`^(${ID})\\(\\((.+)\\)\\)${CLASS_SUFFIX_CAPTURE}$`) },
+  { shape: 'diamond', regex: new RegExp(`^(${ID})\\{(.+)\\}${CLASS_SUFFIX_CAPTURE}$`) },
+  { shape: 'rounded-rectangle', regex: new RegExp(`^(${ID})\\((.+)\\)${CLASS_SUFFIX_CAPTURE}$`) },
+  { shape: 'rectangle', regex: new RegExp(`^(${ID})\\[(.+)\\]${CLASS_SUFFIX_CAPTURE}$`) },
 ];
 
 // A node "token" as it appears at an edge endpoint: a bare id, optionally followed by an inline
 // shape+label declaration (Mermaid lets you declare a node's shape the first time it's used as an
 // edge endpoint, rather than requiring a separate declaration line).
 const SHAPE_SUFFIX = String.raw`\[\[.+?\]\]|\(\(\(.+?\)\)\)|\{\{.+?\}\}|\(\[.+?\]\)|\[\(.+?\)\]|\[/.+?/\]|\[\\.+?\\\]|\[/.+?\\\]|\[\\.+?/\]|>.+?\]|\(\(.+?\)\)|\{.+?\}|\(.+?\)|\[.+?\]`;
-const TOKEN = String.raw`${ID}(?:${SHAPE_SUFFIX})?`;
+// jmuir-dzd.3: the same `:::className` suffix as CLASS_SUFFIX_CAPTURE above, but non-capturing --
+// embedded inside TOKEN (itself embedded inside every edge regex below, each of which numbers its
+// own source/connector/target capture groups), an extra capturing group here would shift every
+// one of those indices.
+const CLASS_SUFFIX = String.raw`(?::::${ID}(?:\s*,\s*${ID})*)?`;
+const TOKEN = String.raw`${ID}(?:${SHAPE_SUFFIX})?${CLASS_SUFFIX}`;
 
 // Grouping B (docs/flowchart-completeness-brief.md): the ten flowchart connector tokens, each
 // naming a (lineStyle, arrow) pair. `lineStyle`/`arrow` are left undefined on the parsed edge for
@@ -106,7 +121,11 @@ const SUBGRAPH_END = /^end$/;
 // `containerStack` is non-empty; a top-level `direction` line falls through to the same
 // unrecognized-line error every other out-of-place construct gets.
 const SUBGRAPH_DIRECTION = /^direction\s+(TD|LR|TB|RL|BT)$/i;
-const BARE_ID = new RegExp(`^(${ID})$`);
+// jmuir-dzd.3: also accepts a bare id's own trailing `:::className` (e.g. as an edge endpoint --
+// `A:::className --> B` -- reached via matchNodeToken's fallback below); a standalone
+// `A:::className` declaration line is still caught earlier by CLASS_SHORTHAND (jmuir-dzd.2), so
+// this capture is only ever consulted once that line has already been ruled out.
+const BARE_ID = new RegExp(`^(${ID})${CLASS_SUFFIX_CAPTURE}$`);
 const HEADER = /^(?:flowchart|graph)\s+(TD|LR|TB|RL|BT)$/i;
 // canvas-vtg: a real, cross-family Mermaid top-level statement -- mirrors c4.ts's own
 // TITLE_PATTERN/handling exactly (canvas-79b introduced it there first).
@@ -144,16 +163,16 @@ function parseStyleProps(propsRaw: string): NodeStyle {
   return style;
 }
 
-/** Parses a single edge-endpoint token into its id and (if inline-declared) shape/label. */
-function matchNodeToken(token: string): { id: string; label: string; shape: NodeShape } | null {
+/** Parses a single edge-endpoint token into its id and (if inline-declared) shape/label/class. */
+function matchNodeToken(token: string): { id: string; label: string; shape: NodeShape; className?: string } | null {
   for (const { shape, regex } of NODE_PATTERNS) {
     const match = token.match(regex);
     if (match) {
-      return { id: match[1], label: match[2], shape };
+      return { id: match[1], label: match[2], shape, className: match[3] };
     }
   }
   const bare = token.match(BARE_ID);
-  if (bare) return { id: bare[1], label: bare[1], shape: 'rectangle' };
+  if (bare) return { id: bare[1], label: bare[1], shape: 'rectangle', className: bare[2] };
   return null;
 }
 
@@ -235,6 +254,9 @@ export function parseFlowchart(dsl: string): ParseResult {
     const parsed = matchNodeToken(token);
     if (!parsed) return token;
     ensureNode(parsed.id, parsed.label, parsed.shape);
+    if (parsed.className) {
+      classAssignments.push({ nodeIds: [parsed.id], className: parsed.className.split(',')[0].trim() });
+    }
     return parsed.id;
   };
 
@@ -398,8 +420,9 @@ export function parseFlowchart(dsl: string): ParseResult {
     for (const { shape, regex } of NODE_PATTERNS) {
       const match = line.match(regex);
       if (match) {
-        const [, id, label] = match;
+        const [, id, label, className] = match;
         ensureNode(id, label, shape);
+        if (className) classAssignments.push({ nodeIds: [id], className: className.split(',')[0].trim() });
         matchedNode = true;
         break;
       }
