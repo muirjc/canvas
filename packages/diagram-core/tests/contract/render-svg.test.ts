@@ -67,6 +67,22 @@ describe('renderToSvg output', () => {
     expect(svg).toContain('A &amp; B &lt;C&gt;');
     expect(svg).not.toContain('A & B <C>');
   });
+
+  // jmuir-t2p: hardening, not a live defect at the time this was written -- every escaped value
+  // lands in a double-quoted attribute or text content today, where a raw apostrophe can't break
+  // out of anything. Escaping it anyway makes escapeXml correct in every XML context rather than
+  // relying on every future call site staying double-quoted/text-only.
+  it("escapes apostrophes in labels", () => {
+    const withApostrophe: DiagramModel = {
+      diagramTypeId: 'flowchart',
+      nodes: [{ id: 'A', label: "A's B", shape: 'rectangle', position: { x: 0, y: 0 } }],
+      edges: [],
+      containers: [],
+    };
+    const svg = renderToSvg(withApostrophe);
+    expect(svg).toContain('A&apos;s B');
+    expect(svg).not.toContain("A's B");
+  });
 });
 
 /**

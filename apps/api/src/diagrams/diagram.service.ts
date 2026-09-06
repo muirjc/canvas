@@ -392,3 +392,70 @@ export async function restoreDiagram(id: string, restoredByUserId: string): Prom
     [id, restoredByUserId],
   );
 }
+
+/**
+ * jmuir-yvh: ids of soft-deleted diagrams whose retention window (DIAGRAM_RETENTION_DAYS) has
+ * fully elapsed — the same threshold restoreDiagram() already uses to refuse restoration, so a
+ * diagram this returns is one no caller can ever bring back through the app. Exported separately
+ * from purgeExpiredDiagrams() so a caller (apps/api/src/purge/run.ts's --dry-run) can inspect the
+ * candidate set without deleting anything.
+ */
+export async function findExpiredDiagramIds(): Promise<string[]> {
+  const pool = getPool();
+  const { rows } = await pool.query<{ id: string }>(
+    `SELECT id FROM diagrams WHERE deleted_at IS NOT NULL AND deleted_at <= now() - make_interval(days => $1)`,
+    [DIAGRAM_RETENTION_DAYS],
+  );
+  return rows.map((r) => r.id);
+}
+
+export interface PurgeResult {
+  purgedDiagramIds: string[];
+}
+
+/**
+ * Physically deletes diagrams past their retention window (jmuir-yvh) — 002's research.md §1
+ * deliberately deferred this: the retention window is enforced at read/restore time (above), and
+ * "gone after 30 days" was fully achieved without ever running a background process, so building
+ * a scheduler purely to reclaim rows nobody can reach anymore was judged disproportionate
+ * (Constitution VI). This is that deferred physical purge, but still deliberately NOT wired to a
+ * scheduler here — invoked manually via `npm run purge` (apps/api/src/purge/run.ts), an ops-run
+ * housekeeping script, exactly the "manual admin action or an ops-run script" research.md itself
+ * named as the eventual mechanism.
+ *
+ * diagram_versions cascades automatically (`ON DELETE CASCADE`, 0001_init.sql). diagram_chats/
+ * chat_messages (0004_ai_chat.sql) and share_grants (a polymorphic subject_id with no FK at all)
+ * do not, so they're deleted explicitly here, in dependency order, inside one transaction per
+ * call — a diagram row and its own dependents either all go or none do.
+ */
+export async function purgeExpiredDiagrams(): Promise<PurgeResult> {
+  const ids = await findExpiredDiagramIds();
+  if (ids.length === 0) {
+    return { purgedDiagramIds: [] };
+  }
+
+  const pool = getPool();
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    await client.query(
+      `DELETE FROM chat_messages WHERE diagram_chat_id IN
+         (SELECT id FROM diagram_chats WHERE diagram_id = ANY($1::uuid[]))`,
+      [ids],
+    );
+    await client.query('DELETE FROM diagram_chats WHERE diagram_id = ANY($1::uuid[])', [ids]);
+    await client.query(
+      "DELETE FROM share_grants WHERE subject_type = 'diagram' AND subject_id = ANY($1::uuid[])",
+      [ids],
+    );
+    await client.query('DELETE FROM diagrams WHERE id = ANY($1::uuid[])', [ids]);
+    await client.query('COMMIT');
+  } catch (error) {
+    await client.query('ROLLBACK');
+    throw error;
+  } finally {
+    client.release();
+  }
+
+  return { purgedDiagramIds: ids };
+}

@@ -64,6 +64,25 @@ tests are NON-NEGOTIABLE and must exist (and fail) before implementing any diagr
 work — see `.specify/memory/constitution.md` Principle IV.
 
 ## Recent Changes
+- `jmuir-yvh`: soft-deleted diagrams past `DIAGRAM_RETENTION_DAYS` (30) were excluded from queries
+  and blocked from restore (`DiagramRetentionExpiredError`), but no code path ever physically
+  deleted the rows — a deliberate deferral from 002's own `research.md` §1 (Constitution VI: a
+  scheduler built purely to enforce a timestamp check was judged disproportionate when the
+  visible "gone after 30 days" behavior was already fully achieved without one), not a bug, but
+  one this closes. Adds `findExpiredDiagramIds()`/`purgeExpiredDiagrams()` to
+  `diagram.service.ts` and a new `apps/api/src/purge/run.ts` ops-run script (`npm run purge
+  --workspace=@canvas/api`, `--dry-run` supported) — deliberately still not wired to an in-app
+  scheduler, matching `research.md`'s own "a manual admin action or an ops-run script" framing and
+  this project's existing `migrate`/`seed` script precedent (run it via whatever external
+  scheduling a deployment already has, e.g. a timer-triggered Azure Container Apps Job mirroring
+  `modules/migrationjob.bicep`'s own manual-trigger pattern — not built in this pass). Physically
+  deletes, per expired diagram id inside one transaction: `chat_messages`/`diagram_chats` (no
+  `ON DELETE CASCADE` from `diagrams`, unlike `diagram_versions` which already cascades) and
+  `share_grants` (a polymorphic `subject_id` with no FK at all), then the diagram row itself.
+  `projects` gained the identical soft-delete/retention shape later (`canvas-228.2`,
+  `PROJECT_RETENTION_DAYS`) but is deliberately out of scope here — this bead named diagrams only
+  — filed as a follow-up (`canvas-d3m`) rather than silently folded in. 6 new contract tests
+  (`diagram-purge.test.ts`), full `apps/api` suite green (315/315).
 - **Dev environment**: `apps/api/.env`'s `ANTHROPIC_API_KEY` was rotated to a working key
   2026-09-06 (the previous one was rejected by Anthropic as invalid, blocking every real-provider
   AI validation since 004). Confirmed live (a real chat call round-tripped correctly). This
