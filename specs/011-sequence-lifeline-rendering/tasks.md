@@ -434,5 +434,15 @@ would catch two renderers agreeing on "not overlapping" while disagreeing on exa
 
 `diagram-core` 656/656 (from 633). `apps/web`: 49/49 E2E tests run (7 new + 42 targeted regression
 — see T042's disclosed gap about the full suite not being run in this environment). All four user
-stories (P1–P4) implemented and independently verified. No Constitution Check violations. Not yet
-committed/pushed to git — pending explicit go-ahead per this repo's conservative git policy.
+stories (P1–P4) implemented and independently verified. No Constitution Check violations.
+
+**Post-merge-attempt correction**: the first PR for this branch (#91) was opened and auto-merge
+armed, but CI's `lint-and-build` failed on a genuine ESLint error this session's own local
+validation never caught — `sequence-layout.ts`'s `minOrder` was declared `let` but never
+reassigned (`prefer-const`). `npm run test`/`tsc --noEmit` don't run ESLint, and this session never
+separately ran `npm run lint` before considering T042 (full validation) complete — a real gap in
+"full validation," not just an unlucky miss. Fixed (`let` → `const`); `npx eslint .` now 0 errors
+(1 pre-existing unrelated warning in `apps/api/src/projects/project.service.ts`, not introduced
+here). Added to this feature's own PR rather than a separate one, alongside canvas-7vs.8/.9/.10
+(bundled per this session's own PR-bundling preference) since PR #91 was still open/unmerged when
+that work started.

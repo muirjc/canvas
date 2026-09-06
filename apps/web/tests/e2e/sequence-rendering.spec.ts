@@ -135,7 +135,9 @@ test('a loop block renders spanning only its referenced participants\' lifelines
   await openDiagram(page, projectId, diagramId);
 
   await expect(page.locator('[data-testid^="container-block"]')).toContainText('loop Retry');
-  const blockRect = page.locator('[data-testid^="container-block"] rect');
+  // canvas-7vs.8: the block now also draws a small corner-tab <rect> behind its label — the
+  // outer bounding box is always the FIRST <rect> in the group.
+  const blockRect = page.locator('[data-testid^="container-block"] rect').first();
   // Raw SVG attributes (local coordinate space), not boundingBox() (page-absolute pixels) — must
   // stay consistent with how lifelineX() reads Carol's own lifeline, or the two numbers being
   // compared are in different coordinate spaces and differ by the SVG element's own page offset.
@@ -157,6 +159,41 @@ test('a Note right of renders beside its participant\'s lifeline', async ({ page
   const noteX = Number(await noteRect.getAttribute('x'));
   const bobX = await lifelineX(page, 'Bob');
   expect(noteX).toBeGreaterThan(bobX);
+});
+
+test('a Note gets a pale-yellow fill and a visible connector line to its participant (canvas-7vs.8/.9)', async ({ page }) => {
+  await signIn(page, OWNER_EMAIL, OWNER_PASSWORD);
+  const name = `Sequence Note Style ${Date.now()}`;
+  const projectId = await createProject(page, name);
+  const dsl = 'sequenceDiagram\nparticipant Bob\nNote right of Bob: hello\n';
+  const diagramId = await createDiagram(page, projectId, name, dsl);
+  await openDiagram(page, projectId, diagramId);
+
+  const container = page.locator('[data-testid^="container-note"]');
+  await expect(container.locator('rect')).toHaveAttribute('fill', '#fff9c4');
+  await expect(container.locator('line')).toHaveCount(1);
+});
+
+test('a box grouping renders with its own finer dash, distinct from a control-flow block', async ({ page }) => {
+  await signIn(page, OWNER_EMAIL, OWNER_PASSWORD);
+  const name = `Sequence Box Style ${Date.now()}`;
+  const projectId = await createProject(page, name);
+  const dsl = 'sequenceDiagram\nbox Team\nparticipant A\nparticipant B\nend\n';
+  const diagramId = await createDiagram(page, projectId, name, dsl);
+  await openDiagram(page, projectId, diagramId);
+
+  const boxRect = page.locator('[data-testid^="container-box"] rect');
+  await expect(boxRect).toHaveAttribute('stroke-dasharray', '2,3');
+});
+
+test('a sequence diagram has no "Add Shape" toolbar at all (canvas-7vs.10)', async ({ page }) => {
+  await signIn(page, OWNER_EMAIL, OWNER_PASSWORD);
+  const name = `Sequence No Shapes Toolbar ${Date.now()}`;
+  const projectId = await createProject(page, name);
+  const diagramId = await createDiagram(page, projectId, name, 'sequenceDiagram\nparticipant Alice\n');
+  await openDiagram(page, projectId, diagramId);
+
+  await expect(page.locator('[data-testid^="add-shape-"]')).toHaveCount(0);
 });
 
 test('dragging a sequence participant does not move it (computed-only layout, FR-013)', async ({ page }) => {

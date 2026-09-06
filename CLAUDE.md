@@ -64,6 +64,36 @@ tests are NON-NEGOTIABLE and must exist (and fail) before implementing any diagr
 work — see `.specify/memory/constitution.md` Principle IV.
 
 ## Recent Changes
+- `canvas-7vs` epic now fully complete (10/10) — closes with `canvas-7vs.8`/`.9`/`.10`, all built
+  directly on `011-sequence-lifeline-rendering`'s geometry. **canvas-7vs.8** (every
+  `DiagramContainer.role` rendered as the same generic dashed gray box): a new, shared
+  `containerRoleStyle(role)` in `svg-renderer.ts` (mirrored exactly in `Canvas.tsx`'s own generic
+  container JSX, SC-004) gives each role its own default fill/stroke/border — sequence/UML notes a
+  pale-yellow solid-bordered box (real Mermaid's own note convention), a sequence `box` grouping a
+  finer dash than a control-flow block, a UML `namespace` a filled header band (package/folder-tab
+  look). Sequence's `loop`/`alt`/`opt`/`par`/`critical`/`break` (NOT `rect`, whose whole identity
+  is its fill color, canvas-7vs.2) get their own indigo stroke plus a small corner-tab rect behind
+  their label, matching real Mermaid's folded-corner convention — `activate`/`deactivate` needed no
+  further work here, since `011`'s bar rendering already gives them a real, distinct geometry (a
+  bar, not a box). Deliberately NOT covered: C4 boundary kinds (`System_Boundary`/
+  `Container_Boundary`/`Enterprise_Boundary`/`Deployment_Node` all currently parse to the SAME
+  `role: undefined` — confirmed live, a real parser/model gap, not a renderer one, since the
+  boundary keyword itself was never captured at all) and flowchart subgraphs (also `role:
+  undefined`) — both keep today's plain box unchanged; a real, larger, differently-shaped fix than
+  this epic's own "renderer completeness" framing covers, left undisturbed rather than folded in.
+  **canvas-7vs.9** (`attachedNodeIds` never drew a connector): a thin leader line (from the
+  container's own center to each attached point) via a shared `renderAttachmentConnectors`,
+  covering sequence notes (target: the participant's own lifeline, at the note's row) and UML
+  `note for ClassName` (target: the class node's own center) — `box`/`namespace` never carry
+  `attachedNodeIds` so need none. **canvas-7vs.10** (the "Add Shape" toolbar offered sequence
+  diagrams four shapes `serializeSequence` silently discarded on every save): `getAddableShapes`
+  now returns `[]` for `dslFamily === 'sequence'`, and the whole "Shapes" toolbar section is hidden
+  rather than shown empty — participant declarations, not toolbar-added generic shapes, are how a
+  sequence diagram actually gains a new lifeline. `packages/diagram-core` 662/662 (up from 656 — 6
+  new `render-svg.test.ts` cases); `apps/web` E2E: `sequence-rendering.spec.ts` grew to 10/10, plus
+  a 53-test regression subset (containers/auto-layout/edges/labels/style/import/flowchart-shape-
+  toolbar) all green — the full suite was again not run start-to-finish in this environment (same
+  disclosed gap as `011`'s own note).
 - `011-sequence-lifeline-rendering` (canvas-7vs.1, all four user stories complete): sequence
   diagrams parsed and modeled every construct correctly but rendered through the exact same
   flat-row code path a flowchart uses (`sequence.ts`'s own `nextPosition()`: every participant/

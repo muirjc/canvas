@@ -23,6 +23,11 @@ import {
   computeBounds,
   computeSequenceLayout,
   SELF_MESSAGE_LOOP_WIDTH,
+  containerRoleStyle,
+  LABELED_CONTROL_FLOW_ROLES,
+  CONTROL_FLOW_STROKE,
+  CONTROL_FLOW_DASHARRAY,
+  CONTROL_FLOW_TAB_FILL,
   sanitizeSvgFragment,
   autoLayout,
   iconNodeLayout,
@@ -781,26 +786,32 @@ export function Canvas({ model, onChange, dslFamily, toolbarContainer }: CanvasP
     }
   };
 
+  // canvas-7vs.10: empty for sequence diagrams (getAddableShapes' own doc comment) — the whole
+  // "Shapes" section is hidden rather than shown with nothing in its grid.
+  const addableShapes = getAddableShapes(dslFamily);
+
   const toolbar = (
     <div role="toolbar" aria-label="Diagram tools">
-      <div className="rail-section">
-        <p className="section-label rail-section__label">Shapes</p>
-        <div className="shape-grid">
-          {getAddableShapes(dslFamily).map(({ shape, label }) => (
-            <button
-              key={shape}
-              type="button"
-              className="btn btn--secondary"
-              data-testid={`add-shape-${shape}`}
-              title={`Add ${label}`}
-              aria-label={`Add ${label}`}
-              onClick={() => handleAddShape(shape)}
-            >
-              {SHAPE_GLYPHS[shape] ?? label}
-            </button>
-          ))}
+      {addableShapes.length > 0 && (
+        <div className="rail-section">
+          <p className="section-label rail-section__label">Shapes</p>
+          <div className="shape-grid">
+            {addableShapes.map(({ shape, label }) => (
+              <button
+                key={shape}
+                type="button"
+                className="btn btn--secondary"
+                data-testid={`add-shape-${shape}`}
+                title={`Add ${label}`}
+                aria-label={`Add ${label}`}
+                onClick={() => handleAddShape(shape)}
+              >
+                {SHAPE_GLYPHS[shape] ?? label}
+              </button>
+            ))}
+          </div>
         </div>
-      </div>
+      )}
 
       <div className="rail-section">
         <p className="section-label rail-section__label">Tools</p>
@@ -1000,7 +1011,7 @@ export function Canvas({ model, onChange, dslFamily, toolbarContainer }: CanvasP
             if (dividerGeom?.isDivider) {
               return (
                 <g key={rawContainer.id} data-testid={`container-${rawContainer.id}`} onPointerDown={handleContainerPointerDown(rawContainer)}>
-                  <line x1={dividerGeom.x} y1={dividerGeom.y} x2={dividerGeom.x + dividerGeom.width} y2={dividerGeom.y} stroke="#888" strokeDasharray="4,2" />
+                  <line x1={dividerGeom.x} y1={dividerGeom.y} x2={dividerGeom.x + dividerGeom.width} y2={dividerGeom.y} stroke={CONTROL_FLOW_STROKE} strokeDasharray={CONTROL_FLOW_DASHARRAY} />
                   {rawContainer.label && (
                     <text x={dividerGeom.x + 8} y={dividerGeom.y - 4} fontSize={12}>
                       {`${rawContainer.role} ${rawContainer.label}`}
@@ -1032,6 +1043,35 @@ export function Canvas({ model, onChange, dslFamily, toolbarContainer }: CanvasP
           })();
           const size = container.size ?? { width: 300, height: 200 };
           const isSelected = selectedContainerId === container.id;
+          // canvas-7vs.8: mirrors svg-renderer.ts's containerRoleStyle exactly (SC-004) — every
+          // role gets its own default fill/stroke/dash instead of the one-size-fits-all box every
+          // container used to render as. Loop/alt/opt/par/critical/break additionally get the
+          // same corner tab svg-renderer.ts's dedicated renderSequenceBlock draws (this generic
+          // JSX is what actually renders them on canvas — Canvas.tsx has no separate block
+          // function the way svg-renderer.ts does, per the `container` shadow-copy above).
+          const roleStyle = containerRoleStyle(container.role);
+          const isLabeledControlFlowBlock = Boolean(container.role && LABELED_CONTROL_FLOW_ROLES.has(container.role));
+          const stroke = isSelected ? '#2563eb' : isLabeledControlFlowBlock ? CONTROL_FLOW_STROKE : roleStyle.stroke;
+          const dasharray = isLabeledControlFlowBlock ? CONTROL_FLOW_DASHARRAY : roleStyle.strokeDasharray;
+          // canvas-7vs.9: a leader line from this container's center to each attached node's own
+          // position — a sequence note's target is its participant's lifeline (already resolved
+          // via the `note`/`sequenceLayout` lookups above are position-only, so re-derive here from
+          // sequenceLayout directly); every other family's target is the attached node's own
+          // rendered center (nodeSize/node.position, same convention edges already use).
+          const connectorTargets = (rawContainer.attachedNodeIds ?? [])
+            .map((id) => {
+              if (sequenceLayout) {
+                const lifeline = sequenceLayout.lifelines.get(id);
+                return lifeline ? { x: lifeline.x, y: container.position.y + size.height / 2 } : undefined;
+              }
+              const target = model.nodes.find((n) => n.id === id);
+              if (!target) return undefined;
+              const targetSize = nodeSize(target);
+              return { x: target.position.x + targetSize.width / 2, y: target.position.y + targetSize.height / 2 };
+            })
+            .filter((t): t is { x: number; y: number } => t !== undefined);
+          const boxCenterX = container.position.x + size.width / 2;
+          const boxCenterY = container.position.y + size.height / 2;
           return (
             <g
               key={container.id}
@@ -1043,29 +1083,42 @@ export function Canvas({ model, onChange, dslFamily, toolbarContainer }: CanvasP
               }}
               style={{ cursor: sequenceLayout ? 'default' : 'move' }}
             >
-              {/* Appearance is deliberately unchanged from what the export renderer draws — this
-                  feature adds interaction, not styling (research §7). Only the selection stroke
-                  differs, and it is screen-only. canvas-7vs.2: an explicit style.fillColor now
-                  mirrors svg-renderer.ts's renderContainer exactly (a sequence
-                  `rect <color> ... end` highlight's whole point is this color). The no-color
-                  default deliberately stays 'transparent', NOT svg-renderer.ts's 'none' -- unlike
-                  the export renderer, this is an interactive canvas: fill="none" isn't painted at
-                  all, so (per SVG's default pointer-events behavior) clicks over the container's
-                  interior stop hitting it, breaking click-to-select/drag/resize on every
-                  container with no fillColor set (caught by containers.spec.ts's own e2e
-                  coverage failing in CI -- a real regression, not a cosmetic nit). */}
+              {connectorTargets.map((t, i) => (
+                <line key={i} x1={boxCenterX} y1={boxCenterY} x2={t.x} y2={t.y} stroke="#999999" strokeDasharray="2,2" />
+              ))}
+              {/* canvas-7vs.2: an explicit style.fillColor mirrors svg-renderer.ts's renderContainer
+                  exactly (a sequence `rect <color> ... end` highlight's whole point is this
+                  color). A role default of 'none' becomes 'transparent' here instead — unlike the
+                  export renderer, this is an interactive canvas: fill="none" isn't painted at all,
+                  so (per SVG's default pointer-events behavior) clicks over the container's
+                  interior stop hitting it, breaking click-to-select/drag/resize on every container
+                  with no fillColor set (caught by containers.spec.ts's own e2e coverage failing in
+                  CI -- a real regression, not a cosmetic nit). */}
               <rect
                 x={container.position.x}
                 y={container.position.y}
                 width={size.width}
                 height={size.height}
-                fill={container.style?.fillColor ?? 'transparent'}
-                stroke={isSelected ? '#2563eb' : '#888'}
+                fill={container.style?.fillColor ?? (roleStyle.defaultFill === 'none' ? 'transparent' : roleStyle.defaultFill)}
+                stroke={stroke}
                 strokeWidth={isSelected ? 2 : 1}
-                strokeDasharray="6,4"
+                strokeDasharray={dasharray}
               />
+              {isLabeledControlFlowBlock && (
+                <rect
+                  x={container.position.x}
+                  y={container.position.y}
+                  width={Math.min(size.width, container.label.length * 7 + 16)}
+                  height={18}
+                  fill={CONTROL_FLOW_TAB_FILL}
+                  stroke={stroke}
+                />
+              )}
+              {roleStyle.headerBand && (
+                <rect x={container.position.x} y={container.position.y} width={size.width} height={20} fill={roleStyle.stroke} opacity={0.18} />
+              )}
               {editingContainerId !== container.id && (
-                <text x={container.position.x + 8} y={container.position.y + 16} fontSize={12}>
+                <text x={container.position.x + 8} y={container.position.y + (isLabeledControlFlowBlock ? 14 : roleStyle.headerBand ? 14 : 16)} fontSize={12}>
                   {container.label}
                 </text>
               )}

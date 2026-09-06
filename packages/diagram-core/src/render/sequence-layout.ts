@@ -250,7 +250,7 @@ export function computeSequenceLayout(model: DiagramModel): SequenceLayout {
   const topLevelBlocks = model.containers.filter((c) => c.role && TOP_LEVEL_BLOCK_ROLES.has(c.role));
   for (const block of topLevelBlocks) {
     const descendantIds = descendantContainerIds(block.id);
-    let minOrder = block.sequenceOrder ?? 0;
+    const minOrder = block.sequenceOrder ?? 0;
     let maxChildOrder = block.sequenceOrder ?? 0;
     const participantIds = new Set<string>();
     for (const id of descendantIds) {
