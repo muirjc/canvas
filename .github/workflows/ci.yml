@@ -138,9 +138,10 @@ jobs:
   #   - semgrep:  ERROR-severity findings fail; WARNING is reported. There are
   #     currently 0 errors and 13 warnings (mutable action tags, direct response
   #     writes) — advisory, not defects.
-  #   - bearer:   CRITICAL fails; high/medium/low are reported. The one HIGH today
-  #     is manual XML escaping in the SVG renderer, verified safe (every escaped
-  #     value lands in a double-quoted attribute or text content), and the one
+  #   - bearer:   CRITICAL fails; high/medium/low are reported. The prior HIGH
+  #     (manual XML escaping in the SVG renderer not covering apostrophes) is
+  #     fixed as of jmuir-t2p — escapeXml now maps every XML-sensitive character,
+  #     not just the ones every call site happened to need at the time. The one
   #     MEDIUM is a false positive — the session cookie already sets httpOnly,
   #     sameSite and secure.
   #
