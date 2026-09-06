@@ -64,6 +64,35 @@ tests are NON-NEGOTIABLE and must exist (and fail) before implementing any diagr
 work — see `.specify/memory/constitution.md` Principle IV.
 
 ## Recent Changes
+- `jmuir-yvh`: soft-deleted diagrams past `DIAGRAM_RETENTION_DAYS` (30) were excluded from queries
+  and blocked from restore (`DiagramRetentionExpiredError`), but no code path ever physically
+  deleted the rows — a deliberate deferral from 002's own `research.md` §1 (Constitution VI: a
+  scheduler built purely to enforce a timestamp check was judged disproportionate when the
+  visible "gone after 30 days" behavior was already fully achieved without one), not a bug, but
+  one this closes. Adds `findExpiredDiagramIds()`/`purgeExpiredDiagrams()` to
+  `diagram.service.ts` and a new `apps/api/src/purge/run.ts` ops-run script (`npm run purge
+  --workspace=@canvas/api`, `--dry-run` supported) — deliberately still not wired to an in-app
+  scheduler, matching `research.md`'s own "a manual admin action or an ops-run script" framing and
+  this project's existing `migrate`/`seed` script precedent (run it via whatever external
+  scheduling a deployment already has, e.g. a timer-triggered Azure Container Apps Job mirroring
+  `modules/migrationjob.bicep`'s own manual-trigger pattern — not built in this pass). Physically
+  deletes, per expired diagram id inside one transaction: `chat_messages`/`diagram_chats` (no
+  `ON DELETE CASCADE` from `diagrams`, unlike `diagram_versions` which already cascades) and
+  `share_grants` (a polymorphic `subject_id` with no FK at all), then the diagram row itself.
+  `projects` gained the identical soft-delete/retention shape later (`canvas-228.2`,
+  `PROJECT_RETENTION_DAYS`) but is deliberately out of scope here — this bead named diagrams only
+  — filed as a follow-up (`canvas-d3m`) rather than silently folded in. 6 new contract tests
+  (`diagram-purge.test.ts`), full `apps/api` suite green (315/315).
+- **Dev environment**: `apps/api/.env`'s `ANTHROPIC_API_KEY` was rotated to a working key
+  2026-09-06 (the previous one was rejected by Anthropic as invalid, blocking every real-provider
+  AI validation since 004). Confirmed live (a real chat call round-tripped correctly). This
+  unblocked `canvas-tgf`'s own long-outstanding SC-002 manual validation — see
+  `010-ai-diagram-knowledge`'s history entry below for what was actually checked. Note: the AI
+  e2e suite (`ai-*.spec.ts`) is written against the mock provider by design (deterministic hex
+  colors, exact response text, "mock mode" UI copy) — running it with `AI_PROVIDER=anthropic`
+  instead of `mock` produces expected, not-a-regression failures on those provider-specific
+  assertions; use `AI_PROVIDER=mock` for that suite, the real key for manual live-provider spot
+  checks only.
 - `canvas-7vs.11` (found while scoping `canvas-7vs.8`, filed under `jmuir-dtu`'s own Mermaid
   DSL-compliance roadmap since it's a parser/model gap, not a renderer one): C4's
   `BOUNDARY_START` parsed all five real boundary keywords (`Boundary`, `System_Boundary`,
@@ -246,11 +275,18 @@ work — see `.specify/memory/constitution.md` Principle IV.
   `textarea[data-testid^="persona-prompt-"]`. **Polish**: full regression green
   (`packages/diagram-core` 633/633, `apps/api` 303/304 + 1 skipped perf test, clean `tsc --noEmit`/
   `eslint`/build across all three workspaces); SC-002's manual live-provider validation (User Story
-  2 against a real Anthropic model, following 004's own T033 precedent) was attempted but blocked —
-  the dev environment's `ANTHROPIC_API_KEY` is rejected by Anthropic as invalid (a real,
-  environment-specific credential problem unrelated to this feature's own code, not something an
-  agent session can fix), so this one manual check is still outstanding pending a working key. See
-  `specs/010-ai-diagram-knowledge/` for the full spec/plan/research/data-model/contracts.
+  2 against a real Anthropic model, following 004's own T033 precedent) was initially attempted but
+  blocked — the dev environment's `ANTHROPIC_API_KEY` was rejected by Anthropic as invalid (a real,
+  environment-specific credential problem unrelated to this feature's own code). **Completed
+  2026-09-06** once the key was rotated: `POST /diagrams/:id/chat/messages` against a fresh ERD
+  diagram ("give CUSTOMER a primary key attribute id of type string") correctly fired
+  `setEntityAttributes` and produced real ER attribute+PK syntax (`CUSTOMER { string id PK }`), not
+  a generic labeled box; a second UML check ("Car inherits from Vehicle... give Car a private
+  string field called licensePlate") correctly fired BOTH `setRelationshipKind` and
+  `setClassMembers`, producing real UML inheritance-token/visibility-marker syntax
+  (`Car <|-- Vehicle`, `-string licensePlate`). `canvas-tgf` (the bead tracking this exact
+  outstanding item) closed on this result. See `specs/010-ai-diagram-knowledge/` for the full
+  spec/plan/research/data-model/contracts.
 - Azure deployment fixes, found live during the first-ever real deploy of `infra/azure/`
   (canvas-ycu/canvas-ycu.1's infrastructure), not anticipated in advance:
   - **`apps/api/src/auth/idp-proxy.routes.ts`**: Fastify's own built-in `application/json`
