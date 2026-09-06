@@ -226,17 +226,109 @@ USERS_JOB="$(az deployment sub show --name "canvas-foundation" --query "properti
 # canvas-api's own /idp/* reverse proxy (apps/api/src/auth/idp-proxy.routes.ts), since Keycloak
 # itself has internal-only ingress and this script runs from outside the VNet.
 echo "== Reconciling Keycloak's canvas-api client (redirect URI, web origin, client secret) =="
+# canvas-0x7.1: this used to authenticate via grant_type=password direct-grant against admin-cli,
+# but Keycloak 25+/26's KC_BOOTSTRAP_ADMIN_PASSWORD-created admin is a TEMPORARY admin, and a
+# fresh realm's first-ever login attempt as that admin needs to go through the same
+# browser-style Authorization Code + PKCE flow the admin console itself uses -- direct-grant
+# against it is not a supported path (confirmed against a real Keycloak 26.2 instance in this
+# exact start/KC_BOOTSTRAP_ADMIN_PASSWORD/--http-relative-path=/idp configuration: the PKCE flow
+# below succeeds end-to-end; some Keycloak states restore direct-grant once its own
+# UPDATE_PASSWORD required-action machinery has run at least once, which never happens here).
+# Scripted with curl + python3, no new dependencies: (1) GET the master realm's auth endpoint for
+# the built-in security-admin-console public client with a generated code_verifier/S256
+# code_challenge, extracting the returned login form's action URL (which already carries
+# session_code/execution/tab_id); (2) POST username/password to that action URL without
+# following the redirect, capturing the authorization code from its Location header; (3) exchange
+# that code for an access token (grant_type=authorization_code, code_verifier); (4) use that
+# token for the same GET/PUT client-patch logic as before. security-admin-console's own
+# registered redirect URI is a relative wildcard (/admin/master/console/*) that Keycloak resolves
+# against its OWN configured hostname+relative-path (KC_HOSTNAME=keycloakPublicBaseUrl,
+# --http-relative-path=/idp) -- confirmed live that the redirect_uri sent here must therefore
+# include the /idp prefix itself, or Keycloak rejects the initial auth request outright with
+# "Invalid parameter: redirect_uri" before ever reaching a login form.
+#
+# Secrets are passed into the inline python via env vars (os.environ), not interpolated directly
+# into the python source string -- the DESIGN note on this bead flagged raw shell-into-python
+# string interpolation as its own class of bug independently hit elsewhere this session, worth
+# not repeating here even though every value passed below happens to come from a charset
+# (base64/JWT) that wouldn't itself break out of a quoted literal today.
 KC_ADMIN_TOKEN=""
+KC_ADMIN_REDIRECT_URI="${KEYCLOAK_PUBLIC_BASE_URL}/admin/master/console/"
 for attempt in 1 2 3 4 5 6; do
-  KC_ADMIN_TOKEN="$(curl -s -f -X POST "https://${API_FQDN}/idp/realms/master/protocol/openid-connect/token" \
-    -d grant_type=password -d client_id=admin-cli \
-    -d username=admin -d password="$KC_ADMIN_PASSWORD" \
-    | python3 -c "import sys,json; print(json.load(sys.stdin)['access_token'])" 2>/dev/null || true)"
+  KC_ADMIN_TOKEN="$(
+    KC_BASE="https://${API_FQDN}/idp" KC_ADMIN_PASSWORD="$KC_ADMIN_PASSWORD" KC_REDIRECT_URI="$KC_ADMIN_REDIRECT_URI" \
+    python3 <<'PY' 2>/dev/null || true
+import base64, hashlib, os, re, secrets, sys
+import urllib.parse
+import urllib.request
+
+kc_base = os.environ['KC_BASE']
+password = os.environ['KC_ADMIN_PASSWORD']
+redirect_uri = os.environ['KC_REDIRECT_URI']
+
+def http(method, url, data=None, headers=None, cookie=None):
+    headers = dict(headers or {})
+    if cookie:
+        headers['Cookie'] = cookie
+    req = urllib.request.Request(url, data=data, method=method, headers=headers)
+    class NoRedirect(urllib.request.HTTPErrorProcessor):
+        def http_response(self, request, response):
+            return response
+        https_response = http_response
+    opener = urllib.request.build_opener(NoRedirect)
+    resp = opener.open(req)
+    set_cookie = resp.headers.get('Set-Cookie')
+    return resp, set_cookie
+
+code_verifier = secrets.token_urlsafe(48)
+code_challenge = base64.urlsafe_b64encode(hashlib.sha256(code_verifier.encode()).digest()).decode().rstrip('=')
+
+auth_url = kc_base + '/realms/master/protocol/openid-connect/auth?' + urllib.parse.urlencode({
+    'client_id': 'security-admin-console',
+    'redirect_uri': redirect_uri,
+    'response_type': 'code',
+    'scope': 'openid',
+    'code_challenge': code_challenge,
+    'code_challenge_method': 'S256',
+})
+resp, cookie = http('GET', auth_url)
+html = resp.read().decode()
+match = re.search(r'action="([^"]+)"', html)
+if not match:
+    sys.exit(1)
+action_url = match.group(1).replace('&amp;', '&')
+
+body = urllib.parse.urlencode({'username': 'admin', 'password': password, 'credentialId': ''}).encode()
+resp, cookie2 = http('POST', action_url, data=body,
+                      headers={'Content-Type': 'application/x-www-form-urlencoded'}, cookie=cookie)
+location = resp.headers.get('Location')
+if not location:
+    sys.exit(1)
+code = urllib.parse.parse_qs(urllib.parse.urlparse(location).query).get('code', [None])[0]
+if not code:
+    sys.exit(1)
+
+token_body = urllib.parse.urlencode({
+    'grant_type': 'authorization_code',
+    'code': code,
+    'redirect_uri': redirect_uri,
+    'client_id': 'security-admin-console',
+    'code_verifier': code_verifier,
+}).encode()
+req = urllib.request.Request(kc_base + '/realms/master/protocol/openid-connect/token', data=token_body, method='POST')
+with urllib.request.urlopen(req) as resp:
+    import json
+    token = json.load(resp).get('access_token')
+if not token:
+    sys.exit(1)
+print(token)
+PY
+  )"
   if [[ -n "$KC_ADMIN_TOKEN" ]]; then
     break
   fi
   if [[ "$attempt" == 6 ]]; then
-    echo "  WARNING: could not reach Keycloak's admin token endpoint after 6 attempts -- skipping"
+    echo "  WARNING: could not complete Keycloak's admin PKCE login after 6 attempts -- skipping"
     echo "  client reconciliation. SSO login will use whatever redirectUris/secret are already"
     echo "  imported (likely wrong on a first deploy) until you re-run this script."
   else
@@ -248,13 +340,13 @@ done
 if [[ -n "$KC_ADMIN_TOKEN" ]]; then
   KC_CLIENT_ID="$(curl -s -f "https://${API_FQDN}/idp/admin/realms/CanvasRealm/clients?clientId=canvas-api" \
     -H "Authorization: Bearer $KC_ADMIN_TOKEN" | python3 -c "import sys,json; print(json.load(sys.stdin)[0]['id'])")"
-  python3 -c "
-import json, urllib.request
+  API_FQDN="$API_FQDN" KC_CLIENT_ID="$KC_CLIENT_ID" KC_ADMIN_TOKEN="$KC_ADMIN_TOKEN" OIDC_CLIENT_SECRET="$OIDC_CLIENT_SECRET" python3 <<'PY'
+import json, os, urllib.request
 
-api_fqdn = '$API_FQDN'
-client_id = '$KC_CLIENT_ID'
-token = '$KC_ADMIN_TOKEN'
-secret = '''$OIDC_CLIENT_SECRET'''
+api_fqdn = os.environ['API_FQDN']
+client_id = os.environ['KC_CLIENT_ID']
+token = os.environ['KC_ADMIN_TOKEN']
+secret = os.environ['OIDC_CLIENT_SECRET']
 
 url = f'https://{api_fqdn}/idp/admin/realms/CanvasRealm/clients/{client_id}'
 req = urllib.request.Request(url, headers={'Authorization': f'Bearer {token}'})
@@ -273,7 +365,7 @@ req = urllib.request.Request(url, data=body, method='PUT', headers={
 with urllib.request.urlopen(req) as resp:
     pass
 print('  canvas-api client redirectUris/webOrigins/secret updated.')
-"
+PY
 fi
 
 echo "== Enabling static website hosting on $STORAGE_ACCOUNT (data-plane -- no Bicep resource for this, see modules/storage.bicep) =="
