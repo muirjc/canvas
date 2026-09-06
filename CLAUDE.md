@@ -64,6 +64,66 @@ tests are NON-NEGOTIABLE and must exist (and fail) before implementing any diagr
 work — see `.specify/memory/constitution.md` Principle IV.
 
 ## Recent Changes
+- `canvas-7vs.11` (found while scoping `canvas-7vs.8`, filed under `jmuir-dtu`'s own Mermaid
+  DSL-compliance roadmap since it's a parser/model gap, not a renderer one): C4's
+  `BOUNDARY_START` parsed all five real boundary keywords (`Boundary`, `System_Boundary`,
+  `Container_Boundary`, `Enterprise_Boundary`, `Deployment_Node`/`Node`/`Node_L`/`Node_R`) into the
+  exact same untyped `DiagramContainer` — which one was actually used was discarded entirely,
+  `role` left `undefined`, unlike every other container role in this codebase. A new
+  `BOUNDARY_KEYWORD_TO_ROLE` map now captures it (`'boundary'`, `'system-boundary'`,
+  `'container-boundary'`, `'enterprise-boundary'`, `'deployment-node'` — the four
+  `Deployment_Node`-family shortcuts collapse to one role, matching `ELEMENT_TO_ROLE`'s own
+  established precedent for element-kind variants), and `serializeC4` now picks the exact keyword
+  back from that role instead of collapsing every boundary in a model to one keyword chosen purely
+  from `diagramTypeId` (`Deployment_Node` for `c4-deployment`, `System_Boundary` for everything
+  else) — a real round-trip fidelity improvement: the real bank-boundary example (which mixes
+  `Enterprise_Boundary`/`System_Boundary`/`Boundary` in one diagram) now round-trips each one
+  correctly instead of silently normalizing all three to `System_Boundary`. A container with no
+  role at all (never having gone through C4's own boundary grammar — e.g. built directly via
+  `addContainer()`) still falls back to that same diagramTypeId-driven default exactly as before,
+  so nothing that never had a captured keyword changes behavior. Three existing tests needed
+  updating as a direct, expected consequence (role is a new, real field on their fixture
+  containers now) — not weakened, brought in line with what a real parse now correctly produces;
+  one existing test's own throwaway placeholder arg value ("boundary") happened to collide with
+  the new role string it was asserting the model never contained, fixed by picking a
+  non-colliding placeholder ("perimeter") instead. `packages/diagram-core` 684/684 (up from 677 —
+  7 new cases directly exercising this fix: all 5 keywords each getting their own role and
+  round-tripping correctly, the 3 Deployment_Node-family shortcuts collapsing to one role, and the
+  real mixed bank-boundary example keeping each of its three distinct keywords through a full
+  round-trip). `npx eslint .`: 0 errors, run explicitly before pushing.
+- `canvas-m0g`: nested containers (C4 `Enterprise_Boundary`/`System_Boundary`/`Container_Boundary`/
+  `Deployment_Node`, UML `namespace`-within-`namespace`, flowchart nested `subgraph`) parsed their
+  `parentContainerId` chain correctly but nothing ever converted that hierarchy into geometry —
+  every node AND container, regardless of nesting depth, came from ONE flat, shared,
+  containment-blind auto-position counter. Live-confirmed against the real bank-boundary C4
+  example (`BankBoundary0` > `BankBoundary` > `{BankBoundary2, BankBoundary3}`): a child boundary
+  landed 400px to the right of its own parent, zero geometric relationship. Adds a new shared, pure
+  `computeContainmentLayout()` in `packages/diagram-core/src/model/containment-layout.ts` — a
+  two-pass (bottom-up sizing, top-down placement) flow layout with row-wrapping, deliberately NOT a
+  full dagre compound-graph/constraint solve (the same "an explicit fast-follow... not attempted
+  here since the dagre wiki doesn't document it in enough depth" judgment call `canvas-esn`'s own
+  `autoLayout()` already made) — just enough to guarantee every container's box strictly encloses
+  its direct AND indirect children, at every nesting depth. Wired into `c4.ts`/`uml.ts`/
+  `flowchart-parser.ts`'s auto-position fallback as a post-pass (each element gets a placeholder
+  position during the main parse loop; the whole tree's real geometry is computed once every
+  node/container is known, since a container's own size can't be known until every descendant,
+  parsed on later lines, already has one) — scoped to a genuinely fresh import/paste (**no** stored
+  front-matter geometry at all); a diagram with existing saved positions keeps the old per-element
+  fallback unchanged for whatever individual element still lacks one, a disclosed scope boundary
+  (reconciling new auto-placed elements amid already-hand-positioned ones is a harder problem
+  nothing in this codebase solves for any family today, not a regression from this fix). A real,
+  independent bug found and fixed along the way: `serializeUml`'s own `canvas.containers`
+  front-matter only ever wrote `{x, y}`, never `{width, height}` (unlike C4/flowchart's own
+  matching serializers) — so a namespace/note's newly-computed size was silently dropped on the
+  very first save/reload, breaking round-trip idempotency; now mirrors C4's own
+  `size ? {...x,y,width,height} : {x,y}` pattern exactly. `packages/diagram-core` 677/677 (up from
+  668 — 6 new `containment-layout.test.ts` unit cases for the shared function, 9 new
+  `containment-auto-layout.test.ts` cases exercising all three parsers end to end with real DSL
+  text, including round-trip stability); `apps/web` E2E: new `containment-layout.spec.ts` against
+  the real bank-boundary example in the actual interactive canvas, confirmed via a live PNG export
+  too (every boundary visibly nested, not floating). No renderer changes needed at all — Canvas.tsx
+  and svg-renderer.ts already draw any family's `node.position`/`container.position`+`size`
+  correctly; the fix lives entirely in what position/size gets computed at parse time.
 - `canvas-7vs` epic now fully complete (10/10) — closes with `canvas-7vs.8`/`.9`/`.10`, all built
   directly on `011-sequence-lifeline-rendering`'s geometry. **canvas-7vs.8** (every
   `DiagramContainer.role` rendered as the same generic dashed gray box): a new, shared

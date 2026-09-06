@@ -8,6 +8,7 @@ import {
 } from '../model/diagram-model.js';
 import { splitFrontMatter } from './front-matter.js';
 import type { ParseError, ParseResult } from './types.js';
+import { computeContainmentLayout } from '../model/containment-layout.js';
 
 const ID = String.raw`[A-Za-z0-9_]+`;
 
@@ -177,6 +178,11 @@ export function parseFlowchart(dsl: string): ParseResult {
   const styles = canvas.styles ?? {};
   const edgeStyles = canvas.edgeStyles ?? {};
   const icons = canvas.icons ?? {};
+  // canvas-m0g: see c4.ts's identical comment — a fresh import/paste (no stored geometry at all)
+  // gets a real containment-aware auto-layout (nested subgraphs) instead of the flat
+  // nextAutoPosition() counter, via a post-pass once the whole tree is known.
+  const isFreshImport = Object.keys(positions).length === 0 && Object.keys(containerMeta).length === 0;
+  const PLACEHOLDER_POSITION = { x: 0, y: 0 };
 
   const lines = body.split(/\r?\n/);
   const errors: ParseError[] = [];
@@ -213,7 +219,7 @@ export function parseFlowchart(dsl: string): ParseResult {
         // unambiguous shape (e.g. an explicit cylinder `[(label)]`) is never overridden: a node
         // can validly carry icon metadata without its shape being 'icon'.
         shape: shape === 'rectangle' && icons[id] ? 'icon' : shape,
-        position: positions[id] ?? nextAutoPosition(),
+        position: positions[id] ?? (isFreshImport ? PLACEHOLDER_POSITION : nextAutoPosition()),
         style: styles[id],
         icon: icons[id],
         containerId: containerStack[containerStack.length - 1],
@@ -277,7 +283,7 @@ export function parseFlowchart(dsl: string): ParseResult {
       containersById.set(id, {
         id,
         label: label ?? id,
-        position: meta ? { x: meta.x, y: meta.y } : nextAutoPosition(),
+        position: meta ? { x: meta.x, y: meta.y } : (isFreshImport ? PLACEHOLDER_POSITION : nextAutoPosition()),
         size: meta?.width !== undefined && meta?.height !== undefined ? { width: meta.width, height: meta.height } : undefined,
         parentContainerId: containerStack[containerStack.length - 1],
       });
@@ -450,6 +456,18 @@ export function parseFlowchart(dsl: string): ParseResult {
 
   if (errors.length > 0) {
     return { errors };
+  }
+
+  // canvas-m0g: see c4.ts's identical post-pass comment.
+  if (isFreshImport) {
+    const allNodes = Array.from(nodesById.values());
+    const allContainers = Array.from(containersById.values());
+    const layout = computeContainmentLayout(allNodes, allContainers);
+    for (const node of allNodes) node.position = layout.nodePositions.get(node.id) ?? node.position;
+    for (const container of allContainers) {
+      container.position = layout.containerPositions.get(container.id) ?? container.position;
+      container.size = layout.containerSizes.get(container.id);
+    }
   }
 
   const model = createEmptyDiagramModel('flowchart');

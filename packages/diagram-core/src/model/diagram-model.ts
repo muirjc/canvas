@@ -206,7 +206,14 @@ export interface DiagramContainer {
    * jmuir-dtu.2: UML also uses 'namespace' (a `namespace Name { ... }` grouping — member classes
    * reference it via their own `containerId`, mirroring 'box' above, not `attachedNodeIds`) and
    * 'note' (`note "text"` or `note for ClassName "text"` — a standalone or class-attached note,
-   * see `attachedNodeIds` below). */
+   * see `attachedNodeIds` below). canvas-7vs.11: C4 also uses 'boundary' (the generic
+   * `Boundary(...)` macro), 'system-boundary', 'container-boundary', 'enterprise-boundary', and
+   * 'deployment-node' (`Deployment_Node`/`Node`/`Node_L`/`Node_R` — the four variant keywords all
+   * collapse to this one role, same precedent as `ELEMENT_TO_ROLE` collapsing element-kind
+   * variants) — which of the five real Mermaid boundary keywords was actually used, previously
+   * discarded entirely regardless of which was parsed. A container built directly (e.g. via
+   * `addContainer()`, never having gone through C4's own boundary grammar) legitimately has no
+   * role at all; `serializeC4` falls back to a diagramTypeId-driven default keyword for those. */
   role?: string;
   /** Sequence notes only (role starts with 'note-'), 'activate'/'deactivate' (a single id), and
    * UML 'note' (jmuir-dtu.2: zero ids for a standalone `note "text"`, one id for `note for
