@@ -239,3 +239,133 @@ describe('flowchart parser: ::: class shorthand', () => {
     }
   });
 });
+
+/**
+ * jmuir-dzd.3: the `:::className` shorthand (jmuir-dzd.2) combined with an inline shape+label
+ * declaration on the SAME token (`A[Label]:::className`), both as a standalone node-declaration
+ * line and as an edge endpoint (`A[Label]:::className --> B`) -- confirmed to fail with a clean
+ * parse error before this fix, per jmuir-dzd.2's own disclosed scope boundary.
+ */
+describe('flowchart parser: ::: shorthand combined with an inline shape+label', () => {
+  it('applies a classDef style to a node declared with an inline shape+label on the same line', () => {
+    const result = parseFlowchart(
+      'flowchart TD\n  classDef highlight fill:#f9f,stroke:#333\n  A[Start]:::highlight\n',
+    );
+    expect(isParseSuccess(result)).toBe(true);
+    if (isParseSuccess(result)) {
+      const node = result.model.nodes.find((n) => n.id === 'A')!;
+      expect(node.shape).toBe('rectangle');
+      expect(node.label).toBe('Start');
+      expect(node.style?.fillColor).toBe('#f9f');
+      expect(node.style?.strokeColor).toBe('#333');
+    }
+  });
+
+  it('works for every shape delimiter, not just rectangle', () => {
+    const result = parseFlowchart(
+      [
+        'flowchart TD',
+        '  classDef hl fill:#f9f',
+        '  A(Rounded):::hl',
+        '  B((Circle)):::hl',
+        '  C{Diamond}:::hl',
+        '  D([Stadium]):::hl',
+        '  E[(Cylinder)]:::hl',
+        '  F[[Subroutine]]:::hl',
+        '  G(((DoubleCircle))):::hl',
+        '  H{{Hexagon}}:::hl',
+        '  I[/Parallelogram/]:::hl',
+        '  J[\\ParallelogramAlt\\]:::hl',
+        '  K[/Trapezoid\\]:::hl',
+        '  L[\\TrapezoidAlt/]:::hl',
+        '  M>Asymmetric]:::hl',
+        '',
+      ].join('\n'),
+    );
+    expect(isParseSuccess(result)).toBe(true);
+    if (isParseSuccess(result)) {
+      for (const id of ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M']) {
+        expect(result.model.nodes.find((n) => n.id === id)?.style?.fillColor).toBe('#f9f');
+      }
+    }
+  });
+
+  it('applies the class to an inline shape+label declared at an edge endpoint', () => {
+    const result = parseFlowchart(
+      'flowchart TD\n  classDef highlight fill:#f9f\n  A[Start]:::highlight --> B\n',
+    );
+    expect(isParseSuccess(result)).toBe(true);
+    if (isParseSuccess(result)) {
+      const a = result.model.nodes.find((n) => n.id === 'A')!;
+      expect(a.label).toBe('Start');
+      expect(a.shape).toBe('rectangle');
+      expect(a.style?.fillColor).toBe('#f9f');
+      expect(result.model.edges).toHaveLength(1);
+      expect(result.model.edges[0]).toMatchObject({ sourceId: 'A', targetId: 'B' });
+    }
+  });
+
+  it('applies the class to a bare-id (no shape) edge endpoint, mirroring the standalone bare-id form', () => {
+    const result = parseFlowchart(
+      'flowchart TD\n  classDef highlight fill:#f9f\n  A:::highlight --> B\n',
+    );
+    expect(isParseSuccess(result)).toBe(true);
+    if (isParseSuccess(result)) {
+      expect(result.model.nodes.find((n) => n.id === 'A')!.style?.fillColor).toBe('#f9f');
+    }
+  });
+
+  it('resolves as a forward reference to a classDef declared later in the file', () => {
+    const result = parseFlowchart(
+      'flowchart TD\n  A[Start]:::highlight --> B\n  classDef highlight fill:#f9f\n',
+    );
+    expect(isParseSuccess(result)).toBe(true);
+    if (isParseSuccess(result)) {
+      expect(result.model.nodes.find((n) => n.id === 'A')!.style?.fillColor).toBe('#f9f');
+    }
+  });
+
+  it('does not treat a literal ":::" inside label text (with no trailing class name outside the shape) as the shorthand', () => {
+    const result = parseFlowchart('flowchart TD\n  A[foo:::bar]\n');
+    expect(isParseSuccess(result)).toBe(true);
+    if (isParseSuccess(result)) {
+      const node = result.model.nodes.find((n) => n.id === 'A')!;
+      expect(node.label).toBe('foo:::bar');
+      expect(node.style).toBeUndefined();
+    }
+  });
+
+  it('round-trips the applied style through canvas.styles front matter, not a literal ":::" line', () => {
+    const result = parseFlowchart(
+      'flowchart TD\n  classDef highlight fill:#f9f,stroke:#333\n  A[Start]:::highlight\n',
+    );
+    expect(isParseSuccess(result)).toBe(true);
+    if (!isParseSuccess(result)) return;
+
+    const dsl = serializeFlowchart(result.model);
+    expect(dsl).toContain('styles:');
+    expect(dsl).not.toMatch(/:::/);
+    expect(dsl).not.toMatch(/^\s*classDef/m);
+
+    const reparsed = parseFlowchart(dsl);
+    expect(isParseSuccess(reparsed)).toBe(true);
+    if (isParseSuccess(reparsed)) {
+      const node = reparsed.model.nodes.find((n) => n.id === 'A')!;
+      expect(node.label).toBe('Start');
+      expect(node.style?.fillColor).toBe('#f9f');
+      expect(node.style?.strokeColor).toBe('#333');
+    }
+  });
+
+  it('lets an explicit style directive on the same node override the shorthand-applied style', () => {
+    const result = parseFlowchart(
+      'flowchart TD\n  classDef highlight fill:#f9f,stroke:#333\n  A[Start]:::highlight\n  style A fill:#000\n',
+    );
+    expect(isParseSuccess(result)).toBe(true);
+    if (isParseSuccess(result)) {
+      const node = result.model.nodes.find((n) => n.id === 'A')!;
+      expect(node.style?.fillColor).toBe('#000');
+      expect(node.style?.strokeColor).toBe('#333');
+    }
+  });
+});
