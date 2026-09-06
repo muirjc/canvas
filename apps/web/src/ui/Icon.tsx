@@ -31,7 +31,8 @@ export type IconName =
   | 'pencil'
   | 'palette'
   | 'layout'
-  | 'info';
+  | 'info'
+  | 'rows';
 
 /** Path data only — the wrapper supplies sizing, colour, and ARIA. `diamond` and `check` are
  *  filled; the rest are 1.5px strokes on a 16-unit grid. */
@@ -65,6 +66,10 @@ const PATHS: Record<IconName, { d: string; filled?: boolean }[]> = {
   // canvas-hbk: Diagram Details trigger — a circled "i", distinct from `warning`'s triangle. The
   // dot is a zero-length stroked segment, rendered as a circle by the shared strokeLinecap="round".
   info: [{ d: 'M8 14.5a6.5 6.5 0 1 0 0-13 6.5 6.5 0 0 0 0 13ZM8 7.25v4M8 5.25v.01' }],
+  // canvas-vcv: ER attribute / UML member editor trigger — a bordered box divided by two
+  // horizontal rules, suggesting a small table's rows, distinct from `group`'s two-box grouping
+  // metaphor and `layout`'s branching-tree glyph.
+  rows: [{ d: 'M2.5 3.5h11v9h-11zM2.5 7h11M2.5 10h11' }],
 };
 
 export interface IconProps {
