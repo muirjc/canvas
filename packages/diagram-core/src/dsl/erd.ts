@@ -6,7 +6,21 @@ import type { ParseError, ParseResult } from './types.js';
 const ID = String.raw`[A-Za-z0-9_-]+`;
 // CUSTOMER ||--o{ ORDER : places
 const RELATIONSHIP_PATTERN = new RegExp(`^(${ID})\\s+([|o}{.-]+)\\s+(${ID})\\s*:\\s*(.+)$`);
-const DEFAULT_CARDINALITY = '||--o{';
+// canvas-vcv follow-up: exported (re-exported via index.ts's `export * from './dsl/erd.js'`) so
+// the interactive canvas's connect-mode gesture can give a freshly-drawn ER relationship real
+// cardinality data at creation time, instead of only visually defaulting to a plain arrow until a
+// save/reparse round-trip re-derives DEFAULT_CARDINALITY below. One shared source of truth for
+// both, rather than the canvas hardcoding its own copy of '||'/'o{' that could silently drift
+// from this file's own default.
+export const DEFAULT_ER_SOURCE_CARDINALITY = '||';
+export const DEFAULT_ER_TARGET_CARDINALITY = 'o{';
+const DEFAULT_CARDINALITY = `${DEFAULT_ER_SOURCE_CARDINALITY}--${DEFAULT_ER_TARGET_CARDINALITY}`;
+// A relationship's label is NOT optional in real Mermaid erDiagram grammar (RELATIONSHIP_PATTERN's
+// own `(.+)$` requires at least one character) -- unlike flowchart/UML, there is no valid
+// zero-label form to fall back to. serializeErd must never emit one, regardless of how the edge
+// was created (e.g. the canvas's connect-mode gesture, which sets no label at all) or a
+// freshly-drawn relationship would fail to re-parse the very next time its own DSL is applied.
+const DEFAULT_RELATIONSHIP_LABEL = 'relates to';
 // CUSTOMER {
 const ENTITY_BLOCK_START = new RegExp(`^(${ID})\\s*\\{$`);
 const BLOCK_END = /^\}$/;
@@ -365,7 +379,7 @@ export function serializeErd(model: DiagramModel): string {
       edge.erSourceCardinality && edge.erTargetCardinality
         ? `${edge.erSourceCardinality}${lineToken}${edge.erTargetCardinality}`
         : DEFAULT_CARDINALITY;
-    lines.push(`${edge.sourceId} ${cardinalityToken} ${edge.targetId} : ${edge.label ?? ''}`);
+    lines.push(`${edge.sourceId} ${cardinalityToken} ${edge.targetId} : ${edge.label?.trim() || DEFAULT_RELATIONSHIP_LABEL}`);
     declared.add(edge.sourceId);
     declared.add(edge.targetId);
   }

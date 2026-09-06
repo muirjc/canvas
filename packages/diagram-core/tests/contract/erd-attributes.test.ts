@@ -554,6 +554,45 @@ describe('erd parser/serializer: cardinality round-trips exactly (canvas-2ut)', 
     const serialized = serializeErd(model);
     expect(serialized).toContain('A ||--o{ B :');
   });
+
+  /**
+   * Reported live: a connector drawn via the canvas's own connect-mode gesture in an ER diagram
+   * has no label at all (edge.label is undefined) -- serializeErd used to emit `A ||--o{ B : `
+   * (a trailing colon with an empty label), which is not valid Mermaid (RELATIONSHIP_PATTERN's
+   * own `(.+)$` requires at least one character after the colon, matching real erDiagram
+   * grammar). Clicking "Apply" on that exact freshly-generated DSL text hard-failed with
+   * "Could not interpret line as an entity, relationship, or directive" -- a genuine round-trip
+   * break, not just a cosmetic one, since it happened on the DSL the app itself had just produced.
+   */
+  it('never emits an empty relationship label -- an edge with no label still produces valid, re-parseable Mermaid', () => {
+    const model = createEmptyDiagramModel('erd');
+    model.nodes.push(
+      { id: 'A', label: 'A', shape: 'rectangle', position: { x: 0, y: 0 } },
+      { id: 'B', label: 'B', shape: 'rectangle', position: { x: 200, y: 0 } },
+    );
+    model.edges.push({ id: 'e1', sourceId: 'A', targetId: 'B' });
+
+    const serialized = serializeErd(model);
+    // The specific relationship line, not the whole serialized text (which legitimately has other
+    // colon-terminated lines in its own front-matter YAML, e.g. a bare "canvas:" key line).
+    expect(serialized).toMatch(/^A \|\|--o\{ B : \S/m);
+
+    const reparsed = parseErd(serialized);
+    expect(isParseSuccess(reparsed)).toBe(true);
+  });
+
+  it('trims a whitespace-only label the same way as a missing one', () => {
+    const model = createEmptyDiagramModel('erd');
+    model.nodes.push(
+      { id: 'A', label: 'A', shape: 'rectangle', position: { x: 0, y: 0 } },
+      { id: 'B', label: 'B', shape: 'rectangle', position: { x: 200, y: 0 } },
+    );
+    model.edges.push({ id: 'e1', sourceId: 'A', targetId: 'B', label: '   ' });
+
+    const serialized = serializeErd(model);
+    const reparsed = parseErd(serialized);
+    expect(isParseSuccess(reparsed)).toBe(true);
+  });
 });
 
 /**

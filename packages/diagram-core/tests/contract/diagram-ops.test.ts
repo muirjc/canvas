@@ -127,6 +127,20 @@ describe('addEdge', () => {
     const result = addEdge(baseModel(), { sourceId: 'a', targetId: 'c' });
     expect(result.edges[result.edges.length - 1].arrow).toBeUndefined();
   });
+
+  it('sets erSourceCardinality/erTargetCardinality when given (canvas-vcv follow-up: the ER connect-mode gesture)', () => {
+    const result = addEdge(baseModel(), { sourceId: 'a', targetId: 'c', erSourceCardinality: '||', erTargetCardinality: 'o{' });
+    const added = result.edges[result.edges.length - 1];
+    expect(added.erSourceCardinality).toBe('||');
+    expect(added.erTargetCardinality).toBe('o{');
+  });
+
+  it('omits ER cardinality when none is given (every non-ERD caller)', () => {
+    const result = addEdge(baseModel(), { sourceId: 'a', targetId: 'c' });
+    const added = result.edges[result.edges.length - 1];
+    expect(added.erSourceCardinality).toBeUndefined();
+    expect(added.erTargetCardinality).toBeUndefined();
+  });
 });
 
 describe('removeNode', () => {

@@ -51,6 +51,15 @@ export interface AddEdgeInput {
    *  arrowhead at each end (canvas-7rr); 'none' draws no arrowhead at either end. A "reversed"
    *  connector needs no value here — it is just sourceId/targetId swapped by the caller. */
   arrow?: DiagramEdge['arrow'];
+  /** ERD only: a plain arrowhead is not valid ER notation at all (real erDiagram relationships
+   *  are drawn with crow's-foot cardinality glyphs on both ends, never a directional arrow) — a
+   *  caller creating a connector in an ER diagram (the canvas's own connect-mode gesture) should
+   *  always supply both, so the edge is ER-correct from the moment it exists rather than only
+   *  after a save/reparse round-trip re-derives it from DEFAULT_CARDINALITY (erd.ts's own
+   *  serialize-time fallback covers DSL *text* validity, not what the interactive canvas renders
+   *  in the meantime — canvas-vcv follow-up). */
+  erSourceCardinality?: string;
+  erTargetCardinality?: string;
 }
 
 /**
@@ -65,6 +74,8 @@ export function addEdge(model: DiagramModel, input: AddEdgeInput): DiagramModel 
     targetId: input.targetId,
     label: input.label,
     arrow: input.arrow,
+    erSourceCardinality: input.erSourceCardinality,
+    erTargetCardinality: input.erTargetCardinality,
   };
   return { ...model, edges: [...model.edges, edge] };
 }

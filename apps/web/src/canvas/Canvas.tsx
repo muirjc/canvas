@@ -38,6 +38,8 @@ import {
   umlEndpointGlyph,
   umlEndpointMarkers,
   umlCardinalityLabelPosition,
+  DEFAULT_ER_SOURCE_CARDINALITY,
+  DEFAULT_ER_TARGET_CARDINALITY,
   type CardinalityGlyph,
   type UmlEndpointGlyph,
   type DiagramContainer,
@@ -882,11 +884,23 @@ export function Canvas({ model, onChange, dslFamily, toolbarContainer }: CanvasP
         setConnectSourceId(node.id);
       } else if (connectSourceId !== node.id) {
         const reversed = connectArrowStyle === 'reversed';
+        // canvas-vcv follow-up: a plain arrowhead is not valid ER notation at all -- real
+        // erDiagram relationships always show crow's-foot cardinality on both ends, never a
+        // directional arrow. Without this, a connector drawn here in an ER diagram rendered as a
+        // plain arrow (wrong notation) until the DSL was saved and reparsed, at which point
+        // erd.ts's own DEFAULT_CARDINALITY fallback silently reinterpreted it as crow's-foot --
+        // an inconsistent, save-dependent visual. Giving the edge real cardinality data up front
+        // makes the canvas ER-correct from the moment it's drawn.
+        const erDefaults =
+          dslFamily === 'erd'
+            ? { erSourceCardinality: DEFAULT_ER_SOURCE_CARDINALITY, erTargetCardinality: DEFAULT_ER_TARGET_CARDINALITY }
+            : {};
         onChange(
           addEdge(model, {
             sourceId: reversed ? node.id : connectSourceId,
             targetId: reversed ? connectSourceId : node.id,
             arrow: connectArrowStyle === 'both' || connectArrowStyle === 'none' ? connectArrowStyle : undefined,
+            ...erDefaults,
           }),
         );
         setConnectSourceId(null);
