@@ -21,6 +21,13 @@ import {
   clipToAnchorSide,
   architectureEndpointBox,
   computeBounds,
+  computeSequenceLayout,
+  SELF_MESSAGE_LOOP_WIDTH,
+  containerRoleStyle,
+  LABELED_CONTROL_FLOW_ROLES,
+  CONTROL_FLOW_STROKE,
+  CONTROL_FLOW_DASHARRAY,
+  CONTROL_FLOW_TAB_FILL,
   sanitizeSvgFragment,
   autoLayout,
   iconNodeLayout,
@@ -472,6 +479,10 @@ export function Canvas({ model, onChange, dslFamily, toolbarContainer }: CanvasP
     setSelectedContainerId(null);
     setSelectedEdgeId(null);
 
+    // canvas-7vs.1: sequence-diagram layout is always computed from DSL order, never dragged
+    // (FR-013) — selection above still applies normally; only starting a position-drag is skipped.
+    if (dslFamily === 'sequence') return;
+
     const point = toClientPoint(event);
     dragState.current = {
       kind: 'node',
@@ -502,6 +513,9 @@ export function Canvas({ model, onChange, dslFamily, toolbarContainer }: CanvasP
     setSelectedContainerId(container.id);
     setSelectedIds(new Set());
     setSelectedEdgeId(null);
+
+    // canvas-7vs.1: same computed-only-layout guard as handleNodePointerDown above (FR-013).
+    if (dslFamily === 'sequence') return;
 
     const point = toClientPoint(event);
     dragState.current = {
@@ -772,26 +786,32 @@ export function Canvas({ model, onChange, dslFamily, toolbarContainer }: CanvasP
     }
   };
 
+  // canvas-7vs.10: empty for sequence diagrams (getAddableShapes' own doc comment) — the whole
+  // "Shapes" section is hidden rather than shown with nothing in its grid.
+  const addableShapes = getAddableShapes(dslFamily);
+
   const toolbar = (
     <div role="toolbar" aria-label="Diagram tools">
-      <div className="rail-section">
-        <p className="section-label rail-section__label">Shapes</p>
-        <div className="shape-grid">
-          {getAddableShapes(dslFamily).map(({ shape, label }) => (
-            <button
-              key={shape}
-              type="button"
-              className="btn btn--secondary"
-              data-testid={`add-shape-${shape}`}
-              title={`Add ${label}`}
-              aria-label={`Add ${label}`}
-              onClick={() => handleAddShape(shape)}
-            >
-              {SHAPE_GLYPHS[shape] ?? label}
-            </button>
-          ))}
+      {addableShapes.length > 0 && (
+        <div className="rail-section">
+          <p className="section-label rail-section__label">Shapes</p>
+          <div className="shape-grid">
+            {addableShapes.map(({ shape, label }) => (
+              <button
+                key={shape}
+                type="button"
+                className="btn btn--secondary"
+                data-testid={`add-shape-${shape}`}
+                title={`Add ${label}`}
+                aria-label={`Add ${label}`}
+                onClick={() => handleAddShape(shape)}
+              >
+                {SHAPE_GLYPHS[shape] ?? label}
+              </button>
+            ))}
+          </div>
         </div>
-      </div>
+      )}
 
       <div className="rail-section">
         <p className="section-label rail-section__label">Tools</p>
@@ -897,6 +917,11 @@ export function Canvas({ model, onChange, dslFamily, toolbarContainer }: CanvasP
   // canvas-7vs.7: built once per render, not per edge, for architectureEndpointBox's {group}
   // parent-container lookup.
   const containersById = new Map(model.containers.map((c) => [c.id, c]));
+  // canvas-7vs.1: the one shared lifeline/timeline geometry calculation, also consumed by the
+  // export renderer (svg-renderer.ts's renderSequenceSvg) — never recomputed independently here
+  // (contracts/sequence-layout-contract.md). `null` for every non-sequence family, so every
+  // sequence-specific branch below is a simple `sequenceLayout &&` guard.
+  const sequenceLayout = dslFamily === 'sequence' ? computeSequenceLayout(model) : null;
 
   return (
     <div className="canvas-root" tabIndex={0} onKeyDown={handleKeyDown} data-testid="canvas-root">
@@ -955,9 +980,98 @@ export function Canvas({ model, onChange, dslFamily, toolbarContainer }: CanvasP
           }
         }}
       >
-        {model.containers.map((container) => {
+        {model.containers.map((rawContainer) => {
+          // canvas-7vs.1: activate/deactivate and else/and/option get an entirely different
+          // geometry (a bar / a divider line, not a resizable dashed box) — handled as their own
+          // early-return branch rather than retrofitted into the generic box JSX below, which
+          // stays exactly as it was (canvas/export parity comment preserved) for every role that
+          // still IS a generic box (loop/alt/opt/par/critical/break/rect/note-*/box).
+          if (sequenceLayout) {
+            if (rawContainer.role === 'deactivate') return null; // drawn as part of its paired 'activate' bar
+            if (rawContainer.role === 'activate') {
+              const bar = sequenceLayout.activations.get(rawContainer.id);
+              if (!bar) return null;
+              const isSelected = selectedContainerId === rawContainer.id;
+              return (
+                <rect
+                  key={rawContainer.id}
+                  data-testid={`container-${rawContainer.id}`}
+                  x={bar.x - bar.width / 2}
+                  y={bar.yStart}
+                  width={bar.width}
+                  height={bar.yEnd - bar.yStart}
+                  fill="#ffffff"
+                  stroke={isSelected ? '#2563eb' : '#333333'}
+                  strokeWidth={isSelected ? 2 : 1}
+                  onPointerDown={handleContainerPointerDown(rawContainer)}
+                />
+              );
+            }
+            const dividerGeom = sequenceLayout.blocks.get(rawContainer.id);
+            if (dividerGeom?.isDivider) {
+              return (
+                <g key={rawContainer.id} data-testid={`container-${rawContainer.id}`} onPointerDown={handleContainerPointerDown(rawContainer)}>
+                  <line x1={dividerGeom.x} y1={dividerGeom.y} x2={dividerGeom.x + dividerGeom.width} y2={dividerGeom.y} stroke={CONTROL_FLOW_STROKE} strokeDasharray={CONTROL_FLOW_DASHARRAY} />
+                  {rawContainer.label && (
+                    <text x={dividerGeom.x + 8} y={dividerGeom.y - 4} fontSize={12}>
+                      {`${rawContainer.role} ${rawContainer.label}`}
+                    </text>
+                  )}
+                </g>
+              );
+            }
+          }
+          // canvas-7vs.1: for every remaining role, position/size (and, for a block, the label
+          // actually drawn — "loop Retry", not just "Retry", mirroring svg-renderer.ts's
+          // renderSequenceBlock exactly) come from the computed layout instead of the placeholder
+          // node/container.position (research.md §1). Editing a block's label still edits its
+          // real underlying `label` field, not this composed display string — a disclosed, minor
+          // interaction nuance (the rename textbox's default value shows the composed text) judged
+          // not worth a bespoke edit flow for a corner label canvas-7vs.8 will restyle anyway.
+          const container = (() => {
+            if (!sequenceLayout) return rawContainer;
+            const block = sequenceLayout.blocks.get(rawContainer.id);
+            if (block) {
+              const label = rawContainer.role === 'rect' ? '' : `${rawContainer.role} ${rawContainer.label}`.trim();
+              return { ...rawContainer, position: { x: block.x, y: block.y }, size: { width: block.width, height: block.height }, label };
+            }
+            const note = sequenceLayout.notes.get(rawContainer.id);
+            if (note) return { ...rawContainer, position: note };
+            const box = sequenceLayout.boxes.get(rawContainer.id);
+            if (box) return { ...rawContainer, position: { x: box.x, y: box.y }, size: { width: box.width, height: box.height } };
+            return rawContainer;
+          })();
           const size = container.size ?? { width: 300, height: 200 };
           const isSelected = selectedContainerId === container.id;
+          // canvas-7vs.8: mirrors svg-renderer.ts's containerRoleStyle exactly (SC-004) — every
+          // role gets its own default fill/stroke/dash instead of the one-size-fits-all box every
+          // container used to render as. Loop/alt/opt/par/critical/break additionally get the
+          // same corner tab svg-renderer.ts's dedicated renderSequenceBlock draws (this generic
+          // JSX is what actually renders them on canvas — Canvas.tsx has no separate block
+          // function the way svg-renderer.ts does, per the `container` shadow-copy above).
+          const roleStyle = containerRoleStyle(container.role);
+          const isLabeledControlFlowBlock = Boolean(container.role && LABELED_CONTROL_FLOW_ROLES.has(container.role));
+          const stroke = isSelected ? '#2563eb' : isLabeledControlFlowBlock ? CONTROL_FLOW_STROKE : roleStyle.stroke;
+          const dasharray = isLabeledControlFlowBlock ? CONTROL_FLOW_DASHARRAY : roleStyle.strokeDasharray;
+          // canvas-7vs.9: a leader line from this container's center to each attached node's own
+          // position — a sequence note's target is its participant's lifeline (already resolved
+          // via the `note`/`sequenceLayout` lookups above are position-only, so re-derive here from
+          // sequenceLayout directly); every other family's target is the attached node's own
+          // rendered center (nodeSize/node.position, same convention edges already use).
+          const connectorTargets = (rawContainer.attachedNodeIds ?? [])
+            .map((id) => {
+              if (sequenceLayout) {
+                const lifeline = sequenceLayout.lifelines.get(id);
+                return lifeline ? { x: lifeline.x, y: container.position.y + size.height / 2 } : undefined;
+              }
+              const target = model.nodes.find((n) => n.id === id);
+              if (!target) return undefined;
+              const targetSize = nodeSize(target);
+              return { x: target.position.x + targetSize.width / 2, y: target.position.y + targetSize.height / 2 };
+            })
+            .filter((t): t is { x: number; y: number } => t !== undefined);
+          const boxCenterX = container.position.x + size.width / 2;
+          const boxCenterY = container.position.y + size.height / 2;
           return (
             <g
               key={container.id}
@@ -967,31 +1081,44 @@ export function Canvas({ model, onChange, dslFamily, toolbarContainer }: CanvasP
                 event.stopPropagation();
                 setEditingContainerId(container.id);
               }}
-              style={{ cursor: 'move' }}
+              style={{ cursor: sequenceLayout ? 'default' : 'move' }}
             >
-              {/* Appearance is deliberately unchanged from what the export renderer draws — this
-                  feature adds interaction, not styling (research §7). Only the selection stroke
-                  differs, and it is screen-only. canvas-7vs.2: an explicit style.fillColor now
-                  mirrors svg-renderer.ts's renderContainer exactly (a sequence
-                  `rect <color> ... end` highlight's whole point is this color). The no-color
-                  default deliberately stays 'transparent', NOT svg-renderer.ts's 'none' -- unlike
-                  the export renderer, this is an interactive canvas: fill="none" isn't painted at
-                  all, so (per SVG's default pointer-events behavior) clicks over the container's
-                  interior stop hitting it, breaking click-to-select/drag/resize on every
-                  container with no fillColor set (caught by containers.spec.ts's own e2e
-                  coverage failing in CI -- a real regression, not a cosmetic nit). */}
+              {connectorTargets.map((t, i) => (
+                <line key={i} x1={boxCenterX} y1={boxCenterY} x2={t.x} y2={t.y} stroke="#999999" strokeDasharray="2,2" />
+              ))}
+              {/* canvas-7vs.2: an explicit style.fillColor mirrors svg-renderer.ts's renderContainer
+                  exactly (a sequence `rect <color> ... end` highlight's whole point is this
+                  color). A role default of 'none' becomes 'transparent' here instead — unlike the
+                  export renderer, this is an interactive canvas: fill="none" isn't painted at all,
+                  so (per SVG's default pointer-events behavior) clicks over the container's
+                  interior stop hitting it, breaking click-to-select/drag/resize on every container
+                  with no fillColor set (caught by containers.spec.ts's own e2e coverage failing in
+                  CI -- a real regression, not a cosmetic nit). */}
               <rect
                 x={container.position.x}
                 y={container.position.y}
                 width={size.width}
                 height={size.height}
-                fill={container.style?.fillColor ?? 'transparent'}
-                stroke={isSelected ? '#2563eb' : '#888'}
+                fill={container.style?.fillColor ?? (roleStyle.defaultFill === 'none' ? 'transparent' : roleStyle.defaultFill)}
+                stroke={stroke}
                 strokeWidth={isSelected ? 2 : 1}
-                strokeDasharray="6,4"
+                strokeDasharray={dasharray}
               />
+              {isLabeledControlFlowBlock && (
+                <rect
+                  x={container.position.x}
+                  y={container.position.y}
+                  width={Math.min(size.width, container.label.length * 7 + 16)}
+                  height={18}
+                  fill={CONTROL_FLOW_TAB_FILL}
+                  stroke={stroke}
+                />
+              )}
+              {roleStyle.headerBand && (
+                <rect x={container.position.x} y={container.position.y} width={size.width} height={20} fill={roleStyle.stroke} opacity={0.18} />
+              )}
               {editingContainerId !== container.id && (
-                <text x={container.position.x + 8} y={container.position.y + 16} fontSize={12}>
+                <text x={container.position.x + 8} y={container.position.y + (isLabeledControlFlowBlock ? 14 : roleStyle.headerBand ? 14 : 16)} fontSize={12}>
                   {container.label}
                 </text>
               )}
@@ -1013,8 +1140,10 @@ export function Canvas({ model, onChange, dslFamily, toolbarContainer }: CanvasP
                 </foreignObject>
               )}
               {/* Resize handle renders only for the selected container, so the steady-state
-                  element count is unchanged and the drag performance gate is unaffected. */}
-              {isSelected && (
+                  element count is unchanged and the drag performance gate is unaffected.
+                  canvas-7vs.1: hidden entirely for sequence diagrams — size is always computed
+                  (FR-013), so a resize would be silently overwritten on the very next render. */}
+              {isSelected && !sequenceLayout && (
                 <rect
                   data-testid={`container-resize-${container.id}`}
                   x={container.position.x + size.width - 5}
@@ -1034,9 +1163,23 @@ export function Canvas({ model, onChange, dslFamily, toolbarContainer }: CanvasP
           const source = model.nodes.find((n) => n.id === edge.sourceId);
           const target = model.nodes.find((n) => n.id === edge.targetId);
           if (!source || !target) return null;
-          const from = { x: source.position.x + nodeSize(source).width / 2, y: source.position.y + nodeSize(source).height / 2 };
-          const to = { x: target.position.x + nodeSize(target).width / 2, y: target.position.y + nodeSize(target).height / 2 };
-          const midX = (from.x + to.x) / 2;
+          // canvas-7vs.1: a sequence message's endpoints come straight from the computed lifeline
+          // x-positions and the message's own computed row — never from node.position (a
+          // placeholder for this family, research.md §1) and never clipped (canvas-1rq's concern
+          // doesn't apply: a message is drawn below the header row, never underneath a node).
+          const sequenceMessage = sequenceLayout?.messages.get(edge.id);
+          const sourceLifeline = sequenceLayout?.lifelines.get(edge.sourceId);
+          const targetLifeline = sequenceLayout?.lifelines.get(edge.targetId);
+          const isSequenceSelfMessage = Boolean(sequenceMessage?.isSelfMessage);
+          const from =
+            sequenceMessage && sourceLifeline
+              ? { x: sourceLifeline.x, y: sequenceMessage.y }
+              : { x: source.position.x + nodeSize(source).width / 2, y: source.position.y + nodeSize(source).height / 2 };
+          const to =
+            sequenceMessage && targetLifeline
+              ? { x: targetLifeline.x, y: sequenceMessage.y }
+              : { x: target.position.x + nodeSize(target).width / 2, y: target.position.y + nodeSize(target).height / 2 };
+          const midX = isSequenceSelfMessage ? from.x + SELF_MESSAGE_LOOP_WIDTH / 2 : (from.x + to.x) / 2;
           const midY = (from.y + to.y) / 2;
           // canvas-1rq: clip each endpoint to its own node's boundary — otherwise the arrowhead
           // (and the line segment inside each node) is hidden underneath the node's opaque fill,
@@ -1049,12 +1192,16 @@ export function Canvas({ model, onChange, dslFamily, toolbarContainer }: CanvasP
           const targetBox = architectureEndpointBox(target, edge.targetIsGroup, containersById);
           // canvas-7vs.6: an explicit :T/:B/:L/:R anchor hint pins the endpoint to that side
           // instead of clipEdgeEndpoint's direction-toward-the-other-node default.
-          const clippedFrom = edge.sourceAnchor
-            ? clipToAnchorSide(sourceBox.center, sourceBox.size, edge.sourceAnchor)
-            : clipEdgeEndpoint(sourceBox.center, sourceBox.size, sourceBox.shape, targetBox.center.x, targetBox.center.y);
-          const clippedTo = edge.targetAnchor
-            ? clipToAnchorSide(targetBox.center, targetBox.size, edge.targetAnchor)
-            : clipEdgeEndpoint(targetBox.center, targetBox.size, targetBox.shape, sourceBox.center.x, sourceBox.center.y);
+          const clippedFrom = sequenceMessage
+            ? from
+            : edge.sourceAnchor
+              ? clipToAnchorSide(sourceBox.center, sourceBox.size, edge.sourceAnchor)
+              : clipEdgeEndpoint(sourceBox.center, sourceBox.size, sourceBox.shape, targetBox.center.x, targetBox.center.y);
+          const clippedTo = sequenceMessage
+            ? to
+            : edge.targetAnchor
+              ? clipToAnchorSide(targetBox.center, targetBox.size, edge.targetAnchor)
+              : clipEdgeEndpoint(targetBox.center, targetBox.size, targetBox.shape, sourceBox.center.x, sourceBox.center.y);
           const isEditingThisEdge = editingEdgeId === edge.id;
           const isSelected = selectedEdgeId === edge.id;
           // canvas-xig: centered under the connector's midpoint, clamped/flipped by popupPosition
@@ -1092,34 +1239,48 @@ export function Canvas({ model, onChange, dslFamily, toolbarContainer }: CanvasP
                 setEditingEdgeId(edge.id);
               }}
             >
-              <line
-                x1={clippedFrom.x}
-                y1={clippedFrom.y}
-                x2={clippedTo.x}
-                y2={clippedTo.y}
-                // canvas-u7e: selection overrides color the same way node selection does
-                // (shapes.tsx's SELECTION_STROKE) — including for an invisible connector, so a
-                // selected-but-invisible edge still gives visible feedback about what's about to
-                // be deleted.
-                stroke={isSelected ? SELECTION_STROKE : edge.lineStyle === 'invisible' ? 'none' : (edge.style?.strokeColor ?? '#333')}
-                strokeWidth={isSelected ? 2 : (edge.style?.strokeWidth ?? (edge.lineStyle === 'thick' ? DEFAULT_THICK_STROKE_WIDTH : undefined))}
-                strokeDasharray={
-                  edge.style?.strokeDasharray ??
-                  (edge.lineStyle === 'dotted' || umlMarkers?.dashed ? DEFAULT_DOTTED_DASHARRAY : undefined)
-                }
-                // canvas-2ut/canvas-7vs.3: an ER relationship's crow's-foot glyphs or a UML
-                // relationship's own marker (below) replace the generic arrowhead entirely.
-                markerStart={
-                  edge.lineStyle !== 'invisible' && !hasErCardinality && !umlMarkers && edge.arrow === 'both'
-                    ? 'url(#arrow)'
-                    : undefined
-                }
-                markerEnd={
-                  edge.lineStyle === 'invisible' || hasErCardinality || umlMarkers || edge.arrow === 'none'
-                    ? undefined
-                    : 'url(#arrow)'
-                }
-              />
+              {/* canvas-7vs.1: a self-message (source === target participant) draws as a small
+                  loop out from and back into its own lifeline (research.md §5) instead of the
+                  ordinary two-point line — same stroke/width/dasharray/marker props either way. */}
+              {isSequenceSelfMessage ? (
+                <path
+                  d={`M ${from.x} ${from.y} H ${from.x + SELF_MESSAGE_LOOP_WIDTH} V ${from.y + 20} H ${from.x}`}
+                  fill="none"
+                  stroke={isSelected ? SELECTION_STROKE : (edge.style?.strokeColor ?? '#333')}
+                  strokeWidth={isSelected ? 2 : (edge.style?.strokeWidth ?? (edge.lineStyle === 'thick' ? DEFAULT_THICK_STROKE_WIDTH : undefined))}
+                  strokeDasharray={edge.style?.strokeDasharray ?? (edge.lineStyle === 'dotted' ? DEFAULT_DOTTED_DASHARRAY : undefined)}
+                  markerEnd={edge.arrow === 'none' ? undefined : 'url(#arrow)'}
+                />
+              ) : (
+                <line
+                  x1={clippedFrom.x}
+                  y1={clippedFrom.y}
+                  x2={clippedTo.x}
+                  y2={clippedTo.y}
+                  // canvas-u7e: selection overrides color the same way node selection does
+                  // (shapes.tsx's SELECTION_STROKE) — including for an invisible connector, so a
+                  // selected-but-invisible edge still gives visible feedback about what's about to
+                  // be deleted.
+                  stroke={isSelected ? SELECTION_STROKE : edge.lineStyle === 'invisible' ? 'none' : (edge.style?.strokeColor ?? '#333')}
+                  strokeWidth={isSelected ? 2 : (edge.style?.strokeWidth ?? (edge.lineStyle === 'thick' ? DEFAULT_THICK_STROKE_WIDTH : undefined))}
+                  strokeDasharray={
+                    edge.style?.strokeDasharray ??
+                    (edge.lineStyle === 'dotted' || umlMarkers?.dashed ? DEFAULT_DOTTED_DASHARRAY : undefined)
+                  }
+                  // canvas-2ut/canvas-7vs.3: an ER relationship's crow's-foot glyphs or a UML
+                  // relationship's own marker (below) replace the generic arrowhead entirely.
+                  markerStart={
+                    edge.lineStyle !== 'invisible' && !hasErCardinality && !umlMarkers && edge.arrow === 'both'
+                      ? 'url(#arrow)'
+                      : undefined
+                  }
+                  markerEnd={
+                    edge.lineStyle === 'invisible' || hasErCardinality || umlMarkers || edge.arrow === 'none'
+                      ? undefined
+                      : 'url(#arrow)'
+                  }
+                />
+              )}
               {edge.lineStyle !== 'invisible' &&
                 hasErCardinality &&
                 renderCardinalityGlyphs(cardinalityGlyphList, isSelected ? SELECTION_STROKE : (edge.style?.strokeColor ?? '#333'))}
@@ -1139,8 +1300,10 @@ export function Canvas({ model, onChange, dslFamily, toolbarContainer }: CanvasP
               <rect
                 x={Math.min(from.x, to.x) - 10}
                 y={Math.min(from.y, to.y) - 10}
-                width={Math.max(Math.abs(to.x - from.x), 1) + 20}
-                height={Math.max(Math.abs(to.y - from.y), 1) + 20}
+                // canvas-7vs.1: a self-message's hit target must cover its loop's visible extent
+                // (to the right and below `from`), not just the zero-size from===to point.
+                width={(isSequenceSelfMessage ? SELF_MESSAGE_LOOP_WIDTH : Math.max(Math.abs(to.x - from.x), 1)) + 20}
+                height={(isSequenceSelfMessage ? 20 : Math.max(Math.abs(to.y - from.y), 1)) + 20}
                 fill="transparent"
               />
               {!isEditingThisEdge && edge.label && renderLabelLines(midX, midY - 4, edge.label, 12, false)}
@@ -1214,7 +1377,17 @@ export function Canvas({ model, onChange, dslFamily, toolbarContainer }: CanvasP
           </marker>
         </defs>
 
-        {model.nodes.map((node) => {
+        {model.nodes.map((rawNode) => {
+          // canvas-7vs.1: a sequence-diagram participant's header box is positioned at its
+          // computed lifeline column instead of the placeholder node.position (research.md §1) —
+          // shadowing `node` here (rather than a parallel variable) means every existing read
+          // below — renderNodeShape, label editing, style popup, edit affordance — picks it up
+          // for free. `rawNode` (the real model object) is used only where the real id/fields
+          // matter for a state-mutating handler.
+          const lifeline = sequenceLayout?.lifelines.get(rawNode.id);
+          const node = lifeline
+            ? { ...rawNode, position: { x: lifeline.headerX, y: lifeline.headerY }, size: { width: lifeline.headerWidth, height: lifeline.headerHeight } }
+            : rawNode;
           const size = nodeSize(node);
           // canvas-xig: below the node (matching the original placement), clamped/flipped by
           // popupPosition so it never renders past the canvas's own edges for a node placed near
@@ -1236,15 +1409,19 @@ export function Canvas({ model, onChange, dslFamily, toolbarContainer }: CanvasP
             <g
               key={node.id}
               data-testid={`node-${node.id}`}
-              onPointerDown={handleNodePointerDown(node)}
+              onPointerDown={handleNodePointerDown(rawNode)}
               onPointerEnter={() => setHoveredId(node.id)}
               onPointerLeave={() => setHoveredId((current) => (current === node.id ? null : current))}
               onDoubleClick={(event) => {
                 event.stopPropagation();
                 setEditingNodeId(node.id);
               }}
-              style={{ cursor: connectMode ? 'crosshair' : 'move' }}
+              style={{ cursor: connectMode ? 'crosshair' : lifeline ? 'default' : 'move' }}
             >
+              {/* canvas-7vs.1: the vertical lifeline itself, drawn behind the header box. */}
+              {lifeline && (
+                <line x1={lifeline.x} y1={lifeline.top} x2={lifeline.x} y2={lifeline.bottom} stroke="#888888" strokeDasharray="4,2" />
+              )}
               {renderNodeShape(node, selectedIds.has(node.id))}
               {iconMarkup && iconLayout && (
                 <image

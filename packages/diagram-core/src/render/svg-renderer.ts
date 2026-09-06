@@ -1,4 +1,5 @@
 import type { ClassMember, DiagramContainer, DiagramEdge, DiagramModel, DiagramNode, EntityAttribute, Size } from '../model/diagram-model.js';
+import { computeSequenceLayout, SELF_MESSAGE_LOOP_WIDTH, type SequenceLayout } from './sequence-layout.js';
 
 const DEFAULT_NODE_SIZE: Size = { width: 140, height: 60 };
 // Matches diagram-ops.ts's own (module-private) DEFAULT_CONTAINER_SIZE — kept as a separate literal
@@ -809,7 +810,66 @@ function renderNode(node: DiagramNode, resolveIcon?: IconResolver): string {
   ].join('');
 }
 
-function renderContainer(container: DiagramContainer): string {
+// canvas-7vs.8: every container role used to render as the exact same generic dashed gray box
+// (confirmed: renderContainer never read container.role at all). This gives each ROLE its own
+// default fill/stroke/border-style — an explicit style.fillColor (e.g. a sequence `rect`
+// highlight, canvas-7vs.2) always still wins over the role's own default fill. Deliberately does
+// NOT distinguish C4 boundary kinds (System_Boundary/Container_Boundary/Enterprise_Boundary/
+// Deployment_Node all currently parse to the SAME role: undefined — the boundary keyword itself
+// isn't even captured in the model, a parser/model gap, not a renderer one) or flowchart
+// subgraphs (also role: undefined) — both keep exactly today's plain box, `role === undefined`'s
+// own fallback case below. Loop/alt/opt/par/critical/break/rect are NOT covered here — they're
+// sequence-family-only and get their own dedicated corner-tab treatment in renderSequenceBlock,
+// since a full-diagram-width dashed box with a top-left label (this function's own shape) isn't
+// what a control-flow block's bounds-fitted box with a role-appropriate tab needs.
+export interface ContainerRoleStyle {
+  defaultFill: string;
+  stroke: string;
+  strokeDasharray?: string;
+  /** UML namespace only: a full-width filled band across the top (a package/folder-tab look),
+   *  drawn instead of the plain top-left text every other role uses. */
+  headerBand?: boolean;
+}
+
+const NOTE_ROLES = new Set(['note-left', 'note-right', 'note-over', 'note']);
+
+export function containerRoleStyle(role: string | undefined): ContainerRoleStyle {
+  // Sequence AND UML both use the word "note" for an annotation box — same pale-sticky-note
+  // treatment either way, a solid (not dashed) border like real Mermaid's own note styling.
+  if (role && NOTE_ROLES.has(role)) return { defaultFill: '#fff9c4', stroke: '#c9a94a' };
+  // Sequence box grouping: a lighter, finer dash than the plain default so it doesn't read as
+  // "the same kind of thing" as a control-flow block when both appear in one diagram.
+  if (role === 'box') return { defaultFill: 'none', stroke: '#999999', strokeDasharray: '2,3' };
+  if (role === 'namespace') return { defaultFill: '#f7f7f7', stroke: '#555555', headerBand: true };
+  return { defaultFill: 'none', stroke: '#888888', strokeDasharray: '6,4' };
+}
+
+const ATTACHMENT_CONNECTOR_STROKE = '#999999';
+const ATTACHMENT_CONNECTOR_DASHARRAY = '2,2';
+
+/** canvas-7vs.9: attachedNodeIds was parsed/modeled but neither renderer ever drew anything for
+ *  it — a note or marker rendered as a labeled box, floating, visually unconnected to what it
+ *  actually annotates. A thin leader line from the container's own center to each attached
+ *  point, matching this app's existing plain-edge styling (per the bead's own acceptance
+ *  criteria) — not a claim of precise boundary-clipped geometry the way a real edge gets
+ *  (clipEdgeEndpoint), since these targets are frequently right next to the container already. */
+function renderAttachmentConnectors(container: DiagramContainer, width: number, height: number, targets: { x: number; y: number }[]): string {
+  if (targets.length === 0) return '';
+  const { x, y } = container.position;
+  const cx = x + width / 2;
+  const cy = y + height / 2;
+  return targets
+    .map((t) => `<line x1="${cx}" y1="${cy}" x2="${t.x}" y2="${t.y}" stroke="${ATTACHMENT_CONNECTOR_STROKE}" stroke-dasharray="${ATTACHMENT_CONNECTOR_DASHARRAY}" />`)
+    .join('');
+}
+
+/** canvas-7vs.9: `connectorTargets` are the pre-resolved {x,y} points to draw a leader line to
+ *  (see `renderAttachmentConnectors`) — computed by the caller rather than looked up here, since
+ *  "what a target point even IS" differs per family: a generic node's center (via `nodeCenter`,
+ *  the non-sequence call site below) vs. a sequence participant's lifeline at the note's own row
+ *  (a sequence node's `position` is a placeholder, research.md §1 — `renderSequenceNoteOrBox`
+ *  resolves its own targets from the computed layout instead of calling this with a node lookup). */
+function renderContainer(container: DiagramContainer, connectorTargets: { x: number; y: number }[] = []): string {
   const { x, y } = container.position;
   const { width, height } = container.size ?? { width: 300, height: 200 };
   // canvas-7vs.2: a sequence `rect <color> ... end` background highlight's entire visual purpose
@@ -817,10 +877,25 @@ function renderContainer(container: DiagramContainer): string {
   // lives in style, not label, which stays empty") -- previously hardcoded to 'none', so the
   // construct was accepted and positioned but rendered completely uncolored. Every other
   // container role (loop/alt/box/note/etc, which never set style.fillColor) is unaffected.
-  const fill = container.style?.fillColor ?? 'none';
+  const roleStyle = containerRoleStyle(container.role);
+  const fill = container.style?.fillColor ?? roleStyle.defaultFill;
+  const dasharray = roleStyle.strokeDasharray ? ` stroke-dasharray="${roleStyle.strokeDasharray}"` : '';
+  const connectorMarkup = renderAttachmentConnectors(container, width, height, connectorTargets);
+  if (roleStyle.headerBand) {
+    const bandHeight = 20;
+    return [
+      `<g data-container-id="${escapeXml(container.id)}">`,
+      connectorMarkup,
+      `<rect x="${x}" y="${y}" width="${width}" height="${height}" fill="${fill}" stroke="${roleStyle.stroke}"${dasharray} />`,
+      `<rect x="${x}" y="${y}" width="${width}" height="${bandHeight}" fill="${roleStyle.stroke}" opacity="0.18" />`,
+      `<text x="${x + 8}" y="${y + 14}" font-size="12" font-family='${FONT_FAMILY}'>${escapeXml(container.label)}</text>`,
+      '</g>',
+    ].join('');
+  }
   return [
     `<g data-container-id="${escapeXml(container.id)}">`,
-    `<rect x="${x}" y="${y}" width="${width}" height="${height}" fill="${fill}" stroke="#888888" stroke-dasharray="6,4" />`,
+    connectorMarkup,
+    `<rect x="${x}" y="${y}" width="${width}" height="${height}" fill="${fill}" stroke="${roleStyle.stroke}"${dasharray} />`,
     `<text x="${x + 8}" y="${y + 16}" font-size="12" font-family='${FONT_FAMILY}'>${escapeXml(container.label)}</text>`,
     '</g>',
   ].join('');
@@ -917,6 +992,13 @@ function renderEdge(
  *  export does (canvas-0s3) — a single source of truth rather than a second, hand-duplicated
  *  bounds calculation the two could silently disagree on. */
 export function computeBounds(model: DiagramModel): { width: number; height: number } {
+  // canvas-7vs.1: a sequence diagram's bounds come entirely from computeSequenceLayout() —
+  // node/container.position is a placeholder for this family (research.md §1), so the generic
+  // position-scanning loop below would compute a meaningless (near-zero) size.
+  if (model.diagramTypeId === 'sequence') {
+    const layout = computeSequenceLayout(model);
+    return { width: layout.diagramWidth, height: layout.diagramHeight };
+  }
   let maxX = 400;
   let maxY = 300;
   for (const node of model.nodes) {
@@ -932,16 +1014,191 @@ export function computeBounds(model: DiagramModel): { width: number; height: num
   return { width: maxX, height: maxY };
 }
 
+const LIFELINE_STROKE = '#888888';
+const LIFELINE_DASHARRAY = '4,2';
+const SELF_MESSAGE_LOOP_DROP = 20;
+const BLOCK_LABEL_FONT_SIZE = 12;
+
+/** canvas-7vs.1: draws one participant's header box (reusing the ordinary `renderNode`/
+ *  `renderNodeShape` shape rendering, just positioned at its computed lifeline column instead of
+ *  `node.position`) plus its vertical lifeline. Exported so `Canvas.tsx` renders identically
+ *  (SC-004, contracts/sequence-layout-contract.md). */
+export function renderSequenceLifeline(node: DiagramNode, layout: SequenceLayout, resolveIcon?: IconResolver): string {
+  const lifeline = layout.lifelines.get(node.id);
+  if (!lifeline) return '';
+  const positionedNode: DiagramNode = {
+    ...node,
+    position: { x: lifeline.headerX, y: lifeline.headerY },
+    size: { width: lifeline.headerWidth, height: lifeline.headerHeight },
+  };
+  const lineMarkup = `<line x1="${lifeline.x}" y1="${lifeline.top}" x2="${lifeline.x}" y2="${lifeline.bottom}" stroke="${LIFELINE_STROKE}" stroke-dasharray="${LIFELINE_DASHARRAY}" />`;
+  return `${lineMarkup}${renderNode(positionedNode, resolveIcon)}`;
+}
+
+/** canvas-7vs.1: one message line (or, for a self-message, a small loop — research.md §5) between
+ *  two lifelines at the message's computed row. No endpoint clipping needed (canvas-1rq's concern
+ *  doesn't apply — a message is drawn below the header row, never underneath a node). Exported for
+ *  canvas/export parity. */
+export function renderSequenceMessage(edge: DiagramEdge, layout: SequenceLayout): string {
+  const message = layout.messages.get(edge.id);
+  const source = layout.lifelines.get(edge.sourceId);
+  const target = layout.lifelines.get(edge.targetId);
+  if (!message || !source || !target) return '';
+  const stroke = edge.style?.strokeColor ?? '#333333';
+  const strokeWidthValue = edge.style?.strokeWidth ?? (edge.lineStyle === 'thick' ? DEFAULT_THICK_STROKE_WIDTH : undefined);
+  const strokeWidth = strokeWidthValue ? ` stroke-width="${strokeWidthValue}"` : '';
+  const dasharrayValue = edge.style?.strokeDasharray ?? (edge.lineStyle === 'dotted' ? DEFAULT_DOTTED_DASHARRAY : undefined);
+  const strokeDasharray = dasharrayValue ? ` stroke-dasharray="${dasharrayValue}"` : '';
+  const markerEnd = edge.arrow === 'none' ? '' : ' marker-end="url(#arrowhead)"';
+  const markerStart = edge.arrow === 'both' ? ' marker-start="url(#arrowhead)"' : '';
+  const y = message.y;
+  const labelX = message.isSelfMessage ? source.x + SELF_MESSAGE_LOOP_WIDTH / 2 : (source.x + target.x) / 2;
+  const label = edge.label ? renderLabelText(labelX, y - 4, edge.label, 12, false) : '';
+  const lineMarkup = message.isSelfMessage
+    ? `<path d="M ${source.x} ${y} H ${source.x + SELF_MESSAGE_LOOP_WIDTH} V ${y + SELF_MESSAGE_LOOP_DROP} H ${source.x}" fill="none" stroke="${stroke}"${strokeWidth}${strokeDasharray}${markerEnd} />`
+    : `<line x1="${source.x}" y1="${y}" x2="${target.x}" y2="${y}" stroke="${stroke}"${strokeWidth}${strokeDasharray}${markerStart}${markerEnd} />`;
+  return `<g data-edge-id="${escapeXml(edge.id)}">${lineMarkup}${label}</g>`;
+}
+
+/** canvas-7vs.1: activate/deactivate containers with a paired bar (layout.activations, keyed by
+ *  the ACTIVATE container's id) render as a narrow vertical bar segment on the participant's
+ *  lifeline instead of the generic dashed-container fallback. */
+function renderSequenceActivation(container: DiagramContainer, layout: SequenceLayout): string {
+  const bar = layout.activations.get(container.id);
+  if (!bar) return '';
+  return `<g data-container-id="${escapeXml(container.id)}"><rect x="${bar.x - bar.width / 2}" y="${bar.yStart}" width="${bar.width}" height="${bar.yEnd - bar.yStart}" fill="#ffffff" stroke="#333333" /></g>`;
+}
+
+// canvas-7vs.8: loop/alt/opt/par/critical/break (and their else/and/option dividers) get their
+// own distinct indigo-ish stroke — visually distinguishable from every other container role's own
+// treatment (plain gray default, note's pale yellow, box's fine dash, namespace's header band).
+// `rect`'s whole identity is its fill color (canvas-7vs.2), not a labeled/bordered construct, so
+// it deliberately keeps the plain default border via containerRoleStyle(undefined) instead.
+export const CONTROL_FLOW_STROKE = '#5b6b8c';
+export const CONTROL_FLOW_DASHARRAY = '4,2';
+export const CONTROL_FLOW_TAB_FILL = '#e8ecf5';
+// canvas-7vs.8: loop/alt/opt/par/critical/break — NOT `rect`, whose whole identity is its fill
+// color rather than a labeled construct (canvas-7vs.2) — exported so Canvas.tsx's shared
+// container JSX (which reuses this same generic styling for sequence blocks via a shadow-copy,
+// unlike this file's own dedicated renderSequenceBlock) can apply the identical treatment.
+export const LABELED_CONTROL_FLOW_ROLES = new Set(['loop', 'alt', 'opt', 'par', 'critical', 'break']);
+
+/** canvas-7vs.1/canvas-7vs.8: loop/alt/opt/par/critical/break/rect render as a bounding box with
+ *  a role-appropriate corner label (FR-006) — the labeled roles get a small filled corner tab
+ *  behind their text (mirroring real Mermaid's own folded-corner label convention) in addition to
+ *  their own distinct stroke; their else/and/option children render as a divider line instead
+ *  (data-model.md "Control-flow blocks"); rect keeps canvas-7vs.2's existing fill-color behavior,
+ *  now correctly positioned/sized (FR-008), with the plain default border, not the labeled roles'
+ *  indigo one. */
+function renderSequenceBlock(container: DiagramContainer, layout: SequenceLayout): string {
+  const block = layout.blocks.get(container.id);
+  if (!block) return '';
+  const labelText = container.label ? `${container.role} ${container.label}` : (container.role ?? '');
+  if (block.isDivider) {
+    const dividerLabel = container.label ? renderLabelText(block.x + 8, block.y - 4, labelText, BLOCK_LABEL_FONT_SIZE, false) : '';
+    return `<g data-container-id="${escapeXml(container.id)}"><line x1="${block.x}" y1="${block.y}" x2="${block.x + block.width}" y2="${block.y}" stroke="${CONTROL_FLOW_STROKE}" stroke-dasharray="${CONTROL_FLOW_DASHARRAY}" />${dividerLabel}</g>`;
+  }
+  const isRect = container.role === 'rect';
+  const fill = container.style?.fillColor ?? 'none';
+  const stroke = isRect ? '#888888' : CONTROL_FLOW_STROKE;
+  const dasharray = isRect ? '6,4' : CONTROL_FLOW_DASHARRAY;
+  const tabWidth = Math.min(block.width, labelText.length * 7 + 16);
+  const cornerTab = isRect ? '' : `<rect x="${block.x}" y="${block.y}" width="${tabWidth}" height="18" fill="${CONTROL_FLOW_TAB_FILL}" stroke="${stroke}" />`;
+  const cornerLabel = isRect ? '' : renderLabelText(block.x + 8, block.y + 14, labelText, BLOCK_LABEL_FONT_SIZE, false);
+  return [
+    `<g data-container-id="${escapeXml(container.id)}">`,
+    `<rect x="${block.x}" y="${block.y}" width="${block.width}" height="${block.height}" fill="${fill}" stroke="${stroke}" stroke-dasharray="${dasharray}" />`,
+    cornerTab,
+    cornerLabel,
+    '</g>',
+  ].join('');
+}
+
+/** canvas-7vs.1/canvas-7vs.8/canvas-7vs.9: notes and box groupings reuse the ordinary generic
+ *  container visual (renderContainer, which now reads container.role for a distinct fill/stroke
+ *  per canvas-7vs.8) — only position/size come from the computed layout instead of the flat-row
+ *  placeholder. A note also gets a connector line to each attached participant's own lifeline (at
+ *  the note's own row) — canvas-7vs.9; the target points are resolved from the computed layout
+ *  directly rather than a generic node lookup (a sequence participant's `node.position` is a
+ *  placeholder, research.md §1). */
+function renderSequenceNoteOrBox(container: DiagramContainer, layout: SequenceLayout): string {
+  const note = layout.notes.get(container.id);
+  if (note) {
+    const positioned: DiagramContainer = { ...container, position: note };
+    const noteHeight = container.size?.height ?? 0;
+    const targets = (container.attachedNodeIds ?? [])
+      .map((id) => layout.lifelines.get(id))
+      .filter((l): l is NonNullable<typeof l> => l !== undefined)
+      .map((l) => ({ x: l.x, y: note.y + noteHeight / 2 }));
+    return renderContainer(positioned, targets);
+  }
+  const box = layout.boxes.get(container.id);
+  if (box) {
+    const positioned: DiagramContainer = { ...container, position: { x: box.x, y: box.y }, size: { width: box.width, height: box.height } };
+    return renderContainer(positioned);
+  }
+  return '';
+}
+
+function renderSequenceSvg(model: DiagramModel, resolveIcon?: IconResolver): string {
+  const layout = computeSequenceLayout(model);
+  const { width, height } = { width: layout.diagramWidth, height: layout.diagramHeight };
+
+  const boxMarkup = model.containers.filter((c) => c.role === 'box').map((c) => renderSequenceNoteOrBox(c, layout)).join('');
+  const blockMarkup = model.containers
+    .filter((c) => c.role && (TOP_LEVEL_BLOCK_ROLES_FOR_RENDER.has(c.role) || DIVIDER_ROLES_FOR_RENDER.has(c.role)))
+    .map((c) => renderSequenceBlock(c, layout))
+    .join('');
+  const messageMarkup = model.edges.map((e) => renderSequenceMessage(e, layout)).join('');
+  const activationMarkup = model.containers.filter((c) => c.role === 'activate').map((c) => renderSequenceActivation(c, layout)).join('');
+  const noteMarkup = model.containers.filter((c) => c.role && NOTE_ROLES_FOR_RENDER.has(c.role)).map((c) => renderSequenceNoteOrBox(c, layout)).join('');
+  const lifelineMarkup = model.nodes.map((n) => renderSequenceLifeline(n, layout, resolveIcon)).join('');
+
+  return [
+    `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">`,
+    '<defs>',
+    '<marker id="arrowhead" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto-start-reverse">',
+    '<path d="M0,0 L0,6 L9,3 z" fill="#333333" />',
+    '</marker>',
+    '</defs>',
+    boxMarkup,
+    blockMarkup,
+    messageMarkup,
+    activationMarkup,
+    noteMarkup,
+    lifelineMarkup,
+    '</svg>',
+  ].join('');
+}
+
+const TOP_LEVEL_BLOCK_ROLES_FOR_RENDER = new Set(['loop', 'alt', 'opt', 'par', 'critical', 'break', 'rect']);
+const DIVIDER_ROLES_FOR_RENDER = new Set(['else', 'and', 'option']);
+const NOTE_ROLES_FOR_RENDER = new Set(['note-left', 'note-right', 'note-over']);
+
 /**
  * Renders a DiagramModel to self-contained SVG: no external network calls, no remote fonts —
  * satisfies the constitution's export constraint and Contract IV's export-fidelity requirement.
  */
 export function renderToSvg(model: DiagramModel, resolveIcon?: IconResolver): string {
+  // canvas-7vs.1: sequence diagrams get their own dedicated lifeline/timeline rendering path —
+  // svg-renderer.ts had zero sequence-aware branching before this (confirmed at the epic's own
+  // audit); every other family's rendering below is completely unaffected.
+  if (model.diagramTypeId === 'sequence') {
+    return renderSequenceSvg(model, resolveIcon);
+  }
   const nodesById = new Map(model.nodes.map((n) => [n.id, n]));
   const containersById = new Map(model.containers.map((c) => [c.id, c]));
   const { width, height } = computeBounds(model);
 
-  const containerMarkup = model.containers.map(renderContainer).join('');
+  const containerMarkup = model.containers
+    .map((c) => {
+      const targets = (c.attachedNodeIds ?? [])
+        .map((id) => nodesById.get(id))
+        .filter((n): n is DiagramNode => n !== undefined)
+        .map((n) => nodeCenter(n));
+      return renderContainer(c, targets);
+    })
+    .join('');
   const edgeMarkup = model.edges.map((e) => renderEdge(e, nodesById, containersById)).join('');
   const nodeMarkup = model.nodes.map((n) => renderNode(n, resolveIcon)).join('');
 

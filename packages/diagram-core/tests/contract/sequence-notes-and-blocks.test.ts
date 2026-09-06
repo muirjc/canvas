@@ -500,8 +500,9 @@ describe('sequence parser: actor keyword, arrow tokens, activation, rect/box, au
 
       const reexported = serializeSequence(result.model);
       const allLines = reexported.split(/\r?\n/).filter((l) => l.trim());
-      // Skip the front-matter block (position coordinates would otherwise contain lines
-      // literally naming "Carol"/"Dave", producing a false positive below).
+      // canvas-7vs.1: serializeSequence no longer emits a canvas.positions front-matter block for
+      // this family at all (research.md §1), so `sequenceDiagram` is always the very first line —
+      // this slice is now a no-op, kept only so the indexing below reads identically regardless.
       const lines = allLines.slice(allLines.indexOf('sequenceDiagram'));
 
       // Top-of-file declarations (everything before the first message) only include the

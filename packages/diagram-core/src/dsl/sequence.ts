@@ -72,12 +72,12 @@ const BOX_START = /^box(?:\s+(rgba?\([^)]*\)|transparent))?(?:\s+(.+))?$/;
 const AUTONUMBER_PATTERN = /^autonumber(?:\s+(off)|\s+(\d+(?:\.\d+)?)\s+(\d+(?:\.\d+)?))?$/;
 const TITLE_PATTERN = /^title\s+(.+)$/;
 
-let autoPositionCounter = 0;
-function nextPosition(): { x: number; y: number } {
-  const position = { x: autoPositionCounter * 180 + 40, y: 40 };
-  autoPositionCounter += 1;
-  return position;
-}
+// canvas-7vs.1: sequence-diagram position is now fully computed by computeSequenceLayout()
+// (packages/diagram-core/src/render/sequence-layout.ts) from the model's own declaration/message
+// order, not stored/dragged (research.md §1, specs/011-sequence-lifeline-rendering). This
+// placeholder only satisfies DiagramNode/DiagramContainer's required `position` field at parse
+// time — neither renderer reads it for a sequence-family model.
+const PLACEHOLDER_POSITION = { x: 0, y: 0 };
 
 function noteSize(text: string): { width: number; height: number } {
   return { width: Math.max(100, Math.min(260, text.length * 7 + 20)), height: 50 };
@@ -90,9 +90,10 @@ function noteSize(text: string): { width: number; height: number } {
  * ->>/-->> parsed, and even those collapsed to one shape on serialize).
  */
 export function parseSequence(dsl: string): ParseResult {
-  autoPositionCounter = 0;
-  const { frontMatter, body } = splitFrontMatter(dsl);
-  const positions = frontMatter.canvas?.positions ?? {};
+  // canvas-7vs.1: front matter is parsed only to skip past it — a sequence diagram's
+  // `canvas.positions`/`canvas.containers` block (if an older save still has one) is deliberately
+  // never read; position is always computed fresh (research.md §1).
+  const { body } = splitFrontMatter(dsl);
 
   const lines = body.split(/\r?\n/);
   const errors: ParseError[] = [];
@@ -137,7 +138,7 @@ export function parseSequence(dsl: string): ParseResult {
         label: alias ?? id,
         shape: kind === 'actor' ? 'person' : 'rectangle',
         role: kind,
-        position: positions[id] ?? nextPosition(),
+        position: PLACEHOLDER_POSITION,
         containerId: boxId,
       });
       return;
@@ -160,7 +161,7 @@ export function parseSequence(dsl: string): ParseResult {
       label: '',
       role,
       attachedNodeIds: [participantId],
-      position: nextPosition(),
+      position: PLACEHOLDER_POSITION,
       parentContainerId: currentContainerId(),
       sequenceOrder: orderCounter++,
     });
@@ -220,7 +221,7 @@ export function parseSequence(dsl: string): ParseResult {
         id,
         label: title ?? '',
         role: 'box',
-        position: nextPosition(),
+        position: PLACEHOLDER_POSITION,
         style: color ? { fillColor: color } : undefined,
       });
       openBox = { id, line: i + 1, content: rawLine };
@@ -239,7 +240,7 @@ export function parseSequence(dsl: string): ParseResult {
         label: text,
         role: NOTE_POSITION_TO_ROLE[position],
         attachedNodeIds: participantIds,
-        position: nextPosition(),
+        position: PLACEHOLDER_POSITION,
         size: noteSize(text),
         parentContainerId: currentContainerId(),
         sequenceOrder: orderCounter++,
@@ -286,7 +287,7 @@ export function parseSequence(dsl: string): ParseResult {
         id,
         label: isRect ? '' : (arg ?? ''),
         role: keyword,
-        position: nextPosition(),
+        position: PLACEHOLDER_POSITION,
         parentContainerId: currentContainerId(),
         sequenceOrder: orderCounter++,
         style: isRect && arg ? { fillColor: arg } : undefined,
@@ -305,7 +306,7 @@ export function parseSequence(dsl: string): ParseResult {
         id,
         label: label ?? '',
         role: keyword,
-        position: nextPosition(),
+        position: PLACEHOLDER_POSITION,
         parentContainerId: parent.id,
         sequenceOrder: orderCounter++,
       });
@@ -454,9 +455,12 @@ function emitScope(containerId: string | undefined, model: DiagramModel, indent:
 }
 
 export function serializeSequence(model: DiagramModel): string {
-  const frontMatter: CanvasFrontMatter = {
-    canvas: { positions: Object.fromEntries(model.nodes.map((n) => [n.id, n.position])) },
-  };
+  // canvas-7vs.1: no canvas.positions/canvas.containers front-matter block for this family —
+  // position is always recomputed by computeSequenceLayout() on the next parse regardless of what
+  // was written, so storing it would be a stale, silently-ignored value rather than real
+  // round-trip fidelity (research.md §1). `joinFrontMatter` omits the block entirely when passed
+  // no canvas content.
+  const frontMatter: CanvasFrontMatter = {};
 
   const lines: string[] = ['sequenceDiagram'];
   if (model.title) lines.push(`title ${model.title}`);

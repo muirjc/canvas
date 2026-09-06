@@ -239,5 +239,13 @@ const FLOWCHART_ONLY_SHAPES: { shape: NodeShape; label: string }[] = [
 /** Scoped by `dslFamily`, not `diagramTypeId` — several diagram types share the flowchart family
  *  (e.g. `business-capability-map`) and must offer these shapes too, not just `id: 'flowchart'`. */
 export function getAddableShapes(dslFamily: string): { shape: NodeShape; label: string }[] {
+  // canvas-7vs.10: sequence diagrams have no toolbar-addable shape at all. A participant/actor is
+  // how a sequence diagram gains a new lifeline (its own DSL-level declaration) — offering the
+  // four universal shapes here was a real, confirmed bug, not a missing feature: serializeSequence
+  // re-emits every node as a plain participant/actor line regardless of its shape field, so a
+  // toolbar-added node's shape was visibly added but silently discarded on the very next save.
+  // Fixing the actual gap means not offering a shape vocabulary this family's own DSL grammar has
+  // no room for, rather than half-supporting it.
+  if (dslFamily === 'sequence') return [];
   return dslFamily === 'flowchart' ? [...UNIVERSAL_SHAPES, ...FLOWCHART_ONLY_SHAPES] : UNIVERSAL_SHAPES;
 }

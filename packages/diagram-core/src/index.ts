@@ -20,3 +20,4 @@ export * from './dsl/uml.js';
 export * from './standards/schema.js';
 export * from './standards/validator.js';
 export * from './render/svg-renderer.js';
+export * from './render/sequence-layout.js';
