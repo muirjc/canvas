@@ -5,10 +5,22 @@
 // custom image (infra/keycloak/Dockerfile) built to ACR by deploy.sh.
 //
 // This is also the first consumer of the shared identity for ACR image pulls, so this module
-// grants it the AcrPull role -- apiapp.bicep's own AcrPull grant (added when canvas-ycu shipped,
-// before this module existed) is now redundant with this one but left in place rather than
-// removed, since role assignments are idempotent on the identity+scope pair and removing it adds
-// risk for no benefit.
+// grants it the AcrPull role -- apiapp.bicep's own separate AcrPull grant (added when canvas-ycu
+// shipped, before this module existed) was later found redundant AND actively broken (see that
+// file's own header comment) and removed entirely (canvas-0x7), leaving this module's grant as
+// the sole declaration.
+//
+// canvas-vp1: that single declaration is still unconditionally re-PUT on EVERY deployment,
+// though, since main.bicep deploys this module every run regardless of whether keycloakImageTag
+// actually changed -- and a role assignment PUT with unchanged properties is not reliably a safe
+// no-op (reproduced live 4 times in a row: "RoleAssignmentExists", including immediately after
+// deleting and letting a redeploy recreate it fresh, with the failed deployment's own operation
+// log showing it as the one that had just (re)created the resource -- an ARM nested-deployment
+// retry racing its own prior success, not stale/leftover state or a genuine identical-PUT
+// rejection). Fixed by making the grant itself skippable via grantAcrPull: deploy.sh checks
+// whether the identity already holds AcrPull on this scope before invoking this template, and
+// passes false on every run after the first, so the resource is never touched a second time at
+// all rather than trying to make a second PUT of it land safely.
 
 @description('Azure region.')
 param location string
@@ -24,6 +36,9 @@ param identityPrincipalId string
 
 @description('ACR resource ID -- the identity is granted AcrPull on this scope.')
 param acrId string
+
+@description('canvas-vp1: whether to (re-)declare the AcrPull role assignment this run. deploy.sh sets this to false once it has confirmed the identity already holds AcrPull on this scope, so a routine redeploy never re-PUTs an already-existing role assignment -- see this file\'s own header comment for why that PUT is not reliably a safe no-op. Defaults to true so a from-scratch deploy (no prior assignment to detect) still grants it.')
+param grantAcrPull bool = true
 
 @description('ACR login server (e.g. foo.azurecr.io).')
 param acrLoginServer string
@@ -46,7 +61,7 @@ param postgresAdminUsername string = 'canvas_admin'
 @description('Public base URL the browser reaches Keycloak through, e.g. https://canvas-api.<domain>/idp (canvas-ycu.1). Keycloak has internal-only ingress -- a real browser can never reach it directly, so canvas-api reverse-proxies /idp/* to it (apps/api/src/auth/idp-proxy.routes.ts). KC_HOSTNAME tells Keycloak this is its own address so it emits correct absolute URLs/issuer claims itself, rather than leaking its internal FQDN.')
 param keycloakPublicBaseUrl string
 
-resource acrPullAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+resource acrPullAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (grantAcrPull) {
   name: guid(acrId, identityId, 'AcrPull', 'keycloak')
   scope: resourceGroup()
   properties: {
