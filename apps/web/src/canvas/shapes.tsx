@@ -247,5 +247,11 @@ export function getAddableShapes(dslFamily: string): { shape: NodeShape; label: 
   // Fixing the actual gap means not offering a shape vocabulary this family's own DSL grammar has
   // no room for, rather than half-supporting it.
   if (dslFamily === 'sequence') return [];
+  // canvas-hox follow-up: every node in an ER diagram is an entity, and erd.ts's own parser only
+  // ever produces plain rectangles for one (there is no ER-notation equivalent of a rounded
+  // rectangle/circle/diamond entity) -- offering the other three universal shapes here was
+  // authoring a shape choice the DSL itself has no room for, the same class of gap
+  // canvas-7vs.10 fixed for sequence diagrams above.
+  if (dslFamily === 'erd') return [{ shape: 'rectangle', label: 'Rectangle' }];
   return dslFamily === 'flowchart' ? [...UNIVERSAL_SHAPES, ...FLOWCHART_ONLY_SHAPES] : UNIVERSAL_SHAPES;
 }
