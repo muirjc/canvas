@@ -15,6 +15,11 @@ import {
   assignNodeToContainer,
   removeNodeFromContainer,
   removeContainer,
+  setContainerRole,
+  setContainerParent,
+  removeContainerParent,
+  assignEdgeToContainer,
+  removeEdgeFromContainer,
   updateNodeRole,
   updateEntityAttributes,
   updateClassMembers,
@@ -398,6 +403,120 @@ describe('addContainer', () => {
     expect(result.nodes).toEqual(model.nodes);
     expect(result.edges).toEqual(model.edges);
   });
+
+  // canvas-2s6.1: role/parentContainerId/attachedNodeIds/sequenceOrder — every prior test above
+  // (all omitting these) still passes unchanged, confirming existing callers (groupSelected,
+  // groupIntoContainer) are unaffected until they opt in.
+  it('sets role, parentContainerId, attachedNodeIds, and sequenceOrder when supplied', () => {
+    const model = addContainer(baseModel(), { label: 'Outer' });
+    const outerId = model.containers.at(-1)!.id;
+    const added = addContainer(model, {
+      role: 'note-left',
+      parentContainerId: outerId,
+      attachedNodeIds: ['a', 'b'],
+      sequenceOrder: 3,
+    }).containers.at(-1)!;
+    expect(added.role).toBe('note-left');
+    expect(added.parentContainerId).toBe(outerId);
+    expect(added.attachedNodeIds).toEqual(['a', 'b']);
+    expect(added.sequenceOrder).toBe(3);
+  });
+
+  it('leaves role, parentContainerId, attachedNodeIds, and sequenceOrder unset when omitted', () => {
+    const added = addContainer(baseModel(), {}).containers.at(-1)!;
+    expect(added.role).toBeUndefined();
+    expect(added.parentContainerId).toBeUndefined();
+    expect(added.attachedNodeIds).toBeUndefined();
+    expect(added.sequenceOrder).toBeUndefined();
+  });
+});
+
+describe('setContainerRole', () => {
+  it('sets the role field of the named container', () => {
+    const result = setContainerRole(baseModel(), 'g1', 'namespace');
+    expect(result.containers.find((c) => c.id === 'g1')!.role).toBe('namespace');
+  });
+
+  it('is a no-op for an unknown container id', () => {
+    const model = baseModel();
+    expect(setContainerRole(model, 'nope', 'namespace')).toEqual(model);
+  });
+
+  it('leaves every other field on the same container, and every node/edge, untouched', () => {
+    const model = baseModel();
+    const result = setContainerRole(model, 'g1', 'namespace');
+    const container = result.containers.find((c) => c.id === 'g1')!;
+    expect(container.position).toEqual(model.containers[0].position);
+    expect(container.size).toEqual(model.containers[0].size);
+    expect(result.nodes).toEqual(model.nodes);
+    expect(result.edges).toEqual(model.edges);
+  });
+});
+
+describe('setContainerParent / removeContainerParent', () => {
+  it('nests a container inside another', () => {
+    const model = addContainer(nestedModel(), { label: 'Third' });
+    const thirdId = model.containers.at(-1)!.id;
+    const result = setContainerParent(model, thirdId, 'outer');
+    expect(result.containers.find((c) => c.id === thirdId)!.parentContainerId).toBe('outer');
+  });
+
+  it('is a no-op when nesting a container inside itself', () => {
+    const model = baseModel();
+    expect(setContainerParent(model, 'g1', 'g1')).toEqual(model);
+  });
+
+  it('is a no-op for unknown ids', () => {
+    const model = baseModel();
+    expect(setContainerParent(model, 'nope', 'g1')).toEqual(model);
+    expect(setContainerParent(model, 'g1', 'nope')).toEqual(model);
+  });
+
+  it('removeContainerParent un-nests a container back to top-level', () => {
+    const model = nestedModel();
+    const result = removeContainerParent(model, 'inner');
+    expect(result.containers.find((c) => c.id === 'inner')!.parentContainerId).toBeUndefined();
+  });
+
+  it('removeContainerParent is a no-op for an unknown id', () => {
+    const model = baseModel();
+    expect(removeContainerParent(model, 'nope')).toEqual(model);
+  });
+});
+
+describe('assignEdgeToContainer / removeEdgeFromContainer', () => {
+  it('assigns a message to a control-flow-block container without touching its endpoints', () => {
+    const model = baseModel();
+    const result = assignEdgeToContainer(model, 'e1', 'g1');
+    const edge = result.edges.find((e) => e.id === 'e1')!;
+    expect(edge.containerId).toBe('g1');
+    expect(edge.sourceId).toBe('a');
+    expect(edge.targetId).toBe('b');
+  });
+
+  it('replaces prior membership rather than adding a second', () => {
+    const model = addContainer(baseModel(), { label: 'Other' });
+    const otherId = model.containers.at(-1)!.id;
+    const withFirst = assignEdgeToContainer(model, 'e1', 'g1');
+    const result = assignEdgeToContainer(withFirst, 'e1', otherId);
+    expect(result.edges.find((e) => e.id === 'e1')!.containerId).toBe(otherId);
+  });
+
+  it('clears membership without touching endpoints', () => {
+    const model = assignEdgeToContainer(baseModel(), 'e1', 'g1');
+    const result = removeEdgeFromContainer(model, 'e1');
+    const edge = result.edges.find((e) => e.id === 'e1')!;
+    expect(edge.containerId).toBeUndefined();
+    expect(edge.sourceId).toBe('a');
+    expect(edge.targetId).toBe('b');
+  });
+
+  it('is a no-op for unknown ids', () => {
+    const model = baseModel();
+    expect(assignEdgeToContainer(model, 'nope', 'g1')).toEqual(model);
+    expect(assignEdgeToContainer(model, 'e1', 'nope')).toEqual(model);
+    expect(removeEdgeFromContainer(model, 'nope')).toEqual(model);
+  });
 });
 
 describe('updateContainerLabel', () => {
@@ -572,9 +691,21 @@ describe('removeContainer', () => {
     expect(result.nodes.find((n) => n.id === 'inB')!.containerId).toBe('inner');
   });
 
-  it('leaves edges untouched', () => {
+  it('leaves edges untouched when none reference the container', () => {
     const model = baseModel();
     expect(removeContainer(model, 'g1').edges).toEqual(model.edges);
+  });
+
+  // canvas-2s6.1: DiagramEdge.containerId (a sequence message's own control-flow-block
+  // membership) didn't exist as an assignable concept before this bead — same "no dangling
+  // reference" invariant as the node-release case above, now that it does.
+  it('releases member edges by clearing their containerId, same as member nodes', () => {
+    const model = assignEdgeToContainer(baseModel(), 'e1', 'g1');
+    const result = removeContainer(model, 'g1');
+    const edge = result.edges.find((e) => e.id === 'e1')!;
+    expect(edge.containerId).toBeUndefined();
+    expect(edge.sourceId).toBe('a');
+    expect(edge.targetId).toBe('b');
   });
 
   it('is a no-op for an unknown id', () => {

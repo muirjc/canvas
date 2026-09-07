@@ -40,6 +40,7 @@ import {
   umlCardinalityLabelPosition,
   DEFAULT_ER_SOURCE_CARDINALITY,
   DEFAULT_ER_TARGET_CARDINALITY,
+  C4_BOUNDARY_ROLES,
   type CardinalityGlyph,
   type UmlEndpointGlyph,
   type DiagramContainer,
@@ -101,6 +102,31 @@ const ER_TARGET_CARDINALITY_OPTIONS = [
   { value: '|{', label: 'One or many' },
   { value: 'o{', label: 'Zero or many' },
 ];
+
+// canvas-2s6.1: which DiagramContainer.role a user can pick when creating a container, per
+// family — shown as a "Kind" selector next to Add Container/Group into Container, only for
+// families with a real container-role vocabulary (erd/architecture/flowchart containers carry no
+// role concept at all). C4's 5 values come straight from C4_BOUNDARY_ROLES (dsl/c4.ts's own
+// exported single source of truth) rather than being hand-copied, so this picker can't silently
+// drift from what parseC4 actually recognizes. Sequence is intentionally NOT listed here — 'box'
+// (a participant grouping) is its only groupIntoContainer-shaped role in this phase, so both
+// handlers below just use it directly with no picker needed; sequence's ranged control-flow
+// blocks (loop/alt/opt/par/critical/break/rect) enclose MESSAGES, not the node-based membership
+// this picker/Add Container flow grants — deliberately out of scope here, filed as canvas-2s6.2.
+const C4_BOUNDARY_LABELS: Record<(typeof C4_BOUNDARY_ROLES)[number], string> = {
+  boundary: 'Generic Boundary',
+  'system-boundary': 'System Boundary',
+  'container-boundary': 'Container Boundary',
+  'enterprise-boundary': 'Enterprise Boundary',
+  'deployment-node': 'Deployment Node',
+};
+const CONTAINER_ROLE_OPTIONS: Partial<Record<string, { value: string; label: string }[]>> = {
+  uml: [
+    { value: 'namespace', label: 'Namespace' },
+    { value: 'note', label: 'Note' },
+  ],
+  c4: C4_BOUNDARY_ROLES.map((role) => ({ value: role, label: C4_BOUNDARY_LABELS[role] })),
+};
 
 // canvas-vcv: the ER attribute / UML member popup — a list (scrolling internally past ~5-6 rows)
 // plus a fixed add-row and header/Done row, so it needs real width (room for a type/name/keys
@@ -795,6 +821,12 @@ export function Canvas({ model, onChange, dslFamily, toolbarContainer }: CanvasP
   // existed.
   const [connectErSourceCardinality, setConnectErSourceCardinality] = useState(DEFAULT_ER_SOURCE_CARDINALITY);
   const [connectErTargetCardinality, setConnectErTargetCardinality] = useState(DEFAULT_ER_TARGET_CARDINALITY);
+  // canvas-2s6.1: which DiagramContainer.role Add Container/Group into Container will create,
+  // for families with a real role vocabulary (CONTAINER_ROLE_OPTIONS above) — chosen ahead of
+  // time, same "picker visible only while it matters" precedent as connectArrowStyle/the ER
+  // cardinality selects, just not connect-mode-gated since container creation isn't a mode.
+  const containerRoleOptions = CONTAINER_ROLE_OPTIONS[dslFamily];
+  const [containerRoleChoice, setContainerRoleChoice] = useState(containerRoleOptions?.[0]?.value ?? '');
   // canvas-esn: the direction Auto Layout runs with, always visible (unlike connectArrowStyle,
   // which only matters mid-connect) — defaults to the model's own already-parsed direction so
   // re-running layout on an imported diagram doesn't silently flip its axis.
@@ -1023,8 +1055,17 @@ export function Canvas({ model, onChange, dslFamily, toolbarContainer }: CanvasP
     setSelectedContainerId(null);
   };
 
+  // canvas-2s6.1: sequence has no picker (only one groupable role exists there, see
+  // CONTAINER_ROLE_OPTIONS' own comment) so it's applied directly; every other family with a real
+  // role vocabulary uses whatever the "Kind" picker currently shows; families with no container-
+  // role concept at all (erd, architecture, flowchart) get undefined, exactly today's behavior.
+  const roleForNewContainer = (): string | undefined => {
+    if (dslFamily === 'sequence') return 'box';
+    return containerRoleOptions ? containerRoleChoice : undefined;
+  };
+
   const handleAddContainer = () => {
-    onChange(addContainer(model, {}));
+    onChange(addContainer(model, { role: roleForNewContainer() }));
   };
 
   const handleContainerPointerDown = (container: DiagramContainer) => (event: React.PointerEvent) => {
@@ -1266,8 +1307,19 @@ export function Canvas({ model, onChange, dslFamily, toolbarContainer }: CanvasP
 
   /** Wraps the selected shapes in a container. Now routed through the shared operations rather
    *  than building the container inline, so manual, DSL, and future AI edits share one path. */
+  // canvas-2s6.1: UML notes attach via attachedNodeIds (uml.ts's own `note for ClassName` form
+  // references at most ONE class), not the containerId-based multi-node membership every other
+  // role here uses — a fundamentally different shape of "attach" than what this button's own
+  // multi-select-then-wrap gesture represents. Rather than silently dropping every selected node
+  // past the first, or wrapping them in a way serializeUml would then silently ignore on save
+  // (containerId membership in a non-namespace container isn't consulted at all, see
+  // emitNamespace/namespacedNodeIds), a standalone note stays reachable only via the plain "Add
+  // Container" button (then renamed via the existing container-label affordance for its text) —
+  // a disclosed, narrower scope, not a silent gap.
+  const groupSelectedDisabled = selectedIds.size < 2 || (dslFamily === 'uml' && containerRoleChoice === 'note');
+
   const groupSelected = () => {
-    if (selectedIds.size < 2) return;
+    if (groupSelectedDisabled) return;
     const selectedNodes = model.nodes.filter((n) => selectedIds.has(n.id));
     const minX = Math.min(...selectedNodes.map((n) => n.position.x)) - 20;
     const minY = Math.min(...selectedNodes.map((n) => n.position.y)) - 20;
@@ -1277,6 +1329,7 @@ export function Canvas({ model, onChange, dslFamily, toolbarContainer }: CanvasP
     let next = addContainer(model, {
       position: { x: minX, y: minY },
       size: { width: maxX - minX, height: maxY - minY },
+      role: roleForNewContainer(),
     });
     const containerId = next.containers[next.containers.length - 1].id;
     for (const nodeId of selectedIds) {
@@ -1430,6 +1483,25 @@ export function Canvas({ model, onChange, dslFamily, toolbarContainer }: CanvasP
               </label>
             </>
           )}
+          {/* canvas-2s6.1: which role Add Container/Group into Container below will produce —
+              only shown for families with a real container-role vocabulary to pick from. */}
+          {containerRoleOptions && (
+            <label className="field__label" htmlFor="new-container-kind">
+              Container Kind
+              <select
+                id="new-container-kind"
+                data-testid="new-container-kind"
+                value={containerRoleChoice}
+                onChange={(e) => setContainerRoleChoice(e.target.value)}
+              >
+                {containerRoleOptions.map((opt) => (
+                  <option key={opt.value} value={opt.value}>
+                    {opt.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
           <button
             type="button"
             className="btn btn--secondary"
@@ -1443,7 +1515,7 @@ export function Canvas({ model, onChange, dslFamily, toolbarContainer }: CanvasP
             type="button"
             className="btn btn--secondary"
             data-testid="group-selected"
-            disabled={selectedIds.size < 2}
+            disabled={groupSelectedDisabled}
             onClick={groupSelected}
           >
             <Icon name="group" />
