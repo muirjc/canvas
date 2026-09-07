@@ -1,5 +1,5 @@
 import { createEmptyDiagramModel, type DiagramContainer, type DiagramNode, type NodeStyle } from '../model/diagram-model.js';
-import { splitFrontMatter, joinFrontMatter, type CanvasFrontMatter } from './front-matter.js';
+import { splitFrontMatter, joinFrontMatter, stripTrailingComment, type CanvasFrontMatter } from './front-matter.js';
 import type { ParseError, ParseResult } from './types.js';
 import { computeContainmentLayout } from '../model/containment-layout.js';
 
@@ -114,9 +114,16 @@ const ROLE_TO_BOUNDARY_KEYWORD: Record<string, string> = {
   'deployment-node': 'Deployment_Node',
 };
 const BOUNDARY_END = /^\}$/;
-// canvas-??? (title): a real, cross-family Mermaid top-level statement -- only wired up for C4
-// so far (DiagramModel.title's own doc comment tracks the other five families as a follow-up).
+// canvas-79b introduced this here first; canvas-vtg later mirrored it into the other 5 families.
 const TITLE_PATTERN = /^title\s+(.+)$/;
+// jmuir-dtu.17: same cross-family precedent as TITLE_PATTERN. Single-line colon form only; the
+// multi-line `accDescr { ... }` block form is out of scope (a clean parse error, not a silent
+// drop).
+const ACC_TITLE_PATTERN = /^accTitle\s*:\s*(.+)$/;
+const ACC_DESCR_PATTERN = /^accDescr\s*:\s*(.+)$/;
+// jmuir-dtu.18: same shared precedent as flowchart-parser.ts's own copy of this constant/handling
+// -- see that file for the full writeup.
+const MERMAID_CONFIG_DIRECTIVE_PATTERN = /^%%\{.*\}%%$/;
 
 // jmuir-dtu.3: styling macros. Both of Mermaid's documented argument forms are accepted --
 // positional (`UpdateRelStyle(a, b, "red", "blue", "-40", "60")`) and named
@@ -269,25 +276,47 @@ export function parseC4(dsl: string): ParseResult {
   const pendingElementStyles: { id: string; bgColor?: string; borderColor?: string }[] = [];
   const pendingRelStyles: { source: string; target: string; lineColor?: string }[] = [];
   let title: string | undefined;
+  let accTitle: string | undefined;
+  let accDescr: string | undefined;
+  let mermaidConfigDirective: string | undefined;
 
   for (let i = 0; i < lines.length; i += 1) {
     const rawLine = lines[i];
-    const line = rawLine.trim();
+    let line = rawLine.trim();
     if (!line) continue;
-    if (line.startsWith('%%')) continue;
+
+    if (MERMAID_CONFIG_DIRECTIVE_PATTERN.test(line)) {
+      mermaidConfigDirective = line;
+      continue;
+    }
+
+    line = stripTrailingComment(line);
+    if (!line) continue;
 
     if (!level) {
       if (line in HEADER_TO_LEVEL) {
         level = HEADER_TO_LEVEL[line];
         continue;
       }
-      errors.push({ line: i + 1, content: rawLine, message: 'Expected a C4 header (C4Context/C4Container/C4Component/C4Dynamic)' });
+      errors.push({ line: i + 1, content: rawLine, message: 'Expected a C4 header (C4Context/C4Container/C4Component/C4Dynamic/C4Deployment)' });
       continue;
     }
 
     const titleMatch = line.match(TITLE_PATTERN);
     if (titleMatch) {
       title = titleMatch[1];
+      continue;
+    }
+
+    const accTitleMatch = line.match(ACC_TITLE_PATTERN);
+    if (accTitleMatch) {
+      accTitle = accTitleMatch[1];
+      continue;
+    }
+
+    const accDescrMatch = line.match(ACC_DESCR_PATTERN);
+    if (accDescrMatch) {
+      accDescr = accDescrMatch[1];
       continue;
     }
 
@@ -418,6 +447,9 @@ export function parseC4(dsl: string): ParseResult {
   model.containers = Array.from(containersById.values());
   model.edges = edges;
   model.title = title;
+  model.accTitle = accTitle;
+  model.accDescr = accDescr;
+  model.mermaidConfigDirective = mermaidConfigDirective;
   return { model };
 }
 
@@ -461,6 +493,9 @@ export function serializeC4(model: import('../model/diagram-model.js').DiagramMo
   const header = LEVEL_TO_HEADER[model.diagramTypeId] ?? 'C4Context';
   const lines: string[] = [header];
   if (model.title) lines.push(`title ${model.title}`);
+  if (model.mermaidConfigDirective) lines.unshift(model.mermaidConfigDirective);
+  if (model.accTitle) lines.push(`accTitle: ${model.accTitle}`);
+  if (model.accDescr) lines.push(`accDescr: ${model.accDescr}`);
   const emitted = new Set<string>();
   // jmuir-dtu.3.2 / canvas-7vs.11: a container now round-trips the EXACT boundary keyword it was
   // parsed from (captured in its own `role`, ROLE_TO_BOUNDARY_KEYWORD above) -- a real fidelity

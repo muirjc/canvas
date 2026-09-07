@@ -2,7 +2,10 @@ import { splitFrontMatter } from './front-matter.js';
 
 const HEADER_TO_FAMILY: Array<{ pattern: RegExp; family: string }> = [
   { pattern: /^(?:flowchart|graph)\s+(TD|LR|TB|RL|BT)$/i, family: 'flowchart' },
-  { pattern: /^C4(Context|Container|Component|Dynamic)$/, family: 'c4' },
+  // jmuir-dtu.15: c4.ts's own HEADER_TO_LEVEL has supported C4Deployment since jmuir-dtu.3.2, but
+  // this pattern never gained the header -- a raw C4Deployment import failed family detection here
+  // and never reached parseC4 at all.
+  { pattern: /^C4(Context|Container|Component|Dynamic|Deployment)$/, family: 'c4' },
   { pattern: /^sequenceDiagram$/, family: 'sequence' },
   { pattern: /^erDiagram$/, family: 'erd' },
   { pattern: /^classDiagram$/, family: 'uml' },

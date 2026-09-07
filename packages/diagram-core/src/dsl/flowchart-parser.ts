@@ -6,7 +6,7 @@ import {
   type NodeShape,
   type NodeStyle,
 } from '../model/diagram-model.js';
-import { splitFrontMatter } from './front-matter.js';
+import { splitFrontMatter, stripTrailingComment } from './front-matter.js';
 import type { ParseError, ParseResult } from './types.js';
 import { computeContainmentLayout } from '../model/containment-layout.js';
 
@@ -130,6 +130,18 @@ const HEADER = /^(?:flowchart|graph)\s+(TD|LR|TB|RL|BT)$/i;
 // canvas-vtg: a real, cross-family Mermaid top-level statement -- mirrors c4.ts's own
 // TITLE_PATTERN/handling exactly (canvas-79b introduced it there first).
 const TITLE_PATTERN = /^title\s+(.+)$/;
+// jmuir-dtu.17: Mermaid's generic accessibility title/description statements -- same
+// cross-family, mirror-every-parser precedent as TITLE_PATTERN itself. Single-line colon form
+// only; the multi-line `accDescr { ... }` block form is out of scope (a clean parse error, not a
+// silent drop).
+const ACC_TITLE_PATTERN = /^accTitle\s*:\s*(.+)$/;
+const ACC_DESCR_PATTERN = /^accDescr\s*:\s*(.+)$/;
+// jmuir-dtu.18: a `%%{init: {...}}%%` (or other `%%{...}%%`) Mermaid config/theme directive.
+// Matched BEFORE the generic `%%` comment stripping below (it would otherwise be silently
+// swallowed as an ordinary comment, losing its content) -- accepted verbatim, not modeled, same
+// treatment as `architectureAlignments`. Real Mermaid places it before the diagram's own header
+// line, so this must be checked ahead of the header check too. Single-line only.
+const MERMAID_CONFIG_DIRECTIVE_PATTERN = /^%%\{.*\}%%$/;
 const STYLE_DIRECTIVE = new RegExp(`^style\\s+(${ID})\\s+(.+)$`);
 // Mermaid addresses links by their 0-based declaration order (the Nth edge line encountered),
 // not by the platform's internal e1/e2 ids — "default" applies the style to every edge.
@@ -225,6 +237,9 @@ export function parseFlowchart(dsl: string): ParseResult {
   let direction: FlowchartDirection | undefined;
   let edgeCounter = 0;
   let title: string | undefined;
+  let accTitle: string | undefined;
+  let accDescr: string | undefined;
+  let mermaidConfigDirective: string | undefined;
 
   const ensureNode = (id: string, label: string, shape: NodeShape): DiagramNode => {
     let node = nodesById.get(id);
@@ -277,9 +292,16 @@ export function parseFlowchart(dsl: string): ParseResult {
 
   for (let i = 0; i < lines.length; i += 1) {
     const rawLine = lines[i];
-    const line = rawLine.trim();
+    let line = rawLine.trim();
     if (!line) continue;
-    if (line.startsWith('%%')) continue;
+
+    if (MERMAID_CONFIG_DIRECTIVE_PATTERN.test(line)) {
+      mermaidConfigDirective = line;
+      continue;
+    }
+
+    line = stripTrailingComment(line);
+    if (!line) continue;
 
     if (!diagramTypeSeen) {
       const headerMatch = line.match(HEADER);
@@ -295,6 +317,18 @@ export function parseFlowchart(dsl: string): ParseResult {
     const titleMatch = line.match(TITLE_PATTERN);
     if (titleMatch) {
       title = titleMatch[1];
+      continue;
+    }
+
+    const accTitleMatch = line.match(ACC_TITLE_PATTERN);
+    if (accTitleMatch) {
+      accTitle = accTitleMatch[1];
+      continue;
+    }
+
+    const accDescrMatch = line.match(ACC_DESCR_PATTERN);
+    if (accDescrMatch) {
+      accDescr = accDescrMatch[1];
       continue;
     }
 
@@ -496,6 +530,9 @@ export function parseFlowchart(dsl: string): ParseResult {
   const model = createEmptyDiagramModel('flowchart');
   model.direction = direction;
   model.title = title;
+  model.accTitle = accTitle;
+  model.accDescr = accDescr;
+  model.mermaidConfigDirective = mermaidConfigDirective;
   model.nodes = Array.from(nodesById.values());
   model.containers = Array.from(containersById.values());
   model.edges = edges;

@@ -1,5 +1,5 @@
 import { createEmptyDiagramModel, type DiagramModel, type DiagramNode, type EntityAttribute, type NodeStyle } from '../model/diagram-model.js';
-import { splitFrontMatter, joinFrontMatter, type CanvasFrontMatter } from './front-matter.js';
+import { splitFrontMatter, joinFrontMatter, stripTrailingComment, type CanvasFrontMatter } from './front-matter.js';
 import type { FlowchartDirection } from '../model/diagram-model.js';
 import type { ParseError, ParseResult } from './types.js';
 
@@ -42,6 +42,14 @@ const BARE_ENTITY = new RegExp(`^(${ID})$`);
 // direction TB|BT|LR|RL — top-level only (ER has no subgraph-equivalent nesting to scope it to).
 const DIRECTION_PATTERN = /^direction\s+(TB|BT|LR|RL)$/i;
 const TITLE_PATTERN = /^title\s+(.+)$/;
+// jmuir-dtu.17: same cross-family precedent as TITLE_PATTERN. Single-line colon form only; the
+// multi-line `accDescr { ... }` block form is out of scope (a clean parse error, not a silent
+// drop).
+const ACC_TITLE_PATTERN = /^accTitle\s*:\s*(.+)$/;
+const ACC_DESCR_PATTERN = /^accDescr\s*:\s*(.+)$/;
+// jmuir-dtu.18: same shared precedent as flowchart-parser.ts's own copy of this constant/handling
+// -- see that file for the full writeup.
+const MERMAID_CONFIG_DIRECTIVE_PATTERN = /^%%\{.*\}%%$/;
 // style/classDef/class/::: — identical grammar and precedence to flowchart-parser.ts's own
 // versions (style/classDef/class groupings, docs/flowchart-completeness-brief.md grouping C) —
 // each DSL family's parser is self-contained by this codebase's own convention, so this is a
@@ -118,6 +126,9 @@ export function parseErd(dsl: string): ParseResult {
   let openEntity: { id: string; line: number; content: string } | null = null;
   let direction: FlowchartDirection | undefined;
   let title: string | undefined;
+  let accTitle: string | undefined;
+  let accDescr: string | undefined;
+  let mermaidConfigDirective: string | undefined;
 
   // jmuir-dtu.6: style/classDef/class(+shorthand) are applied as a second pass once every entity
   // is known — mirrors flowchart-parser.ts's own style/classDef second-pass convention exactly,
@@ -150,9 +161,16 @@ export function parseErd(dsl: string): ParseResult {
 
   for (let i = 0; i < lines.length; i += 1) {
     const rawLine = lines[i];
-    const line = rawLine.trim();
+    let line = rawLine.trim();
     if (!line) continue;
-    if (line.startsWith('%%')) continue;
+
+    if (MERMAID_CONFIG_DIRECTIVE_PATTERN.test(line)) {
+      mermaidConfigDirective = line;
+      continue;
+    }
+
+    line = stripTrailingComment(line);
+    if (!line) continue;
 
     if (!headerSeen) {
       if (line === 'erDiagram') {
@@ -197,6 +215,18 @@ export function parseErd(dsl: string): ParseResult {
     const titleMatch = line.match(TITLE_PATTERN);
     if (titleMatch) {
       title = titleMatch[1];
+      continue;
+    }
+
+    const accTitleMatch = line.match(ACC_TITLE_PATTERN);
+    if (accTitleMatch) {
+      accTitle = accTitleMatch[1];
+      continue;
+    }
+
+    const accDescrMatch = line.match(ACC_DESCR_PATTERN);
+    if (accDescrMatch) {
+      accDescr = accDescrMatch[1];
       continue;
     }
 
@@ -328,6 +358,9 @@ export function parseErd(dsl: string): ParseResult {
   model.edges = edges;
   model.direction = direction;
   model.title = title;
+  model.accTitle = accTitle;
+  model.accDescr = accDescr;
+  model.mermaidConfigDirective = mermaidConfigDirective;
   return { model };
 }
 
@@ -341,6 +374,9 @@ export function serializeErd(model: DiagramModel): string {
 
   const lines: string[] = ['erDiagram'];
   if (model.title) lines.push(`title ${model.title}`);
+  if (model.mermaidConfigDirective) lines.unshift(model.mermaidConfigDirective);
+  if (model.accTitle) lines.push(`accTitle: ${model.accTitle}`);
+  if (model.accDescr) lines.push(`accDescr: ${model.accDescr}`);
   if (model.direction) lines.push(`direction ${model.direction}`);
 
   const declared = new Set<string>();
