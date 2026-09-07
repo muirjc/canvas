@@ -332,6 +332,26 @@ export interface AddContainerInput {
   label?: string;
   position?: Position;
   size?: Size;
+  /** canvas-2s6.1: semantic kind — mirrors DiagramContainer.role's own vocabulary (see its doc
+   *  comment for the full per-family list: sequence's block/note/box roles, UML's namespace/note,
+   *  C4's five boundary kinds, ...). Omitted means a plain, role-less container — exactly today's
+   *  pre-existing behavior, so every current caller (groupSelected, groupIntoContainer) is
+   *  unaffected until it opts in. */
+  role?: string;
+  /** canvas-2s6.1: nests the new container inside an existing one (C4/UML nesting). Omitted means
+   *  top-level, exactly today's pre-existing behavior. */
+  parentContainerId?: string;
+  /** canvas-2s6.1: sequence notes (role starts with 'note-') and UML's attached 'note' form need
+   *  this at creation to be meaningful — see DiagramContainer.attachedNodeIds. Every other role
+   *  ignores it. */
+  attachedNodeIds?: string[];
+  /** canvas-2s6.1: sequence diagrams only — this container's own position on the message
+   *  timeline (mirrors DiagramEdge.sequenceOrder; see computeSequenceLayout). Omitted means unset,
+   *  correct for every role that sits outside the timeline entirely ('box', every non-sequence
+   *  role) — the caller (not this pure op) is responsible for computing "append at the end of the
+   *  timeline" the same way addPointMarkerContainer's own maxOrder+1 already does, since that's a
+   *  read of the current model the caller already has in hand. */
+  sequenceOrder?: number;
 }
 
 /** Appends a container. Creates no membership — shapes join by being assigned, not by geometry. */
@@ -343,8 +363,79 @@ export function addContainer(model: DiagramModel, input: AddContainerInput): Dia
     position: input.position ?? { x: 40 + (index % 3) * 360, y: 40 + Math.floor(index / 3) * 260 },
     // Never conditional: see DEFAULT_CONTAINER_SIZE.
     size: input.size ?? DEFAULT_CONTAINER_SIZE,
+    role: input.role,
+    parentContainerId: input.parentContainerId,
+    attachedNodeIds: input.attachedNodeIds,
+    sequenceOrder: input.sequenceOrder,
   };
   return { ...model, containers: [...model.containers, container] };
+}
+
+/** Sets a container's semantic role (e.g. "namespace", "system-boundary", "box" — see
+ *  DiagramContainer.role's own doc comment for the full per-family vocabulary). Mirrors
+ *  updateNodeRole's exact shape. No-op for an unknown id. */
+export function setContainerRole(model: DiagramModel, containerId: string, role: string): DiagramModel {
+  if (!model.containers.some((c) => c.id === containerId)) return model;
+  return {
+    ...model,
+    containers: model.containers.map((c) => (c.id === containerId ? { ...c, role } : c)),
+  };
+}
+
+/** Nests a container inside another (C4/UML nesting) — mirrors assignNodeToContainer's exact
+ *  shape. No-op if either id is missing, or if a container would be nested inside itself. */
+export function setContainerParent(
+  model: DiagramModel,
+  containerId: string,
+  parentContainerId: string,
+): DiagramModel {
+  if (containerId === parentContainerId) return model;
+  if (!model.containers.some((c) => c.id === containerId)) return model;
+  if (!model.containers.some((c) => c.id === parentContainerId)) return model;
+  return {
+    ...model,
+    containers: model.containers.map((c) => (c.id === containerId ? { ...c, parentContainerId } : c)),
+  };
+}
+
+/** Un-nests a container back to top-level — mirrors removeNodeFromContainer's exact shape. No-op
+ *  for an unknown id. */
+export function removeContainerParent(model: DiagramModel, containerId: string): DiagramModel {
+  if (!model.containers.some((c) => c.id === containerId)) return model;
+  return {
+    ...model,
+    containers: model.containers.map((c) => {
+      if (c.id !== containerId) return c;
+      const { parentContainerId: _removed, ...rest } = c;
+      return rest;
+    }),
+  };
+}
+
+/** Sequence diagrams only: nests a message inside a control-flow block/branch container — mirrors
+ *  assignNodeToContainer's exact shape, for DiagramEdge.containerId instead of
+ *  DiagramNode.containerId. No-op for an unknown edge or container id. */
+export function assignEdgeToContainer(model: DiagramModel, edgeId: string, containerId: string): DiagramModel {
+  if (!model.edges.some((e) => e.id === edgeId)) return model;
+  if (!model.containers.some((c) => c.id === containerId)) return model;
+  return {
+    ...model,
+    edges: model.edges.map((e) => (e.id === edgeId ? { ...e, containerId } : e)),
+  };
+}
+
+/** Removes a message from whatever control-flow block it is in — mirrors
+ *  removeNodeFromContainer's exact shape. No-op for an unknown id. */
+export function removeEdgeFromContainer(model: DiagramModel, edgeId: string): DiagramModel {
+  if (!model.edges.some((e) => e.id === edgeId)) return model;
+  return {
+    ...model,
+    edges: model.edges.map((e) => {
+      if (e.id !== edgeId) return e;
+      const { containerId: _removed, ...rest } = e;
+      return rest;
+    }),
+  };
 }
 
 /** Renames a container. Like shapes, containers always keep a non-empty label. */
@@ -444,6 +535,11 @@ export function removeNodeFromContainer(model: DiagramModel, nodeId: string): Di
  *
  * Deleting a container never deletes shapes: members are freed by clearing `containerId`, with
  * positions untouched, and child containers are re-parented rather than removed.
+ *
+ * canvas-2s6.1: also releases member EDGES (a sequence block's own messages, via
+ * `DiagramEdge.containerId`) the same way — this membership concept didn't exist before this
+ * bead, so nothing previously exercised it, but leaving it out now would be exactly the "dangling
+ * reference" FR-013 already guards against for nodes.
  */
 export function removeContainer(model: DiagramModel, containerId: string): DiagramModel {
   if (!model.containers.some((c) => c.id === containerId)) return model;
@@ -459,6 +555,11 @@ export function removeContainer(model: DiagramModel, containerId: string): Diagr
     nodes: model.nodes.map((n) => {
       if (n.containerId !== containerId) return n;
       const { containerId: _released, ...rest } = n;
+      return rest;
+    }),
+    edges: model.edges.map((e) => {
+      if (e.containerId !== containerId) return e;
+      const { containerId: _released, ...rest } = e;
       return rest;
     }),
   };

@@ -17,6 +17,7 @@ import {
   updateNodeLabel,
   updateNodeRole,
   updateNodeStyle,
+  C4_BOUNDARY_ROLES,
   type DiagramEdge,
   type DiagramModel,
   type NodeShape,
@@ -105,6 +106,23 @@ const CONNECTOR_LINE_STYLE_OPTIONS: Partial<Record<string, readonly [LineStyleVa
  *  Not `erd` (no ER grouping concept) or `flowchart` (subgraphs are authored structurally by the
  *  canvas/DSL, not a natural chat request in this feature's scope). */
 const GROUPABLE_FAMILIES = new Set(['architecture', 'c4', 'uml', 'sequence']);
+/** canvas-2s6.1: which `DiagramContainer.role` values `groupIntoContainer` can produce, per
+ *  family — confirmed against each family's own `dsl/*.ts` parser vocabulary (see
+ *  diagram-model.ts's `role` doc comment for the authoritative list), same convention as
+ *  NODE_ROLE_OPTIONS above. `architecture` intentionally has no entry: architecture-beta groups
+ *  carry no role concept at all (every group serializes identically regardless), unlike the other
+ *  three groupable families. Sequence's ranged control-flow blocks (loop/alt/opt/par/critical/
+ *  break/rect) are NOT listed here — they enclose a range of MESSAGES, not the node-based
+ *  membership `groupIntoContainer`'s own `nodeIds` grants; only 'box' (a participant grouping,
+ *  membership by node like every other role here) fits this tool's existing shape. Ranged-block
+ *  creation is deliberately out of scope for this bead — filed as its own follow-up
+ *  (canvas-2s6.2) since it needs a new message-range concept this tool doesn't have.
+ */
+const CONTAINER_ROLE_OPTIONS: Partial<Record<string, readonly [string, ...string[]]>> = {
+  c4: C4_BOUNDARY_ROLES,
+  uml: ['namespace', 'note'],
+  sequence: ['box'],
+};
 
 const stylePatchSchema = {
   fillColor: z.string().optional().describe('Fill color as a hex code, e.g. "#1168bd".'),
@@ -409,31 +427,54 @@ export function createDiagramTools(context: DiagramToolsContext, family: string)
         })
       : undefined;
 
-  const groupIntoContainer = GROUPABLE_FAMILIES.has(family)
-    ? tool({
-        description:
-          'Group one or more existing shapes into a new labeled container (a boundary/namespace/box, ' +
-          "depending on the diagram type). Returns the new container's id.",
-        inputSchema: z.object({
-          nodeIds: z.array(z.string()).min(1).describe('Ids of the shapes to group together.'),
-          label: z.string().optional().describe('Label for the new container. Defaults to "Container" if omitted.'),
-        }),
-        execute: async ({ nodeIds, label }) => {
-          let model = context.getModel();
-          const existingIds = nodeIds.filter((id) => model.nodes.some((n) => n.id === id));
-          if (existingIds.length === 0) {
-            return record('groupIntoContainer', { applied: false, reason: `No shape with id '${nodeIds[0]}' was found.` });
-          }
-          model = addContainer(model, { label });
-          const container = model.containers[model.containers.length - 1];
-          for (const id of existingIds) {
-            model = assignNodeToContainer(model, id, container.id);
-          }
-          context.setModel(model);
-          return { ...record('groupIntoContainer', { applied: true }), containerId: container.id };
-        },
-      })
-    : undefined;
+  const containerRoleOptions = CONTAINER_ROLE_OPTIONS[family];
+  // Two concrete schema shapes (a fixed `kind` enum vs none at all) rather than conditionally
+  // spreading one field into a single z.object() call — the latter defeats `tool()`'s generic
+  // inference (the inferred input type becomes a union `execute` can't cleanly destructure from).
+  // Sharing this execute body between both branches keeps the actual grouping logic written once.
+  const groupIntoContainerExecute = async (nodeIds: string[], label: string | undefined, kind: string | undefined) => {
+    let model = context.getModel();
+    const existingIds = nodeIds.filter((id) => model.nodes.some((n) => n.id === id));
+    if (existingIds.length === 0) {
+      return record('groupIntoContainer', { applied: false, reason: `No shape with id '${nodeIds[0]}' was found.` });
+    }
+    model = addContainer(model, { label, role: kind ?? containerRoleOptions?.[0] });
+    const container = model.containers[model.containers.length - 1];
+    for (const id of existingIds) {
+      model = assignNodeToContainer(model, id, container.id);
+    }
+    context.setModel(model);
+    return { ...record('groupIntoContainer', { applied: true }), containerId: container.id };
+  };
+  const groupIntoContainerDescription =
+    'Group one or more existing shapes into a new labeled container (a boundary/namespace/box, ' +
+    "depending on the diagram type). Returns the new container's id.";
+  const groupIntoContainer = !GROUPABLE_FAMILIES.has(family)
+    ? undefined
+    : containerRoleOptions
+      ? tool({
+          description: groupIntoContainerDescription,
+          inputSchema: z.object({
+            nodeIds: z.array(z.string()).min(1).describe('Ids of the shapes to group together.'),
+            label: z.string().optional().describe('Label for the new container. Defaults to "Container" if omitted.'),
+            kind: z
+              .enum(containerRoleOptions)
+              .optional()
+              .describe(
+                `The kind of container to create (one of: ${containerRoleOptions.join(', ')}). ` +
+                  `Defaults to "${containerRoleOptions[0]}" if omitted.`,
+              ),
+          }),
+          execute: async ({ nodeIds, label, kind }) => groupIntoContainerExecute(nodeIds, label, kind),
+        })
+      : tool({
+          description: groupIntoContainerDescription,
+          inputSchema: z.object({
+            nodeIds: z.array(z.string()).min(1).describe('Ids of the shapes to group together.'),
+            label: z.string().optional().describe('Label for the new container. Defaults to "Container" if omitted.'),
+          }),
+          execute: async ({ nodeIds, label }) => groupIntoContainerExecute(nodeIds, label, undefined),
+        });
 
   const makeActivationTool = (role: 'activate' | 'deactivate') =>
     tool({

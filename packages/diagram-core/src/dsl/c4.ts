@@ -106,6 +106,17 @@ const BOUNDARY_KEYWORD_TO_ROLE: Record<string, string> = {
   Node_L: 'deployment-node',
   Node_R: 'deployment-node',
 };
+/** canvas-2s6.1: the 5 distinct roles BOUNDARY_KEYWORD_TO_ROLE's 8 keywords collapse onto —
+ *  exported as the single source of truth for the AI tool schema (diagram-tools.ts) and the
+ *  canvas UI's own boundary-kind picker, so neither can drift from what this parser actually
+ *  recognizes. */
+export const C4_BOUNDARY_ROLES = [
+  'boundary',
+  'system-boundary',
+  'container-boundary',
+  'enterprise-boundary',
+  'deployment-node',
+] as const;
 const ROLE_TO_BOUNDARY_KEYWORD: Record<string, string> = {
   boundary: 'Boundary',
   'system-boundary': 'System_Boundary',

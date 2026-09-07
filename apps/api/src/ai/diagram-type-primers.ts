@@ -40,8 +40,9 @@ const PRIMERS: Record<string, DiagramTypePrimer> = {
       '(each optionally marked external) — describing what kind of thing it represents, not just ' +
       'a visual shape; most elements are drawn as a rectangle, except a database (a cylinder ' +
       'shape) or a message queue (a stadium/pill shape). Related elements can be grouped inside a ' +
-      'labeled boundary. Relationships describe how elements interact, usually with a short ' +
-      'description of the interaction.',
+      'labeled boundary — a generic boundary, a system boundary, a container boundary, an ' +
+      'enterprise boundary, or (for deployment diagrams) a deployment node. Relationships ' +
+      'describe how elements interact, usually with a short description of the interaction.',
   },
   sequence: {
     dslFamily: 'sequence',
@@ -71,7 +72,9 @@ const PRIMERS: Record<string, DiagramTypePrimer> = {
       'specific kind — inheritance, composition, aggregation, association, dependency, ' +
       'realization, a plain solid or dashed link (link-solid/link-dashed), or a lollipop ' +
       'interface connection (lollipop-source/lollipop-target) — that carries real meaning, ' +
-      'distinct from a plain connector, and may carry a cardinality label at either end.',
+      'distinct from a plain connector, and may carry a cardinality label at either end. Related ' +
+      'classes can be grouped into a namespace, and a note can be attached to a class or stand ' +
+      'alone to hold free-form commentary.',
   },
   architecture: {
     dslFamily: 'architecture',

@@ -504,6 +504,22 @@ describe('groupIntoContainer (architecture, c4, uml, sequence)', () => {
     expect(model.nodes.find((n) => n.id === 'b')!.containerId).toBe(containerId);
   });
 
+  // canvas-2s6.1: previously groupIntoContainer never set a role at all — every AI-created
+  // boundary/namespace/box was role-less, indistinguishable from a plain flowchart subgraph.
+  it("defaults the new container's role to the family's first container-role option when kind is omitted", async () => {
+    await tools.groupIntoContainer.execute!({ nodeIds: ['a', 'b'], label: 'Boundary' }, { toolCallId: 't1', messages: [] });
+    // c4's own first option is 'boundary' (C4_BOUNDARY_ROLES[0]).
+    expect(model.containers[0].role).toBe('boundary');
+  });
+
+  it('uses an explicitly given kind over the default', async () => {
+    await tools.groupIntoContainer.execute!(
+      { nodeIds: ['a', 'b'], label: 'Boundary', kind: 'enterprise-boundary' },
+      { toolCallId: 't1', messages: [] },
+    );
+    expect(model.containers[0].role).toBe('enterprise-boundary');
+  });
+
   it('groups only the nodeIds that exist when some are missing', async () => {
     const result = await tools.groupIntoContainer.execute!(
       { nodeIds: ['a', 'does-not-exist'], label: 'Boundary' },
@@ -524,6 +540,52 @@ describe('groupIntoContainer (architecture, c4, uml, sequence)', () => {
     expect(result).toEqual({ applied: false, reason: expect.stringContaining('does-not-exist') });
     expect(model).toBe(before);
     expect(model.containers).toHaveLength(0);
+  });
+});
+
+/**
+ * canvas-2s6.1: groupIntoContainer's role default/kind option is family-specific -- one describe
+ * block per family with a real role vocabulary (uml, sequence), plus architecture confirming its
+ * own deliberate NO-role-concept behavior is unchanged (architecture-beta groups carry no role at
+ * all -- CONTAINER_ROLE_OPTIONS has no 'architecture' entry).
+ */
+describe('groupIntoContainer role defaults, per family', () => {
+  const makeTools = (family: string) => {
+    let model: DiagramModel = {
+      diagramTypeId: family,
+      nodes: [{ id: 'a', label: 'A', shape: 'rectangle', position: { x: 0, y: 0 } }],
+      edges: [],
+      containers: [],
+    };
+    const tools = createDiagramTools({ getModel: () => model, setModel: (m) => { model = m; } }, family);
+    return { tools, getModel: () => model };
+  };
+
+  it("uml: defaults to 'namespace'", async () => {
+    const { tools, getModel } = makeTools('uml');
+    await tools.groupIntoContainer!.execute!({ nodeIds: ['a'], label: 'Domain' }, { toolCallId: 't1', messages: [] });
+    expect(getModel().containers[0].role).toBe('namespace');
+  });
+
+  it("uml: an explicit kind of 'note' overrides the default", async () => {
+    const { tools, getModel } = makeTools('uml');
+    await tools.groupIntoContainer!.execute!(
+      { nodeIds: ['a'], label: 'Domain', kind: 'note' },
+      { toolCallId: 't1', messages: [] },
+    );
+    expect(getModel().containers[0].role).toBe('note');
+  });
+
+  it("sequence: defaults to 'box', its only groupIntoContainer-reachable role", async () => {
+    const { tools, getModel } = makeTools('sequence');
+    await tools.groupIntoContainer!.execute!({ nodeIds: ['a'], label: 'Frontend' }, { toolCallId: 't1', messages: [] });
+    expect(getModel().containers[0].role).toBe('box');
+  });
+
+  it('architecture: still creates a role-less container, unchanged (no container-role concept there)', async () => {
+    const { tools, getModel } = makeTools('architecture');
+    await tools.groupIntoContainer!.execute!({ nodeIds: ['a'], label: 'Cluster' }, { toolCallId: 't1', messages: [] });
+    expect(getModel().containers[0].role).toBeUndefined();
   });
 });
 
