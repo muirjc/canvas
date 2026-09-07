@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { parseFlowchart } from '../../src/dsl/flowchart-parser.js';
 import { parseSequence } from '../../src/dsl/sequence.js';
 import { parseUml } from '../../src/dsl/uml.js';
 import { parseErd } from '../../src/dsl/erd.js';
@@ -42,5 +43,57 @@ describe('%% comments are ignored in every diagram type', () => {
     expect(isParseSuccess(parseErd('erDiagram\n%% ok\n???not-valid???\n'))).toBe(false);
     expect(isParseSuccess(parseC4('C4Context\n%% ok\n???not-valid???\n'))).toBe(false);
     expect(isParseSuccess(parseArchitecture('architecture-beta\n%% ok\n???not-valid???\n'))).toBe(false);
+  });
+});
+
+/**
+ * jmuir-dtu.16: every parser above only ever recognized a WHOLE-line comment
+ * (`line.startsWith('%%')`) — a trailing same-line comment (`A --> B %% note`) failed every
+ * construct regex on that line and hard-errored instead of being stripped, in all 6 families
+ * (flowchart included, even though its whole-line support predates this file). Shared fix:
+ * `stripTrailingComment` in `front-matter.ts`, used by every parser.
+ */
+describe('trailing same-line %% comments are stripped in every diagram type', () => {
+  it('flowchart', () => {
+    const result = parseFlowchart('flowchart TD\n  A[Start] %% node comment\n  B[End]\n  A --> B %% edge comment\n');
+    expect(isParseSuccess(result)).toBe(true);
+    if (isParseSuccess(result)) {
+      expect(result.model.nodes.find((n) => n.id === 'A')!.label).toBe('Start');
+      expect(result.model.edges).toHaveLength(1);
+    }
+  });
+
+  it('sequence diagram', () => {
+    const result = parseSequence('sequenceDiagram\nparticipant A %% trailing\nA->>A: hi %% trailing\n');
+    expect(isParseSuccess(result)).toBe(true);
+  });
+
+  it('class/UML diagram', () => {
+    const result = parseUml('classDiagram\nclass Animal %% trailing\n');
+    expect(isParseSuccess(result)).toBe(true);
+  });
+
+  it('ER diagram', () => {
+    const result = parseErd('erDiagram\nCUSTOMER ||--o{ ORDER : places %% trailing\n');
+    expect(isParseSuccess(result)).toBe(true);
+  });
+
+  it('C4 diagram', () => {
+    const result = parseC4('C4Context\nPerson(user, "User") %% trailing\n');
+    expect(isParseSuccess(result)).toBe(true);
+  });
+
+  it('architecture diagram', () => {
+    const result = parseArchitecture('architecture-beta\nservice a(server)[A] %% trailing\n');
+    expect(isParseSuccess(result)).toBe(true);
+  });
+
+  it('a genuinely unrecognized line with a trailing comment still errors (comments do not suppress real errors)', () => {
+    expect(isParseSuccess(parseFlowchart('flowchart TD\n  ???not-valid??? %% ok\n'))).toBe(false);
+    expect(isParseSuccess(parseSequence('sequenceDiagram\n???not-valid??? %% ok\n'))).toBe(false);
+    expect(isParseSuccess(parseUml('classDiagram\n???not-valid??? %% ok\n'))).toBe(false);
+    expect(isParseSuccess(parseErd('erDiagram\n???not-valid??? %% ok\n'))).toBe(false);
+    expect(isParseSuccess(parseC4('C4Context\n???not-valid??? %% ok\n'))).toBe(false);
+    expect(isParseSuccess(parseArchitecture('architecture-beta\n???not-valid??? %% ok\n'))).toBe(false);
   });
 });

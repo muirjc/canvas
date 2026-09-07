@@ -107,6 +107,27 @@ describe('Import API contract', () => {
     expect(response.json().diagram.diagramTypeId).toBe('c4-context');
   });
 
+  // jmuir-dtu.15: detectDslFamily's C4 pattern never included the "Deployment" header variant, so
+  // a raw C4Deployment paste failed family detection entirely (before parseC4 -- which has
+  // supported C4Deployment since jmuir-dtu.3.2 -- was ever reached) and could not be imported
+  // without a hint. Only "c4-context" is seeded as a c4-family diagram_types row in this test file,
+  // so a no-hint import correctly falls back to it (auto-resolution picks any row sharing the
+  // detected "c4" dsl_family, per import.service.ts) -- what this test actually proves is that
+  // detection/parsing succeeds at all, not which specific c4-* diagramTypeId is chosen.
+  it('imports a valid C4Deployment diagram and resolves a c4-family diagram type without a hint', async () => {
+    const response = await app.inject({
+      method: 'POST',
+      url: `/projects/${projectId}/diagrams/import`,
+      headers: { cookie: sessionCookie },
+      payload: {
+        name: 'Imported C4 Deployment',
+        dslContent: 'C4Deployment\n  Deployment_Node(live, "Live") {\n  }\n',
+      },
+    });
+    expect(response.statusCode).toBe(201);
+    expect(response.json().diagram.diagramTypeId).toBe('c4-context');
+  });
+
   it('rejects a hint whose DSL family does not match the content', async () => {
     const response = await app.inject({
       method: 'POST',

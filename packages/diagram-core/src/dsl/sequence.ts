@@ -4,7 +4,7 @@ import {
   type DiagramModel,
   type DiagramNode,
 } from '../model/diagram-model.js';
-import { splitFrontMatter, joinFrontMatter, type CanvasFrontMatter } from './front-matter.js';
+import { splitFrontMatter, joinFrontMatter, stripTrailingComment, type CanvasFrontMatter } from './front-matter.js';
 import type { ParseError, ParseResult } from './types.js';
 
 const ID = String.raw`[A-Za-z0-9_]+`;
@@ -71,6 +71,14 @@ const BOX_START = /^box(?:\s+(rgba?\([^)]*\)|transparent))?(?:\s+(.+))?$/;
 // jmuir-dtu.4: `autonumber`, `autonumber off`, or `autonumber <start> <step>` (decimals allowed).
 const AUTONUMBER_PATTERN = /^autonumber(?:\s+(off)|\s+(\d+(?:\.\d+)?)\s+(\d+(?:\.\d+)?))?$/;
 const TITLE_PATTERN = /^title\s+(.+)$/;
+// jmuir-dtu.17: same cross-family precedent as TITLE_PATTERN. Single-line colon form only; the
+// multi-line `accDescr { ... }` block form is out of scope (a clean parse error, not a silent
+// drop).
+const ACC_TITLE_PATTERN = /^accTitle\s*:\s*(.+)$/;
+const ACC_DESCR_PATTERN = /^accDescr\s*:\s*(.+)$/;
+// jmuir-dtu.18: same shared precedent as flowchart-parser.ts's own copy of this constant/handling
+// -- see that file for the full writeup.
+const MERMAID_CONFIG_DIRECTIVE_PATTERN = /^%%\{.*\}%%$/;
 
 // canvas-7vs.1: sequence-diagram position is now fully computed by computeSequenceLayout()
 // (packages/diagram-core/src/render/sequence-layout.ts) from the model's own declaration/message
@@ -115,6 +123,9 @@ export function parseSequence(dsl: string): ParseResult {
   let orderCounter = 0;
   let autonumber: { start?: number; step?: number } | undefined;
   let title: string | undefined;
+  let accTitle: string | undefined;
+  let accDescr: string | undefined;
+  let mermaidConfigDirective: string | undefined;
 
   // Stack of currently-open top-level blocks (loop/alt/opt/par/critical/break/rect).
   // `currentChildId` tracks the most recent else/and/option branch, if any — messages attach to
@@ -169,9 +180,16 @@ export function parseSequence(dsl: string): ParseResult {
 
   for (let i = 0; i < lines.length; i += 1) {
     const rawLine = lines[i];
-    const line = rawLine.trim();
+    let line = rawLine.trim();
     if (!line) continue;
-    if (line.startsWith('%%')) continue;
+
+    if (MERMAID_CONFIG_DIRECTIVE_PATTERN.test(line)) {
+      mermaidConfigDirective = line;
+      continue;
+    }
+
+    line = stripTrailingComment(line);
+    if (!line) continue;
 
     if (!headerSeen) {
       if (line === 'sequenceDiagram') {
@@ -187,6 +205,18 @@ export function parseSequence(dsl: string): ParseResult {
     const titleMatch = line.match(TITLE_PATTERN);
     if (titleMatch) {
       title = titleMatch[1];
+      continue;
+    }
+
+    const accTitleMatch = line.match(ACC_TITLE_PATTERN);
+    if (accTitleMatch) {
+      accTitle = accTitleMatch[1];
+      continue;
+    }
+
+    const accDescrMatch = line.match(ACC_DESCR_PATTERN);
+    if (accDescrMatch) {
+      accDescr = accDescrMatch[1];
       continue;
     }
 
@@ -379,6 +409,9 @@ export function parseSequence(dsl: string): ParseResult {
   model.containers = Array.from(containersById.values());
   if (autonumber) model.sequenceAutonumber = autonumber;
   model.title = title;
+  model.accTitle = accTitle;
+  model.accDescr = accDescr;
+  model.mermaidConfigDirective = mermaidConfigDirective;
   return { model };
 }
 
@@ -464,6 +497,9 @@ export function serializeSequence(model: DiagramModel): string {
 
   const lines: string[] = ['sequenceDiagram'];
   if (model.title) lines.push(`title ${model.title}`);
+  if (model.mermaidConfigDirective) lines.unshift(model.mermaidConfigDirective);
+  if (model.accTitle) lines.push(`accTitle: ${model.accTitle}`);
+  if (model.accDescr) lines.push(`accDescr: ${model.accDescr}`);
   if (model.sequenceAutonumber) {
     const { start, step } = model.sequenceAutonumber;
     lines.push(start !== undefined && step !== undefined ? `autonumber ${start} ${step}` : 'autonumber');

@@ -235,10 +235,16 @@ export type FlowchartDirection = 'TD' | 'LR' | 'TB' | 'RL' | 'BT';
 export interface DiagramModel {
   diagramTypeId: string;
   /** A real, cross-family Mermaid top-level statement (`title <text>`, right after the diagram's
-   *  own header line) — currently only recognized by C4 (parseC4/serializeC4). The other five
-   *  families don't accept it yet (a real `title` line there currently hard-errors); tracked as
-   *  its own follow-up rather than silently left inconsistent. */
+   *  own header line) — recognized identically by all 6 families (canvas-vtg mirrored c4.ts's own
+   *  original TITLE_PATTERN/handling into the other five). */
   title?: string;
+  /** jmuir-dtu.17: `accTitle: <text>` / `accDescr: <text>` — Mermaid's generic accessibility
+   *  title/description statements, recognized identically by all 6 families (same TITLE_PATTERN-
+   *  style precedent `title` itself already established). Scoped to the single-line colon form
+   *  only; real Mermaid's multi-line `accDescr { ... }` block form is not supported — out of
+   *  scope, not a silent drop (a diagram using it hits a clean, structured parse error). */
+  accTitle?: string;
+  accDescr?: string;
   /** Flowchart and ER diagrams (`graph <direction>` / `direction <direction>` respectively): the
    *  parsed top-level direction, preserved for round-trip serialization. Not yet used to drive
    *  auto-layout for either family (see `autoLayout()`'s own flowchart-only scoping). */
@@ -259,6 +265,15 @@ export interface DiagramModel {
    *  `direction`'s own front-matter-free flowchart/ER precedent this mirrors) — this app has no
    *  auto-layout for architecture diagrams yet, so it doesn't drive positioning. */
   architectureAlignments?: { axis: 'row' | 'column'; ids: string[] }[];
+  /** jmuir-dtu.18: a `%%{init: {...}}%%` (or other `%%{...}%%`) Mermaid config/theme directive,
+   *  preserved verbatim — not modeled (this app has no theming concept to parse it into), same
+   *  "accept, don't model, don't lose it" treatment as `architectureAlignments` above. Before this
+   *  field existed, such a block matched the generic `%%`-comment check and was silently
+   *  discarded with no trace; now it's captured and re-emitted unchanged as the diagram's first
+   *  line, matching real Mermaid's own convention of it preceding the diagram-type header. Only a
+   *  single-line block is supported (real Mermaid usage is overwhelmingly one line); if more than
+   *  one appears in a file, the last one wins — a disclosed simplification, not a silent drop. */
+  mermaidConfigDirective?: string;
 }
 
 export function createEmptyDiagramModel(diagramTypeId: string): DiagramModel {

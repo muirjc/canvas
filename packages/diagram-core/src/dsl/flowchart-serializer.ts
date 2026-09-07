@@ -99,6 +99,9 @@ export function serializeFlowchart(model: DiagramModel): string {
 
   const bodyLines: string[] = [`flowchart ${model.direction ?? 'TD'}`];
   if (model.title) bodyLines.push(`title ${model.title}`);
+  if (model.mermaidConfigDirective) bodyLines.unshift(model.mermaidConfigDirective);
+  if (model.accTitle) bodyLines.push(`accTitle: ${model.accTitle}`);
+  if (model.accDescr) bodyLines.push(`accDescr: ${model.accDescr}`);
   const emittedNodeIds = new Set<string>();
 
   const topLevelContainers = model.containers.filter((c) => !c.parentContainerId);

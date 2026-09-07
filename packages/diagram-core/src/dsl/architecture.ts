@@ -1,5 +1,5 @@
 import { createEmptyDiagramModel, type DiagramContainer, type DiagramModel, type DiagramNode } from '../model/diagram-model.js';
-import { splitFrontMatter, joinFrontMatter, type CanvasFrontMatter } from './front-matter.js';
+import { splitFrontMatter, joinFrontMatter, stripTrailingComment, type CanvasFrontMatter } from './front-matter.js';
 import type { ParseError, ParseResult } from './types.js';
 
 const ID = String.raw`[A-Za-z0-9_]+`;
@@ -7,6 +7,14 @@ const ID = String.raw`[A-Za-z0-9_]+`;
 // group groupId(icon)[Title]
 const GROUP_PATTERN = new RegExp(`^group\\s+(${ID})\\(([^)]*)\\)\\[(.+)\\]$`);
 const TITLE_PATTERN = /^title\s+(.+)$/;
+// jmuir-dtu.17: same cross-family precedent as TITLE_PATTERN. Single-line colon form only; the
+// multi-line `accDescr { ... }` block form is out of scope (a clean parse error, not a silent
+// drop).
+const ACC_TITLE_PATTERN = /^accTitle\s*:\s*(.+)$/;
+const ACC_DESCR_PATTERN = /^accDescr\s*:\s*(.+)$/;
+// jmuir-dtu.18: same shared precedent as flowchart-parser.ts's own copy of this constant/handling
+// -- see that file for the full writeup.
+const MERMAID_CONFIG_DIRECTIVE_PATTERN = /^%%\{.*\}%%$/;
 // service serviceId(icon)[Title] in groupId
 const SERVICE_PATTERN = new RegExp(`^service\\s+(${ID})\\(([^)]*)\\)\\[(.+?)\\](?:\\s+in\\s+(${ID}))?$`);
 // jmuir-dtu.5: junction junctionId (in groupId)? -- "a special type of node which acts as a
@@ -68,12 +76,22 @@ export function parseArchitecture(dsl: string): ParseResult {
   let headerSeen = false;
   let edgeCounter = 0;
   let title: string | undefined;
+  let accTitle: string | undefined;
+  let accDescr: string | undefined;
+  let mermaidConfigDirective: string | undefined;
 
   for (let i = 0; i < lines.length; i += 1) {
     const rawLine = lines[i];
-    const line = rawLine.trim();
+    let line = rawLine.trim();
     if (!line) continue;
-    if (line.startsWith('%%')) continue;
+
+    if (MERMAID_CONFIG_DIRECTIVE_PATTERN.test(line)) {
+      mermaidConfigDirective = line;
+      continue;
+    }
+
+    line = stripTrailingComment(line);
+    if (!line) continue;
 
     if (!headerSeen) {
       if (line === 'architecture-beta') {
@@ -89,6 +107,18 @@ export function parseArchitecture(dsl: string): ParseResult {
     const titleMatch = line.match(TITLE_PATTERN);
     if (titleMatch) {
       title = titleMatch[1];
+      continue;
+    }
+
+    const accTitleMatch = line.match(ACC_TITLE_PATTERN);
+    if (accTitleMatch) {
+      accTitle = accTitleMatch[1];
+      continue;
+    }
+
+    const accDescrMatch = line.match(ACC_DESCR_PATTERN);
+    if (accDescrMatch) {
+      accDescr = accDescrMatch[1];
       continue;
     }
 
@@ -173,6 +203,9 @@ export function parseArchitecture(dsl: string): ParseResult {
   model.edges = edges;
   if (alignments.length > 0) model.architectureAlignments = alignments;
   model.title = title;
+  model.accTitle = accTitle;
+  model.accDescr = accDescr;
+  model.mermaidConfigDirective = mermaidConfigDirective;
   return { model };
 }
 
@@ -191,6 +224,9 @@ export function serializeArchitecture(model: DiagramModel): string {
 
   const lines: string[] = ['architecture-beta'];
   if (model.title) lines.push(`title ${model.title}`);
+  if (model.mermaidConfigDirective) lines.unshift(model.mermaidConfigDirective);
+  if (model.accTitle) lines.push(`accTitle: ${model.accTitle}`);
+  if (model.accDescr) lines.push(`accDescr: ${model.accDescr}`);
   for (const group of model.containers) {
     lines.push(`group ${group.id}(cloud)[${group.label}]`);
   }
