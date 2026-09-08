@@ -112,6 +112,63 @@ export interface DiagramNode {
    *  never changes regardless of stereotype); this is a supplementary tag, not the node's
    *  primary kind. */
   umlStereotype?: string;
+  /** jmuir-dtu.20: UML only — a class-level generic type parameter (`class Square~Shape~`,
+   *  distinct from a MEMBER's own generic type like `List~string~ items`, which needs no separate
+   *  field since it's just free text inside `ClassMember.type`). Kept separate from `id` — the
+   *  bare id (`Square`) is what namespaces/edges/references actually use, matching how member-
+   *  level generics never touch a class's own id either. */
+  umlGenericParameter?: string;
+  /** jmuir-dzd.5: flowchart only — a `click <id> href "<url>" ["<tooltip>"] [_blank]` directive.
+   *  Deliberately href/tooltip only: Mermaid's `click <id> call <fn>()` form (looking up and
+   *  invoking a global JS function named by diagram-author-controlled text) is a code-execution
+   *  primitive given this app's paste-to-import flow, not a parsing nuance — rejected outright at
+   *  parse time with a named error, never modeled. See `isAllowedLinkHref` — every consumer of
+   *  `href` (the flowchart parser, the SVG export renderer) MUST re-check it there, not just
+   *  trust that a prior check already ran, since `link` is also settable directly through
+   *  `diagram-ops.ts`/the AI tool layer, bypassing the parser's own validation entirely. */
+  link?: NodeLink;
+}
+
+export interface NodeLink {
+  href: string;
+  tooltip?: string;
+  target?: '_blank';
+}
+
+/** jmuir-dzd.5: the one non-negotiable security boundary for `DiagramNode.link.href` — real
+ *  Mermaid's own `click href` accepts any string verbatim, but this app accepts pasted/imported
+ *  DSL text from untrusted sources, so an unrestricted href becomes a stored XSS vector the
+ *  moment `click A href "javascript:alert(document.cookie)"` is exported as a real, clickable SVG
+ *  `<a href="...">` and opened. Allows only `http://`/`https://` URLs or a scheme-less relative
+ *  path (`/docs/x`, `./x`, `x.html`) — rejects every other URI scheme (`javascript:`, `data:`,
+ *  `vbscript:`, `file:`, `mailto:`, ...), matching the exact allowlist this feature's own design
+ *  discussion decided on (bd show jmuir-dzd's notes), not a broader "reasonable schemes" list.
+ *  Exported so every consumer (the flowchart parser, at parse time; the SVG export renderer, at
+ *  render time, as defense in depth against a link set directly through diagram-ops.ts/the AI
+ *  tool layer) shares one check that can't drift.
+ *
+ *  Deliberately delegates scheme detection to the platform's own `URL` parser rather than a
+ *  hand-rolled regex, after an appsec review (jmuir-dzd.5) found a real bypass in an earlier,
+ *  regex-based version of this function: a leading C0 control character or space (e.g.
+ *  `" javascript:alert(1)"`) doesn't match a `^[a-zA-Z]...:` pattern at all, so the old code
+ *  concluded "no scheme, must be relative" and ALLOWED it — but the WHATWG URL Standard (which
+ *  every browser's own href-resolution algorithm actually implements) strips leading C0-control-
+ *  or-space characters as the very first parsing step, so a browser resolves that same string as
+ *  a real `javascript:` URL. `URL`'s own parser already implements that stripping/normalization
+ *  correctly (it's a browser/Node built-in, no new dependency) — reusing it instead of
+ *  re-implementing URL-parsing edge cases by hand is what actually closes this class of bypass,
+ *  not just this one instance of it. A relative path resolves against `RELATIVE_PATH_BASE` and
+ *  inherits its `https:` protocol, so it's allowed without needing separate relative-path logic;
+ *  an unparseable string (`URL` throws) is rejected, not treated as "probably fine". */
+const RELATIVE_PATH_BASE = 'https://relative-path-base.invalid/';
+export function isAllowedLinkHref(href: string): boolean {
+  let url: URL;
+  try {
+    url = new URL(href, RELATIVE_PATH_BASE);
+  } catch {
+    return false;
+  }
+  return url.protocol === 'http:' || url.protocol === 'https:';
 }
 
 export interface DiagramEdge {

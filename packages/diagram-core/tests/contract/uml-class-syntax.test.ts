@@ -349,6 +349,78 @@ describe('uml parser: <<Stereotype>> annotations — all three placement forms',
   });
 });
 
+/**
+ * jmuir-dtu.20: member-level generics (`List~string~ items`) already worked — a member's own
+ * type is free text with no `~` restriction. The class-name-itself form (`class Square~Shape~`)
+ * hard-errored before this bead: CLASS_DECL/CLASS_BLOCK_START used bare `${ID}` for the class
+ * name, with no `~...~` allowance.
+ */
+describe('uml parser: class-level generic type parameter', () => {
+  it('parses a single-parameter generic on a bare decl line, no body', () => {
+    const model = parseOk('classDiagram\nclass Square~Shape~\n');
+    expect(model.nodes[0].id).toBe('Square');
+    expect(model.nodes[0].umlGenericParameter).toBe('Shape');
+  });
+
+  it('parses a generic with internal spaces/commas (Container~Key, Value~), same leniency member-level generics already have', () => {
+    const model = parseOk('classDiagram\nclass Container~Key, Value~\n');
+    expect(model.nodes[0].umlGenericParameter).toBe('Key, Value');
+  });
+
+  it('parses a generic combined with a following body', () => {
+    const model = parseOk('classDiagram\nclass Square~Shape~ {\n  +draw()\n}\n');
+    const square = model.nodes[0];
+    expect(square.umlGenericParameter).toBe('Shape');
+    expect(square.members).toEqual([{ kind: 'method', visibility: '+', name: 'draw', params: '' }]);
+  });
+
+  it('parses a generic combined with a <<Stereotype>> annotation', () => {
+    const model = parseOk('classDiagram\nclass Square~Shape~ <<Interface>>\n');
+    expect(model.nodes[0].umlGenericParameter).toBe('Shape');
+    expect(model.nodes[0].umlStereotype).toBe('Interface');
+  });
+
+  it('a class with no generic parameter still has umlGenericParameter unset', () => {
+    const model = parseOk('classDiagram\nclass Plain\n');
+    expect(model.nodes[0].umlGenericParameter).toBeUndefined();
+  });
+
+  it('the class id itself stays bare (no ~...~) — namespaces/edges reference the plain id, not the generic-suffixed declaration', () => {
+    const model = parseOk('classDiagram\nnamespace Shapes {\n  class Square~Shape~\n}\nclass Circle\nSquare <|-- Circle\n');
+    expect(model.edges[0]).toMatchObject({ sourceId: 'Square', targetId: 'Circle', umlRelationKind: 'inheritance' });
+    expect(model.nodes.find((n) => n.id === 'Square')?.containerId).toBe('Shapes');
+    expect(model.nodes.find((n) => n.id === 'Square')?.umlGenericParameter).toBe('Shape');
+  });
+
+  it('round-trips a class-level generic (with a body) through serialize -> reparse', () => {
+    const model: DiagramModel = {
+      diagramTypeId: 'uml',
+      nodes: [
+        {
+          id: 'Square',
+          label: 'Square',
+          shape: 'rectangle',
+          role: 'class',
+          position: { x: 0, y: 0 },
+          umlGenericParameter: 'Shape',
+          members: [{ kind: 'method', visibility: '+', name: 'draw', params: '' }],
+        },
+      ],
+      edges: [],
+      containers: [],
+    };
+    const reparsed = roundTrip(model);
+    expect(reparsed.nodes[0].umlGenericParameter).toBe('Shape');
+    expect(normalize(reparsed)).toEqual(normalize(model));
+  });
+
+  it('serializes as "class Id~Generic~", generic before the stereotype', () => {
+    const model = parseOk('classDiagram\nclass Square~Shape~ <<Interface>>\n');
+    const dsl = serializeUml(model);
+    expect(dsl).toMatch(/^class Square~Shape~ <<Interface>>/m);
+  });
+});
+
 describe('uml parser: namespaces', () => {
   it('a class inside a namespace gets the right containerId', () => {
     const model = parseOk('classDiagram\nnamespace Shapes {\n  class Circle\n}\n');

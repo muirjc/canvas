@@ -9,6 +9,7 @@ import { registerLocalAuthRoutes } from './auth/local.js';
 import { registerDiagramRoutes } from './diagrams/diagram.routes.js';
 import { registerDiagramTypeRoutes } from './diagrams/diagram-type.routes.js';
 import { registerImportRoutes } from './diagrams/import.routes.js';
+import { registerImportTemplateRoutes } from './diagrams/import-template.routes.js';
 import { registerSharingRoutes } from './sharing/sharing.routes.js';
 import { registerAdminRoutes } from './admin/admin.routes.js';
 import { registerUserLookupRoutes } from './admin/user-lookup.routes.js';
@@ -76,6 +77,7 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
   await registerDiagramRoutes(app);
   await registerDiagramTypeRoutes(app);
   await registerImportRoutes(app);
+  await registerImportTemplateRoutes(app);
   await registerSharingRoutes(app);
   await registerAdminRoutes(app);
   await registerUserLookupRoutes(app);

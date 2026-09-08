@@ -48,10 +48,12 @@ export interface DiagramToolsContext {
  * flowchart list to the family-appropriate `NodeShape` subset — confirmed against each family's
  * own `dsl/*.ts` parser, not assumed. `erd`/`uml` entities/classes are always plain rectangles;
  * `sequence` participants are rectangles (or 'person' for an actor); `c4` elements use whichever
- * shape their role maps to (`ELEMENT_TO_SHAPE` in dsl/c4.ts); `architecture` services are always
+ * shape their role maps to (`ELEMENT_TO_SHAPE` in dsl/c4.ts); `architecture` services are
  * 'icon'-shaped (dsl/architecture.ts's `SERVICE_PATTERN`) — a bare node with no icon artwork is
- * still valid, matching a service declared with empty `()`. An unrecognized family falls back to
- * the full flowchart set.
+ * still valid, matching a service declared with empty `()` — plus 'circle', the shape a junction
+ * (role: 'junction', canvas-2s6.6) needs; combine with setNodeRole to produce a real one, the same
+ * "addNode then setNodeRole" composition already used for C4 element kinds. An unrecognized family
+ * falls back to the full flowchart set.
  */
 const FAMILY_NODE_SHAPES: Record<string, readonly [NodeShape, ...NodeShape[]]> = {
   flowchart: [
@@ -74,7 +76,7 @@ const FAMILY_NODE_SHAPES: Record<string, readonly [NodeShape, ...NodeShape[]]> =
   sequence: ['rectangle', 'person'],
   erd: ['rectangle'],
   uml: ['rectangle'],
-  architecture: ['icon'],
+  architecture: ['icon', 'circle'],
 };
 
 /** 010-ai-diagram-knowledge, T019: per-family enum options for the new diagram-type-specific
@@ -86,6 +88,10 @@ const FAMILY_NODE_SHAPES: Record<string, readonly [NodeShape, ...NodeShape[]]> =
 const NODE_ROLE_OPTIONS: Record<string, readonly [string, ...string[]]> = {
   c4: C4_ELEMENT_ROLES,
   sequence: ['participant', 'actor'],
+  // canvas-2s6.6: architecture's only node role -- a junction (dsl/architecture.ts:123-137), a
+  // pure routing point with no icon/label. Combine with addNode({shape: 'circle'}) to produce a
+  // real one (junction never has shape 'icon', unlike every other architecture node).
+  architecture: ['junction'],
 };
 const ENTITY_KEY_OPTIONS = ['PK', 'FK', 'UK'] as const;
 const CLASS_MEMBER_VISIBILITY = ['+', '-', '#', '~'] as const;
@@ -121,11 +127,17 @@ const CONTAINER_ROLE_OPTIONS: Partial<Record<string, readonly [string, ...string
   sequence: ['box'],
 };
 
+// canvas-2s6.7: fontFamily/fontSize were already real NodeStyle fields but never reached this
+// schema — a real, independent gap from the canvas-UI one this bead's own name describes, found
+// while widening StylePatch (diagram-ops.ts) for the canvas popup and fixed here too, since both
+// layers route through the exact same patch shape (Constitution I).
 const stylePatchSchema = {
   fillColor: z.string().optional().describe('Fill color as a hex code, e.g. "#1168bd".'),
   strokeColor: z.string().optional().describe('Border/line color as a hex code, e.g. "#0b4884".'),
   strokeWidth: z.number().optional().describe('Border/line thickness in pixels.'),
   strokeDasharray: z.string().optional().describe('SVG stroke-dasharray, e.g. "5 5", for a dashed/dotted line.'),
+  fontFamily: z.string().optional().describe('Font family for the label text, e.g. "Arial".'),
+  fontSize: z.number().optional().describe('Font size for the label text, in pixels.'),
 };
 
 /**
@@ -250,8 +262,8 @@ export function createDiagramTools(context: DiagramToolsContext, family: string)
 
     updateNodeStyle: tool({
       description:
-        "Set a shape's fill/border color or border thickness/dash pattern. Only the fields you " +
-        'provide are changed — omit any you want left as they are.',
+        "Set a shape's fill/border color, border thickness/dash pattern, or label font. Only the " +
+        'fields you provide are changed — omit any you want left as they are.',
       inputSchema: z.object({
         nodeId: z.string().describe('The id of the shape to restyle.'),
         ...stylePatchSchema,
@@ -268,8 +280,8 @@ export function createDiagramTools(context: DiagramToolsContext, family: string)
 
     updateEdgeStyle: tool({
       description:
-        "Set a connector's line color or thickness/dash pattern. Only the fields you provide are " +
-        'changed — omit any you want left as they are.',
+        "Set a connector's line color, thickness/dash pattern, or label font. Only the fields you " +
+        'provide are changed — omit any you want left as they are.',
       inputSchema: z.object({
         edgeId: z.string().describe('The id of the connector to restyle.'),
         ...stylePatchSchema,

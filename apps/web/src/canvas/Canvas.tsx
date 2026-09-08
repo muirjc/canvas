@@ -4,6 +4,8 @@ import {
   addContainer,
   addEdge,
   addNode,
+  addPointMarkerContainer,
+  assignEdgeToContainer,
   assignNodeToContainer,
   moveContainer,
   removeContainer,
@@ -12,17 +14,24 @@ import {
   removeNodeFromContainer,
   resizeContainer,
   updateContainerLabel,
+  setContainerDirection,
+  setContainerParent,
+  removeContainerParent,
+  setNodeLink,
+  isAllowedLinkHref,
   updateEdgeLabel,
   updateEdgeStyle,
   updateEdgeRelationKind,
   updateEdgeErCardinality,
   updateEdgeArrowStyle,
+  updateEdgeArchitectureModifiers,
   updateNodeLabel,
   updateNodeStyle,
   updateNodeRole,
   updateNodeStereotype,
   updateEntityAttributes,
   updateClassMembers,
+  setSequenceAutonumber,
   splitLabelLines,
   clipEdgeEndpoint,
   clipToAnchorSide,
@@ -57,8 +66,11 @@ import {
   type DiagramNode,
   type FlowchartDirection,
   type NodeShape,
+  type NodeStyle,
+  type StylePatch,
   type EntityAttribute,
   type ClassMember,
+  type NodeLink,
 } from '@canvas/diagram-core';
 import { getAddableShapes, nodeSize, renderNodeShape, SELECTION_STROKE } from './shapes';
 import { ConfirmDialog } from './ConfirmDialog';
@@ -86,18 +98,25 @@ const SHAPE_GLYPHS: Partial<Record<NodeShape, string>> = {
 const DEFAULT_DOTTED_DASHARRAY = '4 2';
 const DEFAULT_THICK_STROKE_WIDTH = 3;
 
-// canvas-xig: the style popup's own fixed size — a color swatch plus two `.btn--compact` buttons
-// on one row. 232 leaves ~30px of slack over the measured minimum (~200px, at the 40px swatch
-// width set on the input below) so the row doesn't wrap under normal font-metric variance; 48
-// covers the 28px control height plus the card's padding and border.
-const STYLE_POPUP_WIDTH = 232;
-const STYLE_POPUP_HEIGHT = 48;
+// canvas-2s6.7: widened for the style-popup parity pass — was a single color swatch + Clear/Done
+// row (232x48); now a small form covering every StylePatch field (fill only for nodes, stroke
+// color, stroke width, dash pattern, font family, font size). 220 fits every row's label+input
+// without wrapping; 340 covers the node case's 6 rows (edges get 5 — a bare 'rect' shorter than
+// this leaves harmless empty foreignObject space below the card, not a visible border/background).
+const STYLE_POPUP_WIDTH = 220;
+const STYLE_POPUP_HEIGHT = 340;
 
 // canvas-2s6.3: the UML relationship-kind popup's own fixed size — a full-width kind select on
 // its own row (the longest label, "Lollipop, source (()--)", doesn't fit inline with anything
 // else), then two narrow cardinality inputs plus Done on a second row.
 const RELATION_KIND_POPUP_WIDTH = 260;
 const RELATION_KIND_POPUP_HEIGHT = 84;
+
+// jmuir-dzd.5: the click-href popup's own fixed size — URL + tooltip inputs (each label-above-
+// input, same field__label stacked convention as elsewhere) plus an "Open in new tab" checkbox,
+// an optional inline validation message, and a Clear/Save row.
+const LINK_POPUP_WIDTH = 260;
+const LINK_POPUP_HEIGHT = 210;
 
 // canvas-hox follow-up: real Mermaid erDiagram crow's-foot cardinality tokens are asymmetric --
 // the source (left) and target (right) side of a relationship use different two-character tokens
@@ -133,6 +152,23 @@ const CONTAINER_ROLE_OPTIONS: Partial<Record<string, { value: string; label: str
   ],
   c4: C4_BOUNDARY_ROLES.map((role) => ({ value: role, label: C4_BOUNDARY_LABELS[role] })),
 };
+
+// canvas-2s6.2: sequence's ranged control-flow block roles — deliberately NOT part of
+// CONTAINER_ROLE_OPTIONS above (that vocabulary drives Add Container/Group into Container, both
+// NODE-based membership; a block encloses a range of MESSAGES instead, a fundamentally different
+// "attach" shape, same rationale UML's own note-vs-namespace split already established). 'else'/
+// 'and'/'option' branch dividers are deliberately excluded — enclosing a sub-range within an
+// already-created block needs its own follow-up, matching groupIntoContainer's own identical
+// scope cut (diagram-tools.ts's CONTAINER_ROLE_OPTIONS comment).
+const SEQUENCE_BLOCK_ROLES: { value: string; label: string }[] = [
+  { value: 'loop', label: 'Loop' },
+  { value: 'alt', label: 'Alt' },
+  { value: 'opt', label: 'Opt' },
+  { value: 'par', label: 'Par' },
+  { value: 'critical', label: 'Critical' },
+  { value: 'break', label: 'Break' },
+  { value: 'rect', label: 'Rect (highlight)' },
+];
 
 // canvas-2s6.5: which DiagramNode.role a user can pick for an existing C4 element, via the new
 // per-node "kind" popup (renderKindAffordance/renderKindPopup below) — options sourced from
@@ -197,6 +233,11 @@ export interface CanvasProps {
 
 /** Minimum a container may be dragged down to, so it never becomes un-grabbable. */
 const MIN_CONTAINER_SIZE = { width: 80, height: 60 };
+// canvas-2s6.8: distinct from SELECTION_STROKE (shapes.tsx's blue) so a container that is both
+// selected AND a live drop target is unambiguous — green reads as "will nest here" the way most
+// drag-and-drop UIs already use it, and never collides with any existing per-role stroke color
+// (containerRoleStyle's own palette, CONTROL_FLOW_STROKE) since none of them use green either.
+const CONTAINER_DROP_TARGET_STROKE = '#16a34a';
 
 // Grouping F (docs/flowchart-completeness-brief.md): splits identically to svg-renderer.ts's own
 // `splitLabelLines` (imported, not reimplemented) so the canvas and export never disagree about
@@ -835,6 +876,129 @@ function FieldsPopup({ node, model, dslFamily, x, y, onChange, onClose }: Fields
   );
 }
 
+interface LinkPopupProps {
+  node: DiagramNode;
+  model: DiagramModel;
+  x: number;
+  y: number;
+  onChange: (model: DiagramModel) => void;
+  onClose: () => void;
+}
+
+/**
+ * jmuir-dzd.5: the click href/tooltip editor opened by renderLinkAffordance — a standalone
+ * component (like FieldsPopup above, and for the same reason) because the URL field needs its own
+ * local draft state with an explicit commit step, not FieldsPopup's or the style popup's own
+ * "applies immediately on every keystroke" convention: setNodeLink THROWS for a disallowed href
+ * scheme (updateNodeLabel's own empty-label precedent, diagram-ops.ts), so this MUST validate
+ * client-side with isAllowedLinkHref before ever calling it, showing an inline error instead of
+ * letting an uncaught exception reach React's render cycle. Mounted only while
+ * `editingLinkNodeId === node.id`, so its draft state resets cleanly each time it reopens.
+ */
+function LinkPopup({ node, model, x, y, onChange, onClose }: LinkPopupProps) {
+  const [hrefDraft, setHrefDraft] = useState(node.link?.href ?? '');
+  const [tooltipDraft, setTooltipDraft] = useState(node.link?.tooltip ?? '');
+  const [targetDraft, setTargetDraft] = useState(node.link?.target === '_blank');
+  const [error, setError] = useState<string | null>(null);
+
+  const commit = () => {
+    const href = hrefDraft.trim();
+    const tooltip = tooltipDraft.trim();
+    if (!href) {
+      setError('A URL is required — use Clear to remove the link entirely.');
+      return;
+    }
+    if (!isAllowedLinkHref(href)) {
+      setError('URL must start with "http://", "https://", or be a relative path (e.g. "/docs/x").');
+      return;
+    }
+    // appsec review (jmuir-dzd.5): matches setNodeLink's own check (diagram-ops.ts) -- the DSL
+    // "click href" directive's `"..."` token has no escape syntax for an embedded quote, and a
+    // raw newline would inject a separate DSL statement on reparse. Checked here too so this
+    // fails as an inline error instead of an uncaught exception from setNodeLink below.
+    if (/["\r\n]/.test(href) || /["\r\n]/.test(tooltip)) {
+      setError('URL/tooltip cannot contain a double-quote or a line break.');
+      return;
+    }
+    const link: NodeLink = { href };
+    if (tooltip) link.tooltip = tooltip;
+    if (targetDraft) link.target = '_blank';
+    onChange(setNodeLink(model, node.id, link));
+    onClose();
+  };
+
+  const clear = () => {
+    onChange(setNodeLink(model, node.id, null));
+    onClose();
+  };
+
+  return (
+    <foreignObject x={x} y={y} width={LINK_POPUP_WIDTH} height={LINK_POPUP_HEIGHT}>
+      <div
+        className="card stack"
+        style={{ padding: 'var(--space-2)', gap: 'var(--space-1)' }}
+        onClick={(event) => event.stopPropagation()}
+        onPointerDown={(event) => event.stopPropagation()}
+        onKeyDown={(event) => {
+          if (event.key === 'Escape') onClose();
+        }}
+      >
+        <label className="field__label" htmlFor={`link-href-${node.id}`}>
+          URL
+          <input
+            id={`link-href-${node.id}`}
+            data-testid={`link-href-${node.id}`}
+            autoFocus
+            value={hrefDraft}
+            placeholder="https://example.com"
+            onChange={(event) => {
+              setHrefDraft(event.target.value);
+              setError(null);
+            }}
+          />
+        </label>
+        <label className="field__label" htmlFor={`link-tooltip-${node.id}`}>
+          Tooltip
+          <input
+            id={`link-tooltip-${node.id}`}
+            data-testid={`link-tooltip-${node.id}`}
+            value={tooltipDraft}
+            placeholder="Optional"
+            onChange={(event) => setTooltipDraft(event.target.value)}
+          />
+        </label>
+        <label
+          className="field__label"
+          htmlFor={`link-target-${node.id}`}
+          style={{ flexDirection: 'row', alignItems: 'center', gap: 'var(--space-1)' }}
+        >
+          <input
+            type="checkbox"
+            id={`link-target-${node.id}`}
+            data-testid={`link-target-${node.id}`}
+            checked={targetDraft}
+            onChange={(event) => setTargetDraft(event.target.checked)}
+          />
+          Open in new tab
+        </label>
+        {error && (
+          <p role="alert" data-testid={`link-error-${node.id}`} style={{ color: 'var(--danger)', margin: 0, fontSize: 12 }}>
+            {error}
+          </p>
+        )}
+        <div className="cluster cluster--tight" style={{ justifyContent: 'space-between' }}>
+          <button type="button" className="btn btn--tertiary btn--compact" data-testid={`link-clear-${node.id}`} onClick={clear}>
+            Clear
+          </button>
+          <button type="button" className="btn btn--primary btn--compact" data-testid={`link-save-${node.id}`} onClick={commit}>
+            Save
+          </button>
+        </div>
+      </div>
+    </foreignObject>
+  );
+}
+
 /**
  * canvas-8n7: renders resolved icon markup via an `<image>` element's `data:` URI rather than
  * `dangerouslySetInnerHTML`, so it is never inserted into the live DOM as executable markup in
@@ -906,17 +1070,40 @@ function rectsIntersect(a: Rect, b: Rect): boolean {
 
 /** Which container, if any, a dropped shape lands in — decided by the shape's centre point.
  *  Geometry decides membership only at the moment of a drop; `containerId` is authoritative
- *  afterwards, so resizing a container never ejects anything (research §3). */
-function containerAtPoint(model: DiagramModel, point: { x: number; y: number }): string | undefined {
+ *  afterwards, so resizing a container never ejects anything (research §3). `excludeIds` (canvas-
+ *  2s6.8) lets a container being dragged skip itself and its own descendants as candidates — a
+ *  container's own centre trivially sits inside its own bounds, and a dragged parent's centre
+ *  can easily pass over a child it's carrying along, neither of which should register as a valid
+ *  nesting target. */
+function containerAtPoint(model: DiagramModel, point: { x: number; y: number }, excludeIds?: Set<string>): string | undefined {
   // Last match wins, so a container drawn later (visually on top) takes precedence.
   let found: string | undefined;
   for (const container of model.containers) {
+    if (excludeIds?.has(container.id)) continue;
     const b = containerBounds(container);
     if (point.x >= b.left && point.x <= b.right && point.y >= b.top && point.y <= b.bottom) {
       found = container.id;
     }
   }
   return found;
+}
+
+/** canvas-2s6.8: every container nested (at any depth) inside `containerId`, including itself —
+ *  mirrors moveContainer's own descendant-collection loop (diagram-ops.ts) exactly, just on the
+ *  canvas side where it's needed to filter drop-target candidacy. */
+function descendantContainerIds(model: DiagramModel, containerId: string): Set<string> {
+  const result = new Set<string>([containerId]);
+  let grew = true;
+  while (grew) {
+    grew = false;
+    for (const c of model.containers) {
+      if (c.parentContainerId && result.has(c.parentContainerId) && !result.has(c.id)) {
+        result.add(c.id);
+        grew = true;
+      }
+    }
+  }
+  return result;
 }
 
 /**
@@ -953,6 +1140,19 @@ export function Canvas({ model, onChange, dslFamily, toolbarContainer }: CanvasP
   const [connectUmlRelationKind, setConnectUmlRelationKind] = useState<(typeof UML_RELATION_KINDS)[number]>('association');
   const [connectUmlSourceCardinality, setConnectUmlSourceCardinality] = useState('');
   const [connectUmlTargetCardinality, setConnectUmlTargetCardinality] = useState('');
+  // canvas-2s6.6: architecture's own dedicated connect-mode picker, same "generic Direction picker
+  // is semantically wrong for this family" rationale as ERD/UML above -- architecture.ts's arrow
+  // vocabulary is only ever 'source'|'target'|undefined (never 'both'), and the {group}/anchor
+  // modifiers have no equivalent in any other family's picker at all. 'forward' maps directly to
+  // arrow: 'target' (the `-->` token) and 'reversed' to arrow: 'source' (`<--`) -- both set at
+  // addEdge time via AddEdgeInput's existing arrow field, unlike the generic picker's "reversed"
+  // (which swaps sourceId/targetId instead, since 'source'/'target' here already mean something
+  // else: which endpoint the arrowhead is drawn at, not which one is architecturally upstream).
+  const [connectArchDirection, setConnectArchDirection] = useState<'forward' | 'reversed' | 'none'>('forward');
+  const [connectArchSourceIsGroup, setConnectArchSourceIsGroup] = useState(false);
+  const [connectArchTargetIsGroup, setConnectArchTargetIsGroup] = useState(false);
+  const [connectArchSourceAnchor, setConnectArchSourceAnchor] = useState<'' | 'T' | 'B' | 'L' | 'R'>('');
+  const [connectArchTargetAnchor, setConnectArchTargetAnchor] = useState<'' | 'T' | 'B' | 'L' | 'R'>('');
   // canvas-2s6.1: which DiagramContainer.role Add Container/Group into Container will create,
   // for families with a real role vocabulary (CONTAINER_ROLE_OPTIONS above) — chosen ahead of
   // time, same "picker visible only while it matters" precedent as connectArrowStyle/the ER
@@ -993,6 +1193,11 @@ export function Canvas({ model, onChange, dslFamily, toolbarContainer }: CanvasP
   // with editingFieldsNodeId at the call site (erd/uml vs c4), so it safely reuses the same
   // below-the-node popup position (stylePopupPos) rather than needing its own.
   const [editingKindNodeId, setEditingKindNodeId] = useState<string | null>(null);
+  // jmuir-dzd.5: a fifth, separate node-only affordance — flowchart only (DiagramNode.link is
+  // flowchart-only, same "no other family has this concept" precedent as editingKindNodeId's own
+  // C4-only scoping above). Reuses the same below-the-node popup position, mutually exclusive by
+  // family with fields (erd/uml) and kind (c4).
+  const [editingLinkNodeId, setEditingLinkNodeId] = useState<string | null>(null);
   const [selectedContainerId, setSelectedContainerId] = useState<string | null>(null);
   // canvas-u7e: edges had no selection state at all — the only ways to remove a connector were
   // deleting one of its endpoint nodes (which cascades but also destroys the node) or hand-editing
@@ -1000,6 +1205,21 @@ export function Canvas({ model, onChange, dslFamily, toolbarContainer }: CanvasP
   // selectedContainerId's own pattern rather than folding into selectedIds (which would need
   // groupSelected/its button to start distinguishing node ids from edge ids within the same Set).
   const [selectedEdgeId, setSelectedEdgeId] = useState<string | null>(null);
+  // canvas-2s6.2: a SECOND, independent edge-selection concept — sequence-only, multi-select,
+  // used purely to gather which messages a new loop/alt/opt/par/critical/break/rect block should
+  // enclose (Shift/Ctrl+click accumulates, mirroring handleNodePointerDown's own canvas-558
+  // convention). Deliberately not reusing selectedEdgeId itself: that one stays single-select for
+  // its existing pencil/style/delete affordances on one message at a time (canvas-u7e), unchanged.
+  const [selectedMessageIds, setSelectedMessageIds] = useState<Set<string>>(new Set());
+  const [sequenceBlockKind, setSequenceBlockKind] = useState(SEQUENCE_BLOCK_ROLES[0].value);
+  const [sequenceBlockLabel, setSequenceBlockLabel] = useState('');
+  const [sequenceBlockColor, setSequenceBlockColor] = useState('');
+  // canvas-2s6.2: note-left/note-right attach to exactly one participant; note-over can span
+  // several — both reuse the existing node multi-select (selectedIds), just read by a different
+  // button than Group into Container, same "one selection, several possible actions" precedent
+  // requestDeleteSelected already establishes for selectedIds/selectedContainerId/selectedEdgeId.
+  const [sequenceNoteKind, setSequenceNoteKind] = useState<'note-left' | 'note-right' | 'note-over'>('note-left');
+  const [sequenceNoteLabel, setSequenceNoteLabel] = useState('');
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   // Which element the pointer is over. Paired with selection below so the edit affordance is
   // reachable by keyboard too — hover alone would be unusable without a pointer (FR-017).
@@ -1017,6 +1237,13 @@ export function Canvas({ model, onChange, dslFamily, toolbarContainer }: CanvasP
   // canvas-558: the live selection rectangle, rendered as an overlay and cleared on pointerup —
   // separate from dragState (a ref, so updating it wouldn't re-render the visible rectangle).
   const [marqueeRect, setMarqueeRect] = useState<Rect | null>(null);
+  // canvas-2s6.8: live drag-over highlight while dragging a container onto another one — updated
+  // every pointer-move during a container drag (handlePointerMove), resolved into a real
+  // setContainerParent/removeContainerParent call on drop (handlePointerUp), cleared there too.
+  // A ref, not a plain useState-only value, would miss re-renders the same way marqueeRect's own
+  // comment above already explains — this one similarly needs to actually repaint the target
+  // container's highlight on every move, so it stays useState like marqueeRect, not dragState.
+  const [containerDropTargetId, setContainerDropTargetId] = useState<string | null>(null);
   // A completed marquee drag finalizes selectedIds in handlePointerUp; the browser then still
   // fires a plain `click` on the same target right after (mouseup/mousedown landed on the same
   // element regardless of how far the pointer travelled between them) — without this flag the
@@ -1115,6 +1342,19 @@ export function Canvas({ model, onChange, dslFamily, toolbarContainer }: CanvasP
     onChange(addNode(model, { shape }));
   };
 
+  // canvas-2s6.6: a dedicated "Add Junction" action rather than a role-conversion popup on an
+  // existing node (like C4's own renderKindAffordance/renderKindPopup) -- converting an existing
+  // icon-bearing service to role: 'junction' would produce a state architecture.ts's own parser
+  // could never itself produce (a junction is always shape: 'circle' with no icon, dsl/
+  // architecture.ts:123-137). addNode + updateNodeRole is the same two-step composition
+  // NODE_ROLE_OPTIONS.architecture's own doc comment (apps/api/src/ai/diagram-tools.ts) describes
+  // for the AI-tool side of this same gap.
+  const handleAddJunction = () => {
+    const withNode = addNode(model, { shape: 'circle' });
+    const junction = withNode.nodes[withNode.nodes.length - 1];
+    onChange(updateNodeRole(withNode, junction.id, 'junction'));
+  };
+
   const handleAutoLayout = () => {
     onChange(autoLayout(model, layoutDirection));
   };
@@ -1143,10 +1383,27 @@ export function Canvas({ model, onChange, dslFamily, toolbarContainer }: CanvasP
           dslFamily === 'erd'
             ? { erSourceCardinality: connectErSourceCardinality, erTargetCardinality: connectErTargetCardinality }
             : {};
+        // canvas-2s6.6: architecture's arrow is set directly here, at creation time (like ERD's
+        // cardinality above) rather than via connectArrowStyle's swap-on-reversed convention --
+        // 'source'/'target' already mean "which endpoint gets the arrowhead", so sourceId/targetId
+        // themselves never need swapping for a "reversed" architecture connector.
+        const archArrow =
+          dslFamily === 'architecture'
+            ? connectArchDirection === 'forward'
+              ? 'target'
+              : connectArchDirection === 'reversed'
+                ? 'source'
+                : undefined
+            : undefined;
         let next = addEdge(model, {
           sourceId: reversed ? node.id : connectSourceId,
           targetId: reversed ? connectSourceId : node.id,
-          arrow: connectArrowStyle === 'both' || connectArrowStyle === 'none' ? connectArrowStyle : undefined,
+          arrow:
+            dslFamily === 'architecture'
+              ? archArrow
+              : connectArrowStyle === 'both' || connectArrowStyle === 'none'
+                ? connectArrowStyle
+                : undefined,
           ...erDefaults,
         });
         // canvas-2s6.3: umlRelationKind/cardinality aren't AddEdgeInput fields (unlike ER's own
@@ -1168,6 +1425,22 @@ export function Canvas({ model, onChange, dslFamily, toolbarContainer }: CanvasP
         if (dslFamily === 'erd' && connectErNonIdentifying) {
           const newEdge = next.edges[next.edges.length - 1];
           next = updateEdgeArrowStyle(next, newEdge.id, { lineStyle: 'dotted' });
+        }
+        // canvas-2s6.6: same "create then patch" composition -- sourceIsGroup/targetIsGroup/
+        // sourceAnchor/targetAnchor aren't AddEdgeInput fields either (updateEdgeArchitectureModifiers'
+        // own doc comment explains why). Only patched when actually set, so an untouched connection
+        // round-trips with none of these fields present, exactly as it always has.
+        if (
+          dslFamily === 'architecture' &&
+          (connectArchSourceIsGroup || connectArchTargetIsGroup || connectArchSourceAnchor || connectArchTargetAnchor)
+        ) {
+          const newEdge = next.edges[next.edges.length - 1];
+          next = updateEdgeArchitectureModifiers(next, newEdge.id, {
+            sourceIsGroup: connectArchSourceIsGroup || undefined,
+            targetIsGroup: connectArchTargetIsGroup || undefined,
+            sourceAnchor: connectArchSourceAnchor || undefined,
+            targetAnchor: connectArchTargetAnchor || undefined,
+          });
         }
         onChange(next);
         setConnectSourceId(null);
@@ -1193,6 +1466,7 @@ export function Canvas({ model, onChange, dslFamily, toolbarContainer }: CanvasP
     setSelectedIds(new Set([node.id]));
     setSelectedContainerId(null);
     setSelectedEdgeId(null);
+    setSelectedMessageIds(new Set());
 
     // canvas-7vs.1: sequence-diagram layout is always computed from DSL order, never dragged
     // (FR-013) — selection above still applies normally; only starting a position-drag is skipped.
@@ -1212,9 +1486,24 @@ export function Canvas({ model, onChange, dslFamily, toolbarContainer }: CanvasP
   const handleEdgePointerDown = (edgeId: string) => (event: React.PointerEvent) => {
     event.stopPropagation();
     if (connectMode) return;
+    // canvas-2s6.2: sequence-only multi-select for block creation (selectedMessageIds' own doc
+    // comment) — mirrors handleNodePointerDown's shift/ctrl-click toggle convention exactly.
+    if (dslFamily === 'sequence' && (event.shiftKey || event.ctrlKey || event.metaKey)) {
+      setSelectedMessageIds((prev) => {
+        const next = new Set(prev);
+        if (next.has(edgeId)) next.delete(edgeId);
+        else next.add(edgeId);
+        return next;
+      });
+      setSelectedEdgeId(null);
+      setSelectedIds(new Set());
+      setSelectedContainerId(null);
+      return;
+    }
     setSelectedEdgeId(edgeId);
     setSelectedIds(new Set());
     setSelectedContainerId(null);
+    setSelectedMessageIds(new Set());
   };
 
   // canvas-2s6.1: sequence has no picker (only one groupable role exists there, see
@@ -1237,6 +1526,7 @@ export function Canvas({ model, onChange, dslFamily, toolbarContainer }: CanvasP
     setSelectedContainerId(container.id);
     setSelectedIds(new Set());
     setSelectedEdgeId(null);
+    setSelectedMessageIds(new Set());
 
     // canvas-7vs.1: same computed-only-layout guard as handleNodePointerDown above (FR-013).
     if (dslFamily === 'sequence') return;
@@ -1291,6 +1581,24 @@ export function Canvas({ model, onChange, dslFamily, toolbarContainer }: CanvasP
       return;
     }
 
+    // canvas-2s6.8: a live drag-over highlight, resolved into a real setContainerParent/
+    // removeContainerParent call on drop (handlePointerUp) — computed from the SAME intended new
+    // position moveContainer below is about to apply (not the container's still-stale current
+    // position), so the highlight never lags a frame behind what the user sees moving. Excludes
+    // the dragged container's own descendants (already carried along by moveContainer, so their
+    // bounds move too) — dropping a parent onto/over one of its own children must never register
+    // as a nesting target.
+    const draggedContainer = model.containers.find((c) => c.id === drag.id);
+    if (draggedContainer) {
+      const bounds = containerBounds(draggedContainer);
+      const width = bounds.right - bounds.left;
+      const height = bounds.bottom - bounds.top;
+      const newPos = { x: point.x - drag.offsetX, y: point.y - drag.offsetY };
+      const centre = { x: newPos.x + width / 2, y: newPos.y + height / 2 };
+      const excluded = descendantContainerIds(model, drag.id);
+      setContainerDropTargetId(containerAtPoint(model, centre, excluded) ?? null);
+    }
+
     // moveContainer carries members and nested containers with it.
     onChange(moveContainer(model, drag.id, { x: point.x - drag.offsetX, y: point.y - drag.offsetY }));
   };
@@ -1320,6 +1628,28 @@ export function Canvas({ model, onChange, dslFamily, toolbarContainer }: CanvasP
       // The click that follows this pointerup lands on the same <svg> background and would
       // otherwise immediately clear the selection just made above.
       suppressNextCanvasClick.current = true;
+      return;
+    }
+
+    // canvas-2s6.8: nesting is resolved once, on drop, from the dragged container's own centre —
+    // the same "resolve once at drop time, geometry never re-derives membership afterward" rule
+    // FR-011/research §3 already established for a node dropped into a container, generalized one
+    // level up. moveContainer (handlePointerMove) already moved the container and every
+    // descendant to their final position by this point, so `model` here already reflects it.
+    if (drag?.kind === 'container') {
+      setContainerDropTargetId(null);
+      const container = model.containers.find((c) => c.id === drag.id);
+      if (!container) return;
+      const bounds = containerBounds(container);
+      const centre = { x: (bounds.left + bounds.right) / 2, y: (bounds.top + bounds.bottom) / 2 };
+      const excluded = descendantContainerIds(model, drag.id);
+      const target = containerAtPoint(model, centre, excluded);
+
+      if (target && container.parentContainerId !== target) {
+        onChange(setContainerParent(model, container.id, target));
+      } else if (!target && container.parentContainerId) {
+        onChange(removeContainerParent(model, container.id));
+      }
       return;
     }
 
@@ -1425,6 +1755,27 @@ export function Canvas({ model, onChange, dslFamily, toolbarContainer }: CanvasP
         onPointerDown={(event) => event.stopPropagation()}
       >
         <Icon name="tag" size={12} />
+      </button>
+    </foreignObject>
+  );
+
+  /** jmuir-dzd.5: opens LinkPopup. Mirrors renderKindAffordance's exact shape (a fifth per-node
+   *  affordance, flowchart-only). */
+  const renderLinkAffordance = (id: string, x: number, y: number, onActivate: () => void, label: string) => (
+    <foreignObject x={x} y={y} width={22} height={22}>
+      <button
+        type="button"
+        className="canvas-edit-affordance"
+        data-testid={`edit-link-${id}`}
+        aria-label={label}
+        title={label}
+        onClick={(event) => {
+          event.stopPropagation();
+          onActivate();
+        }}
+        onPointerDown={(event) => event.stopPropagation()}
+      >
+        <Icon name="link" size={12} />
       </button>
     </foreignObject>
   );
@@ -1603,46 +1954,132 @@ export function Canvas({ model, onChange, dslFamily, toolbarContainer }: CanvasP
     </foreignObject>
   );
 
-  /** Small color-picker popup opened by renderStyleAffordance. Uses an explicit Done button
-   *  rather than blur-to-commit (unlike the label editors) — a native OS color-picker dialog has
-   *  inconsistent focus/blur timing across browsers, so relying on blur alone here would be a real
-   *  flakiness risk for a brand-new control. Escape also closes it, matching the label editors. */
+  /** canvas-2s6.7: style-popup parity pass — was a single color swatch, now a small form covering
+   *  every StylePatch field: fill color (nodes only — edges have no fill), stroke color, stroke
+   *  width, dash pattern, font family, font size. The two color fields keep an explicit Clear
+   *  button (a native `<input type="color">` always shows SOME hex value, so it can't represent
+   *  "unset" by itself, the same reasoning canvas-xig's original single-color popup already
+   *  established); the four text/number fields self-clear instead — committing an empty value
+   *  patches `null`, so there's no need for four more Clear buttons cluttering a form this size.
+   *  Uses an explicit Done button rather than blur-to-commit for the color inputs specifically — a
+   *  native OS color-picker dialog has inconsistent focus/blur timing across browsers, so relying
+   *  on blur alone would be a real flakiness risk. Escape also closes it, matching the label
+   *  editors. Shared by both the node and edge affordances (showFill distinguishes them) rather
+   *  than two near-duplicate popups. */
   const renderStylePopup = (
     id: string,
     x: number,
     y: number,
-    currentColor: string | undefined,
-    onPick: (color: string) => void,
-    onClear: () => void,
+    style: NodeStyle | undefined,
+    showFill: boolean,
+    onPatch: (patch: StylePatch) => void,
     onClose: () => void,
   ) => (
     <foreignObject x={x} y={y} width={STYLE_POPUP_WIDTH} height={STYLE_POPUP_HEIGHT}>
       <div
-        className="card cluster"
-        style={{ padding: 'var(--space-2)', flexWrap: 'nowrap' }}
+        className="card stack"
+        style={{ padding: 'var(--space-2)', gap: 'var(--space-1)' }}
         onClick={(event) => event.stopPropagation()}
         onPointerDown={(event) => event.stopPropagation()}
         onKeyDown={(event) => {
           if (event.key === 'Escape') onClose();
         }}
       >
-        {/* Trimmed to match the compact buttons' 28px height and given padding: 0 — the global
-            `input` rule's default min-height (36px) and 12px inline padding, applied to a native
-            color swatch, wasted popup width on empty space around a tiny swatch and was part of
-            why 3 controls no longer fit on one row at 200px. */}
-        <input
-          type="color"
-          data-testid={`style-color-input-${id}`}
-          aria-label="Choose a color"
-          autoFocus
-          value={currentColor ?? '#ffffff'}
-          onChange={(event) => onPick(event.target.value)}
-          style={{ width: 40, height: 28, minHeight: 0, padding: 0, flexShrink: 0 }}
-        />
-        <button type="button" className="btn btn--tertiary btn--compact" data-testid={`style-clear-${id}`} onClick={onClear}>
-          Clear
-        </button>
-        <button type="button" className="btn btn--primary btn--compact" data-testid={`style-done-${id}`} onClick={onClose}>
+        {showFill && (
+          <div className="cluster cluster--tight" style={{ flexWrap: 'nowrap', alignItems: 'center' }}>
+            <span style={{ width: 60 }}>Fill</span>
+            <input
+              type="color"
+              data-testid={`style-fill-input-${id}`}
+              aria-label="Choose a fill color"
+              autoFocus
+              value={style?.fillColor ?? '#ffffff'}
+              onChange={(event) => onPatch({ fillColor: event.target.value })}
+              style={{ width: 36, height: 28, minHeight: 0, padding: 0, flexShrink: 0 }}
+            />
+            <button
+              type="button"
+              className="btn btn--tertiary btn--compact"
+              data-testid={`style-clear-fill-${id}`}
+              onClick={() => onPatch({ fillColor: null })}
+            >
+              Clear
+            </button>
+          </div>
+        )}
+        <div className="cluster cluster--tight" style={{ flexWrap: 'nowrap', alignItems: 'center' }}>
+          <span style={{ width: 60 }}>Stroke</span>
+          <input
+            type="color"
+            data-testid={`style-stroke-input-${id}`}
+            aria-label="Choose a stroke color"
+            autoFocus={!showFill}
+            value={style?.strokeColor ?? '#333333'}
+            onChange={(event) => onPatch({ strokeColor: event.target.value })}
+            style={{ width: 36, height: 28, minHeight: 0, padding: 0, flexShrink: 0 }}
+          />
+          <button
+            type="button"
+            className="btn btn--tertiary btn--compact"
+            data-testid={`style-clear-stroke-${id}`}
+            onClick={() => onPatch({ strokeColor: null })}
+          >
+            Clear
+          </button>
+        </div>
+        <div className="cluster cluster--tight" style={{ flexWrap: 'nowrap' }}>
+          <label className="field__label" htmlFor={`style-stroke-width-${id}`}>
+            Width
+            <input
+              type="number"
+              id={`style-stroke-width-${id}`}
+              data-testid={`style-stroke-width-${id}`}
+              value={style?.strokeWidth ?? ''}
+              placeholder="px"
+              style={{ width: 60 }}
+              onChange={(event) => onPatch({ strokeWidth: event.target.value === '' ? null : Number(event.target.value) })}
+            />
+          </label>
+          <label className="field__label" htmlFor={`style-font-size-${id}`}>
+            Font Size
+            <input
+              type="number"
+              id={`style-font-size-${id}`}
+              data-testid={`style-font-size-${id}`}
+              value={style?.fontSize ?? ''}
+              placeholder="px"
+              style={{ width: 60 }}
+              onChange={(event) => onPatch({ fontSize: event.target.value === '' ? null : Number(event.target.value) })}
+            />
+          </label>
+        </div>
+        <label className="field__label" htmlFor={`style-dasharray-${id}`}>
+          Dash Pattern
+          <input
+            id={`style-dasharray-${id}`}
+            data-testid={`style-dasharray-${id}`}
+            value={style?.strokeDasharray ?? ''}
+            placeholder="e.g. 5 5"
+            onChange={(event) => onPatch({ strokeDasharray: event.target.value.trim() === '' ? null : event.target.value })}
+          />
+        </label>
+        <label className="field__label" htmlFor={`style-font-family-${id}`}>
+          Font
+          <input
+            id={`style-font-family-${id}`}
+            data-testid={`style-font-family-${id}`}
+            value={style?.fontFamily ?? ''}
+            placeholder="e.g. Arial"
+            onChange={(event) => onPatch({ fontFamily: event.target.value.trim() === '' ? null : event.target.value })}
+          />
+        </label>
+        <button
+          type="button"
+          className="btn btn--primary btn--compact"
+          data-testid={`style-done-${id}`}
+          onClick={onClose}
+          style={{ alignSelf: 'flex-end' }}
+        >
           Done
         </button>
       </div>
@@ -1696,6 +2133,95 @@ export function Canvas({ model, onChange, dslFamily, toolbarContainer }: CanvasP
     }
     onChange(next);
     setSelectedIds(new Set());
+  };
+
+  // canvas-2s6.2: mirrors addPointMarkerContainer's own "append after everything on the timeline"
+  // calculation (diagram-ops.ts) — duplicated here rather than exported, since it's a two-line
+  // read of a model the caller already has in hand, the same judgment call that op's own doc
+  // comment already makes for its caller.
+  const maxSequenceOrder = (m: DiagramModel): number =>
+    [...m.containers, ...m.edges].reduce(
+      (max, item) => (item.sequenceOrder !== undefined && item.sequenceOrder > max ? item.sequenceOrder : max),
+      -1,
+    );
+
+  // canvas-2s6.2: note-left/note-right attach to exactly one participant (real Mermaid grammar);
+  // note-over accepts one or more.
+  const addSequenceNoteDisabled =
+    selectedIds.size === 0 || (sequenceNoteKind !== 'note-over' && selectedIds.size !== 1);
+
+  const addSequenceNote = () => {
+    if (addSequenceNoteDisabled) return;
+    const next = addContainer(model, {
+      role: sequenceNoteKind,
+      // Always an explicit string (never undefined) so addContainer's own `label ?? 'Container'`
+      // fallback can't leak a bogus "Container" caption into a note's text.
+      label: sequenceNoteLabel.trim(),
+      attachedNodeIds: [...selectedIds],
+      sequenceOrder: maxSequenceOrder(model) + 1,
+    });
+    onChange(next);
+    setSelectedIds(new Set());
+    setSequenceNoteLabel('');
+  };
+
+  // canvas-2s6.2: enclosing zero messages would create a block with nothing to show for it —
+  // real Mermaid tolerates an empty loop/alt body syntactically, but there is no reason to offer
+  // that from the canvas when nothing was selected to enclose.
+  const createSequenceBlockDisabled = selectedMessageIds.size === 0;
+
+  const createSequenceBlock = () => {
+    if (createSequenceBlockDisabled) return;
+    const clickedEdges = model.edges.filter((e) => selectedMessageIds.has(e.id));
+    const minOrder = Math.min(...clickedEdges.map((e) => e.sequenceOrder ?? 0));
+    const maxOrder = Math.max(...clickedEdges.map((e) => e.sequenceOrder ?? 0));
+    // canvas-2s6.2: encloses every TOP-LEVEL message whose order falls within the clicked span,
+    // not just the literally-clicked ones — a real Mermaid block can only ever wrap a CONTIGUOUS
+    // run of statements, so clicking just the first and last message (the bead's own suggested
+    // "click first+last" gesture) is enough. Moving only the clicked edges while leaving an
+    // in-between message at the top level would silently reorder it to AFTER the whole block on
+    // the next save — emitScope (dsl/sequence.ts) sorts each nesting level independently by its
+    // own sequenceOrder, so a message left outside a block that visually encloses it doesn't stay
+    // "in the middle" on serialize, it jumps to wherever its own order sorts among top-level
+    // siblings. A point-marker/note container that happens to fall in the same span is
+    // deliberately left alone — a disclosed, narrower scope: those use a different membership
+    // field (parentContainerId, not containerId), and moving them too is a larger follow-up.
+    const memberEdges = model.edges.filter(
+      (e) => e.containerId === undefined && (e.sequenceOrder ?? 0) >= minOrder && (e.sequenceOrder ?? 0) <= maxOrder,
+    );
+    const isRect = sequenceBlockKind === 'rect';
+    let next = addContainer(model, {
+      role: sequenceBlockKind,
+      // Same "always an explicit string" reasoning as addSequenceNote above — rect never uses
+      // label at all (its color lives in style.fillColor instead, dsl/sequence.ts's own
+      // serializeContainer rect branch), so it gets '' unconditionally.
+      label: isRect ? '' : sequenceBlockLabel.trim(),
+      style: isRect ? { fillColor: sequenceBlockColor.trim() || 'rgb(200, 200, 0)' } : undefined,
+      // Sits just before its first enclosed message on the shared timeline (a fractional value,
+      // not the next integer — cheaper than renumbering every sibling item, and emitScope's own
+      // sort is a plain numeric compare so a fractional order works exactly like an integer one).
+      sequenceOrder: minOrder - 0.5,
+    });
+    const containerId = next.containers[next.containers.length - 1].id;
+    for (const edge of memberEdges) {
+      next = assignEdgeToContainer(next, edge.id, containerId);
+    }
+    onChange(next);
+    setSelectedMessageIds(new Set());
+    setSequenceBlockLabel('');
+    setSequenceBlockColor('');
+  };
+
+  // canvas-2s6.2: activate/deactivate already had full DSL/model/AI-tool support
+  // (addPointMarkerContainer) — Canvas.tsx just never called it. One participant node selected is
+  // what an activation bar attaches to (mirrors setNodeRole's own single-node-selection precedent
+  // for C4's kind popup, not a new selection concept).
+  const sequenceActivationDisabled = dslFamily !== 'sequence' || selectedIds.size !== 1;
+
+  const markSequenceActivation = (role: 'activate' | 'deactivate') => {
+    if (sequenceActivationDisabled) return;
+    const [nodeId] = selectedIds;
+    onChange(addPointMarkerContainer(model, { role, attachedNodeId: nodeId }));
   };
 
   const requestDeleteSelected = () => {
@@ -1787,11 +2313,11 @@ export function Canvas({ model, onChange, dslFamily, toolbarContainer }: CanvasP
           </button>
           {/* canvas-7rr: chosen before clicking the second shape — the only way to draw a
               bidirectional or no-arrowhead connector interactively used to be two separate edges
-              faking it (A->B and B->A). Not shown for ERD or UML, each of which has its own
-              dedicated connect-mode picker below instead — neither family's arrowhead is a plain
-              directional choice (ER's is crow's-foot cardinality; UML's is the relationship kind
-              itself). */}
-          {connectMode && dslFamily !== 'erd' && dslFamily !== 'uml' && (
+              faking it (A->B and B->A). Not shown for ERD, UML, or architecture, each of which has
+              its own dedicated connect-mode picker below instead — none of the three families'
+              arrowhead is a plain directional choice (ER's is crow's-foot cardinality; UML's is the
+              relationship kind itself; architecture's is 'source'|'target' only, never 'both'). */}
+          {connectMode && dslFamily !== 'erd' && dslFamily !== 'uml' && dslFamily !== 'architecture' && (
             <label className="field__label" htmlFor="connect-arrow-style">
               Direction
               <select
@@ -1905,6 +2431,79 @@ export function Canvas({ model, onChange, dslFamily, toolbarContainer }: CanvasP
               </label>
             </>
           )}
+          {/* canvas-2s6.6: architecture's own dedicated connect-mode picker -- direction (arrow:
+              'source'|'target'|undefined, see connectArchDirection's own doc comment above), plus
+              the {group} boundary-escalation checkboxes and :T/B/L/R anchor-hint selects, neither
+              of which previously had any way to be set (they already rendered, Canvas.tsx's own
+              architectureEndpointBox/clipToAnchorSide usage, but only an imported/hand-typed DSL
+              file could ever produce them). */}
+          {connectMode && dslFamily === 'architecture' && (
+            <>
+              <label className="field__label" htmlFor="connect-arch-direction">
+                Direction
+                <select
+                  id="connect-arch-direction"
+                  data-testid="connect-arch-direction"
+                  value={connectArchDirection}
+                  onChange={(e) => setConnectArchDirection(e.target.value as typeof connectArchDirection)}
+                >
+                  <option value="forward">Forward (A → B)</option>
+                  <option value="reversed">Reversed (B → A)</option>
+                  <option value="none">No arrowhead (A — B)</option>
+                </select>
+              </label>
+              <label className="field__label" htmlFor="connect-arch-source-is-group" style={{ flexDirection: 'row', alignItems: 'center', gap: 'var(--space-1)' }}>
+                <input
+                  type="checkbox"
+                  id="connect-arch-source-is-group"
+                  data-testid="connect-arch-source-is-group"
+                  checked={connectArchSourceIsGroup}
+                  onChange={(e) => setConnectArchSourceIsGroup(e.target.checked)}
+                />
+                First entity's group
+              </label>
+              <label className="field__label" htmlFor="connect-arch-source-anchor">
+                First entity anchor
+                <select
+                  id="connect-arch-source-anchor"
+                  data-testid="connect-arch-source-anchor"
+                  value={connectArchSourceAnchor}
+                  onChange={(e) => setConnectArchSourceAnchor(e.target.value as typeof connectArchSourceAnchor)}
+                >
+                  <option value="">Default</option>
+                  <option value="T">Top</option>
+                  <option value="B">Bottom</option>
+                  <option value="L">Left</option>
+                  <option value="R">Right</option>
+                </select>
+              </label>
+              <label className="field__label" htmlFor="connect-arch-target-is-group" style={{ flexDirection: 'row', alignItems: 'center', gap: 'var(--space-1)' }}>
+                <input
+                  type="checkbox"
+                  id="connect-arch-target-is-group"
+                  data-testid="connect-arch-target-is-group"
+                  checked={connectArchTargetIsGroup}
+                  onChange={(e) => setConnectArchTargetIsGroup(e.target.checked)}
+                />
+                Second entity's group
+              </label>
+              <label className="field__label" htmlFor="connect-arch-target-anchor">
+                Second entity anchor
+                <select
+                  id="connect-arch-target-anchor"
+                  data-testid="connect-arch-target-anchor"
+                  value={connectArchTargetAnchor}
+                  onChange={(e) => setConnectArchTargetAnchor(e.target.value as typeof connectArchTargetAnchor)}
+                >
+                  <option value="">Default</option>
+                  <option value="T">Top</option>
+                  <option value="B">Bottom</option>
+                  <option value="L">Left</option>
+                  <option value="R">Right</option>
+                </select>
+              </label>
+            </>
+          )}
           {/* canvas-2s6.1: which role Add Container/Group into Container below will produce —
               only shown for families with a real container-role vocabulary to pick from. */}
           {containerRoleOptions && (
@@ -1923,6 +2522,22 @@ export function Canvas({ model, onChange, dslFamily, toolbarContainer }: CanvasP
                 ))}
               </select>
             </label>
+          )}
+          {/* canvas-2s6.6: architecture's only node role (dsl/architecture.ts:123-137) had no
+              toolbar/AI-tool entry at all before this bead -- see handleAddJunction's own doc
+              comment for why this is a dedicated button rather than a role-conversion popup. */}
+          {dslFamily === 'architecture' && (
+            <button
+              type="button"
+              className="btn btn--secondary"
+              data-testid="add-junction"
+              title="Add Junction"
+              aria-label="Add Junction"
+              onClick={handleAddJunction}
+            >
+              <Icon name="circle" />
+              Add Junction
+            </button>
           )}
           <button
             type="button"
@@ -1953,6 +2568,199 @@ export function Canvas({ model, onChange, dslFamily, toolbarContainer }: CanvasP
             <Icon name="trash" />
             Delete Selected
           </button>
+          {/* canvas-2s6.2: activate/deactivate already had full DSL/model/AI-tool support
+              (addPointMarkerContainer, diagram-tools.ts's activateParticipant/deactivateParticipant)
+              — Canvas.tsx just never called it. Select one participant, then click one of these. */}
+          {dslFamily === 'sequence' && (
+            <>
+              <button
+                type="button"
+                className="btn btn--secondary"
+                data-testid="activate-participant"
+                disabled={sequenceActivationDisabled}
+                onClick={() => markSequenceActivation('activate')}
+              >
+                Activate
+              </button>
+              <button
+                type="button"
+                className="btn btn--secondary"
+                data-testid="deactivate-participant"
+                disabled={sequenceActivationDisabled}
+                onClick={() => markSequenceActivation('deactivate')}
+              >
+                Deactivate
+              </button>
+            </>
+          )}
+          {/* canvas-2s6.2: autonumber (DiagramModel.sequenceAutonumber) had no UI at all — a plain
+              checked/unchecked toggle for the bare `autonumber` form, plus optional start/step
+              fields for the numbered form, both committing straight to the model (there's nothing
+              to "choose ahead of time" here, unlike the connect-mode pickers above — this directly
+              edits real, already-persisted diagram state, the same "controlled by the model itself"
+              shape updateNodeStyle's own popup already uses). */}
+          {dslFamily === 'sequence' && (
+            <>
+              <label
+                className="field__label"
+                htmlFor="sequence-autonumber-toggle"
+                style={{ flexDirection: 'row', alignItems: 'center', gap: 'var(--space-1)' }}
+              >
+                <input
+                  type="checkbox"
+                  id="sequence-autonumber-toggle"
+                  data-testid="sequence-autonumber-toggle"
+                  checked={!!model.sequenceAutonumber}
+                  onChange={(e) =>
+                    onChange(
+                      setSequenceAutonumber(model, {
+                        enabled: e.target.checked,
+                        start: model.sequenceAutonumber?.start,
+                        step: model.sequenceAutonumber?.step,
+                      }),
+                    )
+                  }
+                />
+                Autonumber
+              </label>
+              {model.sequenceAutonumber && (
+                <>
+                  <label className="field__label" htmlFor="sequence-autonumber-start">
+                    Start
+                    <input
+                      type="number"
+                      id="sequence-autonumber-start"
+                      data-testid="sequence-autonumber-start"
+                      style={{ width: 60 }}
+                      value={model.sequenceAutonumber.start ?? ''}
+                      onChange={(e) =>
+                        onChange(
+                          setSequenceAutonumber(model, {
+                            enabled: true,
+                            start: e.target.value === '' ? undefined : Number(e.target.value),
+                            step: model.sequenceAutonumber?.step,
+                          }),
+                        )
+                      }
+                    />
+                  </label>
+                  <label className="field__label" htmlFor="sequence-autonumber-step">
+                    Step
+                    <input
+                      type="number"
+                      id="sequence-autonumber-step"
+                      data-testid="sequence-autonumber-step"
+                      style={{ width: 60 }}
+                      value={model.sequenceAutonumber.step ?? ''}
+                      onChange={(e) =>
+                        onChange(
+                          setSequenceAutonumber(model, {
+                            enabled: true,
+                            start: model.sequenceAutonumber?.start,
+                            step: e.target.value === '' ? undefined : Number(e.target.value),
+                          }),
+                        )
+                      }
+                    />
+                  </label>
+                </>
+              )}
+            </>
+          )}
+          {/* canvas-2s6.2: note-left/note-right/note-over — select 1+ participant(s) (note-left/
+              note-right need exactly one), pick a kind, optionally type text, then Add Note. */}
+          {dslFamily === 'sequence' && (
+            <>
+              <label className="field__label" htmlFor="sequence-note-kind">
+                Note Kind
+                <select
+                  id="sequence-note-kind"
+                  data-testid="sequence-note-kind"
+                  value={sequenceNoteKind}
+                  onChange={(e) => setSequenceNoteKind(e.target.value as typeof sequenceNoteKind)}
+                >
+                  <option value="note-left">Left of</option>
+                  <option value="note-right">Right of</option>
+                  <option value="note-over">Over</option>
+                </select>
+              </label>
+              <label className="field__label" htmlFor="sequence-note-label">
+                Note Text
+                <input
+                  id="sequence-note-label"
+                  data-testid="sequence-note-label"
+                  value={sequenceNoteLabel}
+                  placeholder="Note text"
+                  onChange={(e) => setSequenceNoteLabel(e.target.value)}
+                />
+              </label>
+              <button
+                type="button"
+                className="btn btn--secondary"
+                data-testid="add-sequence-note"
+                disabled={addSequenceNoteDisabled}
+                onClick={addSequenceNote}
+              >
+                Add Note
+              </button>
+            </>
+          )}
+          {/* canvas-2s6.2: loop/alt/opt/par/critical/break/rect — select 1+ messages (Shift/Ctrl+
+              click a connector, selectedMessageIds' own doc comment), pick a kind, then Create
+              Block. rect's arg is a color, not a label (dsl/sequence.ts's own serializeContainer
+              rect branch), so the two share this control row but never both show at once. */}
+          {dslFamily === 'sequence' && (
+            <>
+              <label className="field__label" htmlFor="sequence-block-kind">
+                Block Kind
+                <select
+                  id="sequence-block-kind"
+                  data-testid="sequence-block-kind"
+                  value={sequenceBlockKind}
+                  onChange={(e) => setSequenceBlockKind(e.target.value)}
+                >
+                  {SEQUENCE_BLOCK_ROLES.map((opt) => (
+                    <option key={opt.value} value={opt.value}>
+                      {opt.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              {sequenceBlockKind === 'rect' ? (
+                <label className="field__label" htmlFor="sequence-block-color">
+                  Highlight Color
+                  <input
+                    id="sequence-block-color"
+                    data-testid="sequence-block-color"
+                    value={sequenceBlockColor}
+                    placeholder="rgb(200, 200, 0)"
+                    onChange={(e) => setSequenceBlockColor(e.target.value)}
+                  />
+                </label>
+              ) : (
+                <label className="field__label" htmlFor="sequence-block-label">
+                  Block Label
+                  <input
+                    id="sequence-block-label"
+                    data-testid="sequence-block-label"
+                    value={sequenceBlockLabel}
+                    placeholder="Condition/label"
+                    onChange={(e) => setSequenceBlockLabel(e.target.value)}
+                  />
+                </label>
+              )}
+              <button
+                type="button"
+                className="btn btn--secondary"
+                data-testid="create-sequence-block"
+                title="Select messages (Shift/Ctrl+click a connector) to enclose first"
+                disabled={createSequenceBlockDisabled}
+                onClick={createSequenceBlock}
+              >
+                Create Block ({selectedMessageIds.size} selected)
+              </button>
+            </>
+          )}
           {/* canvas-esn: flowchart-family only (v1) — the same dslFamily scoping already used for
               getAddableShapes above. Not a mode like Connect: one click rearranges the whole
               diagram in the picked direction and the picker stays visible so it can be changed and
@@ -2053,6 +2861,7 @@ export function Canvas({ model, onChange, dslFamily, toolbarContainer }: CanvasP
             setSelectedIds(new Set());
             setSelectedContainerId(null);
             setSelectedEdgeId(null);
+            setSelectedMessageIds(new Set());
           }
         }}
       >
@@ -2127,8 +2936,13 @@ export function Canvas({ model, onChange, dslFamily, toolbarContainer }: CanvasP
           // function the way svg-renderer.ts does, per the `container` shadow-copy above).
           const roleStyle = containerRoleStyle(container.role);
           const isLabeledControlFlowBlock = Boolean(container.role && LABELED_CONTROL_FLOW_ROLES.has(container.role));
-          const stroke = isSelected ? '#2563eb' : isLabeledControlFlowBlock ? CONTROL_FLOW_STROKE : roleStyle.stroke;
-          const dasharray = isLabeledControlFlowBlock ? CONTROL_FLOW_DASHARRAY : roleStyle.strokeDasharray;
+          // canvas-2s6.8: a distinct highlight while another container is being dragged over this
+          // one, so the user sees where it would nest before releasing — takes priority even over
+          // the selection-blue stroke (a container can be selected AND a live drop target at the
+          // same time, e.g. re-nesting a container that was already selected).
+          const isDropTarget = containerDropTargetId === container.id;
+          const stroke = isDropTarget ? CONTAINER_DROP_TARGET_STROKE : isSelected ? '#2563eb' : isLabeledControlFlowBlock ? CONTROL_FLOW_STROKE : roleStyle.stroke;
+          const dasharray = isDropTarget ? undefined : isLabeledControlFlowBlock ? CONTROL_FLOW_DASHARRAY : roleStyle.strokeDasharray;
           // canvas-7vs.9: a leader line from this container's center to each attached node's own
           // position — a sequence note's target is its participant's lifeline (already resolved
           // via the `note`/`sequenceLayout` lookups above are position-only, so re-derive here from
@@ -2177,7 +2991,7 @@ export function Canvas({ model, onChange, dslFamily, toolbarContainer }: CanvasP
                 height={size.height}
                 fill={container.style?.fillColor ?? (roleStyle.defaultFill === 'none' ? 'transparent' : roleStyle.defaultFill)}
                 stroke={stroke}
-                strokeWidth={isSelected ? 2 : 1}
+                strokeWidth={isDropTarget ? 3 : isSelected ? 2 : 1}
                 strokeDasharray={dasharray}
               />
               {isLabeledControlFlowBlock && (
@@ -2199,20 +3013,51 @@ export function Canvas({ model, onChange, dslFamily, toolbarContainer }: CanvasP
                 </text>
               )}
               {editingContainerId === container.id && (
-                <foreignObject x={container.position.x + 4} y={container.position.y + 4} width={160} height={24}>
-                  <input
-                    data-testid={`container-label-input-${container.id}`}
-                    autoFocus
-                    defaultValue={container.label}
-                    style={{ width: '100%', boxSizing: 'border-box' }}
-                    onClick={(e) => e.stopPropagation()}
-                    onPointerDown={(e) => e.stopPropagation()}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter') commitContainerLabel(container.id, (e.target as HTMLInputElement).value);
-                      if (e.key === 'Escape') setEditingContainerId(null);
-                    }}
-                    onBlur={(e) => commitContainerLabel(container.id, e.target.value)}
-                  />
+                <foreignObject
+                  x={container.position.x + 4}
+                  y={container.position.y + 4}
+                  width={160}
+                  // canvas-2s6.7: taller only for flowchart, to also fit the direction override
+                  // select below the label input — every other family's containers get the
+                  // original single-row height unchanged.
+                  height={dslFamily === 'flowchart' ? 58 : 24}
+                >
+                  <div className="stack" style={{ gap: 'var(--space-1)' }} onClick={(e) => e.stopPropagation()} onPointerDown={(e) => e.stopPropagation()}>
+                    <input
+                      data-testid={`container-label-input-${container.id}`}
+                      autoFocus
+                      defaultValue={container.label}
+                      style={{ width: '100%', boxSizing: 'border-box' }}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') commitContainerLabel(container.id, (e.target as HTMLInputElement).value);
+                        if (e.key === 'Escape') setEditingContainerId(null);
+                      }}
+                      onBlur={(e) => commitContainerLabel(container.id, e.target.value)}
+                    />
+                    {/* canvas-2s6.7: DiagramContainer.direction (a subgraph's own `direction
+                        <TD|LR|TB|RL|BT>` override, flowchart-only) already round-tripped through
+                        DSL/import but had no way to be set or cleared interactively at all. */}
+                    {dslFamily === 'flowchart' && (
+                      <select
+                        data-testid={`container-direction-${container.id}`}
+                        aria-label="Subgraph direction override"
+                        value={container.direction ?? ''}
+                        style={{ width: '100%', boxSizing: 'border-box' }}
+                        onChange={(e) =>
+                          onChange(
+                            setContainerDirection(model, container.id, (e.target.value || undefined) as FlowchartDirection | undefined),
+                          )
+                        }
+                      >
+                        <option value="">Inherit diagram direction</option>
+                        <option value="TD">TD</option>
+                        <option value="LR">LR</option>
+                        <option value="TB">TB</option>
+                        <option value="RL">RL</option>
+                        <option value="BT">BT</option>
+                      </select>
+                    )}
+                  </div>
                 </foreignObject>
               )}
               {/* Resize handle renders only for the selected container, so the steady-state
@@ -2431,16 +3276,16 @@ export function Canvas({ model, onChange, dslFamily, toolbarContainer }: CanvasP
                     setEditingRelationKindEdgeId(null);
                     setStylingEdgeId(edge.id);
                   },
-                  `Choose connector color for ${edge.id}`,
+                  `Edit style for connector ${edge.id}`,
                 )}
               {stylingEdgeId === edge.id &&
                 renderStylePopup(
                   edge.id,
                   stylePopupPos.x,
                   stylePopupPos.y,
-                  edge.style?.strokeColor,
-                  (color) => onChange(updateEdgeStyle(model, edge.id, { strokeColor: color })),
-                  () => onChange(updateEdgeStyle(model, edge.id, { strokeColor: null })),
+                  edge.style,
+                  false,
+                  (patch) => onChange(updateEdgeStyle(model, edge.id, patch)),
                   () => setStylingEdgeId(null),
                 )}
               {/* canvas-2s6.3/canvas-2s6.4: a third edge affordance, UML/ERD-only, stacked further
@@ -2521,6 +3366,16 @@ export function Canvas({ model, onChange, dslFamily, toolbarContainer }: CanvasP
             canvasHeight,
             FIELDS_POPUP_WIDTH,
             FIELDS_POPUP_HEIGHT,
+          );
+          // jmuir-dzd.5: same below-the-node placement precedent, with the link popup's own size.
+          const linkPopupPos = popupPosition(
+            node.position.y,
+            node.position.y + size.height,
+            node.position.x,
+            canvasWidth,
+            canvasHeight,
+            LINK_POPUP_WIDTH,
+            LINK_POPUP_HEIGHT,
           );
           // canvas-23t.5: mirrors svg-renderer.ts's renderNode icon branch exactly — glyph
           // top-aligned, caption stacked below it, both from the shared iconNodeLayout
@@ -2642,6 +3497,7 @@ export function Canvas({ model, onChange, dslFamily, toolbarContainer }: CanvasP
                     setStylingNodeId(null);
                     setEditingFieldsNodeId(null);
                     setEditingKindNodeId(null);
+                    setEditingLinkNodeId(null);
                     setEditingNodeId(node.id);
                   },
                   `Edit label for ${node.label}`,
@@ -2657,18 +3513,19 @@ export function Canvas({ model, onChange, dslFamily, toolbarContainer }: CanvasP
                     setEditingNodeId(null);
                     setEditingFieldsNodeId(null);
                     setEditingKindNodeId(null);
+                    setEditingLinkNodeId(null);
                     setStylingNodeId(node.id);
                   },
-                  `Choose fill color for ${node.label}`,
+                  `Edit style for ${node.label}`,
                 )}
               {stylingNodeId === node.id &&
                 renderStylePopup(
                   node.id,
                   stylePopupPos.x,
                   stylePopupPos.y,
-                  node.style?.fillColor,
-                  (color) => onChange(updateNodeStyle(model, node.id, { fillColor: color })),
-                  () => onChange(updateNodeStyle(model, node.id, { fillColor: null })),
+                  node.style,
+                  true,
+                  (patch) => onChange(updateNodeStyle(model, node.id, patch)),
                   () => setStylingNodeId(null),
                 )}
               {/* canvas-vcv: every node in an ERD diagram is an entity (attributes); every node in
@@ -2688,6 +3545,7 @@ export function Canvas({ model, onChange, dslFamily, toolbarContainer }: CanvasP
                     setEditingNodeId(null);
                     setStylingNodeId(null);
                     setEditingKindNodeId(null);
+                    setEditingLinkNodeId(null);
                     setEditingFieldsNodeId(node.id);
                   },
                   dslFamily === 'erd' ? `Edit attributes for ${node.label}` : `Edit members for ${node.label}`,
@@ -2720,6 +3578,7 @@ export function Canvas({ model, onChange, dslFamily, toolbarContainer }: CanvasP
                     setEditingNodeId(null);
                     setStylingNodeId(null);
                     setEditingFieldsNodeId(null);
+                    setEditingLinkNodeId(null);
                     setEditingKindNodeId(node.id);
                   },
                   `Choose kind for ${node.label}`,
@@ -2733,6 +3592,36 @@ export function Canvas({ model, onChange, dslFamily, toolbarContainer }: CanvasP
                   (role) => onChange(updateNodeRole(model, node.id, role)),
                   () => setEditingKindNodeId(null),
                 )}
+              {/* jmuir-dzd.5: flowchart's own click href/tooltip interaction — DiagramNode.link is
+                  flowchart-only, same family-gated precedent as C4's own kind affordance above.
+                  Reuses fields'/kind's own x-offset — mutually exclusive by family. */}
+              {editingNodeId !== node.id &&
+                !connectMode &&
+                dslFamily === 'flowchart' &&
+                (hoveredId === node.id || selectedIds.has(node.id)) &&
+                renderLinkAffordance(
+                  node.id,
+                  node.position.x + size.width - 76,
+                  node.position.y + 2,
+                  () => {
+                    setEditingNodeId(null);
+                    setStylingNodeId(null);
+                    setEditingFieldsNodeId(null);
+                    setEditingKindNodeId(null);
+                    setEditingLinkNodeId(node.id);
+                  },
+                  node.link ? `Edit link for ${node.label}` : `Add link for ${node.label}`,
+                )}
+              {editingLinkNodeId === node.id && (
+                <LinkPopup
+                  node={node}
+                  model={model}
+                  x={linkPopupPos.x}
+                  y={linkPopupPos.y}
+                  onChange={onChange}
+                  onClose={() => setEditingLinkNodeId(null)}
+                />
+              )}
             </g>
           );
         })}

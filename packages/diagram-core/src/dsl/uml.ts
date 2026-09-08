@@ -11,8 +11,13 @@ const ID = String.raw`[A-Za-z0-9_]+`;
 // trying to cram every combination into one regex. Order doesn't actually matter for correctness
 // (each is anchored to its own distinct trailing shape, `$` vs `\{$`), but BLOCK_START is checked
 // first by convention, matching this codebase's usual style.
-const CLASS_BLOCK_START = new RegExp(`^class\\s+(${ID})(?:\\s+<<(\\w+)>>)?\\s*\\{$`);
-const CLASS_DECL = new RegExp(`^class\\s+(${ID})(?:\\s+<<(\\w+)>>)?$`);
+// jmuir-dtu.20: a class-level generic type parameter (`class Square~Shape~`), between the id and
+// any <<Stereotype>>/body — the class-name-itself analog of member-level generics
+// (`List~string~ items`), which already worked since a member's own type is captured as free text
+// with no `~` restriction. `[^~]+` (not `${ID}`) mirrors that same leniency, so a multi-parameter
+// generic like `Container~Key, Value~` is accepted too, not just a single bare identifier.
+const CLASS_BLOCK_START = new RegExp(`^class\\s+(${ID})(?:~([^~]+)~)?(?:\\s+<<(\\w+)>>)?\\s*\\{$`);
+const CLASS_DECL = new RegExp(`^class\\s+(${ID})(?:~([^~]+)~)?(?:\\s+<<(\\w+)>>)?$`);
 // <<Interface>> Duck -- the "separate line" annotation form (Mermaid's own docs example),
 // referencing the class by name rather than relying on body/decl-line adjacency. Order-
 // independent here like every other alias/annotation resolution in this codebase: it doesn't
@@ -256,7 +261,7 @@ export function parseUml(dsl: string): ParseResult {
   const classAssignments: { classIds: string[]; className: string }[] = [];
   const styleDirectives: { classId: string; propsRaw: string }[] = [];
 
-  const ensureClass = (id: string, annotation?: string, containerId?: string) => {
+  const ensureClass = (id: string, annotation?: string, containerId?: string, genericParameter?: string) => {
     const existing = nodesById.get(id);
     if (!existing) {
       nodesById.set(id, {
@@ -268,10 +273,12 @@ export function parseUml(dsl: string): ParseResult {
         style: styles[id],
         containerId,
         umlStereotype: annotation,
+        umlGenericParameter: genericParameter,
       });
       return;
     }
     if (annotation !== undefined) existing.umlStereotype = annotation;
+    if (genericParameter !== undefined) existing.umlGenericParameter = genericParameter;
   };
 
   for (let i = 0; i < lines.length; i += 1) {
@@ -438,16 +445,16 @@ export function parseUml(dsl: string): ParseResult {
 
     const blockStart = line.match(CLASS_BLOCK_START);
     if (blockStart) {
-      const [, id, annotation] = blockStart;
-      ensureClass(id, annotation, currentNamespaceId());
+      const [, id, genericParameter, annotation] = blockStart;
+      ensureClass(id, annotation, currentNamespaceId(), genericParameter);
       insideClassBody = { id, line: i + 1, content: rawLine };
       continue;
     }
 
     const decl = line.match(CLASS_DECL);
     if (decl) {
-      const [, id, annotation] = decl;
-      ensureClass(id, annotation, currentNamespaceId());
+      const [, id, genericParameter, annotation] = decl;
+      ensureClass(id, annotation, currentNamespaceId(), genericParameter);
       continue;
     }
 
@@ -587,11 +594,12 @@ export function serializeUml(model: DiagramModel): string {
   if (model.direction) lines.push(`direction ${model.direction}`);
 
   const classLines = (node: DiagramNode): string[] => {
+    const genericPart = node.umlGenericParameter ? `~${node.umlGenericParameter}~` : '';
     const annotationPart = node.umlStereotype ? ` <<${node.umlStereotype}>>` : '';
     if (!node.members || node.members.length === 0) {
-      return [`class ${node.id}${annotationPart}`];
+      return [`class ${node.id}${genericPart}${annotationPart}`];
     }
-    const out = [`class ${node.id}${annotationPart} {`];
+    const out = [`class ${node.id}${genericPart}${annotationPart} {`];
     out.push(...node.members.map(serializeMemberLine));
     out.push('}');
     return out;

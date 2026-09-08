@@ -1,14 +1,17 @@
-import type {
-  ClassMember,
-  DiagramContainer,
-  DiagramEdge,
-  DiagramModel,
-  DiagramNode,
-  EntityAttribute,
-  NodeShape,
-  NodeStyle,
-  Position,
-  Size,
+import {
+  isAllowedLinkHref,
+  type ClassMember,
+  type DiagramContainer,
+  type DiagramEdge,
+  type DiagramModel,
+  type DiagramNode,
+  type EntityAttribute,
+  type FlowchartDirection,
+  type NodeLink,
+  type NodeShape,
+  type NodeStyle,
+  type Position,
+  type Size,
 } from './diagram-model.js';
 
 /**
@@ -123,6 +126,55 @@ export function updateNodeLabel(model: DiagramModel, nodeId: string, label: stri
   };
 }
 
+/**
+ * jmuir-dzd.5: sets or clears a flowchart node's `click href` interaction — `link: null` clears
+ * it entirely; a real `NodeLink` sets/replaces it wholesale (href is always required on the
+ * interface itself, so there is no meaningful "partial" link to merge-patch, unlike StylePatch).
+ *
+ * Throws (mirrors updateNodeLabel's own empty-label precedent — a genuine precondition violation,
+ * not a soft "id not found" no-op) when the href fails isAllowedLinkHref, rather than silently
+ * storing an unusable link the export renderer would just as silently neutralize later: `link` is
+ * also settable directly through this op (bypassing the flowchart parser's own identical check
+ * entirely), so this is the ONE place that boundary is actually enforced for every non-DSL-import
+ * caller (the canvas UI popup, and — should a future bead ever add one — an AI tool). Every
+ * consumer must still independently re-check at its own trust boundary too (svg-renderer.ts's
+ * wrapNodeLink does, as defense in depth) rather than assuming this check ran.
+ */
+export function setNodeLink(model: DiagramModel, nodeId: string, link: NodeLink | null): DiagramModel {
+  if (!model.nodes.some((n) => n.id === nodeId)) return model;
+  if (link !== null) {
+    if (!isAllowedLinkHref(link.href)) {
+      throw new Error(`setNodeLink: href must use "http://", "https://", or a relative path (got "${link.href}").`);
+    }
+    // jmuir-dzd.5 appsec review: dsl/flowchart-serializer.ts's serializeClickHref re-emits
+    // href/tooltip inside a literal `"..."` DSL token with no escape mechanism at all (confirmed
+    // against the parser's own `"([^"]*)"` capture — real Mermaid's click grammar has no quote-
+    // escaping syntax to emit even if this file wanted to). A `"` would prematurely close that
+    // token; a raw newline would inject an entirely separate DSL statement on the next line —
+    // e.g. a second `click <otherNodeId> href "javascript:..."` line targeting a DIFFERENT node,
+    // one whose own href was never itself passed to isAllowedLinkHref, defeating the scheme check
+    // entirely on next reparse. Rejected here (not escaped) since there is no valid escaped form
+    // to produce — matches this op's own "throw on a genuine precondition violation" convention,
+    // not a soft no-op.
+    if (/["\r\n]/.test(link.href) || (link.tooltip !== undefined && /["\r\n]/.test(link.tooltip))) {
+      throw new Error(
+        'setNodeLink: href/tooltip cannot contain a double-quote or a line break -- the DSL "click href" directive has no escape syntax for either.',
+      );
+    }
+  }
+  return {
+    ...model,
+    nodes: model.nodes.map((n) => {
+      if (n.id !== nodeId) return n;
+      if (link === null) {
+        const { link: _removed, ...rest } = n;
+        return rest;
+      }
+      return { ...n, link };
+    }),
+  };
+}
+
 /** Sets a connector's label; an empty string clears it (FR-005). */
 export function updateEdgeLabel(model: DiagramModel, edgeId: string, label: string): DiagramModel {
   return {
@@ -139,13 +191,19 @@ export interface StylePatch {
   strokeColor?: string | null;
   strokeWidth?: number | null;
   strokeDasharray?: string | null;
+  // canvas-2s6.7: fontFamily/fontSize were already real NodeStyle fields (diagram-model.ts) but
+  // this patch type — the one shared path every mutation of a node/edge's style routes through,
+  // canvas UI and AI tool-calling alike (Constitution I) — never carried either one, so neither
+  // was actually settable from anywhere despite NodeStyle itself claiming to support them.
+  fontFamily?: string | null;
+  fontSize?: number | null;
 }
 
 /** Merges only the fields present in `patch` onto `existing`: omitted leaves the existing value
  *  untouched, an explicit `null` clears it, a real value sets it. */
 function mergeStyle(existing: NodeStyle | undefined, patch: StylePatch): NodeStyle {
   const merged: NodeStyle = { ...existing };
-  for (const key of ['fillColor', 'strokeColor', 'strokeWidth', 'strokeDasharray'] as const) {
+  for (const key of ['fillColor', 'strokeColor', 'strokeWidth', 'strokeDasharray', 'fontFamily', 'fontSize'] as const) {
     const value = patch[key];
     if (value === undefined) continue;
     if (value === null) delete merged[key];
@@ -324,6 +382,44 @@ export function updateEdgeArrowStyle(model: DiagramModel, edgeId: string, patch:
   };
 }
 
+export interface EdgeArchitectureModifiersPatch {
+  /** Omit to leave untouched; `null` clears it back to unset; a value sets it — same convention
+   *  as EdgeRelationKindPatch/EdgeErCardinalityPatch above. */
+  sourceIsGroup?: boolean | null;
+  targetIsGroup?: boolean | null;
+  sourceAnchor?: DiagramEdge['sourceAnchor'] | null;
+  targetAnchor?: DiagramEdge['targetAnchor'] | null;
+}
+
+/** canvas-2s6.6: merge-patches an architecture edge's `{group}` escalation and `:T/B/L/R` anchor
+ *  hints (dsl/architecture.ts), mirroring updateEdgeRelationKind's merge semantics exactly. Neither
+ *  field is part of AddEdgeInput (unlike ER's erSourceCardinality/erTargetCardinality, which the
+ *  connect-mode gesture supplies directly at creation) since they're rare enough not to warrant
+ *  widening every other family's addEdge call site — the canvas's architecture-specific
+ *  connect-mode picker instead applies this as a second "create then patch" step, the same
+ *  composition UML's own relationship kind already uses. No-op for an unknown id. */
+export function updateEdgeArchitectureModifiers(
+  model: DiagramModel,
+  edgeId: string,
+  patch: EdgeArchitectureModifiersPatch,
+): DiagramModel {
+  if (!model.edges.some((e) => e.id === edgeId)) return model;
+  return {
+    ...model,
+    edges: model.edges.map((e) => {
+      if (e.id !== edgeId) return e;
+      const next = { ...e };
+      for (const key of ['sourceIsGroup', 'targetIsGroup', 'sourceAnchor', 'targetAnchor'] as const) {
+        const value = patch[key];
+        if (value === undefined) continue;
+        if (value === null) delete next[key];
+        else (next[key] as typeof value) = value;
+      }
+      return next;
+    }),
+  };
+}
+
 export interface AddPointMarkerContainerInput {
   role: 'activate' | 'deactivate';
   attachedNodeId: string;
@@ -343,8 +439,15 @@ export function addPointMarkerContainer(
   input: AddPointMarkerContainerInput,
 ): DiagramModel {
   const index = model.containers.length;
-  const maxOrder = model.containers.reduce(
-    (max, c) => (c.sequenceOrder !== undefined && c.sequenceOrder > max ? c.sequenceOrder : max),
+  // canvas-2s6.2: a real bug found while wiring the canvas's own activate/deactivate button --
+  // "after everything currently on the timeline" must mean the max sequenceOrder across BOTH
+  // containers AND edges (messages are the majority of any real timeline's items). Considering
+  // containers alone meant a diagram with messages but no other containers yet always computed
+  // maxOrder -1, placing the new marker at order 0 -- visually BEFORE every existing message,
+  // not after them. Unreachable via the AI tool's own unit tests (empty-model fixtures never
+  // exercised a populated timeline) until this bead's UI wiring made it reachable interactively.
+  const maxOrder = [...model.containers, ...model.edges].reduce(
+    (max, item) => (item.sequenceOrder !== undefined && item.sequenceOrder > max ? item.sequenceOrder : max),
     -1,
   );
   const container: DiagramContainer = {
@@ -397,6 +500,10 @@ export interface AddContainerInput {
    *  timeline" the same way addPointMarkerContainer's own maxOrder+1 already does, since that's a
    *  read of the current model the caller already has in hand. */
   sequenceOrder?: number;
+  /** canvas-2s6.2: sequence `rect <color> ... end` needs its color set at creation time (there is
+   *  no dedicated container-style op to "create then patch" onto, unlike node/edge style) — every
+   *  other role ignores this. */
+  style?: NodeStyle;
 }
 
 /** Appends a container. Creates no membership — shapes join by being assigned, not by geometry. */
@@ -412,6 +519,7 @@ export function addContainer(model: DiagramModel, input: AddContainerInput): Dia
     parentContainerId: input.parentContainerId,
     attachedNodeIds: input.attachedNodeIds,
     sequenceOrder: input.sequenceOrder,
+    style: input.style,
   };
   return { ...model, containers: [...model.containers, container] };
 }
@@ -427,8 +535,36 @@ export function setContainerRole(model: DiagramModel, containerId: string, role:
   };
 }
 
+/** canvas-2s6.7: sets a flowchart subgraph's own `direction` override (DiagramContainer.direction
+ *  — flowchart only), or clears it back to unset (inheriting the diagram's top-level direction)
+ *  when passed `undefined`. Had no op at all before this bead — DSL/import round-trip already
+ *  worked (jmuir-dzd grouping E), but nothing could set or clear it interactively. No-op for an
+ *  unknown id. */
+export function setContainerDirection(
+  model: DiagramModel,
+  containerId: string,
+  direction: FlowchartDirection | undefined,
+): DiagramModel {
+  if (!model.containers.some((c) => c.id === containerId)) return model;
+  return {
+    ...model,
+    containers: model.containers.map((c) => {
+      if (c.id !== containerId) return c;
+      if (direction === undefined) {
+        const { direction: _removed, ...rest } = c;
+        return rest;
+      }
+      return { ...c, direction };
+    }),
+  };
+}
+
 /** Nests a container inside another (C4/UML nesting) — mirrors assignNodeToContainer's exact
- *  shape. No-op if either id is missing, or if a container would be nested inside itself. */
+ *  shape. No-op if either id is missing, if a container would be nested inside itself, or (canvas-
+ *  2s6.8) inside any of its own DESCENDANTS — walks parentContainerId's own ancestor chain and
+ *  rejects if containerId appears anywhere in it, so e.g. nesting A (which already contains B,
+ *  which already contains C) into C can't silently create a cycle no renderer/serializer could
+ *  ever terminate on. */
 export function setContainerParent(
   model: DiagramModel,
   containerId: string,
@@ -437,6 +573,16 @@ export function setContainerParent(
   if (containerId === parentContainerId) return model;
   if (!model.containers.some((c) => c.id === containerId)) return model;
   if (!model.containers.some((c) => c.id === parentContainerId)) return model;
+  let ancestor: string | undefined = parentContainerId;
+  const seen = new Set<string>();
+  while (ancestor !== undefined) {
+    if (ancestor === containerId) return model;
+    // Already-corrupt data (a pre-existing cycle from some other source) breaks defensively
+    // rather than looping forever, instead of also rejecting this otherwise-unrelated call.
+    if (seen.has(ancestor)) break;
+    seen.add(ancestor);
+    ancestor = model.containers.find((c) => c.id === ancestor)?.parentContainerId;
+  }
   return {
     ...model,
     containers: model.containers.map((c) => (c.id === containerId ? { ...c, parentContainerId } : c)),
@@ -608,4 +754,27 @@ export function removeContainer(model: DiagramModel, containerId: string): Diagr
       return rest;
     }),
   };
+}
+
+export interface SequenceAutonumberPatch {
+  /** false clears `sequenceAutonumber` back to unset (an `autonumber off`-equivalent, matching
+   *  dsl/sequence.ts's own "absent means never turned on" parse convention — a lone `autonumber
+   *  off` with nothing preceding it is already a no-op there too). true sets it, using `start`/
+   *  `step` when both are given or the bare form when either is omitted (mirrors serializeSequence's
+   *  own `start !== undefined && step !== undefined` branch exactly). */
+  enabled: boolean;
+  start?: number;
+  step?: number;
+}
+
+/** Sets or clears a sequence diagram's `autonumber` directive — a model-level (not per-element)
+ *  field, so unlike every other op in this file there's no id parameter, just the whole model.
+ *  No other field is touched. */
+export function setSequenceAutonumber(model: DiagramModel, patch: SequenceAutonumberPatch): DiagramModel {
+  if (!patch.enabled) {
+    if (model.sequenceAutonumber === undefined) return model;
+    const { sequenceAutonumber: _removed, ...rest } = model;
+    return rest;
+  }
+  return { ...model, sequenceAutonumber: { start: patch.start, step: patch.step } };
 }

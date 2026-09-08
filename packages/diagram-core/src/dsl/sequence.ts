@@ -3,6 +3,7 @@ import {
   type DiagramContainer,
   type DiagramModel,
   type DiagramNode,
+  type NodeStyle,
 } from '../model/diagram-model.js';
 import { splitFrontMatter, joinFrontMatter, stripTrailingComment, type CanvasFrontMatter } from './front-matter.js';
 import type { ParseError, ParseResult } from './types.js';
@@ -98,10 +99,14 @@ function noteSize(text: string): { width: number; height: number } {
  * ->>/-->> parsed, and even those collapsed to one shape on serialize).
  */
 export function parseSequence(dsl: string): ParseResult {
-  // canvas-7vs.1: front matter is parsed only to skip past it — a sequence diagram's
-  // `canvas.positions`/`canvas.containers` block (if an older save still has one) is deliberately
-  // never read; position is always computed fresh (research.md §1).
-  const { body } = splitFrontMatter(dsl);
+  // canvas-7vs.1: `canvas.positions`/`canvas.containers` (if an older save still has one) are
+  // deliberately never read — position is always computed fresh (research.md §1). canvas-2s6.9:
+  // `canvas.styles`/`canvas.edgeStyles` are a genuinely different, unrelated concept with no such
+  // computed-value conflict (style is never derived from anything, unlike position) — read below,
+  // same as every other family's parser already does.
+  const { frontMatter, body } = splitFrontMatter(dsl);
+  const styles = frontMatter.canvas?.styles ?? {};
+  const edgeStyles = frontMatter.canvas?.edgeStyles ?? {};
 
   const lines = body.split(/\r?\n/);
   const errors: ParseError[] = [];
@@ -116,6 +121,7 @@ export function parseSequence(dsl: string): ParseResult {
     containerId?: string;
     arrow?: 'none' | 'target' | 'both' | 'cross' | 'open';
     lineStyle?: 'solid' | 'dotted';
+    style?: NodeStyle;
   }[] = [];
   let headerSeen = false;
   let edgeCounter = 0;
@@ -403,6 +409,16 @@ export function parseSequence(dsl: string): ParseResult {
 
   if (errors.length > 0) return { errors };
 
+  // canvas-2s6.9: applied as a post-pass rather than threaded through every node/edge-creation
+  // call site (ensureParticipant is called multiple times per participant, to set an alias) --
+  // simpler, and every node/edge id is already final by this point.
+  for (const [id, node] of nodesById) {
+    if (styles[id]) node.style = styles[id];
+  }
+  for (const edge of edges) {
+    if (edgeStyles[edge.id]) edge.style = edgeStyles[edge.id];
+  }
+
   const model = createEmptyDiagramModel('sequence');
   model.nodes = Array.from(nodesById.values());
   model.edges = edges;
@@ -492,8 +508,18 @@ export function serializeSequence(model: DiagramModel): string {
   // position is always recomputed by computeSequenceLayout() on the next parse regardless of what
   // was written, so storing it would be a stale, silently-ignored value rather than real
   // round-trip fidelity (research.md §1). `joinFrontMatter` omits the block entirely when passed
-  // no canvas content.
-  const frontMatter: CanvasFrontMatter = {};
+  // no canvas content. canvas-2s6.9: `styles`/`edgeStyles` DO belong here though — unlike
+  // position, a node/edge's style is never derived from anything else on the next parse, so
+  // omitting it isn't "avoiding a stale value", it's just losing real data. Mirrors
+  // c4.ts/erd.ts/uml.ts's identical `styles`/`edgeStyles` block exactly; empty when nothing has a
+  // style, so an unstyled diagram's front-matter stays fully absent as before (joinFrontMatter's
+  // own per-key emptiness check).
+  const frontMatter: CanvasFrontMatter = {
+    canvas: {
+      styles: Object.fromEntries(model.nodes.filter((n) => n.style).map((n) => [n.id, n.style!])),
+      edgeStyles: Object.fromEntries(model.edges.filter((e) => e.style).map((e) => [e.id, e.style!])),
+    },
+  };
 
   const lines: string[] = ['sequenceDiagram'];
   if (model.title) lines.push(`title ${model.title}`);

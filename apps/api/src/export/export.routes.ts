@@ -10,6 +10,23 @@ const CONTENT_TYPES: Record<string, string> = {
   png: 'image/png',
 };
 
+// jmuir-dzd.5 appsec review: the web app's own ExportMenu already forces a download via a
+// synthetic <a download> click (never a direct browser navigation), but this route has no such
+// guarantee for a caller who bookmarks/shares/curls the URL directly (view access is all
+// requireDiagramAccess needs, so this reaches every viewer of a shared diagram too) -- with no
+// Content-Disposition at all, a direct GET renders the SVG (or, after jmuir-dzd.5, an SVG whose
+// node carries a click href) INLINE at this API's own origin, tightening any XSS-class bug in the
+// SVG's own content into a same-origin exposure with no extra step. Forcing a download closes
+// that regardless of what the SVG contains -- defense in depth, not a substitute for the SVG's
+// own content-level protections (isAllowedLinkHref/escapeXml). A fixed, non-diagram-derived
+// filename is used deliberately (not the diagram's own possibly-attacker-influenced name) so this
+// header can't become a second injection surface of its own.
+const CONTENT_DISPOSITIONS: Record<string, string> = {
+  mermaid: 'attachment; filename="diagram.mmd"',
+  svg: 'attachment; filename="diagram.svg"',
+  png: 'attachment; filename="diagram.png"',
+};
+
 export async function registerExportRoutes(app: FastifyInstance): Promise<void> {
   app.get<{ Params: { id: string }; Querystring: { format?: string } }>(
     '/diagrams/:id/export',
@@ -26,6 +43,7 @@ export async function registerExportRoutes(app: FastifyInstance): Promise<void> 
         const dslFamilyId = await loadDiagramTypeDslFamily(diagram.diagramTypeId);
 
         reply.header('Content-Type', CONTENT_TYPES[format]);
+        reply.header('Content-Disposition', CONTENT_DISPOSITIONS[format]);
         if (format === 'mermaid') {
           reply.send(exportMermaid(diagram.dslContent));
         } else if (format === 'svg') {
