@@ -1,8 +1,10 @@
 import {
   createEmptyDiagramModel,
+  isAllowedLinkHref,
   type DiagramContainer,
   type DiagramNode,
   type FlowchartDirection,
+  type NodeLink,
   type NodeShape,
   type NodeStyle,
 } from '../model/diagram-model.js';
@@ -161,6 +163,17 @@ const CLASS_ASSIGN_DIRECTIVE = new RegExp(`^class\\s+((?:${ID})(?:\\s*,\\s*${ID}
 // consistency across this codebase's three `:::`-supporting parsers rather than introducing a
 // fourth, stricter variant.
 const CLASS_SHORTHAND = new RegExp(`^(${ID}):::(${ID}(?:\\s*,\\s*${ID})*)$`);
+// jmuir-dzd.5, grouping G: `click <id> href "<url>" ["<tooltip>"] [_blank]` -- href/tooltip form
+// only, per this feature's own already-decided design (bd show jmuir-dzd's notes). The optional
+// trailing `;?` matches classDef/class's own convention above (Mermaid's optional statement
+// terminator).
+const CLICK_HREF_DIRECTIVE = new RegExp(`^click\\s+(${ID})\\s+href\\s+"([^"]*)"(?:\\s+"([^"]*)")?(?:\\s+(_blank))?\\s*;?$`);
+// `click <id> call <fn>(...)` is a SECURITY REJECTION, not a deferral (see isAllowedLinkHref's own
+// doc comment for the equivalent href-side reasoning) -- looking up and invoking a global JS
+// function by a name written in diagram-author-controlled, pasted-to-import text is a code-
+// execution primitive, not a parsing nuance. Matched explicitly so it fails with a clear, named
+// error rather than falling through to the generic "could not interpret line" message.
+const CLICK_CALL_DIRECTIVE = new RegExp(`^click\\s+(${ID})\\s+call\\s+.*$`);
 
 /** Shared by both `style <nodeId> ...` and `linkStyle <index> ...` — same prop grammar. */
 function parseStyleProps(propsRaw: string): NodeStyle {
@@ -233,6 +246,9 @@ export function parseFlowchart(dsl: string): ParseResult {
   const linkStyleDirectives: { indices: number[] | 'default'; propsRaw: string }[] = [];
   const classDefs = new Map<string, NodeStyle>();
   const classAssignments: { nodeIds: string[]; className: string }[] = [];
+  // jmuir-dzd.5: same "conventionally follows the node/edge declarations it targets" deferred-
+  // application reasoning as styleDirectives below.
+  const linkDirectives: { nodeId: string; link: NodeLink }[] = [];
   let diagramTypeSeen = false;
   let direction: FlowchartDirection | undefined;
   let edgeCounter = 0;
@@ -402,6 +418,50 @@ export function parseFlowchart(dsl: string): ParseResult {
       continue;
     }
 
+    const clickCallMatch = line.match(CLICK_CALL_DIRECTIVE);
+    if (clickCallMatch) {
+      errors.push({
+        line: i + 1,
+        content: rawLine,
+        message:
+          '"click <id> call ..." is not supported: executing a function named by diagram text is a ' +
+          'security risk (code execution from untrusted, pasted-to-import content), not a parsing ' +
+          'feature. Use "click <id> href \\"<url>\\"" instead.',
+      });
+      continue;
+    }
+
+    const clickHrefMatch = line.match(CLICK_HREF_DIRECTIVE);
+    if (clickHrefMatch) {
+      const [, nodeId, href, tooltip, target] = clickHrefMatch;
+      if (!isAllowedLinkHref(href)) {
+        // Cosmetic only (an appsec review, jmuir-dzd.5, confirmed the reject decision itself —
+        // isAllowedLinkHref above — is correct regardless of this message's own wording): naming
+        // the actual scheme in the error is friendlier than a bare "(unknown)" even when it's
+        // obfuscated by a leading space/control character (real Mermaid href text is virtually
+        // always clean; this mainly matters for a normal `mailto:`/`tel:` typo, not an attack).
+        // Reuses the same URL-parser resolution isAllowedLinkHref itself uses, so this can't
+        // report a scheme that check didn't actually see.
+        let scheme = '(unknown)';
+        try {
+          scheme = new URL(href, 'https://relative-path-base.invalid/').protocol.replace(/:$/, '');
+        } catch {
+          // leave scheme as '(unknown)' -- href isn't a parseable URL at all.
+        }
+        errors.push({
+          line: i + 1,
+          content: rawLine,
+          message: `click href must use "http://", "https://", or a relative path -- "${scheme}:" is not an allowed scheme.`,
+        });
+        continue;
+      }
+      const link: NodeLink = { href };
+      if (tooltip !== undefined) link.tooltip = tooltip;
+      if (target === '_blank') link.target = '_blank';
+      linkDirectives.push({ nodeId, link });
+      continue;
+    }
+
     const pipeEdge = line.match(EDGE_WITH_PIPE_LABEL);
     if (pipeEdge) {
       const [, source, connector, label, target] = pipeEdge;
@@ -500,6 +560,16 @@ export function parseFlowchart(dsl: string): ParseResult {
     const node = nodesById.get(nodeId);
     if (!node) continue;
     node.style = { ...node.style, ...parseStyleProps(propsRaw) };
+  }
+
+  // jmuir-dzd.5: same deferred-application reasoning as `style` above. A `click` line referencing
+  // an id with no matching node (never declared, never an edge endpoint) is silently skipped —
+  // real Mermaid's own click directive doesn't itself declare a node, so there's nothing to
+  // attach the interaction to, the same "no node created" precedent `style` already established.
+  for (const { nodeId, link } of linkDirectives) {
+    const node = nodesById.get(nodeId);
+    if (!node) continue;
+    node.link = link;
   }
 
   // Same idea for `linkStyle`, but edges have no DSL-level id to look up — Mermaid addresses them

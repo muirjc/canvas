@@ -1,15 +1,17 @@
-import type {
-  ClassMember,
-  DiagramContainer,
-  DiagramEdge,
-  DiagramModel,
-  DiagramNode,
-  EntityAttribute,
-  FlowchartDirection,
-  NodeShape,
-  NodeStyle,
-  Position,
-  Size,
+import {
+  isAllowedLinkHref,
+  type ClassMember,
+  type DiagramContainer,
+  type DiagramEdge,
+  type DiagramModel,
+  type DiagramNode,
+  type EntityAttribute,
+  type FlowchartDirection,
+  type NodeLink,
+  type NodeShape,
+  type NodeStyle,
+  type Position,
+  type Size,
 } from './diagram-model.js';
 
 /**
@@ -121,6 +123,55 @@ export function updateNodeLabel(model: DiagramModel, nodeId: string, label: stri
   return {
     ...model,
     nodes: model.nodes.map((n) => (n.id === nodeId ? { ...n, label } : n)),
+  };
+}
+
+/**
+ * jmuir-dzd.5: sets or clears a flowchart node's `click href` interaction — `link: null` clears
+ * it entirely; a real `NodeLink` sets/replaces it wholesale (href is always required on the
+ * interface itself, so there is no meaningful "partial" link to merge-patch, unlike StylePatch).
+ *
+ * Throws (mirrors updateNodeLabel's own empty-label precedent — a genuine precondition violation,
+ * not a soft "id not found" no-op) when the href fails isAllowedLinkHref, rather than silently
+ * storing an unusable link the export renderer would just as silently neutralize later: `link` is
+ * also settable directly through this op (bypassing the flowchart parser's own identical check
+ * entirely), so this is the ONE place that boundary is actually enforced for every non-DSL-import
+ * caller (the canvas UI popup, and — should a future bead ever add one — an AI tool). Every
+ * consumer must still independently re-check at its own trust boundary too (svg-renderer.ts's
+ * wrapNodeLink does, as defense in depth) rather than assuming this check ran.
+ */
+export function setNodeLink(model: DiagramModel, nodeId: string, link: NodeLink | null): DiagramModel {
+  if (!model.nodes.some((n) => n.id === nodeId)) return model;
+  if (link !== null) {
+    if (!isAllowedLinkHref(link.href)) {
+      throw new Error(`setNodeLink: href must use "http://", "https://", or a relative path (got "${link.href}").`);
+    }
+    // jmuir-dzd.5 appsec review: dsl/flowchart-serializer.ts's serializeClickHref re-emits
+    // href/tooltip inside a literal `"..."` DSL token with no escape mechanism at all (confirmed
+    // against the parser's own `"([^"]*)"` capture — real Mermaid's click grammar has no quote-
+    // escaping syntax to emit even if this file wanted to). A `"` would prematurely close that
+    // token; a raw newline would inject an entirely separate DSL statement on the next line —
+    // e.g. a second `click <otherNodeId> href "javascript:..."` line targeting a DIFFERENT node,
+    // one whose own href was never itself passed to isAllowedLinkHref, defeating the scheme check
+    // entirely on next reparse. Rejected here (not escaped) since there is no valid escaped form
+    // to produce — matches this op's own "throw on a genuine precondition violation" convention,
+    // not a soft no-op.
+    if (/["\r\n]/.test(link.href) || (link.tooltip !== undefined && /["\r\n]/.test(link.tooltip))) {
+      throw new Error(
+        'setNodeLink: href/tooltip cannot contain a double-quote or a line break -- the DSL "click href" directive has no escape syntax for either.',
+      );
+    }
+  }
+  return {
+    ...model,
+    nodes: model.nodes.map((n) => {
+      if (n.id !== nodeId) return n;
+      if (link === null) {
+        const { link: _removed, ...rest } = n;
+        return rest;
+      }
+      return { ...n, link };
+    }),
   };
 }
 

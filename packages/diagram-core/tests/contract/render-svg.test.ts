@@ -1514,3 +1514,80 @@ describe('renderToSvg architecture edge anchor hints and {group} escalation (can
     expect(svg).toContain('<line x1="180" y1="70" x2="220" y2="70"');
   });
 });
+
+// jmuir-dzd.5: a node's `link` must produce a real, clickable <a href> wrapping its shape+label —
+// the whole point of exporting a diagram with click interactions, not just DSL round-trip. Every
+// dynamic value is XML-escaped, and isAllowedLinkHref is re-checked here as defense in depth
+// (link is also settable directly through diagram-ops.ts, bypassing the parser's own check).
+describe('renderToSvg: node click href/tooltip (jmuir-dzd.5)', () => {
+  function linkModel(link: DiagramNode['link']): DiagramModel {
+    return {
+      diagramTypeId: 'flowchart',
+      nodes: [{ id: 'A', label: 'Node A', shape: 'rectangle', position: { x: 0, y: 0 }, link }],
+      edges: [],
+      containers: [],
+    };
+  }
+
+  it('wraps the node in a real <a href="..."> element', () => {
+    const svg = renderToSvg(linkModel({ href: 'https://example.com' }));
+    expect(svg).toMatch(/<a href="https:\/\/example\.com">[\s\S]*<g data-node-id="A">[\s\S]*<\/a>/);
+  });
+
+  it('adds target="_blank" only when the link requests it', () => {
+    const withTarget = renderToSvg(linkModel({ href: 'https://example.com', target: '_blank' }));
+    expect(withTarget).toContain('target="_blank"');
+    const withoutTarget = renderToSvg(linkModel({ href: 'https://example.com' }));
+    expect(withoutTarget).not.toContain('target="_blank"');
+  });
+
+  it('renders a tooltip as a real SVG <title> child, only when set', () => {
+    const withTooltip = renderToSvg(linkModel({ href: 'https://example.com', tooltip: 'Visit site' }));
+    expect(withTooltip).toContain('<title>Visit site</title>');
+    const withoutTooltip = renderToSvg(linkModel({ href: 'https://example.com' }));
+    expect(withoutTooltip).not.toContain('<title>');
+  });
+
+  it('a node with no link renders completely unwrapped (no regression)', () => {
+    const svg = renderToSvg(linkModel(undefined));
+    expect(svg).not.toContain('<a href');
+  });
+
+  // The mandatory security requirement: an href/tooltip containing a literal double-quote must
+  // not be able to break out of the attribute and inject markup.
+  it('XML-escapes the href — a literal double-quote cannot break out of the attribute', () => {
+    const svg = renderToSvg(linkModel({ href: 'https://example.com/?x="><script>alert(1)</script>' }));
+    expect(svg).not.toContain('<script>');
+    expect(svg).toContain('&quot;');
+  });
+
+  it('XML-escapes the tooltip the same way', () => {
+    const svg = renderToSvg(linkModel({ href: 'https://example.com', tooltip: '"><script>alert(1)</script>' }));
+    expect(svg).not.toContain('<script>');
+  });
+
+  // Defense in depth: even though the flowchart parser already rejects a disallowed scheme at
+  // parse time, `link` is also settable directly through diagram-ops.ts/the AI tool layer,
+  // bypassing that check entirely — the export renderer must never trust an already-in-the-model
+  // href without re-validating it, exactly as if this were the only check in the whole pipeline.
+  it('never emits a real <a> for a disallowed scheme, even if one somehow reached the model directly', () => {
+    const svg = renderToSvg(linkModel({ href: 'javascript:alert(document.cookie)' }));
+    expect(svg).not.toContain('<a href');
+    expect(svg).not.toContain('javascript:');
+  });
+
+  it('rejects a "javascript:" scheme even with an allowed-looking prefix (javascript://)', () => {
+    const svg = renderToSvg(linkModel({ href: 'javascript://alert(1)' }));
+    expect(svg).not.toContain('<a href');
+  });
+
+  // appsec review (jmuir-dzd.5): the export boundary's own re-check (wrapNodeLink calls
+  // isAllowedLinkHref independently) must catch the leading-whitespace scheme-obfuscation bypass
+  // too, not just the flowchart parser -- link is also settable directly via diagram-ops.ts,
+  // bypassing the parser entirely.
+  it('rejects a "javascript:" scheme obfuscated by a leading space, even set directly on the model', () => {
+    const svg = renderToSvg(linkModel({ href: ' javascript:alert(document.cookie)' }));
+    expect(svg).not.toContain('<a href');
+    expect(svg).not.toContain('javascript:');
+  });
+});
