@@ -112,6 +112,12 @@ export interface DiagramNode {
    *  never changes regardless of stereotype); this is a supplementary tag, not the node's
    *  primary kind. */
   umlStereotype?: string;
+  /** jmuir-dtu.20: UML only — a class-level generic type parameter (`class Square~Shape~`,
+   *  distinct from a MEMBER's own generic type like `List~string~ items`, which needs no separate
+   *  field since it's just free text inside `ClassMember.type`). Kept separate from `id` — the
+   *  bare id (`Square`) is what namespaces/edges/references actually use, matching how member-
+   *  level generics never touch a class's own id either. */
+  umlGenericParameter?: string;
 }
 
 export interface DiagramEdge {
