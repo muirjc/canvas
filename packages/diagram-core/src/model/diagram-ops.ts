@@ -222,6 +222,18 @@ export function updateClassMembers(model: DiagramModel, nodeId: string, members:
   };
 }
 
+/** canvas-2s6.3: sets a UML class's `<<Stereotype>>` annotation; an empty string clears it back
+ *  to unset, same "empty string clears" convention as updateEdgeLabel (stereotype is optional, so
+ *  unlike updateNodeLabel/updateContainerLabel there is no non-empty invariant to enforce). No-op
+ *  for an unknown id. */
+export function updateNodeStereotype(model: DiagramModel, nodeId: string, stereotype: string): DiagramModel {
+  if (!model.nodes.some((n) => n.id === nodeId)) return model;
+  return {
+    ...model,
+    nodes: model.nodes.map((n) => (n.id === nodeId ? { ...n, umlStereotype: stereotype || undefined } : n)),
+  };
+}
+
 export interface EdgeRelationKindPatch {
   /** Omit to leave untouched; `null` clears it back to unset; a value sets it — same convention
    *  as StylePatch below. */

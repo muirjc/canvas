@@ -16,9 +16,11 @@ import {
   updateEntityAttributes,
   updateNodeLabel,
   updateNodeRole,
+  updateNodeStereotype,
   updateNodeStyle,
   C4_BOUNDARY_ROLES,
   C4_ELEMENT_ROLES,
+  UML_RELATION_KINDS,
   type DiagramEdge,
   type DiagramModel,
   type NodeShape,
@@ -84,18 +86,6 @@ const NODE_ROLE_OPTIONS: Record<string, readonly [string, ...string[]]> = {
 };
 const ENTITY_KEY_OPTIONS = ['PK', 'FK', 'UK'] as const;
 const CLASS_MEMBER_VISIBILITY = ['+', '-', '#', '~'] as const;
-const UML_RELATION_KINDS = [
-  'inheritance',
-  'composition',
-  'aggregation',
-  'association',
-  'link-solid',
-  'dependency',
-  'realization',
-  'link-dashed',
-  'lollipop-source',
-  'lollipop-target',
-] as const;
 type ArrowValue = NonNullable<DiagramEdge['arrow']>;
 type LineStyleValue = NonNullable<DiagramEdge['lineStyle']>;
 const CONNECTOR_ARROW_OPTIONS: Partial<Record<string, readonly [ArrowValue, ...ArrowValue[]]>> = {
@@ -354,7 +344,7 @@ export function createDiagramTools(context: DiagramToolsContext, family: string)
           description:
             "Replace a UML class's full member list (attributes and methods). Provide every member " +
             'the class should have — this replaces the list wholesale, it does not merge with the ' +
-            'existing one.',
+            'existing one. Optionally also sets the class\'s <<Stereotype>> annotation.',
           inputSchema: z.object({
             nodeId: z.string().describe('The id of the class to set members on.'),
             members: z.array(
@@ -372,13 +362,23 @@ export function createDiagramTools(context: DiagramToolsContext, family: string)
                 isAbstract: z.boolean().optional().describe('True for an abstract member (* suffix).'),
               }),
             ),
+            // canvas-2s6.3: umlStereotype had no AI tool at all before this -- folded into
+            // setClassMembers rather than a new standalone tool, since a stereotype is set on the
+            // same class a member-list edit already targets. Omit to leave unchanged; an explicit
+            // empty string clears it (updateNodeStereotype's own convention).
+            stereotype: z
+              .string()
+              .optional()
+              .describe('The class\'s <<Stereotype>> annotation, e.g. "interface", "abstract". Omit to leave unchanged; pass "" to clear it.'),
           }),
-          execute: async ({ nodeId, members }) => {
-            const model = context.getModel();
+          execute: async ({ nodeId, members, stereotype }) => {
+            let model = context.getModel();
             if (!model.nodes.some((n) => n.id === nodeId)) {
               return record('setClassMembers', { applied: false, reason: `No class with id '${nodeId}' was found.` });
             }
-            context.setModel(updateClassMembers(model, nodeId, members));
+            model = updateClassMembers(model, nodeId, members);
+            if (stereotype !== undefined) model = updateNodeStereotype(model, nodeId, stereotype);
+            context.setModel(model);
             return record('setClassMembers', { applied: true });
           },
         })

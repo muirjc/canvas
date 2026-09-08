@@ -14,9 +14,11 @@ import {
   updateContainerLabel,
   updateEdgeLabel,
   updateEdgeStyle,
+  updateEdgeRelationKind,
   updateNodeLabel,
   updateNodeStyle,
   updateNodeRole,
+  updateNodeStereotype,
   updateEntityAttributes,
   updateClassMembers,
   splitLabelLines,
@@ -43,6 +45,7 @@ import {
   DEFAULT_ER_TARGET_CARDINALITY,
   C4_BOUNDARY_ROLES,
   C4_ELEMENT_ROLES,
+  UML_RELATION_KINDS,
   type CardinalityGlyph,
   type UmlEndpointGlyph,
   type DiagramContainer,
@@ -85,6 +88,12 @@ const DEFAULT_THICK_STROKE_WIDTH = 3;
 // covers the 28px control height plus the card's padding and border.
 const STYLE_POPUP_WIDTH = 232;
 const STYLE_POPUP_HEIGHT = 48;
+
+// canvas-2s6.3: the UML relationship-kind popup's own fixed size — a full-width kind select on
+// its own row (the longest label, "Lollipop, source (()--)", doesn't fit inline with anything
+// else), then two narrow cardinality inputs plus Done on a second row.
+const RELATION_KIND_POPUP_WIDTH = 260;
+const RELATION_KIND_POPUP_HEIGHT = 84;
 
 // canvas-hox follow-up: real Mermaid erDiagram crow's-foot cardinality tokens are asymmetric --
 // the source (left) and target (right) side of a relationship use different two-character tokens
@@ -142,6 +151,23 @@ const C4_ELEMENT_ROLE_LABELS: Record<(typeof C4_ELEMENT_ROLES)[number], string> 
   system: 'System',
   container: 'Container',
   component: 'Component',
+};
+
+// canvas-2s6.3: options for the UML relationship-kind picker (connect-mode select below, and the
+// post-hoc edge popup) — sourced from UML_RELATION_KINDS (dsl/uml.ts's own exported single source
+// of truth), so this can't drift from what parseUml/serializeUml actually recognize. Each label
+// names the real Mermaid token so the choice is unambiguous to someone who knows the DSL.
+const UML_RELATION_KIND_LABELS: Record<(typeof UML_RELATION_KINDS)[number], string> = {
+  inheritance: 'Inheritance (<|--)',
+  composition: 'Composition (*--)',
+  aggregation: 'Aggregation (o--)',
+  association: 'Association (-->)',
+  'link-solid': 'Link, solid (--)',
+  dependency: 'Dependency (..>)',
+  realization: 'Realization (..|>)',
+  'link-dashed': 'Link, dashed (..)',
+  'lollipop-source': 'Lollipop, source (()--)',
+  'lollipop-target': 'Lollipop, target (--())',
 };
 
 // canvas-vcv: the ER attribute / UML member popup — a list (scrolling internally past ~5-6 rows)
@@ -330,6 +356,14 @@ function FieldsPopup({ node, model, dslFamily, x, y, onChange, onClose }: Fields
   const [newMemberType, setNewMemberType] = useState('');
   const [newParams, setNewParams] = useState('');
   const [newReturnType, setNewReturnType] = useState('');
+  // canvas-2s6.3: isStatic/isAbstract were modeled and AI-tool-covered but had no add-row UI at
+  // all — a canvas-created member could never be marked static/abstract, only DSL-imported ones.
+  const [newIsStatic, setNewIsStatic] = useState(false);
+  const [newIsAbstract, setNewIsAbstract] = useState(false);
+  // canvas-2s6.3: umlStereotype header field draft — a node-level field, not part of the members
+  // array, so it needs its own commit function rather than folding into commitMember.
+  const [stereotypeDraft, setStereotypeDraft] = useState(node.umlStereotype ?? '');
+  const commitStereotype = () => onChange(updateNodeStereotype(model, node.id, stereotypeDraft.trim()));
 
   const commitAttribute = (index: number, patch: Partial<EntityAttribute>) => {
     const next = attributes.map((a, i) => (i === index ? { ...a, ...patch } : a));
@@ -375,13 +409,15 @@ function FieldsPopup({ node, model, dslFamily, x, y, onChange, onClose }: Fields
     if (!newMemberName.trim()) return;
     const member: ClassMember =
       newKind === 'attribute'
-        ? { kind: 'attribute', visibility: newVisibility || undefined, name: newMemberName.trim(), type: newMemberType.trim() || undefined }
-        : { kind: 'method', visibility: newVisibility || undefined, name: newMemberName.trim(), params: newParams, returnType: newReturnType.trim() || undefined };
+        ? { kind: 'attribute', visibility: newVisibility || undefined, name: newMemberName.trim(), type: newMemberType.trim() || undefined, isStatic: newIsStatic || undefined, isAbstract: newIsAbstract || undefined }
+        : { kind: 'method', visibility: newVisibility || undefined, name: newMemberName.trim(), params: newParams, returnType: newReturnType.trim() || undefined, isStatic: newIsStatic || undefined, isAbstract: newIsAbstract || undefined };
     onChange(updateClassMembers(model, node.id, [...members, member]));
     setNewMemberName('');
     setNewMemberType('');
     setNewParams('');
     setNewReturnType('');
+    setNewIsStatic(false);
+    setNewIsAbstract(false);
   };
 
   return (
@@ -415,6 +451,29 @@ function FieldsPopup({ node, model, dslFamily, x, y, onChange, onClose }: Fields
             Done
           </button>
         </div>
+
+        {/* canvas-2s6.3: umlStereotype had no UI at all — a class's <<Stereotype>> annotation
+            could only ever come from DSL/import. A class-level (not member-level) field, so it
+            sits in the header rather than the scrollable member list below. */}
+        {!isErd && (
+          <label className="field__label" htmlFor={`stereotype-${node.id}`} style={{ flexShrink: 0 }}>
+            Stereotype
+            <input
+              id={`stereotype-${node.id}`}
+              data-testid={`stereotype-${node.id}`}
+              value={stereotypeDraft}
+              placeholder="e.g. interface"
+              style={{ width: '100%', boxSizing: 'border-box' }}
+              onClick={(e) => e.stopPropagation()}
+              onPointerDown={(e) => e.stopPropagation()}
+              onChange={(e) => setStereotypeDraft(e.target.value)}
+              onBlur={commitStereotype}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') commitStereotype();
+              }}
+            />
+          </label>
+        )}
 
         <div style={{ overflowY: 'auto', flex: 1, display: 'flex', flexDirection: 'column', gap: 'var(--space-1)' }}>
           {isErd
@@ -545,6 +604,32 @@ function FieldsPopup({ node, model, dslFamily, x, y, onChange, onClose }: Fields
                       />
                     </>
                   )}
+                  {/* canvas-2s6.3: isStatic/isAbstract were modeled and AI-tool-covered but had
+                      no checkbox here at all. */}
+                  <label className="cluster cluster--tight" style={{ flexWrap: 'nowrap', fontSize: '0.75rem' }}>
+                    <input
+                      type="checkbox"
+                      data-testid={`member-static-${node.id}-${i}`}
+                      aria-label={`Member ${i + 1} is static`}
+                      checked={member.isStatic ?? false}
+                      onClick={(e) => e.stopPropagation()}
+                      onPointerDown={(e) => e.stopPropagation()}
+                      onChange={(e) => commitMember(i, { isStatic: e.target.checked || undefined })}
+                    />
+                    $
+                  </label>
+                  <label className="cluster cluster--tight" style={{ flexWrap: 'nowrap', fontSize: '0.75rem' }}>
+                    <input
+                      type="checkbox"
+                      data-testid={`member-abstract-${node.id}-${i}`}
+                      aria-label={`Member ${i + 1} is abstract`}
+                      checked={member.isAbstract ?? false}
+                      onClick={(e) => e.stopPropagation()}
+                      onPointerDown={(e) => e.stopPropagation()}
+                      onChange={(e) => commitMember(i, { isAbstract: e.target.checked || undefined })}
+                    />
+                    *
+                  </label>
                   <button
                     type="button"
                     className="btn btn--tertiary-danger btn--compact"
@@ -714,6 +799,30 @@ function FieldsPopup({ node, model, dslFamily, x, y, onChange, onClose }: Fields
                 />
               </>
             )}
+            <label className="cluster cluster--tight" style={{ flexWrap: 'nowrap', fontSize: '0.75rem' }}>
+              <input
+                type="checkbox"
+                data-testid={`member-new-static-${node.id}`}
+                aria-label="New member is static"
+                checked={newIsStatic}
+                onClick={(e) => e.stopPropagation()}
+                onPointerDown={(e) => e.stopPropagation()}
+                onChange={(e) => setNewIsStatic(e.target.checked)}
+              />
+              $
+            </label>
+            <label className="cluster cluster--tight" style={{ flexWrap: 'nowrap', fontSize: '0.75rem' }}>
+              <input
+                type="checkbox"
+                data-testid={`member-new-abstract-${node.id}`}
+                aria-label="New member is abstract"
+                checked={newIsAbstract}
+                onClick={(e) => e.stopPropagation()}
+                onPointerDown={(e) => e.stopPropagation()}
+                onChange={(e) => setNewIsAbstract(e.target.checked)}
+              />
+              *
+            </label>
             <button
               type="button"
               className="btn btn--secondary btn--compact"
@@ -837,6 +946,15 @@ export function Canvas({ model, onChange, dslFamily, toolbarContainer }: CanvasP
   // existed.
   const [connectErSourceCardinality, setConnectErSourceCardinality] = useState(DEFAULT_ER_SOURCE_CARDINALITY);
   const [connectErTargetCardinality, setConnectErTargetCardinality] = useState(DEFAULT_ER_TARGET_CARDINALITY);
+  // canvas-2s6.3: same rationale as ERD's own cardinality picker above — a UML relationship's
+  // arrowhead shape carries real semantic meaning the generic Direction picker's forward/reversed/
+  // bidirectional/no-arrowhead vocabulary doesn't fit, so UML gets its own dedicated connect-mode
+  // picker instead, not an addition to it. Unlike ERD there is no per-side asymmetry to capture
+  // independently — "reversed" is simply whichever entity is clicked first vs second, the same
+  // convention ERD already uses with no separate toggle.
+  const [connectUmlRelationKind, setConnectUmlRelationKind] = useState<(typeof UML_RELATION_KINDS)[number]>('association');
+  const [connectUmlSourceCardinality, setConnectUmlSourceCardinality] = useState('');
+  const [connectUmlTargetCardinality, setConnectUmlTargetCardinality] = useState('');
   // canvas-2s6.1: which DiagramContainer.role Add Container/Group into Container will create,
   // for families with a real role vocabulary (CONTAINER_ROLE_OPTIONS above) — chosen ahead of
   // time, same "picker visible only while it matters" precedent as connectArrowStyle/the ER
@@ -862,6 +980,9 @@ export function Canvas({ model, onChange, dslFamily, toolbarContainer }: CanvasP
   // (label-affordance.spec.ts) stays untouched.
   const [stylingNodeId, setStylingNodeId] = useState<string | null>(null);
   const [stylingEdgeId, setStylingEdgeId] = useState<string | null>(null);
+  // canvas-2s6.3: a second edge-only affordance alongside pencil/palette — UML only, opens
+  // renderRelationKindPopup. Mutually exclusive with stylingEdgeId at the call site.
+  const [editingRelationKindEdgeId, setEditingRelationKindEdgeId] = useState<string | null>(null);
   // canvas-vcv: a third, separate affordance next to the pencil/palette — node-only (ER attributes/
   // UML members are node-level fields; edges/containers have neither), so unlike stylingNodeId/
   // stylingEdgeId there is no matching "Edge" counterpart.
@@ -1021,14 +1142,25 @@ export function Canvas({ model, onChange, dslFamily, toolbarContainer }: CanvasP
           dslFamily === 'erd'
             ? { erSourceCardinality: connectErSourceCardinality, erTargetCardinality: connectErTargetCardinality }
             : {};
-        onChange(
-          addEdge(model, {
-            sourceId: reversed ? node.id : connectSourceId,
-            targetId: reversed ? connectSourceId : node.id,
-            arrow: connectArrowStyle === 'both' || connectArrowStyle === 'none' ? connectArrowStyle : undefined,
-            ...erDefaults,
-          }),
-        );
+        let next = addEdge(model, {
+          sourceId: reversed ? node.id : connectSourceId,
+          targetId: reversed ? connectSourceId : node.id,
+          arrow: connectArrowStyle === 'both' || connectArrowStyle === 'none' ? connectArrowStyle : undefined,
+          ...erDefaults,
+        });
+        // canvas-2s6.3: umlRelationKind/cardinality aren't AddEdgeInput fields (unlike ER's own
+        // erSourceCardinality/erTargetCardinality above) -- updateEdgeRelationKind is a separate
+        // merge-patch op, applied as a second step onto the edge addEdge just created, the same
+        // "create then patch" composition groupSelected/the AI's own groupIntoContainer already use.
+        if (dslFamily === 'uml') {
+          const newEdge = next.edges[next.edges.length - 1];
+          next = updateEdgeRelationKind(next, newEdge.id, {
+            umlRelationKind: connectUmlRelationKind,
+            sourceCardinality: connectUmlSourceCardinality.trim() || undefined,
+            targetCardinality: connectUmlTargetCardinality.trim() || undefined,
+          });
+        }
+        onChange(next);
         setConnectSourceId(null);
         setConnectMode(false);
       }
@@ -1329,6 +1461,71 @@ export function Canvas({ model, onChange, dslFamily, toolbarContainer }: CanvasP
     </foreignObject>
   );
 
+  /** Post-hoc UML relationship-kind + cardinality popup — the same "settable at connect time
+   *  only" gap the connect-mode picker above closes for NEW edges also applied to every EXISTING
+   *  one (imported, or drawn before this bead), with no way to change a relationship's kind
+   *  afterward short of deleting and redrawing it. Each field applies immediately via
+   *  updateEdgeRelationKind's own merge-patch semantics (same live-apply convention as the C4 kind
+   *  popup above) rather than needing a separate commit step. */
+  const renderRelationKindPopup = (
+    edgeId: string,
+    x: number,
+    y: number,
+    currentKind: string | undefined,
+    currentSourceCardinality: string | undefined,
+    currentTargetCardinality: string | undefined,
+    onClose: () => void,
+  ) => (
+    <foreignObject x={x} y={y} width={RELATION_KIND_POPUP_WIDTH} height={RELATION_KIND_POPUP_HEIGHT}>
+      <div
+        className="card stack"
+        style={{ padding: 'var(--space-2)', gap: 'var(--space-1)' }}
+        onClick={(event) => event.stopPropagation()}
+        onPointerDown={(event) => event.stopPropagation()}
+        onKeyDown={(event) => {
+          if (event.key === 'Escape') onClose();
+        }}
+      >
+        <select
+          data-testid={`relation-kind-select-${edgeId}`}
+          aria-label="Relationship kind"
+          autoFocus
+          value={currentKind ?? 'association'}
+          onChange={(event) =>
+            onChange(updateEdgeRelationKind(model, edgeId, { umlRelationKind: event.target.value as (typeof UML_RELATION_KINDS)[number] }))
+          }
+        >
+          {UML_RELATION_KINDS.map((kind) => (
+            <option key={kind} value={kind}>
+              {UML_RELATION_KIND_LABELS[kind]}
+            </option>
+          ))}
+        </select>
+        <div className="cluster cluster--tight" style={{ flexWrap: 'nowrap' }}>
+          <input
+            data-testid={`relation-source-cardinality-${edgeId}`}
+            aria-label="Source cardinality"
+            defaultValue={currentSourceCardinality ?? ''}
+            placeholder="e.g. 1"
+            style={{ width: 50, minHeight: 28, padding: '0 6px' }}
+            onBlur={(event) => onChange(updateEdgeRelationKind(model, edgeId, { sourceCardinality: event.target.value.trim() || null }))}
+          />
+          <input
+            data-testid={`relation-target-cardinality-${edgeId}`}
+            aria-label="Target cardinality"
+            defaultValue={currentTargetCardinality ?? ''}
+            placeholder="e.g. *"
+            style={{ width: 50, minHeight: 28, padding: '0 6px' }}
+            onBlur={(event) => onChange(updateEdgeRelationKind(model, edgeId, { targetCardinality: event.target.value.trim() || null }))}
+          />
+          <button type="button" className="btn btn--primary btn--compact" data-testid={`relation-kind-done-${edgeId}`} onClick={onClose}>
+            Done
+          </button>
+        </div>
+      </div>
+    </foreignObject>
+  );
+
   /** Small color-picker popup opened by renderStyleAffordance. Uses an explicit Done button
    *  rather than blur-to-commit (unlike the label editors) — a native OS color-picker dialog has
    *  inconsistent focus/blur timing across browsers, so relying on blur alone here would be a real
@@ -1513,9 +1710,11 @@ export function Canvas({ model, onChange, dslFamily, toolbarContainer }: CanvasP
           </button>
           {/* canvas-7rr: chosen before clicking the second shape — the only way to draw a
               bidirectional or no-arrowhead connector interactively used to be two separate edges
-              faking it (A->B and B->A). Not shown for ERD, which has its own cardinality picker
-              below instead — a plain arrowhead is not valid ER notation at all. */}
-          {connectMode && dslFamily !== 'erd' && (
+              faking it (A->B and B->A). Not shown for ERD or UML, each of which has its own
+              dedicated connect-mode picker below instead — neither family's arrowhead is a plain
+              directional choice (ER's is crow's-foot cardinality; UML's is the relationship kind
+              itself). */}
+          {connectMode && dslFamily !== 'erd' && dslFamily !== 'uml' && (
             <label className="field__label" htmlFor="connect-arrow-style">
               Direction
               <select
@@ -1565,6 +1764,52 @@ export function Canvas({ model, onChange, dslFamily, toolbarContainer }: CanvasP
                     </option>
                   ))}
                 </select>
+              </label>
+            </>
+          )}
+          {/* canvas-2s6.3: same "own dedicated connect-mode picker" precedent as ERD's above --
+              UML's arrowhead shape (hollow triangle, filled diamond, ...) is determined entirely
+              by the relationship kind, not a generic direction. No separate "reversed" toggle
+              (unlike the generic Direction picker): whichever entity is clicked first vs second
+              already determines source/target, same convention ERD's own picker uses. */}
+          {connectMode && dslFamily === 'uml' && (
+            <>
+              <label className="field__label" htmlFor="connect-uml-relation-kind">
+                Relationship kind
+                <select
+                  id="connect-uml-relation-kind"
+                  data-testid="connect-uml-relation-kind"
+                  value={connectUmlRelationKind}
+                  onChange={(e) => setConnectUmlRelationKind(e.target.value as (typeof UML_RELATION_KINDS)[number])}
+                >
+                  {UML_RELATION_KINDS.map((kind) => (
+                    <option key={kind} value={kind}>
+                      {UML_RELATION_KIND_LABELS[kind]}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="field__label" htmlFor="connect-uml-source-cardinality">
+                First class cardinality
+                <input
+                  id="connect-uml-source-cardinality"
+                  data-testid="connect-uml-source-cardinality"
+                  value={connectUmlSourceCardinality}
+                  placeholder="e.g. 1"
+                  style={{ width: 60 }}
+                  onChange={(e) => setConnectUmlSourceCardinality(e.target.value)}
+                />
+              </label>
+              <label className="field__label" htmlFor="connect-uml-target-cardinality">
+                Second class cardinality
+                <input
+                  id="connect-uml-target-cardinality"
+                  data-testid="connect-uml-target-cardinality"
+                  value={connectUmlTargetCardinality}
+                  placeholder="e.g. *"
+                  style={{ width: 60 }}
+                  onChange={(e) => setConnectUmlTargetCardinality(e.target.value)}
+                />
               </label>
             </>
           )}
@@ -2072,6 +2317,7 @@ export function Canvas({ model, onChange, dslFamily, toolbarContainer }: CanvasP
                   midY - 26,
                   () => {
                     setStylingEdgeId(null);
+                    setEditingRelationKindEdgeId(null);
                     setEditingEdgeId(edge.id);
                   },
                   `Edit label for connector ${edge.id}`,
@@ -2090,6 +2336,7 @@ export function Canvas({ model, onChange, dslFamily, toolbarContainer }: CanvasP
                   midY - 52,
                   () => {
                     setEditingEdgeId(null);
+                    setEditingRelationKindEdgeId(null);
                     setStylingEdgeId(edge.id);
                   },
                   `Choose connector color for ${edge.id}`,
@@ -2103,6 +2350,34 @@ export function Canvas({ model, onChange, dslFamily, toolbarContainer }: CanvasP
                   (color) => onChange(updateEdgeStyle(model, edge.id, { strokeColor: color })),
                   () => onChange(updateEdgeStyle(model, edge.id, { strokeColor: null })),
                   () => setStylingEdgeId(null),
+                )}
+              {/* canvas-2s6.3: a third edge affordance, UML-only, stacked further above the other
+                  two (same x range, same rationale as the palette's own stacking-not-beside
+                  comment above). */}
+              {!isEditingThisEdge &&
+                !connectMode &&
+                dslFamily === 'uml' &&
+                hoveredId === edge.id &&
+                renderKindAffordance(
+                  edge.id,
+                  midX + 8,
+                  midY - 78,
+                  () => {
+                    setEditingEdgeId(null);
+                    setStylingEdgeId(null);
+                    setEditingRelationKindEdgeId(edge.id);
+                  },
+                  `Choose relationship kind for connector ${edge.id}`,
+                )}
+              {editingRelationKindEdgeId === edge.id &&
+                renderRelationKindPopup(
+                  edge.id,
+                  stylePopupPos.x,
+                  stylePopupPos.y,
+                  edge.umlRelationKind,
+                  edge.sourceCardinality,
+                  edge.targetCardinality,
+                  () => setEditingRelationKindEdgeId(null),
                 )}
             </g>
           );
