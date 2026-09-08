@@ -4,6 +4,8 @@ import {
   addContainer,
   addEdge,
   addNode,
+  addPointMarkerContainer,
+  assignEdgeToContainer,
   assignNodeToContainer,
   moveContainer,
   removeContainer,
@@ -23,6 +25,7 @@ import {
   updateNodeStereotype,
   updateEntityAttributes,
   updateClassMembers,
+  setSequenceAutonumber,
   splitLabelLines,
   clipEdgeEndpoint,
   clipToAnchorSide,
@@ -133,6 +136,23 @@ const CONTAINER_ROLE_OPTIONS: Partial<Record<string, { value: string; label: str
   ],
   c4: C4_BOUNDARY_ROLES.map((role) => ({ value: role, label: C4_BOUNDARY_LABELS[role] })),
 };
+
+// canvas-2s6.2: sequence's ranged control-flow block roles — deliberately NOT part of
+// CONTAINER_ROLE_OPTIONS above (that vocabulary drives Add Container/Group into Container, both
+// NODE-based membership; a block encloses a range of MESSAGES instead, a fundamentally different
+// "attach" shape, same rationale UML's own note-vs-namespace split already established). 'else'/
+// 'and'/'option' branch dividers are deliberately excluded — enclosing a sub-range within an
+// already-created block needs its own follow-up, matching groupIntoContainer's own identical
+// scope cut (diagram-tools.ts's CONTAINER_ROLE_OPTIONS comment).
+const SEQUENCE_BLOCK_ROLES: { value: string; label: string }[] = [
+  { value: 'loop', label: 'Loop' },
+  { value: 'alt', label: 'Alt' },
+  { value: 'opt', label: 'Opt' },
+  { value: 'par', label: 'Par' },
+  { value: 'critical', label: 'Critical' },
+  { value: 'break', label: 'Break' },
+  { value: 'rect', label: 'Rect (highlight)' },
+];
 
 // canvas-2s6.5: which DiagramNode.role a user can pick for an existing C4 element, via the new
 // per-node "kind" popup (renderKindAffordance/renderKindPopup below) — options sourced from
@@ -1000,6 +1020,21 @@ export function Canvas({ model, onChange, dslFamily, toolbarContainer }: CanvasP
   // selectedContainerId's own pattern rather than folding into selectedIds (which would need
   // groupSelected/its button to start distinguishing node ids from edge ids within the same Set).
   const [selectedEdgeId, setSelectedEdgeId] = useState<string | null>(null);
+  // canvas-2s6.2: a SECOND, independent edge-selection concept — sequence-only, multi-select,
+  // used purely to gather which messages a new loop/alt/opt/par/critical/break/rect block should
+  // enclose (Shift/Ctrl+click accumulates, mirroring handleNodePointerDown's own canvas-558
+  // convention). Deliberately not reusing selectedEdgeId itself: that one stays single-select for
+  // its existing pencil/style/delete affordances on one message at a time (canvas-u7e), unchanged.
+  const [selectedMessageIds, setSelectedMessageIds] = useState<Set<string>>(new Set());
+  const [sequenceBlockKind, setSequenceBlockKind] = useState(SEQUENCE_BLOCK_ROLES[0].value);
+  const [sequenceBlockLabel, setSequenceBlockLabel] = useState('');
+  const [sequenceBlockColor, setSequenceBlockColor] = useState('');
+  // canvas-2s6.2: note-left/note-right attach to exactly one participant; note-over can span
+  // several — both reuse the existing node multi-select (selectedIds), just read by a different
+  // button than Group into Container, same "one selection, several possible actions" precedent
+  // requestDeleteSelected already establishes for selectedIds/selectedContainerId/selectedEdgeId.
+  const [sequenceNoteKind, setSequenceNoteKind] = useState<'note-left' | 'note-right' | 'note-over'>('note-left');
+  const [sequenceNoteLabel, setSequenceNoteLabel] = useState('');
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   // Which element the pointer is over. Paired with selection below so the edit affordance is
   // reachable by keyboard too — hover alone would be unusable without a pointer (FR-017).
@@ -1193,6 +1228,7 @@ export function Canvas({ model, onChange, dslFamily, toolbarContainer }: CanvasP
     setSelectedIds(new Set([node.id]));
     setSelectedContainerId(null);
     setSelectedEdgeId(null);
+    setSelectedMessageIds(new Set());
 
     // canvas-7vs.1: sequence-diagram layout is always computed from DSL order, never dragged
     // (FR-013) — selection above still applies normally; only starting a position-drag is skipped.
@@ -1212,9 +1248,24 @@ export function Canvas({ model, onChange, dslFamily, toolbarContainer }: CanvasP
   const handleEdgePointerDown = (edgeId: string) => (event: React.PointerEvent) => {
     event.stopPropagation();
     if (connectMode) return;
+    // canvas-2s6.2: sequence-only multi-select for block creation (selectedMessageIds' own doc
+    // comment) — mirrors handleNodePointerDown's shift/ctrl-click toggle convention exactly.
+    if (dslFamily === 'sequence' && (event.shiftKey || event.ctrlKey || event.metaKey)) {
+      setSelectedMessageIds((prev) => {
+        const next = new Set(prev);
+        if (next.has(edgeId)) next.delete(edgeId);
+        else next.add(edgeId);
+        return next;
+      });
+      setSelectedEdgeId(null);
+      setSelectedIds(new Set());
+      setSelectedContainerId(null);
+      return;
+    }
     setSelectedEdgeId(edgeId);
     setSelectedIds(new Set());
     setSelectedContainerId(null);
+    setSelectedMessageIds(new Set());
   };
 
   // canvas-2s6.1: sequence has no picker (only one groupable role exists there, see
@@ -1237,6 +1288,7 @@ export function Canvas({ model, onChange, dslFamily, toolbarContainer }: CanvasP
     setSelectedContainerId(container.id);
     setSelectedIds(new Set());
     setSelectedEdgeId(null);
+    setSelectedMessageIds(new Set());
 
     // canvas-7vs.1: same computed-only-layout guard as handleNodePointerDown above (FR-013).
     if (dslFamily === 'sequence') return;
@@ -1698,6 +1750,95 @@ export function Canvas({ model, onChange, dslFamily, toolbarContainer }: CanvasP
     setSelectedIds(new Set());
   };
 
+  // canvas-2s6.2: mirrors addPointMarkerContainer's own "append after everything on the timeline"
+  // calculation (diagram-ops.ts) — duplicated here rather than exported, since it's a two-line
+  // read of a model the caller already has in hand, the same judgment call that op's own doc
+  // comment already makes for its caller.
+  const maxSequenceOrder = (m: DiagramModel): number =>
+    [...m.containers, ...m.edges].reduce(
+      (max, item) => (item.sequenceOrder !== undefined && item.sequenceOrder > max ? item.sequenceOrder : max),
+      -1,
+    );
+
+  // canvas-2s6.2: note-left/note-right attach to exactly one participant (real Mermaid grammar);
+  // note-over accepts one or more.
+  const addSequenceNoteDisabled =
+    selectedIds.size === 0 || (sequenceNoteKind !== 'note-over' && selectedIds.size !== 1);
+
+  const addSequenceNote = () => {
+    if (addSequenceNoteDisabled) return;
+    const next = addContainer(model, {
+      role: sequenceNoteKind,
+      // Always an explicit string (never undefined) so addContainer's own `label ?? 'Container'`
+      // fallback can't leak a bogus "Container" caption into a note's text.
+      label: sequenceNoteLabel.trim(),
+      attachedNodeIds: [...selectedIds],
+      sequenceOrder: maxSequenceOrder(model) + 1,
+    });
+    onChange(next);
+    setSelectedIds(new Set());
+    setSequenceNoteLabel('');
+  };
+
+  // canvas-2s6.2: enclosing zero messages would create a block with nothing to show for it —
+  // real Mermaid tolerates an empty loop/alt body syntactically, but there is no reason to offer
+  // that from the canvas when nothing was selected to enclose.
+  const createSequenceBlockDisabled = selectedMessageIds.size === 0;
+
+  const createSequenceBlock = () => {
+    if (createSequenceBlockDisabled) return;
+    const clickedEdges = model.edges.filter((e) => selectedMessageIds.has(e.id));
+    const minOrder = Math.min(...clickedEdges.map((e) => e.sequenceOrder ?? 0));
+    const maxOrder = Math.max(...clickedEdges.map((e) => e.sequenceOrder ?? 0));
+    // canvas-2s6.2: encloses every TOP-LEVEL message whose order falls within the clicked span,
+    // not just the literally-clicked ones — a real Mermaid block can only ever wrap a CONTIGUOUS
+    // run of statements, so clicking just the first and last message (the bead's own suggested
+    // "click first+last" gesture) is enough. Moving only the clicked edges while leaving an
+    // in-between message at the top level would silently reorder it to AFTER the whole block on
+    // the next save — emitScope (dsl/sequence.ts) sorts each nesting level independently by its
+    // own sequenceOrder, so a message left outside a block that visually encloses it doesn't stay
+    // "in the middle" on serialize, it jumps to wherever its own order sorts among top-level
+    // siblings. A point-marker/note container that happens to fall in the same span is
+    // deliberately left alone — a disclosed, narrower scope: those use a different membership
+    // field (parentContainerId, not containerId), and moving them too is a larger follow-up.
+    const memberEdges = model.edges.filter(
+      (e) => e.containerId === undefined && (e.sequenceOrder ?? 0) >= minOrder && (e.sequenceOrder ?? 0) <= maxOrder,
+    );
+    const isRect = sequenceBlockKind === 'rect';
+    let next = addContainer(model, {
+      role: sequenceBlockKind,
+      // Same "always an explicit string" reasoning as addSequenceNote above — rect never uses
+      // label at all (its color lives in style.fillColor instead, dsl/sequence.ts's own
+      // serializeContainer rect branch), so it gets '' unconditionally.
+      label: isRect ? '' : sequenceBlockLabel.trim(),
+      style: isRect ? { fillColor: sequenceBlockColor.trim() || 'rgb(200, 200, 0)' } : undefined,
+      // Sits just before its first enclosed message on the shared timeline (a fractional value,
+      // not the next integer — cheaper than renumbering every sibling item, and emitScope's own
+      // sort is a plain numeric compare so a fractional order works exactly like an integer one).
+      sequenceOrder: minOrder - 0.5,
+    });
+    const containerId = next.containers[next.containers.length - 1].id;
+    for (const edge of memberEdges) {
+      next = assignEdgeToContainer(next, edge.id, containerId);
+    }
+    onChange(next);
+    setSelectedMessageIds(new Set());
+    setSequenceBlockLabel('');
+    setSequenceBlockColor('');
+  };
+
+  // canvas-2s6.2: activate/deactivate already had full DSL/model/AI-tool support
+  // (addPointMarkerContainer) — Canvas.tsx just never called it. One participant node selected is
+  // what an activation bar attaches to (mirrors setNodeRole's own single-node-selection precedent
+  // for C4's kind popup, not a new selection concept).
+  const sequenceActivationDisabled = dslFamily !== 'sequence' || selectedIds.size !== 1;
+
+  const markSequenceActivation = (role: 'activate' | 'deactivate') => {
+    if (sequenceActivationDisabled) return;
+    const [nodeId] = selectedIds;
+    onChange(addPointMarkerContainer(model, { role, attachedNodeId: nodeId }));
+  };
+
   const requestDeleteSelected = () => {
     if (selectedIds.size === 0 && !selectedContainerId && !selectedEdgeId) return;
     setShowDeleteConfirm(true);
@@ -1953,6 +2094,199 @@ export function Canvas({ model, onChange, dslFamily, toolbarContainer }: CanvasP
             <Icon name="trash" />
             Delete Selected
           </button>
+          {/* canvas-2s6.2: activate/deactivate already had full DSL/model/AI-tool support
+              (addPointMarkerContainer, diagram-tools.ts's activateParticipant/deactivateParticipant)
+              — Canvas.tsx just never called it. Select one participant, then click one of these. */}
+          {dslFamily === 'sequence' && (
+            <>
+              <button
+                type="button"
+                className="btn btn--secondary"
+                data-testid="activate-participant"
+                disabled={sequenceActivationDisabled}
+                onClick={() => markSequenceActivation('activate')}
+              >
+                Activate
+              </button>
+              <button
+                type="button"
+                className="btn btn--secondary"
+                data-testid="deactivate-participant"
+                disabled={sequenceActivationDisabled}
+                onClick={() => markSequenceActivation('deactivate')}
+              >
+                Deactivate
+              </button>
+            </>
+          )}
+          {/* canvas-2s6.2: autonumber (DiagramModel.sequenceAutonumber) had no UI at all — a plain
+              checked/unchecked toggle for the bare `autonumber` form, plus optional start/step
+              fields for the numbered form, both committing straight to the model (there's nothing
+              to "choose ahead of time" here, unlike the connect-mode pickers above — this directly
+              edits real, already-persisted diagram state, the same "controlled by the model itself"
+              shape updateNodeStyle's own popup already uses). */}
+          {dslFamily === 'sequence' && (
+            <>
+              <label
+                className="field__label"
+                htmlFor="sequence-autonumber-toggle"
+                style={{ flexDirection: 'row', alignItems: 'center', gap: 'var(--space-1)' }}
+              >
+                <input
+                  type="checkbox"
+                  id="sequence-autonumber-toggle"
+                  data-testid="sequence-autonumber-toggle"
+                  checked={!!model.sequenceAutonumber}
+                  onChange={(e) =>
+                    onChange(
+                      setSequenceAutonumber(model, {
+                        enabled: e.target.checked,
+                        start: model.sequenceAutonumber?.start,
+                        step: model.sequenceAutonumber?.step,
+                      }),
+                    )
+                  }
+                />
+                Autonumber
+              </label>
+              {model.sequenceAutonumber && (
+                <>
+                  <label className="field__label" htmlFor="sequence-autonumber-start">
+                    Start
+                    <input
+                      type="number"
+                      id="sequence-autonumber-start"
+                      data-testid="sequence-autonumber-start"
+                      style={{ width: 60 }}
+                      value={model.sequenceAutonumber.start ?? ''}
+                      onChange={(e) =>
+                        onChange(
+                          setSequenceAutonumber(model, {
+                            enabled: true,
+                            start: e.target.value === '' ? undefined : Number(e.target.value),
+                            step: model.sequenceAutonumber?.step,
+                          }),
+                        )
+                      }
+                    />
+                  </label>
+                  <label className="field__label" htmlFor="sequence-autonumber-step">
+                    Step
+                    <input
+                      type="number"
+                      id="sequence-autonumber-step"
+                      data-testid="sequence-autonumber-step"
+                      style={{ width: 60 }}
+                      value={model.sequenceAutonumber.step ?? ''}
+                      onChange={(e) =>
+                        onChange(
+                          setSequenceAutonumber(model, {
+                            enabled: true,
+                            start: model.sequenceAutonumber?.start,
+                            step: e.target.value === '' ? undefined : Number(e.target.value),
+                          }),
+                        )
+                      }
+                    />
+                  </label>
+                </>
+              )}
+            </>
+          )}
+          {/* canvas-2s6.2: note-left/note-right/note-over — select 1+ participant(s) (note-left/
+              note-right need exactly one), pick a kind, optionally type text, then Add Note. */}
+          {dslFamily === 'sequence' && (
+            <>
+              <label className="field__label" htmlFor="sequence-note-kind">
+                Note Kind
+                <select
+                  id="sequence-note-kind"
+                  data-testid="sequence-note-kind"
+                  value={sequenceNoteKind}
+                  onChange={(e) => setSequenceNoteKind(e.target.value as typeof sequenceNoteKind)}
+                >
+                  <option value="note-left">Left of</option>
+                  <option value="note-right">Right of</option>
+                  <option value="note-over">Over</option>
+                </select>
+              </label>
+              <label className="field__label" htmlFor="sequence-note-label">
+                Note Text
+                <input
+                  id="sequence-note-label"
+                  data-testid="sequence-note-label"
+                  value={sequenceNoteLabel}
+                  placeholder="Note text"
+                  onChange={(e) => setSequenceNoteLabel(e.target.value)}
+                />
+              </label>
+              <button
+                type="button"
+                className="btn btn--secondary"
+                data-testid="add-sequence-note"
+                disabled={addSequenceNoteDisabled}
+                onClick={addSequenceNote}
+              >
+                Add Note
+              </button>
+            </>
+          )}
+          {/* canvas-2s6.2: loop/alt/opt/par/critical/break/rect — select 1+ messages (Shift/Ctrl+
+              click a connector, selectedMessageIds' own doc comment), pick a kind, then Create
+              Block. rect's arg is a color, not a label (dsl/sequence.ts's own serializeContainer
+              rect branch), so the two share this control row but never both show at once. */}
+          {dslFamily === 'sequence' && (
+            <>
+              <label className="field__label" htmlFor="sequence-block-kind">
+                Block Kind
+                <select
+                  id="sequence-block-kind"
+                  data-testid="sequence-block-kind"
+                  value={sequenceBlockKind}
+                  onChange={(e) => setSequenceBlockKind(e.target.value)}
+                >
+                  {SEQUENCE_BLOCK_ROLES.map((opt) => (
+                    <option key={opt.value} value={opt.value}>
+                      {opt.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              {sequenceBlockKind === 'rect' ? (
+                <label className="field__label" htmlFor="sequence-block-color">
+                  Highlight Color
+                  <input
+                    id="sequence-block-color"
+                    data-testid="sequence-block-color"
+                    value={sequenceBlockColor}
+                    placeholder="rgb(200, 200, 0)"
+                    onChange={(e) => setSequenceBlockColor(e.target.value)}
+                  />
+                </label>
+              ) : (
+                <label className="field__label" htmlFor="sequence-block-label">
+                  Block Label
+                  <input
+                    id="sequence-block-label"
+                    data-testid="sequence-block-label"
+                    value={sequenceBlockLabel}
+                    placeholder="Condition/label"
+                    onChange={(e) => setSequenceBlockLabel(e.target.value)}
+                  />
+                </label>
+              )}
+              <button
+                type="button"
+                className="btn btn--secondary"
+                data-testid="create-sequence-block"
+                title="Select messages (Shift/Ctrl+click a connector) to enclose first"
+                disabled={createSequenceBlockDisabled}
+                onClick={createSequenceBlock}
+              >
+                Create Block ({selectedMessageIds.size} selected)
+              </button>
+            </>
+          )}
           {/* canvas-esn: flowchart-family only (v1) — the same dslFamily scoping already used for
               getAddableShapes above. Not a mode like Connect: one click rearranges the whole
               diagram in the picked direction and the picker stays visible so it can be changed and
@@ -2053,6 +2387,7 @@ export function Canvas({ model, onChange, dslFamily, toolbarContainer }: CanvasP
             setSelectedIds(new Set());
             setSelectedContainerId(null);
             setSelectedEdgeId(null);
+            setSelectedMessageIds(new Set());
           }
         }}
       >

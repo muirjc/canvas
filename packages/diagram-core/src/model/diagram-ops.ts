@@ -343,8 +343,15 @@ export function addPointMarkerContainer(
   input: AddPointMarkerContainerInput,
 ): DiagramModel {
   const index = model.containers.length;
-  const maxOrder = model.containers.reduce(
-    (max, c) => (c.sequenceOrder !== undefined && c.sequenceOrder > max ? c.sequenceOrder : max),
+  // canvas-2s6.2: a real bug found while wiring the canvas's own activate/deactivate button --
+  // "after everything currently on the timeline" must mean the max sequenceOrder across BOTH
+  // containers AND edges (messages are the majority of any real timeline's items). Considering
+  // containers alone meant a diagram with messages but no other containers yet always computed
+  // maxOrder -1, placing the new marker at order 0 -- visually BEFORE every existing message,
+  // not after them. Unreachable via the AI tool's own unit tests (empty-model fixtures never
+  // exercised a populated timeline) until this bead's UI wiring made it reachable interactively.
+  const maxOrder = [...model.containers, ...model.edges].reduce(
+    (max, item) => (item.sequenceOrder !== undefined && item.sequenceOrder > max ? item.sequenceOrder : max),
     -1,
   );
   const container: DiagramContainer = {
@@ -397,6 +404,10 @@ export interface AddContainerInput {
    *  timeline" the same way addPointMarkerContainer's own maxOrder+1 already does, since that's a
    *  read of the current model the caller already has in hand. */
   sequenceOrder?: number;
+  /** canvas-2s6.2: sequence `rect <color> ... end` needs its color set at creation time (there is
+   *  no dedicated container-style op to "create then patch" onto, unlike node/edge style) — every
+   *  other role ignores this. */
+  style?: NodeStyle;
 }
 
 /** Appends a container. Creates no membership — shapes join by being assigned, not by geometry. */
@@ -412,6 +423,7 @@ export function addContainer(model: DiagramModel, input: AddContainerInput): Dia
     parentContainerId: input.parentContainerId,
     attachedNodeIds: input.attachedNodeIds,
     sequenceOrder: input.sequenceOrder,
+    style: input.style,
   };
   return { ...model, containers: [...model.containers, container] };
 }
@@ -608,4 +620,27 @@ export function removeContainer(model: DiagramModel, containerId: string): Diagr
       return rest;
     }),
   };
+}
+
+export interface SequenceAutonumberPatch {
+  /** false clears `sequenceAutonumber` back to unset (an `autonumber off`-equivalent, matching
+   *  dsl/sequence.ts's own "absent means never turned on" parse convention — a lone `autonumber
+   *  off` with nothing preceding it is already a no-op there too). true sets it, using `start`/
+   *  `step` when both are given or the bare form when either is omitted (mirrors serializeSequence's
+   *  own `start !== undefined && step !== undefined` branch exactly). */
+  enabled: boolean;
+  start?: number;
+  step?: number;
+}
+
+/** Sets or clears a sequence diagram's `autonumber` directive — a model-level (not per-element)
+ *  field, so unlike every other op in this file there's no id parameter, just the whole model.
+ *  No other field is touched. */
+export function setSequenceAutonumber(model: DiagramModel, patch: SequenceAutonumberPatch): DiagramModel {
+  if (!patch.enabled) {
+    if (model.sequenceAutonumber === undefined) return model;
+    const { sequenceAutonumber: _removed, ...rest } = model;
+    return rest;
+  }
+  return { ...model, sequenceAutonumber: { start: patch.start, step: patch.step } };
 }
