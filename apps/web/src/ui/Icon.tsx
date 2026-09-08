@@ -34,7 +34,8 @@ export type IconName =
   | 'info'
   | 'rows'
   | 'tag'
-  | 'circle';
+  | 'circle'
+  | 'link';
 
 /** Path data only — the wrapper supplies sizing, colour, and ARIA. `diamond` and `check` are
  *  filled; the rest are 1.5px strokes on a 16-unit grid. */
@@ -82,6 +83,13 @@ const PATHS: Record<IconName, { d: string; filled?: boolean }[]> = {
   // node itself renders as (shapes.tsx's own `case 'circle'`), distinct from `diamond`'s filled
   // silhouette and `group`'s two-box metaphor.
   circle: [{ d: 'M8 14.5a6.5 6.5 0 1 0 0-13 6.5 6.5 0 0 0 0 13Z' }],
+  // jmuir-dzd.5: click href/tooltip popup trigger — two overlapping chain links, distinct from
+  // `share`'s node-and-line diagram metaphor and `tag`'s label-with-hole (C4 kind).
+  link: [
+    { d: 'M6.5 9.5 9.5 6.5' },
+    { d: 'M7.5 3.5 9 2a2.5 2.5 0 0 1 3.5 3.5L11 7' },
+    { d: 'M8.5 12.5 7 14a2.5 2.5 0 0 1-3.5-3.5L5 9' },
+  ],
 };
 
 export interface IconProps {

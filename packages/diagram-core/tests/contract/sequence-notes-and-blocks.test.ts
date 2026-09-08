@@ -826,3 +826,82 @@ describe('sequence parser: "title" directive (canvas-vtg)', () => {
     expect(serializeSequence(result.model)).not.toContain('title');
   });
 });
+
+// canvas-2s6.9: serializeSequence never emitted canvas.styles/canvas.edgeStyles at all — any
+// node/edge style set through the canvas UI (or the AI's updateNodeStyle/updateEdgeStyle tools)
+// silently vanished the moment a sequence diagram was saved and reloaded, unlike every other DSL
+// family. 011's own "no canvas.positions/canvas.containers front-matter" decision was scoped to
+// position/container geometry specifically (computed fresh every parse); style is never computed
+// from anything, so it round-trips via front-matter exactly like flowchart/c4/erd/uml already do.
+describe('sequence parser: node/edge style round-trip (canvas-2s6.9)', () => {
+  it('a node style set directly on the model survives serialize -> reparse', () => {
+    const result = parseSequence('sequenceDiagram\nparticipant Alice\nparticipant Bob\nAlice->>Bob: Hi\n');
+    expect(isParseSuccess(result)).toBe(true);
+    if (!isParseSuccess(result)) return;
+    const model = result.model;
+    model.nodes.find((n) => n.id === 'Alice')!.style = { fillColor: '#ff0000', strokeColor: '#000000' };
+
+    const serialized = serializeSequence(model);
+    expect(serialized).toContain('styles:');
+    const reparsed = parseSequence(serialized);
+    expect(isParseSuccess(reparsed)).toBe(true);
+    if (!isParseSuccess(reparsed)) return;
+    expect(reparsed.model.nodes.find((n) => n.id === 'Alice')!.style).toEqual({ fillColor: '#ff0000', strokeColor: '#000000' });
+    // Every other field is untouched by the round-trip.
+    expect(reparsed.model.nodes.find((n) => n.id === 'Bob')!.style).toBeUndefined();
+  });
+
+  it('an edge style set directly on the model survives serialize -> reparse', () => {
+    const result = parseSequence('sequenceDiagram\nparticipant Alice\nparticipant Bob\nAlice->>Bob: Hi\n');
+    expect(isParseSuccess(result)).toBe(true);
+    if (!isParseSuccess(result)) return;
+    const model = result.model;
+    model.edges[0].style = { strokeWidth: 3, strokeDasharray: '5 5', fontFamily: 'Arial', fontSize: 16 };
+
+    const serialized = serializeSequence(model);
+    expect(serialized).toContain('edgeStyles:');
+    const reparsed = parseSequence(serialized);
+    expect(isParseSuccess(reparsed)).toBe(true);
+    if (!isParseSuccess(reparsed)) return;
+    expect(reparsed.model.edges[0].style).toEqual({ strokeWidth: 3, strokeDasharray: '5 5', fontFamily: 'Arial', fontSize: 16 });
+  });
+
+  it('a diagram with no styled nodes/edges omits the front-matter block entirely (no regression)', () => {
+    const result = parseSequence('sequenceDiagram\nparticipant Alice\nparticipant Bob\nAlice->>Bob: Hi\n');
+    expect(isParseSuccess(result)).toBe(true);
+    if (!isParseSuccess(result)) return;
+    expect(serializeSequence(result.model)).not.toContain('---');
+  });
+
+  it('style round-trips correctly alongside a note/block/activation-heavy diagram (no interference with computed layout)', () => {
+    const dsl = [
+      'sequenceDiagram',
+      'participant Alice',
+      'participant Bob',
+      'loop every minute',
+      'Alice->>Bob: Ping',
+      'activate Bob',
+      'Bob-->>Alice: Pong',
+      'deactivate Bob',
+      'end',
+      'Note left of Alice: waiting',
+      '',
+    ].join('\n');
+    const result = parseSequence(dsl);
+    expect(isParseSuccess(result)).toBe(true);
+    if (!isParseSuccess(result)) return;
+    const model = result.model;
+    model.nodes.find((n) => n.id === 'Alice')!.style = { fillColor: '#123456' };
+    model.edges[0].style = { strokeColor: '#654321' };
+
+    const reparsed = parseSequence(serializeSequence(model));
+    expect(isParseSuccess(reparsed)).toBe(true);
+    if (!isParseSuccess(reparsed)) return;
+    expect(reparsed.model.nodes.find((n) => n.id === 'Alice')!.style).toEqual({ fillColor: '#123456' });
+    expect(reparsed.model.edges[0].style).toEqual({ strokeColor: '#654321' });
+    // The loop/activation/note structure itself is unaffected by adding style round-trip.
+    expect(reparsed.model.containers.some((c) => c.role === 'loop')).toBe(true);
+    expect(reparsed.model.containers.some((c) => c.role === 'activate')).toBe(true);
+    expect(reparsed.model.containers.some((c) => c.role === 'note-left')).toBe(true);
+  });
+});

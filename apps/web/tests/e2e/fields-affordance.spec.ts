@@ -257,15 +257,15 @@ test('opening the fields popup closes the style popup, and vice versa', async ({
   await page.getByTestId('node-CUSTOMER').click();
 
   await page.getByTestId('edit-style-CUSTOMER').click();
-  await expect(page.getByTestId('style-color-input-CUSTOMER')).toBeVisible();
+  await expect(page.getByTestId('style-fill-input-CUSTOMER')).toBeVisible();
 
   await page.getByTestId('edit-fields-CUSTOMER').click();
-  await expect(page.getByTestId('style-color-input-CUSTOMER')).toHaveCount(0);
+  await expect(page.getByTestId('style-fill-input-CUSTOMER')).toHaveCount(0);
   await expect(page.getByTestId('attr-new-name-CUSTOMER')).toBeVisible();
 
   await page.getByTestId('edit-style-CUSTOMER').click();
   await expect(page.getByTestId('attr-new-name-CUSTOMER')).toHaveCount(0);
-  await expect(page.getByTestId('style-color-input-CUSTOMER')).toBeVisible();
+  await expect(page.getByTestId('style-fill-input-CUSTOMER')).toBeVisible();
 });
 
 test('the fields affordance has an accessible name', async ({ page }) => {

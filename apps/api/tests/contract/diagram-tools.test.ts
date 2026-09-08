@@ -203,6 +203,29 @@ describe('diagram-tools (AI tool wrappers, base 8, flowchart family)', () => {
     );
     expect(result).toEqual({ applied: false, reason: expect.stringContaining('does-not-exist') });
   });
+
+  // canvas-2s6.7: fontFamily/fontSize were already real NodeStyle fields but stylePatchSchema
+  // never exposed either one to this tool at all — a real gap found while widening the canvas's
+  // own style popup for the same two fields (both layers route through the same StylePatch shape).
+  it('updateNodeStyle sets fontFamily/fontSize on an existing node', async () => {
+    const result = await tools.updateNodeStyle.execute!(
+      { nodeId: 'a', fontFamily: 'Arial', fontSize: 16 },
+      { toolCallId: 't1', messages: [] },
+    );
+    expect(result).toEqual({ applied: true });
+    expect(model.nodes.find((n) => n.id === 'a')!.style).toEqual({ fontFamily: 'Arial', fontSize: 16 });
+  });
+
+  it('updateEdgeStyle sets fontFamily/fontSize on an existing edge', async () => {
+    model.nodes.push({ id: 'b', label: 'B', shape: 'rectangle', position: { x: 200, y: 0 } });
+    model.edges.push({ id: 'e1', sourceId: 'a', targetId: 'b' });
+    const result = await tools.updateEdgeStyle.execute!(
+      { edgeId: 'e1', fontFamily: 'Georgia', fontSize: 12 },
+      { toolCallId: 't1', messages: [] },
+    );
+    expect(result).toEqual({ applied: true });
+    expect(model.edges.find((e) => e.id === 'e1')!.style).toEqual({ fontFamily: 'Georgia', fontSize: 12 });
+  });
 });
 
 /**
