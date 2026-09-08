@@ -372,6 +372,35 @@ describe('setClassMembers (uml)', () => {
     expect(result).toEqual({ applied: false, reason: expect.stringContaining('does-not-exist') });
     expect(model).toBe(before);
   });
+
+  // canvas-2s6.3: umlStereotype had no AI tool at all before this -- folded into setClassMembers
+  // rather than a new standalone tool.
+  it('sets the stereotype when provided, alongside the member list', async () => {
+    const result = await tools.setClassMembers.execute!(
+      { nodeId: 'a', members: [{ kind: 'attribute', name: 'id' }], stereotype: 'interface' },
+      { toolCallId: 't1', messages: [] },
+    );
+    expect(result).toEqual({ applied: true });
+    expect(model.nodes.find((n) => n.id === 'a')!.umlStereotype).toBe('interface');
+  });
+
+  it('leaves the stereotype untouched when omitted', async () => {
+    model.nodes[0].umlStereotype = 'abstract';
+    await tools.setClassMembers.execute!(
+      { nodeId: 'a', members: [{ kind: 'attribute', name: 'id' }] },
+      { toolCallId: 't1', messages: [] },
+    );
+    expect(model.nodes.find((n) => n.id === 'a')!.umlStereotype).toBe('abstract');
+  });
+
+  it('clears the stereotype when explicitly given an empty string', async () => {
+    model.nodes[0].umlStereotype = 'abstract';
+    await tools.setClassMembers.execute!(
+      { nodeId: 'a', members: [{ kind: 'attribute', name: 'id' }], stereotype: '' },
+      { toolCallId: 't1', messages: [] },
+    );
+    expect(model.nodes.find((n) => n.id === 'a')!.umlStereotype).toBeUndefined();
+  });
 });
 
 describe('setRelationshipKind (uml)', () => {

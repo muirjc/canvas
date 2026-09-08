@@ -55,6 +55,25 @@ const REL_TOKEN_TO_KIND: Record<string, NonNullable<import('../model/diagram-mod
 const REL_KIND_TO_TOKEN: Record<string, string> = Object.fromEntries(
   Object.entries(REL_TOKEN_TO_KIND).map(([token, kind]) => [kind, token]),
 );
+/** canvas-2s6.3: the 10 relationship kinds REL_TOKEN_TO_KIND's tokens map onto — exported as the
+ *  single source of truth for the AI tool schema (diagram-tools.ts's own UML_RELATION_KINDS) and
+ *  the canvas UI's own relationship-kind picker, mirroring C4_BOUNDARY_ROLES/C4_ELEMENT_ROLES'
+ *  identical precedent (canvas-2s6.1/.5). A literal array (not derived from REL_KIND_TO_TOKEN's
+ *  own runtime keys) so it carries a real literal-union type, not just `string` — required for
+ *  z.enum() to produce a real enum schema rather than an unconstrained string.
+ */
+export const UML_RELATION_KINDS = [
+  'inheritance',
+  'composition',
+  'aggregation',
+  'association',
+  'link-solid',
+  'dependency',
+  'realization',
+  'link-dashed',
+  'lollipop-source',
+  'lollipop-target',
+] as const;
 
 // jmuir-dtu.2: notes -- a standalone `note "text"` (no attached class) or a class-attached
 // `note for ClassName "text"`.

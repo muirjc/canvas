@@ -25,6 +25,7 @@ import {
   updateClassMembers,
   updateEdgeRelationKind,
   updateEdgeArrowStyle,
+  updateNodeStereotype,
   addPointMarkerContainer,
 } from '../../src/model/diagram-ops.js';
 import type { DiagramModel, EntityAttribute, ClassMember } from '../../src/model/diagram-model.js';
@@ -822,6 +823,37 @@ describe('updateClassMembers', () => {
   it('leaves other nodes, edges, and containers untouched', () => {
     const model = baseModel();
     const result = updateClassMembers(model, 'a', membersA);
+    expect(result.nodes.find((n) => n.id === 'b')).toEqual(model.nodes.find((n) => n.id === 'b'));
+    expect(result.edges).toEqual(model.edges);
+    expect(result.containers).toEqual(model.containers);
+  });
+});
+
+describe('updateNodeStereotype', () => {
+  it('sets the umlStereotype field of the named node', () => {
+    const result = updateNodeStereotype(baseModel(), 'a', 'interface');
+    expect(result.nodes.find((n) => n.id === 'a')!.umlStereotype).toBe('interface');
+  });
+
+  it('an empty string clears it back to unset', () => {
+    const model = baseModel();
+    model.nodes[0].umlStereotype = 'abstract';
+    const result = updateNodeStereotype(model, 'a', '');
+    expect(result.nodes.find((n) => n.id === 'a')!.umlStereotype).toBeUndefined();
+  });
+
+  it('is a no-op for an unknown node id', () => {
+    const model = baseModel();
+    expect(updateNodeStereotype(model, 'nope', 'interface')).toEqual(model);
+  });
+
+  it('leaves every other field on the same node, and every other node/edge/container, untouched', () => {
+    const model = baseModel();
+    const result = updateNodeStereotype(model, 'a', 'interface');
+    const node = result.nodes.find((n) => n.id === 'a')!;
+    expect(node.position).toEqual(model.nodes[0].position);
+    expect(node.shape).toBe(model.nodes[0].shape);
+    expect(node.label).toBe(model.nodes[0].label);
     expect(result.nodes.find((n) => n.id === 'b')).toEqual(model.nodes.find((n) => n.id === 'b'));
     expect(result.edges).toEqual(model.edges);
     expect(result.containers).toEqual(model.containers);
