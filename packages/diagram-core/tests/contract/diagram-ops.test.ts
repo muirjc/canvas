@@ -5,6 +5,7 @@ import {
   removeNode,
   removeEdge,
   updateNodeLabel,
+  setNodeLink,
   updateEdgeLabel,
   updateNodeStyle,
   updateEdgeStyle,
@@ -232,6 +233,89 @@ describe('updateNodeLabel', () => {
 
   it('rejects an empty label (shapes always keep a non-empty label)', () => {
     expect(() => updateNodeLabel(baseModel(), 'a', '')).toThrow();
+  });
+});
+
+describe('setNodeLink (jmuir-dzd.5)', () => {
+  it('sets the link field of the named node', () => {
+    const result = setNodeLink(baseModel(), 'a', { href: 'https://example.com' });
+    expect(result.nodes.find((n) => n.id === 'a')!.link).toEqual({ href: 'https://example.com' });
+  });
+
+  it('sets tooltip and target when given', () => {
+    const result = setNodeLink(baseModel(), 'a', { href: 'https://example.com', tooltip: 'Visit', target: '_blank' });
+    expect(result.nodes.find((n) => n.id === 'a')!.link).toEqual({
+      href: 'https://example.com',
+      tooltip: 'Visit',
+      target: '_blank',
+    });
+  });
+
+  it('replaces a previously-set link wholesale, not merged', () => {
+    let model = setNodeLink(baseModel(), 'a', { href: 'https://old.example.com', tooltip: 'Old' });
+    model = setNodeLink(model, 'a', { href: 'https://new.example.com' });
+    expect(model.nodes.find((n) => n.id === 'a')!.link).toEqual({ href: 'https://new.example.com' });
+  });
+
+  it('clears a previously-set link back to unset when given null', () => {
+    let model = setNodeLink(baseModel(), 'a', { href: 'https://example.com' });
+    model = setNodeLink(model, 'a', null);
+    expect(model.nodes.find((n) => n.id === 'a')!.link).toBeUndefined();
+  });
+
+  it('is a no-op for an unknown node id', () => {
+    const model = baseModel();
+    expect(setNodeLink(model, 'nope', { href: 'https://example.com' })).toEqual(model);
+  });
+
+  it('leaves other nodes, edges, and containers untouched', () => {
+    const model = baseModel();
+    const result = setNodeLink(model, 'a', { href: 'https://example.com' });
+    expect(result.nodes.find((n) => n.id === 'b')).toEqual(model.nodes.find((n) => n.id === 'b'));
+    expect(result.edges).toEqual(model.edges);
+    expect(result.containers).toEqual(model.containers);
+  });
+
+  // The mandatory security boundary: this op is a non-DSL-import path that also sets `link`
+  // (the canvas UI popup, and any future AI tool) — it must never silently accept a disallowed
+  // scheme, the same "clean rejection, not silent tolerance" posture the parser enforces.
+  it('rejects a "javascript:" scheme href (throws, mirrors updateNodeLabel\'s own empty-label precedent)', () => {
+    expect(() => setNodeLink(baseModel(), 'a', { href: 'javascript:alert(1)' })).toThrow();
+  });
+
+  it('rejects a "data:" scheme href', () => {
+    expect(() => setNodeLink(baseModel(), 'a', { href: 'data:text/html,x' })).toThrow();
+  });
+
+  it('accepts http(s) and a relative path', () => {
+    expect(() => setNodeLink(baseModel(), 'a', { href: 'http://example.com' })).not.toThrow();
+    expect(() => setNodeLink(baseModel(), 'a', { href: 'https://example.com' })).not.toThrow();
+    expect(() => setNodeLink(baseModel(), 'a', { href: '/docs/x' })).not.toThrow();
+  });
+
+  it('clearing (link: null) never throws, even though it skips the href check entirely', () => {
+    expect(() => setNodeLink(baseModel(), 'a', null)).not.toThrow();
+  });
+
+  // appsec review (jmuir-dzd.5): serializeClickHref (flowchart-serializer.ts) re-emits href/
+  // tooltip inside a literal `"..."` DSL token with no escape syntax -- an embedded quote would
+  // prematurely close it, and a raw newline would inject an entirely separate DSL statement
+  // (e.g. a second click line targeting a DIFFERENT node whose own href was never validated).
+  // Rejected here (not escaped), matching this op's own "throw on a genuine precondition
+  // violation" convention.
+  it('rejects an href containing a double-quote', () => {
+    expect(() => setNodeLink(baseModel(), 'a', { href: 'https://example.com/"><script>' })).toThrow();
+  });
+
+  it('rejects an href containing a newline (DSL statement injection)', () => {
+    expect(() =>
+      setNodeLink(baseModel(), 'a', { href: 'https://example.com"\nclick b href "javascript:alert(1)' }),
+    ).toThrow();
+  });
+
+  it('rejects a tooltip containing a double-quote or newline, even when href itself is clean', () => {
+    expect(() => setNodeLink(baseModel(), 'a', { href: 'https://example.com', tooltip: 'a "quote"' })).toThrow();
+    expect(() => setNodeLink(baseModel(), 'a', { href: 'https://example.com', tooltip: 'line1\nline2' })).toThrow();
   });
 });
 

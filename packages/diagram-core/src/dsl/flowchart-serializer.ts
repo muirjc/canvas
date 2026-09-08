@@ -1,4 +1,4 @@
-import type { DiagramContainer, DiagramModel, DiagramNode, NodeShape } from '../model/diagram-model.js';
+import { isAllowedLinkHref, type DiagramContainer, type DiagramModel, type DiagramNode, type NodeShape } from '../model/diagram-model.js';
 import { joinFrontMatter, type CanvasFrontMatter } from './front-matter.js';
 
 const SHAPE_DELIMITERS: Record<NodeShape, [string, string]> = {
@@ -23,6 +23,34 @@ const SHAPE_DELIMITERS: Record<NodeShape, [string, string]> = {
 function serializeNode(node: DiagramNode): string {
   const [open, close] = SHAPE_DELIMITERS[node.shape];
   return `  ${node.id}${open}${node.label}${close}`;
+}
+
+// jmuir-dzd.5: real Mermaid grammar (unlike style/classDef, which round-trip via front-matter,
+// grouping C's own established precedent) -- `click` is native syntax, so it's re-emitted as a
+// literal line, mirroring `direction`'s identical "real grammar, not a front-matter entry"
+// treatment (grouping E). Placed after node/edge declarations, matching real Mermaid's own
+// conventional click-directive placement.
+//
+// appsec review (jmuir-dzd.5): re-validates BOTH the scheme (isAllowedLinkHref) and the absence
+// of `"`/newline in href/tooltip, defensively, even though setNodeLink (diagram-ops.ts) already
+// enforces both at the one intended entry point -- a node.link is still just a plain object field
+// on DiagramModel, reachable by anything that builds/mutates a model directly (a test fixture, a
+// future code path that doesn't go through setNodeLink), and this file's own `"([^"]*)"` DSL
+// token has no escape syntax for an embedded quote at all: an unescaped one would prematurely
+// close the token, and a raw newline would inject an entirely separate DSL statement (e.g. a
+// second, attacker-controlled `click <otherNodeId> href "javascript:..."` line targeting a
+// DIFFERENT node whose own href was never validated) -- a stronger and differently-shaped risk
+// than a mere malformed-syntax parse error, so a link that fails either check is treated exactly
+// like "no link" here rather than emitted at all -- matches wrapNodeLink's (svg-renderer.ts) own
+// "downgrade to unlinked, never emit something unsafe" precedent for the export boundary.
+function serializeClickHref(node: DiagramNode): string | undefined {
+  if (!node.link) return undefined;
+  const { href, tooltip, target } = node.link;
+  if (!isAllowedLinkHref(href)) return undefined;
+  if (/["\r\n]/.test(href) || (tooltip !== undefined && /["\r\n]/.test(tooltip))) return undefined;
+  const tooltipPart = tooltip !== undefined ? ` "${tooltip}"` : '';
+  const targetPart = target === '_blank' ? ' _blank' : '';
+  return `click ${node.id} href "${href}"${tooltipPart}${targetPart}`;
 }
 
 // Grouping B: which literal connector token represents a given (lineStyle, arrow) pair. Both
@@ -115,6 +143,10 @@ export function serializeFlowchart(model: DiagramModel): string {
   }
   for (const edge of model.edges) {
     bodyLines.push(serializeEdge(edge));
+  }
+  for (const node of model.nodes) {
+    const clickLine = serializeClickHref(node);
+    if (clickLine) bodyLines.push(clickLine);
   }
 
   const body = `${bodyLines.join('\n')}\n`;

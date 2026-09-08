@@ -17,6 +17,8 @@ import {
   setContainerDirection,
   setContainerParent,
   removeContainerParent,
+  setNodeLink,
+  isAllowedLinkHref,
   updateEdgeLabel,
   updateEdgeStyle,
   updateEdgeRelationKind,
@@ -67,6 +69,7 @@ import {
   type StylePatch,
   type EntityAttribute,
   type ClassMember,
+  type NodeLink,
 } from '@canvas/diagram-core';
 import { getAddableShapes, nodeSize, renderNodeShape, SELECTION_STROKE } from './shapes';
 import { ConfirmDialog } from './ConfirmDialog';
@@ -107,6 +110,12 @@ const STYLE_POPUP_HEIGHT = 340;
 // else), then two narrow cardinality inputs plus Done on a second row.
 const RELATION_KIND_POPUP_WIDTH = 260;
 const RELATION_KIND_POPUP_HEIGHT = 84;
+
+// jmuir-dzd.5: the click-href popup's own fixed size — URL + tooltip inputs (each label-above-
+// input, same field__label stacked convention as elsewhere) plus an "Open in new tab" checkbox,
+// an optional inline validation message, and a Clear/Save row.
+const LINK_POPUP_WIDTH = 260;
+const LINK_POPUP_HEIGHT = 210;
 
 // canvas-hox follow-up: real Mermaid erDiagram crow's-foot cardinality tokens are asymmetric --
 // the source (left) and target (right) side of a relationship use different two-character tokens
@@ -866,6 +875,129 @@ function FieldsPopup({ node, model, dslFamily, x, y, onChange, onClose }: Fields
   );
 }
 
+interface LinkPopupProps {
+  node: DiagramNode;
+  model: DiagramModel;
+  x: number;
+  y: number;
+  onChange: (model: DiagramModel) => void;
+  onClose: () => void;
+}
+
+/**
+ * jmuir-dzd.5: the click href/tooltip editor opened by renderLinkAffordance — a standalone
+ * component (like FieldsPopup above, and for the same reason) because the URL field needs its own
+ * local draft state with an explicit commit step, not FieldsPopup's or the style popup's own
+ * "applies immediately on every keystroke" convention: setNodeLink THROWS for a disallowed href
+ * scheme (updateNodeLabel's own empty-label precedent, diagram-ops.ts), so this MUST validate
+ * client-side with isAllowedLinkHref before ever calling it, showing an inline error instead of
+ * letting an uncaught exception reach React's render cycle. Mounted only while
+ * `editingLinkNodeId === node.id`, so its draft state resets cleanly each time it reopens.
+ */
+function LinkPopup({ node, model, x, y, onChange, onClose }: LinkPopupProps) {
+  const [hrefDraft, setHrefDraft] = useState(node.link?.href ?? '');
+  const [tooltipDraft, setTooltipDraft] = useState(node.link?.tooltip ?? '');
+  const [targetDraft, setTargetDraft] = useState(node.link?.target === '_blank');
+  const [error, setError] = useState<string | null>(null);
+
+  const commit = () => {
+    const href = hrefDraft.trim();
+    const tooltip = tooltipDraft.trim();
+    if (!href) {
+      setError('A URL is required — use Clear to remove the link entirely.');
+      return;
+    }
+    if (!isAllowedLinkHref(href)) {
+      setError('URL must start with "http://", "https://", or be a relative path (e.g. "/docs/x").');
+      return;
+    }
+    // appsec review (jmuir-dzd.5): matches setNodeLink's own check (diagram-ops.ts) -- the DSL
+    // "click href" directive's `"..."` token has no escape syntax for an embedded quote, and a
+    // raw newline would inject a separate DSL statement on reparse. Checked here too so this
+    // fails as an inline error instead of an uncaught exception from setNodeLink below.
+    if (/["\r\n]/.test(href) || /["\r\n]/.test(tooltip)) {
+      setError('URL/tooltip cannot contain a double-quote or a line break.');
+      return;
+    }
+    const link: NodeLink = { href };
+    if (tooltip) link.tooltip = tooltip;
+    if (targetDraft) link.target = '_blank';
+    onChange(setNodeLink(model, node.id, link));
+    onClose();
+  };
+
+  const clear = () => {
+    onChange(setNodeLink(model, node.id, null));
+    onClose();
+  };
+
+  return (
+    <foreignObject x={x} y={y} width={LINK_POPUP_WIDTH} height={LINK_POPUP_HEIGHT}>
+      <div
+        className="card stack"
+        style={{ padding: 'var(--space-2)', gap: 'var(--space-1)' }}
+        onClick={(event) => event.stopPropagation()}
+        onPointerDown={(event) => event.stopPropagation()}
+        onKeyDown={(event) => {
+          if (event.key === 'Escape') onClose();
+        }}
+      >
+        <label className="field__label" htmlFor={`link-href-${node.id}`}>
+          URL
+          <input
+            id={`link-href-${node.id}`}
+            data-testid={`link-href-${node.id}`}
+            autoFocus
+            value={hrefDraft}
+            placeholder="https://example.com"
+            onChange={(event) => {
+              setHrefDraft(event.target.value);
+              setError(null);
+            }}
+          />
+        </label>
+        <label className="field__label" htmlFor={`link-tooltip-${node.id}`}>
+          Tooltip
+          <input
+            id={`link-tooltip-${node.id}`}
+            data-testid={`link-tooltip-${node.id}`}
+            value={tooltipDraft}
+            placeholder="Optional"
+            onChange={(event) => setTooltipDraft(event.target.value)}
+          />
+        </label>
+        <label
+          className="field__label"
+          htmlFor={`link-target-${node.id}`}
+          style={{ flexDirection: 'row', alignItems: 'center', gap: 'var(--space-1)' }}
+        >
+          <input
+            type="checkbox"
+            id={`link-target-${node.id}`}
+            data-testid={`link-target-${node.id}`}
+            checked={targetDraft}
+            onChange={(event) => setTargetDraft(event.target.checked)}
+          />
+          Open in new tab
+        </label>
+        {error && (
+          <p role="alert" data-testid={`link-error-${node.id}`} style={{ color: 'var(--danger)', margin: 0, fontSize: 12 }}>
+            {error}
+          </p>
+        )}
+        <div className="cluster cluster--tight" style={{ justifyContent: 'space-between' }}>
+          <button type="button" className="btn btn--tertiary btn--compact" data-testid={`link-clear-${node.id}`} onClick={clear}>
+            Clear
+          </button>
+          <button type="button" className="btn btn--primary btn--compact" data-testid={`link-save-${node.id}`} onClick={commit}>
+            Save
+          </button>
+        </div>
+      </div>
+    </foreignObject>
+  );
+}
+
 /**
  * canvas-8n7: renders resolved icon markup via an `<image>` element's `data:` URI rather than
  * `dangerouslySetInnerHTML`, so it is never inserted into the live DOM as executable markup in
@@ -1047,6 +1179,11 @@ export function Canvas({ model, onChange, dslFamily, toolbarContainer }: CanvasP
   // with editingFieldsNodeId at the call site (erd/uml vs c4), so it safely reuses the same
   // below-the-node popup position (stylePopupPos) rather than needing its own.
   const [editingKindNodeId, setEditingKindNodeId] = useState<string | null>(null);
+  // jmuir-dzd.5: a fifth, separate node-only affordance — flowchart only (DiagramNode.link is
+  // flowchart-only, same "no other family has this concept" precedent as editingKindNodeId's own
+  // C4-only scoping above). Reuses the same below-the-node popup position, mutually exclusive by
+  // family with fields (erd/uml) and kind (c4).
+  const [editingLinkNodeId, setEditingLinkNodeId] = useState<string | null>(null);
   const [selectedContainerId, setSelectedContainerId] = useState<string | null>(null);
   // canvas-u7e: edges had no selection state at all — the only ways to remove a connector were
   // deleting one of its endpoint nodes (which cascades but also destroys the node) or hand-editing
@@ -1558,6 +1695,27 @@ export function Canvas({ model, onChange, dslFamily, toolbarContainer }: CanvasP
         onPointerDown={(event) => event.stopPropagation()}
       >
         <Icon name="tag" size={12} />
+      </button>
+    </foreignObject>
+  );
+
+  /** jmuir-dzd.5: opens LinkPopup. Mirrors renderKindAffordance's exact shape (a fifth per-node
+   *  affordance, flowchart-only). */
+  const renderLinkAffordance = (id: string, x: number, y: number, onActivate: () => void, label: string) => (
+    <foreignObject x={x} y={y} width={22} height={22}>
+      <button
+        type="button"
+        className="canvas-edit-affordance"
+        data-testid={`edit-link-${id}`}
+        aria-label={label}
+        title={label}
+        onClick={(event) => {
+          event.stopPropagation();
+          onActivate();
+        }}
+        onPointerDown={(event) => event.stopPropagation()}
+      >
+        <Icon name="link" size={12} />
       </button>
     </foreignObject>
   );
@@ -3060,6 +3218,16 @@ export function Canvas({ model, onChange, dslFamily, toolbarContainer }: CanvasP
             FIELDS_POPUP_WIDTH,
             FIELDS_POPUP_HEIGHT,
           );
+          // jmuir-dzd.5: same below-the-node placement precedent, with the link popup's own size.
+          const linkPopupPos = popupPosition(
+            node.position.y,
+            node.position.y + size.height,
+            node.position.x,
+            canvasWidth,
+            canvasHeight,
+            LINK_POPUP_WIDTH,
+            LINK_POPUP_HEIGHT,
+          );
           // canvas-23t.5: mirrors svg-renderer.ts's renderNode icon branch exactly — glyph
           // top-aligned, caption stacked below it, both from the shared iconNodeLayout
           // calculation, so canvas and export agree (SC-004).
@@ -3180,6 +3348,7 @@ export function Canvas({ model, onChange, dslFamily, toolbarContainer }: CanvasP
                     setStylingNodeId(null);
                     setEditingFieldsNodeId(null);
                     setEditingKindNodeId(null);
+                    setEditingLinkNodeId(null);
                     setEditingNodeId(node.id);
                   },
                   `Edit label for ${node.label}`,
@@ -3195,6 +3364,7 @@ export function Canvas({ model, onChange, dslFamily, toolbarContainer }: CanvasP
                     setEditingNodeId(null);
                     setEditingFieldsNodeId(null);
                     setEditingKindNodeId(null);
+                    setEditingLinkNodeId(null);
                     setStylingNodeId(node.id);
                   },
                   `Edit style for ${node.label}`,
@@ -3226,6 +3396,7 @@ export function Canvas({ model, onChange, dslFamily, toolbarContainer }: CanvasP
                     setEditingNodeId(null);
                     setStylingNodeId(null);
                     setEditingKindNodeId(null);
+                    setEditingLinkNodeId(null);
                     setEditingFieldsNodeId(node.id);
                   },
                   dslFamily === 'erd' ? `Edit attributes for ${node.label}` : `Edit members for ${node.label}`,
@@ -3258,6 +3429,7 @@ export function Canvas({ model, onChange, dslFamily, toolbarContainer }: CanvasP
                     setEditingNodeId(null);
                     setStylingNodeId(null);
                     setEditingFieldsNodeId(null);
+                    setEditingLinkNodeId(null);
                     setEditingKindNodeId(node.id);
                   },
                   `Choose kind for ${node.label}`,
@@ -3271,6 +3443,36 @@ export function Canvas({ model, onChange, dslFamily, toolbarContainer }: CanvasP
                   (role) => onChange(updateNodeRole(model, node.id, role)),
                   () => setEditingKindNodeId(null),
                 )}
+              {/* jmuir-dzd.5: flowchart's own click href/tooltip interaction — DiagramNode.link is
+                  flowchart-only, same family-gated precedent as C4's own kind affordance above.
+                  Reuses fields'/kind's own x-offset — mutually exclusive by family. */}
+              {editingNodeId !== node.id &&
+                !connectMode &&
+                dslFamily === 'flowchart' &&
+                (hoveredId === node.id || selectedIds.has(node.id)) &&
+                renderLinkAffordance(
+                  node.id,
+                  node.position.x + size.width - 76,
+                  node.position.y + 2,
+                  () => {
+                    setEditingNodeId(null);
+                    setStylingNodeId(null);
+                    setEditingFieldsNodeId(null);
+                    setEditingKindNodeId(null);
+                    setEditingLinkNodeId(node.id);
+                  },
+                  node.link ? `Edit link for ${node.label}` : `Add link for ${node.label}`,
+                )}
+              {editingLinkNodeId === node.id && (
+                <LinkPopup
+                  node={node}
+                  model={model}
+                  x={linkPopupPos.x}
+                  y={linkPopupPos.y}
+                  onChange={onChange}
+                  onClose={() => setEditingLinkNodeId(null)}
+                />
+              )}
             </g>
           );
         })}

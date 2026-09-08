@@ -167,6 +167,12 @@ describe('Diagrams API contract', () => {
     expect(mermaidResponse.statusCode).toBe(200);
     expect(mermaidResponse.headers['content-type']).toContain('text/plain');
     expect(mermaidResponse.body).toContain('A[Start]');
+    // jmuir-dzd.5 appsec review: no Content-Disposition at all meant a direct GET (bookmark,
+    // shared link, curl) rendered the export INLINE at this API's own origin -- forcing a
+    // download closes that regardless of what the export's own content is, independent of and in
+    // addition to the web app's own <a download> click (which this server-side header doesn't
+    // depend on at all).
+    expect(mermaidResponse.headers['content-disposition']).toContain('attachment');
 
     const svgResponse = await app.inject({
       method: 'GET',
@@ -176,6 +182,7 @@ describe('Diagrams API contract', () => {
     expect(svgResponse.statusCode).toBe(200);
     expect(svgResponse.headers['content-type']).toContain('image/svg+xml');
     expect(svgResponse.body).toContain('<svg');
+    expect(svgResponse.headers['content-disposition']).toContain('attachment');
 
     const pngResponse = await app.inject({
       method: 'GET',
@@ -184,6 +191,7 @@ describe('Diagrams API contract', () => {
     });
     expect(pngResponse.statusCode).toBe(200);
     expect(pngResponse.headers['content-type']).toContain('image/png');
+    expect(pngResponse.headers['content-disposition']).toContain('attachment');
     // PNG signature: 89 50 4E 47 0D 0A 1A 0A
     const pngBytes = pngResponse.rawPayload;
     expect(pngBytes.subarray(0, 8).toString('hex')).toBe('89504e470d0a1a0a');

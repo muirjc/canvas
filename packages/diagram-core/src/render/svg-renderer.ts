@@ -1,4 +1,4 @@
-import type { ClassMember, DiagramContainer, DiagramEdge, DiagramModel, DiagramNode, EntityAttribute, Size } from '../model/diagram-model.js';
+import { isAllowedLinkHref, type ClassMember, type DiagramContainer, type DiagramEdge, type DiagramModel, type DiagramNode, type EntityAttribute, type Size } from '../model/diagram-model.js';
 import { computeSequenceLayout, SELF_MESSAGE_LOOP_WIDTH, type SequenceLayout } from './sequence-layout.js';
 
 const DEFAULT_NODE_SIZE: Size = { width: 140, height: 60 };
@@ -754,6 +754,24 @@ function renderNodeShape(node: DiagramNode): string {
 
 export type IconResolver = (icon: NonNullable<DiagramNode['icon']>) => string | undefined;
 
+// jmuir-dzd.5: wraps a node's own rendered markup in a real, clickable SVG <a> when it carries a
+// `link` — the actual point of exporting a diagram with click interactions, not just round-
+// tripping the DSL text. Re-checks isAllowedLinkHref here too, as defense in depth: the flowchart
+// parser already rejects a disallowed scheme at parse time, but `link` is also settable directly
+// through diagram-ops.ts (and the AI tool layer on top of it), bypassing the parser entirely — an
+// href that somehow reaches this function with a disallowed scheme is rendered as a plain node,
+// never as a real `<a href>`, exactly like an absent link. Every dynamic value is XML-escaped
+// (escapeXml, this file's own established convention for every other user-authored string already
+// rendered into this SVG output) — an un-escaped href/tooltip would let `"` inside either one
+// break out of the attribute and inject arbitrary markup, the exact XSS shape this feature's own
+// design discussion flagged as mandatory to prevent.
+function wrapNodeLink(node: DiagramNode, markup: string): string {
+  if (!node.link || !isAllowedLinkHref(node.link.href)) return markup;
+  const targetAttr = node.link.target === '_blank' ? ' target="_blank"' : '';
+  const titleMarkup = node.link.tooltip ? `<title>${escapeXml(node.link.tooltip)}</title>` : '';
+  return `<a href="${escapeXml(node.link.href)}"${targetAttr}>${titleMarkup}${markup}</a>`;
+}
+
 function renderNode(node: DiagramNode, resolveIcon?: IconResolver): string {
   const { x, y } = node.position;
   const { width, height } = nodeSize(node);
@@ -769,13 +787,16 @@ function renderNode(node: DiagramNode, resolveIcon?: IconResolver): string {
     // canvas-23t.5: glyph top-aligned, caption stacked below it — both positions and the box
     // itself come from iconNodeLayout, the same calculation the canvas uses (SC-004).
     const layout = iconNodeLayout(node);
-    return [
-      `<g data-node-id="${escapeXml(node.id)}">`,
-      renderNodeShape(node),
-      `<g transform="translate(${layout.iconX}, ${layout.iconY}) scale(${layout.iconSize / 48})">${iconMarkup}</g>`,
-      renderLabelText(layout.labelX, layout.labelY, node.label, layout.labelFontSize, false, layout.labelMaxWidth),
-      '</g>',
-    ].join('');
+    return wrapNodeLink(
+      node,
+      [
+        `<g data-node-id="${escapeXml(node.id)}">`,
+        renderNodeShape(node),
+        `<g transform="translate(${layout.iconX}, ${layout.iconY}) scale(${layout.iconSize / 48})">${iconMarkup}</g>`,
+        renderLabelText(layout.labelX, layout.labelY, node.label, layout.labelFontSize, false, layout.labelMaxWidth),
+        '</g>',
+      ].join(''),
+    );
   }
 
   // canvas-x66: an ER entity's attributes or a UML class's members render as a Mermaid-style
@@ -784,31 +805,37 @@ function renderNode(node: DiagramNode, resolveIcon?: IconResolver): string {
   const tableLayout = tableNodeLayout(node);
   if (tableLayout) {
     const stroke = node.style?.strokeColor ?? '#333333';
-    return [
-      `<g data-node-id="${escapeXml(node.id)}">`,
-      renderNodeShape(node),
-      `<line x1="${x}" y1="${tableLayout.dividerY}" x2="${x + width}" y2="${tableLayout.dividerY}" stroke="${stroke}" />`,
-      tableLayout.stereotype
-        ? `<text x="${tableLayout.stereotype.x}" y="${tableLayout.stereotype.y}" text-anchor="middle" font-size="${tableLayout.stereotype.fontSize}" font-family='${FONT_FAMILY}'>${escapeXml(tableLayout.stereotype.text)}</text>`
-        : '',
-      renderLabelText(tableLayout.headerX, tableLayout.headerY, node.label, tableLayout.headerFontSize, true, labelMaxWidth),
-      tableLayout.rows
-        .map(
-          (row) =>
-            `<text x="${row.x}" y="${row.y}" dominant-baseline="middle" font-size="${row.fontSize}" font-family='${FONT_FAMILY}'>${escapeXml(row.text)}</text>`,
-        )
-        .join(''),
-      '</g>',
-    ].join('');
+    return wrapNodeLink(
+      node,
+      [
+        `<g data-node-id="${escapeXml(node.id)}">`,
+        renderNodeShape(node),
+        `<line x1="${x}" y1="${tableLayout.dividerY}" x2="${x + width}" y2="${tableLayout.dividerY}" stroke="${stroke}" />`,
+        tableLayout.stereotype
+          ? `<text x="${tableLayout.stereotype.x}" y="${tableLayout.stereotype.y}" text-anchor="middle" font-size="${tableLayout.stereotype.fontSize}" font-family='${FONT_FAMILY}'>${escapeXml(tableLayout.stereotype.text)}</text>`
+          : '',
+        renderLabelText(tableLayout.headerX, tableLayout.headerY, node.label, tableLayout.headerFontSize, true, labelMaxWidth),
+        tableLayout.rows
+          .map(
+            (row) =>
+              `<text x="${row.x}" y="${row.y}" dominant-baseline="middle" font-size="${row.fontSize}" font-family='${FONT_FAMILY}'>${escapeXml(row.text)}</text>`,
+          )
+          .join(''),
+        '</g>',
+      ].join(''),
+    );
   }
 
   const rawLabel = node.icon ? `${node.label} [${node.icon.iconId}]` : node.label;
-  return [
-    `<g data-node-id="${escapeXml(node.id)}">`,
-    renderNodeShape(node),
-    renderLabelText(x + width / 2, y + height / 2, rawLabel, fontSize, true, labelMaxWidth),
-    '</g>',
-  ].join('');
+  return wrapNodeLink(
+    node,
+    [
+      `<g data-node-id="${escapeXml(node.id)}">`,
+      renderNodeShape(node),
+      renderLabelText(x + width / 2, y + height / 2, rawLabel, fontSize, true, labelMaxWidth),
+      '</g>',
+    ].join(''),
+  );
 }
 
 // canvas-7vs.8: every container role used to render as the exact same generic dashed gray box
