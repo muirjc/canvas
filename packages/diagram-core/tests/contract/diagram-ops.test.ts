@@ -537,6 +537,28 @@ describe('setContainerParent / removeContainerParent', () => {
     expect(setContainerParent(model, 'g1', 'nope')).toEqual(model);
   });
 
+  // canvas-2s6.8: a real gap found while wiring drag-to-nest -- direct self-nesting was already
+  // guarded, but nesting a container into one of its OWN descendants was not.
+  it('is a no-op when nesting a container into its own direct child (a 2-level cycle)', () => {
+    const model = nestedModel();
+    expect(setContainerParent(model, 'outer', 'inner')).toEqual(model);
+  });
+
+  it('is a no-op when nesting a container into a deeper descendant (a 3-level cycle)', () => {
+    let model = addContainer(nestedModel(), { label: 'Grandchild' });
+    const grandchildId = model.containers.at(-1)!.id;
+    model = setContainerParent(model, grandchildId, 'inner');
+    // outer -> inner -> grandchild; nesting outer into grandchild would close the loop.
+    expect(setContainerParent(model, 'outer', grandchildId)).toEqual(model);
+  });
+
+  it('still allows nesting into an unrelated container (not a false-positive cycle rejection)', () => {
+    const model = addContainer(nestedModel(), { label: 'Sibling' });
+    const siblingId = model.containers.at(-1)!.id;
+    const result = setContainerParent(model, siblingId, 'inner');
+    expect(result.containers.find((c) => c.id === siblingId)!.parentContainerId).toBe('inner');
+  });
+
   it('removeContainerParent un-nests a container back to top-level', () => {
     const model = nestedModel();
     const result = removeContainerParent(model, 'inner');
