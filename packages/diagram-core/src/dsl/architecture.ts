@@ -4,8 +4,12 @@ import type { ParseError, ParseResult } from './types.js';
 
 const ID = String.raw`[A-Za-z0-9_]+`;
 
-// group groupId(icon)[Title]
-const GROUP_PATTERN = new RegExp(`^group\\s+(${ID})\\(([^)]*)\\)\\[(.+)\\]$`);
+// group groupId(icon)[Title] (in parentGroupId)?
+// jmuir-dtu.19: real Mermaid grammar allows a group to nest inside another group, exactly like
+// service/junction already nest inside a group below -- this optional "in <groupId>" clause was
+// missing entirely (a real bug, not a scope cut: junction's own identical clause was implemented,
+// but group's sibling case was missed).
+const GROUP_PATTERN = new RegExp(`^group\\s+(${ID})\\(([^)]*)\\)\\[(.+)\\](?:\\s+in\\s+(${ID}))?$`);
 const TITLE_PATTERN = /^title\s+(.+)$/;
 // jmuir-dtu.17: same cross-family precedent as TITLE_PATTERN. Single-line colon form only; the
 // multi-line `accDescr { ... }` block form is out of scope (a clean parse error, not a silent
@@ -124,13 +128,14 @@ export function parseArchitecture(dsl: string): ParseResult {
 
     const groupMatch = line.match(GROUP_PATTERN);
     if (groupMatch) {
-      const [, id, , label] = groupMatch;
+      const [, id, , label, parentGroupId] = groupMatch;
       const meta = containerMeta[id];
       containersById.set(id, {
         id,
         label,
         position: meta ? { x: meta.x, y: meta.y } : nextAutoPosition(),
         size: meta?.width !== undefined && meta?.height !== undefined ? { width: meta.width, height: meta.height } : undefined,
+        parentContainerId: parentGroupId,
       });
       continue;
     }
@@ -228,7 +233,12 @@ export function serializeArchitecture(model: DiagramModel): string {
   if (model.accTitle) lines.push(`accTitle: ${model.accTitle}`);
   if (model.accDescr) lines.push(`accDescr: ${model.accDescr}`);
   for (const group of model.containers) {
-    lines.push(`group ${group.id}(cloud)[${group.label}]`);
+    // jmuir-dtu.19: real Mermaid grammar is a flat statement with an optional trailing "in
+    // <parentGroupId>" clause (unlike, say, UML's nested namespace BLOCK syntax) -- no ordering
+    // dependency between a group and its parent's own declaration line, mirroring how service/
+    // junction's identical "in" clause already round-trips regardless of declaration order.
+    const inClause = group.parentContainerId ? ` in ${group.parentContainerId}` : '';
+    lines.push(`group ${group.id}(cloud)[${group.label}]${inClause}`);
   }
   for (const node of model.nodes) {
     const inClause = node.containerId ? ` in ${node.containerId}` : '';

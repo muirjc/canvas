@@ -90,6 +90,81 @@ describe('architecture parser: junction nodes', () => {
   });
 });
 
+/**
+ * jmuir-dtu.19: a real, confirmed bug (not a scope cut) — GROUP_PATTERN never gained the same
+ * "in <groupId>" clause service/junction already had, so a nested group hit a parse error and
+ * serializeArchitecture emitted every group flat regardless of parentContainerId. Mirrors the
+ * junction describe block above exactly, one level up (containers, not nodes).
+ */
+describe('architecture parser: nested groups', () => {
+  it('parses a group with an "in <groupId>" clause', () => {
+    const dsl = 'architecture-beta\n  group outer(cloud)[Outer]\n  group inner(cloud)[Inner] in outer\n';
+    const result = parseArchitecture(dsl);
+    expect(isParseSuccess(result)).toBe(true);
+    if (isParseSuccess(result)) {
+      const inner = result.model.containers.find((c) => c.id === 'inner');
+      const outer = result.model.containers.find((c) => c.id === 'outer');
+      expect(inner?.parentContainerId).toBe('outer');
+      expect(outer?.parentContainerId).toBeUndefined();
+    }
+  });
+
+  it('a top-level group (no "in" clause) still has no parentContainerId', () => {
+    const result = parseArchitecture('architecture-beta\n  group g1(cloud)[Group]\n');
+    expect(isParseSuccess(result)).toBe(true);
+    if (isParseSuccess(result)) {
+      expect(result.model.containers.find((c) => c.id === 'g1')?.parentContainerId).toBeUndefined();
+    }
+  });
+
+  it('supports arbitrary-depth nesting (grandchild group)', () => {
+    const dsl = 'architecture-beta\n  group a(cloud)[A]\n  group b(cloud)[B] in a\n  group c(cloud)[C] in b\n';
+    const result = parseArchitecture(dsl);
+    expect(isParseSuccess(result)).toBe(true);
+    if (isParseSuccess(result)) {
+      expect(result.model.containers.find((c) => c.id === 'b')?.parentContainerId).toBe('a');
+      expect(result.model.containers.find((c) => c.id === 'c')?.parentContainerId).toBe('b');
+    }
+  });
+
+  it('a service can nest inside a nested group via its own existing "in" clause', () => {
+    const dsl = 'architecture-beta\n  group outer(cloud)[Outer]\n  group inner(cloud)[Inner] in outer\n  service svc(server)[Svc] in inner\n';
+    const result = parseArchitecture(dsl);
+    expect(isParseSuccess(result)).toBe(true);
+    if (isParseSuccess(result)) {
+      expect(result.model.nodes.find((n) => n.id === 'svc')?.containerId).toBe('inner');
+      expect(result.model.containers.find((c) => c.id === 'inner')?.parentContainerId).toBe('outer');
+    }
+  });
+
+  it('round-trips nested groups through export and re-import', () => {
+    const model: DiagramModel = {
+      diagramTypeId: 'cloud-infrastructure',
+      nodes: [],
+      edges: [],
+      containers: [
+        { id: 'outer', label: 'Outer', position: { x: 0, y: 0 }, size: { width: 400, height: 300 } },
+        { id: 'inner', label: 'Inner', position: { x: 50, y: 50 }, size: { width: 200, height: 150 }, parentContainerId: 'outer' },
+      ],
+    };
+    expect(normalize(roundTrip(model))).toEqual(normalize(model));
+  });
+
+  it('emits a real "group ... in ..." line on serialize, not a flat group', () => {
+    const model: DiagramModel = {
+      diagramTypeId: 'cloud-infrastructure',
+      nodes: [],
+      edges: [],
+      containers: [
+        { id: 'outer', label: 'Outer', position: { x: 0, y: 0 }, size: { width: 400, height: 300 } },
+        { id: 'inner', label: 'Inner', position: { x: 50, y: 50 }, size: { width: 200, height: 150 }, parentContainerId: 'outer' },
+      ],
+    };
+    const dsl = serializeArchitecture(model);
+    expect(dsl).toMatch(/group inner\([^)]*\)\[Inner\] in outer/);
+  });
+});
+
 describe('architecture parser: {group} edge modifier', () => {
   const base = 'architecture-beta\n  group g1(cloud)[G1]\n  group g2(cloud)[G2]\n' +
     '  service server(server)[Server] in g1\n  service subnet(server)[Subnet] in g2\n';
