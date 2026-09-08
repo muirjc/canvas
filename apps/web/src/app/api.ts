@@ -259,6 +259,11 @@ export const api = {
     request<{ diagram: DiagramDto }>(`/projects/${projectId}/diagrams`, { method: 'POST', body: JSON.stringify(body) }),
   importDiagram: (projectId: string, body: { name: string; dslContent: string; diagramTypeHint?: string }) =>
     request<{ diagram: DiagramDto }>(`/projects/${projectId}/diagrams/import`, { method: 'POST', body: JSON.stringify(body) }),
+  importTemplate: (projectId: string, body: { name: string; diagramTypeId: string; templateContent: string }) =>
+    request<{ diagram: DiagramDto }>(`/projects/${projectId}/diagrams/import-template`, {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
   getDiagram: (id: string) => request<{ diagram: DiagramDto }>(`/diagrams/${id}`),
   saveDiagram: (id: string, dslContent: string) =>
     request<{ diagram: DiagramDto }>(`/diagrams/${id}`, { method: 'PATCH', body: JSON.stringify({ dslContent }) }),
