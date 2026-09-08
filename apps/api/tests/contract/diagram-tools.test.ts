@@ -34,6 +34,7 @@ const EXTRA_TOOL_NAMES = [
   'setEntityAttributes',
   'setClassMembers',
   'setRelationshipKind',
+  'setErCardinality',
   'setConnectorStyle',
   'groupIntoContainer',
   'activateParticipant',
@@ -45,7 +46,7 @@ const EXTRA_TOOLS_BY_FAMILY: Record<(typeof ALL_FAMILIES)[number], (typeof EXTRA
   c4: ['setNodeRole', 'groupIntoContainer'],
   architecture: ['groupIntoContainer'],
   sequence: ['setNodeRole', 'setConnectorStyle', 'groupIntoContainer', 'activateParticipant', 'deactivateParticipant'],
-  erd: ['setEntityAttributes'],
+  erd: ['setEntityAttributes', 'setErCardinality'],
   uml: ['setClassMembers', 'setRelationshipKind', 'groupIntoContainer'],
 };
 
@@ -438,6 +439,72 @@ describe('setRelationshipKind (uml)', () => {
     const before = model;
     const result = await tools.setRelationshipKind.execute!(
       { edgeId: 'does-not-exist', umlRelationKind: 'inheritance' },
+      { toolCallId: 't1', messages: [] },
+    );
+    expect(result).toEqual({ applied: false, reason: expect.stringContaining('does-not-exist') });
+    expect(model).toBe(before);
+  });
+});
+
+describe('setErCardinality (erd)', () => {
+  let model: DiagramModel;
+  let tools: DiagramTools;
+
+  beforeEach(() => {
+    model = {
+      diagramTypeId: 'erd',
+      nodes: [
+        { id: 'a', label: 'A', shape: 'rectangle', position: { x: 0, y: 0 } },
+        { id: 'b', label: 'B', shape: 'rectangle', position: { x: 200, y: 0 } },
+      ],
+      edges: [{ id: 'e1', sourceId: 'a', targetId: 'b', erSourceCardinality: '||', erTargetCardinality: 'o{' }],
+      containers: [],
+    };
+    tools = createDiagramTools(
+      { getModel: () => model, setModel: (m) => { model = m; } },
+      'erd',
+    );
+  });
+
+  it('sets cardinality on both ends', async () => {
+    const result = await tools.setErCardinality.execute!(
+      { edgeId: 'e1', sourceCardinality: '|o', targetCardinality: '|{' },
+      { toolCallId: 't1', messages: [] },
+    );
+    expect(result).toEqual({ applied: true });
+    const edge = model.edges.find((e) => e.id === 'e1')!;
+    expect(edge.erSourceCardinality).toBe('|o');
+    expect(edge.erTargetCardinality).toBe('|{');
+  });
+
+  it('patches only the field provided (merge-patch)', async () => {
+    await tools.setErCardinality.execute!({ edgeId: 'e1', sourceCardinality: '}|' }, { toolCallId: 't1', messages: [] });
+    const edge = model.edges.find((e) => e.id === 'e1')!;
+    expect(edge.erSourceCardinality).toBe('}|');
+    expect(edge.erTargetCardinality).toBe('o{');
+  });
+
+  it('setting identifying: false switches the line to dotted', async () => {
+    await tools.setErCardinality.execute!({ edgeId: 'e1', identifying: false }, { toolCallId: 't1', messages: [] });
+    expect(model.edges.find((e) => e.id === 'e1')!.lineStyle).toBe('dotted');
+  });
+
+  it('setting identifying: true clears a previously-dotted line back to solid', async () => {
+    model.edges[0].lineStyle = 'dotted';
+    await tools.setErCardinality.execute!({ edgeId: 'e1', identifying: true }, { toolCallId: 't1', messages: [] });
+    expect(model.edges.find((e) => e.id === 'e1')!.lineStyle).toBeUndefined();
+  });
+
+  it('omitting identifying leaves lineStyle untouched', async () => {
+    model.edges[0].lineStyle = 'dotted';
+    await tools.setErCardinality.execute!({ edgeId: 'e1', sourceCardinality: '||' }, { toolCallId: 't1', messages: [] });
+    expect(model.edges.find((e) => e.id === 'e1')!.lineStyle).toBe('dotted');
+  });
+
+  it('reports not-found for a nonexistent id without changing the model', async () => {
+    const before = model;
+    const result = await tools.setErCardinality.execute!(
+      { edgeId: 'does-not-exist', sourceCardinality: '||' },
       { toolCallId: 't1', messages: [] },
     );
     expect(result).toEqual({ applied: false, reason: expect.stringContaining('does-not-exist') });

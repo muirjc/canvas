@@ -24,6 +24,7 @@ import {
   updateEntityAttributes,
   updateClassMembers,
   updateEdgeRelationKind,
+  updateEdgeErCardinality,
   updateEdgeArrowStyle,
   updateNodeStereotype,
   addPointMarkerContainer,
@@ -892,6 +893,48 @@ describe('updateEdgeRelationKind', () => {
   it('leaves nodes, other edges, and containers untouched', () => {
     const model = baseModel();
     const result = updateEdgeRelationKind(model, 'e1', { umlRelationKind: 'inheritance' });
+    expect(result.nodes).toEqual(model.nodes);
+    expect(result.edges.find((e) => e.id === 'e2')).toEqual(model.edges.find((e) => e.id === 'e2'));
+    expect(result.containers).toEqual(model.containers);
+  });
+});
+
+describe('updateEdgeErCardinality', () => {
+  it('sets erSourceCardinality/erTargetCardinality', () => {
+    const result = updateEdgeErCardinality(baseModel(), 'e1', { erSourceCardinality: '||', erTargetCardinality: 'o{' });
+    const edge = result.edges.find((e) => e.id === 'e1')!;
+    expect(edge.erSourceCardinality).toBe('||');
+    expect(edge.erTargetCardinality).toBe('o{');
+  });
+
+  it('patches one side while leaving the other alone when already set', () => {
+    const model = baseModel();
+    model.edges[0].erSourceCardinality = '||';
+    model.edges[0].erTargetCardinality = 'o{';
+    const result = updateEdgeErCardinality(model, 'e1', { erTargetCardinality: '|{' });
+    const edge = result.edges.find((e) => e.id === 'e1')!;
+    expect(edge.erSourceCardinality).toBe('||');
+    expect(edge.erTargetCardinality).toBe('|{');
+  });
+
+  it('an explicit null clears a previously-set field back to unset', () => {
+    const model = baseModel();
+    model.edges[0].erSourceCardinality = '||';
+    model.edges[0].erTargetCardinality = 'o{';
+    const result = updateEdgeErCardinality(model, 'e1', { erSourceCardinality: null });
+    const edge = result.edges.find((e) => e.id === 'e1')!;
+    expect(edge.erSourceCardinality).toBeUndefined();
+    expect(edge.erTargetCardinality).toBe('o{');
+  });
+
+  it('is a no-op for an unknown edge id', () => {
+    const model = baseModel();
+    expect(updateEdgeErCardinality(model, 'nope', { erSourceCardinality: '||' })).toEqual(model);
+  });
+
+  it('leaves nodes, other edges, and containers untouched', () => {
+    const model = baseModel();
+    const result = updateEdgeErCardinality(model, 'e1', { erSourceCardinality: '||' });
     expect(result.nodes).toEqual(model.nodes);
     expect(result.edges.find((e) => e.id === 'e2')).toEqual(model.edges.find((e) => e.id === 'e2'));
     expect(result.containers).toEqual(model.containers);
