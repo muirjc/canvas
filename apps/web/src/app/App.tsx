@@ -15,6 +15,7 @@ import { ProjectBrowser } from '../projects/ProjectBrowser';
 import { ProjectsPage } from '../projects/ProjectsPage';
 import { SharedDiagramsList } from '../projects/SharedDiagramsList';
 import { ImportDialog } from '../projects/ImportDialog';
+import { ImportTemplateDialog } from '../projects/ImportTemplateDialog';
 import { CreateViaChatDialog } from '../ai/CreateViaChatDialog';
 import { PersonaAdminPage } from '../ai/PersonaAdminPage';
 import { Icon } from '../ui/Icon';
@@ -28,6 +29,7 @@ export function App() {
   const [diagram, setDiagram] = useState<DiagramDto | null>(null);
   const [pickingType, setPickingType] = useState(false);
   const [importing, setImporting] = useState(false);
+  const [importingTemplate, setImportingTemplate] = useState(false);
   const [creatingViaChat, setCreatingViaChat] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -225,6 +227,7 @@ export function App() {
     setDiagram(null);
     setPickingType(false);
     setImporting(false);
+    setImportingTemplate(false);
     setCreatingViaChat(false);
     setError(null);
     setProjects(null);
@@ -346,6 +349,15 @@ export function App() {
             <button
               type="button"
               className="btn btn--secondary"
+              data-testid="import-template-button"
+              onClick={() => setImportingTemplate(true)}
+            >
+              <Icon name="upload" />
+              Import from Template
+            </button>
+            <button
+              type="button"
+              className="btn btn--secondary"
               data-testid="create-via-ai-chat"
               disabled={aiStatus?.chatEnabled === false}
               title={aiStatus?.chatEnabled === false ? AI_CHAT_DISABLED_MESSAGE : undefined}
@@ -442,6 +454,16 @@ export function App() {
             setDiagram(imported);
           }}
           onCancel={() => setImporting(false)}
+        />
+      )}
+      {importingTemplate && projectId && (
+        <ImportTemplateDialog
+          projectId={projectId}
+          onImported={(imported) => {
+            setImportingTemplate(false);
+            setDiagram(imported);
+          }}
+          onCancel={() => setImportingTemplate(false)}
         />
       )}
       {creatingViaChat && projectId && (
