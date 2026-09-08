@@ -14,6 +14,7 @@ import {
   removeNodeFromContainer,
   resizeContainer,
   updateContainerLabel,
+  setContainerDirection,
   updateEdgeLabel,
   updateEdgeStyle,
   updateEdgeRelationKind,
@@ -60,6 +61,8 @@ import {
   type DiagramNode,
   type FlowchartDirection,
   type NodeShape,
+  type NodeStyle,
+  type StylePatch,
   type EntityAttribute,
   type ClassMember,
 } from '@canvas/diagram-core';
@@ -89,12 +92,13 @@ const SHAPE_GLYPHS: Partial<Record<NodeShape, string>> = {
 const DEFAULT_DOTTED_DASHARRAY = '4 2';
 const DEFAULT_THICK_STROKE_WIDTH = 3;
 
-// canvas-xig: the style popup's own fixed size — a color swatch plus two `.btn--compact` buttons
-// on one row. 232 leaves ~30px of slack over the measured minimum (~200px, at the 40px swatch
-// width set on the input below) so the row doesn't wrap under normal font-metric variance; 48
-// covers the 28px control height plus the card's padding and border.
-const STYLE_POPUP_WIDTH = 232;
-const STYLE_POPUP_HEIGHT = 48;
+// canvas-2s6.7: widened for the style-popup parity pass — was a single color swatch + Clear/Done
+// row (232x48); now a small form covering every StylePatch field (fill only for nodes, stroke
+// color, stroke width, dash pattern, font family, font size). 220 fits every row's label+input
+// without wrapping; 340 covers the node case's 6 rows (edges get 5 — a bare 'rect' shorter than
+// this leaves harmless empty foreignObject space below the card, not a visible border/background).
+const STYLE_POPUP_WIDTH = 220;
+const STYLE_POPUP_HEIGHT = 340;
 
 // canvas-2s6.3: the UML relationship-kind popup's own fixed size — a full-width kind select on
 // its own row (the longest label, "Lollipop, source (()--)", doesn't fit inline with anything
@@ -1655,46 +1659,132 @@ export function Canvas({ model, onChange, dslFamily, toolbarContainer }: CanvasP
     </foreignObject>
   );
 
-  /** Small color-picker popup opened by renderStyleAffordance. Uses an explicit Done button
-   *  rather than blur-to-commit (unlike the label editors) — a native OS color-picker dialog has
-   *  inconsistent focus/blur timing across browsers, so relying on blur alone here would be a real
-   *  flakiness risk for a brand-new control. Escape also closes it, matching the label editors. */
+  /** canvas-2s6.7: style-popup parity pass — was a single color swatch, now a small form covering
+   *  every StylePatch field: fill color (nodes only — edges have no fill), stroke color, stroke
+   *  width, dash pattern, font family, font size. The two color fields keep an explicit Clear
+   *  button (a native `<input type="color">` always shows SOME hex value, so it can't represent
+   *  "unset" by itself, the same reasoning canvas-xig's original single-color popup already
+   *  established); the four text/number fields self-clear instead — committing an empty value
+   *  patches `null`, so there's no need for four more Clear buttons cluttering a form this size.
+   *  Uses an explicit Done button rather than blur-to-commit for the color inputs specifically — a
+   *  native OS color-picker dialog has inconsistent focus/blur timing across browsers, so relying
+   *  on blur alone would be a real flakiness risk. Escape also closes it, matching the label
+   *  editors. Shared by both the node and edge affordances (showFill distinguishes them) rather
+   *  than two near-duplicate popups. */
   const renderStylePopup = (
     id: string,
     x: number,
     y: number,
-    currentColor: string | undefined,
-    onPick: (color: string) => void,
-    onClear: () => void,
+    style: NodeStyle | undefined,
+    showFill: boolean,
+    onPatch: (patch: StylePatch) => void,
     onClose: () => void,
   ) => (
     <foreignObject x={x} y={y} width={STYLE_POPUP_WIDTH} height={STYLE_POPUP_HEIGHT}>
       <div
-        className="card cluster"
-        style={{ padding: 'var(--space-2)', flexWrap: 'nowrap' }}
+        className="card stack"
+        style={{ padding: 'var(--space-2)', gap: 'var(--space-1)' }}
         onClick={(event) => event.stopPropagation()}
         onPointerDown={(event) => event.stopPropagation()}
         onKeyDown={(event) => {
           if (event.key === 'Escape') onClose();
         }}
       >
-        {/* Trimmed to match the compact buttons' 28px height and given padding: 0 — the global
-            `input` rule's default min-height (36px) and 12px inline padding, applied to a native
-            color swatch, wasted popup width on empty space around a tiny swatch and was part of
-            why 3 controls no longer fit on one row at 200px. */}
-        <input
-          type="color"
-          data-testid={`style-color-input-${id}`}
-          aria-label="Choose a color"
-          autoFocus
-          value={currentColor ?? '#ffffff'}
-          onChange={(event) => onPick(event.target.value)}
-          style={{ width: 40, height: 28, minHeight: 0, padding: 0, flexShrink: 0 }}
-        />
-        <button type="button" className="btn btn--tertiary btn--compact" data-testid={`style-clear-${id}`} onClick={onClear}>
-          Clear
-        </button>
-        <button type="button" className="btn btn--primary btn--compact" data-testid={`style-done-${id}`} onClick={onClose}>
+        {showFill && (
+          <div className="cluster cluster--tight" style={{ flexWrap: 'nowrap', alignItems: 'center' }}>
+            <span style={{ width: 60 }}>Fill</span>
+            <input
+              type="color"
+              data-testid={`style-fill-input-${id}`}
+              aria-label="Choose a fill color"
+              autoFocus
+              value={style?.fillColor ?? '#ffffff'}
+              onChange={(event) => onPatch({ fillColor: event.target.value })}
+              style={{ width: 36, height: 28, minHeight: 0, padding: 0, flexShrink: 0 }}
+            />
+            <button
+              type="button"
+              className="btn btn--tertiary btn--compact"
+              data-testid={`style-clear-fill-${id}`}
+              onClick={() => onPatch({ fillColor: null })}
+            >
+              Clear
+            </button>
+          </div>
+        )}
+        <div className="cluster cluster--tight" style={{ flexWrap: 'nowrap', alignItems: 'center' }}>
+          <span style={{ width: 60 }}>Stroke</span>
+          <input
+            type="color"
+            data-testid={`style-stroke-input-${id}`}
+            aria-label="Choose a stroke color"
+            autoFocus={!showFill}
+            value={style?.strokeColor ?? '#333333'}
+            onChange={(event) => onPatch({ strokeColor: event.target.value })}
+            style={{ width: 36, height: 28, minHeight: 0, padding: 0, flexShrink: 0 }}
+          />
+          <button
+            type="button"
+            className="btn btn--tertiary btn--compact"
+            data-testid={`style-clear-stroke-${id}`}
+            onClick={() => onPatch({ strokeColor: null })}
+          >
+            Clear
+          </button>
+        </div>
+        <div className="cluster cluster--tight" style={{ flexWrap: 'nowrap' }}>
+          <label className="field__label" htmlFor={`style-stroke-width-${id}`}>
+            Width
+            <input
+              type="number"
+              id={`style-stroke-width-${id}`}
+              data-testid={`style-stroke-width-${id}`}
+              value={style?.strokeWidth ?? ''}
+              placeholder="px"
+              style={{ width: 60 }}
+              onChange={(event) => onPatch({ strokeWidth: event.target.value === '' ? null : Number(event.target.value) })}
+            />
+          </label>
+          <label className="field__label" htmlFor={`style-font-size-${id}`}>
+            Font Size
+            <input
+              type="number"
+              id={`style-font-size-${id}`}
+              data-testid={`style-font-size-${id}`}
+              value={style?.fontSize ?? ''}
+              placeholder="px"
+              style={{ width: 60 }}
+              onChange={(event) => onPatch({ fontSize: event.target.value === '' ? null : Number(event.target.value) })}
+            />
+          </label>
+        </div>
+        <label className="field__label" htmlFor={`style-dasharray-${id}`}>
+          Dash Pattern
+          <input
+            id={`style-dasharray-${id}`}
+            data-testid={`style-dasharray-${id}`}
+            value={style?.strokeDasharray ?? ''}
+            placeholder="e.g. 5 5"
+            onChange={(event) => onPatch({ strokeDasharray: event.target.value.trim() === '' ? null : event.target.value })}
+          />
+        </label>
+        <label className="field__label" htmlFor={`style-font-family-${id}`}>
+          Font
+          <input
+            id={`style-font-family-${id}`}
+            data-testid={`style-font-family-${id}`}
+            value={style?.fontFamily ?? ''}
+            placeholder="e.g. Arial"
+            onChange={(event) => onPatch({ fontFamily: event.target.value.trim() === '' ? null : event.target.value })}
+          />
+        </label>
+        <button
+          type="button"
+          className="btn btn--primary btn--compact"
+          data-testid={`style-done-${id}`}
+          onClick={onClose}
+          style={{ alignSelf: 'flex-end' }}
+        >
           Done
         </button>
       </div>
@@ -2534,20 +2624,51 @@ export function Canvas({ model, onChange, dslFamily, toolbarContainer }: CanvasP
                 </text>
               )}
               {editingContainerId === container.id && (
-                <foreignObject x={container.position.x + 4} y={container.position.y + 4} width={160} height={24}>
-                  <input
-                    data-testid={`container-label-input-${container.id}`}
-                    autoFocus
-                    defaultValue={container.label}
-                    style={{ width: '100%', boxSizing: 'border-box' }}
-                    onClick={(e) => e.stopPropagation()}
-                    onPointerDown={(e) => e.stopPropagation()}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter') commitContainerLabel(container.id, (e.target as HTMLInputElement).value);
-                      if (e.key === 'Escape') setEditingContainerId(null);
-                    }}
-                    onBlur={(e) => commitContainerLabel(container.id, e.target.value)}
-                  />
+                <foreignObject
+                  x={container.position.x + 4}
+                  y={container.position.y + 4}
+                  width={160}
+                  // canvas-2s6.7: taller only for flowchart, to also fit the direction override
+                  // select below the label input — every other family's containers get the
+                  // original single-row height unchanged.
+                  height={dslFamily === 'flowchart' ? 58 : 24}
+                >
+                  <div className="stack" style={{ gap: 'var(--space-1)' }} onClick={(e) => e.stopPropagation()} onPointerDown={(e) => e.stopPropagation()}>
+                    <input
+                      data-testid={`container-label-input-${container.id}`}
+                      autoFocus
+                      defaultValue={container.label}
+                      style={{ width: '100%', boxSizing: 'border-box' }}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') commitContainerLabel(container.id, (e.target as HTMLInputElement).value);
+                        if (e.key === 'Escape') setEditingContainerId(null);
+                      }}
+                      onBlur={(e) => commitContainerLabel(container.id, e.target.value)}
+                    />
+                    {/* canvas-2s6.7: DiagramContainer.direction (a subgraph's own `direction
+                        <TD|LR|TB|RL|BT>` override, flowchart-only) already round-tripped through
+                        DSL/import but had no way to be set or cleared interactively at all. */}
+                    {dslFamily === 'flowchart' && (
+                      <select
+                        data-testid={`container-direction-${container.id}`}
+                        aria-label="Subgraph direction override"
+                        value={container.direction ?? ''}
+                        style={{ width: '100%', boxSizing: 'border-box' }}
+                        onChange={(e) =>
+                          onChange(
+                            setContainerDirection(model, container.id, (e.target.value || undefined) as FlowchartDirection | undefined),
+                          )
+                        }
+                      >
+                        <option value="">Inherit diagram direction</option>
+                        <option value="TD">TD</option>
+                        <option value="LR">LR</option>
+                        <option value="TB">TB</option>
+                        <option value="RL">RL</option>
+                        <option value="BT">BT</option>
+                      </select>
+                    )}
+                  </div>
                 </foreignObject>
               )}
               {/* Resize handle renders only for the selected container, so the steady-state
@@ -2766,16 +2887,16 @@ export function Canvas({ model, onChange, dslFamily, toolbarContainer }: CanvasP
                     setEditingRelationKindEdgeId(null);
                     setStylingEdgeId(edge.id);
                   },
-                  `Choose connector color for ${edge.id}`,
+                  `Edit style for connector ${edge.id}`,
                 )}
               {stylingEdgeId === edge.id &&
                 renderStylePopup(
                   edge.id,
                   stylePopupPos.x,
                   stylePopupPos.y,
-                  edge.style?.strokeColor,
-                  (color) => onChange(updateEdgeStyle(model, edge.id, { strokeColor: color })),
-                  () => onChange(updateEdgeStyle(model, edge.id, { strokeColor: null })),
+                  edge.style,
+                  false,
+                  (patch) => onChange(updateEdgeStyle(model, edge.id, patch)),
                   () => setStylingEdgeId(null),
                 )}
               {/* canvas-2s6.3/canvas-2s6.4: a third edge affordance, UML/ERD-only, stacked further
@@ -2994,16 +3115,16 @@ export function Canvas({ model, onChange, dslFamily, toolbarContainer }: CanvasP
                     setEditingKindNodeId(null);
                     setStylingNodeId(node.id);
                   },
-                  `Choose fill color for ${node.label}`,
+                  `Edit style for ${node.label}`,
                 )}
               {stylingNodeId === node.id &&
                 renderStylePopup(
                   node.id,
                   stylePopupPos.x,
                   stylePopupPos.y,
-                  node.style?.fillColor,
-                  (color) => onChange(updateNodeStyle(model, node.id, { fillColor: color })),
-                  () => onChange(updateNodeStyle(model, node.id, { fillColor: null })),
+                  node.style,
+                  true,
+                  (patch) => onChange(updateNodeStyle(model, node.id, patch)),
                   () => setStylingNodeId(null),
                 )}
               {/* canvas-vcv: every node in an ERD diagram is an entity (attributes); every node in

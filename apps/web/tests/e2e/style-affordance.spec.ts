@@ -85,8 +85,8 @@ test('clicking the style affordance on a node opens the color popup, and picking
   await page.getByTestId('node-one').click();
   await page.getByTestId('edit-style-one').click();
 
-  await expect(page.getByTestId('style-color-input-one')).toBeVisible();
-  await pickColor(page, 'style-color-input-one', '#ff0000');
+  await expect(page.getByTestId('style-fill-input-one')).toBeVisible();
+  await pickColor(page, 'style-fill-input-one', '#ff0000');
 
   await page.getByTestId('rail-tab-dsl').click();
   const dsl = await page.getByTestId('dsl-panel').inputValue();
@@ -100,12 +100,12 @@ test('clicking Clear removes the color override from the DSL', async ({ page }) 
   await page.getByTestId('node-one').click();
   await page.getByTestId('edit-style-one').click();
 
-  await pickColor(page, 'style-color-input-one', '#ff0000');
+  await pickColor(page, 'style-fill-input-one', '#ff0000');
 
   const dsl = await page.getByTestId('dsl-panel').inputValue();
   expect(dsl).toContain('#ff0000');
 
-  await page.getByTestId('style-clear-one').click();
+  await page.getByTestId('style-clear-fill-one').click();
 
   // canvas-mup: a single-shot inputValue() read here raced the Clear click's React state update
   // (onChange -> updateNodeStyle -> re-render -> DSL panel content), intermittently reading a
@@ -119,10 +119,10 @@ test('clicking Done closes the popup without further changes', async ({ page }) 
 
   await page.getByTestId('node-one').click();
   await page.getByTestId('edit-style-one').click();
-  await expect(page.getByTestId('style-color-input-one')).toBeVisible();
+  await expect(page.getByTestId('style-fill-input-one')).toBeVisible();
 
   await page.getByTestId('style-done-one').click();
-  await expect(page.getByTestId('style-color-input-one')).toHaveCount(0);
+  await expect(page.getByTestId('style-fill-input-one')).toHaveCount(0);
 
   const dsl = await page.getByTestId('dsl-panel').inputValue();
   expect(dsl).not.toContain('fillColor');
@@ -139,10 +139,10 @@ test('pressing Escape while the popup is open closes it', async ({ page }) => {
 
   await page.getByTestId('node-one').click();
   await page.getByTestId('edit-style-one').click();
-  await expect(page.getByTestId('style-color-input-one')).toBeVisible();
+  await expect(page.getByTestId('style-fill-input-one')).toBeVisible();
 
   await page.keyboard.press('Escape');
-  await expect(page.getByTestId('style-color-input-one')).toHaveCount(0);
+  await expect(page.getByTestId('style-fill-input-one')).toHaveCount(0);
 });
 
 test('picking a connector color updates canvas.edgeStyles in the DSL', async ({ page }) => {
@@ -162,8 +162,8 @@ test('picking a connector color updates canvas.edgeStyles in the DSL', async ({ 
   await page.locator('[data-testid^="edge-"]').first().hover();
   await page.getByTestId(`edit-style-${edgeId}`).click();
 
-  await expect(page.getByTestId(`style-color-input-${edgeId}`)).toBeVisible();
-  await pickColor(page, `style-color-input-${edgeId}`, '#0000ff');
+  await expect(page.getByTestId(`style-stroke-input-${edgeId}`)).toBeVisible();
+  await pickColor(page, `style-stroke-input-${edgeId}`, '#0000ff');
 
   await page.getByTestId('rail-tab-dsl').click();
   const dsl = await page.getByTestId('dsl-panel').inputValue();

@@ -16,6 +16,7 @@ import {
   removeNodeFromContainer,
   removeContainer,
   setContainerRole,
+  setContainerDirection,
   setContainerParent,
   removeContainerParent,
   assignEdgeToContainer,
@@ -311,6 +312,20 @@ describe('updateNodeStyle', () => {
     const result = updateNodeStyle(model, 'a', { fillColor: null });
     expect(result.nodes.find((n) => n.id === 'a')!.style).toEqual({});
   });
+
+  // canvas-2s6.7: fontFamily/fontSize were already real NodeStyle fields but StylePatch never
+  // carried either one, so neither was actually settable through this shared op at all.
+  it('sets fontFamily/fontSize on the named node', () => {
+    const result = updateNodeStyle(baseModel(), 'a', { fontFamily: 'Arial', fontSize: 16 });
+    expect(result.nodes.find((n) => n.id === 'a')!.style).toEqual({ fontFamily: 'Arial', fontSize: 16 });
+  });
+
+  it('an explicit null clears fontFamily/fontSize back to unset', () => {
+    const model = baseModel();
+    model.nodes[0].style = { fontFamily: 'Arial', fontSize: 16 };
+    const result = updateNodeStyle(model, 'a', { fontFamily: null, fontSize: null });
+    expect(result.nodes.find((n) => n.id === 'a')!.style).toEqual({});
+  });
 });
 
 describe('updateEdgeStyle', () => {
@@ -344,6 +359,12 @@ describe('updateEdgeStyle', () => {
     model.edges[0].style = { strokeColor: '#c0392b', strokeWidth: 2 };
     const result = updateEdgeStyle(model, 'e1', { strokeColor: null });
     expect(result.edges.find((e) => e.id === 'e1')!.style).toEqual({ strokeWidth: 2 });
+  });
+
+  // canvas-2s6.7: same StylePatch-widening fix as updateNodeStyle's own fontFamily/fontSize cases.
+  it('sets fontFamily/fontSize on the named edge', () => {
+    const result = updateEdgeStyle(baseModel(), 'e1', { fontFamily: 'Georgia', fontSize: 12 });
+    expect(result.edges.find((e) => e.id === 'e1')!.style).toEqual({ fontFamily: 'Georgia', fontSize: 12 });
   });
 });
 
@@ -460,6 +481,35 @@ describe('setContainerRole', () => {
   it('leaves every other field on the same container, and every node/edge, untouched', () => {
     const model = baseModel();
     const result = setContainerRole(model, 'g1', 'namespace');
+    const container = result.containers.find((c) => c.id === 'g1')!;
+    expect(container.position).toEqual(model.containers[0].position);
+    expect(container.size).toEqual(model.containers[0].size);
+    expect(result.nodes).toEqual(model.nodes);
+    expect(result.edges).toEqual(model.edges);
+  });
+});
+
+describe('setContainerDirection', () => {
+  it('sets the direction field of the named container', () => {
+    const result = setContainerDirection(baseModel(), 'g1', 'LR');
+    expect(result.containers.find((c) => c.id === 'g1')!.direction).toBe('LR');
+  });
+
+  it('clears a previously-set direction back to unset when given undefined', () => {
+    let model = baseModel();
+    model = setContainerDirection(model, 'g1', 'LR');
+    const result = setContainerDirection(model, 'g1', undefined);
+    expect(result.containers.find((c) => c.id === 'g1')!.direction).toBeUndefined();
+  });
+
+  it('is a no-op for an unknown container id', () => {
+    const model = baseModel();
+    expect(setContainerDirection(model, 'nope', 'TD')).toEqual(model);
+  });
+
+  it('leaves every other field on the same container, and every node/edge, untouched', () => {
+    const model = baseModel();
+    const result = setContainerDirection(model, 'g1', 'BT');
     const container = result.containers.find((c) => c.id === 'g1')!;
     expect(container.position).toEqual(model.containers[0].position);
     expect(container.size).toEqual(model.containers[0].size);
