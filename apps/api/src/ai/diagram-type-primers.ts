@@ -86,8 +86,9 @@ const PRIMERS: Record<string, DiagramTypePrimer> = {
       'This is a cloud/service architecture diagram. Each service is drawn as an icon ' +
       'representing a piece of infrastructure and belongs to a group representing a logical or ' +
       'network boundary — a service added without an explicit group is left ungrouped, which is ' +
-      'usually not what is wanted. Edges connect services (or, at a coarser level, groups) to ' +
-      'show how they interact.',
+      'usually not what is wanted. A junction is the one node with no icon at all — a plain ' +
+      'circle used purely as a routing point where edges bend or fan out, never a real service. ' +
+      'Edges connect services (or, at a coarser level, groups) to show how they interact.',
   },
 };
 

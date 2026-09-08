@@ -21,3 +21,7 @@ export * from './standards/schema.js';
 export * from './standards/validator.js';
 export * from './render/svg-renderer.js';
 export * from './render/sequence-layout.js';
+export * from './template/types.js';
+export * from './template/markdown-table.js';
+export * from './template/template-registry.js';
+export * from './template/c4-context-template-compiler.js';

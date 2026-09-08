@@ -44,7 +44,9 @@ const EXTRA_TOOL_NAMES = [
 const EXTRA_TOOLS_BY_FAMILY: Record<(typeof ALL_FAMILIES)[number], (typeof EXTRA_TOOL_NAMES)[number][]> = {
   flowchart: ['setConnectorStyle'],
   c4: ['setNodeRole', 'groupIntoContainer'],
-  architecture: ['groupIntoContainer'],
+  // canvas-2s6.6: NODE_ROLE_OPTIONS.architecture (diagram-tools.ts) now has a 'junction' entry,
+  // so architecture gains setNodeRole alongside its existing groupIntoContainer.
+  architecture: ['setNodeRole', 'groupIntoContainer'],
   sequence: ['setNodeRole', 'setConnectorStyle', 'groupIntoContainer', 'activateParticipant', 'deactivateParticipant'],
   erd: ['setEntityAttributes', 'setErCardinality'],
   uml: ['setClassMembers', 'setRelationshipKind', 'groupIntoContainer'],
@@ -234,7 +236,7 @@ describe('diagram-tools (AI tool wrappers, base 8, flowchart family)', () => {
  * pattern above, rather than reusing the flowchart-only `beforeEach` already in this file.
  */
 
-describe('setNodeRole (c4, sequence)', () => {
+describe('setNodeRole (c4, sequence, architecture)', () => {
   it('c4: sets the role field on an existing node', async () => {
     let model: DiagramModel = {
       diagramTypeId: 'c4',
@@ -279,6 +281,33 @@ describe('setNodeRole (c4, sequence)', () => {
     const before = model;
     const result = await tools.setNodeRole.execute!(
       { nodeId: 'does-not-exist', role: 'actor' },
+      { toolCallId: 't1', messages: [] },
+    );
+    expect(result).toEqual({ applied: false, reason: expect.stringContaining('does-not-exist') });
+    expect(model).toBe(before);
+  });
+
+  // canvas-2s6.6: architecture's only node role -- a junction had no toolbar/AI-tool entry at all
+  // before this bead.
+  it('architecture: sets role to junction on an existing circle node', async () => {
+    let model: DiagramModel = {
+      diagramTypeId: 'architecture',
+      nodes: [{ id: 'a', label: 'A', shape: 'circle', position: { x: 0, y: 0 } }],
+      edges: [],
+      containers: [],
+    };
+    const tools = createDiagramTools({ getModel: () => model, setModel: (m) => { model = m; } }, 'architecture');
+    const result = await tools.setNodeRole.execute!({ nodeId: 'a', role: 'junction' }, { toolCallId: 't1', messages: [] });
+    expect(result).toEqual({ applied: true });
+    expect(model.nodes.find((n) => n.id === 'a')!.role).toBe('junction');
+  });
+
+  it('architecture: reports not-found for a nonexistent id without changing the model', async () => {
+    let model: DiagramModel = { diagramTypeId: 'architecture', nodes: [], edges: [], containers: [] };
+    const tools = createDiagramTools({ getModel: () => model, setModel: (m) => { model = m; } }, 'architecture');
+    const before = model;
+    const result = await tools.setNodeRole.execute!(
+      { nodeId: 'does-not-exist', role: 'junction' },
       { toolCallId: 't1', messages: [] },
     );
     expect(result).toEqual({ applied: false, reason: expect.stringContaining('does-not-exist') });

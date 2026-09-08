@@ -24,6 +24,7 @@ import {
   updateEdgeRelationKind,
   updateEdgeErCardinality,
   updateEdgeArrowStyle,
+  updateEdgeArchitectureModifiers,
   updateNodeLabel,
   updateNodeStyle,
   updateNodeRole,
@@ -1139,6 +1140,19 @@ export function Canvas({ model, onChange, dslFamily, toolbarContainer }: CanvasP
   const [connectUmlRelationKind, setConnectUmlRelationKind] = useState<(typeof UML_RELATION_KINDS)[number]>('association');
   const [connectUmlSourceCardinality, setConnectUmlSourceCardinality] = useState('');
   const [connectUmlTargetCardinality, setConnectUmlTargetCardinality] = useState('');
+  // canvas-2s6.6: architecture's own dedicated connect-mode picker, same "generic Direction picker
+  // is semantically wrong for this family" rationale as ERD/UML above -- architecture.ts's arrow
+  // vocabulary is only ever 'source'|'target'|undefined (never 'both'), and the {group}/anchor
+  // modifiers have no equivalent in any other family's picker at all. 'forward' maps directly to
+  // arrow: 'target' (the `-->` token) and 'reversed' to arrow: 'source' (`<--`) -- both set at
+  // addEdge time via AddEdgeInput's existing arrow field, unlike the generic picker's "reversed"
+  // (which swaps sourceId/targetId instead, since 'source'/'target' here already mean something
+  // else: which endpoint the arrowhead is drawn at, not which one is architecturally upstream).
+  const [connectArchDirection, setConnectArchDirection] = useState<'forward' | 'reversed' | 'none'>('forward');
+  const [connectArchSourceIsGroup, setConnectArchSourceIsGroup] = useState(false);
+  const [connectArchTargetIsGroup, setConnectArchTargetIsGroup] = useState(false);
+  const [connectArchSourceAnchor, setConnectArchSourceAnchor] = useState<'' | 'T' | 'B' | 'L' | 'R'>('');
+  const [connectArchTargetAnchor, setConnectArchTargetAnchor] = useState<'' | 'T' | 'B' | 'L' | 'R'>('');
   // canvas-2s6.1: which DiagramContainer.role Add Container/Group into Container will create,
   // for families with a real role vocabulary (CONTAINER_ROLE_OPTIONS above) — chosen ahead of
   // time, same "picker visible only while it matters" precedent as connectArrowStyle/the ER
@@ -1328,6 +1342,19 @@ export function Canvas({ model, onChange, dslFamily, toolbarContainer }: CanvasP
     onChange(addNode(model, { shape }));
   };
 
+  // canvas-2s6.6: a dedicated "Add Junction" action rather than a role-conversion popup on an
+  // existing node (like C4's own renderKindAffordance/renderKindPopup) -- converting an existing
+  // icon-bearing service to role: 'junction' would produce a state architecture.ts's own parser
+  // could never itself produce (a junction is always shape: 'circle' with no icon, dsl/
+  // architecture.ts:123-137). addNode + updateNodeRole is the same two-step composition
+  // NODE_ROLE_OPTIONS.architecture's own doc comment (apps/api/src/ai/diagram-tools.ts) describes
+  // for the AI-tool side of this same gap.
+  const handleAddJunction = () => {
+    const withNode = addNode(model, { shape: 'circle' });
+    const junction = withNode.nodes[withNode.nodes.length - 1];
+    onChange(updateNodeRole(withNode, junction.id, 'junction'));
+  };
+
   const handleAutoLayout = () => {
     onChange(autoLayout(model, layoutDirection));
   };
@@ -1356,10 +1383,27 @@ export function Canvas({ model, onChange, dslFamily, toolbarContainer }: CanvasP
           dslFamily === 'erd'
             ? { erSourceCardinality: connectErSourceCardinality, erTargetCardinality: connectErTargetCardinality }
             : {};
+        // canvas-2s6.6: architecture's arrow is set directly here, at creation time (like ERD's
+        // cardinality above) rather than via connectArrowStyle's swap-on-reversed convention --
+        // 'source'/'target' already mean "which endpoint gets the arrowhead", so sourceId/targetId
+        // themselves never need swapping for a "reversed" architecture connector.
+        const archArrow =
+          dslFamily === 'architecture'
+            ? connectArchDirection === 'forward'
+              ? 'target'
+              : connectArchDirection === 'reversed'
+                ? 'source'
+                : undefined
+            : undefined;
         let next = addEdge(model, {
           sourceId: reversed ? node.id : connectSourceId,
           targetId: reversed ? connectSourceId : node.id,
-          arrow: connectArrowStyle === 'both' || connectArrowStyle === 'none' ? connectArrowStyle : undefined,
+          arrow:
+            dslFamily === 'architecture'
+              ? archArrow
+              : connectArrowStyle === 'both' || connectArrowStyle === 'none'
+                ? connectArrowStyle
+                : undefined,
           ...erDefaults,
         });
         // canvas-2s6.3: umlRelationKind/cardinality aren't AddEdgeInput fields (unlike ER's own
@@ -1381,6 +1425,22 @@ export function Canvas({ model, onChange, dslFamily, toolbarContainer }: CanvasP
         if (dslFamily === 'erd' && connectErNonIdentifying) {
           const newEdge = next.edges[next.edges.length - 1];
           next = updateEdgeArrowStyle(next, newEdge.id, { lineStyle: 'dotted' });
+        }
+        // canvas-2s6.6: same "create then patch" composition -- sourceIsGroup/targetIsGroup/
+        // sourceAnchor/targetAnchor aren't AddEdgeInput fields either (updateEdgeArchitectureModifiers'
+        // own doc comment explains why). Only patched when actually set, so an untouched connection
+        // round-trips with none of these fields present, exactly as it always has.
+        if (
+          dslFamily === 'architecture' &&
+          (connectArchSourceIsGroup || connectArchTargetIsGroup || connectArchSourceAnchor || connectArchTargetAnchor)
+        ) {
+          const newEdge = next.edges[next.edges.length - 1];
+          next = updateEdgeArchitectureModifiers(next, newEdge.id, {
+            sourceIsGroup: connectArchSourceIsGroup || undefined,
+            targetIsGroup: connectArchTargetIsGroup || undefined,
+            sourceAnchor: connectArchSourceAnchor || undefined,
+            targetAnchor: connectArchTargetAnchor || undefined,
+          });
         }
         onChange(next);
         setConnectSourceId(null);
@@ -2253,11 +2313,11 @@ export function Canvas({ model, onChange, dslFamily, toolbarContainer }: CanvasP
           </button>
           {/* canvas-7rr: chosen before clicking the second shape — the only way to draw a
               bidirectional or no-arrowhead connector interactively used to be two separate edges
-              faking it (A->B and B->A). Not shown for ERD or UML, each of which has its own
-              dedicated connect-mode picker below instead — neither family's arrowhead is a plain
-              directional choice (ER's is crow's-foot cardinality; UML's is the relationship kind
-              itself). */}
-          {connectMode && dslFamily !== 'erd' && dslFamily !== 'uml' && (
+              faking it (A->B and B->A). Not shown for ERD, UML, or architecture, each of which has
+              its own dedicated connect-mode picker below instead — none of the three families'
+              arrowhead is a plain directional choice (ER's is crow's-foot cardinality; UML's is the
+              relationship kind itself; architecture's is 'source'|'target' only, never 'both'). */}
+          {connectMode && dslFamily !== 'erd' && dslFamily !== 'uml' && dslFamily !== 'architecture' && (
             <label className="field__label" htmlFor="connect-arrow-style">
               Direction
               <select
@@ -2371,6 +2431,79 @@ export function Canvas({ model, onChange, dslFamily, toolbarContainer }: CanvasP
               </label>
             </>
           )}
+          {/* canvas-2s6.6: architecture's own dedicated connect-mode picker -- direction (arrow:
+              'source'|'target'|undefined, see connectArchDirection's own doc comment above), plus
+              the {group} boundary-escalation checkboxes and :T/B/L/R anchor-hint selects, neither
+              of which previously had any way to be set (they already rendered, Canvas.tsx's own
+              architectureEndpointBox/clipToAnchorSide usage, but only an imported/hand-typed DSL
+              file could ever produce them). */}
+          {connectMode && dslFamily === 'architecture' && (
+            <>
+              <label className="field__label" htmlFor="connect-arch-direction">
+                Direction
+                <select
+                  id="connect-arch-direction"
+                  data-testid="connect-arch-direction"
+                  value={connectArchDirection}
+                  onChange={(e) => setConnectArchDirection(e.target.value as typeof connectArchDirection)}
+                >
+                  <option value="forward">Forward (A → B)</option>
+                  <option value="reversed">Reversed (B → A)</option>
+                  <option value="none">No arrowhead (A — B)</option>
+                </select>
+              </label>
+              <label className="field__label" htmlFor="connect-arch-source-is-group" style={{ flexDirection: 'row', alignItems: 'center', gap: 'var(--space-1)' }}>
+                <input
+                  type="checkbox"
+                  id="connect-arch-source-is-group"
+                  data-testid="connect-arch-source-is-group"
+                  checked={connectArchSourceIsGroup}
+                  onChange={(e) => setConnectArchSourceIsGroup(e.target.checked)}
+                />
+                First entity's group
+              </label>
+              <label className="field__label" htmlFor="connect-arch-source-anchor">
+                First entity anchor
+                <select
+                  id="connect-arch-source-anchor"
+                  data-testid="connect-arch-source-anchor"
+                  value={connectArchSourceAnchor}
+                  onChange={(e) => setConnectArchSourceAnchor(e.target.value as typeof connectArchSourceAnchor)}
+                >
+                  <option value="">Default</option>
+                  <option value="T">Top</option>
+                  <option value="B">Bottom</option>
+                  <option value="L">Left</option>
+                  <option value="R">Right</option>
+                </select>
+              </label>
+              <label className="field__label" htmlFor="connect-arch-target-is-group" style={{ flexDirection: 'row', alignItems: 'center', gap: 'var(--space-1)' }}>
+                <input
+                  type="checkbox"
+                  id="connect-arch-target-is-group"
+                  data-testid="connect-arch-target-is-group"
+                  checked={connectArchTargetIsGroup}
+                  onChange={(e) => setConnectArchTargetIsGroup(e.target.checked)}
+                />
+                Second entity's group
+              </label>
+              <label className="field__label" htmlFor="connect-arch-target-anchor">
+                Second entity anchor
+                <select
+                  id="connect-arch-target-anchor"
+                  data-testid="connect-arch-target-anchor"
+                  value={connectArchTargetAnchor}
+                  onChange={(e) => setConnectArchTargetAnchor(e.target.value as typeof connectArchTargetAnchor)}
+                >
+                  <option value="">Default</option>
+                  <option value="T">Top</option>
+                  <option value="B">Bottom</option>
+                  <option value="L">Left</option>
+                  <option value="R">Right</option>
+                </select>
+              </label>
+            </>
+          )}
           {/* canvas-2s6.1: which role Add Container/Group into Container below will produce —
               only shown for families with a real container-role vocabulary to pick from. */}
           {containerRoleOptions && (
@@ -2389,6 +2522,22 @@ export function Canvas({ model, onChange, dslFamily, toolbarContainer }: CanvasP
                 ))}
               </select>
             </label>
+          )}
+          {/* canvas-2s6.6: architecture's only node role (dsl/architecture.ts:123-137) had no
+              toolbar/AI-tool entry at all before this bead -- see handleAddJunction's own doc
+              comment for why this is a dedicated button rather than a role-conversion popup. */}
+          {dslFamily === 'architecture' && (
+            <button
+              type="button"
+              className="btn btn--secondary"
+              data-testid="add-junction"
+              title="Add Junction"
+              aria-label="Add Junction"
+              onClick={handleAddJunction}
+            >
+              <Icon name="circle" />
+              Add Junction
+            </button>
           )}
           <button
             type="button"
