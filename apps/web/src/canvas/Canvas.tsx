@@ -15,6 +15,8 @@ import {
   resizeContainer,
   updateContainerLabel,
   setContainerDirection,
+  setContainerParent,
+  removeContainerParent,
   updateEdgeLabel,
   updateEdgeStyle,
   updateEdgeRelationKind,
@@ -221,6 +223,11 @@ export interface CanvasProps {
 
 /** Minimum a container may be dragged down to, so it never becomes un-grabbable. */
 const MIN_CONTAINER_SIZE = { width: 80, height: 60 };
+// canvas-2s6.8: distinct from SELECTION_STROKE (shapes.tsx's blue) so a container that is both
+// selected AND a live drop target is unambiguous — green reads as "will nest here" the way most
+// drag-and-drop UIs already use it, and never collides with any existing per-role stroke color
+// (containerRoleStyle's own palette, CONTROL_FLOW_STROKE) since none of them use green either.
+const CONTAINER_DROP_TARGET_STROKE = '#16a34a';
 
 // Grouping F (docs/flowchart-completeness-brief.md): splits identically to svg-renderer.ts's own
 // `splitLabelLines` (imported, not reimplemented) so the canvas and export never disagree about
@@ -930,17 +937,40 @@ function rectsIntersect(a: Rect, b: Rect): boolean {
 
 /** Which container, if any, a dropped shape lands in — decided by the shape's centre point.
  *  Geometry decides membership only at the moment of a drop; `containerId` is authoritative
- *  afterwards, so resizing a container never ejects anything (research §3). */
-function containerAtPoint(model: DiagramModel, point: { x: number; y: number }): string | undefined {
+ *  afterwards, so resizing a container never ejects anything (research §3). `excludeIds` (canvas-
+ *  2s6.8) lets a container being dragged skip itself and its own descendants as candidates — a
+ *  container's own centre trivially sits inside its own bounds, and a dragged parent's centre
+ *  can easily pass over a child it's carrying along, neither of which should register as a valid
+ *  nesting target. */
+function containerAtPoint(model: DiagramModel, point: { x: number; y: number }, excludeIds?: Set<string>): string | undefined {
   // Last match wins, so a container drawn later (visually on top) takes precedence.
   let found: string | undefined;
   for (const container of model.containers) {
+    if (excludeIds?.has(container.id)) continue;
     const b = containerBounds(container);
     if (point.x >= b.left && point.x <= b.right && point.y >= b.top && point.y <= b.bottom) {
       found = container.id;
     }
   }
   return found;
+}
+
+/** canvas-2s6.8: every container nested (at any depth) inside `containerId`, including itself —
+ *  mirrors moveContainer's own descendant-collection loop (diagram-ops.ts) exactly, just on the
+ *  canvas side where it's needed to filter drop-target candidacy. */
+function descendantContainerIds(model: DiagramModel, containerId: string): Set<string> {
+  const result = new Set<string>([containerId]);
+  let grew = true;
+  while (grew) {
+    grew = false;
+    for (const c of model.containers) {
+      if (c.parentContainerId && result.has(c.parentContainerId) && !result.has(c.id)) {
+        result.add(c.id);
+        grew = true;
+      }
+    }
+  }
+  return result;
 }
 
 /**
@@ -1056,6 +1086,13 @@ export function Canvas({ model, onChange, dslFamily, toolbarContainer }: CanvasP
   // canvas-558: the live selection rectangle, rendered as an overlay and cleared on pointerup —
   // separate from dragState (a ref, so updating it wouldn't re-render the visible rectangle).
   const [marqueeRect, setMarqueeRect] = useState<Rect | null>(null);
+  // canvas-2s6.8: live drag-over highlight while dragging a container onto another one — updated
+  // every pointer-move during a container drag (handlePointerMove), resolved into a real
+  // setContainerParent/removeContainerParent call on drop (handlePointerUp), cleared there too.
+  // A ref, not a plain useState-only value, would miss re-renders the same way marqueeRect's own
+  // comment above already explains — this one similarly needs to actually repaint the target
+  // container's highlight on every move, so it stays useState like marqueeRect, not dragState.
+  const [containerDropTargetId, setContainerDropTargetId] = useState<string | null>(null);
   // A completed marquee drag finalizes selectedIds in handlePointerUp; the browser then still
   // fires a plain `click` on the same target right after (mouseup/mousedown landed on the same
   // element regardless of how far the pointer travelled between them) — without this flag the
@@ -1347,6 +1384,24 @@ export function Canvas({ model, onChange, dslFamily, toolbarContainer }: CanvasP
       return;
     }
 
+    // canvas-2s6.8: a live drag-over highlight, resolved into a real setContainerParent/
+    // removeContainerParent call on drop (handlePointerUp) — computed from the SAME intended new
+    // position moveContainer below is about to apply (not the container's still-stale current
+    // position), so the highlight never lags a frame behind what the user sees moving. Excludes
+    // the dragged container's own descendants (already carried along by moveContainer, so their
+    // bounds move too) — dropping a parent onto/over one of its own children must never register
+    // as a nesting target.
+    const draggedContainer = model.containers.find((c) => c.id === drag.id);
+    if (draggedContainer) {
+      const bounds = containerBounds(draggedContainer);
+      const width = bounds.right - bounds.left;
+      const height = bounds.bottom - bounds.top;
+      const newPos = { x: point.x - drag.offsetX, y: point.y - drag.offsetY };
+      const centre = { x: newPos.x + width / 2, y: newPos.y + height / 2 };
+      const excluded = descendantContainerIds(model, drag.id);
+      setContainerDropTargetId(containerAtPoint(model, centre, excluded) ?? null);
+    }
+
     // moveContainer carries members and nested containers with it.
     onChange(moveContainer(model, drag.id, { x: point.x - drag.offsetX, y: point.y - drag.offsetY }));
   };
@@ -1376,6 +1431,28 @@ export function Canvas({ model, onChange, dslFamily, toolbarContainer }: CanvasP
       // The click that follows this pointerup lands on the same <svg> background and would
       // otherwise immediately clear the selection just made above.
       suppressNextCanvasClick.current = true;
+      return;
+    }
+
+    // canvas-2s6.8: nesting is resolved once, on drop, from the dragged container's own centre —
+    // the same "resolve once at drop time, geometry never re-derives membership afterward" rule
+    // FR-011/research §3 already established for a node dropped into a container, generalized one
+    // level up. moveContainer (handlePointerMove) already moved the container and every
+    // descendant to their final position by this point, so `model` here already reflects it.
+    if (drag?.kind === 'container') {
+      setContainerDropTargetId(null);
+      const container = model.containers.find((c) => c.id === drag.id);
+      if (!container) return;
+      const bounds = containerBounds(container);
+      const centre = { x: (bounds.left + bounds.right) / 2, y: (bounds.top + bounds.bottom) / 2 };
+      const excluded = descendantContainerIds(model, drag.id);
+      const target = containerAtPoint(model, centre, excluded);
+
+      if (target && container.parentContainerId !== target) {
+        onChange(setContainerParent(model, container.id, target));
+      } else if (!target && container.parentContainerId) {
+        onChange(removeContainerParent(model, container.id));
+      }
       return;
     }
 
@@ -2552,8 +2629,13 @@ export function Canvas({ model, onChange, dslFamily, toolbarContainer }: CanvasP
           // function the way svg-renderer.ts does, per the `container` shadow-copy above).
           const roleStyle = containerRoleStyle(container.role);
           const isLabeledControlFlowBlock = Boolean(container.role && LABELED_CONTROL_FLOW_ROLES.has(container.role));
-          const stroke = isSelected ? '#2563eb' : isLabeledControlFlowBlock ? CONTROL_FLOW_STROKE : roleStyle.stroke;
-          const dasharray = isLabeledControlFlowBlock ? CONTROL_FLOW_DASHARRAY : roleStyle.strokeDasharray;
+          // canvas-2s6.8: a distinct highlight while another container is being dragged over this
+          // one, so the user sees where it would nest before releasing — takes priority even over
+          // the selection-blue stroke (a container can be selected AND a live drop target at the
+          // same time, e.g. re-nesting a container that was already selected).
+          const isDropTarget = containerDropTargetId === container.id;
+          const stroke = isDropTarget ? CONTAINER_DROP_TARGET_STROKE : isSelected ? '#2563eb' : isLabeledControlFlowBlock ? CONTROL_FLOW_STROKE : roleStyle.stroke;
+          const dasharray = isDropTarget ? undefined : isLabeledControlFlowBlock ? CONTROL_FLOW_DASHARRAY : roleStyle.strokeDasharray;
           // canvas-7vs.9: a leader line from this container's center to each attached node's own
           // position — a sequence note's target is its participant's lifeline (already resolved
           // via the `note`/`sequenceLayout` lookups above are position-only, so re-derive here from
@@ -2602,7 +2684,7 @@ export function Canvas({ model, onChange, dslFamily, toolbarContainer }: CanvasP
                 height={size.height}
                 fill={container.style?.fillColor ?? (roleStyle.defaultFill === 'none' ? 'transparent' : roleStyle.defaultFill)}
                 stroke={stroke}
-                strokeWidth={isSelected ? 2 : 1}
+                strokeWidth={isDropTarget ? 3 : isSelected ? 2 : 1}
                 strokeDasharray={dasharray}
               />
               {isLabeledControlFlowBlock && (

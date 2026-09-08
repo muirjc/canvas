@@ -471,7 +471,11 @@ export function setContainerDirection(
 }
 
 /** Nests a container inside another (C4/UML nesting) — mirrors assignNodeToContainer's exact
- *  shape. No-op if either id is missing, or if a container would be nested inside itself. */
+ *  shape. No-op if either id is missing, if a container would be nested inside itself, or (canvas-
+ *  2s6.8) inside any of its own DESCENDANTS — walks parentContainerId's own ancestor chain and
+ *  rejects if containerId appears anywhere in it, so e.g. nesting A (which already contains B,
+ *  which already contains C) into C can't silently create a cycle no renderer/serializer could
+ *  ever terminate on. */
 export function setContainerParent(
   model: DiagramModel,
   containerId: string,
@@ -480,6 +484,16 @@ export function setContainerParent(
   if (containerId === parentContainerId) return model;
   if (!model.containers.some((c) => c.id === containerId)) return model;
   if (!model.containers.some((c) => c.id === parentContainerId)) return model;
+  let ancestor: string | undefined = parentContainerId;
+  const seen = new Set<string>();
+  while (ancestor !== undefined) {
+    if (ancestor === containerId) return model;
+    // Already-corrupt data (a pre-existing cycle from some other source) breaks defensively
+    // rather than looping forever, instead of also rejecting this otherwise-unrelated call.
+    if (seen.has(ancestor)) break;
+    seen.add(ancestor);
+    ancestor = model.containers.find((c) => c.id === ancestor)?.parentContainerId;
+  }
   return {
     ...model,
     containers: model.containers.map((c) => (c.id === containerId ? { ...c, parentContainerId } : c)),
