@@ -28,6 +28,7 @@ import {
   updateEdgeArrowStyle,
   updateNodeStereotype,
   addPointMarkerContainer,
+  setSequenceAutonumber,
 } from '../../src/model/diagram-ops.js';
 import type { DiagramModel, EntityAttribute, ClassMember } from '../../src/model/diagram-model.js';
 
@@ -430,6 +431,18 @@ describe('addContainer', () => {
     expect(added.parentContainerId).toBeUndefined();
     expect(added.attachedNodeIds).toBeUndefined();
     expect(added.sequenceOrder).toBeUndefined();
+  });
+
+  // canvas-2s6.2: sequence `rect <color> ... end` needs its color set at creation time — there's
+  // no dedicated container-style op to "create then patch" onto, unlike node/edge style.
+  it('sets style when supplied (sequence rect highlight color)', () => {
+    const added = addContainer(baseModel(), { role: 'rect', style: { fillColor: 'rgb(200, 200, 0)' } }).containers.at(-1)!;
+    expect(added.style).toEqual({ fillColor: 'rgb(200, 200, 0)' });
+  });
+
+  it('leaves style unset when omitted', () => {
+    const added = addContainer(baseModel(), {}).containers.at(-1)!;
+    expect(added.style).toBeUndefined();
   });
 });
 
@@ -1017,6 +1030,29 @@ describe('addPointMarkerContainer', () => {
     expect(result.containers.at(-1)!.attachedNodeIds).toEqual(['does-not-exist']);
   });
 
+  // canvas-2s6.2: a real bug found while wiring the canvas's own Activate/Deactivate button —
+  // "after everything on the timeline" must consider EDGES (messages), not just containers, or a
+  // diagram with messages but no other point-marker/block containers yet always computed maxOrder
+  // -1 and placed the new marker at order 0, visually before every existing message.
+  it('when sequenceOrder is omitted, also considers existing EDGE sequenceOrder, not containers alone', () => {
+    const model = baseModel();
+    model.edges[0].sequenceOrder = 0;
+    model.edges[1].sequenceOrder = 7;
+    // No container has a sequenceOrder at all — before the fix this alone would compute maxOrder
+    // -1 and assign the new marker order 0, colliding with/preceding edge e2's own order 7.
+    const result = addPointMarkerContainer(model, { role: 'activate', attachedNodeId: 'a' });
+    expect(result.containers.at(-1)!.sequenceOrder).toBe(8);
+  });
+
+  it('when both containers and edges have a sequenceOrder, uses the true maximum across both', () => {
+    const model = baseModel();
+    model.containers[0].sequenceOrder = 3;
+    model.edges[0].sequenceOrder = 0;
+    model.edges[1].sequenceOrder = 10;
+    const result = addPointMarkerContainer(model, { role: 'activate', attachedNodeId: 'a' });
+    expect(result.containers.at(-1)!.sequenceOrder).toBe(11);
+  });
+
   it('leaves every existing node, edge, and container untouched', () => {
     const model = baseModel();
     const result = addPointMarkerContainer(model, { role: 'activate', attachedNodeId: 'a' });
@@ -1030,5 +1066,37 @@ describe('addPointMarkerContainer', () => {
     const snapshot = JSON.parse(JSON.stringify(model));
     addPointMarkerContainer(model, { role: 'activate', attachedNodeId: 'a' });
     expect(model).toEqual(snapshot);
+  });
+});
+
+describe('setSequenceAutonumber', () => {
+  it('sets the bare form when enabled with no start/step', () => {
+    const result = setSequenceAutonumber(baseModel(), { enabled: true });
+    expect(result.sequenceAutonumber).toEqual({ start: undefined, step: undefined });
+  });
+
+  it('sets start/step when enabled with both given', () => {
+    const result = setSequenceAutonumber(baseModel(), { enabled: true, start: 10, step: 5 });
+    expect(result.sequenceAutonumber).toEqual({ start: 10, step: 5 });
+  });
+
+  it('clears sequenceAutonumber back to unset when disabled', () => {
+    let model = baseModel();
+    model = setSequenceAutonumber(model, { enabled: true, start: 10, step: 5 });
+    const result = setSequenceAutonumber(model, { enabled: false });
+    expect(result.sequenceAutonumber).toBeUndefined();
+  });
+
+  it('disabling when already unset is a no-op', () => {
+    const model = baseModel();
+    expect(setSequenceAutonumber(model, { enabled: false })).toEqual(model);
+  });
+
+  it('leaves nodes, edges, and containers untouched', () => {
+    const model = baseModel();
+    const result = setSequenceAutonumber(model, { enabled: true, start: 1, step: 1 });
+    expect(result.nodes).toEqual(model.nodes);
+    expect(result.edges).toEqual(model.edges);
+    expect(result.containers).toEqual(model.containers);
   });
 });
