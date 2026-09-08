@@ -26,6 +26,7 @@ import {
   updateEdgeRelationKind,
   updateEdgeErCardinality,
   updateEdgeArrowStyle,
+  updateEdgeArchitectureModifiers,
   updateNodeStereotype,
   addPointMarkerContainer,
 } from '../../src/model/diagram-ops.js';
@@ -969,6 +970,56 @@ describe('updateEdgeArrowStyle', () => {
   it('leaves nodes, other edges, and containers untouched', () => {
     const model = baseModel();
     const result = updateEdgeArrowStyle(model, 'e1', { arrow: 'none' });
+    expect(result.nodes).toEqual(model.nodes);
+    expect(result.edges.find((e) => e.id === 'e2')).toEqual(model.edges.find((e) => e.id === 'e2'));
+    expect(result.containers).toEqual(model.containers);
+  });
+});
+
+describe('updateEdgeArchitectureModifiers', () => {
+  it('sets sourceIsGroup/targetIsGroup/sourceAnchor/targetAnchor', () => {
+    const result = updateEdgeArchitectureModifiers(baseModel(), 'e1', {
+      sourceIsGroup: true,
+      targetIsGroup: false,
+      sourceAnchor: 'L',
+      targetAnchor: 'R',
+    });
+    const edge = result.edges.find((e) => e.id === 'e1')!;
+    expect(edge.sourceIsGroup).toBe(true);
+    expect(edge.targetIsGroup).toBe(false);
+    expect(edge.sourceAnchor).toBe('L');
+    expect(edge.targetAnchor).toBe('R');
+  });
+
+  it('patches one field while leaving the others alone when already set', () => {
+    const model = baseModel();
+    model.edges[0].sourceIsGroup = true;
+    model.edges[0].sourceAnchor = 'T';
+    const result = updateEdgeArchitectureModifiers(model, 'e1', { targetAnchor: 'B' });
+    const edge = result.edges.find((e) => e.id === 'e1')!;
+    expect(edge.sourceIsGroup).toBe(true);
+    expect(edge.sourceAnchor).toBe('T');
+    expect(edge.targetAnchor).toBe('B');
+  });
+
+  it('an explicit null clears a previously-set field back to unset', () => {
+    const model = baseModel();
+    model.edges[0].sourceIsGroup = true;
+    model.edges[0].sourceAnchor = 'T';
+    const result = updateEdgeArchitectureModifiers(model, 'e1', { sourceIsGroup: null, sourceAnchor: null });
+    const edge = result.edges.find((e) => e.id === 'e1')!;
+    expect(edge.sourceIsGroup).toBeUndefined();
+    expect(edge.sourceAnchor).toBeUndefined();
+  });
+
+  it('is a no-op for an unknown edge id', () => {
+    const model = baseModel();
+    expect(updateEdgeArchitectureModifiers(model, 'nope', { sourceIsGroup: true })).toEqual(model);
+  });
+
+  it('leaves nodes, other edges, and containers untouched', () => {
+    const model = baseModel();
+    const result = updateEdgeArchitectureModifiers(model, 'e1', { sourceIsGroup: true });
     expect(result.nodes).toEqual(model.nodes);
     expect(result.edges.find((e) => e.id === 'e2')).toEqual(model.edges.find((e) => e.id === 'e2'));
     expect(result.containers).toEqual(model.containers);

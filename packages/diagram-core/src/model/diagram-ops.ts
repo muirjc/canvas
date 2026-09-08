@@ -324,6 +324,44 @@ export function updateEdgeArrowStyle(model: DiagramModel, edgeId: string, patch:
   };
 }
 
+export interface EdgeArchitectureModifiersPatch {
+  /** Omit to leave untouched; `null` clears it back to unset; a value sets it — same convention
+   *  as EdgeRelationKindPatch/EdgeErCardinalityPatch above. */
+  sourceIsGroup?: boolean | null;
+  targetIsGroup?: boolean | null;
+  sourceAnchor?: DiagramEdge['sourceAnchor'] | null;
+  targetAnchor?: DiagramEdge['targetAnchor'] | null;
+}
+
+/** canvas-2s6.6: merge-patches an architecture edge's `{group}` escalation and `:T/B/L/R` anchor
+ *  hints (dsl/architecture.ts), mirroring updateEdgeRelationKind's merge semantics exactly. Neither
+ *  field is part of AddEdgeInput (unlike ER's erSourceCardinality/erTargetCardinality, which the
+ *  connect-mode gesture supplies directly at creation) since they're rare enough not to warrant
+ *  widening every other family's addEdge call site — the canvas's architecture-specific
+ *  connect-mode picker instead applies this as a second "create then patch" step, the same
+ *  composition UML's own relationship kind already uses. No-op for an unknown id. */
+export function updateEdgeArchitectureModifiers(
+  model: DiagramModel,
+  edgeId: string,
+  patch: EdgeArchitectureModifiersPatch,
+): DiagramModel {
+  if (!model.edges.some((e) => e.id === edgeId)) return model;
+  return {
+    ...model,
+    edges: model.edges.map((e) => {
+      if (e.id !== edgeId) return e;
+      const next = { ...e };
+      for (const key of ['sourceIsGroup', 'targetIsGroup', 'sourceAnchor', 'targetAnchor'] as const) {
+        const value = patch[key];
+        if (value === undefined) continue;
+        if (value === null) delete next[key];
+        else (next[key] as typeof value) = value;
+      }
+      return next;
+    }),
+  };
+}
+
 export interface AddPointMarkerContainerInput {
   role: 'activate' | 'deactivate';
   attachedNodeId: string;

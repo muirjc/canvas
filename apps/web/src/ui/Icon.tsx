@@ -33,7 +33,8 @@ export type IconName =
   | 'layout'
   | 'info'
   | 'rows'
-  | 'tag';
+  | 'tag'
+  | 'circle';
 
 /** Path data only — the wrapper supplies sizing, colour, and ARIA. `diamond` and `check` are
  *  filled; the rest are 1.5px strokes on a 16-unit grid. */
@@ -77,6 +78,10 @@ const PATHS: Record<IconName, { d: string; filled?: boolean }[]> = {
     { d: 'M2.5 8.5 8.5 2.5h4a1 1 0 0 1 1 1v4l-6 6-5-5Z' },
     { d: 'M10.5 5.5a.6.6 0 1 0 0-1.2.6.6 0 0 0 0 1.2Z', filled: true },
   ],
+  // canvas-2s6.6: Add Junction trigger — a plain stroked circle, matching the shape a junction
+  // node itself renders as (shapes.tsx's own `case 'circle'`), distinct from `diamond`'s filled
+  // silhouette and `group`'s two-box metaphor.
+  circle: [{ d: 'M8 14.5a6.5 6.5 0 1 0 0-13 6.5 6.5 0 0 0 0 13Z' }],
 };
 
 export interface IconProps {

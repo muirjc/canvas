@@ -265,5 +265,13 @@ export function getAddableShapes(dslFamily: string): { shape: NodeShape; label: 
   if (dslFamily === 'c4') {
     return [...UNIVERSAL_SHAPES, { shape: 'person', label: 'Person' }, { shape: 'cylinder', label: 'Database' }, { shape: 'stadium', label: 'Queue' }];
   }
+  // canvas-2s6.6: architecture services are created via the Palette's own icon search
+  // (DiagramEditor.tsx), not this generic shape grid -- offering UNIVERSAL_SHAPES here was dead:
+  // serializeArchitecture ignores `shape` entirely for every non-junction node (always emits
+  // `service`), so a toolbar-added node's chosen shape had no effect at all, same class of gap
+  // canvas-7vs.10/canvas-hox already fixed for sequence/ERD above. A junction (the one real
+  // architecture "shape" with no icon) gets its own dedicated Add Junction button instead, not a
+  // slot in this grid.
+  if (dslFamily === 'architecture') return [];
   return UNIVERSAL_SHAPES;
 }
