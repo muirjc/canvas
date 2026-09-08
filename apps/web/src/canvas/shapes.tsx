@@ -253,5 +253,17 @@ export function getAddableShapes(dslFamily: string): { shape: NodeShape; label: 
   // authoring a shape choice the DSL itself has no room for, the same class of gap
   // canvas-7vs.10 fixed for sequence diagrams above.
   if (dslFamily === 'erd') return [{ shape: 'rectangle', label: 'Rectangle' }];
-  return dslFamily === 'flowchart' ? [...UNIVERSAL_SHAPES, ...FLOWCHART_ONLY_SHAPES] : UNIVERSAL_SHAPES;
+  if (dslFamily === 'flowchart') return [...UNIVERSAL_SHAPES, ...FLOWCHART_ONLY_SHAPES];
+  // canvas-2s6.5: a C4 element's Db/Queue/Person kind is a real, distinct shape (cylinder/stadium/
+  // person respectively, dsl/c4.ts's own ELEMENT_TO_SHAPE) — before this, none of the three could
+  // be created from the toolbar at all, only via DSL/import; a node's kind popup (setting `role`)
+  // then combines with whichever of these it was drawn as to pick the exact Mermaid keyword on
+  // serialize (elementKindFor). circle/diamond stay offered too (pre-existing UNIVERSAL_SHAPES
+  // behavior, unchanged) even though no real C4 keyword renders as either — a separate, disclosed,
+  // pre-existing gap (elementKindFor ignores shape except cylinder/stadium, so a circle/diamond
+  // C4 node's own shape choice doesn't survive a save/reload) this bead doesn't attempt to fix.
+  if (dslFamily === 'c4') {
+    return [...UNIVERSAL_SHAPES, { shape: 'person', label: 'Person' }, { shape: 'cylinder', label: 'Database' }, { shape: 'stadium', label: 'Queue' }];
+  }
+  return UNIVERSAL_SHAPES;
 }

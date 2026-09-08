@@ -32,7 +32,8 @@ export type IconName =
   | 'palette'
   | 'layout'
   | 'info'
-  | 'rows';
+  | 'rows'
+  | 'tag';
 
 /** Path data only — the wrapper supplies sizing, colour, and ARIA. `diamond` and `check` are
  *  filled; the rest are 1.5px strokes on a 16-unit grid. */
@@ -70,6 +71,12 @@ const PATHS: Record<IconName, { d: string; filled?: boolean }[]> = {
   // horizontal rules, suggesting a small table's rows, distinct from `group`'s two-box grouping
   // metaphor and `layout`'s branching-tree glyph.
   rows: [{ d: 'M2.5 3.5h11v9h-11zM2.5 7h11M2.5 10h11' }],
+  // canvas-2s6.5: C4 element-kind popup trigger — a label/tag outline with a small punched hole,
+  // distinct from `rows`' table-row metaphor and `palette`'s color droplet.
+  tag: [
+    { d: 'M2.5 8.5 8.5 2.5h4a1 1 0 0 1 1 1v4l-6 6-5-5Z' },
+    { d: 'M10.5 5.5a.6.6 0 1 0 0-1.2.6.6 0 0 0 0 1.2Z', filled: true },
+  ],
 };
 
 export interface IconProps {

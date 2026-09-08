@@ -16,6 +16,7 @@ import {
   updateEdgeStyle,
   updateNodeLabel,
   updateNodeStyle,
+  updateNodeRole,
   updateEntityAttributes,
   updateClassMembers,
   splitLabelLines,
@@ -41,6 +42,7 @@ import {
   DEFAULT_ER_SOURCE_CARDINALITY,
   DEFAULT_ER_TARGET_CARDINALITY,
   C4_BOUNDARY_ROLES,
+  C4_ELEMENT_ROLES,
   type CardinalityGlyph,
   type UmlEndpointGlyph,
   type DiagramContainer,
@@ -126,6 +128,20 @@ const CONTAINER_ROLE_OPTIONS: Partial<Record<string, { value: string; label: str
     { value: 'note', label: 'Note' },
   ],
   c4: C4_BOUNDARY_ROLES.map((role) => ({ value: role, label: C4_BOUNDARY_LABELS[role] })),
+};
+
+// canvas-2s6.5: which DiagramNode.role a user can pick for an existing C4 element, via the new
+// per-node "kind" popup (renderKindAffordance/renderKindPopup below) — options sourced from
+// C4_ELEMENT_ROLES (dsl/c4.ts's own exported single source of truth), so this can't drift from
+// what parseC4/elementKindFor actually recognize. Combines with whichever of person/cylinder/
+// stadium/rectangle/rounded-rectangle the node was drawn as (now all creatable from the toolbar,
+// shapes.tsx's own C4 branch) to pick the exact Mermaid keyword on serialize — e.g. role
+// 'system' + shape 'cylinder' => SystemDb.
+const C4_ELEMENT_ROLE_LABELS: Record<(typeof C4_ELEMENT_ROLES)[number], string> = {
+  person: 'Person',
+  system: 'System',
+  container: 'Container',
+  component: 'Component',
 };
 
 // canvas-vcv: the ER attribute / UML member popup — a list (scrolling internally past ~5-6 rows)
@@ -850,6 +866,11 @@ export function Canvas({ model, onChange, dslFamily, toolbarContainer }: CanvasP
   // UML members are node-level fields; edges/containers have neither), so unlike stylingNodeId/
   // stylingEdgeId there is no matching "Edge" counterpart.
   const [editingFieldsNodeId, setEditingFieldsNodeId] = useState<string | null>(null);
+  // canvas-2s6.5: a fourth, separate node-only affordance — C4 only (every other family either
+  // has no role concept on nodes at all, or sets it a different way already). Mutually exclusive
+  // with editingFieldsNodeId at the call site (erd/uml vs c4), so it safely reuses the same
+  // below-the-node popup position (stylePopupPos) rather than needing its own.
+  const [editingKindNodeId, setEditingKindNodeId] = useState<string | null>(null);
   const [selectedContainerId, setSelectedContainerId] = useState<string | null>(null);
   // canvas-u7e: edges had no selection state at all — the only ways to remove a connector were
   // deleting one of its endpoint nodes (which cascades but also destroys the node) or hand-editing
@@ -1241,6 +1262,70 @@ export function Canvas({ model, onChange, dslFamily, toolbarContainer }: CanvasP
       >
         <Icon name="rows" size={12} />
       </button>
+    </foreignObject>
+  );
+
+  /** canvas-2s6.5: a fourth, separate control alongside pencil/palette/rows — opens a small
+   *  element-kind popup. Node-only and gated to c4 at the call site, mutually exclusive with
+   *  renderFieldsAffordance (erd/uml) so it's safe to reuse the same visual slot. Same
+   *  hover/selection/focus reveal rule as the other three. */
+  const renderKindAffordance = (id: string, x: number, y: number, onActivate: () => void, label: string) => (
+    <foreignObject x={x} y={y} width={22} height={22}>
+      <button
+        type="button"
+        className="canvas-edit-affordance"
+        data-testid={`edit-kind-${id}`}
+        aria-label={label}
+        title={label}
+        onClick={(event) => {
+          event.stopPropagation();
+          onActivate();
+        }}
+        onPointerDown={(event) => event.stopPropagation()}
+      >
+        <Icon name="tag" size={12} />
+      </button>
+    </foreignObject>
+  );
+
+  /** Small role-picker popup opened by renderKindAffordance. updateNodeRole always sets a real
+   *  string (no null-clear convention like StylePatch's), so this applies immediately on change
+   *  rather than needing a separate commit step — Done just closes it, mirroring the toolbar's own
+   *  live-applying Container Kind picker. */
+  const renderKindPopup = (id: string, x: number, y: number, currentRole: string | undefined, onPick: (role: string) => void, onClose: () => void) => (
+    <foreignObject x={x} y={y} width={STYLE_POPUP_WIDTH} height={STYLE_POPUP_HEIGHT}>
+      <div
+        className="card cluster"
+        style={{ padding: 'var(--space-2)', flexWrap: 'nowrap' }}
+        onClick={(event) => event.stopPropagation()}
+        onPointerDown={(event) => event.stopPropagation()}
+        onKeyDown={(event) => {
+          if (event.key === 'Escape') onClose();
+        }}
+      >
+        <label className="field__label" htmlFor={`kind-role-select-${id}`}>
+          Kind
+          <select
+            id={`kind-role-select-${id}`}
+            data-testid={`kind-role-select-${id}`}
+            autoFocus
+            value={currentRole ?? ''}
+            onChange={(event) => onPick(event.target.value)}
+          >
+            <option value="" disabled>
+              Choose a kind…
+            </option>
+            {C4_ELEMENT_ROLES.map((role) => (
+              <option key={role} value={role}>
+                {C4_ELEMENT_ROLE_LABELS[role]}
+              </option>
+            ))}
+          </select>
+        </label>
+        <button type="button" className="btn btn--primary btn--compact" data-testid={`kind-done-${id}`} onClick={onClose}>
+          Done
+        </button>
+      </div>
     </foreignObject>
   );
 
@@ -2177,6 +2262,7 @@ export function Canvas({ model, onChange, dslFamily, toolbarContainer }: CanvasP
                   () => {
                     setStylingNodeId(null);
                     setEditingFieldsNodeId(null);
+                    setEditingKindNodeId(null);
                     setEditingNodeId(node.id);
                   },
                   `Edit label for ${node.label}`,
@@ -2191,6 +2277,7 @@ export function Canvas({ model, onChange, dslFamily, toolbarContainer }: CanvasP
                   () => {
                     setEditingNodeId(null);
                     setEditingFieldsNodeId(null);
+                    setEditingKindNodeId(null);
                     setStylingNodeId(node.id);
                   },
                   `Choose fill color for ${node.label}`,
@@ -2221,6 +2308,7 @@ export function Canvas({ model, onChange, dslFamily, toolbarContainer }: CanvasP
                   () => {
                     setEditingNodeId(null);
                     setStylingNodeId(null);
+                    setEditingKindNodeId(null);
                     setEditingFieldsNodeId(node.id);
                   },
                   dslFamily === 'erd' ? `Edit attributes for ${node.label}` : `Edit members for ${node.label}`,
@@ -2236,6 +2324,36 @@ export function Canvas({ model, onChange, dslFamily, toolbarContainer }: CanvasP
                   onClose={() => setEditingFieldsNodeId(null)}
                 />
               )}
+              {/* canvas-2s6.5: every node in a C4 diagram has a role (person/system/container/
+                  component) — updateNodeRole existed but nothing in Canvas.tsx ever called it,
+                  so a canvas-created (or role-less imported) node's kind could never be set
+                  visually. Reuses fields' own x-offset — the two are mutually exclusive by
+                  family (erd/uml vs c4). */}
+              {editingNodeId !== node.id &&
+                !connectMode &&
+                dslFamily === 'c4' &&
+                (hoveredId === node.id || selectedIds.has(node.id)) &&
+                renderKindAffordance(
+                  node.id,
+                  node.position.x + size.width - 76,
+                  node.position.y + 2,
+                  () => {
+                    setEditingNodeId(null);
+                    setStylingNodeId(null);
+                    setEditingFieldsNodeId(null);
+                    setEditingKindNodeId(node.id);
+                  },
+                  `Choose kind for ${node.label}`,
+                )}
+              {editingKindNodeId === node.id &&
+                renderKindPopup(
+                  node.id,
+                  stylePopupPos.x,
+                  stylePopupPos.y,
+                  node.role,
+                  (role) => onChange(updateNodeRole(model, node.id, role)),
+                  () => setEditingKindNodeId(null),
+                )}
             </g>
           );
         })}

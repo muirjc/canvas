@@ -18,6 +18,7 @@ import {
   updateNodeRole,
   updateNodeStyle,
   C4_BOUNDARY_ROLES,
+  C4_ELEMENT_ROLES,
   type DiagramEdge,
   type DiagramModel,
   type NodeShape,
@@ -73,9 +74,12 @@ const FAMILY_NODE_SHAPES: Record<string, readonly [NodeShape, ...NodeShape[]]> =
 
 /** 010-ai-diagram-knowledge, T019: per-family enum options for the new diagram-type-specific
  *  tools below — each confirmed against the corresponding `dsl/*.ts` parser's own vocabulary
- *  (see diagram-model.ts's field doc comments for the authoritative source). */
+ *  (see diagram-model.ts's field doc comments for the authoritative source). c4's own list now
+ *  comes from C4_ELEMENT_ROLES (dsl/c4.ts's exported single source of truth, canvas-2s6.5) rather
+ *  than being hand-copied here, so this tool's schema can't drift from the canvas UI's own
+ *  element-kind popup. */
 const NODE_ROLE_OPTIONS: Record<string, readonly [string, ...string[]]> = {
-  c4: ['person', 'system', 'container', 'component'],
+  c4: C4_ELEMENT_ROLES,
   sequence: ['participant', 'actor'],
 };
 const ENTITY_KEY_OPTIONS = ['PK', 'FK', 'UK'] as const;
