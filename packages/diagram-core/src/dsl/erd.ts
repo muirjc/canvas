@@ -15,6 +15,14 @@ const RELATIONSHIP_PATTERN = new RegExp(`^(${ID})\\s+([|o}{.-]+)\\s+(${ID})\\s*:
 export const DEFAULT_ER_SOURCE_CARDINALITY = '||';
 export const DEFAULT_ER_TARGET_CARDINALITY = 'o{';
 const DEFAULT_CARDINALITY = `${DEFAULT_ER_SOURCE_CARDINALITY}--${DEFAULT_ER_TARGET_CARDINALITY}`;
+// canvas-2s6.4: the 4 meaningful crow's-foot cardinality tokens per side (zero/exactly-one,
+// zero/one-or-many, mirrored for source vs. target) — RELATIONSHIP_PATTERN's own character class
+// is more permissive than this (any run of `|o}{.-` chars), but these are the only combinations
+// that are real, meaningful crow's-foot notation; exported as the single source of truth for the
+// canvas UI's cardinality pickers (connect-mode and the post-hoc popup) and the AI tool schema,
+// same precedent as DEFAULT_ER_SOURCE_CARDINALITY/DEFAULT_ER_TARGET_CARDINALITY above.
+export const ER_SOURCE_CARDINALITY_TOKENS = ['||', '|o', '}|', '}o'] as const;
+export const ER_TARGET_CARDINALITY_TOKENS = ['||', 'o|', '|{', 'o{'] as const;
 // A relationship's label is NOT optional in real Mermaid erDiagram grammar (RELATIONSHIP_PATTERN's
 // own `(.+)$` requires at least one character) -- unlike flowchart/UML, there is no valid
 // zero-label form to fall back to. serializeErd must never emit one, regardless of how the edge

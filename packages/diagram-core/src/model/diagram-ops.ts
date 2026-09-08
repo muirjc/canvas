@@ -266,6 +266,39 @@ export function updateEdgeRelationKind(
   };
 }
 
+export interface EdgeErCardinalityPatch {
+  /** Omit to leave untouched; `null` clears it back to unset; a value sets it — same convention
+   *  as EdgeRelationKindPatch above. */
+  erSourceCardinality?: string | null;
+  erTargetCardinality?: string | null;
+}
+
+/** canvas-2s6.4: merge-patches an ER edge's crow's-foot cardinality tokens, mirroring
+ *  updateEdgeRelationKind's merge semantics exactly. Previously these could only ever be set at
+ *  edge-creation time (the connect-mode picker) — no way to change an existing relationship's
+ *  cardinality short of deleting and redrawing it. No-op for an unknown id. */
+export function updateEdgeErCardinality(
+  model: DiagramModel,
+  edgeId: string,
+  patch: EdgeErCardinalityPatch,
+): DiagramModel {
+  if (!model.edges.some((e) => e.id === edgeId)) return model;
+  return {
+    ...model,
+    edges: model.edges.map((e) => {
+      if (e.id !== edgeId) return e;
+      const next = { ...e };
+      for (const key of ['erSourceCardinality', 'erTargetCardinality'] as const) {
+        const value = patch[key];
+        if (value === undefined) continue;
+        if (value === null) delete next[key];
+        else (next[key] as typeof value) = value;
+      }
+      return next;
+    }),
+  };
+}
+
 export interface EdgeArrowStylePatch {
   arrow?: DiagramEdge['arrow'] | null;
   lineStyle?: DiagramEdge['lineStyle'] | null;

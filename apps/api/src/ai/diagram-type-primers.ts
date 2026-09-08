@@ -61,7 +61,11 @@ const PRIMERS: Record<string, DiagramTypePrimer> = {
       'zero or more typed attributes, and an attribute may be marked as a primary key (PK), ' +
       'foreign key (FK), or unique key (UK). Relationships between entities describe how many of ' +
       'one entity relate to how many of another (cardinality) — this is central to what makes an ' +
-      'ER diagram correct, not optional decoration.',
+      'ER diagram correct, not optional decoration. Each end of a relationship carries its own ' +
+      'crow\'s-foot cardinality token: on the source side, || (exactly one), |o (zero or one), }| ' +
+      '(one or many), or }o (zero or many); on the target side, || (exactly one), o| (zero or ' +
+      'one), |{ (one or many), or o{ (zero or many). A relationship is also either identifying ' +
+      '(a solid line) or non-identifying (a dotted line).',
   },
   uml: {
     dslFamily: 'uml',

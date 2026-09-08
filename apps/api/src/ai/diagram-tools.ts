@@ -12,6 +12,7 @@ import {
   updateEdgeArrowStyle,
   updateEdgeLabel,
   updateEdgeRelationKind,
+  updateEdgeErCardinality,
   updateEdgeStyle,
   updateEntityAttributes,
   updateNodeLabel,
@@ -21,6 +22,8 @@ import {
   C4_BOUNDARY_ROLES,
   C4_ELEMENT_ROLES,
   UML_RELATION_KINDS,
+  ER_SOURCE_CARDINALITY_TOKENS,
+  ER_TARGET_CARDINALITY_TOKENS,
   type DiagramEdge,
   type DiagramModel,
   type NodeShape,
@@ -408,6 +411,40 @@ export function createDiagramTools(context: DiagramToolsContext, family: string)
         })
       : undefined;
 
+  // canvas-2s6.4: erSourceCardinality/erTargetCardinality could previously only ever be set at
+  // edge-creation time (addEdge's own input) -- no AI tool (or canvas UI) could patch an existing
+  // relationship's cardinality. `identifying` folds in the solid-vs-dotted line distinction
+  // (diagram-model.ts: "lineStyle: 'dotted' doubles as ERD's own non-identifying-relationship
+  // marker") via the existing updateEdgeArrowStyle op, rather than a second tool -- ERD has no
+  // "arrow" concept at all (a plain arrowhead isn't valid ER notation), so this is folded into the
+  // cardinality tool rather than reusing setConnectorStyle (which requires an arrow vocabulary
+  // this family doesn't have).
+  const setErCardinality =
+    family === 'erd'
+      ? tool({
+          description:
+            "Set an ER relationship's crow's-foot cardinality on either or both ends, and/or " +
+            'whether it is identifying (solid line) or non-identifying (dotted line). Only the ' +
+            'fields you provide are changed.',
+          inputSchema: z.object({
+            edgeId: z.string().describe('The id of the relationship to update.'),
+            sourceCardinality: z.enum(ER_SOURCE_CARDINALITY_TOKENS).optional().describe('Cardinality token at the source end.'),
+            targetCardinality: z.enum(ER_TARGET_CARDINALITY_TOKENS).optional().describe('Cardinality token at the target end.'),
+            identifying: z.boolean().optional().describe('True for a solid (identifying) line, false for a dotted (non-identifying) line.'),
+          }),
+          execute: async ({ edgeId, sourceCardinality, targetCardinality, identifying }) => {
+            let model = context.getModel();
+            if (!model.edges.some((e) => e.id === edgeId)) {
+              return record('setErCardinality', { applied: false, reason: `No connector with id '${edgeId}' was found.` });
+            }
+            model = updateEdgeErCardinality(model, edgeId, { erSourceCardinality: sourceCardinality, erTargetCardinality: targetCardinality });
+            if (identifying !== undefined) model = updateEdgeArrowStyle(model, edgeId, { lineStyle: identifying ? null : 'dotted' });
+            context.setModel(model);
+            return record('setErCardinality', { applied: true });
+          },
+        })
+      : undefined;
+
   const connectorArrowOptions = CONNECTOR_ARROW_OPTIONS[family];
   const connectorLineStyleOptions = CONNECTOR_LINE_STYLE_OPTIONS[family];
   const setConnectorStyle =
@@ -508,6 +545,7 @@ export function createDiagramTools(context: DiagramToolsContext, family: string)
     ...(setEntityAttributes ? { setEntityAttributes } : {}),
     ...(setClassMembers ? { setClassMembers } : {}),
     ...(setRelationshipKind ? { setRelationshipKind } : {}),
+    ...(setErCardinality ? { setErCardinality } : {}),
     ...(setConnectorStyle ? { setConnectorStyle } : {}),
     ...(groupIntoContainer ? { groupIntoContainer } : {}),
     ...(activateParticipant ? { activateParticipant } : {}),

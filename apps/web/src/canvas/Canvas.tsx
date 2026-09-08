@@ -15,6 +15,8 @@ import {
   updateEdgeLabel,
   updateEdgeStyle,
   updateEdgeRelationKind,
+  updateEdgeErCardinality,
+  updateEdgeArrowStyle,
   updateNodeLabel,
   updateNodeStyle,
   updateNodeRole,
@@ -43,6 +45,8 @@ import {
   umlCardinalityLabelPosition,
   DEFAULT_ER_SOURCE_CARDINALITY,
   DEFAULT_ER_TARGET_CARDINALITY,
+  ER_SOURCE_CARDINALITY_TOKENS,
+  ER_TARGET_CARDINALITY_TOKENS,
   C4_BOUNDARY_ROLES,
   C4_ELEMENT_ROLES,
   UML_RELATION_KINDS,
@@ -97,22 +101,13 @@ const RELATION_KIND_POPUP_HEIGHT = 84;
 
 // canvas-hox follow-up: real Mermaid erDiagram crow's-foot cardinality tokens are asymmetric --
 // the source (left) and target (right) side of a relationship use different two-character tokens
-// for the same four semantic options, confirmed against erd.ts's own parseCardinalityToken (which
-// accepts any of |,o,{,} on either side) and DEFAULT_CARDINALITY ('||--o{' = source "exactly one",
-// target "zero or many"). Kept local to Canvas.tsx (not exported from diagram-core) since these
-// are purely UI label/value pairs for the connect-mode picker below, not parse/model concerns.
-const ER_SOURCE_CARDINALITY_OPTIONS = [
-  { value: '||', label: 'Exactly one' },
-  { value: '|o', label: 'Zero or one' },
-  { value: '}|', label: 'One or many' },
-  { value: '}o', label: 'Zero or many' },
-];
-const ER_TARGET_CARDINALITY_OPTIONS = [
-  { value: '||', label: 'Exactly one' },
-  { value: 'o|', label: 'Zero or one' },
-  { value: '|{', label: 'One or many' },
-  { value: 'o{', label: 'Zero or many' },
-];
+// for the same four semantic options. canvas-2s6.4: the token VALUES now come from
+// ER_SOURCE_CARDINALITY_TOKENS/ER_TARGET_CARDINALITY_TOKENS (dsl/erd.ts's own exported single
+// source of truth, also used by the AI tool schema) rather than being hand-copied here a second
+// time -- only the human-readable labels are UI-only, kept local.
+const ER_CARDINALITY_LABELS = ['Exactly one', 'Zero or one', 'One or many', 'Zero or many'];
+const ER_SOURCE_CARDINALITY_OPTIONS = ER_SOURCE_CARDINALITY_TOKENS.map((value, i) => ({ value, label: ER_CARDINALITY_LABELS[i] }));
+const ER_TARGET_CARDINALITY_OPTIONS = ER_TARGET_CARDINALITY_TOKENS.map((value, i) => ({ value, label: ER_CARDINALITY_LABELS[i] }));
 
 // canvas-2s6.1: which DiagramContainer.role a user can pick when creating a container, per
 // family — shown as a "Kind" selector next to Add Container/Group into Container, only for
@@ -946,6 +941,9 @@ export function Canvas({ model, onChange, dslFamily, toolbarContainer }: CanvasP
   // existed.
   const [connectErSourceCardinality, setConnectErSourceCardinality] = useState(DEFAULT_ER_SOURCE_CARDINALITY);
   const [connectErTargetCardinality, setConnectErTargetCardinality] = useState(DEFAULT_ER_TARGET_CARDINALITY);
+  // canvas-2s6.4: identifying/non-identifying had no toggle at all before this bead, at connect
+  // time or post-hoc.
+  const [connectErNonIdentifying, setConnectErNonIdentifying] = useState(false);
   // canvas-2s6.3: same rationale as ERD's own cardinality picker above — a UML relationship's
   // arrowhead shape carries real semantic meaning the generic Direction picker's forward/reversed/
   // bidirectional/no-arrowhead vocabulary doesn't fit, so UML gets its own dedicated connect-mode
@@ -980,8 +978,11 @@ export function Canvas({ model, onChange, dslFamily, toolbarContainer }: CanvasP
   // (label-affordance.spec.ts) stays untouched.
   const [stylingNodeId, setStylingNodeId] = useState<string | null>(null);
   const [stylingEdgeId, setStylingEdgeId] = useState<string | null>(null);
-  // canvas-2s6.3: a second edge-only affordance alongside pencil/palette — UML only, opens
-  // renderRelationKindPopup. Mutually exclusive with stylingEdgeId at the call site.
+  // canvas-2s6.3/canvas-2s6.4: a second edge-only affordance alongside pencil/palette — opens
+  // renderRelationKindPopup (UML) or renderErCardinalityPopup (ERD); shared between the two since
+  // they're mutually exclusive by family, same reuse precedent renderKindAffordance itself already
+  // established for the node-level C4/edge-level UML+ERD "kind" buttons. Mutually exclusive with
+  // stylingEdgeId at the call site.
   const [editingRelationKindEdgeId, setEditingRelationKindEdgeId] = useState<string | null>(null);
   // canvas-vcv: a third, separate affordance next to the pencil/palette — node-only (ER attributes/
   // UML members are node-level fields; edges/containers have neither), so unlike stylingNodeId/
@@ -1159,6 +1160,14 @@ export function Canvas({ model, onChange, dslFamily, toolbarContainer }: CanvasP
             sourceCardinality: connectUmlSourceCardinality.trim() || undefined,
             targetCardinality: connectUmlTargetCardinality.trim() || undefined,
           });
+        }
+        // canvas-2s6.4: same "create then patch" composition as UML's own relation kind above --
+        // lineStyle isn't an AddEdgeInput field either. Only patched when checked, so an
+        // untouched (identifying) connection round-trips with lineStyle left unset, exactly as
+        // it always has.
+        if (dslFamily === 'erd' && connectErNonIdentifying) {
+          const newEdge = next.edges[next.edges.length - 1];
+          next = updateEdgeArrowStyle(next, newEdge.id, { lineStyle: 'dotted' });
         }
         onChange(next);
         setConnectSourceId(null);
@@ -1526,6 +1535,74 @@ export function Canvas({ model, onChange, dslFamily, toolbarContainer }: CanvasP
     </foreignObject>
   );
 
+  /** canvas-2s6.4: post-hoc ER cardinality + identifying/non-identifying popup — the ERD analog
+   *  of renderRelationKindPopup above (same "settable at connect time only, now also post-hoc"
+   *  rationale). Each field applies immediately, same live-apply convention as every other popup
+   *  here. */
+  const renderErCardinalityPopup = (
+    edgeId: string,
+    x: number,
+    y: number,
+    currentSourceCardinality: string | undefined,
+    currentTargetCardinality: string | undefined,
+    currentlyNonIdentifying: boolean,
+    onClose: () => void,
+  ) => (
+    <foreignObject x={x} y={y} width={RELATION_KIND_POPUP_WIDTH} height={RELATION_KIND_POPUP_HEIGHT}>
+      <div
+        className="card stack"
+        style={{ padding: 'var(--space-2)', gap: 'var(--space-1)' }}
+        onClick={(event) => event.stopPropagation()}
+        onPointerDown={(event) => event.stopPropagation()}
+        onKeyDown={(event) => {
+          if (event.key === 'Escape') onClose();
+        }}
+      >
+        <div className="cluster cluster--tight" style={{ flexWrap: 'nowrap' }}>
+          <select
+            data-testid={`er-source-cardinality-select-${edgeId}`}
+            aria-label="Source cardinality"
+            autoFocus
+            value={currentSourceCardinality ?? DEFAULT_ER_SOURCE_CARDINALITY}
+            onChange={(event) => onChange(updateEdgeErCardinality(model, edgeId, { erSourceCardinality: event.target.value }))}
+          >
+            {ER_SOURCE_CARDINALITY_OPTIONS.map((opt) => (
+              <option key={opt.value} value={opt.value}>
+                {opt.label}
+              </option>
+            ))}
+          </select>
+          <select
+            data-testid={`er-target-cardinality-select-${edgeId}`}
+            aria-label="Target cardinality"
+            value={currentTargetCardinality ?? DEFAULT_ER_TARGET_CARDINALITY}
+            onChange={(event) => onChange(updateEdgeErCardinality(model, edgeId, { erTargetCardinality: event.target.value }))}
+          >
+            {ER_TARGET_CARDINALITY_OPTIONS.map((opt) => (
+              <option key={opt.value} value={opt.value}>
+                {opt.label}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div className="cluster cluster--tight" style={{ flexWrap: 'nowrap', justifyContent: 'space-between' }}>
+          <label className="field__label" style={{ flexDirection: 'row', alignItems: 'center', gap: 'var(--space-1)' }}>
+            <input
+              type="checkbox"
+              data-testid={`er-non-identifying-${edgeId}`}
+              checked={currentlyNonIdentifying}
+              onChange={(event) => onChange(updateEdgeArrowStyle(model, edgeId, { lineStyle: event.target.checked ? 'dotted' : null }))}
+            />
+            Non-identifying
+          </label>
+          <button type="button" className="btn btn--primary btn--compact" data-testid={`er-cardinality-done-${edgeId}`} onClick={onClose}>
+            Done
+          </button>
+        </div>
+      </div>
+    </foreignObject>
+  );
+
   /** Small color-picker popup opened by renderStyleAffordance. Uses an explicit Done button
    *  rather than blur-to-commit (unlike the label editors) — a native OS color-picker dialog has
    *  inconsistent focus/blur timing across browsers, so relying on blur alone here would be a real
@@ -1764,6 +1841,21 @@ export function Canvas({ model, onChange, dslFamily, toolbarContainer }: CanvasP
                     </option>
                   ))}
                 </select>
+              </label>
+              {/* canvas-2s6.4: identifying (solid) vs. non-identifying (dotted) had no toggle
+                  anywhere, not even at connect time -- lineStyle: 'dotted' doubles as this
+                  marker (diagram-model.ts), so unchecked means the default solid/identifying
+                  line, same "the model default is the unset state" convention connectArrowStyle
+                  already uses ('forward' needs no value either). */}
+              <label className="field__label" htmlFor="connect-er-non-identifying" style={{ flexDirection: 'row', alignItems: 'center', gap: 'var(--space-1)' }}>
+                <input
+                  type="checkbox"
+                  id="connect-er-non-identifying"
+                  data-testid="connect-er-non-identifying"
+                  checked={connectErNonIdentifying}
+                  onChange={(e) => setConnectErNonIdentifying(e.target.checked)}
+                />
+                Non-identifying
               </label>
             </>
           )}
@@ -2351,12 +2443,12 @@ export function Canvas({ model, onChange, dslFamily, toolbarContainer }: CanvasP
                   () => onChange(updateEdgeStyle(model, edge.id, { strokeColor: null })),
                   () => setStylingEdgeId(null),
                 )}
-              {/* canvas-2s6.3: a third edge affordance, UML-only, stacked further above the other
-                  two (same x range, same rationale as the palette's own stacking-not-beside
-                  comment above). */}
+              {/* canvas-2s6.3/canvas-2s6.4: a third edge affordance, UML/ERD-only, stacked further
+                  above the other two (same x range, same rationale as the palette's own
+                  stacking-not-beside comment above). */}
               {!isEditingThisEdge &&
                 !connectMode &&
-                dslFamily === 'uml' &&
+                (dslFamily === 'uml' || dslFamily === 'erd') &&
                 hoveredId === edge.id &&
                 renderKindAffordance(
                   edge.id,
@@ -2367,9 +2459,10 @@ export function Canvas({ model, onChange, dslFamily, toolbarContainer }: CanvasP
                     setStylingEdgeId(null);
                     setEditingRelationKindEdgeId(edge.id);
                   },
-                  `Choose relationship kind for connector ${edge.id}`,
+                  dslFamily === 'uml' ? `Choose relationship kind for connector ${edge.id}` : `Edit cardinality for connector ${edge.id}`,
                 )}
               {editingRelationKindEdgeId === edge.id &&
+                dslFamily === 'uml' &&
                 renderRelationKindPopup(
                   edge.id,
                   stylePopupPos.x,
@@ -2377,6 +2470,17 @@ export function Canvas({ model, onChange, dslFamily, toolbarContainer }: CanvasP
                   edge.umlRelationKind,
                   edge.sourceCardinality,
                   edge.targetCardinality,
+                  () => setEditingRelationKindEdgeId(null),
+                )}
+              {editingRelationKindEdgeId === edge.id &&
+                dslFamily === 'erd' &&
+                renderErCardinalityPopup(
+                  edge.id,
+                  stylePopupPos.x,
+                  stylePopupPos.y,
+                  edge.erSourceCardinality,
+                  edge.erTargetCardinality,
+                  edge.lineStyle === 'dotted',
                   () => setEditingRelationKindEdgeId(null),
                 )}
             </g>
