@@ -289,6 +289,36 @@ describe('C4 DSL family (Context/Container/Component/Code)', () => {
     }
   });
 
+  // jmuir-dtu.21: same "accepted, not modeled" treatment as UpdateLayoutConfig/Rel_U/D/L/R above
+  // -- previously not matched by any pattern at all, hitting the generic "Could not interpret
+  // line" error.
+  describe('Lay_U/Lay_D/Lay_L/Lay_R layout-hint macros', () => {
+    it.each(['Lay_U', 'Lay_D', 'Lay_L', 'Lay_R'])('%s(elementId1, elementId2) parses without error and produces no observable model change', (kind) => {
+      const without = parseC4('C4Context\n  System(a, "A")\n  System(b, "B")\n  Rel(a, b, "Talks to")\n');
+      const withHint = parseC4(`C4Context\n  System(a, "A")\n  System(b, "B")\n  Rel(a, b, "Talks to")\n  ${kind}(a, b)\n`);
+      expect(isParseSuccess(without)).toBe(true);
+      expect(isParseSuccess(withHint)).toBe(true);
+      if (isParseSuccess(without) && isParseSuccess(withHint)) {
+        expect(normalize(withHint.model)).toEqual(normalize(without.model));
+      }
+    });
+
+    it('does not break the rest of a diagram when it appears mid-file', () => {
+      const result = parseC4(
+        'C4Context\n  System(a, "A")\n  Lay_U(a, b)\n  System(b, "B")\n  Rel(a, b, "Talks to")\n',
+      );
+      expect(isParseSuccess(result)).toBe(true);
+      if (isParseSuccess(result)) {
+        expect(result.model.nodes).toHaveLength(2);
+        expect(result.model.edges).toHaveLength(1);
+      }
+    });
+
+    it('an unrecognized macro name is still a real parse error (the pattern is not over-broad)', () => {
+      expect(isParseSuccess(parseC4('C4Context\n  Lay_X(a, b)\n'))).toBe(false);
+    });
+  });
+
   it('round-trips a full file combining BiRel, Rel_Back, and both styling macros through canvas.edgeStyles', () => {
     const dsl = [
       'C4Context',
