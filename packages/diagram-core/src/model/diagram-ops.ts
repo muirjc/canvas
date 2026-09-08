@@ -5,6 +5,7 @@ import type {
   DiagramModel,
   DiagramNode,
   EntityAttribute,
+  FlowchartDirection,
   NodeShape,
   NodeStyle,
   Position,
@@ -139,13 +140,19 @@ export interface StylePatch {
   strokeColor?: string | null;
   strokeWidth?: number | null;
   strokeDasharray?: string | null;
+  // canvas-2s6.7: fontFamily/fontSize were already real NodeStyle fields (diagram-model.ts) but
+  // this patch type — the one shared path every mutation of a node/edge's style routes through,
+  // canvas UI and AI tool-calling alike (Constitution I) — never carried either one, so neither
+  // was actually settable from anywhere despite NodeStyle itself claiming to support them.
+  fontFamily?: string | null;
+  fontSize?: number | null;
 }
 
 /** Merges only the fields present in `patch` onto `existing`: omitted leaves the existing value
  *  untouched, an explicit `null` clears it, a real value sets it. */
 function mergeStyle(existing: NodeStyle | undefined, patch: StylePatch): NodeStyle {
   const merged: NodeStyle = { ...existing };
-  for (const key of ['fillColor', 'strokeColor', 'strokeWidth', 'strokeDasharray'] as const) {
+  for (const key of ['fillColor', 'strokeColor', 'strokeWidth', 'strokeDasharray', 'fontFamily', 'fontSize'] as const) {
     const value = patch[key];
     if (value === undefined) continue;
     if (value === null) delete merged[key];
@@ -436,6 +443,30 @@ export function setContainerRole(model: DiagramModel, containerId: string, role:
   return {
     ...model,
     containers: model.containers.map((c) => (c.id === containerId ? { ...c, role } : c)),
+  };
+}
+
+/** canvas-2s6.7: sets a flowchart subgraph's own `direction` override (DiagramContainer.direction
+ *  — flowchart only), or clears it back to unset (inheriting the diagram's top-level direction)
+ *  when passed `undefined`. Had no op at all before this bead — DSL/import round-trip already
+ *  worked (jmuir-dzd grouping E), but nothing could set or clear it interactively. No-op for an
+ *  unknown id. */
+export function setContainerDirection(
+  model: DiagramModel,
+  containerId: string,
+  direction: FlowchartDirection | undefined,
+): DiagramModel {
+  if (!model.containers.some((c) => c.id === containerId)) return model;
+  return {
+    ...model,
+    containers: model.containers.map((c) => {
+      if (c.id !== containerId) return c;
+      if (direction === undefined) {
+        const { direction: _removed, ...rest } = c;
+        return rest;
+      }
+      return { ...c, direction };
+    }),
   };
 }
 
