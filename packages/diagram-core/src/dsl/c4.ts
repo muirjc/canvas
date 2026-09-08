@@ -172,6 +172,14 @@ const ELEMENT_TO_ROLE: Record<string, string> = {
   ComponentQueue: 'component',
   ComponentQueue_Ext: 'component',
 };
+/** canvas-2s6.5: the 4 distinct roles ELEMENT_TO_ROLE's 20 keywords collapse onto — exported as
+ *  the single source of truth for the AI tool schema (diagram-tools.ts's NODE_ROLE_OPTIONS.c4)
+ *  and the canvas UI's own element-kind popup, mirroring C4_BOUNDARY_ROLES' identical precedent
+ *  above. `_Ext` ("external") is a real, disclosed, permanent simplification, not a gap this
+ *  affects: every `_Ext` keyword already collapses to the same role+shape as its base kind with
+ *  no separate model field to distinguish it (see the comment atop this map), so picking a role
+ *  here can never express "external" either — consistent with what the DSL itself already loses. */
+export const C4_ELEMENT_ROLES = ['person', 'system', 'container', 'component'] as const;
 // Db variants reuse the existing 'cylinder' shape (already established for SystemDb); Queue
 // variants use 'stadium' (pill shape) as the closest existing visual analog to Mermaid's own
 // queue rendering — deliberately not a new NodeShape value, reusing what flowchart-family
