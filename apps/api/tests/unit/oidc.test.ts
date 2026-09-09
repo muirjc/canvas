@@ -2,6 +2,7 @@ import Fastify from 'fastify';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import * as client from 'openid-client';
 import {
+  buildEndSessionUrl,
   extractRealmRoles,
   mapRealmRolesToUserRole,
   registerOidcRoutes,
@@ -116,6 +117,60 @@ describe('rewriteToInternalUrl()', () => {
 });
 
 /**
+ * canvas-252: pure URL builder for OIDC RP-Initiated Logout, extracted out of the
+ * `app.buildOidcLogoutUrl` closure in `registerOidcRoutes` the same way `rewriteToInternalUrl`
+ * was extracted -- directly unit-testable, no `client.discovery()`/Configuration mocking needed.
+ */
+describe('buildEndSessionUrl()', () => {
+  it('sets client_id, id_token_hint, and post_logout_redirect_uri as query params', () => {
+    const url = buildEndSessionUrl('https://keycloak.example.com/realms/CanvasRealm/protocol/openid-connect/logout', {
+      clientId: 'canvas-client',
+      idTokenHint: 'the-id-token',
+      postLogoutRedirectUri: 'https://app.example.com/',
+    });
+
+    expect(url.searchParams.get('client_id')).toBe('canvas-client');
+    expect(url.searchParams.get('id_token_hint')).toBe('the-id-token');
+    expect(url.searchParams.get('post_logout_redirect_uri')).toBe('https://app.example.com/');
+  });
+
+  it("preserves the end_session_endpoint's own origin and path, only adding query params", () => {
+    const url = buildEndSessionUrl(
+      'https://keycloak.example.com/realms/CanvasRealm/protocol/openid-connect/logout',
+      { clientId: 'canvas-client', idTokenHint: 'token', postLogoutRedirectUri: 'https://app.example.com/' },
+    );
+
+    expect(url.origin).toBe('https://keycloak.example.com');
+    expect(url.pathname).toBe('/realms/CanvasRealm/protocol/openid-connect/logout');
+  });
+
+  it('accepts a URL instance as well as a string for endSessionEndpoint', () => {
+    const url = buildEndSessionUrl(
+      new URL('https://keycloak.example.com/realms/CanvasRealm/protocol/openid-connect/logout'),
+      { clientId: 'canvas-client', idTokenHint: 'token', postLogoutRedirectUri: 'https://app.example.com/' },
+    );
+
+    expect(url.origin).toBe('https://keycloak.example.com');
+    expect(url.pathname).toBe('/realms/CanvasRealm/protocol/openid-connect/logout');
+    expect(url.searchParams.get('client_id')).toBe('canvas-client');
+  });
+
+  it('URL-encodes values that contain characters needing encoding (e.g. a redirect URI with its own query string)', () => {
+    const url = buildEndSessionUrl('https://keycloak.example.com/realms/CanvasRealm/protocol/openid-connect/logout', {
+      clientId: 'canvas-client',
+      idTokenHint: 'token',
+      postLogoutRedirectUri: 'https://app.example.com/?x=1&y=2',
+    });
+
+    // URLSearchParams.set percent-encodes the value it stores -- confirmed explicitly here rather
+    // than assumed, per this file's own thorough style.
+    expect(url.search).toContain('post_logout_redirect_uri=https%3A%2F%2Fapp.example.com%2F%3Fx%3D1%26y%3D2');
+    // And .get() transparently decodes it back to the original, unmangled value.
+    expect(url.searchParams.get('post_logout_redirect_uri')).toBe('https://app.example.com/?x=1&y=2');
+  });
+});
+
+/**
  * canvas-ycu.1: end-to-end coverage of `registerOidcRoutes`'s internal/public issuer split,
  * through the actual `client.discovery()` call site (mocked -- see the module-level `vi.mock`
  * above) rather than only the extracted `rewriteToInternalUrl()` helper in isolation.
@@ -199,6 +254,102 @@ describe('registerOidcRoutes() internal/public issuer split', () => {
     expect(new URL(calledUrl as string | URL).href).toBe(
       'https://keycloak.internal.example.com/realms/CanvasRealm/.well-known/openid-configuration?x=1',
     );
+
+    await app.close();
+  });
+});
+
+/**
+ * canvas-252: `registerOidcRoutes` decorates `app.buildOidcLogoutUrl` only when the discovered
+ * issuer metadata actually advertises an `end_session_endpoint` -- read defensively (optional
+ * chaining + try/catch) since `oidcConfig.serverMetadata` may be absent entirely (this file's own
+ * bare `discoveryMock.mockResolvedValue({})`, used throughout the sibling describe block above)
+ * or may itself throw. Either way `session.ts`'s `/auth/logout` must fall back to local-session-
+ * only logout exactly as it did before this feature existed.
+ */
+describe('registerOidcRoutes() buildOidcLogoutUrl decoration (canvas-252)', () => {
+  function oidcConfig(overrides: Partial<AppConfig['oidc']> = {}): AppConfig {
+    return {
+      port: 3000,
+      databaseUrl: 'unused',
+      sessionSecret: 'unused-but-at-least-32-characters-long',
+      oidc: {
+        issuerUrl: 'https://public.example.com',
+        clientId: 'canvas-client',
+        clientSecret: 'secret',
+        redirectUri: 'http://localhost:5173/callback',
+        ...overrides,
+      },
+      allowLocalAuth: false,
+      webOrigins: ['http://localhost:5173'],
+      cookieSecure: false,
+      cookieSameSite: 'lax',
+    };
+  }
+
+  beforeEach(() => {
+    discoveryMock.mockReset();
+  });
+
+  it('decorates buildOidcLogoutUrl when serverMetadata() advertises an end_session_endpoint', async () => {
+    discoveryMock.mockResolvedValue({
+      serverMetadata: () => ({
+        end_session_endpoint: 'https://keycloak.example.com/realms/CanvasRealm/protocol/openid-connect/logout',
+      }),
+    });
+
+    const app = Fastify();
+    await registerOidcRoutes(app, oidcConfig());
+    await app.ready();
+
+    expect(typeof app.buildOidcLogoutUrl).toBe('function');
+    const logoutUrl = app.buildOidcLogoutUrl!('the-id-token');
+    expect(logoutUrl).toContain('https://keycloak.example.com/realms/CanvasRealm/protocol/openid-connect/logout');
+    const parsed = new URL(logoutUrl);
+    expect(parsed.searchParams.get('client_id')).toBe('canvas-client');
+    expect(parsed.searchParams.get('id_token_hint')).toBe('the-id-token');
+    expect(parsed.searchParams.get('post_logout_redirect_uri')).toBe('http://localhost:5173');
+
+    await app.close();
+  });
+
+  it('does not decorate buildOidcLogoutUrl when serverMetadata() returns no end_session_endpoint', async () => {
+    discoveryMock.mockResolvedValue({ serverMetadata: () => ({}) });
+
+    const app = Fastify();
+    await registerOidcRoutes(app, oidcConfig());
+    await app.ready();
+
+    expect(app.buildOidcLogoutUrl).toBeUndefined();
+
+    await app.close();
+  });
+
+  it('does not decorate buildOidcLogoutUrl, and does not throw, when serverMetadata is entirely absent', async () => {
+    // The bare-{} shape every test in the sibling describe block above already relies on.
+    discoveryMock.mockResolvedValue({});
+
+    const app = Fastify();
+    await expect(registerOidcRoutes(app, oidcConfig())).resolves.toBeUndefined();
+    await expect(app.ready()).resolves.toBeDefined();
+
+    expect(app.buildOidcLogoutUrl).toBeUndefined();
+
+    await app.close();
+  });
+
+  it('does not decorate buildOidcLogoutUrl, and does not throw, when serverMetadata() itself throws', async () => {
+    discoveryMock.mockResolvedValue({
+      serverMetadata: () => {
+        throw new Error('boom');
+      },
+    });
+
+    const app = Fastify();
+    await expect(registerOidcRoutes(app, oidcConfig())).resolves.toBeUndefined();
+    await expect(app.ready()).resolves.toBeDefined();
+
+    expect(app.buildOidcLogoutUrl).toBeUndefined();
 
     await app.close();
   });

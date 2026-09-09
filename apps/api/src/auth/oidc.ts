@@ -8,7 +8,41 @@ declare module '@fastify/session' {
   interface FastifySessionObject {
     oidcState?: string;
     oidcCodeVerifier?: string;
+    // canvas-252: the ID token from the OIDC callback, kept for the life of the session so
+    // /auth/logout (session.ts) can pass it as id_token_hint on RP-Initiated Logout. Its presence
+    // also doubles as "this session was established via SSO" -- a local-auth session never sets
+    // it, so /auth/logout can tell the two apart without a separate flag.
+    oidcIdToken?: string;
   }
+}
+
+declare module 'fastify' {
+  interface FastifyInstance {
+    // canvas-252: set only when OIDC is configured AND the discovered issuer metadata actually
+    // advertises an end_session_endpoint -- session.ts checks for its presence before using it,
+    // so a deployment/IdP without RP-Initiated Logout support falls back to local-session-only
+    // logout exactly as before, rather than erroring.
+    buildOidcLogoutUrl?: (idTokenHint: string) => string;
+  }
+}
+
+/**
+ * Pure URL builder for OIDC RP-Initiated Logout
+ * (https://openid.net/specs/openid-connect-rpinitiated-1_0.html) -- extracted the same way
+ * rewriteToInternalUrl was, so it's directly unit-testable without a real discovered
+ * Configuration (openid-client's own client.buildEndSessionUrl needs the full Configuration
+ * instance, which isn't easily faked in a unit test). client_id is always included, per spec,
+ * whenever id_token_hint is present too -- harmless, and matches openid-client's own behavior.
+ */
+export function buildEndSessionUrl(
+  endSessionEndpoint: string | URL,
+  params: { clientId: string; idTokenHint: string; postLogoutRedirectUri: string },
+): URL {
+  const url = new URL(endSessionEndpoint);
+  url.searchParams.set('client_id', params.clientId);
+  url.searchParams.set('id_token_hint', params.idTokenHint);
+  url.searchParams.set('post_logout_redirect_uri', params.postLogoutRedirectUri);
+  return url;
 }
 
 export class InactiveUserError extends Error {}
@@ -177,6 +211,26 @@ export async function registerOidcRoutes(app: FastifyInstance, config: AppConfig
     hasDiscoveryOptions ? discoveryOptions : undefined,
   );
 
+  // canvas-252: RP-Initiated Logout needs the discovered end_session_endpoint. Read defensively
+  // (optional chaining + try/catch) rather than assuming oidcConfig.serverMetadata() exists --
+  // this codebase's own oidc.test.ts mocks client.discovery() to resolve a bare `{}`, which has
+  // no such method, and a real IdP without RP-Initiated Logout support simply omits the field.
+  // Either way, the effect is the same: buildOidcLogoutUrl is left undecorated, and
+  // session.ts's /auth/logout falls back to local-session-only logout exactly as it did before
+  // this feature existed.
+  let endSessionEndpoint: string | undefined;
+  try {
+    endSessionEndpoint = oidcConfig.serverMetadata?.().end_session_endpoint;
+  } catch {
+    endSessionEndpoint = undefined;
+  }
+  if (endSessionEndpoint) {
+    const postLogoutRedirectUri = config.webOrigins[0];
+    app.decorate('buildOidcLogoutUrl', (idTokenHint: string) =>
+      buildEndSessionUrl(endSessionEndpoint, { clientId, idTokenHint, postLogoutRedirectUri }).href,
+    );
+  }
+
   app.get('/auth/login', async (request, reply) => {
     const codeVerifier = client.randomPKCECodeVerifier();
     const codeChallenge = await client.calculatePKCECodeChallenge(codeVerifier);
@@ -233,6 +287,11 @@ export async function registerOidcRoutes(app: FastifyInstance, config: AppConfig
       });
 
       request.session.user = user;
+      // canvas-252: kept for the life of the session so /auth/logout can pass it as
+      // id_token_hint on RP-Initiated Logout -- without it, signing out never actually clears
+      // Keycloak's own SSO session, so the very next SSO login silently re-authenticates the
+      // same user instead of prompting, making it impossible to switch accounts.
+      if (tokens.id_token) request.session.oidcIdToken = tokens.id_token;
       delete request.session.oidcCodeVerifier;
       delete request.session.oidcState;
       // canvas-mi9: redirecting to relative '/' lands on the API's OWN origin (this app is

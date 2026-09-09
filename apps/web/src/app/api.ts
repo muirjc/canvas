@@ -248,7 +248,11 @@ export const api = {
   me: () => request<{ user: SessionUser }>('/auth/me'),
   login: (email: string, password: string) =>
     request<{ user: SessionUser }>('/auth/local/login', { method: 'POST', body: JSON.stringify({ email, password }) }),
-  logout: () => request<void>('/auth/logout', { method: 'POST' }),
+  // canvas-252: a 204 (no body) means the local session was destroyed and there's nothing else
+  // to do -- exactly the old behavior. A 200 with logoutUrl means this session came from SSO;
+  // the caller (AppShell.tsx) must navigate the browser there (a real top-level page load, not
+  // another fetch) so Keycloak's own end_session_endpoint can actually clear its session cookie.
+  logout: () => request<{ logoutUrl?: string } | undefined>('/auth/logout', { method: 'POST' }),
   /** canvas-mi9: unauthenticated, always registered (unlike the SSO login/callback routes
    *  themselves, which don't exist at all server-side when OIDC is unconfigured) -- lets
    *  LoginForm.tsx decide whether to show a "Sign in with SSO" link without it 404ing.

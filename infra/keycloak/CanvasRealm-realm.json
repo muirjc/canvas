@@ -42,6 +42,9 @@
       "secret": "canvas-dev-client-secret-do-not-use-in-production",
       "redirectUris": ["http://localhost:3000/auth/callback"],
       "webOrigins": ["http://localhost:5173"],
+      "attributes": {
+        "post.logout.redirect.uris": "http://localhost:5173/*"
+      },
       "protocolMappers": [
         {
           "name": "realm roles",
