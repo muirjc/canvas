@@ -149,6 +149,13 @@ const UPDATE_REL_STYLE = new RegExp(`^UpdateRelStyle\\(\\s*(${ID})\\s*,\\s*(${ID
 // it doesn't hard-error, but deliberately not modeled or round-tripped, same treatment as the
 // Rel_U/D/L/R directional hints below.
 const UPDATE_LAYOUT_CONFIG = /^UpdateLayoutConfig\(.*\)$/;
+// jmuir-dtu.21: Lay_U/Lay_D/Lay_L/Lay_R(elementId1, elementId2) -- explicit layout hints between
+// two elements, same pure-layout-no-rendering-equivalent treatment as UpdateLayoutConfig/Rel_U/D/
+// L/R above. Scoped to exactly these 4 short forms (not Up/Down/Left/Right long forms like Rel's
+// own directional variants) -- unlike Rel_U/D/L/R, Mermaid's own docs/grammar don't document a
+// long-form Lay_ alias, so inventing one here would be a guess, not a confirmed-against-real-
+// grammar addition.
+const LAY_HINT = new RegExp(`^Lay_[UDLR]\\(\\s*(${ID})\\s*,\\s*(${ID})\\s*\\)$`);
 
 const ELEMENT_TO_ROLE: Record<string, string> = {
   Person: 'person',
@@ -395,6 +402,10 @@ export function parseC4(dsl: string): ParseResult {
     }
 
     if (UPDATE_LAYOUT_CONFIG.test(line)) {
+      continue;
+    }
+
+    if (LAY_HINT.test(line)) {
       continue;
     }
 
