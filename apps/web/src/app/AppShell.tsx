@@ -28,7 +28,18 @@ export interface AppShellProps {
  */
 export function AppShell({ user, onSignOut, projectPicker, projectsLink, children }: AppShellProps) {
   const handleSignOut = async () => {
-    await api.logout();
+    const result = await api.logout();
+    // canvas-252: an SSO session's sign-out isn't done yet -- the local session is already gone
+    // (the API call above destroyed it), but Keycloak's own SSO session cookie is still live
+    // until the browser actually visits its end_session_endpoint. A real top-level navigation
+    // (not another fetch) is required for that -- fetch() would silently follow the redirect
+    // chain in the background without the browser ever loading the page that clears the cookie.
+    // Keycloak redirects back to this app once done, landing on a fresh, fully-signed-out load,
+    // so onSignOut()'s React-state reset is unnecessary (and moot -- the page is navigating away).
+    if (result?.logoutUrl) {
+      window.location.href = result.logoutUrl;
+      return;
+    }
     onSignOut();
   };
 

@@ -225,7 +225,7 @@ USERS_JOB="$(az deployment sub show --name "canvas-foundation" --query "properti
 # realm's client, on every run (not just the first), is this admin-API PATCH -- talked to over
 # canvas-api's own /idp/* reverse proxy (apps/api/src/auth/idp-proxy.routes.ts), since Keycloak
 # itself has internal-only ingress and this script runs from outside the VNet.
-echo "== Reconciling Keycloak's canvas-api client (redirect URI, web origin, client secret) =="
+echo "== Reconciling Keycloak's canvas-api client (redirect URI, web origin, client secret, post-logout redirect URI) =="
 # canvas-0x7.1: this used to authenticate via grant_type=password direct-grant against admin-cli,
 # but Keycloak 25+/26's KC_BOOTSTRAP_ADMIN_PASSWORD-created admin is a TEMPORARY admin, and a
 # fresh realm's first-ever login attempt as that admin needs to go through the same
@@ -356,6 +356,11 @@ with urllib.request.urlopen(req) as resp:
 client['redirectUris'] = [f'https://{api_fqdn}/auth/callback']
 client['webOrigins'] = [f'https://{api_fqdn}']
 client['secret'] = secret
+# canvas-252: RP-Initiated Logout (session.ts's /auth/logout) needs Keycloak to trust redirecting
+# back to this app's own origin after clearing its SSO session -- without this, Keycloak rejects
+# the post_logout_redirect_uri it's given and RP-Initiated Logout silently does nothing useful,
+# same failure mode this whole reconciliation step exists to avoid for redirectUris/webOrigins.
+client.setdefault('attributes', {})['post.logout.redirect.uris'] = f'https://{api_fqdn}/*'
 
 body = json.dumps(client).encode()
 req = urllib.request.Request(url, data=body, method='PUT', headers={
@@ -364,7 +369,7 @@ req = urllib.request.Request(url, data=body, method='PUT', headers={
 })
 with urllib.request.urlopen(req) as resp:
     pass
-print('  canvas-api client redirectUris/webOrigins/secret updated.')
+print('  canvas-api client redirectUris/webOrigins/secret/post-logout-redirect-uris updated.')
 PY
 fi
 
