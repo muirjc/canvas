@@ -46,8 +46,12 @@ export interface AppConfig {
   cookieSameSite: 'lax' | 'none' | 'strict';
 }
 
-function requireEnv(name: string, fallback?: string): string {
-  const value = process.env[name] ?? fallback;
+// canvas-ai2: reads from the given `env` (loadConfig's own override parameter) rather than
+// `process.env` directly, so `loadConfig(customEnv)` is fully dependency-injectable for every
+// field, not just the test-mode ones (databaseUrl/sessionSecret previously ignored `env` entirely
+// outside test mode, forcing tests to stub real `process.env` instead — see config.test.ts).
+function requireEnv(env: NodeJS.ProcessEnv, name: string, fallback?: string): string {
+  const value = env[name] ?? fallback;
   if (value === undefined) {
     throw new Error(`Missing required environment variable: ${name}`);
   }
@@ -83,8 +87,8 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
 
   return {
     port: Number(env.PORT ?? 3000),
-    databaseUrl: isTest ? TEST_DATABASE_URL : requireEnv('DATABASE_URL'),
-    sessionSecret: isTest ? TEST_SESSION_SECRET : requireEnv('SESSION_SECRET'),
+    databaseUrl: isTest ? TEST_DATABASE_URL : requireEnv(env, 'DATABASE_URL'),
+    sessionSecret: isTest ? TEST_SESSION_SECRET : requireEnv(env, 'SESSION_SECRET'),
     oidc: {
       issuerUrl: env.OIDC_ISSUER_URL,
       clientId: env.OIDC_CLIENT_ID,
