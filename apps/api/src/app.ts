@@ -2,6 +2,7 @@ import Fastify, { type FastifyError, type FastifyInstance } from 'fastify';
 import cors from '@fastify/cors';
 import type { LanguageModel } from 'ai';
 import { loadConfig, type AppConfig } from './config.js';
+import { registerApiDocsRoutes } from './docs/api-docs.routes.js';
 import { registerSession, registerSessionInfoRoutes } from './auth/session.js';
 import { registerOidcRoutes } from './auth/oidc.js';
 import { registerIdpProxyRoutes } from './auth/idp-proxy.routes.js';
@@ -59,6 +60,13 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
   // origin (the previous `origin: true`) combined with credentials would let any website ride
   // a signed-in user's session cookie.
   await app.register(cors, { origin: config.webOrigins, credentials: true });
+
+  // Registered before every route below -- @fastify/swagger builds its document by observing
+  // routes as they're added, so anything registered earlier than this would be invisible to it
+  // (api-docs.routes.ts's own doc comment has the full rationale).
+  if (config.enableApiDocs) {
+    await registerApiDocsRoutes(app);
+  }
 
   app.addHook('onSend', async (_request, reply) => {
     reply.header('X-Content-Type-Options', 'nosniff');

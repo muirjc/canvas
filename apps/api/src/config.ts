@@ -44,6 +44,11 @@ export interface AppConfig {
    */
   cookieSecure: boolean;
   cookieSameSite: 'lax' | 'none' | 'strict';
+  /** Serves an OpenAPI/Swagger spec + interactive UI at /docs (app.ts). Opt-in, same posture as
+   *  allowLocalAuth above: false unless explicitly enabled, so the public Azure deployment doesn't
+   *  expose its full route surface by default just because this repo added the capability — a
+   *  deliberate choice to make later, not an accidental default. */
+  enableApiDocs: boolean;
 }
 
 // canvas-ai2: reads from the given `env` (loadConfig's own override parameter) rather than
@@ -101,5 +106,6 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
     webOrigins: (env.WEB_ORIGINS ?? 'http://localhost:5173').split(',').map((origin) => origin.trim()),
     cookieSecure,
     cookieSameSite,
+    enableApiDocs: env.ENABLE_API_DOCS === 'true',
   };
 }

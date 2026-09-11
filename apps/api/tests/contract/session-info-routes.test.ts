@@ -85,6 +85,7 @@ describe('POST /auth/logout with an SSO-established session (canvas-252)', () =>
       webOrigins: ['http://localhost:5173'],
       cookieSecure: false,
       cookieSameSite: 'lax',
+      enableApiDocs: false,
     };
   }
 

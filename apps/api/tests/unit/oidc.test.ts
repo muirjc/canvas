@@ -192,6 +192,7 @@ describe('registerOidcRoutes() internal/public issuer split', () => {
       webOrigins: ['http://localhost:5173'],
       cookieSecure: false,
       cookieSameSite: 'lax',
+      enableApiDocs: false,
     };
   }
 
@@ -284,6 +285,7 @@ describe('registerOidcRoutes() buildOidcLogoutUrl decoration (canvas-252)', () =
       webOrigins: ['http://localhost:5173'],
       cookieSecure: false,
       cookieSameSite: 'lax',
+      enableApiDocs: false,
     };
   }
 
