@@ -1,4 +1,4 @@
-import { iconNodeSize, tableNodeLayout, type DiagramNode, type NodeShape } from '@canvas/diagram-core';
+import { iconNodeSize, plainNodeSize, tableNodeLayout, type DiagramNode, type NodeShape } from '@canvas/diagram-core';
 
 export const DEFAULT_NODE_SIZE = { width: 140, height: 60 };
 
@@ -9,11 +9,16 @@ export const DEFAULT_NODE_SIZE = { width: 140, height: 60 };
 // canvas-x66: same precedent for a node with attribute/member rows (ER/UML) — `tableNodeLayout`
 // already computes the content-fit size as part of its own layout, so its `width`/`height` are
 // reused here rather than adding a third size calculation next to `iconNodeSize`'s.
+// canvas-4lu: same precedent again for every other plain shape (a C4 Person/SystemDb node
+// included) — `plainNodeSize` grows the box's height to fit however many lines a long label
+// wraps to, instead of the fixed DEFAULT_NODE_SIZE silently letting wrapped lines overflow the
+// shape's bottom edge.
 export function nodeSize(node: DiagramNode): { width: number; height: number } {
   if (node.shape === 'icon' && !node.size) return iconNodeSize(node);
   if (!node.size) {
     const tableLayout = tableNodeLayout(node);
     if (tableLayout) return { width: tableLayout.width, height: tableLayout.height };
+    return plainNodeSize(node);
   }
   return node.size ?? DEFAULT_NODE_SIZE;
 }

@@ -79,6 +79,15 @@ import { Icon } from '../ui/Icon';
 
 /** Compact glyphs for the shape grid — each button still carries an aria-label and title, so the
  *  glyph is decorative and the control keeps its accessible name. */
+// canvas-4lu: 'person' and 'cylinder' were the only two NodeShape values getAddableShapes ever
+// offers (dslFamily === 'c4', shapes.tsx) with no entry here — falling through to `?? label`
+// below rendered the full word "Person"/"Database" inside a .shape-grid button sized (48px, zero
+// padding, 4-column grid) for exactly one glyph character like every other shape's button, so the
+// text visibly overran both edges. 'stadium' ("Queue", the third C4-only shape) already had a
+// glyph and was never affected — confirmed live via screenshot that only Person/Database
+// overflowed, matching this exact gap. Chosen to keep this file's established "one geometric/
+// symbolic Unicode character per shape" style: CYLINDRICITY (U+232D) is a real drafting symbol
+// for a cylinder's outline, a closer geometric match than any generic "database" pictograph.
 const SHAPE_GLYPHS: Partial<Record<NodeShape, string>> = {
   rectangle: '▭',
   'rounded-rectangle': '▢',
@@ -91,6 +100,8 @@ const SHAPE_GLYPHS: Partial<Record<NodeShape, string>> = {
   parallelogram: '▱',
   trapezoid: '⏢',
   asymmetric: '⌂',
+  person: '👤',
+  cylinder: '⌭',
 };
 
 // Grouping B: default visual treatment per lineStyle, mirroring svg-renderer.ts exactly so the
