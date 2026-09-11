@@ -155,7 +155,12 @@ export async function registerOidcRoutes(app: FastifyInstance, config: AppConfig
   // config.allowLocalAuth exactly like this route registration is gated behind oidcEnabled, and
   // an SSO-only deployment (the Azure default, canvas-ycu.1) would otherwise only find out via a
   // raw 404 after submitting the password form.
-  app.get('/auth/config', async () => ({ oidcEnabled, localAuthEnabled: config.allowLocalAuth }));
+  app.get(
+    '/auth/config',
+    // canvas-lfc: no preHandler enforces auth -- deliberately public (see the comment above).
+    { schema: { tags: ['Auth'], security: [] } },
+    async () => ({ oidcEnabled, localAuthEnabled: config.allowLocalAuth }),
+  );
 
   if (!oidcEnabled) {
     app.log.info('OIDC not configured (OIDC_ISSUER_URL/CLIENT_ID/REDIRECT_URI unset) — SSO routes disabled');
@@ -231,82 +236,94 @@ export async function registerOidcRoutes(app: FastifyInstance, config: AppConfig
     );
   }
 
-  app.get('/auth/login', async (request, reply) => {
-    const codeVerifier = client.randomPKCECodeVerifier();
-    const codeChallenge = await client.calculatePKCECodeChallenge(codeVerifier);
-    const state = client.randomState();
+  app.get(
+    '/auth/login',
+    // canvas-lfc: no preHandler enforces auth -- this route starts a fresh login, so a caller
+    // can't be authenticated yet.
+    { schema: { tags: ['Auth'], security: [] } },
+    async (request, reply) => {
+      const codeVerifier = client.randomPKCECodeVerifier();
+      const codeChallenge = await client.calculatePKCECodeChallenge(codeVerifier);
+      const state = client.randomState();
 
-    request.session.oidcCodeVerifier = codeVerifier;
-    request.session.oidcState = state;
+      request.session.oidcCodeVerifier = codeVerifier;
+      request.session.oidcState = state;
 
-    const authorizationUrl = client.buildAuthorizationUrl(oidcConfig, {
-      redirect_uri: redirectUri,
-      scope: 'openid email profile',
-      code_challenge: codeChallenge,
-      code_challenge_method: 'S256',
-      state,
-    });
-
-    reply.redirect(authorizationUrl.href);
-  });
-
-  app.get('/auth/callback', async (request, reply) => {
-    const { oidcCodeVerifier, oidcState } = request.session;
-    if (!oidcCodeVerifier || !oidcState) {
-      reply.code(400).send({ error: 'No pending OIDC login for this session' });
-      return;
-    }
-
-    // canvas-mi9: Fastify's `request.hostname` strips the port (it's derived from the Host
-    // header but deliberately port-less, per Fastify's own docs) -- reconstructing the callback
-    // URL from it silently dropped `:3000` here, producing `http://localhost/auth/callback`
-    // instead of `http://localhost:3000/auth/callback`. openid-client's authorizationCodeGrant
-    // derives the redirect_uri it sends to the token endpoint from this URL's own origin+path, so
-    // the mismatch against the redirect_uri actually registered with the IdP made the token
-    // exchange fail with "Incorrect redirect_uri" on every single OIDC login -- undetectable
-    // without a real IdP to test against, which nothing in this codebase had done before
-    // canvas-mi9. `request.headers.host` is the raw Host header value and does include the port.
-    const currentUrl = new URL(request.url, `${request.protocol}://${request.headers.host}`);
-    const tokens = await client.authorizationCodeGrant(oidcConfig, currentUrl, {
-      pkceCodeVerifier: oidcCodeVerifier,
-      expectedState: oidcState,
-    });
-    const claims = tokens.claims();
-    if (!claims?.sub) {
-      reply.code(401).send({ error: 'OIDC provider did not return a subject claim' });
-      return;
-    }
-
-    const userInfo = await client.fetchUserInfo(oidcConfig, tokens.access_token, claims.sub);
-    try {
-      const user = await findOrCreateUserFromClaims({
-        sub: claims.sub,
-        email: userInfo.email,
-        name: userInfo.name,
-        realmRoles: extractRealmRoles(claims),
+      const authorizationUrl = client.buildAuthorizationUrl(oidcConfig, {
+        redirect_uri: redirectUri,
+        scope: 'openid email profile',
+        code_challenge: codeChallenge,
+        code_challenge_method: 'S256',
+        state,
       });
 
-      request.session.user = user;
-      // canvas-252: kept for the life of the session so /auth/logout can pass it as
-      // id_token_hint on RP-Initiated Logout -- without it, signing out never actually clears
-      // Keycloak's own SSO session, so the very next SSO login silently re-authenticates the
-      // same user instead of prompting, making it impossible to switch accounts.
-      if (tokens.id_token) request.session.oidcIdToken = tokens.id_token;
-      delete request.session.oidcCodeVerifier;
-      delete request.session.oidcState;
-      // canvas-mi9: redirecting to relative '/' lands on the API's OWN origin (this app is
-      // explicitly split-origin -- the frontend is a separate dev server/deployment, see
-      // COOKIE_SAME_SITE/docs/azure-deployment.md), which has no such route and 404s. Never
-      // caught before this bead because nothing had exercised a full OIDC round-trip against a
-      // real IdP. config.webOrigins is the same list CORS already trusts for credentialed
-      // requests from this app's own frontend -- reusing it here rather than a separate env var.
-      reply.redirect(config.webOrigins[0]);
-    } catch (error) {
-      if (error instanceof InactiveUserError) {
-        reply.code(403).send({ error: 'This account has been deactivated.' });
+      reply.redirect(authorizationUrl.href);
+    },
+  );
+
+  app.get(
+    '/auth/callback',
+    // canvas-lfc: no preHandler enforces auth -- this route IS what establishes the session, and
+    // its own pending-state check (below) is a business rule, not a canvas cookieAuth check.
+    { schema: { tags: ['Auth'], security: [] } },
+    async (request, reply) => {
+      const { oidcCodeVerifier, oidcState } = request.session;
+      if (!oidcCodeVerifier || !oidcState) {
+        reply.code(400).send({ error: 'No pending OIDC login for this session' });
         return;
       }
-      throw error;
-    }
-  });
+
+      // canvas-mi9: Fastify's `request.hostname` strips the port (it's derived from the Host
+      // header but deliberately port-less, per Fastify's own docs) -- reconstructing the callback
+      // URL from it silently dropped `:3000` here, producing `http://localhost/auth/callback`
+      // instead of `http://localhost:3000/auth/callback`. openid-client's authorizationCodeGrant
+      // derives the redirect_uri it sends to the token endpoint from this URL's own origin+path, so
+      // the mismatch against the redirect_uri actually registered with the IdP made the token
+      // exchange fail with "Incorrect redirect_uri" on every single OIDC login -- undetectable
+      // without a real IdP to test against, which nothing in this codebase had done before
+      // canvas-mi9. `request.headers.host` is the raw Host header value and does include the port.
+      const currentUrl = new URL(request.url, `${request.protocol}://${request.headers.host}`);
+      const tokens = await client.authorizationCodeGrant(oidcConfig, currentUrl, {
+        pkceCodeVerifier: oidcCodeVerifier,
+        expectedState: oidcState,
+      });
+      const claims = tokens.claims();
+      if (!claims?.sub) {
+        reply.code(401).send({ error: 'OIDC provider did not return a subject claim' });
+        return;
+      }
+
+      const userInfo = await client.fetchUserInfo(oidcConfig, tokens.access_token, claims.sub);
+      try {
+        const user = await findOrCreateUserFromClaims({
+          sub: claims.sub,
+          email: userInfo.email,
+          name: userInfo.name,
+          realmRoles: extractRealmRoles(claims),
+        });
+
+        request.session.user = user;
+        // canvas-252: kept for the life of the session so /auth/logout can pass it as
+        // id_token_hint on RP-Initiated Logout -- without it, signing out never actually clears
+        // Keycloak's own SSO session, so the very next SSO login silently re-authenticates the
+        // same user instead of prompting, making it impossible to switch accounts.
+        if (tokens.id_token) request.session.oidcIdToken = tokens.id_token;
+        delete request.session.oidcCodeVerifier;
+        delete request.session.oidcState;
+        // canvas-mi9: redirecting to relative '/' lands on the API's OWN origin (this app is
+        // explicitly split-origin -- the frontend is a separate dev server/deployment, see
+        // COOKIE_SAME_SITE/docs/azure-deployment.md), which has no such route and 404s. Never
+        // caught before this bead because nothing had exercised a full OIDC round-trip against a
+        // real IdP. config.webOrigins is the same list CORS already trusts for credentialed
+        // requests from this app's own frontend -- reusing it here rather than a separate env var.
+        reply.redirect(config.webOrigins[0]);
+      } catch (error) {
+        if (error instanceof InactiveUserError) {
+          reply.code(403).send({ error: 'This account has been deactivated.' });
+          return;
+        }
+        throw error;
+      }
+    },
+  );
 }

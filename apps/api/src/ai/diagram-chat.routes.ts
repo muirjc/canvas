@@ -39,6 +39,8 @@ export async function registerDiagramChatRoutes(
       // the chatEnabled feature-flag gate below stays in the handler since it's a runtime
       // business-rule check, not a request-shape one.
       schema: {
+        tags: ['AI'],
+        security: [{ cookieAuth: [] }],
         body: {
           type: 'object',
           required: ['message', 'currentDslContent'],
@@ -81,7 +83,7 @@ export async function registerDiagramChatRoutes(
 
   app.get<{ Params: { id: string } }>(
     '/diagrams/:id/chat/messages',
-    { preHandler: requireDiagramAccess('edit') },
+    { preHandler: requireDiagramAccess('edit'), schema: { tags: ['AI'], security: [{ cookieAuth: [] }] } },
     async (request, reply) => {
       reply.send({ messages: await getChatMessages(request.params.id) });
     },

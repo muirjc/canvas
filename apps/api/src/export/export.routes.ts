@@ -34,6 +34,8 @@ export async function registerExportRoutes(app: FastifyInstance): Promise<void> 
       preHandler: [requireAuth, requireDiagramAccess('view')],
       // canvas-80m: declarative validation (Fastify JSON Schema) instead of a hand-rolled `if`.
       schema: {
+        tags: ['Export'],
+        security: [{ cookieAuth: [] }],
         querystring: {
           type: 'object',
           properties: { format: { type: 'string', enum: ['mermaid', 'svg', 'png'] } },

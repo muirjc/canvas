@@ -103,7 +103,10 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
   await registerPersonaReferenceMaterialRoutes(app);
   await registerDiagramChatRoutes(app, { languageModel: options.languageModel });
 
-  app.get('/health', async () => ({ status: 'ok' }));
+  // canvas-lfc: tags/security only in this pass (request/response body schemas tracked
+  // separately) -- security: [] is explicit, not merely omitted, so /docs shows this was
+  // deliberately reviewed as public rather than simply never annotated.
+  app.get('/health', { schema: { tags: ['Health'], security: [] } }, async () => ({ status: 'ok' }));
 
   return app;
 }

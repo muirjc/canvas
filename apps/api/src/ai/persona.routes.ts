@@ -18,17 +18,25 @@ function handleError(error: unknown, reply: FastifyReply): void {
 }
 
 export async function registerPersonaRoutes(app: FastifyInstance): Promise<void> {
-  app.get('/ai-personas', { preHandler: requireAuth }, async (_request, reply) => {
-    reply.send({ personas: await listActivePersonas() });
-  });
+  app.get(
+    '/ai-personas',
+    { preHandler: requireAuth, schema: { tags: ['AI'], security: [{ cookieAuth: [] }] } },
+    async (_request, reply) => {
+      reply.send({ personas: await listActivePersonas() });
+    },
+  );
 
-  app.get('/admin/ai-personas', { preHandler: requireRole('admin') }, async (_request, reply) => {
-    reply.send({ personas: await listAllPersonas() });
-  });
+  app.get(
+    '/admin/ai-personas',
+    { preHandler: requireRole('admin'), schema: { tags: ['AI'], security: [{ cookieAuth: [] }] } },
+    async (_request, reply) => {
+      reply.send({ personas: await listAllPersonas() });
+    },
+  );
 
   app.post<{ Body: { name: string; category: string; systemPrompt: string } }>(
     '/admin/ai-personas',
-    { preHandler: requireRole('admin') },
+    { preHandler: requireRole('admin'), schema: { tags: ['AI'], security: [{ cookieAuth: [] }] } },
     async (request, reply) => {
       try {
         const persona = await createPersona(request.body);
@@ -41,7 +49,7 @@ export async function registerPersonaRoutes(app: FastifyInstance): Promise<void>
 
   app.patch<{ Params: { id: string }; Body: { name?: string; category?: string; systemPrompt?: string } }>(
     '/admin/ai-personas/:id',
-    { preHandler: requireRole('admin') },
+    { preHandler: requireRole('admin'), schema: { tags: ['AI'], security: [{ cookieAuth: [] }] } },
     async (request, reply) => {
       try {
         const persona = await updatePersona(request.params.id, request.body);
@@ -58,7 +66,7 @@ export async function registerPersonaRoutes(app: FastifyInstance): Promise<void>
 
   app.post<{ Params: { id: string } }>(
     '/admin/ai-personas/:id/archive',
-    { preHandler: requireRole('admin') },
+    { preHandler: requireRole('admin'), schema: { tags: ['AI'], security: [{ cookieAuth: [] }] } },
     async (request, reply) => {
       const persona = await archivePersona(request.params.id);
       if (!persona) {
