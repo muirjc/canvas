@@ -31,37 +31,53 @@ export async function registerDiagramChatRoutes(
   app.post<{
     Params: { id: string };
     Body: { message: string; currentDslContent: string; personaId?: string };
-  }>('/diagrams/:id/chat/messages', { preHandler: requireDiagramAccess('edit') }, async (request, reply) => {
-    const settings = await getAiSettings();
-    if (!settings.chatEnabled) {
-      reply.code(503).send({ error: 'AI chat is currently disabled by an administrator.' });
-      return;
-    }
+  }>(
+    '/diagrams/:id/chat/messages',
+    {
+      preHandler: requireDiagramAccess('edit'),
+      // canvas-80m: declarative validation (Fastify JSON Schema) instead of a hand-rolled `if` --
+      // the chatEnabled feature-flag gate below stays in the handler since it's a runtime
+      // business-rule check, not a request-shape one.
+      schema: {
+        body: {
+          type: 'object',
+          required: ['message', 'currentDslContent'],
+          properties: {
+            message: { type: 'string', minLength: 1 },
+            currentDslContent: { type: 'string', minLength: 1 },
+            personaId: { type: 'string' },
+          },
+        },
+      },
+    },
+    async (request, reply) => {
+      const settings = await getAiSettings();
+      if (!settings.chatEnabled) {
+        reply.code(503).send({ error: 'AI chat is currently disabled by an administrator.' });
+        return;
+      }
 
-    const { message, currentDslContent, personaId } = request.body;
-    if (!message || !currentDslContent) {
-      reply.code(400).send({ error: 'message and currentDslContent are required' });
-      return;
-    }
+      const { message, currentDslContent, personaId } = request.body;
 
-    try {
-      // 010-ai-diagram-knowledge, T003: resolve the diagram's real dslFamily the same way every
-      // other diagram-mutating route already does, instead of leaving sendChatMessage to assume
-      // flowchart — research.md §1.
-      const diagram = await getDiagram(request.params.id);
-      const result = await sendChatMessage({
-        diagramId: request.params.id,
-        message,
-        currentDslContent,
-        dslFamily: diagram.dslFamily,
-        personaId,
-        model: options.languageModel,
-      });
-      reply.send(result);
-    } catch (error) {
-      handleError(error, reply);
-    }
-  });
+      try {
+        // 010-ai-diagram-knowledge, T003: resolve the diagram's real dslFamily the same way every
+        // other diagram-mutating route already does, instead of leaving sendChatMessage to assume
+        // flowchart — research.md §1.
+        const diagram = await getDiagram(request.params.id);
+        const result = await sendChatMessage({
+          diagramId: request.params.id,
+          message,
+          currentDslContent,
+          dslFamily: diagram.dslFamily,
+          personaId,
+          model: options.languageModel,
+        });
+        reply.send(result);
+      } catch (error) {
+        handleError(error, reply);
+      }
+    },
+  );
 
   app.get<{ Params: { id: string } }>(
     '/diagrams/:id/chat/messages',

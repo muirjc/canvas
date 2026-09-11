@@ -22,13 +22,23 @@ export async function registerImportRoutes(app: FastifyInstance): Promise<void> 
     Body: { name: string; dslContent: string; diagramTypeHint?: string };
   }>(
     '/projects/:projectId/diagrams/import',
-    { preHandler: [requireAuth, requireProjectAccess('edit', 'projectId')] },
+    {
+      preHandler: [requireAuth, requireProjectAccess('edit', 'projectId')],
+      // canvas-80m: declarative validation (Fastify JSON Schema) instead of a hand-rolled `if`.
+      schema: {
+        body: {
+          type: 'object',
+          required: ['name', 'dslContent'],
+          properties: {
+            name: { type: 'string', minLength: 1 },
+            dslContent: { type: 'string', minLength: 1 },
+            diagramTypeHint: { type: 'string' },
+          },
+        },
+      },
+    },
     async (request, reply) => {
       const { name, dslContent, diagramTypeHint } = request.body;
-      if (!name || !dslContent) {
-        reply.code(400).send({ error: 'name and dslContent are required' });
-        return;
-      }
       try {
         const diagram = await importDiagram({
           name,

@@ -30,14 +30,20 @@ export async function registerLibraryRoutes(app: FastifyInstance): Promise<void>
     },
   );
 
-  app.get<{ Querystring: { query?: string; diagramTypeId?: string } }>(
+  app.get<{ Querystring: { query?: string; diagramTypeId: string } }>(
     '/icons/search',
-    { preHandler: requireAuth },
+    {
+      preHandler: requireAuth,
+      // canvas-80m: declarative validation (Fastify JSON Schema) instead of a hand-rolled `if`.
+      schema: {
+        querystring: {
+          type: 'object',
+          required: ['diagramTypeId'],
+          properties: { diagramTypeId: { type: 'string', minLength: 1 }, query: { type: 'string' } },
+        },
+      },
+    },
     async (request, reply) => {
-      if (!request.query.diagramTypeId) {
-        reply.code(400).send({ error: 'diagramTypeId is required' });
-        return;
-      }
       const icons = await searchIconsForDiagramType(request.query.diagramTypeId, request.query.query ?? '');
       reply.send({ icons });
     },

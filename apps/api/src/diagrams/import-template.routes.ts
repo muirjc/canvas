@@ -22,13 +22,23 @@ export async function registerImportTemplateRoutes(app: FastifyInstance): Promis
     Body: { name: string; diagramTypeId: string; templateContent: string };
   }>(
     '/projects/:projectId/diagrams/import-template',
-    { preHandler: [requireAuth, requireProjectAccess('edit', 'projectId')] },
+    {
+      preHandler: [requireAuth, requireProjectAccess('edit', 'projectId')],
+      // canvas-80m: declarative validation (Fastify JSON Schema) instead of a hand-rolled `if`.
+      schema: {
+        body: {
+          type: 'object',
+          required: ['name', 'diagramTypeId', 'templateContent'],
+          properties: {
+            name: { type: 'string', minLength: 1 },
+            diagramTypeId: { type: 'string', minLength: 1 },
+            templateContent: { type: 'string', minLength: 1 },
+          },
+        },
+      },
+    },
     async (request, reply) => {
       const { name, diagramTypeId, templateContent } = request.body;
-      if (!name || !diagramTypeId || !templateContent) {
-        reply.code(400).send({ error: 'name, diagramTypeId, and templateContent are required' });
-        return;
-      }
       try {
         const diagram = await importTemplate({
           name,

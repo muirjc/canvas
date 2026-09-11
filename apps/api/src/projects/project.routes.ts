@@ -35,13 +35,19 @@ function handleServiceError(error: unknown, reply: FastifyReply): void {
 export async function registerProjectRoutes(app: FastifyInstance): Promise<void> {
   app.post<{ Body: { name: string; parentProjectId?: string } }>(
     '/projects',
-    { preHandler: requireAuth },
+    {
+      preHandler: requireAuth,
+      // canvas-80m: declarative validation (Fastify JSON Schema) instead of a hand-rolled `if`.
+      schema: {
+        body: {
+          type: 'object',
+          required: ['name'],
+          properties: { name: { type: 'string', minLength: 1 }, parentProjectId: { type: 'string' } },
+        },
+      },
+    },
     async (request, reply) => {
       const { name, parentProjectId } = request.body;
-      if (!name) {
-        reply.code(400).send({ error: 'name is required' });
-        return;
-      }
       try {
         const project = await createProject({ name, parentProjectId, ownerId: request.session.user!.id });
         reply.code(201).send({ project });
@@ -85,13 +91,15 @@ export async function registerProjectRoutes(app: FastifyInstance): Promise<void>
 
   app.patch<{ Params: { id: string }; Body: { name: string } }>(
     '/projects/:id',
-    { preHandler: [requireAuth, requireProjectOwnerOrAdmin()] },
+    {
+      preHandler: [requireAuth, requireProjectOwnerOrAdmin()],
+      // canvas-80m: declarative validation (Fastify JSON Schema) instead of a hand-rolled `if`.
+      schema: {
+        body: { type: 'object', required: ['name'], properties: { name: { type: 'string', minLength: 1 } } },
+      },
+    },
     async (request, reply) => {
       const { name } = request.body;
-      if (!name) {
-        reply.code(400).send({ error: 'name is required' });
-        return;
-      }
       try {
         const project = await renameProject(request.params.id, name);
         reply.send({ project });
