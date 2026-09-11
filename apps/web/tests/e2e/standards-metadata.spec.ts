@@ -47,8 +47,13 @@ test('every standard in the list is identifiable by name, including pre-existing
   // FR-026 / SC-006: standards created before this feature were backfilled, so no row falls back
   // to being identified only by id.
   const rows = page.locator('[data-testid^="standard-row-"]');
+  // canvas-mup: a single-shot count() read here raced the standards-history list's own async
+  // fetch/render, which openStandardsAdmin() does not wait for (it only waits for the
+  // create-publish-standard button). That intermittently read 0 rows before the fetch resolved,
+  // even though the standards existed. expect.poll retries within its default timeout instead of
+  // reading once immediately.
+  await expect.poll(() => rows.count()).toBeGreaterThan(0);
   const count = await rows.count();
-  expect(count).toBeGreaterThan(0);
   for (let i = 0; i < Math.min(count, 8); i += 1) {
     await expect(rows.nth(i)).not.toHaveText('');
     await expect(rows.nth(i).locator('.row__title')).not.toHaveText(/^\s*$/);
