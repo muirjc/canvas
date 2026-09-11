@@ -3,10 +3,11 @@
 | | |
 |---|---|
 | **Document status** | Draft |
-| **Version** | 1.0 |
-| **Date** | 2026-08-07 |
+| **Version** | 1.1 |
+| **Date** | 2026-09-11 |
 | **Owner** | Product / Engineering |
-| **Source material** | `specs/001-diagramming-platform/spec.md` through `specs/009-flowchart-node-shapes/spec.md`, `.specify/memory/constitution.md`, `README.md` |
+| **Source material** | `specs/001-diagramming-platform/spec.md` through `specs/011-sequence-lifeline-rendering/spec.md`, `.specify/memory/constitution.md`, `README.md`, `CLAUDE.md`'s Recent Changes log |
+| **Companion document** | `docs/solution-architecture-document.md` — the *how*; this document is the *why*. |
 
 This document describes the business rationale, objectives, and requirements for Canvas at a
 level suitable for stakeholders outside the engineering team. It is derived from — and stays
@@ -113,8 +114,18 @@ this tagging is enforced in the product, not just documented (Constitution Princ
   construct that cannot be imported.
 - Sharing a diagram or project at view/comment/edit access level, and an admin console for
   managing standards, icon libraries, and user roles/permissions in one place.
-- AI-assisted, natural-language diagram creation and refinement via a persistent chat panel
-  (added post-launch; see §8).
+- AI-assisted, natural-language diagram creation and refinement via a persistent chat panel,
+  with admin-curated personas and optional persona-scoped reference material (added post-launch;
+  see §8).
+- Importing a filled-in "intake template" document (a structured, fillable worksheet, distinct
+  from raw Mermaid DSL paste) for a diagram type, compiled directly into DSL and rendered
+  identically to any other diagram (added post-launch; see §8).
+- Single sign-on via an OIDC identity provider (Keycloak) with organization-enforced MFA, alongside
+  a local email/password fallback for dev/demo use, and a self-documenting REST API (OpenAPI/
+  Swagger, opt-in) for integration consumers (added post-launch; see §8).
+- A reproducible Infrastructure-as-Code deployment (Azure) with a cost-control pause/resume/
+  destroy lifecycle, for standing up a real reference environment on demand (added post-launch;
+  see §8).
 
 ### 5.2 Explicitly out of scope
 
@@ -179,10 +190,36 @@ spec-kit lifecycle (constitution → specify → clarify → plan → tasks → 
 | `007-project-context` | In-application project selection that survives navigation, replacing a URL-query-parameter-only model. |
 | `008-shared-diagram-access` | A discoverable path to diagrams shared with a user who has no project-level access. |
 | `009-flowchart-node-shapes` | Additional Mermaid flowchart node shapes, with a diagram-family-aware authoring toolbar. |
+| `010-ai-diagram-knowledge` | Family-aware AI tools and diagram-type primers (an AI chat request now uses the real vocabulary/tool set for the diagram's actual type, not a hardcoded flowchart assumption), plus admin-curated, persona-scoped reference material. |
+| `011-sequence-lifeline-rendering` | Real sequence-diagram lifeline/activation/message geometry, replacing flat placeholder positions the family had used since launch. |
 
-Subsequent bug fixes and small enhancements are tracked in the project's issue tracker (`bd`) and
-summarized in `CLAUDE.md`'s Recent Changes log; they refine but do not change the business
-requirements captured in this document.
+Substantial further work — delivered outside the formal spec-kit lifecycle but tracked end-to-end
+in the project's issue tracker (`bd`) and `CLAUDE.md`'s Recent Changes log — brought the platform
+from "each diagram family's DSL parses" to "every construct each family's real Mermaid grammar can
+express has a matching point-and-click canvas affordance, and the platform is independently
+deployable and securable":
+
+- **A Mermaid DSL full-compliance roadmap** (epic `jmuir-dtu`), diagram-type by diagram-type,
+  closing dozens of real grammar gaps across all six families (C4 boundary/element-kind vocabulary,
+  UML members/generics/stereotypes/relationships, ERD attribute blocks/aliases/styling, sequence
+  activation/blocks/autonumber/participant lifecycle, architecture junctions/groups/icon packs,
+  flowchart click-interactions/classDef/multi-line labels).
+- **A canvas-UI renderer-completeness epic** (`canvas-7vs`/`canvas-2s6`) closing the gap between
+  "the DSL parses this construct" and "a user can create/edit it visually" for every one of those
+  same constructs across all six families, plus cross-family drag-to-nest containers and
+  auto-layout.
+- **C4 Context template import** (`canvas-73s`) — importing a filled intake-template document,
+  compiled to DSL and rendered through the existing pipeline; architected to extend to the
+  remaining five diagram-type groups as follow-up work.
+- **Azure deployment** (`canvas-ycu`) — a reproducible Bicep IaC deployment with Keycloak SSO/MFA,
+  Key Vault-backed secrets, and a pause/resume/destroy cost-control lifecycle (see
+  `docs/solution-architecture-document.md` §10).
+- **Self-documenting API** — an OpenAPI/Swagger specification generated from the live route table
+  and served at `/docs`, opt-in via configuration.
+
+This document's business requirements are unaffected by any of the above — they refine and
+complete delivery against the requirement set in §5–§7, not change it. `docs/solution-
+architecture-document.md` covers the resulting technical architecture in full.
 
 ## 9. Assumptions & Constraints
 
@@ -226,3 +263,4 @@ requirements captured in this document.
 | **Persona** | One of Business, Enterprise, Solution, or Technical Architect — scopes which diagram types and palettes are presented by default. |
 | **Icon/Shape Library** | A named, versioned collection of icons or shapes (Azure, AWS, C4 notation, UML, generic) usable across relevant diagram types. |
 | **Abstraction level** | The level of detail a diagram type operates at (e.g. C4 Context vs. C4 Component); diagram types must not leak detail across levels. |
+| **Intake Template** | A structured, fillable worksheet for a diagram type (distinct from raw Mermaid DSL) that compiles directly into a diagram — an alternative starting point to visual editing, DSL paste, or AI chat. |

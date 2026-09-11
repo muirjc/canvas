@@ -16,6 +16,7 @@ walkthroughs, see `specs/*/quickstart.md`. For the "what is this project" overvi
 | `WEB_ORIGINS` | no (default `http://localhost:5173`) | Comma-separated list of origins allowed to make credentialed CORS requests. |
 | `COOKIE_SECURE` | no (default `false`) | Set `true` for a split-origin deployment (frontend and API on different hosts, e.g. Azure — see `docs/azure-deployment.md` for a quick demo, or `infra/azure/README.md` for a proper IaC deployment). Forced `true` automatically whenever `COOKIE_SAME_SITE=none`. |
 | `COOKIE_SAME_SITE` | no (default `lax`) | `lax`/`none`/`strict`. Leave at the default for local dev and any same-origin deployment. `none` is required for a split-origin deployment — `lax` cookies are never attached to cross-site fetch/XHR calls. |
+| `ENABLE_API_DOCS` | no (default `false`) | Set `true` to serve an OpenAPI/Swagger UI at `/docs`. Opt-in — left `false` by default so a real deployment doesn't expose its full route surface just because the capability exists. See "API documentation" below. |
 
 The API refuses to start without `DATABASE_URL`/`SESSION_SECRET` in non-test mode — this is
 intentional fail-fast behavior, not a bug.
@@ -35,6 +36,17 @@ npm run dev --workspace=@canvas/web                     # separate terminal; for
 
 Sign in at `http://localhost:5173/?projectId=<seed-printed-id>` with `admin@example.com` /
 `admin-dev-password` (or `architect@example.com` / `architect-dev-password`).
+
+## API documentation
+
+Set `ENABLE_API_DOCS=true` in `apps/api/.env` and restart the API dev server to serve an
+interactive OpenAPI/Swagger UI at `http://localhost:3000/docs` (raw spec at `/docs/json`). Lists
+every registered route (47 as of this writing); request/response body schemas are not yet
+annotated for most routes (tracked as `canvas-lfc`) — for the authoritative shape of any given
+endpoint not yet schema-annotated, see its `apps/api/src/**/*.routes.ts` source or matching
+`apps/api/tests/contract/*.test.ts`. Left `false` by default (same opt-in posture as
+`ALLOW_LOCAL_AUTH`) so a real deployment doesn't expose its full route surface unintentionally —
+deliberately turn it on for that environment if you want it there too.
 
 ## Keycloak SSO (canvas-mi9)
 
