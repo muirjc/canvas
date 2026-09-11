@@ -99,8 +99,11 @@ OIDC round-trip before. This spec needs `E2E_SSO_READY=1` (on top of the usual `
 and a **freshly (re)started** Keycloak container — `docker compose --profile sso down keycloak &&
 docker compose --profile sso up -d keycloak` — its realm-imported users carry no persistent
 volume, so a `restart` (not a full recreate) leaves a completed enrollment from a prior run in
-place and the spec's "first-time enrollment" assumption no longer holds. Not run in CI today
-(standing up Keycloak there is tracked separately).
+place and the spec's "first-time enrollment" assumption no longer holds. **Runs in CI**
+(`.github/workflows/ci.yml`'s `e2e-tests` job, canvas-v4u) too — it brings up this exact
+docker-compose `keycloak` service fresh on every run (a GitHub Actions runner is itself always a
+clean VM, so the same-container "freshly started" requirement above is automatically satisfied
+there) and sets the same `OIDC_*`/`E2E_SSO_READY` values documented above.
 
 `ALLOW_LOCAL_AUTH=true` still works alongside SSO — both entry points render whenever both are
 configured; this is a genuine platform-wide, not-yet-revisited decision for a *deployed*
