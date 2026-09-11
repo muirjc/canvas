@@ -100,6 +100,8 @@ scripts for cost control.
   objectives, and requirements (the *why*).
 - **[docs/solution-architecture-document.md](docs/solution-architecture-document.md)** — the
   technical architecture: stack, data model, security, AI integration, deployment (the *how*).
+- **[docs/technology-stack.md](docs/technology-stack.md)** — the complete dependency manifest:
+  every package and pinned version across all four workspaces, plus runtime/infra requirements.
 - **API reference** — a live OpenAPI/Swagger UI at `/docs` on the API server (opt-in; see
   `RUNBOOK.md`'s environment variable table for `ENABLE_API_DOCS`).
 
