@@ -13,9 +13,13 @@ function handleError(error: unknown, reply: FastifyReply): void {
 }
 
 export async function registerAdminRoutes(app: FastifyInstance): Promise<void> {
-  app.get('/admin/users', { preHandler: requireRole('admin') }, async (_request, reply) => {
-    reply.send({ users: await listUsers() });
-  });
+  app.get(
+    '/admin/users',
+    { preHandler: requireRole('admin'), schema: { tags: ['Admin'], security: [{ cookieAuth: [] }] } },
+    async (_request, reply) => {
+      reply.send({ users: await listUsers() });
+    },
+  );
 
   app.patch<{ Params: { id: string }; Body: UpdateUserInput }>(
     '/admin/users/:id',
@@ -26,6 +30,8 @@ export async function registerAdminRoutes(app: FastifyInstance): Promise<void> {
       // with no extra dependency) throws a 400 through the existing global setErrorHandler
       // (app.ts) before the handler body ever runs.
       schema: {
+        tags: ['Admin'],
+        security: [{ cookieAuth: [] }],
         params: { type: 'object', required: ['id'], properties: { id: { type: 'string' } } },
         body: {
           type: 'object',
@@ -47,7 +53,11 @@ export async function registerAdminRoutes(app: FastifyInstance): Promise<void> {
     },
   );
 
-  app.get('/admin/overview', { preHandler: requireRole('admin') }, async (_request, reply) => {
-    reply.send({ overview: await getAdminOverview() });
-  });
+  app.get(
+    '/admin/overview',
+    { preHandler: requireRole('admin'), schema: { tags: ['Admin'], security: [{ cookieAuth: [] }] } },
+    async (_request, reply) => {
+      reply.send({ overview: await getAdminOverview() });
+    },
+  );
 }

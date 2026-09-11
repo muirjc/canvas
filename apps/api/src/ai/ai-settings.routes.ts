@@ -11,13 +11,21 @@ export async function registerAiSettingsRoutes(app: FastifyInstance): Promise<vo
    * only) vs `/admin/ai-personas` (admin, full CRUD) split — read-only here too; writing stays
    * admin-only below.
    */
-  app.get('/ai-settings', { preHandler: requireAuth }, async (_request, reply) => {
-    reply.send(await getAiSettings());
-  });
+  app.get(
+    '/ai-settings',
+    { preHandler: requireAuth, schema: { tags: ['AI'], security: [{ cookieAuth: [] }] } },
+    async (_request, reply) => {
+      reply.send(await getAiSettings());
+    },
+  );
 
-  app.get('/admin/ai-settings', { preHandler: requireRole('admin') }, async (_request, reply) => {
-    reply.send(await getAiSettings());
-  });
+  app.get(
+    '/admin/ai-settings',
+    { preHandler: requireRole('admin'), schema: { tags: ['AI'], security: [{ cookieAuth: [] }] } },
+    async (_request, reply) => {
+      reply.send(await getAiSettings());
+    },
+  );
 
   app.patch<{ Body: { chatEnabled: boolean } }>(
     '/admin/ai-settings',
@@ -25,6 +33,8 @@ export async function registerAiSettingsRoutes(app: FastifyInstance): Promise<vo
       preHandler: requireRole('admin'),
       // canvas-80m: declarative validation (Fastify JSON Schema) instead of a hand-rolled `if`.
       schema: {
+        tags: ['AI'],
+        security: [{ cookieAuth: [] }],
         body: { type: 'object', required: ['chatEnabled'], properties: { chatEnabled: { type: 'boolean' } } },
       },
     },

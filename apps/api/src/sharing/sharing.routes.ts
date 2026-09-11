@@ -36,6 +36,8 @@ function registerSubjectRoutes(app: FastifyInstance, subjectType: SubjectType): 
       // applies to both /diagrams/:id/shares and /projects/:id/shares, since both routes are
       // registered by this same shared function.
       schema: {
+        tags: ['Sharing'],
+        security: [{ cookieAuth: [] }],
         body: {
           type: 'object',
           required: ['granteeUserId', 'accessLevel'],
@@ -63,9 +65,13 @@ function registerSubjectRoutes(app: FastifyInstance, subjectType: SubjectType): 
     },
   );
 
-  app.get<{ Params: { id: string } }>(basePath, { preHandler: requireAuth }, async (request, reply) => {
-    reply.send({ grants: await listShareGrants(subjectType, request.params.id) });
-  });
+  app.get<{ Params: { id: string } }>(
+    basePath,
+    { preHandler: requireAuth, schema: { tags: ['Sharing'], security: [{ cookieAuth: [] }] } },
+    async (request, reply) => {
+      reply.send({ grants: await listShareGrants(subjectType, request.params.id) });
+    },
+  );
 }
 
 export async function registerSharingRoutes(app: FastifyInstance): Promise<void> {
@@ -77,16 +83,24 @@ export async function registerSharingRoutes(app: FastifyInstance): Promise<void>
    * GET /projects — no id param, the session names the user. 200 with an empty array for a
    * user with nothing shared; that is the common case, not an error (FR-002).
    */
-  app.get('/shared-diagrams', { preHandler: requireAuth }, async (request, reply) => {
-    reply.send({ diagrams: await listSharedDiagramsForUser(request.session.user!.id) });
-  });
+  app.get(
+    '/shared-diagrams',
+    { preHandler: requireAuth, schema: { tags: ['Sharing'], security: [{ cookieAuth: [] }] } },
+    async (request, reply) => {
+      reply.send({ diagrams: await listSharedDiagramsForUser(request.session.user!.id) });
+    },
+  );
 
-  app.delete<{ Params: { id: string } }>('/shares/:id', { preHandler: requireAuth }, async (request, reply) => {
-    try {
-      await revokeShareGrant(request.params.id);
-      reply.code(204).send();
-    } catch (error) {
-      handleError(error, reply);
-    }
-  });
+  app.delete<{ Params: { id: string } }>(
+    '/shares/:id',
+    { preHandler: requireAuth, schema: { tags: ['Sharing'], security: [{ cookieAuth: [] }] } },
+    async (request, reply) => {
+      try {
+        await revokeShareGrant(request.params.id);
+        reply.code(204).send();
+      } catch (error) {
+        handleError(error, reply);
+      }
+    },
+  );
 }
