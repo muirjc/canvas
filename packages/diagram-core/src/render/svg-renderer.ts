@@ -125,6 +125,32 @@ export function iconNodeSize(node: DiagramNode): Size {
   };
 }
 
+/** Content-fit HEIGHT for a plain-shape node (no icon, no attribute/member table) with no
+ *  explicit `node.size` -- canvas-4lu: every such node (a C4 Person/SystemDb 'person'/'cylinder'
+ *  node included, but really any rectangle/diamond/stadium/etc. in this same fallback) used to get
+ *  a fixed DEFAULT_NODE_SIZE regardless of label length. `renderNode`'s plain centered-label path
+ *  already wraps a too-wide label to fit the node's own width (canvas-3zb's `labelMaxWidth`,
+ *  reused here with the same width/font-size inputs so the two calculations can't disagree about
+ *  where a line breaks) -- but nothing grew the box's HEIGHT to fit however many lines that
+ *  wrapping produced, so the extra lines simply rendered past the shape's bottom edge. Width is
+ *  deliberately left at the fixed default here (mirroring `iconNodeSize`'s own "fixed width,
+ *  height grows with line count" precedent) -- growing width too is a separate, larger design
+ *  decision (how much wider, and shapes like diamond/hexagon whose usable interior width is
+ *  narrower than their own bounding box) not attempted in this pass. `Math.max` with the existing
+ *  default height means a short, single-line label's box is completely unchanged from before.
+ *  Exported for the same reason `iconNodeSize`/`tableNodeLayout` are: the interactive canvas
+ *  (apps/web/src/canvas/shapes.tsx) reuses this exact calculation rather than re-deriving it, so
+ *  the two renderers can't drift (SC-004). */
+export function plainNodeSize(node: DiagramNode): Size {
+  const width = DEFAULT_NODE_SIZE.width;
+  const fontSize = node.style?.fontSize ?? 14;
+  const labelMaxWidth = Math.max(width - 16, 40);
+  const lines = splitLabelLines(node.label, labelMaxWidth, fontSize);
+  const lineHeight = fontSize * 1.2;
+  const contentHeight = lines.length * lineHeight + 16;
+  return { width, height: Math.max(DEFAULT_NODE_SIZE.height, contentHeight) };
+}
+
 // canvas-x66: an ER entity's attributes (EntityAttribute[]) or a UML class's members
 // (ClassMember[]) were parsed and modeled correctly but never drawn by either renderer — every
 // entity/class rendered as a bare labeled box, indistinguishable from one with no body at all.
@@ -209,6 +235,7 @@ export function nodeSize(node: DiagramNode): Size {
   if (!node.size) {
     const rows = tableRows(node);
     if (rows.length > 0) return tableNodeSize(node, rows);
+    return plainNodeSize(node);
   }
   return node.size ?? DEFAULT_NODE_SIZE;
 }
