@@ -47,13 +47,23 @@ export async function registerDiagramRoutes(app: FastifyInstance): Promise<void>
     Body: { name: string; diagramTypeId: string; initialDslContent?: string };
   }>(
     '/projects/:projectId/diagrams',
-    { preHandler: [requireAuth, requireProjectAccess('edit', 'projectId')] },
+    {
+      preHandler: [requireAuth, requireProjectAccess('edit', 'projectId')],
+      // canvas-80m: declarative validation (Fastify JSON Schema) instead of a hand-rolled `if`.
+      schema: {
+        body: {
+          type: 'object',
+          required: ['name', 'diagramTypeId'],
+          properties: {
+            name: { type: 'string', minLength: 1 },
+            diagramTypeId: { type: 'string', minLength: 1 },
+            initialDslContent: { type: 'string' },
+          },
+        },
+      },
+    },
     async (request, reply) => {
       const { name, diagramTypeId, initialDslContent } = request.body;
-      if (!name || !diagramTypeId) {
-        reply.code(400).send({ error: 'name and diagramTypeId are required' });
-        return;
-      }
       try {
         const diagram = await createDiagram({
           name,
@@ -93,13 +103,15 @@ export async function registerDiagramRoutes(app: FastifyInstance): Promise<void>
 
   app.patch<{ Params: { id: string }; Body: { dslContent: string } }>(
     '/diagrams/:id',
-    { preHandler: [requireAuth, requireDiagramAccess('edit')] },
+    {
+      preHandler: [requireAuth, requireDiagramAccess('edit')],
+      // canvas-80m: declarative validation (Fastify JSON Schema) instead of a hand-rolled `if`.
+      schema: {
+        body: { type: 'object', required: ['dslContent'], properties: { dslContent: { type: 'string' } } },
+      },
+    },
     async (request, reply) => {
       const { dslContent } = request.body;
-      if (typeof dslContent !== 'string') {
-        reply.code(400).send({ error: 'dslContent is required' });
-        return;
-      }
       try {
         const diagram = await saveDiagram(request.params.id, {
           dslContent,
@@ -119,13 +131,20 @@ export async function registerDiagramRoutes(app: FastifyInstance): Promise<void>
    */
   app.patch<{ Params: { id: string }; Body: { name: string } }>(
     '/diagrams/:id/name',
-    { preHandler: [requireAuth, requireDiagramAccess('edit')] },
+    {
+      preHandler: [requireAuth, requireDiagramAccess('edit')],
+      // canvas-80m: declarative validation (Fastify JSON Schema) instead of a hand-rolled `if` --
+      // the pattern rejects whitespace-only strings, which minLength alone would not catch.
+      schema: {
+        body: {
+          type: 'object',
+          required: ['name'],
+          properties: { name: { type: 'string', minLength: 1, pattern: '\\S' } },
+        },
+      },
+    },
     async (request, reply) => {
       const { name } = request.body;
-      if (!name || !name.trim()) {
-        reply.code(400).send({ error: 'name is required' });
-        return;
-      }
       try {
         const diagram = await renameDiagram(request.params.id, name);
         reply.send({ diagram });
@@ -142,13 +161,16 @@ export async function registerDiagramRoutes(app: FastifyInstance): Promise<void>
    */
   app.patch<{ Params: { id: string }; Body: { description: string } }>(
     '/diagrams/:id/description',
-    { preHandler: [requireAuth, requireDiagramAccess('edit')] },
+    {
+      preHandler: [requireAuth, requireDiagramAccess('edit')],
+      // canvas-80m: declarative validation (Fastify JSON Schema) instead of a hand-rolled `if` --
+      // deliberately no minLength, since an empty string is a valid value (clears the description).
+      schema: {
+        body: { type: 'object', required: ['description'], properties: { description: { type: 'string' } } },
+      },
+    },
     async (request, reply) => {
       const { description } = request.body;
-      if (typeof description !== 'string') {
-        reply.code(400).send({ error: 'description must be a string' });
-        return;
-      }
       try {
         const diagram = await updateDiagramDescription(request.params.id, description);
         reply.send({ diagram });
@@ -167,13 +189,15 @@ export async function registerDiagramRoutes(app: FastifyInstance): Promise<void>
    */
   app.patch<{ Params: { id: string }; Body: { projectId: string } }>(
     '/diagrams/:id/project',
-    { preHandler: [requireAuth, requireDiagramAccess('edit')] },
+    {
+      preHandler: [requireAuth, requireDiagramAccess('edit')],
+      // canvas-80m: declarative validation (Fastify JSON Schema) instead of a hand-rolled `if`.
+      schema: {
+        body: { type: 'object', required: ['projectId'], properties: { projectId: { type: 'string', minLength: 1 } } },
+      },
+    },
     async (request, reply) => {
       const { projectId } = request.body;
-      if (!projectId) {
-        reply.code(400).send({ error: 'projectId is required' });
-        return;
-      }
       if (!(await projectExists(projectId))) {
         reply.code(404).send({ error: `No project with id ${projectId}` });
         return;

@@ -46,6 +46,11 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
     // Harmless with no reverse proxy in front (e.g. local dev): it only takes effect when
     // X-Forwarded-* headers are actually present on the request.
     trustProxy: true,
+    // canvas-80m: Fastify's AJV default (`coerceTypes: true`) silently converts a wrongly-typed
+    // value (e.g. a JSON number) into the schema's declared type instead of rejecting it -- which
+    // defeats the whole point of declarative request-shape validation. Every real caller already
+    // sends correctly-typed JSON, so disabling coercion only tightens rejection of malformed input.
+    ajv: { customOptions: { coerceTypes: false } },
   });
 
   app.setErrorHandler((error: FastifyError, request, reply) => {

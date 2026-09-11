@@ -30,13 +30,18 @@ const CONTENT_DISPOSITIONS: Record<string, string> = {
 export async function registerExportRoutes(app: FastifyInstance): Promise<void> {
   app.get<{ Params: { id: string }; Querystring: { format?: string } }>(
     '/diagrams/:id/export',
-    { preHandler: [requireAuth, requireDiagramAccess('view')] },
+    {
+      preHandler: [requireAuth, requireDiagramAccess('view')],
+      // canvas-80m: declarative validation (Fastify JSON Schema) instead of a hand-rolled `if`.
+      schema: {
+        querystring: {
+          type: 'object',
+          properties: { format: { type: 'string', enum: ['mermaid', 'svg', 'png'] } },
+        },
+      },
+    },
     async (request, reply) => {
       const format = request.query.format ?? 'mermaid';
-      if (!['mermaid', 'svg', 'png'].includes(format)) {
-        reply.code(400).send({ error: 'format must be one of: mermaid, svg, png' });
-        return;
-      }
 
       try {
         const diagram = await getDiagram(request.params.id);

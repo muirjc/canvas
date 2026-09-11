@@ -21,12 +21,14 @@ export async function registerAiSettingsRoutes(app: FastifyInstance): Promise<vo
 
   app.patch<{ Body: { chatEnabled: boolean } }>(
     '/admin/ai-settings',
-    { preHandler: requireRole('admin') },
+    {
+      preHandler: requireRole('admin'),
+      // canvas-80m: declarative validation (Fastify JSON Schema) instead of a hand-rolled `if`.
+      schema: {
+        body: { type: 'object', required: ['chatEnabled'], properties: { chatEnabled: { type: 'boolean' } } },
+      },
+    },
     async (request, reply) => {
-      if (typeof request.body.chatEnabled !== 'boolean') {
-        reply.code(400).send({ error: 'chatEnabled must be a boolean' });
-        return;
-      }
       reply.send(await setAiSettings({ chatEnabled: request.body.chatEnabled }));
     },
   );

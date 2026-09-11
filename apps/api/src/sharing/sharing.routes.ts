@@ -30,17 +30,24 @@ function registerSubjectRoutes(app: FastifyInstance, subjectType: SubjectType): 
 
   app.post<{ Params: { id: string }; Body: { granteeUserId: string; accessLevel: AccessLevel } }>(
     basePath,
-    { preHandler: requireAuth },
+    {
+      preHandler: requireAuth,
+      // canvas-80m: declarative validation (Fastify JSON Schema) instead of a hand-rolled `if` --
+      // applies to both /diagrams/:id/shares and /projects/:id/shares, since both routes are
+      // registered by this same shared function.
+      schema: {
+        body: {
+          type: 'object',
+          required: ['granteeUserId', 'accessLevel'],
+          properties: {
+            granteeUserId: { type: 'string', minLength: 1 },
+            accessLevel: { type: 'string', enum: VALID_ACCESS_LEVELS },
+          },
+        },
+      },
+    },
     async (request, reply) => {
       const { granteeUserId, accessLevel } = request.body;
-      if (!granteeUserId || !accessLevel) {
-        reply.code(400).send({ error: 'granteeUserId and accessLevel are required' });
-        return;
-      }
-      if (!VALID_ACCESS_LEVELS.includes(accessLevel)) {
-        reply.code(400).send({ error: `accessLevel must be one of: ${VALID_ACCESS_LEVELS.join(', ')}` });
-        return;
-      }
       try {
         const grant = await createShareGrant({
           subjectType,

@@ -8,16 +8,22 @@ import { getPool } from '../db/pool.js';
  * Deliberately returns only what a share dialog needs: id, name, email.
  */
 export async function registerUserLookupRoutes(app: FastifyInstance): Promise<void> {
-  app.get<{ Querystring: { email?: string } }>('/users/lookup', { preHandler: requireAuth }, async (request, reply) => {
-    if (!request.query.email) {
-      reply.code(400).send({ error: 'email is required' });
-      return;
-    }
-    const pool = getPool();
-    const { rows } = await pool.query<{ id: string; name: string; email: string }>(
-      'SELECT id, name, email FROM users WHERE email = $1 AND active = true',
-      [request.query.email],
-    );
-    reply.send({ user: rows[0] ?? null });
-  });
+  app.get<{ Querystring: { email: string } }>(
+    '/users/lookup',
+    {
+      preHandler: requireAuth,
+      // canvas-80m: declarative validation (Fastify JSON Schema) instead of a hand-rolled `if`.
+      schema: {
+        querystring: { type: 'object', required: ['email'], properties: { email: { type: 'string', minLength: 1 } } },
+      },
+    },
+    async (request, reply) => {
+      const pool = getPool();
+      const { rows } = await pool.query<{ id: string; name: string; email: string }>(
+        'SELECT id, name, email FROM users WHERE email = $1 AND active = true',
+        [request.query.email],
+      );
+      reply.send({ user: rows[0] ?? null });
+    },
+  );
 }

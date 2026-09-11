@@ -19,12 +19,25 @@ export async function registerAdminRoutes(app: FastifyInstance): Promise<void> {
 
   app.patch<{ Params: { id: string }; Body: UpdateUserInput }>(
     '/admin/users/:id',
-    { preHandler: requireRole('admin') },
+    {
+      preHandler: requireRole('admin'),
+      // canvas-80m: declarative request validation instead of a hand-rolled `if` check --
+      // Fastify's own JSON-Schema validation (already understood by @fastify/swagger, canvas-lfc,
+      // with no extra dependency) throws a 400 through the existing global setErrorHandler
+      // (app.ts) before the handler body ever runs.
+      schema: {
+        params: { type: 'object', required: ['id'], properties: { id: { type: 'string' } } },
+        body: {
+          type: 'object',
+          properties: {
+            role: { type: 'string', enum: VALID_ROLES },
+            personas: { type: 'array', items: { type: 'string' } },
+            active: { type: 'boolean' },
+          },
+        },
+      },
+    },
     async (request, reply) => {
-      if (request.body.role && !VALID_ROLES.includes(request.body.role)) {
-        reply.code(400).send({ error: `role must be one of: ${VALID_ROLES.join(', ')}` });
-        return;
-      }
       try {
         const user = await updateUser(request.params.id, request.body);
         reply.send({ user });
