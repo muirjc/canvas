@@ -23,6 +23,7 @@ function baseConfig(overrides: Partial<AppConfig['oidc']> = {}): AppConfig {
     webOrigins: ['http://localhost:5173'],
     cookieSecure: false,
     cookieSameSite: 'lax',
+    enableApiDocs: false,
   };
 }
 

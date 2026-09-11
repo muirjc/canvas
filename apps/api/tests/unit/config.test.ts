@@ -79,3 +79,20 @@ describe('loadConfig() cookie attributes', () => {
     );
   });
 });
+
+/**
+ * canvas-docs: opt-in, same posture as allowLocalAuth -- false unless explicitly enabled, so a
+ * real deployment doesn't expose its full route surface (app.ts's /docs registration) just
+ * because this repo added the capability.
+ */
+describe('loadConfig() enableApiDocs', () => {
+  it('defaults to false when ENABLE_API_DOCS is unset', () => {
+    expect(loadConfig({ NODE_ENV: 'test' }).enableApiDocs).toBe(false);
+  });
+
+  it('is true only when ENABLE_API_DOCS is exactly "true"', () => {
+    expect(loadConfig({ NODE_ENV: 'test', ENABLE_API_DOCS: 'true' }).enableApiDocs).toBe(true);
+    expect(loadConfig({ NODE_ENV: 'test', ENABLE_API_DOCS: 'false' }).enableApiDocs).toBe(false);
+    expect(loadConfig({ NODE_ENV: 'test', ENABLE_API_DOCS: 'yes' }).enableApiDocs).toBe(false);
+  });
+});
