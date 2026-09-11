@@ -3,6 +3,7 @@ import {
   renderToSvg,
   splitLabelLines,
   iconNodeSize,
+  plainNodeSize,
   nodeSize,
   tableNodeLayout,
   cardinalityGlyphs,
@@ -810,10 +811,17 @@ describe('iconNodeSize / nodeSize content-fit box (canvas-23t.5)', () => {
     expect(nodeSize(node)).toEqual({ width: 999, height: 5 });
   });
 
-  it('leaves a non-icon shape node completely unaffected: flat DEFAULT_NODE_SIZE unless sized', () => {
+  // canvas-4lu: this test's title/body originally claimed a non-icon shape node was "completely
+  // unaffected" by content-fit sizing regardless of label length -- that was true before canvas-4lu,
+  // but is now a deliberately superseded assumption: a plain-shape node with a long enough
+  // wrapping label DOES grow past DEFAULT_NODE_SIZE.height now (see the dedicated
+  // 'plainNodeSize() / nodeSize() dispatch (canvas-4lu)' describe block below for that coverage).
+  // What's still true, and still worth asserting here, is a SHORT non-wrapping label staying at
+  // the flat default, and an explicit node.size still winning outright.
+  it('a non-icon shape node with a short label stays at the flat DEFAULT_NODE_SIZE unless sized', () => {
     const rect: DiagramNode = {
       id: 'B',
-      label: 'A Rectangle With A Fairly Long Label Too, For Comparison',
+      label: 'A Rectangle',
       shape: 'rectangle',
       position: { x: 0, y: 0 },
     };
@@ -821,6 +829,157 @@ describe('iconNodeSize / nodeSize content-fit box (canvas-23t.5)', () => {
 
     const sizedRect: DiagramNode = { ...rect, size: { width: 200, height: 80 } };
     expect(nodeSize(sizedRect)).toEqual({ width: 200, height: 80 });
+  });
+});
+
+/**
+ * canvas-4lu: a plain-shape node (no icon, no attribute/member table -- a C4 Person/Database
+ * node included, but really any rectangle/diamond/stadium/etc. node with no explicit `node.size`)
+ * used to get a fixed DEFAULT_NODE_SIZE (140x60) regardless of label length. `renderNode`'s plain
+ * centered-label path already word-wraps a too-wide label to fit the node's own width, but the
+ * box's HEIGHT never grew to match, so a label wrapping to 3+ lines overflowed past the shape's
+ * own bottom edge. `plainNodeSize` mirrors `iconNodeSize`'s own "fixed width, height grows with
+ * however many lines the label wraps to" precedent -- width is deliberately left untouched.
+ */
+describe('plainNodeSize() (canvas-4lu)', () => {
+  function plainNode(label: string, overrides: Partial<DiagramNode> = {}): DiagramNode {
+    return {
+      id: 'A',
+      label,
+      shape: 'person',
+      position: { x: 0, y: 0 },
+      ...overrides,
+    };
+  }
+
+  it('returns exactly DEFAULT_NODE_SIZE for a short single-line label (no regression)', () => {
+    expect(plainNodeSize(plainNode('Customer'))).toEqual({ width: 140, height: 60 });
+  });
+
+  it('returns a height strictly greater than DEFAULT_NODE_SIZE.height for a label that wraps to multiple lines', () => {
+    // Confirmed via the real wrapLine heuristic (AVG_CHAR_WIDTH_RATIO=0.56) at this node's actual
+    // labelMaxWidth (140-16=124) and default fontSize (14) that this wraps to 3 lines -- enough to
+    // push contentHeight (3 * 14*1.2 + 16 = 66.4) past the flat default of 60.
+    const size = plainNodeSize(plainNode('Azure Data Virtualization Gateway Service'));
+    expect(size.height).toBeGreaterThan(60);
+  });
+
+  it('scales height with how many lines the label actually wraps to -- more wrapped lines, taller box', () => {
+    // Both are realistic system/service-style labels (mirroring this file's own existing
+    // Azure-icon-name convention for wrap fixtures), confirmed to wrap to a different number of
+    // lines (3 vs 8) at this node's real labelMaxWidth/fontSize -- not hardcoded pixel values, a
+    // relative comparison so this stays correct even if the wrap heuristic's constants change.
+    const fewerLines = plainNodeSize(plainNode('Azure Data Virtualization Gateway Service'));
+    const moreLines = plainNodeSize(
+      plainNode('Azure Data Lake Storage Gen1 Extended Analytics Workspace For Enterprise Reporting And Analytics'),
+    );
+    expect(fewerLines.height).toBeGreaterThan(60);
+    expect(moreLines.height).toBeGreaterThan(60);
+    expect(moreLines.height).toBeGreaterThan(fewerLines.height);
+  });
+
+  it('always returns DEFAULT_NODE_SIZE.width regardless of label length -- this fix only touches height', () => {
+    const short = plainNodeSize(plainNode('Hi'));
+    const long = plainNodeSize(
+      plainNode('Azure Data Lake Storage Gen1 Extended Analytics Workspace For Enterprise Reporting And Analytics'),
+    );
+    expect(short.width).toBe(140);
+    expect(long.width).toBe(140);
+  });
+
+  it('respects an explicit node.style.fontSize -- a larger font produces a taller box for the same wrapping label', () => {
+    const wrapLabel = 'Azure Data Virtualization Gateway Service';
+    const defaultFontSize = plainNodeSize(plainNode(wrapLabel));
+    const largerFontSize = plainNodeSize(plainNode(wrapLabel, { style: { fontSize: 24 } }));
+    // A larger font both shrinks the character budget per line (more wrapped lines) and makes
+    // each line taller (lineHeight scales with fontSize) -- both effects push height up together.
+    expect(largerFontSize.height).toBeGreaterThan(defaultFontSize.height);
+  });
+
+  it('grows height for a <br/>-broken label just like a heuristically-wrapped one, since both go through splitLabelLines', () => {
+    const explicitBreaks = plainNodeSize(plainNode('Line one<br/>Line two<br/>Line three'));
+    expect(explicitBreaks.height).toBeGreaterThan(60);
+  });
+
+  it('grows height for a raw-newline-broken label the same way as an explicit <br/>', () => {
+    const rawNewlines = plainNodeSize(plainNode('Line one\nLine two\nLine three'));
+    const brBreaks = plainNodeSize(plainNode('Line one<br/>Line two<br/>Line three'));
+    expect(rawNewlines).toEqual(brBreaks);
+  });
+});
+
+/**
+ * canvas-4lu continued: `nodeSize`'s own dispatch must route a plain-shape, unsized node through
+ * the new `plainNodeSize` fallback -- this is the actual regression test for the reported symptom
+ * (a C4 Person/Database node's wrapped label overflowing its box) -- while leaving every branch
+ * that already had its own content-fit sizing (icon nodes, ER/UML table nodes) and the
+ * explicit-node.size-always-wins precedent completely untouched.
+ */
+describe('nodeSize() dispatch to plainNodeSize (canvas-4lu)', () => {
+  it('a plain shape node (e.g. person) with no explicit size and a wrapping label now gets a height taller than the old fixed 60', () => {
+    const node: DiagramNode = {
+      id: 'A',
+      label: 'Azure Data Virtualization Gateway Service',
+      shape: 'person',
+      position: { x: 0, y: 0 },
+    };
+    expect(nodeSize(node).height).toBeGreaterThan(60);
+  });
+
+  it('a cylinder-shaped node with no explicit size and a wrapping label also grows -- not special-cased to person alone', () => {
+    const node: DiagramNode = {
+      id: 'A',
+      label: 'Azure Data Virtualization Gateway Service',
+      shape: 'cylinder',
+      position: { x: 0, y: 0 },
+    };
+    expect(nodeSize(node).height).toBeGreaterThan(60);
+  });
+
+  it('nodeSize delegates to plainNodeSize exactly for an unsized plain-shape node', () => {
+    const node: DiagramNode = {
+      id: 'A',
+      label: 'Azure Data Virtualization Gateway Service',
+      shape: 'rectangle',
+      position: { x: 0, y: 0 },
+    };
+    expect(nodeSize(node)).toEqual(plainNodeSize(node));
+  });
+
+  it('an explicit node.size still wins outright, completely bypassing plainNodeSize (existing precedent extended correctly)', () => {
+    const node: DiagramNode = {
+      id: 'A',
+      label: 'Azure Data Virtualization Gateway Service',
+      shape: 'person',
+      position: { x: 0, y: 0 },
+      size: { width: 999, height: 5 },
+    };
+    expect(nodeSize(node)).toEqual({ width: 999, height: 5 });
+  });
+
+  it('an icon-shaped node is unaffected -- still dispatches to iconNodeSize, never falls into plainNodeSize', () => {
+    const node: DiagramNode = {
+      id: 'A',
+      label: 'Azure Data Virtualization Gateway Service',
+      shape: 'icon',
+      position: { x: 0, y: 0 },
+      icon: { libraryId: 'azure-icons', libraryVersion: '2024.1', iconId: 'storage-accounts' },
+    };
+    expect(nodeSize(node)).toEqual(iconNodeSize(node));
+    expect(nodeSize(node)).not.toEqual(plainNodeSize(node));
+  });
+
+  it('a table-having node (ER attributes) is unaffected -- still dispatches to the table layout, never falls into plainNodeSize', () => {
+    const node: DiagramNode = {
+      id: 'CUSTOMER',
+      label: 'CUSTOMER',
+      shape: 'rectangle',
+      position: { x: 0, y: 0 },
+      attributes: [{ type: 'string', name: 'id', keys: ['PK'] }],
+    };
+    const layout = tableNodeLayout(node)!;
+    expect(nodeSize(node)).toEqual({ width: layout.width, height: layout.height });
+    expect(nodeSize(node)).not.toEqual(plainNodeSize(node));
   });
 });
 
