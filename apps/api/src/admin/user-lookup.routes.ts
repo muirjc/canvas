@@ -14,6 +14,8 @@ export async function registerUserLookupRoutes(app: FastifyInstance): Promise<vo
       preHandler: requireAuth,
       // canvas-80m: declarative validation (Fastify JSON Schema) instead of a hand-rolled `if`.
       schema: {
+        tags: ['Users'],
+        security: [{ cookieAuth: [] }],
         querystring: { type: 'object', required: ['email'], properties: { email: { type: 'string', minLength: 1 } } },
       },
     },

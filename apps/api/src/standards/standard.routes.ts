@@ -25,18 +25,22 @@ function handleServiceError(error: unknown, reply: FastifyReply): void {
 }
 
 export async function registerStandardRoutes(app: FastifyInstance): Promise<void> {
-  app.get<{ Params: { id: string } }>('/diagram-types/:id/standard', { preHandler: requireAuth }, async (request, reply) => {
-    const standard = await getActiveStandard(request.params.id);
-    if (!standard) {
-      reply.code(404).send({ error: `No published standard for diagram type ${request.params.id}` });
-      return;
-    }
-    reply.send({ standard });
-  });
+  app.get<{ Params: { id: string } }>(
+    '/diagram-types/:id/standard',
+    { preHandler: requireAuth, schema: { tags: ['Standards'], security: [{ cookieAuth: [] }] } },
+    async (request, reply) => {
+      const standard = await getActiveStandard(request.params.id);
+      if (!standard) {
+        reply.code(404).send({ error: `No published standard for diagram type ${request.params.id}` });
+        return;
+      }
+      reply.send({ standard });
+    },
+  );
 
   app.get<{ Params: { id: string } }>(
     '/diagram-types/:id/standards',
-    { preHandler: requireAuth },
+    { preHandler: requireAuth, schema: { tags: ['Standards'], security: [{ cookieAuth: [] }] } },
     async (request, reply) => {
       reply.send({ standards: await listStandards(request.params.id) });
     },
@@ -44,7 +48,7 @@ export async function registerStandardRoutes(app: FastifyInstance): Promise<void
 
   app.post<{ Params: { id: string }; Body: Partial<StandardRules> & { name?: string; description?: string } }>(
     '/diagram-types/:id/standards',
-    { preHandler: requireRole('admin') },
+    { preHandler: requireRole('admin'), schema: { tags: ['Standards'], security: [{ cookieAuth: [] }] } },
     async (request, reply) => {
       const body = request.body;
       const standard = await createDraftStandard({
@@ -65,7 +69,7 @@ export async function registerStandardRoutes(app: FastifyInstance): Promise<void
 
   app.post<{ Params: { id: string } }>(
     '/standards/:id/publish',
-    { preHandler: requireRole('admin') },
+    { preHandler: requireRole('admin'), schema: { tags: ['Standards'], security: [{ cookieAuth: [] }] } },
     async (request, reply) => {
       try {
         const standard = await publishStandard(request.params.id);
@@ -81,7 +85,7 @@ export async function registerStandardRoutes(app: FastifyInstance): Promise<void
 
   app.post<{ Params: { id: string } }>(
     '/standards/:id/retire',
-    { preHandler: requireRole('admin') },
+    { preHandler: requireRole('admin'), schema: { tags: ['Standards'], security: [{ cookieAuth: [] }] } },
     async (request, reply) => {
       try {
         const standard = await retireStandard(request.params.id);

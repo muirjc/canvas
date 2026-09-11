@@ -26,6 +26,8 @@ export async function registerImportTemplateRoutes(app: FastifyInstance): Promis
       preHandler: [requireAuth, requireProjectAccess('edit', 'projectId')],
       // canvas-80m: declarative validation (Fastify JSON Schema) instead of a hand-rolled `if`.
       schema: {
+        tags: ['Diagrams'],
+        security: [{ cookieAuth: [] }],
         body: {
           type: 'object',
           required: ['name', 'diagramTypeId', 'templateContent'],

@@ -26,7 +26,7 @@ function handleError(error: unknown, reply: FastifyReply): void {
 export async function registerPersonaReferenceMaterialRoutes(app: FastifyInstance): Promise<void> {
   app.get<{ Params: { id: string } }>(
     '/admin/ai-personas/:id/reference-material',
-    { preHandler: requireRole('admin') },
+    { preHandler: requireRole('admin'), schema: { tags: ['AI'], security: [{ cookieAuth: [] }] } },
     async (request, reply) => {
       if (!(await getPersona(request.params.id))) {
         reply.code(404).send({ error: 'Persona not found' });
@@ -38,7 +38,7 @@ export async function registerPersonaReferenceMaterialRoutes(app: FastifyInstanc
 
   app.post<{ Params: { id: string }; Body: { content: string; diagramFamilies?: string[] } }>(
     '/admin/ai-personas/:id/reference-material',
-    { preHandler: requireRole('admin') },
+    { preHandler: requireRole('admin'), schema: { tags: ['AI'], security: [{ cookieAuth: [] }] } },
     async (request, reply) => {
       if (!(await getPersona(request.params.id))) {
         reply.code(404).send({ error: 'Persona not found' });
@@ -55,7 +55,7 @@ export async function registerPersonaReferenceMaterialRoutes(app: FastifyInstanc
 
   app.patch<{ Params: { personaId: string; entryId: string }; Body: { content?: string; diagramFamilies?: string[] } }>(
     '/admin/ai-personas/:personaId/reference-material/:entryId',
-    { preHandler: requireRole('admin') },
+    { preHandler: requireRole('admin'), schema: { tags: ['AI'], security: [{ cookieAuth: [] }] } },
     async (request, reply) => {
       try {
         const entry = await updateReferenceMaterial(request.params.personaId, request.params.entryId, request.body);
@@ -72,7 +72,7 @@ export async function registerPersonaReferenceMaterialRoutes(app: FastifyInstanc
 
   app.delete<{ Params: { personaId: string; entryId: string } }>(
     '/admin/ai-personas/:personaId/reference-material/:entryId',
-    { preHandler: requireRole('admin') },
+    { preHandler: requireRole('admin'), schema: { tags: ['AI'], security: [{ cookieAuth: [] }] } },
     async (request, reply) => {
       const deleted = await deleteReferenceMaterial(request.params.personaId, request.params.entryId);
       if (!deleted) {

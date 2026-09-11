@@ -4,13 +4,17 @@ import { requireAuth, requireRole } from '../auth/middleware.js';
 import { ingestLibrary, listLibraries, searchIconsForDiagramType, searchIconsInLibrary } from './library.service.js';
 
 export async function registerLibraryRoutes(app: FastifyInstance): Promise<void> {
-  app.get('/libraries', { preHandler: requireAuth }, async (_request, reply) => {
-    reply.send({ libraries: await listLibraries() });
-  });
+  app.get(
+    '/libraries',
+    { preHandler: requireAuth, schema: { tags: ['Libraries'], security: [{ cookieAuth: [] }] } },
+    async (_request, reply) => {
+      reply.send({ libraries: await listLibraries() });
+    },
+  );
 
   app.post<{ Body: IconShapeLibraryManifest }>(
     '/libraries',
-    { preHandler: requireRole('admin') },
+    { preHandler: requireRole('admin'), schema: { tags: ['Libraries'], security: [{ cookieAuth: [] }] } },
     async (request, reply) => {
       try {
         await ingestLibrary(request.body);
@@ -23,7 +27,7 @@ export async function registerLibraryRoutes(app: FastifyInstance): Promise<void>
 
   app.get<{ Params: { id: string; version: string }; Querystring: { query?: string } }>(
     '/libraries/:id/versions/:version/icons',
-    { preHandler: requireAuth },
+    { preHandler: requireAuth, schema: { tags: ['Libraries'], security: [{ cookieAuth: [] }] } },
     async (request, reply) => {
       const icons = await searchIconsInLibrary(request.params.id, request.params.version, request.query.query ?? '');
       reply.send({ icons });
@@ -36,6 +40,8 @@ export async function registerLibraryRoutes(app: FastifyInstance): Promise<void>
       preHandler: requireAuth,
       // canvas-80m: declarative validation (Fastify JSON Schema) instead of a hand-rolled `if`.
       schema: {
+        tags: ['Libraries'],
+        security: [{ cookieAuth: [] }],
         querystring: {
           type: 'object',
           required: ['diagramTypeId'],
