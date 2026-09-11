@@ -88,6 +88,16 @@ jobs:
       # no API key and makes no network call. Without this the API server starts unconfigured and
       # every AI request fails at provider resolution.
       AI_PROVIDER: mock
+      # canvas-v4u: same values RUNBOOK.md's "Keycloak SSO" section documents for local dev,
+      # against the Keycloak container the "Start Keycloak" step below brings up from the same
+      # docker-compose.yml service (--profile sso) used locally -- so CI and local dev can never
+      # drift apart. ALLOW_LOCAL_AUTH stays 'true' alongside these; both entry points render
+      # (RUNBOOK.md), so every other spec's local-auth login flow is unaffected.
+      OIDC_ISSUER_URL: http://localhost:8180/realms/CanvasRealm
+      OIDC_CLIENT_ID: canvas-api
+      OIDC_CLIENT_SECRET: canvas-dev-client-secret-do-not-use-in-production
+      OIDC_REDIRECT_URI: http://localhost:3000/auth/callback
+      E2E_SSO_READY: '1'
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -99,12 +109,28 @@ jobs:
       - name: Install Playwright browsers
         working-directory: apps/web
         run: npx playwright install --with-deps chromium
+      # canvas-v4u: started detached (`-d`) here, ahead of "Seed database"/build steps below, so
+      # Keycloak's JVM boot overlaps with that unrelated work instead of adding pure serial wait
+      # time -- readiness is only actually awaited in "Wait for Keycloak", right before it's
+      # needed. Every CI run is a genuinely fresh container (no persistent volume, matching
+      # docker-compose.yml's own keycloak service -- unlike postgres), so sso-login.spec.ts's own
+      # "first-time enrollment" assumption always holds here, unlike a locally `restart`ed one
+      # (RUNBOOK.md's own documented gotcha).
+      - name: Start Keycloak
+        run: docker compose --profile sso up -d keycloak
       - name: Seed database
         working-directory: apps/api
         run: |
           OUTPUT=$(npm run seed 2>&1 | tee /dev/stderr)
           PROJECT_ID=$(echo "$OUTPUT" | grep "Project id:" | awk '{print $NF}')
           echo "E2E_PROJECT_ID=$PROJECT_ID" >> "$GITHUB_ENV"
+      - name: Wait for Keycloak
+        run: |
+          for i in $(seq 1 60); do
+            curl -sf http://localhost:8180/realms/CanvasRealm/.well-known/openid-configuration > /dev/null && exit 0
+            sleep 2
+          done
+          echo "Keycloak did not become healthy in time"; docker compose logs keycloak; exit 1
       - name: Start API server
         working-directory: apps/api
         run: |
