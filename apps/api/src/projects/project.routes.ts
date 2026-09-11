@@ -39,6 +39,8 @@ export async function registerProjectRoutes(app: FastifyInstance): Promise<void>
       preHandler: requireAuth,
       // canvas-80m: declarative validation (Fastify JSON Schema) instead of a hand-rolled `if`.
       schema: {
+        tags: ['Projects'],
+        security: [{ cookieAuth: [] }],
         body: {
           type: 'object',
           required: ['name'],
@@ -61,13 +63,20 @@ export async function registerProjectRoutes(app: FastifyInstance): Promise<void>
    * The projects available to the caller (feature 007, FR-013a). An empty list is a 200, not a
    * 404 — "you have access to no projects" is the first-run path, not an error.
    */
-  app.get('/projects', { preHandler: requireAuth }, async (request, reply) => {
-    reply.send({ projects: await listProjectsForUser(request.session.user!.id) });
-  });
+  app.get(
+    '/projects',
+    { preHandler: requireAuth, schema: { tags: ['Projects'], security: [{ cookieAuth: [] }] } },
+    async (request, reply) => {
+      reply.send({ projects: await listProjectsForUser(request.session.user!.id) });
+    },
+  );
 
   app.get<{ Params: { id: string } }>(
     '/projects/:id',
-    { preHandler: [requireAuth, requireProjectAccess('view', 'id')] },
+    {
+      preHandler: [requireAuth, requireProjectAccess('view', 'id')],
+      schema: { tags: ['Projects'], security: [{ cookieAuth: [] }] },
+    },
     async (request, reply) => {
       try {
         reply.send({ project: await getProject(request.params.id) });
@@ -79,7 +88,10 @@ export async function registerProjectRoutes(app: FastifyInstance): Promise<void>
 
   app.get<{ Params: { id: string } }>(
     '/projects/:id/tree',
-    { preHandler: [requireAuth, requireProjectAccess('view', 'id')] },
+    {
+      preHandler: [requireAuth, requireProjectAccess('view', 'id')],
+      schema: { tags: ['Projects'], security: [{ cookieAuth: [] }] },
+    },
     async (request, reply) => {
       try {
         reply.send({ tree: await getProjectTree(request.params.id) });
@@ -95,6 +107,8 @@ export async function registerProjectRoutes(app: FastifyInstance): Promise<void>
       preHandler: [requireAuth, requireProjectOwnerOrAdmin()],
       // canvas-80m: declarative validation (Fastify JSON Schema) instead of a hand-rolled `if`.
       schema: {
+        tags: ['Projects'],
+        security: [{ cookieAuth: [] }],
         body: { type: 'object', required: ['name'], properties: { name: { type: 'string', minLength: 1 } } },
       },
     },
@@ -111,7 +125,10 @@ export async function registerProjectRoutes(app: FastifyInstance): Promise<void>
 
   app.delete<{ Params: { id: string } }>(
     '/projects/:id',
-    { preHandler: [requireAuth, requireProjectOwnerOrAdmin()] },
+    {
+      preHandler: [requireAuth, requireProjectOwnerOrAdmin()],
+      schema: { tags: ['Projects'], security: [{ cookieAuth: [] }] },
+    },
     async (request, reply) => {
       try {
         await deleteProject(request.params.id, request.session.user!.id);
@@ -122,13 +139,17 @@ export async function registerProjectRoutes(app: FastifyInstance): Promise<void>
     },
   );
 
-  app.get('/admin/deleted-projects', { preHandler: requireRole('admin') }, async (_request, reply) => {
-    reply.send({ projects: await listDeletedProjects() });
-  });
+  app.get(
+    '/admin/deleted-projects',
+    { preHandler: requireRole('admin'), schema: { tags: ['Projects'], security: [{ cookieAuth: [] }] } },
+    async (_request, reply) => {
+      reply.send({ projects: await listDeletedProjects() });
+    },
+  );
 
   app.post<{ Params: { id: string } }>(
     '/projects/:id/restore',
-    { preHandler: requireRole('admin') },
+    { preHandler: requireRole('admin'), schema: { tags: ['Projects'], security: [{ cookieAuth: [] }] } },
     async (request, reply) => {
       try {
         await restoreProject(request.params.id, request.session.user!.id);

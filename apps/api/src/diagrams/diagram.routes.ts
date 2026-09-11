@@ -51,6 +51,8 @@ export async function registerDiagramRoutes(app: FastifyInstance): Promise<void>
       preHandler: [requireAuth, requireProjectAccess('edit', 'projectId')],
       // canvas-80m: declarative validation (Fastify JSON Schema) instead of a hand-rolled `if`.
       schema: {
+        tags: ['Diagrams'],
+        security: [{ cookieAuth: [] }],
         body: {
           type: 'object',
           required: ['name', 'diagramTypeId'],
@@ -81,7 +83,10 @@ export async function registerDiagramRoutes(app: FastifyInstance): Promise<void>
 
   app.get<{ Params: { projectId: string }; Querystring: { query?: string; type?: string } }>(
     '/projects/:projectId/diagrams',
-    { preHandler: [requireAuth, requireProjectAccess('view', 'projectId')] },
+    {
+      preHandler: [requireAuth, requireProjectAccess('view', 'projectId')],
+      schema: { tags: ['Diagrams'], security: [{ cookieAuth: [] }] },
+    },
     async (request, reply) => {
       const diagrams = await searchDiagrams({
         projectId: request.params.projectId,
@@ -92,14 +97,21 @@ export async function registerDiagramRoutes(app: FastifyInstance): Promise<void>
     },
   );
 
-  app.get<{ Params: { id: string } }>('/diagrams/:id', { preHandler: [requireAuth, requireDiagramAccess('view')] }, async (request, reply) => {
-    try {
-      const diagram = await getDiagram(request.params.id);
-      reply.send({ diagram });
-    } catch (error) {
-      handleServiceError(error, reply);
-    }
-  });
+  app.get<{ Params: { id: string } }>(
+    '/diagrams/:id',
+    {
+      preHandler: [requireAuth, requireDiagramAccess('view')],
+      schema: { tags: ['Diagrams'], security: [{ cookieAuth: [] }] },
+    },
+    async (request, reply) => {
+      try {
+        const diagram = await getDiagram(request.params.id);
+        reply.send({ diagram });
+      } catch (error) {
+        handleServiceError(error, reply);
+      }
+    },
+  );
 
   app.patch<{ Params: { id: string }; Body: { dslContent: string } }>(
     '/diagrams/:id',
@@ -107,6 +119,8 @@ export async function registerDiagramRoutes(app: FastifyInstance): Promise<void>
       preHandler: [requireAuth, requireDiagramAccess('edit')],
       // canvas-80m: declarative validation (Fastify JSON Schema) instead of a hand-rolled `if`.
       schema: {
+        tags: ['Diagrams'],
+        security: [{ cookieAuth: [] }],
         body: { type: 'object', required: ['dslContent'], properties: { dslContent: { type: 'string' } } },
       },
     },
@@ -136,6 +150,8 @@ export async function registerDiagramRoutes(app: FastifyInstance): Promise<void>
       // canvas-80m: declarative validation (Fastify JSON Schema) instead of a hand-rolled `if` --
       // the pattern rejects whitespace-only strings, which minLength alone would not catch.
       schema: {
+        tags: ['Diagrams'],
+        security: [{ cookieAuth: [] }],
         body: {
           type: 'object',
           required: ['name'],
@@ -166,6 +182,8 @@ export async function registerDiagramRoutes(app: FastifyInstance): Promise<void>
       // canvas-80m: declarative validation (Fastify JSON Schema) instead of a hand-rolled `if` --
       // deliberately no minLength, since an empty string is a valid value (clears the description).
       schema: {
+        tags: ['Diagrams'],
+        security: [{ cookieAuth: [] }],
         body: { type: 'object', required: ['description'], properties: { description: { type: 'string' } } },
       },
     },
@@ -193,6 +211,8 @@ export async function registerDiagramRoutes(app: FastifyInstance): Promise<void>
       preHandler: [requireAuth, requireDiagramAccess('edit')],
       // canvas-80m: declarative validation (Fastify JSON Schema) instead of a hand-rolled `if`.
       schema: {
+        tags: ['Diagrams'],
+        security: [{ cookieAuth: [] }],
         body: { type: 'object', required: ['projectId'], properties: { projectId: { type: 'string', minLength: 1 } } },
       },
     },
@@ -222,7 +242,7 @@ export async function registerDiagramRoutes(app: FastifyInstance): Promise<void>
 
   app.get<{ Params: { id: string }; Querystring: { limit?: string; q?: string } }>(
     '/diagrams/:id/versions',
-    { preHandler: [requireAuth, requireDiagramAccess('view')] },
+    { preHandler: [requireAuth, requireDiagramAccess('view')], schema: { tags: ['Diagrams'], security: [{ cookieAuth: [] }] } },
     async (request, reply) => {
       const parsedLimit = Number.parseInt(request.query.limit ?? '', 10);
       const page = await listDiagramVersions(request.params.id, {
@@ -235,7 +255,7 @@ export async function registerDiagramRoutes(app: FastifyInstance): Promise<void>
 
   app.post<{ Params: { id: string; versionId: string } }>(
     '/diagrams/:id/versions/:versionId/restore',
-    { preHandler: [requireAuth, requireDiagramAccess('edit')] },
+    { preHandler: [requireAuth, requireDiagramAccess('edit')], schema: { tags: ['Diagrams'], security: [{ cookieAuth: [] }] } },
     async (request, reply) => {
       try {
         const restoredContent = await getDiagramVersionContent(request.params.id, request.params.versionId);
@@ -252,7 +272,7 @@ export async function registerDiagramRoutes(app: FastifyInstance): Promise<void>
 
   app.delete<{ Params: { id: string } }>(
     '/diagrams/:id',
-    { preHandler: [requireAuth, requireDiagramOwnerOrAdmin()] },
+    { preHandler: [requireAuth, requireDiagramOwnerOrAdmin()], schema: { tags: ['Diagrams'], security: [{ cookieAuth: [] }] } },
     async (request, reply) => {
       try {
         await deleteDiagram(request.params.id, request.session.user!.id);
@@ -265,7 +285,7 @@ export async function registerDiagramRoutes(app: FastifyInstance): Promise<void>
 
   app.get<{ Querystring: { limit?: string; q?: string } }>(
     '/admin/deleted-diagrams',
-    { preHandler: requireRole('admin') },
+    { preHandler: requireRole('admin'), schema: { tags: ['Diagrams'], security: [{ cookieAuth: [] }] } },
     async (request, reply) => {
       const parsedLimit = Number.parseInt(request.query.limit ?? '', 10);
       const page = await listDeletedDiagrams({
@@ -278,7 +298,7 @@ export async function registerDiagramRoutes(app: FastifyInstance): Promise<void>
 
   app.post<{ Params: { id: string } }>(
     '/diagrams/:id/restore',
-    { preHandler: requireRole('admin') },
+    { preHandler: requireRole('admin'), schema: { tags: ['Diagrams'], security: [{ cookieAuth: [] }] } },
     async (request, reply) => {
       try {
         await restoreDiagram(request.params.id, request.session.user!.id);
