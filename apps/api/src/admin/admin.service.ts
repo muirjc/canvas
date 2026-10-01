@@ -1,4 +1,4 @@
-import { getPool } from '../db/pool.js';
+import { sql } from 'kysely';
 import { getDb } from '../db/client.js';
 import { getUserPersonas, getUserPersonasBatch, setUserPersonas } from '../db/array-columns.js';
 import type { UserRole } from '../auth/types.js';
@@ -76,18 +76,25 @@ export interface AdminOverview {
 
 /** Single aggregated view for the admin console landing page (FR-023). */
 export async function getAdminOverview(): Promise<AdminOverview> {
-  const pool = getPool();
-  const [{ rows: userRows }, { rows: standardRows }, { rows: libraryRows }] = await Promise.all([
-    pool.query<{ count: string }>('SELECT COUNT(*) FROM users'),
-    pool.query<{ total: string; published: string }>(
-      `SELECT COUNT(*) AS total, COUNT(*) FILTER (WHERE status = 'published') AS published FROM standards`,
-    ),
-    pool.query<{ count: string }>('SELECT COUNT(*) FROM icon_libraries'),
+  const db = getDb();
+  const [userRow, standardRow, libraryRow] = await Promise.all([
+    db.selectFrom('users').select(sql<string>`COUNT(*)`.as('count')).executeTakeFirstOrThrow(),
+    db
+      .selectFrom('standards')
+      .select([
+        sql<string>`COUNT(*)`.as('total'),
+        // Portable replacement for COUNT(*) FILTER (WHERE status = 'published') — FILTER isn't
+        // supported by every engine (MySQL lacks it; SQLite only added it in 3.30+), so this uses
+        // the ANSI-standard SUM(CASE WHEN ...) form instead (canvas-jtm.4).
+        sql<string>`SUM(CASE WHEN status = 'published' THEN 1 ELSE 0 END)`.as('published'),
+      ])
+      .executeTakeFirstOrThrow(),
+    db.selectFrom('icon_libraries').select(sql<string>`COUNT(*)`.as('count')).executeTakeFirstOrThrow(),
   ]);
   return {
-    userCount: Number(userRows[0].count),
-    standardsCount: Number(standardRows[0].total),
-    publishedStandardsCount: Number(standardRows[0].published),
-    libraryCount: Number(libraryRows[0].count),
+    userCount: Number(userRow.count),
+    standardsCount: Number(standardRow.total),
+    publishedStandardsCount: Number(standardRow.published),
+    libraryCount: Number(libraryRow.count),
   };
 }

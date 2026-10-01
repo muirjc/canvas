@@ -1,4 +1,5 @@
-import { getPool } from '../db/pool.js';
+import { getDb } from '../db/client.js';
+import { caseInsensitiveLike } from '../db/sql-helpers.js';
 
 export interface DiagramSummary {
   id: string;
@@ -16,24 +17,31 @@ export interface SearchDiagramsInput {
 
 /** Search/browse diagrams by name, type, and folder (FR-016). */
 export async function searchDiagrams(input: SearchDiagramsInput): Promise<DiagramSummary[]> {
-  const pool = getPool();
-  const conditions = ['project_id = $1', 'deleted_at IS NULL'];
-  const params: unknown[] = [input.projectId];
+  const db = getDb();
+  let query = db
+    .selectFrom('diagrams')
+    .where('project_id', '=', input.projectId)
+    .where('deleted_at', 'is', null);
 
   if (input.query) {
-    params.push(`%${input.query}%`);
-    conditions.push(`name ILIKE $${params.length}`);
+    const pattern = `%${input.query}%`;
+    query = query.where((eb) => caseInsensitiveLike(eb.ref('name'), pattern));
   }
   if (input.diagramTypeId) {
-    params.push(input.diagramTypeId);
-    conditions.push(`diagram_type_id = $${params.length}`);
+    query = query.where('diagram_type_id', '=', input.diagramTypeId);
   }
 
-  const { rows } = await pool.query<{ id: string; name: string; diagram_type_id: string; project_id: string; updated_at: string }>(
-    `SELECT id, name, diagram_type_id, project_id, updated_at FROM diagrams
-     WHERE ${conditions.join(' AND ')}
-     ORDER BY updated_at DESC`,
-    params,
-  );
-  return rows.map((r) => ({ id: r.id, name: r.name, diagramTypeId: r.diagram_type_id, projectId: r.project_id, updatedAt: r.updated_at }));
+  const rows = await query
+    .select(['id', 'name', 'diagram_type_id', 'project_id', 'updated_at'])
+    .orderBy('updated_at', 'desc')
+    .execute();
+  return rows.map((r) => ({
+    id: r.id,
+    name: r.name,
+    diagramTypeId: r.diagram_type_id,
+    projectId: r.project_id,
+    // See diagram-chat.service.ts's getChatMessages for why this cast is the pre-existing
+    // convention, not a new behavior change — node-postgres always returned a Date here.
+    updatedAt: r.updated_at as unknown as string,
+  }));
 }

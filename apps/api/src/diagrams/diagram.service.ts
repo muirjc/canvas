@@ -1,5 +1,6 @@
 import { createEmptyDiagramModel, getDslFamily, validate, type DiagramModel, type ParseError } from '@canvas/diagram-core';
-import { getPool } from '../db/pool.js';
+import { getDb } from '../db/client.js';
+import { caseInsensitiveLike } from '../db/sql-helpers.js';
 import { recordDiagramVersion } from './version.service.js';
 import { getActiveStandard } from '../standards/standard.service.js';
 import type { Violation } from '@canvas/diagram-core';
@@ -41,16 +42,20 @@ export class DiagramRetentionExpiredError extends Error {}
 /** Soft-deleted diagrams older than this are no longer restorable (FR-013/FR-015, feature 002). */
 export const DIAGRAM_RETENTION_DAYS = 30;
 
+/** App-computed retention boundary (canvas-jtm.4) — replaces `now() - make_interval(days => $n)`,
+ *  a Postgres-specific function with no SQLite equivalent. Computed once per call rather than
+ *  cached, matching the original SQL expression's own "evaluated fresh every query" behavior. */
+function retentionBoundary(): Date {
+  return new Date(Date.now() - DIAGRAM_RETENTION_DAYS * 24 * 60 * 60 * 1000);
+}
+
 export async function loadDiagramTypeDslFamily(diagramTypeId: string): Promise<string> {
-  const pool = getPool();
-  const { rows } = await pool.query<{ dsl_family: string }>(
-    'SELECT dsl_family FROM diagram_types WHERE id = $1',
-    [diagramTypeId],
-  );
-  if (!rows[0]) {
+  const db = getDb();
+  const row = await db.selectFrom('diagram_types').select('dsl_family').where('id', '=', diagramTypeId).executeTakeFirst();
+  if (!row) {
     throw new UnknownDiagramTypeError(`Unknown diagram type: ${diagramTypeId}`);
   }
-  return rows[0].dsl_family;
+  return row.dsl_family;
 }
 
 function parseOrThrow(dslFamilyId: string, dslContent: string): DiagramModel {
@@ -100,66 +105,60 @@ export async function createDiagram(input: CreateDiagramInput): Promise<DiagramR
   const model = parseOrThrow(dslFamilyId, initialDslContent);
   const { violations, standardVersion } = await computeValidation(input.diagramTypeId, model);
 
-  const pool = getPool();
-  const client = await pool.connect();
-  let diagramId: string;
-  try {
-    await client.query('BEGIN');
-    const diagramResult = await client.query<{ id: string }>(
-      `INSERT INTO diagrams (name, diagram_type_id, project_id, owner_id, last_validation_result, standard_version_at_last_check)
-       VALUES ($1, $2, $3, $4, $5, $6) RETURNING id`,
-      [input.name, input.diagramTypeId, input.projectId, input.ownerId, JSON.stringify(violations), standardVersion],
-    );
-    diagramId = diagramResult.rows[0].id;
+  const db = getDb();
+  const diagramId = await db.transaction().execute(async (trx) => {
+    const diagram = await trx
+      .insertInto('diagrams')
+      .values({
+        name: input.name,
+        diagram_type_id: input.diagramTypeId,
+        project_id: input.projectId,
+        owner_id: input.ownerId,
+        last_validation_result: JSON.stringify(violations),
+        standard_version_at_last_check: standardVersion,
+      })
+      .returning('id')
+      .executeTakeFirstOrThrow();
 
-    const versionId = await recordDiagramVersion(client, {
-      diagramId,
+    const versionId = await recordDiagramVersion(trx, {
+      diagramId: diagram.id,
       dslContent: initialDslContent,
       authorId: input.ownerId,
     });
 
-    await client.query('UPDATE diagrams SET current_version_id = $1 WHERE id = $2', [versionId, diagramId]);
-    await client.query('COMMIT');
-  } catch (error) {
-    await client.query('ROLLBACK');
-    throw error;
-  } finally {
-    client.release();
-  }
+    await trx.updateTable('diagrams').set({ current_version_id: versionId }).where('id', '=', diagram.id).execute();
+    return diagram.id;
+  });
   // canvas-hbk: re-fetches rather than hand-assembling the record, so createDiagram picks up
   // ownerName resolution (and description's null default) via the same single code path getDiagram
   // already has, instead of a second copy of that mapping logic.
   return getDiagram(diagramId);
 }
 
-interface DiagramRow {
-  id: string;
-  name: string;
-  description: string | null;
-  diagram_type_id: string;
-  dsl_family: string;
-  project_id: string;
-  owner_id: string;
-  owner_name: string | null;
-  last_validation_result: Violation[];
-  created_at: string;
-  updated_at: string;
-  dsl_content: string;
-}
-
 export async function getDiagram(id: string): Promise<DiagramRecord> {
-  const pool = getPool();
-  const { rows } = await pool.query<DiagramRow>(
-    `SELECT d.id, d.name, d.description, d.diagram_type_id, dt.dsl_family, d.project_id, d.owner_id,
-            u.name AS owner_name, d.last_validation_result, d.created_at, d.updated_at, v.dsl_content
-     FROM diagrams d
-     JOIN diagram_versions v ON v.id = d.current_version_id
-     JOIN diagram_types dt ON dt.id = d.diagram_type_id
-     LEFT JOIN users u ON u.id = d.owner_id
-     WHERE d.id = $1 AND d.deleted_at IS NULL`,
-    [id],
-  );
-  const row = rows[0];
+  const db = getDb();
+  const row = await db
+    .selectFrom('diagrams as d')
+    .innerJoin('diagram_versions as v', 'v.id', 'd.current_version_id')
+    .innerJoin('diagram_types as dt', 'dt.id', 'd.diagram_type_id')
+    .leftJoin('users as u', 'u.id', 'd.owner_id')
+    .select([
+      'd.id',
+      'd.name',
+      'd.description',
+      'd.diagram_type_id',
+      'dt.dsl_family',
+      'd.project_id',
+      'd.owner_id',
+      'u.name as owner_name',
+      'd.last_validation_result',
+      'd.created_at',
+      'd.updated_at',
+      'v.dsl_content',
+    ])
+    .where('d.id', '=', id)
+    .where('d.deleted_at', 'is', null)
+    .executeTakeFirst();
   if (!row) {
     throw new DiagramNotFoundError(`No diagram with id ${id}`);
   }
@@ -173,9 +172,14 @@ export async function getDiagram(id: string): Promise<DiagramRecord> {
     ownerId: row.owner_id,
     ownerName: row.owner_name ?? '(unknown)',
     dslContent: row.dsl_content,
-    lastValidationResult: row.last_validation_result,
-    createdAt: row.created_at,
-    updatedAt: row.updated_at,
+    // Kysely infers this JSONB column as `unknown` on select (db/schema.ts's `JsonColumn<unknown>`)
+    // — this cast trusts DB content matches `Violation[]` exactly like the pre-Kysely raw-SQL
+    // `pool.query<DiagramRow>(...)` generic type parameter always implicitly did.
+    lastValidationResult: row.last_validation_result as unknown as Violation[],
+    // See diagram-chat.service.ts's getChatMessages for why these casts are the pre-existing
+    // convention, not a new behavior change — node-postgres always returned a Date here.
+    createdAt: row.created_at as unknown as string,
+    updatedAt: row.updated_at as unknown as string,
   };
 }
 
@@ -191,29 +195,25 @@ export async function saveDiagram(id: string, input: SaveDiagramInput): Promise<
   const model = parseOrThrow(dslFamilyId, input.dslContent);
   const { violations, standardVersion } = await computeValidation(existing.diagramTypeId, model);
 
-  const pool = getPool();
-  const client = await pool.connect();
-  try {
-    await client.query('BEGIN');
-    const versionId = await recordDiagramVersion(client, {
+  const db = getDb();
+  await db.transaction().execute(async (trx) => {
+    const versionId = await recordDiagramVersion(trx, {
       diagramId: id,
       dslContent: input.dslContent,
       authorId: input.authorId,
     });
 
-    await client.query(
-      `UPDATE diagrams
-       SET current_version_id = $1, updated_at = now(), last_validation_result = $2, standard_version_at_last_check = $3
-       WHERE id = $4`,
-      [versionId, JSON.stringify(violations), standardVersion, id],
-    );
-    await client.query('COMMIT');
-  } catch (error) {
-    await client.query('ROLLBACK');
-    throw error;
-  } finally {
-    client.release();
-  }
+    await trx
+      .updateTable('diagrams')
+      .set({
+        current_version_id: versionId,
+        updated_at: new Date(),
+        last_validation_result: JSON.stringify(violations),
+        standard_version_at_last_check: standardVersion,
+      })
+      .where('id', '=', id)
+      .execute();
+  });
 
   return getDiagram(id);
 }
@@ -225,12 +225,12 @@ export async function saveDiagram(id: string, input: SaveDiagramInput): Promise<
  * only which project's tree it appears in.
  */
 export async function moveDiagram(id: string, destinationProjectId: string): Promise<DiagramRecord> {
-  const pool = getPool();
-  const { rows } = await pool.query('SELECT 1 FROM diagrams WHERE id = $1 AND deleted_at IS NULL', [id]);
-  if (!rows[0]) {
+  const db = getDb();
+  const row = await db.selectFrom('diagrams').select('id').where('id', '=', id).where('deleted_at', 'is', null).executeTakeFirst();
+  if (!row) {
     throw new DiagramNotFoundError(`No diagram with id ${id}`);
   }
-  await pool.query('UPDATE diagrams SET project_id = $2 WHERE id = $1', [id, destinationProjectId]);
+  await db.updateTable('diagrams').set({ project_id: destinationProjectId }).where('id', '=', id).execute();
   return getDiagram(id);
 }
 
@@ -241,12 +241,12 @@ export async function moveDiagram(id: string, destinationProjectId: string): Pro
  * doesn't touch history or the current DSL content.
  */
 export async function renameDiagram(id: string, name: string): Promise<DiagramRecord> {
-  const pool = getPool();
-  const { rows } = await pool.query('SELECT 1 FROM diagrams WHERE id = $1 AND deleted_at IS NULL', [id]);
-  if (!rows[0]) {
+  const db = getDb();
+  const row = await db.selectFrom('diagrams').select('id').where('id', '=', id).where('deleted_at', 'is', null).executeTakeFirst();
+  if (!row) {
     throw new DiagramNotFoundError(`No diagram with id ${id}`);
   }
-  await pool.query('UPDATE diagrams SET name = $2 WHERE id = $1', [id, name]);
+  await db.updateTable('diagrams').set({ name }).where('id', '=', id).execute();
   return getDiagram(id);
 }
 
@@ -258,12 +258,16 @@ export async function renameDiagram(id: string, name: string): Promise<DiagramRe
  * a name.
  */
 export async function updateDiagramDescription(id: string, description: string): Promise<DiagramRecord> {
-  const pool = getPool();
-  const { rows } = await pool.query('SELECT 1 FROM diagrams WHERE id = $1 AND deleted_at IS NULL', [id]);
-  if (!rows[0]) {
+  const db = getDb();
+  const row = await db.selectFrom('diagrams').select('id').where('id', '=', id).where('deleted_at', 'is', null).executeTakeFirst();
+  if (!row) {
     throw new DiagramNotFoundError(`No diagram with id ${id}`);
   }
-  await pool.query('UPDATE diagrams SET description = $2 WHERE id = $1', [id, description || null]);
+  await db
+    .updateTable('diagrams')
+    .set({ description: description || null })
+    .where('id', '=', id)
+    .execute();
   return getDiagram(id);
 }
 
@@ -273,16 +277,19 @@ export async function updateDiagramDescription(id: string, description: string):
  * is deleted") already holds.
  */
 export async function deleteDiagram(id: string, deletedByUserId: string): Promise<void> {
-  const pool = getPool();
-  const { rows } = await pool.query('SELECT 1 FROM diagrams WHERE id = $1', [id]);
-  if (!rows[0]) {
+  const db = getDb();
+  const row = await db.selectFrom('diagrams').select('id').where('id', '=', id).executeTakeFirst();
+  if (!row) {
     throw new DiagramNotFoundError(`No diagram with id ${id}`);
   }
-  await pool.query(
-    `UPDATE diagrams SET deleted_at = COALESCE(deleted_at, now()), deleted_by_user_id = COALESCE(deleted_by_user_id, $2)
-     WHERE id = $1`,
-    [id, deletedByUserId],
-  );
+  await db
+    .updateTable('diagrams')
+    .set((eb) => ({
+      deleted_at: eb.fn.coalesce('deleted_at', eb.val(new Date())),
+      deleted_by_user_id: eb.fn.coalesce('deleted_by_user_id', eb.val(deletedByUserId)),
+    }))
+    .where('id', '=', id)
+    .execute();
 }
 
 export interface DeletedDiagramSummary {
@@ -323,36 +330,33 @@ export interface DeletedDiagramsPage {
  * screen if that invariant is ever violated.
  */
 export async function listDeletedDiagrams(options: ListDeletedDiagramsOptions = {}): Promise<DeletedDiagramsPage> {
-  const pool = getPool();
+  const db = getDb();
   const limit = Math.max(1, options.limit ?? DEFAULT_DELETED_DIAGRAMS_LIMIT);
   const search = options.search?.trim();
 
-  const filters = ['d.deleted_at IS NOT NULL', 'd.deleted_at > now() - make_interval(days => $1)'];
-  const params: unknown[] = [DIAGRAM_RETENTION_DAYS];
+  let query = db
+    .selectFrom('diagrams as d')
+    .leftJoin('users as u', 'u.id', 'd.owner_id')
+    .leftJoin('projects as p', 'p.id', 'd.project_id')
+    .where('d.deleted_at', 'is not', null)
+    .where('d.deleted_at', '>', retentionBoundary());
   if (search) {
-    params.push(`%${search}%`);
-    filters.push(`(d.name ILIKE $${params.length} OR u.name ILIKE $${params.length} OR p.name ILIKE $${params.length})`);
+    const pattern = `%${search}%`;
+    query = query.where((eb) =>
+      eb.or([
+        caseInsensitiveLike(eb.ref('d.name'), pattern),
+        caseInsensitiveLike(eb.ref('u.name'), pattern),
+        caseInsensitiveLike(eb.ref('p.name'), pattern),
+      ]),
+    );
   }
 
   // Fetch one extra row to learn whether more exist, without a second COUNT query.
-  params.push(limit + 1);
-  const { rows } = await pool.query<{
-    id: string;
-    name: string;
-    owner_id: string;
-    owner_name: string | null;
-    project_id: string;
-    project_name: string | null;
-    deleted_at: string;
-  }>(
-    `SELECT d.id, d.name, d.owner_id, u.name AS owner_name, d.project_id, p.name AS project_name, d.deleted_at
-     FROM diagrams d
-     LEFT JOIN users u ON u.id = d.owner_id
-     LEFT JOIN projects p ON p.id = d.project_id
-     WHERE ${filters.join(' AND ')}
-     ORDER BY d.deleted_at DESC LIMIT $${params.length}`,
-    params,
-  );
+  const rows = await query
+    .select(['d.id', 'd.name', 'd.owner_id', 'u.name as owner_name', 'd.project_id', 'p.name as project_name', 'd.deleted_at'])
+    .orderBy('d.deleted_at', 'desc')
+    .limit(limit + 1)
+    .execute();
 
   const hasMore = rows.length > limit;
   return {
@@ -363,7 +367,7 @@ export async function listDeletedDiagrams(options: ListDeletedDiagramsOptions = 
       ownerName: r.owner_name ?? '(unknown)',
       projectId: r.project_id,
       projectName: r.project_name ?? '(unknown)',
-      deletedAt: r.deleted_at,
+      deletedAt: r.deleted_at as unknown as string,
     })),
     hasMore,
   };
@@ -371,26 +375,22 @@ export async function listDeletedDiagrams(options: ListDeletedDiagramsOptions = 
 
 /** Restores a soft-deleted diagram within its retention window, recording who/when (FR-014/FR-021). */
 export async function restoreDiagram(id: string, restoredByUserId: string): Promise<void> {
-  const pool = getPool();
-  const { rows } = await pool.query<{ deleted_at: string | null }>('SELECT deleted_at FROM diagrams WHERE id = $1', [id]);
-  if (!rows[0] || rows[0].deleted_at === null) {
+  const db = getDb();
+  const row = await db.selectFrom('diagrams').select('deleted_at').where('id', '=', id).executeTakeFirst();
+  if (!row || row.deleted_at === null) {
     throw new DiagramNotFoundError(`No soft-deleted diagram with id ${id}`);
   }
-
-  const { rows: windowCheck } = await pool.query<{ within_window: boolean }>(
-    `SELECT deleted_at > now() - make_interval(days => $2) AS within_window FROM diagrams WHERE id = $1`,
-    [id, DIAGRAM_RETENTION_DAYS],
-  );
-  if (!windowCheck[0].within_window) {
+  if (!(row.deleted_at > retentionBoundary())) {
     throw new DiagramRetentionExpiredError(
       "This diagram's recovery window has passed and it is no longer available.",
     );
   }
 
-  await pool.query(
-    'UPDATE diagrams SET deleted_at = NULL, deleted_by_user_id = NULL, restored_at = now(), restored_by_user_id = $2 WHERE id = $1',
-    [id, restoredByUserId],
-  );
+  await db
+    .updateTable('diagrams')
+    .set({ deleted_at: null, deleted_by_user_id: null, restored_at: new Date(), restored_by_user_id: restoredByUserId })
+    .where('id', '=', id)
+    .execute();
 }
 
 /**
@@ -401,11 +401,13 @@ export async function restoreDiagram(id: string, restoredByUserId: string): Prom
  * candidate set without deleting anything.
  */
 export async function findExpiredDiagramIds(): Promise<string[]> {
-  const pool = getPool();
-  const { rows } = await pool.query<{ id: string }>(
-    `SELECT id FROM diagrams WHERE deleted_at IS NOT NULL AND deleted_at <= now() - make_interval(days => $1)`,
-    [DIAGRAM_RETENTION_DAYS],
-  );
+  const db = getDb();
+  const rows = await db
+    .selectFrom('diagrams')
+    .select('id')
+    .where('deleted_at', 'is not', null)
+    .where('deleted_at', '<=', retentionBoundary())
+    .execute();
   return rows.map((r) => r.id);
 }
 
@@ -434,28 +436,16 @@ export async function purgeExpiredDiagrams(): Promise<PurgeResult> {
     return { purgedDiagramIds: [] };
   }
 
-  const pool = getPool();
-  const client = await pool.connect();
-  try {
-    await client.query('BEGIN');
-    await client.query(
-      `DELETE FROM chat_messages WHERE diagram_chat_id IN
-         (SELECT id FROM diagram_chats WHERE diagram_id = ANY($1::uuid[]))`,
-      [ids],
-    );
-    await client.query('DELETE FROM diagram_chats WHERE diagram_id = ANY($1::uuid[])', [ids]);
-    await client.query(
-      "DELETE FROM share_grants WHERE subject_type = 'diagram' AND subject_id = ANY($1::uuid[])",
-      [ids],
-    );
-    await client.query('DELETE FROM diagrams WHERE id = ANY($1::uuid[])', [ids]);
-    await client.query('COMMIT');
-  } catch (error) {
-    await client.query('ROLLBACK');
-    throw error;
-  } finally {
-    client.release();
-  }
+  const db = getDb();
+  await db.transaction().execute(async (trx) => {
+    await trx
+      .deleteFrom('chat_messages')
+      .where('diagram_chat_id', 'in', trx.selectFrom('diagram_chats').select('id').where('diagram_id', 'in', ids))
+      .execute();
+    await trx.deleteFrom('diagram_chats').where('diagram_id', 'in', ids).execute();
+    await trx.deleteFrom('share_grants').where('subject_type', '=', 'diagram').where('subject_id', 'in', ids).execute();
+    await trx.deleteFrom('diagrams').where('id', 'in', ids).execute();
+  });
 
   return { purgedDiagramIds: ids };
 }
