@@ -1,16 +1,7 @@
 import type { FastifyInstance } from 'fastify';
-import { getPool } from '../db/pool.js';
+import { getDb } from '../db/client.js';
 import { verifyPassword } from './password.js';
-import type { SessionUser, UserRole } from './types.js';
-
-interface UserRow {
-  id: string;
-  email: string;
-  name: string;
-  role: UserRole;
-  personas: string[];
-  active: boolean;
-}
+import type { SessionUser } from './types.js';
 
 /**
  * Local email/password login — only registered when config.allowLocalAuth is true.
@@ -30,14 +21,22 @@ export async function registerLocalAuthRoutes(app: FastifyInstance): Promise<voi
         return;
       }
 
-      const pool = getPool();
-      const { rows } = await pool.query<UserRow & { password_hash: string; password_salt: string }>(
-        `SELECT u.id, u.email, u.name, u.role, u.personas, u.active, c.password_hash, c.password_salt
-       FROM users u JOIN local_credentials c ON c.user_id = u.id
-       WHERE u.email = $1`,
-        [email],
-      );
-      const row = rows[0];
+      const db = getDb();
+      const row = await db
+        .selectFrom('users')
+        .innerJoin('local_credentials', 'local_credentials.user_id', 'users.id')
+        .select([
+          'users.id',
+          'users.email',
+          'users.name',
+          'users.role',
+          'users.personas',
+          'users.active',
+          'local_credentials.password_hash',
+          'local_credentials.password_salt',
+        ])
+        .where('users.email', '=', email)
+        .executeTakeFirst();
       if (!row || !row.active || !verifyPassword(password, row.password_hash, row.password_salt)) {
         reply.code(401).send({ error: 'Invalid email or password' });
         return;

@@ -1,5 +1,5 @@
 import type { FastifyReply, FastifyRequest } from 'fastify';
-import { getPool } from '../db/pool.js';
+import { getDb } from '../db/client.js';
 import { projectExists, resolveProjectAccess } from '../projects/project.access.js';
 import { accessAtLeast, resolveDiagramAccess, type AccessLevel } from '../sharing/sharing.service.js';
 
@@ -25,13 +25,15 @@ export function requireDiagramOwnerOrAdmin() {
       reply.code(401).send({ error: 'Authentication required' });
       return;
     }
-    const pool = getPool();
-    const { rows } = await pool.query<{ owner_id: string }>('SELECT owner_id FROM diagrams WHERE id = $1', [
-      request.params.id,
-    ]);
-    if (!rows[0]) return; // let the route's own not-found handling fire
+    const db = getDb();
+    const row = await db
+      .selectFrom('diagrams')
+      .select('owner_id')
+      .where('id', '=', request.params.id)
+      .executeTakeFirst();
+    if (!row) return; // let the route's own not-found handling fire
 
-    if (rows[0].owner_id !== user.id && user.role !== 'admin') {
+    if (row.owner_id !== user.id && user.role !== 'admin') {
       reply.code(403).send({ error: 'Only this diagram\'s owner or an admin can delete it.' });
     }
   };
@@ -50,13 +52,15 @@ export function requireProjectOwnerOrAdmin() {
       reply.code(401).send({ error: 'Authentication required' });
       return;
     }
-    const pool = getPool();
-    const { rows } = await pool.query<{ owner_id: string }>('SELECT owner_id FROM projects WHERE id = $1', [
-      request.params.id,
-    ]);
-    if (!rows[0]) return; // let the route's own not-found handling fire
+    const db = getDb();
+    const row = await db
+      .selectFrom('projects')
+      .select('owner_id')
+      .where('id', '=', request.params.id)
+      .executeTakeFirst();
+    if (!row) return; // let the route's own not-found handling fire
 
-    if (rows[0].owner_id !== user.id && user.role !== 'admin') {
+    if (row.owner_id !== user.id && user.role !== 'admin') {
       reply.code(403).send({ error: 'Only this project\'s owner or an admin can do that.' });
     }
   };
@@ -115,9 +119,9 @@ export function requireDiagramAccess(required: AccessLevel) {
       reply.code(401).send({ error: 'Authentication required' });
       return;
     }
-    const pool = getPool();
-    const { rows } = await pool.query('SELECT 1 FROM diagrams WHERE id = $1', [request.params.id]);
-    if (!rows[0]) return; // let the route's own not-found handling fire
+    const db = getDb();
+    const row = await db.selectFrom('diagrams').select('id').where('id', '=', request.params.id).executeTakeFirst();
+    if (!row) return; // let the route's own not-found handling fire
 
     const level = await resolveDiagramAccess(user.id, request.params.id);
     if (!accessAtLeast(level, required)) {

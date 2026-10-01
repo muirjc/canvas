@@ -1,6 +1,6 @@
 import { generateText, stepCountIs, type LanguageModel } from 'ai';
 import { getDslFamily, isParseSuccess, type DiagramModel } from '@canvas/diagram-core';
-import { getPool } from '../db/pool.js';
+import { getDb } from '../db/client.js';
 import { getPersona } from './persona.service.js';
 import { listReferenceMaterialForFamily } from './persona-reference-material.service.js';
 import { createDiagramTools, type ToolCallOutcome } from './diagram-tools.js';
@@ -23,43 +23,52 @@ async function getOrCreateDiagramChat(
   diagramId: string,
   personaId: string | undefined,
 ): Promise<{ id: string; personaId: string | null }> {
-  const pool = getPool();
-  const { rows } = await pool.query<{ id: string; persona_id: string | null }>(
-    'SELECT id, persona_id FROM diagram_chats WHERE diagram_id = $1',
-    [diagramId],
-  );
-  if (rows[0]) return { id: rows[0].id, personaId: rows[0].persona_id };
+  const db = getDb();
+  const existing = await db
+    .selectFrom('diagram_chats')
+    .select(['id', 'persona_id'])
+    .where('diagram_id', '=', diagramId)
+    .executeTakeFirst();
+  if (existing) return { id: existing.id, personaId: existing.persona_id };
 
   // The persona is fixed at creation (FR-008a) — only the *first* message for a diagram can set
   // it; this INSERT is the one place personaId is ever written.
-  const inserted = await pool.query<{ id: string; persona_id: string | null }>(
-    'INSERT INTO diagram_chats (diagram_id, persona_id) VALUES ($1, $2) RETURNING id, persona_id',
-    [diagramId, personaId ?? null],
-  );
-  return { id: inserted.rows[0].id, personaId: inserted.rows[0].persona_id };
+  const inserted = await db
+    .insertInto('diagram_chats')
+    .values({ diagram_id: diagramId, persona_id: personaId ?? null })
+    .returning(['id', 'persona_id'])
+    .executeTakeFirstOrThrow();
+  return { id: inserted.id, personaId: inserted.persona_id };
 }
 
 /** FR-015/Story 4: full conversation history for a diagram, oldest first. Empty array (not an
  * error) for a diagram with no chat activity yet. */
 export async function getChatMessages(diagramId: string): Promise<ChatMessageRecord[]> {
-  const pool = getPool();
-  const { rows: chatRows } = await pool.query<{ id: string }>(
-    'SELECT id FROM diagram_chats WHERE diagram_id = $1',
-    [diagramId],
-  );
-  if (!chatRows[0]) return [];
+  const db = getDb();
+  const chat = await db
+    .selectFrom('diagram_chats')
+    .select('id')
+    .where('diagram_id', '=', diagramId)
+    .executeTakeFirst();
+  if (!chat) return [];
 
-  const { rows } = await pool.query<{
-    id: string;
-    role: 'user' | 'assistant';
-    content: string;
-    tool_calls: ToolCallOutcome[] | null;
-    created_at: string;
-  }>(
-    'SELECT id, role, content, tool_calls, created_at FROM chat_messages WHERE diagram_chat_id = $1 ORDER BY created_at',
-    [chatRows[0].id],
-  );
-  return rows.map((r) => ({ id: r.id, role: r.role, content: r.content, toolCalls: r.tool_calls, createdAt: r.created_at }));
+  const rows = await db
+    .selectFrom('chat_messages')
+    .select(['id', 'role', 'content', 'tool_calls', 'created_at'])
+    .where('diagram_chat_id', '=', chat.id)
+    .orderBy('created_at')
+    .execute();
+  return rows.map((r) => ({
+    id: r.id,
+    role: r.role,
+    content: r.content,
+    toolCalls: r.tool_calls as ToolCallOutcome[] | null,
+    // Matches every other hand-written row-to-record mapper in this codebase: node-postgres
+    // returns a native Date for TIMESTAMPTZ (see db/schema.ts's module doc) but this interface's
+    // field has always been declared `string` — an existing, pre-this-phase convention, not
+    // something newly introduced by converting this one query to Kysely.
+    createdAt: r.created_at as unknown as string,
+  }));
 }
 
 /** A short textual summary of the current diagram, given to the model each turn so it can
@@ -161,16 +170,18 @@ export async function sendChatMessage(input: SendChatMessageInput): Promise<Send
 
   const updatedDslContent = family.serialize(model);
 
-  const pool = getPool();
-  await pool.query('INSERT INTO chat_messages (diagram_chat_id, role, content) VALUES ($1, $2, $3)', [
-    chat.id,
-    'user',
-    input.message,
-  ]);
-  await pool.query(
-    'INSERT INTO chat_messages (diagram_chat_id, role, content, tool_calls) VALUES ($1, $2, $3, $4)',
-    [chat.id, 'assistant', result.text, JSON.stringify(toolCalls)],
-  );
+  const db = getDb();
+  await db.insertInto('chat_messages').values({ diagram_chat_id: chat.id, role: 'user', content: input.message }).execute();
+  await db
+    .insertInto('chat_messages')
+    .values({
+      diagram_chat_id: chat.id,
+      role: 'assistant',
+      content: result.text,
+      // JSON.stringify is required, not optional — see db/schema.ts's JsonColumn doc.
+      tool_calls: JSON.stringify(toolCalls),
+    })
+    .execute();
 
   return { assistantMessage: result.text, updatedDslContent, toolCalls };
 }

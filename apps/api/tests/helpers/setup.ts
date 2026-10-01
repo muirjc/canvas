@@ -2,6 +2,7 @@ import type { FastifyInstance } from 'fastify';
 import { buildApp } from '../../src/app.js';
 import { loadConfig } from '../../src/config.js';
 import { closePool, getPool } from '../../src/db/pool.js';
+import { closeDb } from '../../src/db/client.js';
 import { hashPassword } from '../../src/auth/password.js';
 import { runMigrations } from '../../src/db/migrate.js';
 
@@ -39,6 +40,10 @@ export async function resetDatabase(): Promise<void> {
 }
 
 export async function closeTestDb(): Promise<void> {
+  // canvas-jtm Phase 0: db/client.ts (Kysely) wraps its own separate pg.Pool instance alongside
+  // db/pool.ts's — both must close, or a converted file's connection leaks past test teardown.
+  // Remove the closePool() half once every call site has migrated off db/pool.ts (canvas-jtm.6).
+  await closeDb();
   await closePool();
 }
 

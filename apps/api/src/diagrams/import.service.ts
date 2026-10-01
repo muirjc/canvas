@@ -1,5 +1,5 @@
 import { detectDslFamily } from '@canvas/diagram-core';
-import { getPool } from '../db/pool.js';
+import { getDb } from '../db/client.js';
 import { createDiagram, type DiagramRecord } from './diagram.service.js';
 
 export class UnrecognizedDslError extends Error {}
@@ -27,31 +27,35 @@ export async function importDiagram(input: ImportDiagramInput): Promise<DiagramR
     );
   }
 
-  const pool = getPool();
+  const db = getDb();
   let diagramTypeId: string;
   if (input.diagramTypeHint) {
-    const { rows } = await pool.query<{ dsl_family: string }>(
-      'SELECT dsl_family FROM diagram_types WHERE id = $1',
-      [input.diagramTypeHint],
-    );
-    if (!rows[0]) {
+    const row = await db
+      .selectFrom('diagram_types')
+      .select('dsl_family')
+      .where('id', '=', input.diagramTypeHint)
+      .executeTakeFirst();
+    if (!row) {
       throw new DiagramTypeHintMismatchError(`Unknown diagram type hint: ${input.diagramTypeHint}`);
     }
-    if (rows[0].dsl_family !== detectedFamily) {
+    if (row.dsl_family !== detectedFamily) {
       throw new DiagramTypeHintMismatchError(
-        `The provided diagram type "${input.diagramTypeHint}" uses the "${rows[0].dsl_family}" DSL family, but this content looks like "${detectedFamily}".`,
+        `The provided diagram type "${input.diagramTypeHint}" uses the "${row.dsl_family}" DSL family, but this content looks like "${detectedFamily}".`,
       );
     }
     diagramTypeId = input.diagramTypeHint;
   } else {
-    const { rows } = await pool.query<{ id: string }>(
-      'SELECT id FROM diagram_types WHERE dsl_family = $1 ORDER BY id LIMIT 1',
-      [detectedFamily],
-    );
-    if (!rows[0]) {
+    const row = await db
+      .selectFrom('diagram_types')
+      .select('id')
+      .where('dsl_family', '=', detectedFamily)
+      .orderBy('id')
+      .limit(1)
+      .executeTakeFirst();
+    if (!row) {
       throw new UnrecognizedDslError(`No diagram type is registered for the "${detectedFamily}" DSL family.`);
     }
-    diagramTypeId = rows[0].id;
+    diagramTypeId = row.id;
   }
 
   // Reuses createDiagram's existing parse/validate/versioning — a ParseError from bad syntax
