@@ -1,4 +1,5 @@
 import { closePool } from '../db/pool.js';
+import { closeDb } from '../db/client.js';
 import { runMigrations } from '../db/migrate.js';
 import { DIAGRAM_RETENTION_DAYS, findExpiredDiagramIds, purgeExpiredDiagrams } from '../diagrams/diagram.service.js';
 
@@ -44,10 +45,14 @@ async function purge(): Promise<void> {
   }
 }
 
+// canvas-jtm.4: findExpiredDiagramIds/purgeExpiredDiagrams now go through db/client.ts's Kysely
+// pool, a separate connection from db/pool.ts's — both must close, or this script leaks an open
+// connection on exit. Remove the closePool() half once every call site is off db/pool.ts
+// (canvas-jtm.6).
 purge()
-  .then(() => closePool())
+  .then(() => Promise.all([closeDb(), closePool()]))
   .catch((error) => {
     console.error(error);
     process.exitCode = 1;
-    return closePool();
+    return Promise.all([closeDb(), closePool()]);
   });

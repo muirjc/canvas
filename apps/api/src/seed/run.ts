@@ -1,4 +1,5 @@
 import { getPool, closePool } from '../db/pool.js';
+import { closeDb } from '../db/client.js';
 import { hashPassword } from '../auth/password.js';
 import { runMigrations } from '../db/migrate.js';
 import { seedDiagramTypes } from './diagram-types.seed.js';
@@ -78,10 +79,14 @@ async function seed(): Promise<void> {
   console.log(`  Project id: ${projectId}`);
 }
 
+// canvas-jtm.4: seedDiagramTypes/seedLibraries now go through db/client.ts's Kysely pool, a
+// separate connection from db/pool.ts's — both must close, or this script leaks an open
+// connection on exit. Remove the closePool() half once every call site is off db/pool.ts
+// (canvas-jtm.6).
 seed()
-  .then(() => closePool())
+  .then(() => Promise.all([closeDb(), closePool()]))
   .catch((error) => {
     console.error(error);
     process.exitCode = 1;
-    return closePool();
+    return Promise.all([closeDb(), closePool()]);
   });

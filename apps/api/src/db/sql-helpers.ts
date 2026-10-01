@@ -28,8 +28,13 @@ export function currentTimestamp(): RawBuilder<Date> {
  *
  * `pattern` is the full `%...%`/`%...` wildcard pattern, matching how call sites build it today
  * (e.g. `` `%${search}%` ``) — this helper only swaps the operator, not the pattern-building.
+ *
+ * Accepts `Expression<string | null>` (not just `Expression<string>`) — a LEFT JOIN'd column
+ * (e.g. an unmatched owner/project name) is nullable, and `NULL ILIKE anything` already correctly
+ * evaluates to NULL/falsy in Postgres, excluding that row exactly like the pre-Kysely raw SQL did.
+ * This is a type-signature widening only, not a behavior change.
  */
-export function caseInsensitiveLike(column: Expression<string>, pattern: string): RawBuilder<boolean> {
+export function caseInsensitiveLike(column: Expression<string | null>, pattern: string): RawBuilder<boolean> {
   return sql<boolean>`${column} ilike ${pattern}`;
 }
 

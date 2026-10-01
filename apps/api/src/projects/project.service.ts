@@ -1,4 +1,6 @@
+import { sql } from 'kysely';
 import { getPool } from '../db/pool.js';
+import { getDb } from '../db/client.js';
 import { ACCESSIBLE_PROJECT_IDS_SQL } from './project.access.js';
 
 export class ProjectNotFoundError extends Error {}
@@ -10,6 +12,14 @@ export class ProjectRetentionExpiredError extends Error {}
  *  DIAGRAM_RETENTION_DAYS in diagram.service.ts — same policy, separate constant because it's a
  *  different table's rule, not because the value should ever differ. */
 export const PROJECT_RETENTION_DAYS = 30;
+
+/** App-computed retention boundary (canvas-jtm.4) — replaces `now() - make_interval(days => $n)`,
+ *  a Postgres-specific function with no SQLite equivalent. Mirrors diagram.service.ts's own
+ *  retentionBoundary() — a separate copy because it uses a different constant, not because the
+ *  logic should ever diverge. */
+function retentionBoundary(): Date {
+  return new Date(Date.now() - PROJECT_RETENTION_DAYS * 24 * 60 * 60 * 1000);
+}
 
 export interface ProjectRecord {
   id: string;
@@ -41,25 +51,27 @@ export interface CreateProjectInput {
  * way a cycle could otherwise be introduced later.
  */
 export async function createProject(input: CreateProjectInput): Promise<ProjectListItem> {
-  const pool = getPool();
+  const db = getDb();
   if (input.parentProjectId) {
-    const { rows } = await pool.query('SELECT id FROM projects WHERE id = $1', [input.parentProjectId]);
-    if (!rows[0]) {
+    const parent = await db.selectFrom('projects').select('id').where('id', '=', input.parentProjectId).executeTakeFirst();
+    if (!parent) {
       throw new ProjectCycleError(`Parent project ${input.parentProjectId} does not exist`);
     }
   }
-  const { rows } = await pool.query<{ id: string; name: string; parent_project_id: string | null; created_at: string }>(
-    `INSERT INTO projects (name, parent_project_id, owner_id) VALUES ($1, $2, $3)
-     RETURNING id, name, parent_project_id, created_at`,
-    [input.name, input.parentProjectId ?? null, input.ownerId],
-  );
+  const row = await db
+    .insertInto('projects')
+    .values({ name: input.name, parent_project_id: input.parentProjectId ?? null, owner_id: input.ownerId })
+    .returning(['id', 'name', 'parent_project_id', 'created_at'])
+    .executeTakeFirstOrThrow();
   // Always 0 — a brand-new project cannot already have a diagram in it. ownerId is already known
   // (it's the input, not read back) — no need to re-query for it.
   return {
-    id: rows[0].id,
-    name: rows[0].name,
-    parentProjectId: rows[0].parent_project_id,
-    createdAt: rows[0].created_at,
+    id: row.id,
+    name: row.name,
+    parentProjectId: row.parent_project_id,
+    // See diagram-chat.service.ts's getChatMessages for why this cast is the pre-existing
+    // convention, not a new behavior change — node-postgres always returned a Date here.
+    createdAt: row.created_at as unknown as string,
     diagramCount: 0,
     ownerId: input.ownerId,
   };
@@ -72,6 +84,10 @@ export async function createProject(input: CreateProjectInput): Promise<ProjectL
  *
  * Ordered by name so the chooser is stable between loads. No search or paging: the clarified
  * scale is tens of projects (FR-013e).
+ *
+ * Deliberately NOT converted to Kysely (canvas-jtm.4 scope: this function is built directly on
+ * `ACCESSIBLE_PROJECT_IDS_SQL`'s `WITH RECURSIVE` fragment — recursive-CTE conversion is
+ * canvas-jtm.5's own dedicated, authorization-critical-risk phase, not bundled in here).
  */
 export async function listProjectsForUser(userId: string): Promise<ProjectListItem[]> {
   const pool = getPool();
@@ -105,25 +121,40 @@ export async function listProjectsForUser(userId: string): Promise<ProjectListIt
 /** A soft-deleted project is not-found for this and every other regular (non-admin-recovery)
  *  purpose — matches getDiagram's own precedent. */
 export async function getProject(id: string): Promise<ProjectRecord> {
-  const pool = getPool();
-  const { rows } = await pool.query<{ id: string; name: string; parent_project_id: string | null; created_at: string }>(
-    'SELECT id, name, parent_project_id, created_at FROM projects WHERE id = $1 AND deleted_at IS NULL',
-    [id],
-  );
-  if (!rows[0]) throw new ProjectNotFoundError(`No project with id ${id}`);
-  return { id: rows[0].id, name: rows[0].name, parentProjectId: rows[0].parent_project_id, createdAt: rows[0].created_at };
+  const db = getDb();
+  const row = await db
+    .selectFrom('projects')
+    .select(['id', 'name', 'parent_project_id', 'created_at'])
+    .where('id', '=', id)
+    .where('deleted_at', 'is', null)
+    .executeTakeFirst();
+  if (!row) throw new ProjectNotFoundError(`No project with id ${id}`);
+  return {
+    id: row.id,
+    name: row.name,
+    parentProjectId: row.parent_project_id,
+    createdAt: row.created_at as unknown as string,
+  };
 }
 
 /** Renames a project (canvas-228.3). Access (owner-or-admin) is enforced by the route's
  *  `requireProjectOwnerOrAdmin` preHandler, not here — this function trusts its caller. */
 export async function renameProject(id: string, name: string): Promise<ProjectRecord> {
-  const pool = getPool();
-  const { rows } = await pool.query<{ id: string; name: string; parent_project_id: string | null; created_at: string }>(
-    'UPDATE projects SET name = $2 WHERE id = $1 AND deleted_at IS NULL RETURNING id, name, parent_project_id, created_at',
-    [id, name],
-  );
-  if (!rows[0]) throw new ProjectNotFoundError(`No project with id ${id}`);
-  return { id: rows[0].id, name: rows[0].name, parentProjectId: rows[0].parent_project_id, createdAt: rows[0].created_at };
+  const db = getDb();
+  const row = await db
+    .updateTable('projects')
+    .set({ name })
+    .where('id', '=', id)
+    .where('deleted_at', 'is', null)
+    .returning(['id', 'name', 'parent_project_id', 'created_at'])
+    .executeTakeFirst();
+  if (!row) throw new ProjectNotFoundError(`No project with id ${id}`);
+  return {
+    id: row.id,
+    name: row.name,
+    parentProjectId: row.parent_project_id,
+    createdAt: row.created_at as unknown as string,
+  };
 }
 
 /**
@@ -133,24 +164,32 @@ export async function renameProject(id: string, name: string): Promise<ProjectRe
  * Idempotent, mirroring deleteDiagram: deleting an already-deleted project succeeds silently.
  */
 export async function deleteProject(id: string, deletedByUserId: string): Promise<void> {
-  const pool = getPool();
-  const { rows } = await pool.query<{ deleted_at: string | null }>('SELECT deleted_at FROM projects WHERE id = $1', [id]);
-  if (!rows[0]) {
+  const db = getDb();
+  const project = await db.selectFrom('projects').select('deleted_at').where('id', '=', id).executeTakeFirst();
+  if (!project) {
     throw new ProjectNotFoundError(`No project with id ${id}`);
   }
-  if (rows[0].deleted_at !== null) return; // already deleted — idempotent success
+  if (project.deleted_at !== null) return; // already deleted — idempotent success
 
-  const { rows: contentRows } = await pool.query<{ diagram_count: string; child_count: string }>(
-    `SELECT
-       (SELECT COUNT(*) FROM diagrams WHERE project_id = $1 AND deleted_at IS NULL) AS diagram_count,
-       (SELECT COUNT(*) FROM projects WHERE parent_project_id = $1 AND deleted_at IS NULL) AS child_count`,
-    [id],
-  );
-  if (Number(contentRows[0].diagram_count) > 0 || Number(contentRows[0].child_count) > 0) {
+  const [{ diagram_count: diagramCount }, { child_count: childCount }] = await Promise.all([
+    db
+      .selectFrom('diagrams')
+      .select(sql<string>`COUNT(*)`.as('diagram_count'))
+      .where('project_id', '=', id)
+      .where('deleted_at', 'is', null)
+      .executeTakeFirstOrThrow(),
+    db
+      .selectFrom('projects')
+      .select(sql<string>`COUNT(*)`.as('child_count'))
+      .where('parent_project_id', '=', id)
+      .where('deleted_at', 'is', null)
+      .executeTakeFirstOrThrow(),
+  ]);
+  if (Number(diagramCount) > 0 || Number(childCount) > 0) {
     throw new ProjectHasContentError('Only a project with no diagrams and no sub-projects can be deleted.');
   }
 
-  await pool.query('UPDATE projects SET deleted_at = now(), deleted_by_user_id = $2 WHERE id = $1', [id, deletedByUserId]);
+  await db.updateTable('projects').set({ deleted_at: new Date(), deleted_by_user_id: deletedByUserId }).where('id', '=', id).execute();
 }
 
 export interface DeletedProjectSummary {
@@ -162,34 +201,37 @@ export interface DeletedProjectSummary {
 
 /** Admin-only listing of soft-deleted projects still within their retention window (canvas-228.2). */
 export async function listDeletedProjects(): Promise<DeletedProjectSummary[]> {
-  const pool = getPool();
-  const { rows } = await pool.query<{ id: string; name: string; owner_id: string; deleted_at: string }>(
-    `SELECT id, name, owner_id, deleted_at FROM projects
-     WHERE deleted_at IS NOT NULL AND deleted_at > now() - make_interval(days => $1)
-     ORDER BY deleted_at DESC`,
-    [PROJECT_RETENTION_DAYS],
-  );
-  return rows.map((r) => ({ id: r.id, name: r.name, ownerId: r.owner_id, deletedAt: r.deleted_at }));
+  const db = getDb();
+  const rows = await db
+    .selectFrom('projects')
+    .select(['id', 'name', 'owner_id', 'deleted_at'])
+    .where('deleted_at', 'is not', null)
+    .where('deleted_at', '>', retentionBoundary())
+    .orderBy('deleted_at', 'desc')
+    .execute();
+  return rows.map((r) => ({
+    id: r.id,
+    name: r.name,
+    ownerId: r.owner_id,
+    deletedAt: r.deleted_at as unknown as string,
+  }));
 }
 
 /** Restores a soft-deleted project within its retention window, recording who/when. */
 export async function restoreProject(id: string, restoredByUserId: string): Promise<void> {
-  const pool = getPool();
-  const { rows } = await pool.query<{ deleted_at: string | null }>('SELECT deleted_at FROM projects WHERE id = $1', [id]);
-  if (!rows[0] || rows[0].deleted_at === null) {
+  const db = getDb();
+  const row = await db.selectFrom('projects').select('deleted_at').where('id', '=', id).executeTakeFirst();
+  if (!row || row.deleted_at === null) {
     throw new ProjectNotFoundError(`No soft-deleted project with id ${id}`);
   }
-  const { rows: windowRows } = await pool.query<{ within_window: boolean }>(
-    `SELECT deleted_at > now() - make_interval(days => $2) AS within_window FROM projects WHERE id = $1`,
-    [id, PROJECT_RETENTION_DAYS],
-  );
-  if (!windowRows[0].within_window) {
+  if (!(row.deleted_at > retentionBoundary())) {
     throw new ProjectRetentionExpiredError('This project is no longer available to restore.');
   }
-  await pool.query(
-    'UPDATE projects SET deleted_at = NULL, deleted_by_user_id = NULL, restored_at = now(), restored_by_user_id = $2 WHERE id = $1',
-    [id, restoredByUserId],
-  );
+  await db
+    .updateTable('projects')
+    .set({ deleted_at: null, deleted_by_user_id: null, restored_at: new Date(), restored_by_user_id: restoredByUserId })
+    .where('id', '=', id)
+    .execute();
 }
 
 export interface ProjectTreeNode {
@@ -205,6 +247,9 @@ export interface ProjectTreeNode {
  * Scoped to the requested subtree. It previously read EVERY project and EVERY non-deleted diagram
  * in the installation on each call and discarded all but the requested branch — a full scan of
  * the two largest tables to build one project's tree (feature 007, research.md §1).
+ *
+ * Deliberately NOT converted to Kysely (canvas-jtm.4 scope — see listProjectsForUser's own note
+ * above): this function's own `WITH RECURSIVE subtree` is canvas-jtm.5's job.
  */
 export async function getProjectTree(rootId: string): Promise<ProjectTreeNode> {
   const pool = getPool();

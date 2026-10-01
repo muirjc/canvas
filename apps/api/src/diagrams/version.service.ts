@@ -1,5 +1,6 @@
-import type pg from 'pg';
-import { getPool } from '../db/pool.js';
+import { getDb } from '../db/client.js';
+import type { DbExecutor } from '../db/client.js';
+import { caseInsensitiveLike, dateToYMD } from '../db/sql-helpers.js';
 
 export class DiagramVersionNotFoundError extends Error {}
 
@@ -7,23 +8,33 @@ export class DiagramVersionNotFoundError extends Error {}
  * Appends a new, immutable DiagramVersion row (data-model.md: DiagramVersion is append-only —
  * "restoring" a prior version is done by calling this again with the restored content, never by
  * rewriting history). Must be called within the same transaction as any `diagrams` row update.
+ *
+ * Takes a `DbExecutor` (`Kysely<DB> | Transaction<DB>`), not a raw `pg.PoolClient` — the fix for
+ * exactly the "Postgres driver types leak into service signatures" problem the canvas-jtm audit
+ * flagged here specifically. A standalone `getDb()` call works too, for a caller that doesn't need
+ * to compose this into its own transaction.
  */
 export async function recordDiagramVersion(
-  client: pg.PoolClient,
+  db: DbExecutor,
   input: { diagramId: string; dslContent: string; authorId: string },
 ): Promise<string> {
-  const { rows: seqRows } = await client.query<{ next_seq: number }>(
-    'SELECT COALESCE(MAX(sequence_number), 0) + 1 AS next_seq FROM diagram_versions WHERE diagram_id = $1',
-    [input.diagramId],
-  );
-  const nextSeq = seqRows[0].next_seq;
+  const { next_seq: nextSeq } = await db
+    .selectFrom('diagram_versions')
+    .select((eb) => eb.fn.coalesce(eb.fn.max('sequence_number'), eb.lit(0)).as('next_seq'))
+    .where('diagram_id', '=', input.diagramId)
+    .executeTakeFirstOrThrow();
 
-  const { rows } = await client.query<{ id: string }>(
-    `INSERT INTO diagram_versions (diagram_id, sequence_number, dsl_content, author_id)
-     VALUES ($1, $2, $3, $4) RETURNING id`,
-    [input.diagramId, nextSeq, input.dslContent, input.authorId],
-  );
-  return rows[0].id;
+  const row = await db
+    .insertInto('diagram_versions')
+    .values({
+      diagram_id: input.diagramId,
+      sequence_number: Number(nextSeq) + 1,
+      dsl_content: input.dslContent,
+      author_id: input.authorId,
+    })
+    .returning('id')
+    .executeTakeFirstOrThrow();
+  return row.id;
 }
 
 export interface DiagramVersionSummary {
@@ -56,37 +67,28 @@ export async function listDiagramVersions(
   diagramId: string,
   options: ListDiagramVersionsOptions = {},
 ): Promise<DiagramVersionPage> {
-  const pool = getPool();
+  const db = getDb();
   const limit = Math.max(1, options.limit ?? DEFAULT_VERSION_LIMIT);
   const search = options.search?.trim();
 
-  const filters = ['diagram_id = $1'];
-  const params: unknown[] = [diagramId];
+  let query = db.selectFrom('diagram_versions').where('diagram_id', '=', diagramId);
   if (search) {
     if (/^\d+$/.test(search)) {
       // A bare number means that version. Matching it against the date as well would be actively
       // unhelpful: today's date contains most single digits, so "2" would match every version
       // and the newest few would crowd out the one actually being looked for.
-      params.push(Number(search));
-      filters.push(`sequence_number = $${params.length}`);
+      query = query.where('sequence_number', '=', Number(search));
     } else {
-      params.push(`%${search}%`);
-      filters.push(`to_char(created_at, 'YYYY-MM-DD') ILIKE $${params.length}`);
+      query = query.where((eb) => caseInsensitiveLike(dateToYMD(eb.ref('created_at')), `%${search}%`));
     }
   }
 
   // Fetch one extra row to learn whether more exist, without a second COUNT query.
-  params.push(limit + 1);
-  const { rows } = await pool.query<{
-    id: string;
-    sequence_number: number;
-    author_id: string;
-    created_at: string;
-  }>(
-    `SELECT id, sequence_number, author_id, created_at FROM diagram_versions
-     WHERE ${filters.join(' AND ')} ORDER BY sequence_number DESC LIMIT $${params.length}`,
-    params,
-  );
+  const rows = await query
+    .select(['id', 'sequence_number', 'author_id', 'created_at'])
+    .orderBy('sequence_number', 'desc')
+    .limit(limit + 1)
+    .execute();
 
   const hasMore = rows.length > limit;
   return {
@@ -94,7 +96,9 @@ export async function listDiagramVersions(
       id: r.id,
       sequenceNumber: r.sequence_number,
       authorId: r.author_id,
-      createdAt: r.created_at,
+      // See diagram-chat.service.ts's getChatMessages for why this cast is the pre-existing
+      // convention, not a new behavior change — node-postgres always returned a Date here.
+      createdAt: r.created_at as unknown as string,
     })),
     hasMore,
   };
@@ -102,13 +106,15 @@ export async function listDiagramVersions(
 
 /** Fetches a specific version's DSL content, e.g. to restore it as a new version (FR-017). */
 export async function getDiagramVersionContent(diagramId: string, versionId: string): Promise<string> {
-  const pool = getPool();
-  const { rows } = await pool.query<{ dsl_content: string }>(
-    'SELECT dsl_content FROM diagram_versions WHERE id = $1 AND diagram_id = $2',
-    [versionId, diagramId],
-  );
-  if (!rows[0]) {
+  const db = getDb();
+  const row = await db
+    .selectFrom('diagram_versions')
+    .select('dsl_content')
+    .where('id', '=', versionId)
+    .where('diagram_id', '=', diagramId)
+    .executeTakeFirst();
+  if (!row) {
     throw new DiagramVersionNotFoundError(`No version ${versionId} for diagram ${diagramId}`);
   }
-  return rows[0].dsl_content;
+  return row.dsl_content;
 }
