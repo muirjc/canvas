@@ -164,5 +164,94 @@ describe('Project access control contract', () => {
       const response = await app.inject({ method: 'GET', url: `/projects/${projectId}`, headers: { cookie: outsiderCookie } });
       expect(response.statusCode).toBe(403);
     });
+
+    /**
+     * canvas-jtm.5: neither existing nesting test above goes past one hop — the recursive
+     * ancestor-chain walk (project.access.ts's `ancestorChain`) and the recursive accessible-set
+     * walk (`withAccessibleProjects`'s `roots`/`accessible` CTEs) both need to actually recurse
+     * more than once to be meaningfully exercised, not just compile. A grant 2 levels up a project
+     * owns no part of directly must still resolve all the way down.
+     */
+    it('grants a grandchild project to someone who holds a grant 2 levels up', async () => {
+      const childId = (
+        await app.inject({
+          method: 'POST',
+          url: '/projects',
+          headers: { cookie: ownerCookie },
+          payload: { name: 'Child', parentProjectId: projectId },
+        })
+      ).json().project.id;
+      const grandchildId = (
+        await app.inject({
+          method: 'POST',
+          url: '/projects',
+          headers: { cookie: ownerCookie },
+          payload: { name: 'Grandchild', parentProjectId: childId },
+        })
+      ).json().project.id;
+
+      await app.inject({
+        method: 'POST',
+        url: `/projects/${projectId}/shares`,
+        headers: { cookie: ownerCookie },
+        payload: { granteeUserId: outsiderId, accessLevel: 'view' },
+      });
+
+      const response = await app.inject({ method: 'GET', url: `/projects/${grandchildId}`, headers: { cookie: outsiderCookie } });
+      expect(response.statusCode).toBe(200);
+
+      // listProjectsForUser (GET /projects) must agree with the single-project guard above —
+      // they share one definition precisely so they can't disagree (this file's own header
+      // comment). The grandchild must appear in the outsider's own project list too.
+      const listResponse = await app.inject({ method: 'GET', url: '/projects', headers: { cookie: outsiderCookie } });
+      const listedIds = listResponse.json().projects.map((p: { id: string }) => p.id);
+      expect(listedIds).toContain(grandchildId);
+    });
+
+    /**
+     * canvas-jtm.5: today's DELETE /projects/:id route itself refuses to soft-delete a project
+     * that still has children (canvas-228.2), so this exact state can't arise through the app's
+     * own API as it exists today — reached here via a direct DB write instead, specifically to
+     * confirm the invariant holds regardless of how a soft-deleted-with-live-descendants row ever
+     * came to exist (a future admin force-delete, a direct DB intervention, ...), not just via
+     * today's one reachable path. `ancestorChain`'s WHERE deleted_at IS NULL filter applies at
+     * every level of the recursive walk, not just to the project initially requested — so once an
+     * ancestor is (hypothetically) soft-deleted, the chain walk stops there, and whatever that
+     * ancestor would have granted stops propagating to its still-live descendants.
+     */
+    it('a soft-deleted ancestor no longer propagates its own access grant to live descendants', async () => {
+      const childId = (
+        await app.inject({
+          method: 'POST',
+          url: '/projects',
+          headers: { cookie: ownerCookie },
+          payload: { name: 'Child', parentProjectId: projectId },
+        })
+      ).json().project.id;
+      const grandchildId = (
+        await app.inject({
+          method: 'POST',
+          url: '/projects',
+          headers: { cookie: ownerCookie },
+          payload: { name: 'Grandchild', parentProjectId: childId },
+        })
+      ).json().project.id;
+      await app.inject({
+        method: 'POST',
+        url: `/projects/${projectId}/shares`,
+        headers: { cookie: ownerCookie },
+        payload: { granteeUserId: outsiderId, accessLevel: 'view' },
+      });
+
+      // Confirmed reachable before the soft-delete, mirroring the test above.
+      const before = await app.inject({ method: 'GET', url: `/projects/${grandchildId}`, headers: { cookie: outsiderCookie } });
+      expect(before.statusCode).toBe(200);
+
+      const { getDb } = await import('../../src/db/client.js');
+      await getDb().updateTable('projects').set({ deleted_at: new Date() }).where('id', '=', projectId).execute();
+
+      const after = await app.inject({ method: 'GET', url: `/projects/${grandchildId}`, headers: { cookie: outsiderCookie } });
+      expect(after.statusCode).toBe(403);
+    });
   });
 });

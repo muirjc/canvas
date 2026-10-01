@@ -1,7 +1,6 @@
 import { sql } from 'kysely';
-import { getPool } from '../db/pool.js';
 import { getDb } from '../db/client.js';
-import { ACCESSIBLE_PROJECT_IDS_SQL } from './project.access.js';
+import { withAccessibleProjects } from './project.access.js';
 
 export class ProjectNotFoundError extends Error {}
 export class ProjectCycleError extends Error {}
@@ -84,35 +83,32 @@ export async function createProject(input: CreateProjectInput): Promise<ProjectL
  *
  * Ordered by name so the chooser is stable between loads. No search or paging: the clarified
  * scale is tens of projects (FR-013e).
- *
- * Deliberately NOT converted to Kysely (canvas-jtm.4 scope: this function is built directly on
- * `ACCESSIBLE_PROJECT_IDS_SQL`'s `WITH RECURSIVE` fragment — recursive-CTE conversion is
- * canvas-jtm.5's own dedicated, authorization-critical-risk phase, not bundled in here).
  */
 export async function listProjectsForUser(userId: string): Promise<ProjectListItem[]> {
-  const pool = getPool();
-  const { rows } = await pool.query<{
-    id: string;
-    name: string;
-    parent_project_id: string | null;
-    created_at: string;
-    owner_id: string;
-    diagram_count: string;
-  }>(
-    `${ACCESSIBLE_PROJECT_IDS_SQL}
-     SELECT p.id, p.name, p.parent_project_id, p.created_at, p.owner_id, COUNT(d.id) AS diagram_count
-     FROM projects p
-     LEFT JOIN diagrams d ON d.project_id = p.id AND d.deleted_at IS NULL
-     WHERE p.id IN (SELECT id FROM accessible)
-     GROUP BY p.id
-     ORDER BY p.name, p.id`,
-    [userId],
-  );
+  const db = getDb();
+  const rows = await withAccessibleProjects(db, userId)
+    .selectFrom('projects as p')
+    .leftJoin('diagrams as d', (join) => join.onRef('d.project_id', '=', 'p.id').on('d.deleted_at', 'is', null))
+    .select([
+      'p.id',
+      'p.name',
+      'p.parent_project_id',
+      'p.created_at',
+      'p.owner_id',
+      sql<string>`COUNT(d.id)`.as('diagram_count'),
+    ])
+    .where('p.id', 'in', (eb) => eb.selectFrom('accessible').select('id'))
+    .groupBy('p.id')
+    .orderBy('p.name')
+    .orderBy('p.id')
+    .execute();
   return rows.map((r) => ({
     id: r.id,
     name: r.name,
     parentProjectId: r.parent_project_id,
-    createdAt: r.created_at,
+    // See diagram-chat.service.ts's getChatMessages for why this cast is the pre-existing
+    // convention, not a new behavior change — node-postgres always returned a Date here.
+    createdAt: r.created_at as unknown as string,
     ownerId: r.owner_id,
     diagramCount: Number(r.diagram_count),
   }));
@@ -248,40 +244,50 @@ export interface ProjectTreeNode {
  * in the installation on each call and discarded all but the requested branch — a full scan of
  * the two largest tables to build one project's tree (feature 007, research.md §1).
  *
- * Deliberately NOT converted to Kysely (canvas-jtm.4 scope — see listProjectsForUser's own note
- * above): this function's own `WITH RECURSIVE subtree` is canvas-jtm.5's job.
+ * `unionAll`, not `union` (canvas-jtm.5): this walks DOWN from one root with no re-converging
+ * paths possible (every project has exactly one parent), unlike `project.access.ts`'s `roots`/
+ * `accessible` CTEs, which combine multiple sources that genuinely can overlap and so need real
+ * `UNION` deduplication — preserved exactly as the original SQL had each, not normalized to one.
  */
 export async function getProjectTree(rootId: string): Promise<ProjectTreeNode> {
-  const pool = getPool();
-  const { rows: subtreeProjects } = await pool.query<{ id: string; name: string; parent_project_id: string | null }>(
-    `WITH RECURSIVE subtree AS (
-       SELECT id, name, parent_project_id FROM projects WHERE id = $1 AND deleted_at IS NULL
-       UNION ALL
-       SELECT p.id, p.name, p.parent_project_id
-       FROM projects p JOIN subtree s ON p.parent_project_id = s.id
-       WHERE p.deleted_at IS NULL
-     )
-     SELECT id, name, parent_project_id FROM subtree`,
-    [rootId],
-  );
+  const db = getDb();
+  const subtreeProjects = await db
+    .withRecursive('subtree', (qb) =>
+      qb
+        .selectFrom('projects')
+        .select(['id', 'name', 'parent_project_id'])
+        .where('id', '=', rootId)
+        .where('deleted_at', 'is', null)
+        .unionAll((eb) =>
+          eb
+            .selectFrom('projects as p')
+            .innerJoin('subtree as s', 's.id', 'p.parent_project_id')
+            .select(['p.id', 'p.name', 'p.parent_project_id'])
+            .where('p.deleted_at', 'is', null),
+        ),
+    )
+    .selectFrom('subtree')
+    .select(['id', 'name', 'parent_project_id'])
+    .execute();
 
   const root = subtreeProjects.find((p) => p.id === rootId);
   if (!root) throw new ProjectNotFoundError(`No project with id ${rootId}`);
 
-  const { rows: subtreeDiagrams } = await pool.query<{
-    id: string;
-    name: string;
-    diagram_type_id: string;
-    project_id: string;
-  }>(
+  const subtreeDiagrams = await db
+    .selectFrom('diagrams')
+    .select(['id', 'name', 'diagram_type_id', 'project_id'])
+    .where('deleted_at', 'is', null)
+    .where(
+      'project_id',
+      'in',
+      subtreeProjects.map((p) => p.id),
+    )
     // Secondary tiebreak on id: without it, rows with an identical created_at timestamp (common
     // when tests create many diagrams in rapid succession) have no guaranteed stable order
     // across repeated queries, which shows up as flaky "pick the most recent" test failures.
-    `SELECT id, name, diagram_type_id, project_id FROM diagrams
-     WHERE deleted_at IS NULL AND project_id = ANY($1::uuid[])
-     ORDER BY created_at DESC, id DESC`,
-    [subtreeProjects.map((p) => p.id)],
-  );
+    .orderBy('created_at', 'desc')
+    .orderBy('id', 'desc')
+    .execute();
 
   const childrenByParent = new Map<string, typeof subtreeProjects>();
   for (const project of subtreeProjects) {
