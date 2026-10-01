@@ -1,4 +1,4 @@
-import { getPool } from '../db/pool.js';
+import { getDb } from '../db/client.js';
 
 interface AiPersonaSeed {
   name: string;
@@ -45,13 +45,13 @@ const AI_PERSONAS: AiPersonaSeed[] = [
 ];
 
 export async function seedAiPersonas(): Promise<void> {
-  const pool = getPool();
+  const db = getDb();
   for (const persona of AI_PERSONAS) {
-    const { rows } = await pool.query('SELECT id FROM ai_personas WHERE name = $1', [persona.name]);
-    if (rows[0]) continue;
-    await pool.query(
-      'INSERT INTO ai_personas (name, category, system_prompt) VALUES ($1, $2, $3)',
-      [persona.name, persona.category, persona.systemPrompt],
-    );
+    const existing = await db.selectFrom('ai_personas').select('id').where('name', '=', persona.name).executeTakeFirst();
+    if (existing) continue;
+    await db
+      .insertInto('ai_personas')
+      .values({ name: persona.name, category: persona.category, system_prompt: persona.systemPrompt })
+      .execute();
   }
 }

@@ -45,9 +45,11 @@ export async function resetDatabase(): Promise<void> {
 }
 
 export async function closeTestDb(): Promise<void> {
-  // canvas-jtm Phase 0: db/client.ts (Kysely) wraps its own separate pg.Pool instance alongside
-  // db/pool.ts's — both must close, or a converted file's connection leaks past test teardown.
-  // Remove the closePool() half once every call site has migrated off db/pool.ts (canvas-jtm.6).
+  // db/client.ts (Kysely) wraps its own separate pg.Pool instance alongside db/pool.ts's — both
+  // must close, or a connection leaks past test teardown. Both stay needed permanently
+  // (canvas-jtm.6): runMigrations() (db/migrate.ts, called by buildTestApp()) deliberately stays
+  // on db/pool.ts's raw pg.Pool — a dependency-free migration runner is a permanent design choice
+  // (Constitution VI), not a conversion still pending.
   await closeDb();
   await closePool();
 }
