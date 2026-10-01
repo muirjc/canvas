@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import { closePool } from '../db/pool.js';
 import { closeDb, getDb } from '../db/client.js';
 import { hashPassword } from '../auth/password.js';
@@ -28,7 +29,11 @@ async function seed(): Promise<void> {
     const existing = await db.selectFrom('users').select('id').where('email', '=', email).executeTakeFirst();
     if (existing) return existing.id;
 
-    const user = await db.insertInto('users').values({ name, email, role }).returning('id').executeTakeFirstOrThrow();
+    const user = await db
+      .insertInto('users')
+      .values({ id: randomUUID(), name, email, role })
+      .returning('id')
+      .executeTakeFirstOrThrow();
     const { hash, salt } = hashPassword(password);
     await db
       .insertInto('local_credentials')
@@ -48,8 +53,13 @@ async function seed(): Promise<void> {
   const existingProject = await db.selectFrom('projects').select('id').where('name', '=', 'Smoke Test').executeTakeFirst();
   const projectId = existingProject
     ? existingProject.id
-    : (await db.insertInto('projects').values({ name: 'Smoke Test', owner_id: adminId }).returning('id').executeTakeFirstOrThrow())
-        .id;
+    : (
+        await db
+          .insertInto('projects')
+          .values({ id: randomUUID(), name: 'Smoke Test', owner_id: adminId })
+          .returning('id')
+          .executeTakeFirstOrThrow()
+      ).id;
 
   // The architect needs an explicit grant now that project visibility follows ownership
   // (feature 007, FR-013a). Without this the seeded environment has a signed-in user who can see
@@ -58,6 +68,7 @@ async function seed(): Promise<void> {
   await db
     .insertInto('share_grants')
     .values({
+      id: randomUUID(),
       subject_type: 'project',
       subject_id: projectId,
       grantee_user_id: architectId,

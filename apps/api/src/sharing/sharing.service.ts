@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import { getDb } from '../db/client.js';
 
 export type AccessLevel = 'view' | 'comment' | 'edit';
@@ -63,6 +64,7 @@ export async function createShareGrant(input: CreateShareGrantInput): Promise<Sh
   const row = await db
     .insertInto('share_grants')
     .values({
+      id: randomUUID(),
       subject_type: input.subjectType,
       subject_id: input.subjectId,
       grantee_user_id: input.granteeUserId,

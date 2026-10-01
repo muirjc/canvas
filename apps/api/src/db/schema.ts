@@ -10,10 +10,11 @@
  * row type, which is exactly the drift problem the current "no shared layer at all" design has.
  *
  * `Generated<T>` marks a column optional on insert (DB fills it via `DEFAULT`) — used here for
- * every `DEFAULT gen_random_uuid()`/`DEFAULT now()`/`DEFAULT <literal>` column. A later phase
- * (canvas-jtm.10, deliberately sequenced after every file is off `db/pool.ts` — see that bead)
- * removes `gen_random_uuid()` entirely (ids become app-generated), at which point those `id`
- * columns stop being `Generated` — a tracked future change, not an oversight today.
+ * every `DEFAULT now()`/`DEFAULT <literal>` column. `id` columns are NOT `Generated` (as of
+ * canvas-jtm.10, 0013_app_generated_uuids.sql): every table's primary key used to default to
+ * `gen_random_uuid()`, dropped once every apps/api/src call site was off `db/pool.ts`
+ * (canvas-jtm.6) and could be updated in one pass to supply `crypto.randomUUID()` explicitly —
+ * removing `pgcrypto` as a database-level dependency this schema no longer needs.
  *
  * Timestamp columns are typed `Timestamp` (see below), matching node-postgres's actual runtime
  * behavior (a native `Date`) rather than perpetuating the `created_at: string` convention some
@@ -76,7 +77,7 @@ export type JsonColumn<T> = ColumnType<T, string, string>;
 export type GeneratedJsonColumn<T> = ColumnType<T, string | undefined, string>;
 
 export interface UsersTable {
-  id: Generated<string>;
+  id: string;
   name: string;
   email: string;
   role: 'admin' | 'architect' | 'viewer';
@@ -93,7 +94,7 @@ export interface UsersPersonasTable {
 }
 
 export interface ProjectsTable {
-  id: Generated<string>;
+  id: string;
   name: string;
   parent_project_id: string | null;
   owner_id: string;
@@ -156,7 +157,7 @@ export interface IconKeywordsTable {
 }
 
 export interface StandardsTable {
-  id: Generated<string>;
+  id: string;
   diagram_type_id: string;
   version: number;
   status: 'draft' | 'published' | 'retired';
@@ -187,7 +188,7 @@ export interface StandardMandatoryShapesTable {
 }
 
 export interface DiagramsTable {
-  id: Generated<string>;
+  id: string;
   name: string;
   diagram_type_id: string;
   project_id: string;
@@ -205,7 +206,7 @@ export interface DiagramsTable {
 }
 
 export interface DiagramVersionsTable {
-  id: Generated<string>;
+  id: string;
   diagram_id: string;
   sequence_number: number;
   dsl_content: string;
@@ -215,7 +216,7 @@ export interface DiagramVersionsTable {
 }
 
 export interface TemplatesTable {
-  id: Generated<string>;
+  id: string;
   diagram_type_id: string;
   persona: string;
   name: string;
@@ -224,7 +225,7 @@ export interface TemplatesTable {
 }
 
 export interface ShareGrantsTable {
-  id: Generated<string>;
+  id: string;
   subject_type: 'diagram' | 'project';
   subject_id: string;
   grantee_user_id: string;
@@ -240,7 +241,7 @@ export interface LocalCredentialsTable {
 }
 
 export interface AiPersonasTable {
-  id: Generated<string>;
+  id: string;
   name: string;
   // Not the 'Business'|'Enterprise'|'Solution'|'Technical' literal union despite the DB's own
   // CHECK constraint: ai/persona.service.ts deliberately validates category at the app layer
@@ -254,14 +255,14 @@ export interface AiPersonasTable {
 }
 
 export interface DiagramChatsTable {
-  id: Generated<string>;
+  id: string;
   diagram_id: string;
   persona_id: string | null;
   created_at: GeneratedTimestamp;
 }
 
 export interface ChatMessagesTable {
-  id: Generated<string>;
+  id: string;
   diagram_chat_id: string;
   role: 'user' | 'assistant';
   content: string;
@@ -279,7 +280,7 @@ export interface AiSettingsTable {
 }
 
 export interface AiPersonaReferenceMaterialTable {
-  id: Generated<string>;
+  id: string;
   persona_id: string;
   content: string;
   created_at: GeneratedTimestamp;

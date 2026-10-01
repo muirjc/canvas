@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import type { FastifyInstance } from 'fastify';
 import { MockLanguageModelV4 } from 'ai/test';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
@@ -75,7 +76,8 @@ describe('POST/GET /diagrams/:id/chat/messages', () => {
 
     const pool = getPool();
     const { rows } = await pool.query<{ id: string }>(
-      "INSERT INTO ai_personas (name, category, system_prompt) VALUES ('Business Architect', 'Business', 'You are a business architect.') RETURNING id",
+      "INSERT INTO ai_personas (id, name, category, system_prompt) VALUES ($1, 'Business Architect', 'Business', 'You are a business architect.') RETURNING id",
+      [randomUUID()],
     );
     personaId = rows[0].id;
 
@@ -120,7 +122,8 @@ describe('POST/GET /diagrams/:id/chat/messages', () => {
 
     const pool = getPool();
     const { rows: otherPersona } = await pool.query<{ id: string }>(
-      "INSERT INTO ai_personas (name, category, system_prompt) VALUES ('Other', 'Technical', 'x') RETURNING id",
+      "INSERT INTO ai_personas (id, name, category, system_prompt) VALUES ($1, 'Other', 'Technical', 'x') RETURNING id",
+      [randomUUID()],
     );
 
     await app.inject({
@@ -229,7 +232,8 @@ describe('POST /diagrams/:id/chat/messages — every diagram family (010-ai-diag
 
     const pool = getPool();
     const { rows } = await pool.query<{ id: string }>(
-      "INSERT INTO ai_personas (name, category, system_prompt) VALUES ('Business Architect', 'Business', 'You are a business architect.') RETURNING id",
+      "INSERT INTO ai_personas (id, name, category, system_prompt) VALUES ($1, 'Business Architect', 'Business', 'You are a business architect.') RETURNING id",
+      [randomUUID()],
     );
     personaId = rows[0].id;
     await pool.query('UPDATE ai_settings SET chat_enabled = true');
@@ -487,8 +491,8 @@ describe('Persona reference material composed into the chat system prompt (010-a
   async function createPersona(systemPrompt: string): Promise<string> {
     const pool = getPool();
     const { rows } = await pool.query<{ id: string }>(
-      "INSERT INTO ai_personas (name, category, system_prompt) VALUES ('Ref Material Persona', 'Business', $1) RETURNING id",
-      [systemPrompt],
+      "INSERT INTO ai_personas (id, name, category, system_prompt) VALUES ($1, 'Ref Material Persona', 'Business', $2) RETURNING id",
+      [randomUUID(), systemPrompt],
     );
     return rows[0].id;
   }
@@ -496,8 +500,8 @@ describe('Persona reference material composed into the chat system prompt (010-a
   async function addReferenceMaterial(personaId: string, content: string, diagramFamilies?: string[]): Promise<void> {
     const pool = getPool();
     const { rows } = await pool.query<{ id: string }>(
-      'INSERT INTO ai_persona_reference_material (persona_id, content) VALUES ($1, $2) RETURNING id',
-      [personaId, content],
+      'INSERT INTO ai_persona_reference_material (id, persona_id, content) VALUES ($1, $2, $3) RETURNING id',
+      [randomUUID(), personaId, content],
     );
     if (diagramFamilies && diagramFamilies.length > 0) {
       await setReferenceMaterialFamilies(getDb(), rows[0].id, diagramFamilies);

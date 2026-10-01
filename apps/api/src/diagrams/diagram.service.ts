@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import { createEmptyDiagramModel, getDslFamily, validate, type DiagramModel, type ParseError } from '@canvas/diagram-core';
 import { getDb } from '../db/client.js';
 import { caseInsensitiveLike } from '../db/sql-helpers.js';
@@ -110,6 +111,7 @@ export async function createDiagram(input: CreateDiagramInput): Promise<DiagramR
     const diagram = await trx
       .insertInto('diagrams')
       .values({
+        id: randomUUID(),
         name: input.name,
         diagram_type_id: input.diagramTypeId,
         project_id: input.projectId,

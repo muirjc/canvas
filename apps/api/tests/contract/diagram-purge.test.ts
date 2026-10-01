@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import type { FastifyInstance } from 'fastify';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { buildTestApp, closeTestDb, resetDatabase, seedFlowchartDiagramType, seedProject, seedUser } from '../helpers/setup.js';
@@ -113,19 +114,19 @@ describe('purgeExpiredDiagrams()', () => {
 
     const otherUserId = (await seedUser({ email: 'other@example.com', password: 'other-pass' })).id;
     await pool.query(
-      `INSERT INTO share_grants (subject_type, subject_id, grantee_user_id, access_level, granted_by_user_id)
-       VALUES ('diagram', $1, $2, 'view', $3)`,
-      [id, otherUserId, ownerId],
+      `INSERT INTO share_grants (id, subject_type, subject_id, grantee_user_id, access_level, granted_by_user_id)
+       VALUES ($1, 'diagram', $2, $3, 'view', $4)`,
+      [randomUUID(), id, otherUserId, ownerId],
     );
 
     const { rows: chatRows } = await pool.query<{ id: string }>(
-      'INSERT INTO diagram_chats (diagram_id) VALUES ($1) RETURNING id',
-      [id],
+      'INSERT INTO diagram_chats (id, diagram_id) VALUES ($1, $2) RETURNING id',
+      [randomUUID(), id],
     );
     const chatId = chatRows[0].id;
     await pool.query(
-      "INSERT INTO chat_messages (diagram_chat_id, role, content) VALUES ($1, 'user', 'hello')",
-      [chatId],
+      "INSERT INTO chat_messages (id, diagram_chat_id, role, content) VALUES ($1, $2, 'user', 'hello')",
+      [randomUUID(), chatId],
     );
 
     await softDeleteAndAge(id, 45);

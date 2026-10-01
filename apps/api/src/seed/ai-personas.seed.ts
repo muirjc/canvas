@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import { getDb } from '../db/client.js';
 
 interface AiPersonaSeed {
@@ -51,7 +52,7 @@ export async function seedAiPersonas(): Promise<void> {
     if (existing) continue;
     await db
       .insertInto('ai_personas')
-      .values({ name: persona.name, category: persona.category, system_prompt: persona.systemPrompt })
+      .values({ id: randomUUID(), name: persona.name, category: persona.category, system_prompt: persona.systemPrompt })
       .execute();
   }
 }

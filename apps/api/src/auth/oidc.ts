@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import * as client from 'openid-client';
 import type { FastifyInstance } from 'fastify';
 import { getDb } from '../db/client.js';
@@ -128,7 +129,7 @@ async function findOrCreateUserFromClaims(claims: {
 
   const inserted = await db
     .insertInto('users')
-    .values({ name, email, role })
+    .values({ id: randomUUID(), name, email, role })
     .returning(['id', 'email', 'name', 'role'])
     .executeTakeFirstOrThrow();
   // A freshly-created user has no personas yet — no row in users_personas, which
