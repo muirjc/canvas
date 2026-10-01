@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import { getDb } from '../db/client.js';
 import { currentTimestamp } from '../db/sql-helpers.js';
 
@@ -83,7 +84,7 @@ export async function createPersona(input: CreatePersonaInput): Promise<AiPerson
   const db = getDb();
   const row = await db
     .insertInto('ai_personas')
-    .values({ name: input.name, category: input.category, system_prompt: input.systemPrompt })
+    .values({ id: randomUUID(), name: input.name, category: input.category, system_prompt: input.systemPrompt })
     .returningAll()
     .executeTakeFirstOrThrow();
   return toRecord(row);

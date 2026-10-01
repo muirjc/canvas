@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import { getDb } from '../db/client.js';
 import type { DbExecutor } from '../db/client.js';
 import { caseInsensitiveLike, dateToYMD } from '../db/sql-helpers.js';
@@ -27,6 +28,7 @@ export async function recordDiagramVersion(
   const row = await db
     .insertInto('diagram_versions')
     .values({
+      id: randomUUID(),
       diagram_id: input.diagramId,
       sequence_number: Number(nextSeq) + 1,
       dsl_content: input.dslContent,

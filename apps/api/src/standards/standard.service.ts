@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import { sql } from 'kysely';
 import type { StandardRules, IconLibraryRef, ColorPaletteEntry, FontConstraints, NodeShape } from '@canvas/diagram-core';
 import { getDb } from '../db/client.js';
@@ -104,6 +105,7 @@ export async function createDraftStandard(input: CreateDraftStandardInput): Prom
     const row = await trx
       .insertInto('standards')
       .values({
+        id: randomUUID(),
         diagram_type_id: input.diagramTypeId,
         version: nextVersion,
         status: 'draft',

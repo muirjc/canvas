@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import { getDslFamily } from '@canvas/diagram-core';
 import { getDb } from '../db/client.js';
 import { currentTimestamp } from '../db/sql-helpers.js';
@@ -112,7 +113,7 @@ export async function createReferenceMaterial(
   return db.transaction().execute(async (trx) => {
     const row = await trx
       .insertInto('ai_persona_reference_material')
-      .values({ persona_id: personaId, content: input.content })
+      .values({ id: randomUUID(), persona_id: personaId, content: input.content })
       .returningAll()
       .executeTakeFirstOrThrow();
     const diagramFamilies = input.diagramFamilies ?? [];

@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import type { FastifyInstance } from 'fastify';
 import { buildApp } from '../../src/app.js';
 import { loadConfig } from '../../src/config.js';
@@ -64,8 +65,8 @@ interface SeedUserOptions {
 export async function seedUser(options: SeedUserOptions): Promise<{ id: string }> {
   const pool = getPool();
   const { rows } = await pool.query<{ id: string }>(
-    `INSERT INTO users (name, email, role) VALUES ($1, $2, $3) RETURNING id`,
-    [options.name ?? options.email, options.email, options.role ?? 'architect'],
+    `INSERT INTO users (id, name, email, role) VALUES ($1, $2, $3, $4) RETURNING id`,
+    [randomUUID(), options.name ?? options.email, options.email, options.role ?? 'architect'],
   );
   const { hash, salt } = hashPassword(options.password);
   await pool.query(
@@ -129,8 +130,8 @@ export async function seedProject(name = 'Test Project', ownerId?: string): Prom
   const owner = ownerId ?? (await pool.query<{ id: string }>('SELECT id FROM users ORDER BY created_at LIMIT 1')).rows[0]?.id;
   if (!owner) throw new Error('seedProject needs a user to own the project — call seedUser first.');
   const { rows } = await pool.query<{ id: string }>(
-    'INSERT INTO projects (name, owner_id) VALUES ($1, $2) RETURNING id',
-    [name, owner],
+    'INSERT INTO projects (id, name, owner_id) VALUES ($1, $2, $3) RETURNING id',
+    [randomUUID(), name, owner],
   );
   return rows[0];
 }

@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import { generateText, stepCountIs, type LanguageModel } from 'ai';
 import { getDslFamily, isParseSuccess, type DiagramModel } from '@canvas/diagram-core';
 import { getDb } from '../db/client.js';
@@ -35,7 +36,7 @@ async function getOrCreateDiagramChat(
   // it; this INSERT is the one place personaId is ever written.
   const inserted = await db
     .insertInto('diagram_chats')
-    .values({ diagram_id: diagramId, persona_id: personaId ?? null })
+    .values({ id: randomUUID(), diagram_id: diagramId, persona_id: personaId ?? null })
     .returning(['id', 'persona_id'])
     .executeTakeFirstOrThrow();
   return { id: inserted.id, personaId: inserted.persona_id };
@@ -171,10 +172,14 @@ export async function sendChatMessage(input: SendChatMessageInput): Promise<Send
   const updatedDslContent = family.serialize(model);
 
   const db = getDb();
-  await db.insertInto('chat_messages').values({ diagram_chat_id: chat.id, role: 'user', content: input.message }).execute();
+  await db
+    .insertInto('chat_messages')
+    .values({ id: randomUUID(), diagram_chat_id: chat.id, role: 'user', content: input.message })
+    .execute();
   await db
     .insertInto('chat_messages')
     .values({
+      id: randomUUID(),
       diagram_chat_id: chat.id,
       role: 'assistant',
       content: result.text,

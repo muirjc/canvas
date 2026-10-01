@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { getPool, closePool } from '../../src/db/pool.js';
 import { getDb, closeDb } from '../../src/db/client.js';
@@ -36,21 +37,30 @@ describe.skipIf(!process.env.RUN_PERF_TESTS)('Diagram search performance at scal
     await setDiagramTypePersonas(db, 'flowchart', ['Technical']);
     await setDiagramTypePaletteLibraries(db, 'flowchart', ['generic']);
     const { rows: userRows } = await pool.query<{ id: string }>(
-      `INSERT INTO users (name, email, role) VALUES ('Perf Owner', 'perf-owner@example.com', 'architect') RETURNING id`,
+      `INSERT INTO users (id, name, email, role) VALUES ($1, 'Perf Owner', 'perf-owner@example.com', 'architect') RETURNING id`,
+      [randomUUID()],
     );
     ownerId = userRows[0].id;
+    // owner_id was missing here even before canvas-jtm.10 (projects.owner_id has been NOT NULL
+    // since feature 007) — presumably unnoticed since this whole suite is gated behind
+    // RUN_PERF_TESTS and so never runs in ordinary CI. Fixed alongside the id fix below rather
+    // than left for a future run to rediscover.
     const { rows: projectRows } = await pool.query<{ id: string }>(
-      `INSERT INTO projects (name) VALUES ('Perf Test Project') RETURNING id`,
+      `INSERT INTO projects (id, name, owner_id) VALUES ($1, 'Perf Test Project', $2) RETURNING id`,
+      [randomUUID(), ownerId],
     );
     projectId = projectRows[0].id;
 
     // Bulk-insert diagrams directly (no version rows needed — search.service.ts's query only
-    // touches the `diagrams` table itself, matching what it actually costs in production).
+    // touches the `diagrams` table itself, matching what it actually costs in production). Ids
+    // generated in JS and expanded via UNNEST — canvas-jtm.10 removed the gen_random_uuid()
+    // DEFAULT this used to rely on implicitly.
+    const diagramIds = Array.from({ length: DIAGRAM_COUNT }, () => randomUUID());
     await pool.query(
-      `INSERT INTO diagrams (name, diagram_type_id, project_id, owner_id)
-       SELECT 'Diagram ' || i, 'flowchart', $1, $2
-       FROM generate_series(1, $3) AS i`,
-      [projectId, ownerId, DIAGRAM_COUNT],
+      `INSERT INTO diagrams (id, name, diagram_type_id, project_id, owner_id)
+       SELECT id, 'Diagram ' || ROW_NUMBER() OVER (), 'flowchart', $2, $3
+       FROM UNNEST($1::uuid[]) AS id`,
+      [diagramIds, projectId, ownerId],
     );
   }, 60_000);
 

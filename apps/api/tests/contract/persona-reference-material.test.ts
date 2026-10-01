@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import type { FastifyInstance } from 'fastify';
 import { MockLanguageModelV4 } from 'ai/test';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
@@ -64,7 +65,8 @@ describe('Persona reference-material admin API contract (010-ai-diagram-knowledg
 
     const pool = getPool();
     const { rows } = await pool.query<{ id: string }>(
-      "INSERT INTO ai_personas (name, category, system_prompt) VALUES ('Ref Persona', 'Business', 'You are a helpful assistant.') RETURNING id",
+      "INSERT INTO ai_personas (id, name, category, system_prompt) VALUES ($1, 'Ref Persona', 'Business', 'You are a helpful assistant.') RETURNING id",
+      [randomUUID()],
     );
     personaId = rows[0].id;
   });
@@ -219,7 +221,8 @@ describe('Persona reference-material admin API contract (010-ai-diagram-knowledg
   it('404s a PATCH when entryId belongs to a different persona than the URL personaId', async () => {
     const pool = getPool();
     const { rows: otherPersona } = await pool.query<{ id: string }>(
-      "INSERT INTO ai_personas (name, category, system_prompt) VALUES ('Other Persona', 'Technical', 'x') RETURNING id",
+      "INSERT INTO ai_personas (id, name, category, system_prompt) VALUES ($1, 'Other Persona', 'Technical', 'x') RETURNING id",
+      [randomUUID()],
     );
     const created = await app.inject({
       method: 'POST',

@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import type { FastifyInstance } from 'fastify';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { buildTestApp, closeTestDb, resetDatabase, seedFlowchartDiagramType, seedProject, seedUser } from '../helpers/setup.js';
@@ -32,8 +33,8 @@ describe('AI persona API contract', () => {
   async function insertPersona(name: string, category: string, status: 'active' | 'archived' = 'active') {
     const pool = getPool();
     const { rows } = await pool.query<{ id: string }>(
-      'INSERT INTO ai_personas (name, category, system_prompt, status) VALUES ($1, $2, $3, $4) RETURNING id',
-      [name, category, 'You are a helpful assistant.', status],
+      'INSERT INTO ai_personas (id, name, category, system_prompt, status) VALUES ($1, $2, $3, $4, $5) RETURNING id',
+      [randomUUID(), name, category, 'You are a helpful assistant.', status],
     );
     return rows[0].id;
   }
@@ -176,7 +177,7 @@ describe('Admin persona CRUD API contract', () => {
     });
     const diagramId = diagramResponse.json().diagram.id;
     const pool = getPool();
-    await pool.query('INSERT INTO diagram_chats (diagram_id, persona_id) VALUES ($1, $2)', [diagramId, id]);
+    await pool.query('INSERT INTO diagram_chats (id, diagram_id, persona_id) VALUES ($1, $2, $3)', [randomUUID(), diagramId, id]);
 
     const archiveResponse = await app.inject({ method: 'POST', url: `/admin/ai-personas/${id}/archive`, headers: { cookie: adminCookie } });
     expect(archiveResponse.statusCode).toBe(200);

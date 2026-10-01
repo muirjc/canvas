@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import { sql } from 'kysely';
 import { getDb } from '../db/client.js';
 import { withAccessibleProjects } from './project.access.js';
@@ -59,7 +60,7 @@ export async function createProject(input: CreateProjectInput): Promise<ProjectL
   }
   const row = await db
     .insertInto('projects')
-    .values({ name: input.name, parent_project_id: input.parentProjectId ?? null, owner_id: input.ownerId })
+    .values({ id: randomUUID(), name: input.name, parent_project_id: input.parentProjectId ?? null, owner_id: input.ownerId })
     .returning(['id', 'name', 'parent_project_id', 'created_at'])
     .executeTakeFirstOrThrow();
   // Always 0 — a brand-new project cannot already have a diagram in it. ownerId is already known
