@@ -53,11 +53,13 @@ packages/diagram-core/src/{model,dsl,standards,libraries}    # shared Mermaid pa
 
 `diagram-core` is used identically by both the frontend (validating/rendering as you edit) and the
 backend (parsing on import/save) — see `specs/001-diagramming-platform/plan.md`. Diagrams persist
-to PostgreSQL; icon/shape library assets live in a blob store.
+to PostgreSQL (default) or SQLite — see "Getting started" below — via Kysely, a typed SQL query
+compiler, not an ORM; icon/shape library assets live in a blob store.
 
 ## Getting started
 
-Requirements: Node.js 22 LTS, Docker (for PostgreSQL), npm.
+Requirements: Node.js 22 LTS, npm, and **either** Docker (for PostgreSQL, the default) **or**
+nothing extra at all (SQLite, bundled via `better-sqlite3` — no server process to run).
 
 ```bash
 git clone https://github.com/muirjc/canvas.git
@@ -82,6 +84,11 @@ npm run dev --workspace=@canvas/web     # http://localhost:5173
 
 Then open `http://localhost:5173/?projectId=<the id printed by seed>` and sign in with the printed
 admin credentials.
+
+**No Docker/Postgres at all?** Set `DB_CLIENT=sqlite` and point `DATABASE_URL` at a local file
+instead (e.g. `DATABASE_URL=./data/canvas.db`) in `apps/api/.env`, skip the `docker compose up -d`
+step above, and run the same `migrate`/`seed`/`dev` commands — see `RUNBOOK.md`'s "Database engine"
+section for the SQLite vs. PostgreSQL trade-off.
 
 See **[RUNBOOK.md](RUNBOOK.md)** for day-to-day operational commands, troubleshooting, Keycloak
 SSO setup, and environment variable reference, and `specs/*/quickstart.md` for a step-by-step
@@ -110,7 +117,8 @@ scripts for cost control.
 ```bash
 npm run build --workspace=@canvas/diagram-core   # required before api/web tests — see above
 npm run test --workspace=@canvas/diagram-core     # parser/serializer/validator contract tests
-npm run test --workspace=@canvas/api              # API contract tests (needs Postgres running)
+npm run test --workspace=@canvas/api              # API contract tests (needs Postgres running by default)
+TEST_DB_CLIENT=sqlite npm run test --workspace=@canvas/api   # same suite against SQLite — no Postgres needed
 npm run test:e2e --workspace=@canvas/web          # Playwright E2E (needs api + web dev servers running)
 ```
 
@@ -121,8 +129,10 @@ exist (and must fail before implementation) for every new diagram type or export
 ## CI
 
 GitHub Actions (`.github/workflows/ci.yml`) runs on every push to `main` and every PR: lint +
-build, the `diagram-core`/`api` test suites against a Postgres service container, and the full
-Playwright E2E suite. `main` is protected — changes land via PR once CI is green.
+build, the `diagram-core`/`api` test suites as a `db-client: [postgres, sqlite]` matrix (so both
+supported database engines are continuously verified, not just Postgres), and the full Playwright
+E2E suite (Postgres only — see `docs/solution-architecture-document.md` §14). `main` is protected
+— changes land via PR once CI is green.
 
 ## Project layout and specs
 

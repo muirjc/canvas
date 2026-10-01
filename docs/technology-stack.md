@@ -13,8 +13,8 @@
 |---|---|
 | Node.js | 22 LTS (pinned in CI as `NODE_VERSION: '22'`) |
 | npm | Whatever ships with Node 22 (npm workspaces monorepo — no separate package manager) |
-| PostgreSQL | 16 (`postgres:16-alpine` locally; Azure Database for PostgreSQL Flexible Server, version 16, in the cloud) |
-| Docker | Local dev only (runs Postgres, optionally Keycloak) |
+| PostgreSQL (default) OR SQLite | Postgres 16 (`postgres:16-alpine` locally; Azure Database for PostgreSQL Flexible Server, version 16, in the cloud) — **or** SQLite via the bundled `better-sqlite3` driver, no separate server process. Selected by `DB_CLIENT` (see `RUNBOOK.md`). SQLite is for local dev/evaluation/small self-hosted use, not larger concurrent production deployments — see `docs/solution-architecture-document.md` §12. |
+| Docker | Local dev only, and only needed for the Postgres engine (runs Postgres, optionally Keycloak) — not required at all when running against SQLite |
 
 ## External services (optional/pluggable)
 
@@ -38,7 +38,9 @@ Neither AI provider is required — `AI_PROVIDER=mock` gives fully deterministic
 | @fastify/swagger | ^9.8.1 |
 | @fastify/swagger-ui | ^6.1.1 |
 | openid-client | ^6.1.7 |
+| kysely | ^0.29.6 |
 | pg | ^8.13.1 |
+| better-sqlite3 | ^13.0.3 |
 | pino / pino-pretty | ^9.5.0 / ^13.0.0 |
 | zod | ^4.4.3 |
 | ai | ^7.0.37 |
@@ -48,7 +50,7 @@ Neither AI provider is required — `AI_PROVIDER=mock` gives fully deterministic
 | @canvas/diagram-core | workspace (`packages/diagram-core`) |
 
 **Dev/test**: typescript ^5.7.2 · vitest ^2.1.8 · tsx ^4.19.2 · supertest ^7.0.0 · @types/node
-^22.10.2 · @types/pg ^8.11.10
+^22.10.2 · @types/pg ^8.11.10 · @types/better-sqlite3 ^9.6.0
 
 ## `apps/web` (React frontend)
 
@@ -92,6 +94,10 @@ and its modules use whatever provider API versions are declared per-resource (e.
 
 - All internal package versions use `^` (caret) ranges — exact resolved versions are locked via
   `package-lock.json` (npm workspaces, single root lockfile for all four `package.json`s).
+- `better-sqlite3` is a native (prebuilt-binary) dependency, unlike `pg`'s pure-JS wire protocol —
+  confirmed it ships a prebuilt `linux-x64` (glibc) binary, so `npm ci` against the production
+  `node:20-slim` Dockerfile base needs no C++ toolchain (same reasoning already applied to
+  `@resvg/resvg-js`, the other native dependency in this image).
 - `@canvas/diagram-core` is resolved by `apps/api`/`apps/web` via an npm workspace symlink to its
   **built** `dist/` output, not its TypeScript source — see `RUNBOOK.md`'s "Resetting state"
   section for the rebuild step this implies after any change to that package.

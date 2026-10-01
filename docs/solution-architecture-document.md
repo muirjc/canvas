@@ -43,9 +43,10 @@ apart.
 └───────────────────────────────────────────────────────────────┘
                                                     ▼
                                     ┌───────────────────────────┐
-                                    │ PostgreSQL (diagrams, users,│
-                                    │ projects, standards, icons, │
-                                    │ AI personas/chat history)    │
+                                    │ PostgreSQL or SQLite        │
+                                    │ (diagrams, users, projects, │
+                                    │ standards, icons, AI        │
+                                    │ personas/chat history)       │
                                     └───────────────────────────┘
                           ┌───────────────────────────┐
                           │ Keycloak (OIDC IdP, MFA)   │  (optional; local-auth
@@ -64,8 +65,8 @@ apart.
 | Frontend build | Vite | ^6.0 | Dev server + production bundling |
 | Backend | Fastify | ^5.1 | Chosen over Express for its plugin architecture and native TypeScript-friendly typing |
 | Backend runtime | Node.js | 22 LTS | Per `README.md`'s stated requirement |
-| Database | PostgreSQL | 16 (Alpine locally, Azure Flexible Server in the cloud) | Single relational store — no separate document/cache store |
-| Database driver | `pg` | ^8.13 | Raw SQL via a connection pool (`apps/api/src/db/pool.ts`) — no ORM |
+| Database | PostgreSQL or SQLite | Postgres 16 (Alpine locally, Azure Flexible Server in the cloud); SQLite via `better-sqlite3` | Single relational store — no separate document/cache store. Engine selected by `DB_CLIENT` (default `postgres`); SQLite is supported for local dev, evaluation, and small/single-team self-hosted use, not recommended for larger concurrent production deployments (single-writer serialization) — see §12 |
+| Database driver | Kysely (`^0.29`) over `pg` (Postgres) or `better-sqlite3` (SQLite) | — | Typed SQL query **compiler**, not an ORM — no entity/active-record layer, `.compile()` shows the exact SQL (`apps/api/src/db/client.ts`); see `.specify/memory/constitution.md` Principle VI |
 | Auth (OIDC) | `openid-client` | ^6.1 | PKCE authorization-code flow against Keycloak (or any OIDC-compliant IdP) |
 | Identity Provider | Keycloak | 26.2 | Self-hosted, realm-imported from version-controlled JSON (`infra/keycloak/CanvasRealm-realm.json`); enforces TOTP MFA on every SSO login |
 | AI SDK | Vercel AI SDK (`ai`, `@ai-sdk/anthropic`, `@ai-sdk/openai`) | ^7.0 | Provider-swappable tool-calling; a fourth "mock" provider gives deterministic offline/CI behavior |
@@ -124,8 +125,13 @@ implementation, not two independently-hand-copied ones. Concretely:
 
 ## 5. Data Architecture
 
-PostgreSQL is the sole persistent store (no cache/document store). Sixteen tables, delivered
-incrementally across ten migrations:
+PostgreSQL (default) or SQLite is the sole persistent store (no cache/document store) — selected
+by `DB_CLIENT`, see §12's SQLite decision entry for the engine trade-off. Sixteen tables, delivered
+incrementally across thirteen Postgres migrations (`apps/api/migrations/*.sql`) plus one squashed
+equivalent for SQLite (`apps/api/migrations/sqlite/0001_init.sql`, since SQLite cannot parse
+several Postgres-only constructs the incremental migrations use — procedural blocks, `ALTER TABLE
+ADD CONSTRAINT`, `CREATE EXTENSION` — so its schema is expressed directly at its final shape
+instead of replayed incrementally):
 
 | Table | Purpose |
 |---|---|
@@ -305,10 +311,13 @@ Four layers, enforced by Constitution Principle IV for the first two:
    *before* the implementation they cover, not after.
 2. **Unit tests** — pure function coverage (`diagram-ops.ts`, config loading, auth helpers) across
    all three workspaces.
-3. **API contract tests** (`apps/api/tests/contract/`) — real HTTP request/response assertions
-   against a real (test-isolated `canvas_test`) Postgres database, `NODE_ENV=test` hard-overriding
-   `DATABASE_URL` so an ambient dev-database env var can never leak into a test run and get
-   truncated.
+3. **API contract tests** (`apps/api/tests/contract/`) — real HTTP request/response assertions,
+   run against both supported engines: a real (test-isolated `canvas_test`) Postgres database by
+   default, or an in-memory SQLite database when `TEST_DB_CLIENT=sqlite` — `NODE_ENV=test`
+   hard-overriding `DATABASE_URL`/the SQLite path so an ambient dev-database env var can never leak
+   into a test run and get truncated/deleted. CI (`.github/workflows/ci.yml`'s `unit-tests` job)
+   runs this suite as a `db-client: [postgres, sqlite]` matrix so dialect parity is continuously
+   enforced, not just checked once locally.
 4. **End-to-end** (`apps/web/tests/e2e/`, Playwright + axe-core) — drives the real running app in
    a real browser, including a dedicated SSO spec that completes a real Keycloak TOTP enrollment
    (reads the live enrollment page's TOTP secret, computes a real code with `otplib`) rather than
@@ -326,7 +335,8 @@ CI (`.github/workflows/ci.yml`) runs `lint-and-build` → `unit-tests` → `e2e-
 | Standards enforcement is soft-flag, never blocking | Preserves architect autonomy while still making violations visible and auditable — a deliberate governance-vs-friction trade-off, not an oversight |
 | Sequence-diagram geometry is fully computed, never stored | `canvas.positions` front-matter round-trip is intentionally dropped for this one family — declaration/message *order* is the real DSL content; storing now-ignored positions would be a worse trap than omitting them |
 | Single-organization deployment, no multi-tenancy | Explicitly out of scope (BRD §5.2) — every admin-defined standard/library is global, simplifying the data model considerably |
-| No ORM; raw SQL via `pg` | Sixteen tables, mostly straightforward CRUD plus a few polymorphic/recursive queries (project trees, access resolution) — judged not to need an ORM's abstraction cost |
+| No ORM; typed SQL via Kysely (originally raw SQL via `pg`) | Sixteen tables, mostly straightforward CRUD plus a few polymorphic/recursive queries (project trees, access resolution) — judged not to need a full ORM's entity/active-record abstraction cost. Kysely was adopted specifically because it compiles typed method calls to real per-dialect SQL with no such layer (Constitution Principle VI), enabling the Postgres+SQLite support below without reversing the original "no ORM" decision |
+| SQLite as a second supported database engine, Postgres remains the default | Removes the hard requirement to run a standalone Postgres server (via Docker or otherwise) just to try the app locally — a real adoption barrier. Scoped deliberately to Postgres + SQLite only (no MySQL); SQLite is documented as suitable for local dev, evaluation, and small/single-team self-hosted use, not larger concurrent production deployments, because SQLite serializes writers (one writer at a time; `SQLITE_BUSY` under contention without WAL tuning this project does not attempt to add). The Azure reference deployment's own default stays Postgres — this makes SQLite a real, tested *option*, not a migration off Postgres. Engine-specific gaps are each isolated behind a single helper rather than scattered: `db/sql-helpers.ts` (`ILIKE`→`LIKE`, `to_char`→`strftime`, boolean 0/1 coercion) and two Kysely plugins in `db/client.ts` (`SqliteValueCoercionPlugin` for bound `Date`/`boolean` values, `SqliteJsonColumnsPlugin` for JSON-column auto-parse on read, since SQLite has neither a native boolean/timestamp type nor Postgres's automatic JSONB deserialization) |
 | AI tool-calling constrained to typed operations, never raw DSL | The same trust boundary a manual edit already has (standards validation, family-appropriate vocabulary) applies uniformly, with no AI-specific bypass path to audit separately |
 
 ## 13. Non-Functional Requirements / Quality Attributes
@@ -363,6 +373,12 @@ Disclosed deliberately, not silently carried:
   container is tracked separately; today it's a manual/local-only verification path.
 - **Route-level request validation is inconsistent** — most routes hand-validate imperatively
   rather than via declarative Fastify/zod schema (see §7).
+- **SQLite's `LIKE` is ASCII-only case-insensitive**, unlike Postgres's `ILIKE` (full Unicode
+  case-folding) — a disclosed, accepted gap for non-ASCII search on the SQLite engine (see §12),
+  not a silently divergent behavior.
+- **The Playwright E2E suite only runs against Postgres** — a SQLite E2E leg was judged
+  lower-priority (the Azure production target stays Postgres) and not built in canvas-jtm; the
+  `unit-tests` matrix (§11) is the SQLite dialect's actual CI coverage.
 
 ## 15. Glossary
 
