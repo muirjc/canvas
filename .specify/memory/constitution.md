@@ -1,10 +1,12 @@
 <!--
 Sync Impact Report
-- Version change: [TEMPLATE] → 1.0.0 (initial ratification)
-- Modified principles: n/a (first concrete version, all six principles newly defined)
-- Added sections: Core Principles (6), Technology & Compliance Constraints,
-  Development Workflow & Quality Gates, Governance
-- Removed sections: none (template placeholders replaced)
+- Version change: 1.0.0 → 1.1.0 (MINOR: Principle VI materially expanded)
+- Modified principles: VI. Simplicity & Incremental Delivery — adds an explicit carve-out
+  distinguishing a typed SQL query-compiler (no entity/active-record layer, no own
+  migration-DSL) from a full ORM, prompted by canvas-jtm's introduction of Kysely to make
+  apps/api's database layer support both PostgreSQL and SQLite. No other principle changed.
+- Added sections: none
+- Removed sections: none
 - Templates requiring updates:
   ✅ .specify/templates/plan-template.md (Constitution Check gate is generic — reads from
      this file at plan time; no structural edit needed)
@@ -85,8 +87,25 @@ introduce abstractions, configuration, or diagram-type support beyond what the c
 requires. Speculative generalization (e.g., building a plugin system before a second plugin
 exists) requires explicit justification in Complexity Tracking.
 
+A typed SQL query-compiling library — one that translates typed method calls directly into
+engine-specific SQL with no entity/active-record layer, no hidden lazy-loading, and no
+schema-diffing migration DSL of its own — is compatible with this principle and MAY be adopted,
+including specifically to support more than one database engine: the abstraction cost is the
+same explicit, inspectable SQL this principle already expects of hand-written queries, merely
+compiled per-dialect instead of hand-duplicated per-dialect. A full ORM (entity mapping with
+change-tracking, a generated/diffed migration framework) is a materially different abstraction
+and is NOT compatible with this principle absent an explicit justification in Complexity
+Tracking. `apps/api/src/db/` is the concrete instance of this distinction: Kysely replaced
+hand-written raw SQL strings for query building, but migrations remain plain, hand-written
+`.sql` files applied by a small, dependency-free runner (`apps/api/src/db/migrate.ts`) — not a
+generated or diffed schema.
+
 **Rationale**: A four-persona, multi-format, governance-enforcing tool has enough inherent scope;
-uncontrolled speculative abstraction is the most likely way this project fails to ship.
+uncontrolled speculative abstraction is the most likely way this project fails to ship. A typed
+query compiler earns its way past that bar the same way any other dependency would — by removing
+more incidental complexity (hand-duplicated per-dialect SQL, unsafe raw string composition) than
+it adds — while a full ORM's additional abstraction (entity identity, change-tracking, implicit
+queries) has not been shown to pay for itself against this project's actual query patterns.
 
 ## Technology & Compliance Constraints
 
@@ -123,4 +142,4 @@ and any command files that reference an affected principle by name. All plans an
 checked against this constitution; unjustified complexity or governance shortcuts MUST be
 rejected or escalated for an explicit, recorded exception.
 
-**Version**: 1.0.0 | **Ratified**: 2026-07-25 | **Last Amended**: 2026-07-25
+**Version**: 1.1.0 | **Ratified**: 2026-07-25 | **Last Amended**: 2026-10-01

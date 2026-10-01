@@ -1,8 +1,22 @@
 # canvas Development Guidelines
 
-Auto-generated from all feature plans. Last updated: 2026-09-05
+Auto-generated from all feature plans. Last updated: 2026-10-01
 
 ## Active Technologies
+- `kysely` (`^0.29`) added to `apps/api` (canvas-jtm epic) — a typed SQL query **compiler**, not
+  an ORM (Constitution Principle VI amended, v1.1.0, to explicitly draw that line), replacing raw
+  `pg.Pool`/hand-written SQL string queries across every `apps/api/src` file. `better-sqlite3`
+  (`^13`) added alongside it as a second supported Kysely dialect: `apps/api` now runs against
+  **either PostgreSQL (default) or SQLite**, selected by `DB_CLIENT`/`TEST_DB_CLIENT` — see
+  `RUNBOOK.md`'s "Database engine" section and `docs/solution-architecture-document.md` §12 for
+  the SQLite-is-dev/small-deployment-only trade-off. Schema changes bundled into the same epic:
+  all 7 `TEXT[]` array columns became real join tables (native arrays have no SQLite equivalent)
+  and every table's `id` became app-generated (`crypto.randomUUID()`) instead of a DB-side
+  `gen_random_uuid()` default, removing the `pgcrypto` extension dependency entirely. SQLite's own
+  schema is one squashed migration (`apps/api/migrations/sqlite/0001_init.sql`) expressing the
+  final shape directly, not a replay of the 13 incremental Postgres-only migrations. CI
+  (`.github/workflows/ci.yml`) runs `apps/api`'s suite as a `db-client: [postgres, sqlite]` matrix;
+  the Playwright E2E suite stays Postgres-only.
 - `@dagrejs/dagre` (canvas-esn) added to `packages/diagram-core` — its first real runtime
   dependency besides `yaml`. Powers a new `autoLayout()` pure operation (DAG ranking/positioning)
   used by a new canvas toolbar action, flowchart-family only. No persistence/schema change; the
@@ -64,6 +78,40 @@ tests are NON-NEGOTIABLE and must exist (and fail) before implementing any diagr
 work — see `.specify/memory/constitution.md` Principle IV.
 
 ## Recent Changes
+- `canvas-jtm` epic (10 phases, now complete): `apps/api`'s database layer was hard-wired to
+  PostgreSQL with zero abstraction — a single `pg.Pool` singleton, hand-written raw SQL across
+  ~125 call sites, several Postgres-only constructs (`ILIKE`, `to_char`, `ON CONFLICT`,
+  `make_interval`, `COUNT(*) FILTER`, 3 recursive CTEs underpinning project-hierarchy
+  authorization) — a real barrier to anyone who didn't want to run a standalone Postgres server
+  just to try the app, and a hard blocker to self-hosting on anything else. Replaced with Kysely
+  (a typed SQL **compiler**, chosen specifically because — unlike a full ORM — it has no entity/
+  active-record layer, matching Constitution Principle VI's anti-unnecessary-abstraction spirit;
+  the constitution was amended, v1.1.0, to say so explicitly rather than silently reinterpreting
+  the principle), now supporting **both PostgreSQL (default) and SQLite** end to end — not just an
+  easier local-install story, a real tested second engine (`DB_CLIENT`/`TEST_DB_CLIENT`,
+  `apps/api/src/db/client.ts`'s dialect-branching `getDb()`). Along the way: all 7 `TEXT[]` array
+  columns became real join tables with an explicit `position` column (array order proved to be
+  real content, not incidental, via a round-trip test); every table's primary key became an
+  app-generated `crypto.randomUUID()` instead of a DB-side `gen_random_uuid()` default, removing
+  the `pgcrypto` extension dependency entirely; the 3 recursive CTEs were rewritten as Kysely
+  `.withRecursive()` expressions with a dedicated parallel-run SQL-compile comparison given their
+  authorization-critical nature. SQLite's own schema is one squashed migration
+  (`apps/api/migrations/sqlite/0001_init.sql`), not a replay of the 13 incremental Postgres-only
+  ones (which use syntax SQLite can't parse at all — `CREATE EXTENSION`, a `DO $$...END$$` block,
+  `ALTER TABLE ADD CONSTRAINT`). Two new Kysely plugins close real driver gaps found by actually
+  running the suite against SQLite, not anticipated in advance: `SqliteValueCoercionPlugin`
+  (better-sqlite3 rejects a bound JS `Date`/`boolean` outright) and `SqliteJsonColumnsPlugin`
+  (SQLite has no JSONB auto-parse-on-read the way `pg` does). Three real latent bugs found this way
+  too: `standard.service.ts`'s `publishStandard` deadlocked under SQLite's single-connection model
+  (called `getDb()` fresh inside an already-open transaction instead of reusing it — harmless under
+  Postgres's connection pool); `restoreDiagram`/`restoreProject`'s raw `>` comparison against a
+  SQLite-read timestamp (a string there, not a `Date`) always evaluated `false`; and a Postgres-only
+  `::text` cast in `library.service.ts`. CI (`.github/workflows/ci.yml`) now runs `apps/api`'s
+  suite as a `db-client: [postgres, sqlite]` matrix (Playwright E2E stays Postgres-only — a
+  separate, lower-priority decision, not required since the Azure production target stays
+  Postgres). Verified beyond the test suite too: a live cold-start smoke test (migrate → seed →
+  boot server → login → list projects → create a diagram, all over real HTTP) with `DB_CLIENT=sqlite`
+  and zero Postgres/Docker running at all — the original problem this epic set out to solve.
 - `jmuir-yvh`: soft-deleted diagrams past `DIAGRAM_RETENTION_DAYS` (30) were excluded from queries
   and blocked from restore (`DiagramRetentionExpiredError`), but no code path ever physically
   deleted the rows — a deliberate deferral from 002's own `research.md` §1 (Constitution VI: a

@@ -9,7 +9,8 @@ walkthroughs, see `specs/*/quickstart.md`. For the "what is this project" overvi
 | Variable | Required | Notes |
 |---|---|---|
 | `PORT` | no (default `3000`) | API listen port |
-| `DATABASE_URL` | **yes**, unless `NODE_ENV=test` | `postgres://canvas:canvas_dev_password@localhost:5433/canvas`. Falls back to `.../canvas_test` automatically when `NODE_ENV=test` — see `apps/api/src/config.ts`. |
+| `DB_CLIENT` | no (default `postgres`) | `postgres` or `sqlite` — selects the Kysely dialect (`apps/api/src/db/client.ts`). See "Database engine" below. |
+| `DATABASE_URL` | **yes**, unless `NODE_ENV=test` | For `DB_CLIENT=postgres` (default): `postgres://canvas:canvas_dev_password@localhost:5433/canvas`. For `DB_CLIENT=sqlite`: a file path (e.g. `./data/canvas.db`) or `:memory:`. Falls back automatically when `NODE_ENV=test` (to `.../canvas_test` for Postgres, or an in-memory SQLite database for `TEST_DB_CLIENT=sqlite`) — see `apps/api/src/config.ts`. |
 | `SESSION_SECRET` | **yes**, unless `NODE_ENV=test` | ≥32 characters. Falls back to a fixed test string when `NODE_ENV=test`. |
 | `ALLOW_LOCAL_AUTH` | no (default `false`) | Set `true` for local dev/demo — enables email/password login without OIDC. |
 | `OIDC_ISSUER_URL` / `OIDC_CLIENT_ID` / `OIDC_CLIENT_SECRET` / `OIDC_REDIRECT_URI` | no | Leave blank locally; SSO routes are disabled when unset (logged at startup). See "Keycloak SSO" below to actually try it locally. |
@@ -20,6 +21,43 @@ walkthroughs, see `specs/*/quickstart.md`. For the "what is this project" overvi
 
 The API refuses to start without `DATABASE_URL`/`SESSION_SECRET` in non-test mode — this is
 intentional fail-fast behavior, not a bug.
+
+## Database engine
+
+Canvas supports two database engines, selected by `DB_CLIENT`:
+
+| | PostgreSQL (`DB_CLIENT=postgres`, the default) | SQLite (`DB_CLIENT=sqlite`) |
+|---|---|---|
+| Setup | `docker compose up -d` (or any reachable Postgres 16 server) | None — `better-sqlite3` is bundled; `DATABASE_URL` just needs to be a file path (or `:memory:`) |
+| Migrations | `apps/api/migrations/*.sql` (13 incremental files) | `apps/api/migrations/sqlite/0001_init.sql` (one file, the schema's final shape directly — SQLite can't parse several constructs the incremental Postgres migrations use) |
+| Recommended for | Any deployment with concurrent writers, including the Azure reference deployment | Local dev, evaluation, and small/single-team self-hosted use **only** |
+
+**Why SQLite isn't recommended for larger concurrent deployments**: SQLite serializes writers —
+only one write transaction can be in flight at a time (`SQLITE_BUSY` under contention without WAL
+tuning, which this project does not attempt to add). This is a real, disclosed limitation, not an
+oversight — see `docs/solution-architecture-document.md` §12 for the full trade-off and
+`.specify/memory/constitution.md` Principle VI for why Kysely (a typed SQL compiler, not an ORM)
+was judged compatible with keeping both engines supported from one codebase.
+
+A few other disclosed, by-design differences between the two engines:
+- SQLite's `LIKE`-based search is ASCII-only case-insensitive (Postgres's `ILIKE` does full
+  Unicode case-folding).
+- The Playwright E2E suite runs against Postgres only; the SQLite dialect's CI coverage is the
+  `unit-tests` job's matrix (see "CI" below).
+
+Running against SQLite with no Postgres/Docker at all:
+
+```bash
+# apps/api/.env
+DB_CLIENT=sqlite
+DATABASE_URL=./data/canvas.db   # or :memory: for a throwaway database
+SESSION_SECRET=...
+ALLOW_LOCAL_AUTH=true
+
+npm run migrate --workspace=@canvas/api
+npm run seed --workspace=@canvas/api
+npm run dev --workspace=@canvas/api
+```
 
 ## Starting everything from a cold clone
 
@@ -142,6 +180,7 @@ variable`, that's why.
 npm run build --workspace=@canvas/diagram-core    # once, before any api/web test run
 npm run test --workspace=@canvas/diagram-core      # no external services needed
 npm run test --workspace=@canvas/api               # needs Postgres reachable; NODE_ENV=test picks canvas_test DB automatically
+TEST_DB_CLIENT=sqlite npm run test --workspace=@canvas/api   # same suite against an in-memory SQLite DB — no Postgres needed
 ```
 
 E2E (Playwright) needs both dev servers running (see above) and a seeded project id:
@@ -180,7 +219,7 @@ Three jobs, all required to pass before a PR can merge (branch protection on `ma
 | Job | What it does | Needs |
 |---|---|---|
 | `lint-and-build` | `eslint .` + `tsc` build for `diagram-core` → `api` → `web`, in that order | — |
-| `unit-tests` | `diagram-core` + `api` vitest suites | Postgres service container (`canvas_test` DB) |
+| `unit-tests` | `diagram-core` + `api` vitest suites, as a `db-client: [postgres, sqlite]` matrix (`fail-fast: false`) — `diagram-core`'s own tests run once, on the postgres leg only, since that package has no database coupling | Postgres service container (`canvas_test` DB) — present for both matrix legs, but only the postgres leg actually uses it |
 | `e2e-tests` | Seeds a dev-mode Postgres DB, starts the API, runs the full Playwright suite (which starts its own Vite dev server) | Postgres service container (`canvas` DB) |
 
 The opt-in performance spec (`RUN_PERF_TESTS`) is intentionally **not** run in CI — shared-runner
