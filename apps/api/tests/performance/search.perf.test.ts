@@ -1,5 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { getPool, closePool } from '../../src/db/pool.js';
+import { getDb, closeDb } from '../../src/db/client.js';
+import { setDiagramTypePersonas, setDiagramTypePaletteLibraries } from '../../src/db/array-columns.js';
 import { runMigrations } from '../../src/db/migrate.js';
 import { searchDiagrams } from '../../src/diagrams/search.service.js';
 
@@ -27,9 +29,12 @@ describe.skipIf(!process.env.RUN_PERF_TESTS)('Diagram search performance at scal
          icon_libraries, projects, diagram_types, local_credentials, users RESTART IDENTITY CASCADE`,
     );
     await pool.query(
-      `INSERT INTO diagram_types (id, name, personas, abstraction_level, dsl_family, default_palette_library_ids)
-       VALUES ('flowchart', 'Generic Flowchart', ARRAY['Technical'], 'N/A', 'flowchart', ARRAY['generic'])`,
+      `INSERT INTO diagram_types (id, name, abstraction_level, dsl_family)
+       VALUES ('flowchart', 'Generic Flowchart', 'N/A', 'flowchart')`,
     );
+    const db = getDb();
+    await setDiagramTypePersonas(db, 'flowchart', ['Technical']);
+    await setDiagramTypePaletteLibraries(db, 'flowchart', ['generic']);
     const { rows: userRows } = await pool.query<{ id: string }>(
       `INSERT INTO users (name, email, role) VALUES ('Perf Owner', 'perf-owner@example.com', 'architect') RETURNING id`,
     );
@@ -50,6 +55,7 @@ describe.skipIf(!process.env.RUN_PERF_TESTS)('Diagram search performance at scal
   }, 60_000);
 
   afterAll(async () => {
+    await closeDb();
     await closePool();
   });
 

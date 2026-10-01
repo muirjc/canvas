@@ -2,7 +2,8 @@ import type { FastifyInstance } from 'fastify';
 import { buildApp } from '../../src/app.js';
 import { loadConfig } from '../../src/config.js';
 import { closePool, getPool } from '../../src/db/pool.js';
-import { closeDb } from '../../src/db/client.js';
+import { closeDb, getDb } from '../../src/db/client.js';
+import { setDiagramTypePersonas, setDiagramTypePaletteLibraries } from '../../src/db/array-columns.js';
 import { hashPassword } from '../../src/auth/password.js';
 import { runMigrations } from '../../src/db/migrate.js';
 
@@ -27,6 +28,10 @@ export async function resetDatabase(): Promise<void> {
         `"_test". This guard exists specifically to prevent wiping the dev database (canvas-uw8).`,
     );
   }
+  // The `CASCADE` clause already empties every table with an FK pointing at one of these —
+  // `ai_persona_reference_material` (-> ai_personas) was never listed explicitly either, and the 7
+  // join tables canvas-jtm.3 added (-> users/diagram_types/icons/standards/
+  // ai_persona_reference_material) don't need to be either, for the same reason.
   await pool.query(
     `TRUNCATE TABLE
        chat_messages, diagram_chats, ai_personas,
@@ -68,13 +73,27 @@ export async function seedUser(options: SeedUserOptions): Promise<{ id: string }
   return rows[0];
 }
 
+const ALL_PERSONAS = ['Business', 'Enterprise', 'Solution', 'Technical'];
+
+/** `ON CONFLICT ... DO NOTHING` + `.returning()` returns no row when the conflict branch fires
+ *  (Postgres semantics) — used here to skip the personas/palette-library writes entirely when the
+ *  diagram type already existed, matching the original single-statement upsert's "do nothing at
+ *  all on conflict" behavior exactly (not just "don't re-insert the row but still touch its
+ *  join-table rows"). */
 export async function seedFlowchartDiagramType(): Promise<void> {
-  const pool = getPool();
-  await pool.query(
-    `INSERT INTO diagram_types (id, name, personas, abstraction_level, dsl_family, default_palette_library_ids)
-     VALUES ('flowchart', 'Generic Flowchart', ARRAY['Business','Enterprise','Solution','Technical'], 'N/A', 'flowchart', ARRAY['generic'])
-     ON CONFLICT (id) DO NOTHING`,
-  );
+  const db = getDb();
+  await db.transaction().execute(async (trx) => {
+    const row = await trx
+      .insertInto('diagram_types')
+      .values({ id: 'flowchart', name: 'Generic Flowchart', abstraction_level: 'N/A', dsl_family: 'flowchart' })
+      .onConflict((oc) => oc.column('id').doNothing())
+      .returning('id')
+      .executeTakeFirst();
+    if (row) {
+      await setDiagramTypePersonas(trx, row.id, ALL_PERSONAS);
+      await setDiagramTypePaletteLibraries(trx, row.id, ['generic']);
+    }
+  });
 }
 
 /** 010-ai-diagram-knowledge: a generic diagram-type seeder for the 5 non-flowchart families —
@@ -83,13 +102,19 @@ export async function seedFlowchartDiagramType(): Promise<void> {
  *  every one of this platform's own seeded diagram types today, but kept as separate parameters
  *  since nothing requires that to remain true. */
 export async function seedDiagramType(id: string, dslFamily: string, name = id): Promise<void> {
-  const pool = getPool();
-  await pool.query(
-    `INSERT INTO diagram_types (id, name, personas, abstraction_level, dsl_family, default_palette_library_ids)
-     VALUES ($1, $2, ARRAY['Business','Enterprise','Solution','Technical'], 'N/A', $3, ARRAY['generic'])
-     ON CONFLICT (id) DO NOTHING`,
-    [id, name, dslFamily],
-  );
+  const db = getDb();
+  await db.transaction().execute(async (trx) => {
+    const row = await trx
+      .insertInto('diagram_types')
+      .values({ id, name, abstraction_level: 'N/A', dsl_family: dslFamily })
+      .onConflict((oc) => oc.column('id').doNothing())
+      .returning('id')
+      .executeTakeFirst();
+    if (row) {
+      await setDiagramTypePersonas(trx, row.id, ALL_PERSONAS);
+      await setDiagramTypePaletteLibraries(trx, row.id, ['generic']);
+    }
+  });
 }
 
 /**

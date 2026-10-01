@@ -5,6 +5,8 @@ import { buildApp } from '../../src/app.js';
 import { loadConfig } from '../../src/config.js';
 import { runMigrations } from '../../src/db/migrate.js';
 import { getPool } from '../../src/db/pool.js';
+import { getDb } from '../../src/db/client.js';
+import { setReferenceMaterialFamilies } from '../../src/db/array-columns.js';
 import { getDiagramTypePrimer } from '../../src/ai/diagram-type-primers.js';
 import { closeTestDb, resetDatabase, seedDiagramType, seedFlowchartDiagramType, seedProject, seedUser } from '../helpers/setup.js';
 
@@ -493,10 +495,13 @@ describe('Persona reference material composed into the chat system prompt (010-a
 
   async function addReferenceMaterial(personaId: string, content: string, diagramFamilies?: string[]): Promise<void> {
     const pool = getPool();
-    await pool.query(
-      'INSERT INTO ai_persona_reference_material (persona_id, content, diagram_families) VALUES ($1, $2, $3)',
-      [personaId, content, diagramFamilies && diagramFamilies.length > 0 ? diagramFamilies : null],
+    const { rows } = await pool.query<{ id: string }>(
+      'INSERT INTO ai_persona_reference_material (persona_id, content) VALUES ($1, $2) RETURNING id',
+      [personaId, content],
     );
+    if (diagramFamilies && diagramFamilies.length > 0) {
+      await setReferenceMaterialFamilies(getDb(), rows[0].id, diagramFamilies);
+    }
   }
 
   async function createErdDiagram(): Promise<string> {

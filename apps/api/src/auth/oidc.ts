@@ -1,6 +1,7 @@
 import * as client from 'openid-client';
 import type { FastifyInstance } from 'fastify';
 import { getDb } from '../db/client.js';
+import { getUserPersonas } from '../db/array-columns.js';
 import type { AppConfig } from '../config.js';
 import type { SessionUser, UserRole } from './types.js';
 
@@ -103,7 +104,7 @@ async function findOrCreateUserFromClaims(claims: {
 
   const row = await db
     .selectFrom('users')
-    .select(['id', 'email', 'name', 'role', 'personas', 'active'])
+    .select(['id', 'email', 'name', 'role', 'active'])
     .where('email', '=', email)
     .executeTakeFirst();
   if (row) {
@@ -122,15 +123,17 @@ async function findOrCreateUserFromClaims(claims: {
       await db.updateTable('users').set({ role }).where('id', '=', row.id).execute();
       row.role = role;
     }
-    return { id: row.id, email: row.email, name: row.name, role: row.role, personas: row.personas };
+    return { id: row.id, email: row.email, name: row.name, role: row.role, personas: await getUserPersonas(db, row.id) };
   }
 
   const inserted = await db
     .insertInto('users')
-    .values({ name, email, role, personas: [] })
-    .returning(['id', 'email', 'name', 'role', 'personas'])
+    .values({ name, email, role })
+    .returning(['id', 'email', 'name', 'role'])
     .executeTakeFirstOrThrow();
-  return inserted;
+  // A freshly-created user has no personas yet — no row in users_personas, which
+  // getUserPersonas already reads as [] — so no setUserPersonas([]) call is needed here.
+  return { ...inserted, personas: [] };
 }
 
 /**

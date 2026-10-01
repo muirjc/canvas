@@ -1,4 +1,5 @@
-import { getPool } from '../db/pool.js';
+import { getDb } from '../db/client.js';
+import { setDiagramTypePersonas, setDiagramTypePaletteLibraries } from '../db/array-columns.js';
 
 interface DiagramTypeSeed {
   id: string;
@@ -44,18 +45,30 @@ const DIAGRAM_TYPES: DiagramTypeSeed[] = [
 ];
 
 export async function seedDiagramTypes(): Promise<void> {
-  const pool = getPool();
+  const db = getDb();
   for (const type of DIAGRAM_TYPES) {
-    await pool.query(
-      `INSERT INTO diagram_types (id, name, personas, abstraction_level, dsl_family, default_palette_library_ids)
-       VALUES ($1, $2, $3, $4, $5, $6)
-       ON CONFLICT (id) DO UPDATE SET
-         name = EXCLUDED.name,
-         personas = EXCLUDED.personas,
-         abstraction_level = EXCLUDED.abstraction_level,
-         dsl_family = EXCLUDED.dsl_family,
-         default_palette_library_ids = EXCLUDED.default_palette_library_ids`,
-      [type.id, type.name, type.personas, type.abstractionLevel, type.dslFamily, type.defaultPaletteLibraryIds],
-    );
+    // Wrapped per-type (not one transaction for the whole catalog) to match the granularity the
+    // original single-statement-per-type upsert already had — a failure on one type doesn't roll
+    // back every other already-seeded type.
+    await db.transaction().execute(async (trx) => {
+      await trx
+        .insertInto('diagram_types')
+        .values({
+          id: type.id,
+          name: type.name,
+          abstraction_level: type.abstractionLevel,
+          dsl_family: type.dslFamily,
+        })
+        .onConflict((oc) =>
+          oc.column('id').doUpdateSet((eb) => ({
+            name: eb.ref('excluded.name'),
+            abstraction_level: eb.ref('excluded.abstraction_level'),
+            dsl_family: eb.ref('excluded.dsl_family'),
+          })),
+        )
+        .execute();
+      await setDiagramTypePersonas(trx, type.id, type.personas);
+      await setDiagramTypePaletteLibraries(trx, type.id, type.defaultPaletteLibraryIds);
+    });
   }
 }
