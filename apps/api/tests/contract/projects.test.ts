@@ -87,6 +87,53 @@ describe('Projects API contract', () => {
     expect(tree.children[0].diagrams[0].name).toBe('Nested Diagram');
   });
 
+  /**
+   * canvas-jtm.5: the existing test above only goes one level deep (root -> child), which isn't
+   * enough to actually exercise getProjectTree's recursive `subtree` CTE recursing more than
+   * once — a root->child->grandchild tree with a diagram at the deepest level is the minimum
+   * shape that can tell "walks N levels" apart from "walks exactly 1 level and stops".
+   */
+  it('builds a 3-level-deep tree, with a diagram only at the deepest level', async () => {
+    const root = (
+      await app.inject({ method: 'POST', url: '/projects', headers: { cookie: sessionCookie }, payload: { name: 'Root' } })
+    ).json().project;
+    const child = (
+      await app.inject({
+        method: 'POST',
+        url: '/projects',
+        headers: { cookie: sessionCookie },
+        payload: { name: 'Child', parentProjectId: root.id },
+      })
+    ).json().project;
+    const grandchild = (
+      await app.inject({
+        method: 'POST',
+        url: '/projects',
+        headers: { cookie: sessionCookie },
+        payload: { name: 'Grandchild', parentProjectId: child.id },
+      })
+    ).json().project;
+    await app.inject({
+      method: 'POST',
+      url: `/projects/${grandchild.id}/diagrams`,
+      headers: { cookie: sessionCookie },
+      payload: { name: 'Deepest Diagram', diagramTypeId: 'flowchart' },
+    });
+
+    const treeResponse = await app.inject({ method: 'GET', url: `/projects/${root.id}/tree`, headers: { cookie: sessionCookie } });
+    expect(treeResponse.statusCode).toBe(200);
+    const tree = treeResponse.json().tree;
+    expect(tree.id).toBe(root.id);
+    expect(tree.diagrams).toHaveLength(0);
+    expect(tree.children).toHaveLength(1);
+    expect(tree.children[0].id).toBe(child.id);
+    expect(tree.children[0].diagrams).toHaveLength(0);
+    expect(tree.children[0].children).toHaveLength(1);
+    expect(tree.children[0].children[0].id).toBe(grandchild.id);
+    expect(tree.children[0].children[0].diagrams).toHaveLength(1);
+    expect(tree.children[0].children[0].diagrams[0].name).toBe('Deepest Diagram');
+  });
+
   it('searches diagrams within a project by name and type', async () => {
     const project = (
       await app.inject({ method: 'POST', url: '/projects', headers: { cookie: sessionCookie }, payload: { name: 'Search Test' } })

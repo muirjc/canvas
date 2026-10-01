@@ -8,8 +8,17 @@
  * Before this feature no route taking a project id checked anything beyond authentication, so
  * any signed-in user could read any project's entire diagram tree by id
  * (specs/007-project-context/research.md §1).
+ *
+ * canvas-jtm.5: converted from raw `WITH RECURSIVE` SQL to Kysely's `.withRecursive()` — this is
+ * the epic's own dedicated, authorization-critical-risk phase (a mismatch here is a security bug,
+ * over- or under-granting access, not just a feature bug), so every query here keeps the exact
+ * same semantics as the SQL it replaces, including preserving plain `UNION` (not `UNION ALL`)
+ * everywhere the original did, which is what makes a project hierarchy with no real cycles safe to
+ * walk without ever producing a duplicate row.
  */
-import { getPool } from '../db/pool.js';
+import { sql, type Kysely } from 'kysely';
+import { getDb } from '../db/client.js';
+import type { DB } from '../db/schema.js';
 import type { AccessLevel } from '../sharing/sharing.service.js';
 
 /**
@@ -18,28 +27,35 @@ import type { AccessLevel } from '../sharing/sharing.service.js';
  * because a 403 on a nonexistent id implies it exists and is merely out of reach.
  */
 async function ancestorChain(projectId: string): Promise<Array<{ id: string; owner_id: string }>> {
-  const pool = getPool();
-  const { rows } = await pool.query<{ id: string; owner_id: string; depth: number }>(
-    `WITH RECURSIVE chain AS (
-       SELECT id, parent_project_id, owner_id, 0 AS depth
-       FROM projects WHERE id = $1 AND deleted_at IS NULL
-       UNION ALL
-       SELECT p.id, p.parent_project_id, p.owner_id, c.depth + 1
-       FROM projects p JOIN chain c ON p.id = c.parent_project_id
-       WHERE p.deleted_at IS NULL
-     )
-     SELECT id, owner_id, depth FROM chain ORDER BY depth`,
-    [projectId],
-  );
-  return rows.map((r) => ({ id: r.id, owner_id: r.owner_id }));
+  const db = getDb();
+  const rows = await db
+    .withRecursive('chain', (qb) =>
+      qb
+        .selectFrom('projects')
+        .select(['id', 'parent_project_id', 'owner_id', sql<number>`0`.as('depth')])
+        .where('id', '=', projectId)
+        .where('deleted_at', 'is', null)
+        .unionAll((eb) =>
+          eb
+            .selectFrom('projects as p')
+            .innerJoin('chain as c', 'c.parent_project_id', 'p.id')
+            .select(['p.id', 'p.parent_project_id', 'p.owner_id', sql<number>`c.depth + 1`.as('depth')])
+            .where('p.deleted_at', 'is', null),
+        ),
+    )
+    .selectFrom('chain')
+    .select(['id', 'owner_id'])
+    .orderBy('depth')
+    .execute();
+  return rows;
 }
 
 /** canvas-228.2: a soft-deleted project counts as not existing for every regular (non-admin-
  *  recovery) purpose — matches how a soft-deleted diagram's getDiagram already behaves. */
 export async function projectExists(projectId: string): Promise<boolean> {
-  const pool = getPool();
-  const { rows } = await pool.query('SELECT 1 FROM projects WHERE id = $1 AND deleted_at IS NULL', [projectId]);
-  return Boolean(rows[0]);
+  const db = getDb();
+  const row = await db.selectFrom('projects').select('id').where('id', '=', projectId).where('deleted_at', 'is', null).executeTakeFirst();
+  return Boolean(row);
 }
 
 /**
@@ -60,16 +76,22 @@ export async function resolveProjectAccess(
   // Owning the project or any ancestor of it.
   if (chain.some((p) => p.owner_id === userId)) return 'edit';
 
-  const pool = getPool();
-  const { rows: userRows } = await pool.query<{ role: string }>('SELECT role FROM users WHERE id = $1', [userId]);
-  if (userRows[0]?.role === 'admin') return 'edit';
+  const db = getDb();
+  const user = await db.selectFrom('users').select('role').where('id', '=', userId).executeTakeFirst();
+  if (user?.role === 'admin') return 'edit';
 
   // A grant on the project or on any ancestor. Nearest ancestor wins, matching the chain order.
-  const { rows: grants } = await pool.query<{ subject_id: string; access_level: AccessLevel }>(
-    `SELECT subject_id, access_level FROM share_grants
-     WHERE subject_type = 'project' AND grantee_user_id = $1 AND subject_id = ANY($2::uuid[])`,
-    [userId, chain.map((p) => p.id)],
-  );
+  const grants = await db
+    .selectFrom('share_grants')
+    .select(['subject_id', 'access_level'])
+    .where('subject_type', '=', 'project')
+    .where('grantee_user_id', '=', userId)
+    .where(
+      'subject_id',
+      'in',
+      chain.map((p) => p.id),
+    )
+    .execute();
   if (grants.length === 0) return undefined;
 
   const byId = new Map(grants.map((g) => [g.subject_id, g.access_level]));
@@ -81,26 +103,54 @@ export async function resolveProjectAccess(
 }
 
 /**
- * SQL naming every project the user can see: those they own or have been granted, plus every
- * descendant of those. Shares its definition with `resolveProjectAccess` above by construction —
- * both express "owned or granted, inherited downward".
+ * Registers the `roots`/`accessible` recursive CTEs on `db` (every project the user can see:
+ * those they own or have been granted, plus every descendant of those) and returns the extended
+ * query context — callers continue from it with their own `.selectFrom(...)`, filtering on
+ * `WHERE p.id IN (SELECT id FROM accessible)` exactly like `listProjectsForUser` does.
  *
- * Admins see everything, matching `resolveProjectAccess` and `resolveDiagramAccess`.
+ * Shares its definition with `resolveProjectAccess` above by construction — both express "owned
+ * or granted, inherited downward". Admins see everything, matching `resolveProjectAccess` and
+ * `resolveDiagramAccess`.
  */
-export const ACCESSIBLE_PROJECT_IDS_SQL = `
-  WITH RECURSIVE roots AS (
-    SELECT p.id FROM projects p WHERE p.owner_id = $1 AND p.deleted_at IS NULL
-    UNION
-    SELECT sg.subject_id FROM share_grants sg
-      JOIN projects p ON p.id = sg.subject_id
-      WHERE sg.subject_type = 'project' AND sg.grantee_user_id = $1 AND p.deleted_at IS NULL
-    UNION
-    SELECT p.id FROM projects p
-      WHERE EXISTS (SELECT 1 FROM users u WHERE u.id = $1 AND u.role = 'admin') AND p.deleted_at IS NULL
-  ),
-  accessible AS (
-    SELECT id FROM roots
-    UNION
-    SELECT p.id FROM projects p JOIN accessible a ON p.parent_project_id = a.id WHERE p.deleted_at IS NULL
-  )
-`;
+export function withAccessibleProjects(db: Kysely<DB>, userId: string) {
+  return db
+    .withRecursive('roots', (qb) =>
+      qb
+        .selectFrom('projects')
+        .select('id')
+        .where('owner_id', '=', userId)
+        .where('deleted_at', 'is', null)
+        .union((eb) =>
+          eb
+            .selectFrom('share_grants as sg')
+            .innerJoin('projects as p', 'p.id', 'sg.subject_id')
+            .select('sg.subject_id as id')
+            .where('sg.subject_type', '=', 'project')
+            .where('sg.grantee_user_id', '=', userId)
+            .where('p.deleted_at', 'is', null),
+        )
+        .union((eb) =>
+          eb
+            .selectFrom('projects')
+            .select('id')
+            .where((wb) =>
+              wb.exists(
+                wb.selectFrom('users').select(sql`1`.as('one')).where('id', '=', userId).where('role', '=', 'admin'),
+              ),
+            )
+            .where('deleted_at', 'is', null),
+        ),
+    )
+    .withRecursive('accessible', (qb) =>
+      qb
+        .selectFrom('roots')
+        .select('id')
+        .union((eb) =>
+          eb
+            .selectFrom('projects as p')
+            .innerJoin('accessible as a', 'a.id', 'p.parent_project_id')
+            .select('p.id')
+            .where('p.deleted_at', 'is', null),
+        ),
+    );
+}
