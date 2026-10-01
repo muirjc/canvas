@@ -31,6 +31,18 @@ jobs:
   unit-tests:
     runs-on: ubuntu-latest
     needs: lint-and-build
+    # canvas-jtm.8: apps/api's db layer is engine-agnostic (Postgres + SQLite, canvas-jtm epic) —
+    # this matrix runs the identical test suite against both, so dialect parity is actually CI-
+    # enforced, not just locally checked once. The postgres service container is declared
+    # unconditionally (GitHub Actions has no clean way to omit a service per matrix leg within one
+    # job) rather than split into two jobs — the sqlite leg simply never touches it. That costs a
+    # few seconds of unused container startup on the sqlite leg, a small addition on top of the
+    # roughly-doubled job count this matrix already, deliberately, costs (see the epic's plan's own
+    # "Risks" section) — not worth two near-duplicate jobs to avoid.
+    strategy:
+      fail-fast: false
+      matrix:
+        db-client: [postgres, sqlite]
     services:
       postgres:
         image: postgres:16-alpine
@@ -53,11 +65,19 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run build --workspace=@canvas/diagram-core
+      # diagram-core has no database coupling at all (see CLAUDE.md's "Active Technologies") — one
+      # run is enough, not per db-client, so it only runs on the postgres leg to avoid a pointless
+      # duplicate.
       - name: diagram-core contract/unit tests
+        if: matrix.db-client == 'postgres'
         run: npm run test --workspace=@canvas/diagram-core
       - name: api contract tests
         # NODE_ENV=test makes the api fall back to the canvas_test DB / a fixed dev session
         # secret (see apps/api/src/config.ts) — no DATABASE_URL/SESSION_SECRET needed here.
+        # TEST_DB_CLIENT selects the dialect (apps/api/src/config.ts); on the sqlite leg this runs
+        # entirely against an in-memory database and never touches the postgres service above.
+        env:
+          TEST_DB_CLIENT: ${{ matrix.db-client }}
         run: npm run test --workspace=@canvas/api
 
   e2e-tests:
