@@ -52,9 +52,19 @@ describe('purgeExpiredDiagrams()', () => {
     return response.json().diagram.id;
   }
 
+  /**
+   * canvas-jtm.6 finding: aged via Node's clock, not Postgres's `now() - make_interval(...)` —
+   * findExpiredDiagramIds/restoreDiagram's own retention check became app-computed
+   * (Date.now()-based) in canvas-jtm.4, so aging this fixture via a *different* clock (the DB's)
+   * made the exact-30-day-boundary test below depend on clock skew between the Postgres and Node
+   * processes — harmless when both run on one local machine's clock, but real in CI, where they're
+   * separate containers. Confirmed: this exact test flipped in CI (`expected [] to deeply equal
+   * [Array(1)]`) despite being reliably green in every local run.
+   */
   async function softDeleteAndAge(id: string, ageDays: number): Promise<void> {
     const pool = getPool();
-    await pool.query("UPDATE diagrams SET deleted_at = now() - make_interval(days => $2) WHERE id = $1", [id, ageDays]);
+    const deletedAt = new Date(Date.now() - ageDays * 24 * 60 * 60 * 1000);
+    await pool.query('UPDATE diagrams SET deleted_at = $2 WHERE id = $1', [id, deletedAt]);
   }
 
   it('leaves an active (never-deleted) diagram untouched', async () => {
