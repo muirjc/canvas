@@ -159,8 +159,11 @@ describe('Project delete/restore API contract', () => {
 
   it('reports a clear error restoring a project past its retention window', async () => {
     await app.inject({ method: 'DELETE', url: `/projects/${projectId}`, headers: { cookie: ownerCookie } });
+    // Aged via Node's clock, not Postgres's `now()` (canvas-jtm.6 finding) — see
+    // diagram-delete-restore.test.ts's identical comment for why this matters in CI.
     const pool = getPool();
-    await pool.query("UPDATE projects SET deleted_at = now() - interval '31 days' WHERE id = $1", [projectId]);
+    const deletedAt = new Date(Date.now() - 31 * 24 * 60 * 60 * 1000);
+    await pool.query('UPDATE projects SET deleted_at = $2 WHERE id = $1', [projectId, deletedAt]);
 
     const response = await app.inject({
       method: 'POST',

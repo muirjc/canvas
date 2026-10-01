@@ -151,9 +151,16 @@ describe('Diagram delete/restore API contract', () => {
 
   it('reports a clear error restoring a diagram past its retention window (FR-015)', async () => {
     await app.inject({ method: 'DELETE', url: `/diagrams/${diagramId}`, headers: { cookie: ownerCookie } });
-    // Simulate the retention window having elapsed.
+    // Simulate the retention window having elapsed. Aged via Node's clock, not Postgres's `now()`
+    // (canvas-jtm.6 finding) — restoreDiagram's own retention check is app-computed
+    // (Date.now()-based) since canvas-jtm.4, so aging the fixture via a different clock (the DB's)
+    // makes this test's pass/fail depend on clock skew between the two processes. Harmless at a
+    // 31-day margin locally, but real in CI, where Postgres and Node run in separate containers —
+    // confirmed by an exact-30-day-boundary sibling test actually flipping in CI (fixed alongside
+    // this one in diagram-purge.test.ts).
     const pool = getPool();
-    await pool.query("UPDATE diagrams SET deleted_at = now() - interval '31 days' WHERE id = $1", [diagramId]);
+    const deletedAt = new Date(Date.now() - 31 * 24 * 60 * 60 * 1000);
+    await pool.query('UPDATE diagrams SET deleted_at = $2 WHERE id = $1', [diagramId, deletedAt]);
 
     const response = await app.inject({
       method: 'POST',
