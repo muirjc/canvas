@@ -1,6 +1,7 @@
 import { sql } from 'kysely';
 import { getDb } from '../db/client.js';
 import { getUserPersonas, getUserPersonasBatch, setUserPersonas } from '../db/array-columns.js';
+import { dbBoolean, fromDbBoolean } from '../db/sql-helpers.js';
 import type { UserRole } from '../auth/types.js';
 
 export class UserNotFoundError extends Error {}
@@ -21,7 +22,7 @@ export async function listUsers(): Promise<UserRecord[]> {
     db,
     rows.map((r) => r.id),
   );
-  return rows.map((r) => ({ ...r, personas: personasByUser.get(r.id) ?? [] }));
+  return rows.map((r) => ({ ...r, active: fromDbBoolean(r.active), personas: personasByUser.get(r.id) ?? [] }));
 }
 
 export interface UpdateUserInput {
@@ -50,7 +51,7 @@ export async function updateUser(id: string, input: UpdateUserInput): Promise<Us
     if (input.role !== undefined || input.active !== undefined) {
       row = await trx
         .updateTable('users')
-        .set({ role: input.role ?? undefined, active: input.active ?? undefined })
+        .set({ role: input.role ?? undefined, active: input.active === undefined ? undefined : dbBoolean(input.active) })
         .where('id', '=', id)
         .returning(['id', 'name', 'email', 'role', 'active'])
         .executeTakeFirst();
@@ -63,7 +64,7 @@ export async function updateUser(id: string, input: UpdateUserInput): Promise<Us
     if (input.personas !== undefined) {
       await setUserPersonas(trx, id, input.personas);
     }
-    return { ...row, personas: await getUserPersonas(trx, id) };
+    return { ...row, active: fromDbBoolean(row.active), personas: await getUserPersonas(trx, id) };
   });
 }
 

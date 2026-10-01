@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto';
 import type { FastifyInstance } from 'fastify';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { buildTestApp, closeTestDb, resetDatabase, seedFlowchartDiagramType, seedProject, seedUser } from '../helpers/setup.js';
-import { getPool } from '../../src/db/pool.js';
+import { getDb } from '../../src/db/client.js';
 
 /**
  * Feature 004, User Story 1: `GET /ai-personas` — the source for the chat's persona-selection
@@ -31,12 +31,13 @@ describe('AI persona API contract', () => {
   });
 
   async function insertPersona(name: string, category: string, status: 'active' | 'archived' = 'active') {
-    const pool = getPool();
-    const { rows } = await pool.query<{ id: string }>(
-      'INSERT INTO ai_personas (id, name, category, system_prompt, status) VALUES ($1, $2, $3, $4, $5) RETURNING id',
-      [randomUUID(), name, category, 'You are a helpful assistant.', status],
-    );
-    return rows[0].id;
+    const db = getDb();
+    const id = randomUUID();
+    await db
+      .insertInto('ai_personas')
+      .values({ id, name, category, system_prompt: 'You are a helpful assistant.', status })
+      .execute();
+    return id;
   }
 
   it('lists active personas, available to any authenticated user', async () => {
@@ -176,8 +177,8 @@ describe('Admin persona CRUD API contract', () => {
       payload: { name: 'Diagram Using Archived Persona', diagramTypeId: 'flowchart' },
     });
     const diagramId = diagramResponse.json().diagram.id;
-    const pool = getPool();
-    await pool.query('INSERT INTO diagram_chats (id, diagram_id, persona_id) VALUES ($1, $2, $3)', [randomUUID(), diagramId, id]);
+    const db = getDb();
+    await db.insertInto('diagram_chats').values({ id: randomUUID(), diagram_id: diagramId, persona_id: id }).execute();
 
     const archiveResponse = await app.inject({ method: 'POST', url: `/admin/ai-personas/${id}/archive`, headers: { cookie: adminCookie } });
     expect(archiveResponse.statusCode).toBe(200);
@@ -190,8 +191,8 @@ describe('Admin persona CRUD API contract', () => {
     const listResponse = await app.inject({ method: 'GET', url: '/ai-personas', headers: { cookie: architectCookie } });
     expect(listResponse.json().personas.map((p: { name: string }) => p.name)).not.toContain('To Archive');
 
-    const { rows } = await pool.query('SELECT persona_id FROM diagram_chats WHERE diagram_id = $1', [diagramId]);
-    expect(rows[0].persona_id).toBe(id);
+    const row = await db.selectFrom('diagram_chats').select('persona_id').where('diagram_id', '=', diagramId).executeTakeFirstOrThrow();
+    expect(row.persona_id).toBe(id);
   });
 
   it('denies a non-admin from creating, editing, or archiving personas', async () => {

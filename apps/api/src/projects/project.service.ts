@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { sql } from 'kysely';
 import { getDb } from '../db/client.js';
+import { toDate } from '../db/sql-helpers.js';
 import { withAccessibleProjects } from './project.access.js';
 
 export class ProjectNotFoundError extends Error {}
@@ -221,7 +222,7 @@ export async function restoreProject(id: string, restoredByUserId: string): Prom
   if (!row || row.deleted_at === null) {
     throw new ProjectNotFoundError(`No soft-deleted project with id ${id}`);
   }
-  if (!(row.deleted_at > retentionBoundary())) {
+  if (!(toDate(row.deleted_at) > retentionBoundary())) {
     throw new ProjectRetentionExpiredError('This project is no longer available to restore.');
   }
   await db

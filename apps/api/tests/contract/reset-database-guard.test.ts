@@ -2,6 +2,7 @@ import type { FastifyInstance } from 'fastify';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { buildTestApp, closeTestDb, resetDatabase } from '../helpers/setup.js';
 import { getPool } from '../../src/db/pool.js';
+import { loadConfig } from '../../src/config.js';
 
 /**
  * Contract for canvas-uw8's defense-in-depth guard in `resetDatabase()` (`tests/helpers/setup.ts`):
@@ -15,8 +16,13 @@ import { getPool } from '../../src/db/pool.js';
  * The negative (refuses-to-truncate) path is covered separately in
  * `tests/unit/reset-database-guard.test.ts` against a mocked pool, rather than fabricating a
  * second, differently-named real database here.
+ *
+ * canvas-jtm.7: this guard, and `current_database()` itself, are Postgres-only concepts — the
+ * SQLite reset path (`resetDatabaseSqlite()`) always runs against an isolated `:memory:` database
+ * with no equivalent "wrong database" risk to guard against, so there's nothing for this file to
+ * exercise under `TEST_DB_CLIENT=sqlite`.
  */
-describe('resetDatabase() guard against non-test databases (canvas-uw8)', () => {
+describe.skipIf(loadConfig().dbClient === 'sqlite')('resetDatabase() guard against non-test databases (canvas-uw8)', () => {
   let app: FastifyInstance;
 
   beforeAll(async () => {

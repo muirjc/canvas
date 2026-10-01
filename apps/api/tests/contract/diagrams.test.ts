@@ -98,12 +98,11 @@ describe('Diagrams API contract', () => {
   it('creates a diagram of a non-flowchart type with no explicit content using a family-appropriate default', async () => {
     // Regression test: creating a diagram used to always default to "flowchart TD\n" regardless
     // of diagram type, which fails to parse for any type whose DSL family isn't "flowchart".
-    const pool = (await import('../../src/db/pool.js')).getPool();
-    await pool.query(
-      `INSERT INTO diagram_types (id, name, abstraction_level, dsl_family)
-       VALUES ('c4-context', 'C4 Context', 'Context', 'c4')`,
-    );
     const db = (await import('../../src/db/client.js')).getDb();
+    await db
+      .insertInto('diagram_types')
+      .values({ id: 'c4-context', name: 'C4 Context', abstraction_level: 'Context', dsl_family: 'c4' })
+      .execute();
     const { setDiagramTypePersonas, setDiagramTypePaletteLibraries } = await import('../../src/db/array-columns.js');
     await setDiagramTypePersonas(db, 'c4-context', ['Technical']);
     await setDiagramTypePaletteLibraries(db, 'c4-context', ['c4-notation']);

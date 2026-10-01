@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { loadConfig } from '../../src/config.js';
 
 /**
  * Regression coverage for the negative path of canvas-uw8's `resetDatabase()` guard: it must
@@ -12,6 +13,11 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
  * never the real dev `canvas` database). Instead, this mocks `src/db/pool.js` — the one true
  * external boundary here — so `resetDatabase()`'s own guard logic runs for real against a fake
  * `current_database()` result, with no real second database involved anywhere.
+ *
+ * canvas-jtm.7: skipped under `TEST_DB_CLIENT=sqlite` — `resetDatabase()` dispatches to
+ * `resetDatabaseSqlite()` in that mode, which never calls `db/pool.js`'s `getPool()` at all, so
+ * this file's whole premise (mocking `getPool()` to fake a `current_database()` result) doesn't
+ * apply; see `tests/contract/reset-database-guard.test.ts`'s own matching skip for why.
  */
 const queryMock = vi.fn();
 
@@ -20,7 +26,7 @@ vi.mock('../../src/db/pool.js', () => ({
   closePool: vi.fn(),
 }));
 
-describe('resetDatabase() guard against non-test databases (canvas-uw8)', () => {
+describe.skipIf(loadConfig().dbClient === 'sqlite')('resetDatabase() guard against non-test databases (canvas-uw8)', () => {
   beforeEach(() => {
     queryMock.mockReset();
   });

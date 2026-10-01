@@ -1,6 +1,12 @@
 export interface AppConfig {
   port: number;
   databaseUrl: string;
+  /** canvas-jtm.7: which Kysely dialect db/client.ts should construct. Derived from `DB_CLIENT`
+   * (default 'postgres', preserving every existing deployment's behavior unchanged) in normal
+   * mode, or `TEST_DB_CLIENT` in test mode — kept as a separate env var so a developer's real
+   * `DB_CLIENT=sqlite` shell export (for running the app locally) can't accidentally redirect the
+   * test suite, mirroring DATABASE_URL/TEST_DATABASE_URL's existing test-mode isolation above. */
+  dbClient: 'postgres' | 'sqlite';
   sessionSecret: string;
   oidc: {
     issuerUrl?: string;
@@ -73,6 +79,9 @@ function requireEnv(env: NodeJS.ProcessEnv, name: string, fallback?: string): st
 // (see .github/workflows/*.yml's "no DATABASE_URL/SESSION_SECRET needed here" comment) and never
 // sets these vars itself, so hardening this doesn't change CI behavior at all.
 const TEST_DATABASE_URL = 'postgres://canvas:canvas_dev_password@localhost:5433/canvas_test';
+// canvas-jtm.7: better-sqlite3's own `:memory:` special-case database name — a fresh, private
+// database per process, needing no file cleanup between runs.
+const TEST_SQLITE_DATABASE_URL = ':memory:';
 const TEST_SESSION_SECRET = 'test-secret-at-least-32-characters-long';
 
 const VALID_SAME_SITE = new Set(['lax', 'none', 'strict']);
@@ -90,9 +99,17 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
   // setting COOKIE_SAME_SITE=none almost certainly meant, rather than a foot-gun to fail on later.
   const cookieSecure = cookieSameSite === 'none' ? true : env.COOKIE_SECURE === 'true';
 
+  const dbClientEnvVar = isTest ? env.TEST_DB_CLIENT : env.DB_CLIENT;
+  const dbClient: AppConfig['dbClient'] = dbClientEnvVar === 'sqlite' ? 'sqlite' : 'postgres';
+
   return {
     port: Number(env.PORT ?? 3000),
-    databaseUrl: isTest ? TEST_DATABASE_URL : requireEnv(env, 'DATABASE_URL'),
+    databaseUrl: isTest
+      ? dbClient === 'sqlite'
+        ? TEST_SQLITE_DATABASE_URL
+        : TEST_DATABASE_URL
+      : requireEnv(env, 'DATABASE_URL'),
+    dbClient,
     sessionSecret: isTest ? TEST_SESSION_SECRET : requireEnv(env, 'SESSION_SECRET'),
     oidc: {
       issuerUrl: env.OIDC_ISSUER_URL,

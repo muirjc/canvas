@@ -1,18 +1,18 @@
 /**
- * Kysely singleton (canvas-jtm Phase 0 — see
- * /home/jmuir/.claude/plans/we-need-to-make-graceful-ocean.md). Postgres-only for now, mirroring
- * `db/pool.ts`'s own lazy-singleton shape exactly — this module is the engine-agnostic replacement
- * for it, grown dialect-by-dialect across the phases rather than in one step.
- *
- * `DB_CLIENT`/`DATABASE_URL`-scheme dialect selection and a SQLite dialect both arrive in a later
- * phase (canvas-jtm.6/.7); until then this is a drop-in, behavior-identical Kysely wrapper around
- * the exact same `pg.Pool` `db/pool.ts` already constructs, so files can migrate to it one at a
- * time with zero observable change while `pool.ts` is still used by everything not yet converted.
+ * Kysely singleton (canvas-jtm — see /home/jmuir/.claude/plans/we-need-to-make-graceful-ocean.md).
+ * Dialect is chosen from `config.dbClient` (canvas-jtm.7): Postgres via `pg.Pool` as before, or
+ * SQLite via `better-sqlite3` for local dev/small-deployment/test use (see
+ * `apps/api/migrations/sqlite/0001_init.sql`'s own header comment for the concurrency caveat).
  */
-import { Kysely, PostgresDialect, type Transaction } from 'kysely';
+import { Kysely, PostgresDialect, SqliteDialect, type Transaction } from 'kysely';
+import Database from 'better-sqlite3';
 import pg from 'pg';
 import { loadConfig } from '../config.js';
 import type { DB } from './schema.js';
+import { SqliteJsonColumnsPlugin } from './sqlite-json-plugin.js';
+import { SqliteValueCoercionPlugin } from './sqlite-value-coercion-plugin.js';
+
+type SqliteDatabase = InstanceType<typeof Database>;
 
 /**
  * A function that needs to run either standalone or composed into a caller's own transaction
@@ -28,22 +28,53 @@ import type { DB } from './schema.js';
 export type DbExecutor = Kysely<DB> | Transaction<DB>;
 
 let db: Kysely<DB> | undefined;
+let sqliteRawDb: SqliteDatabase | undefined;
 
 export function getDb(): Kysely<DB> {
   if (!db) {
     const config = loadConfig();
-    db = new Kysely<DB>({
-      dialect: new PostgresDialect({
-        pool: new pg.Pool({ connectionString: config.databaseUrl }),
-      }),
-    });
+    if (config.dbClient === 'sqlite') {
+      sqliteRawDb = new Database(config.databaseUrl);
+      // Off by default in SQLite, unlike Postgres — every join-table/cascade relationship in
+      // schema.ts assumes real FK enforcement, so this isn't optional.
+      sqliteRawDb.pragma('foreign_keys = ON');
+      db = new Kysely<DB>({
+        dialect: new SqliteDialect({ database: sqliteRawDb }),
+        // Order matters: coercion runs on the way IN (query transform), JSON parsing on the way
+        // OUT (result transform) — both apply to every query regardless of plugin order here, but
+        // listed in that logical "write then read" sequence for clarity.
+        plugins: [new SqliteValueCoercionPlugin(), new SqliteJsonColumnsPlugin()],
+      });
+    } else {
+      db = new Kysely<DB>({
+        dialect: new PostgresDialect({
+          pool: new pg.Pool({ connectionString: config.databaseUrl }),
+        }),
+      });
+    }
   }
   return db;
+}
+
+/**
+ * The raw better-sqlite3 handle backing `getDb()`'s SQLite dialect — needed only by
+ * `db/migrate.ts`, which must run its own multi-statement raw DDL through the exact same
+ * connection `getDb()` already opened (a `:memory:` SQLite database is private to the connection
+ * that created it; a second `new Database(':memory:')` would silently migrate a database no app
+ * query can ever see). Throws if `getDb()` hasn't been called yet, or was called against Postgres
+ * — callers must call `getDb()` first.
+ */
+export function getSqliteRawDatabase(): SqliteDatabase {
+  if (!sqliteRawDb) {
+    throw new Error('getSqliteRawDatabase() called before getDb() established a SQLite connection.');
+  }
+  return sqliteRawDb;
 }
 
 export async function closeDb(): Promise<void> {
   if (db) {
     await db.destroy();
     db = undefined;
+    sqliteRawDb = undefined;
   }
 }

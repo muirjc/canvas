@@ -1,7 +1,7 @@
 import type { FastifyInstance } from 'fastify';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { buildTestApp, closeTestDb, resetDatabase, seedFlowchartDiagramType, seedProject, seedUser } from '../helpers/setup.js';
-import { getPool } from '../../src/db/pool.js';
+import { getDb } from '../../src/db/client.js';
 
 /**
  * Contract for canvas-228.2: soft-deleting an empty project (DELETE /projects/:id) and admin
@@ -151,19 +151,23 @@ describe('Project delete/restore API contract', () => {
     const getResponse = await app.inject({ method: 'GET', url: `/projects/${projectId}`, headers: { cookie: ownerCookie } });
     expect(getResponse.statusCode).toBe(200);
 
-    const pool = getPool();
-    const { rows } = await pool.query('SELECT restored_at, restored_by_user_id FROM projects WHERE id = $1', [projectId]);
-    expect(rows[0].restored_at).not.toBeNull();
-    expect(rows[0].restored_by_user_id).not.toBeNull();
+    const db = getDb();
+    const row = await db
+      .selectFrom('projects')
+      .select(['restored_at', 'restored_by_user_id'])
+      .where('id', '=', projectId)
+      .executeTakeFirstOrThrow();
+    expect(row.restored_at).not.toBeNull();
+    expect(row.restored_by_user_id).not.toBeNull();
   });
 
   it('reports a clear error restoring a project past its retention window', async () => {
     await app.inject({ method: 'DELETE', url: `/projects/${projectId}`, headers: { cookie: ownerCookie } });
     // Aged via Node's clock, not Postgres's `now()` (canvas-jtm.6 finding) — see
     // diagram-delete-restore.test.ts's identical comment for why this matters in CI.
-    const pool = getPool();
+    const db = getDb();
     const deletedAt = new Date(Date.now() - 31 * 24 * 60 * 60 * 1000);
-    await pool.query('UPDATE projects SET deleted_at = $2 WHERE id = $1', [projectId, deletedAt]);
+    await db.updateTable('projects').set({ deleted_at: deletedAt }).where('id', '=', projectId).execute();
 
     const response = await app.inject({
       method: 'POST',

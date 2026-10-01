@@ -8,7 +8,7 @@ import {
   seedProject,
   seedUser,
 } from '../helpers/setup.js';
-import { getPool } from '../../src/db/pool.js';
+import { getDb } from '../../src/db/client.js';
 
 /**
  * Contract for diagram soft-delete/restore, per
@@ -143,10 +143,14 @@ describe('Diagram delete/restore API contract', () => {
     const getResponse = await app.inject({ method: 'GET', url: `/diagrams/${diagramId}`, headers: { cookie: ownerCookie } });
     expect(getResponse.statusCode).toBe(200);
 
-    const pool = getPool();
-    const { rows } = await pool.query('SELECT restored_at, restored_by_user_id FROM diagrams WHERE id = $1', [diagramId]);
-    expect(rows[0].restored_at).not.toBeNull();
-    expect(rows[0].restored_by_user_id).not.toBeNull();
+    const db = getDb();
+    const row = await db
+      .selectFrom('diagrams')
+      .select(['restored_at', 'restored_by_user_id'])
+      .where('id', '=', diagramId)
+      .executeTakeFirstOrThrow();
+    expect(row.restored_at).not.toBeNull();
+    expect(row.restored_by_user_id).not.toBeNull();
   });
 
   it('reports a clear error restoring a diagram past its retention window (FR-015)', async () => {
@@ -158,9 +162,9 @@ describe('Diagram delete/restore API contract', () => {
     // 31-day margin locally, but real in CI, where Postgres and Node run in separate containers —
     // confirmed by an exact-30-day-boundary sibling test actually flipping in CI (fixed alongside
     // this one in diagram-purge.test.ts).
-    const pool = getPool();
+    const db = getDb();
     const deletedAt = new Date(Date.now() - 31 * 24 * 60 * 60 * 1000);
-    await pool.query('UPDATE diagrams SET deleted_at = $2 WHERE id = $1', [diagramId, deletedAt]);
+    await db.updateTable('diagrams').set({ deleted_at: deletedAt }).where('id', '=', diagramId).execute();
 
     const response = await app.inject({
       method: 'POST',

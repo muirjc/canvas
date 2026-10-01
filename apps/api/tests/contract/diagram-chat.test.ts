@@ -5,8 +5,8 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { buildApp } from '../../src/app.js';
 import { loadConfig } from '../../src/config.js';
 import { runMigrations } from '../../src/db/migrate.js';
-import { getPool } from '../../src/db/pool.js';
 import { getDb } from '../../src/db/client.js';
+import { dbBoolean } from '../../src/db/sql-helpers.js';
 import { setReferenceMaterialFamilies } from '../../src/db/array-columns.js';
 import { getDiagramTypePrimer } from '../../src/ai/diagram-type-primers.js';
 import { closeTestDb, resetDatabase, seedDiagramType, seedFlowchartDiagramType, seedProject, seedUser } from '../helpers/setup.js';
@@ -74,19 +74,19 @@ describe('POST/GET /diagrams/:id/chat/messages', () => {
     });
     diagramId = createDiagramResponse.json().diagram.id;
 
-    const pool = getPool();
-    const { rows } = await pool.query<{ id: string }>(
-      "INSERT INTO ai_personas (id, name, category, system_prompt) VALUES ($1, 'Business Architect', 'Business', 'You are a business architect.') RETURNING id",
-      [randomUUID()],
-    );
-    personaId = rows[0].id;
+    const db = getDb();
+    personaId = randomUUID();
+    await db
+      .insertInto('ai_personas')
+      .values({ id: personaId, name: 'Business Architect', category: 'Business', system_prompt: 'You are a business architect.' })
+      .execute();
 
-    await pool.query('UPDATE ai_settings SET chat_enabled = true');
+    await db.updateTable('ai_settings').set({ chat_enabled: dbBoolean(true) }).execute();
   });
 
   it('returns 503 when AI chat is administratively disabled', async () => {
-    const pool = getPool();
-    await pool.query('UPDATE ai_settings SET chat_enabled = false');
+    const db = getDb();
+    await db.updateTable('ai_settings').set({ chat_enabled: dbBoolean(false) }).execute();
 
     const response = await app.inject({
       method: 'POST',
@@ -106,8 +106,8 @@ describe('POST/GET /diagrams/:id/chat/messages', () => {
     });
     expect(response.statusCode).toBe(200);
 
-    const pool = getPool();
-    const { rows } = await pool.query('SELECT persona_id FROM diagram_chats WHERE diagram_id = $1', [diagramId]);
+    const db = getDb();
+    const rows = await db.selectFrom('diagram_chats').select('persona_id').where('diagram_id', '=', diagramId).execute();
     expect(rows).toHaveLength(1);
     expect(rows[0].persona_id).toBe(personaId);
   });
@@ -120,20 +120,21 @@ describe('POST/GET /diagrams/:id/chat/messages', () => {
       payload: { message: 'hello', currentDslContent: 'flowchart TD\n', personaId },
     });
 
-    const pool = getPool();
-    const { rows: otherPersona } = await pool.query<{ id: string }>(
-      "INSERT INTO ai_personas (id, name, category, system_prompt) VALUES ($1, 'Other', 'Technical', 'x') RETURNING id",
-      [randomUUID()],
-    );
+    const db = getDb();
+    const otherPersonaId = randomUUID();
+    await db
+      .insertInto('ai_personas')
+      .values({ id: otherPersonaId, name: 'Other', category: 'Technical', system_prompt: 'x' })
+      .execute();
 
     await app.inject({
       method: 'POST',
       url: `/diagrams/${diagramId}/chat/messages`,
       headers: { cookie: architectCookie },
-      payload: { message: 'again', currentDslContent: 'flowchart TD\n', personaId: otherPersona[0].id },
+      payload: { message: 'again', currentDslContent: 'flowchart TD\n', personaId: otherPersonaId },
     });
 
-    const { rows } = await pool.query('SELECT persona_id FROM diagram_chats WHERE diagram_id = $1', [diagramId]);
+    const rows = await db.selectFrom('diagram_chats').select('persona_id').where('diagram_id', '=', diagramId).execute();
     expect(rows).toHaveLength(1);
     expect(rows[0].persona_id).toBe(personaId);
   });
@@ -230,13 +231,13 @@ describe('POST /diagrams/:id/chat/messages — every diagram family (010-ai-diag
     const login = await app.inject({ method: 'POST', url: '/auth/local/login', payload: { email: 'architect@example.com', password: 'architect-pass' } });
     architectCookie = (Array.isArray(login.headers['set-cookie']) ? login.headers['set-cookie'][0] : login.headers['set-cookie'])!.split(';')[0];
 
-    const pool = getPool();
-    const { rows } = await pool.query<{ id: string }>(
-      "INSERT INTO ai_personas (id, name, category, system_prompt) VALUES ($1, 'Business Architect', 'Business', 'You are a business architect.') RETURNING id",
-      [randomUUID()],
-    );
-    personaId = rows[0].id;
-    await pool.query('UPDATE ai_settings SET chat_enabled = true');
+    const db = getDb();
+    personaId = randomUUID();
+    await db
+      .insertInto('ai_personas')
+      .values({ id: personaId, name: 'Business Architect', category: 'Business', system_prompt: 'You are a business architect.' })
+      .execute();
+    await db.updateTable('ai_settings').set({ chat_enabled: dbBoolean(true) }).execute();
   });
 
   it.each(FAMILY_FIXTURES)(
@@ -373,7 +374,7 @@ describe('Standards validation parity for AI-tool-driven mutations (010-ai-diagr
     });
     adminCookie = (Array.isArray(adminLogin.headers['set-cookie']) ? adminLogin.headers['set-cookie'][0] : adminLogin.headers['set-cookie'])!.split(';')[0];
 
-    await getPool().query('UPDATE ai_settings SET chat_enabled = true');
+    await getDb().updateTable('ai_settings').set({ chat_enabled: dbBoolean(true) }).execute();
 
     // Standard: role "system" must use color #1168bd.
     const createStandard = await app.inject({
@@ -485,26 +486,25 @@ describe('Persona reference material composed into the chat system prompt (010-a
     const login = await app.inject({ method: 'POST', url: '/auth/local/login', payload: { email: 'architect@example.com', password: 'architect-pass' } });
     architectCookie = (Array.isArray(login.headers['set-cookie']) ? login.headers['set-cookie'][0] : login.headers['set-cookie'])!.split(';')[0];
 
-    await getPool().query('UPDATE ai_settings SET chat_enabled = true');
+    await getDb().updateTable('ai_settings').set({ chat_enabled: dbBoolean(true) }).execute();
   });
 
   async function createPersona(systemPrompt: string): Promise<string> {
-    const pool = getPool();
-    const { rows } = await pool.query<{ id: string }>(
-      "INSERT INTO ai_personas (id, name, category, system_prompt) VALUES ($1, 'Ref Material Persona', 'Business', $2) RETURNING id",
-      [randomUUID(), systemPrompt],
-    );
-    return rows[0].id;
+    const db = getDb();
+    const id = randomUUID();
+    await db
+      .insertInto('ai_personas')
+      .values({ id, name: 'Ref Material Persona', category: 'Business', system_prompt: systemPrompt })
+      .execute();
+    return id;
   }
 
   async function addReferenceMaterial(personaId: string, content: string, diagramFamilies?: string[]): Promise<void> {
-    const pool = getPool();
-    const { rows } = await pool.query<{ id: string }>(
-      'INSERT INTO ai_persona_reference_material (id, persona_id, content) VALUES ($1, $2, $3) RETURNING id',
-      [randomUUID(), personaId, content],
-    );
+    const db = getDb();
+    const id = randomUUID();
+    await db.insertInto('ai_persona_reference_material').values({ id, persona_id: personaId, content }).execute();
     if (diagramFamilies && diagramFamilies.length > 0) {
-      await setReferenceMaterialFamilies(getDb(), rows[0].id, diagramFamilies);
+      await setReferenceMaterialFamilies(db, id, diagramFamilies);
     }
   }
 
