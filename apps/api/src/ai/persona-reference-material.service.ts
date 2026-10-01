@@ -1,5 +1,6 @@
 import { getDslFamily } from '@canvas/diagram-core';
-import { getPool } from '../db/pool.js';
+import { getDb } from '../db/client.js';
+import { currentTimestamp } from '../db/sql-helpers.js';
 
 /**
  * 010-ai-diagram-knowledge, User Story 4 (FR-006, FR-009, FR-010, data-model.md): zero or more
@@ -26,16 +27,18 @@ function toRecord(row: {
   persona_id: string;
   content: string;
   diagram_families: string[] | null;
-  created_at: string;
-  updated_at: string;
+  created_at: Date;
+  updated_at: Date;
 }): PersonaReferenceMaterialRecord {
   return {
     id: row.id,
     personaId: row.persona_id,
     content: row.content,
     diagramFamilies: row.diagram_families ?? [],
-    createdAt: row.created_at,
-    updatedAt: row.updated_at,
+    // See diagram-chat.service.ts's getChatMessages for why this cast is the pre-existing
+    // convention, not a new behavior change — node-postgres always returned a Date here.
+    createdAt: row.created_at as unknown as string,
+    updatedAt: row.updated_at as unknown as string,
   };
 }
 
@@ -70,11 +73,13 @@ function toStoredFamilies(diagramFamilies: string[] | undefined): string[] | nul
 }
 
 export async function listReferenceMaterial(personaId: string): Promise<PersonaReferenceMaterialRecord[]> {
-  const pool = getPool();
-  const { rows } = await pool.query(
-    'SELECT * FROM ai_persona_reference_material WHERE persona_id = $1 ORDER BY created_at',
-    [personaId],
-  );
+  const db = getDb();
+  const rows = await db
+    .selectFrom('ai_persona_reference_material')
+    .selectAll()
+    .where('persona_id', '=', personaId)
+    .orderBy('created_at')
+    .execute();
   return rows.map(toRecord);
 }
 
@@ -82,12 +87,14 @@ export async function getReferenceMaterialEntry(
   personaId: string,
   entryId: string,
 ): Promise<PersonaReferenceMaterialRecord | undefined> {
-  const pool = getPool();
-  const { rows } = await pool.query(
-    'SELECT * FROM ai_persona_reference_material WHERE id = $1 AND persona_id = $2',
-    [entryId, personaId],
-  );
-  return rows[0] ? toRecord(rows[0]) : undefined;
+  const db = getDb();
+  const row = await db
+    .selectFrom('ai_persona_reference_material')
+    .selectAll()
+    .where('id', '=', entryId)
+    .where('persona_id', '=', personaId)
+    .executeTakeFirst();
+  return row ? toRecord(row) : undefined;
 }
 
 export interface CreateReferenceMaterialInput {
@@ -101,12 +108,17 @@ export async function createReferenceMaterial(
 ): Promise<PersonaReferenceMaterialRecord> {
   validateContent(input.content);
   validateFamilies(input.diagramFamilies);
-  const pool = getPool();
-  const { rows } = await pool.query(
-    'INSERT INTO ai_persona_reference_material (persona_id, content, diagram_families) VALUES ($1, $2, $3) RETURNING *',
-    [personaId, input.content, toStoredFamilies(input.diagramFamilies)],
-  );
-  return toRecord(rows[0]);
+  const db = getDb();
+  const row = await db
+    .insertInto('ai_persona_reference_material')
+    .values({
+      persona_id: personaId,
+      content: input.content,
+      diagram_families: toStoredFamilies(input.diagramFamilies),
+    })
+    .returningAll()
+    .executeTakeFirstOrThrow();
+  return toRecord(row);
 }
 
 export interface UpdateReferenceMaterialInput {
@@ -133,24 +145,32 @@ export async function updateReferenceMaterial(
   const nextFamilies =
     input.diagramFamilies !== undefined ? toStoredFamilies(input.diagramFamilies) : toStoredFamilies(existing.diagramFamilies);
 
-  const pool = getPool();
-  const { rows } = await pool.query(
-    'UPDATE ai_persona_reference_material SET content = $1, diagram_families = $2, updated_at = now() WHERE id = $3 AND persona_id = $4 RETURNING *',
-    [input.content ?? existing.content, nextFamilies, entryId, personaId],
-  );
-  return toRecord(rows[0]);
+  const db = getDb();
+  const row = await db
+    .updateTable('ai_persona_reference_material')
+    .set({
+      content: input.content ?? existing.content,
+      diagram_families: nextFamilies,
+      updated_at: currentTimestamp(),
+    })
+    .where('id', '=', entryId)
+    .where('persona_id', '=', personaId)
+    .returningAll()
+    .executeTakeFirstOrThrow();
+  return toRecord(row);
 }
 
 /** FR-009: returns `false` (route layer 404s) for an entry that doesn't exist or doesn't belong
  *  to `personaId` — never touches `chat_messages`, matching `archivePersona`'s own precedent of
  *  never retroactively altering past chat turns. */
 export async function deleteReferenceMaterial(personaId: string, entryId: string): Promise<boolean> {
-  const pool = getPool();
-  const { rowCount } = await pool.query(
-    'DELETE FROM ai_persona_reference_material WHERE id = $1 AND persona_id = $2',
-    [entryId, personaId],
-  );
-  return (rowCount ?? 0) > 0;
+  const db = getDb();
+  const result = await db
+    .deleteFrom('ai_persona_reference_material')
+    .where('id', '=', entryId)
+    .where('persona_id', '=', personaId)
+    .executeTakeFirst();
+  return result.numDeletedRows > 0;
 }
 
 /** T031 (diagram-chat.service.ts's system-prompt composition): entries scoped to `dslFamily`, or

@@ -1,4 +1,5 @@
-import { getPool } from '../db/pool.js';
+import { getDb } from '../db/client.js';
+import { currentTimestamp } from '../db/sql-helpers.js';
 
 export type AiProviderKind = 'anthropic' | 'openai' | 'mock' | 'unconfigured';
 
@@ -28,9 +29,9 @@ export function resolveAiProviderKind(env: NodeJS.ProcessEnv = process.env): AiP
 /** Singleton `ai_settings` row (FR-020) — platform-wide AI chat on/off, separate from and in
  * addition to which provider is configured (research.md §5). */
 export async function getAiSettings(): Promise<AiSettings> {
-  const pool = getPool();
-  const { rows } = await pool.query<{ chat_enabled: boolean }>('SELECT chat_enabled FROM ai_settings');
-  return { chatEnabled: rows[0].chat_enabled, provider: resolveAiProviderKind() };
+  const db = getDb();
+  const row = await db.selectFrom('ai_settings').select('chat_enabled').executeTakeFirstOrThrow();
+  return { chatEnabled: row.chat_enabled, provider: resolveAiProviderKind() };
 }
 
 /** `provider` is read-only/derived from the environment, not stored — only `chatEnabled` is ever
@@ -41,7 +42,10 @@ export interface SetAiSettingsInput {
 }
 
 export async function setAiSettings(input: SetAiSettingsInput): Promise<AiSettings> {
-  const pool = getPool();
-  await pool.query('UPDATE ai_settings SET chat_enabled = $1, updated_at = now()', [input.chatEnabled]);
+  const db = getDb();
+  await db
+    .updateTable('ai_settings')
+    .set({ chat_enabled: input.chatEnabled, updated_at: currentTimestamp() })
+    .execute();
   return getAiSettings();
 }

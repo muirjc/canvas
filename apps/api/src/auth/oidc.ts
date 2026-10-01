@@ -1,6 +1,6 @@
 import * as client from 'openid-client';
 import type { FastifyInstance } from 'fastify';
-import { getPool } from '../db/pool.js';
+import { getDb } from '../db/client.js';
 import type { AppConfig } from '../config.js';
 import type { SessionUser, UserRole } from './types.js';
 
@@ -96,20 +96,16 @@ async function findOrCreateUserFromClaims(claims: {
   name?: string;
   realmRoles: string[];
 }): Promise<SessionUser> {
-  const pool = getPool();
+  const db = getDb();
   const email = claims.email ?? `${claims.sub}@unknown.local`;
   const name = claims.name ?? email;
   const role = mapRealmRolesToUserRole(claims.realmRoles);
 
-  const existing = await pool.query<{
-    id: string;
-    email: string;
-    name: string;
-    role: UserRole;
-    personas: string[];
-    active: boolean;
-  }>('SELECT id, email, name, role, personas, active FROM users WHERE email = $1', [email]);
-  const row = existing.rows[0];
+  const row = await db
+    .selectFrom('users')
+    .select(['id', 'email', 'name', 'role', 'personas', 'active'])
+    .where('email', '=', email)
+    .executeTakeFirst();
   if (row) {
     // canvas-mi9: local email/password auth already refuses an inactive user
     // (auth/local.ts's `!row.active` check) -- SSO had no equivalent gate at all, so a
@@ -123,19 +119,18 @@ async function findOrCreateUserFromClaims(claims: {
     // manual re-provisioning step. Written only when it actually changed, to avoid an
     // unconditional UPDATE on every single login.
     if (row.role !== role) {
-      await pool.query('UPDATE users SET role = $2 WHERE id = $1', [row.id, role]);
+      await db.updateTable('users').set({ role }).where('id', '=', row.id).execute();
       row.role = role;
     }
     return { id: row.id, email: row.email, name: row.name, role: row.role, personas: row.personas };
   }
 
-  const inserted = await pool.query<{ id: string; email: string; name: string; role: UserRole; personas: string[] }>(
-    `INSERT INTO users (name, email, role, personas)
-     VALUES ($1, $2, $3, '{}')
-     RETURNING id, email, name, role, personas`,
-    [name, email, role],
-  );
-  return inserted.rows[0];
+  const inserted = await db
+    .insertInto('users')
+    .values({ name, email, role, personas: [] })
+    .returning(['id', 'email', 'name', 'role', 'personas'])
+    .executeTakeFirstOrThrow();
+  return inserted;
 }
 
 /**

@@ -1,6 +1,6 @@
 import type { FastifyInstance } from 'fastify';
 import { requireAuth } from '../auth/middleware.js';
-import { getPool } from '../db/pool.js';
+import { getDb } from '../db/client.js';
 
 /**
  * A minimal, non-admin-gated user lookup — any authenticated user needs this to share a diagram
@@ -20,12 +20,14 @@ export async function registerUserLookupRoutes(app: FastifyInstance): Promise<vo
       },
     },
     async (request, reply) => {
-      const pool = getPool();
-      const { rows } = await pool.query<{ id: string; name: string; email: string }>(
-        'SELECT id, name, email FROM users WHERE email = $1 AND active = true',
-        [request.query.email],
-      );
-      reply.send({ user: rows[0] ?? null });
+      const db = getDb();
+      const user = await db
+        .selectFrom('users')
+        .select(['id', 'name', 'email'])
+        .where('email', '=', request.query.email)
+        .where('active', '=', true)
+        .executeTakeFirst();
+      reply.send({ user: user ?? null });
     },
   );
 }

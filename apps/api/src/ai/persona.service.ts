@@ -1,4 +1,5 @@
-import { getPool } from '../db/pool.js';
+import { getDb } from '../db/client.js';
+import { currentTimestamp } from '../db/sql-helpers.js';
 
 /** research.md §4: deliberately NOT named "Persona" — that word already means a simple
  * architect-category tag array on users/diagram_types, an unrelated, pre-existing concept. */
@@ -23,8 +24,8 @@ function toRecord(row: {
   category: string;
   system_prompt: string;
   status: string;
-  created_at: string;
-  updated_at: string;
+  created_at: Date;
+  updated_at: Date;
 }): AiPersonaRecord {
   return {
     id: row.id,
@@ -32,32 +33,38 @@ function toRecord(row: {
     category: row.category,
     systemPrompt: row.system_prompt,
     status: row.status as 'active' | 'archived',
-    createdAt: row.created_at,
-    updatedAt: row.updated_at,
+    // See diagram-chat.service.ts's getChatMessages for why this cast is the pre-existing
+    // convention, not a new behavior change — node-postgres always returned a Date here.
+    createdAt: row.created_at as unknown as string,
+    updatedAt: row.updated_at as unknown as string,
   };
 }
 
 /** FR-005: the source for the chat's persona-selection dropdown — active only. */
 export async function listActivePersonas(): Promise<AiPersonaRecord[]> {
-  const pool = getPool();
-  const { rows } = await pool.query(
-    "SELECT * FROM ai_personas WHERE status = 'active' ORDER BY category, name",
-  );
+  const db = getDb();
+  const rows = await db
+    .selectFrom('ai_personas')
+    .selectAll()
+    .where('status', '=', 'active')
+    .orderBy('category')
+    .orderBy('name')
+    .execute();
   return rows.map(toRecord);
 }
 
 /** User Story 3 admin screen: every persona regardless of status, so an admin can see and
  * manage archived ones too, not just what's currently offered in the chat dropdown. */
 export async function listAllPersonas(): Promise<AiPersonaRecord[]> {
-  const pool = getPool();
-  const { rows } = await pool.query('SELECT * FROM ai_personas ORDER BY category, name');
+  const db = getDb();
+  const rows = await db.selectFrom('ai_personas').selectAll().orderBy('category').orderBy('name').execute();
   return rows.map(toRecord);
 }
 
 export async function getPersona(id: string): Promise<AiPersonaRecord | undefined> {
-  const pool = getPool();
-  const { rows } = await pool.query('SELECT * FROM ai_personas WHERE id = $1', [id]);
-  return rows[0] ? toRecord(rows[0]) : undefined;
+  const db = getDb();
+  const row = await db.selectFrom('ai_personas').selectAll().where('id', '=', id).executeTakeFirst();
+  return row ? toRecord(row) : undefined;
 }
 
 export interface CreatePersonaInput {
@@ -73,12 +80,13 @@ export async function createPersona(input: CreatePersonaInput): Promise<AiPerson
   if (!AI_PERSONA_CATEGORIES.includes(input.category as AiPersonaCategory)) {
     throw new InvalidPersonaCategoryError(`category must be one of: ${AI_PERSONA_CATEGORIES.join(', ')}`);
   }
-  const pool = getPool();
-  const { rows } = await pool.query(
-    'INSERT INTO ai_personas (name, category, system_prompt) VALUES ($1, $2, $3) RETURNING *',
-    [input.name, input.category, input.systemPrompt],
-  );
-  return toRecord(rows[0]);
+  const db = getDb();
+  const row = await db
+    .insertInto('ai_personas')
+    .values({ name: input.name, category: input.category, system_prompt: input.systemPrompt })
+    .returningAll()
+    .executeTakeFirstOrThrow();
+  return toRecord(row);
 }
 
 export interface UpdatePersonaInput {
@@ -93,22 +101,31 @@ export async function updatePersona(id: string, input: UpdatePersonaInput): Prom
   }
   const existing = await getPersona(id);
   if (!existing) return undefined;
-  const pool = getPool();
-  const { rows } = await pool.query(
-    'UPDATE ai_personas SET name = $1, category = $2, system_prompt = $3, updated_at = now() WHERE id = $4 RETURNING *',
-    [input.name ?? existing.name, input.category ?? existing.category, input.systemPrompt ?? existing.systemPrompt, id],
-  );
-  return toRecord(rows[0]);
+  const db = getDb();
+  const row = await db
+    .updateTable('ai_personas')
+    .set({
+      name: input.name ?? existing.name,
+      category: input.category ?? existing.category,
+      system_prompt: input.systemPrompt ?? existing.systemPrompt,
+      updated_at: currentTimestamp(),
+    })
+    .where('id', '=', id)
+    .returningAll()
+    .executeTakeFirstOrThrow();
+  return toRecord(row);
 }
 
 /** Archiving is idempotent (User Story 3 acceptance) — an already-archived persona stays
  * archived without error, and any `DiagramChat` already referencing it is untouched (the row
  * itself is never deleted, only its `status`). */
 export async function archivePersona(id: string): Promise<AiPersonaRecord | undefined> {
-  const pool = getPool();
-  const { rows } = await pool.query(
-    "UPDATE ai_personas SET status = 'archived', updated_at = now() WHERE id = $1 RETURNING *",
-    [id],
-  );
-  return rows[0] ? toRecord(rows[0]) : undefined;
+  const db = getDb();
+  const row = await db
+    .updateTable('ai_personas')
+    .set({ status: 'archived', updated_at: currentTimestamp() })
+    .where('id', '=', id)
+    .returningAll()
+    .executeTakeFirst();
+  return row ? toRecord(row) : undefined;
 }
