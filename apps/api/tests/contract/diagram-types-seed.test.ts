@@ -1,7 +1,8 @@
 import { describe, expect, it, beforeEach, beforeAll, afterAll } from 'vitest';
 import { buildTestApp, closeTestDb, resetDatabase } from '../helpers/setup.js';
 import { seedDiagramTypes } from '../../src/seed/diagram-types.seed.js';
-import { getPool } from '../../src/db/pool.js';
+import { getDb } from '../../src/db/client.js';
+import { getDiagramTypePaletteLibraries } from '../../src/db/array-columns.js';
 import type { FastifyInstance } from 'fastify';
 
 /**
@@ -35,12 +36,7 @@ describe('Diagram type seed data: generic shape-alias scoping', () => {
   });
 
   async function paletteFor(diagramTypeId: string): Promise<string[]> {
-    const pool = getPool();
-    const { rows } = await pool.query<{ default_palette_library_ids: string[] }>(
-      'SELECT default_palette_library_ids FROM diagram_types WHERE id = $1',
-      [diagramTypeId],
-    );
-    return rows[0].default_palette_library_ids;
+    return getDiagramTypePaletteLibraries(getDb(), diagramTypeId);
   }
 
   it.each(['cloud-infrastructure', 'network', 'deployment', 'solution-architecture'])(

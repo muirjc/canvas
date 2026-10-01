@@ -1,6 +1,11 @@
 import { getDslFamily } from '@canvas/diagram-core';
 import { getDb } from '../db/client.js';
 import { currentTimestamp } from '../db/sql-helpers.js';
+import {
+  getReferenceMaterialFamilies,
+  getReferenceMaterialFamiliesBatch,
+  setReferenceMaterialFamilies,
+} from '../db/array-columns.js';
 
 /**
  * 010-ai-diagram-knowledge, User Story 4 (FR-006, FR-009, FR-010, data-model.md): zero or more
@@ -22,19 +27,17 @@ export interface PersonaReferenceMaterialRecord {
 export class InvalidReferenceMaterialContentError extends Error {}
 export class InvalidReferenceMaterialFamilyError extends Error {}
 
-function toRecord(row: {
-  id: string;
-  persona_id: string;
-  content: string;
-  diagram_families: string[] | null;
-  created_at: Date;
-  updated_at: Date;
-}): PersonaReferenceMaterialRecord {
+/** `diagramFamilies` is supplied separately (from a join-table read, canvas-jtm.3) rather than
+ *  read off `row` — `ai_persona_reference_material` itself no longer carries that column. */
+function toRecord(
+  row: { id: string; persona_id: string; content: string; created_at: Date; updated_at: Date },
+  diagramFamilies: string[],
+): PersonaReferenceMaterialRecord {
   return {
     id: row.id,
     personaId: row.persona_id,
     content: row.content,
-    diagramFamilies: row.diagram_families ?? [],
+    diagramFamilies,
     // See diagram-chat.service.ts's getChatMessages for why this cast is the pre-existing
     // convention, not a new behavior change — node-postgres always returned a Date here.
     createdAt: row.created_at as unknown as string,
@@ -64,14 +67,6 @@ function validateFamilies(diagramFamilies: string[] | undefined): void {
   }
 }
 
-/** NULL rather than an empty array for "unscoped" — keeps the column's two possible NULL-ish
- *  representations (`NULL` and `'{}'`, both meaning the same thing per the migration's own
- *  comment) collapsed to exactly one on write, so nothing downstream needs to treat them as
- *  distinct. */
-function toStoredFamilies(diagramFamilies: string[] | undefined): string[] | null {
-  return diagramFamilies && diagramFamilies.length > 0 ? diagramFamilies : null;
-}
-
 export async function listReferenceMaterial(personaId: string): Promise<PersonaReferenceMaterialRecord[]> {
   const db = getDb();
   const rows = await db
@@ -80,7 +75,11 @@ export async function listReferenceMaterial(personaId: string): Promise<PersonaR
     .where('persona_id', '=', personaId)
     .orderBy('created_at')
     .execute();
-  return rows.map(toRecord);
+  const familiesByEntry = await getReferenceMaterialFamiliesBatch(
+    db,
+    rows.map((r) => r.id),
+  );
+  return rows.map((row) => toRecord(row, familiesByEntry.get(row.id) ?? []));
 }
 
 export async function getReferenceMaterialEntry(
@@ -94,7 +93,8 @@ export async function getReferenceMaterialEntry(
     .where('id', '=', entryId)
     .where('persona_id', '=', personaId)
     .executeTakeFirst();
-  return row ? toRecord(row) : undefined;
+  if (!row) return undefined;
+  return toRecord(row, await getReferenceMaterialFamilies(db, row.id));
 }
 
 export interface CreateReferenceMaterialInput {
@@ -109,16 +109,18 @@ export async function createReferenceMaterial(
   validateContent(input.content);
   validateFamilies(input.diagramFamilies);
   const db = getDb();
-  const row = await db
-    .insertInto('ai_persona_reference_material')
-    .values({
-      persona_id: personaId,
-      content: input.content,
-      diagram_families: toStoredFamilies(input.diagramFamilies),
-    })
-    .returningAll()
-    .executeTakeFirstOrThrow();
-  return toRecord(row);
+  return db.transaction().execute(async (trx) => {
+    const row = await trx
+      .insertInto('ai_persona_reference_material')
+      .values({ persona_id: personaId, content: input.content })
+      .returningAll()
+      .executeTakeFirstOrThrow();
+    const diagramFamilies = input.diagramFamilies ?? [];
+    if (diagramFamilies.length > 0) {
+      await setReferenceMaterialFamilies(trx, row.id, diagramFamilies);
+    }
+    return toRecord(row, diagramFamilies);
+  });
 }
 
 export interface UpdateReferenceMaterialInput {
@@ -142,27 +144,28 @@ export async function updateReferenceMaterial(
   const existing = await getReferenceMaterialEntry(personaId, entryId);
   if (!existing) return undefined;
 
-  const nextFamilies =
-    input.diagramFamilies !== undefined ? toStoredFamilies(input.diagramFamilies) : toStoredFamilies(existing.diagramFamilies);
+  const nextFamilies = input.diagramFamilies !== undefined ? input.diagramFamilies : existing.diagramFamilies;
 
   const db = getDb();
-  const row = await db
-    .updateTable('ai_persona_reference_material')
-    .set({
-      content: input.content ?? existing.content,
-      diagram_families: nextFamilies,
-      updated_at: currentTimestamp(),
-    })
-    .where('id', '=', entryId)
-    .where('persona_id', '=', personaId)
-    .returningAll()
-    .executeTakeFirstOrThrow();
-  return toRecord(row);
+  return db.transaction().execute(async (trx) => {
+    const row = await trx
+      .updateTable('ai_persona_reference_material')
+      .set({ content: input.content ?? existing.content, updated_at: currentTimestamp() })
+      .where('id', '=', entryId)
+      .where('persona_id', '=', personaId)
+      .returningAll()
+      .executeTakeFirstOrThrow();
+    if (input.diagramFamilies !== undefined) {
+      await setReferenceMaterialFamilies(trx, entryId, nextFamilies);
+    }
+    return toRecord(row, nextFamilies);
+  });
 }
 
 /** FR-009: returns `false` (route layer 404s) for an entry that doesn't exist or doesn't belong
  *  to `personaId` — never touches `chat_messages`, matching `archivePersona`'s own precedent of
- *  never retroactively altering past chat turns. */
+ *  never retroactively altering past chat turns. `ai_persona_reference_material_families` rows
+ *  cascade-delete via the FK (0011_array_columns_to_join_tables.sql), no explicit cleanup needed. */
 export async function deleteReferenceMaterial(personaId: string, entryId: string): Promise<boolean> {
   const db = getDb();
   const result = await db

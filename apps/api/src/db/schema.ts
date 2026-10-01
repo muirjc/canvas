@@ -10,9 +10,10 @@
  * row type, which is exactly the drift problem the current "no shared layer at all" design has.
  *
  * `Generated<T>` marks a column optional on insert (DB fills it via `DEFAULT`) — used here for
- * every `DEFAULT gen_random_uuid()`/`DEFAULT now()`/`DEFAULT <literal>` column. Phase 2 removes
- * `gen_random_uuid()` entirely (ids become app-generated), at which point those `id` columns stop
- * being `Generated` — a deliberate, tracked future change, not an oversight today.
+ * every `DEFAULT gen_random_uuid()`/`DEFAULT now()`/`DEFAULT <literal>` column. A later phase
+ * (canvas-jtm.10, deliberately sequenced after every file is off `db/pool.ts` — see that bead)
+ * removes `gen_random_uuid()` entirely (ids become app-generated), at which point those `id`
+ * columns stop being `Generated` — a tracked future change, not an oversight today.
  *
  * Timestamp columns are typed `Timestamp` (see below), matching node-postgres's actual runtime
  * behavior (a native `Date`) rather than perpetuating the `created_at: string` convention some
@@ -21,9 +22,15 @@
  * is not what callers hold in hand before that point, and this schema should not encode a
  * different runtime reality than the one node-postgres actually produces).
  *
- * `TEXT[]` array columns are typed `string[]` — accurate for Postgres via node-postgres today.
- * Phase 2 replaces all 7 of these with join tables; this type goes away on that column at that
- * point, not before.
+ * The 7 `TEXT[]` array columns this schema used to carry (`users.personas`,
+ * `diagram_types.personas`/`default_palette_library_ids`, `icons.keywords`,
+ * `standards.allowed_shape_ids`/`mandatory_shape_ids`,
+ * `ai_persona_reference_material.diagram_families`) are gone as of canvas-jtm.3
+ * (0011_array_columns_to_join_tables.sql / 0012_drop_array_columns.sql) — native arrays have no
+ * SQLite equivalent. Each is now a real join table (`users_personas`, `diagram_types_personas`,
+ * `diagram_type_palette_libraries`, `icon_keywords`, `standard_allowed_shapes`,
+ * `standard_mandatory_shapes`, `ai_persona_reference_material_families`), keyed by the owning
+ * row's id plus the value, with no synthetic surrogate id of its own.
  *
  * `JSONB` columns are typed via `JsonColumn<T>` — node-postgres auto (de)serializes JSON/JSONB,
  * so the Select/Insert/Update shapes are symmetric (unlike Kysely's own `JSONColumnType`, which
@@ -73,11 +80,16 @@ export interface UsersTable {
   name: string;
   email: string;
   role: 'admin' | 'architect' | 'viewer';
-  /** TEXT[] — join-table candidate, see module doc. `DEFAULT '{}'` (0001_init.sql), unlike
-   *  diagram_types.personas below, which has no default. */
-  personas: Generated<string[]>;
   active: Generated<boolean>;
   created_at: GeneratedTimestamp;
+}
+
+/** Join table replacing `users.personas TEXT[]` (canvas-jtm.3). No surrogate id — the composite
+ *  (user_id, persona) pair is the whole row. */
+export interface UsersPersonasTable {
+  user_id: string;
+  persona: string;
+  position: number;
 }
 
 export interface ProjectsTable {
@@ -95,12 +107,25 @@ export interface ProjectsTable {
 export interface DiagramTypesTable {
   id: string;
   name: string;
-  /** TEXT[] — join-table candidate. */
-  personas: string[];
   abstraction_level: string;
   dsl_family: string;
-  /** TEXT[] — join-table candidate. */
-  default_palette_library_ids: Generated<string[]>;
+}
+
+/** Join table replacing `diagram_types.personas TEXT[]` (canvas-jtm.3). No surrogate id — the
+ *  composite (diagram_type_id, persona) pair is the whole row. */
+export interface DiagramTypesPersonasTable {
+  diagram_type_id: string;
+  persona: string;
+  position: number;
+}
+
+/** Join table replacing `diagram_types.default_palette_library_ids TEXT[]` (canvas-jtm.3). No FK
+ *  to icon_libraries — see the migration's own comment: this was never validated against a real
+ *  library version before, and this redesign preserves that leniency rather than tightening it. */
+export interface DiagramTypePaletteLibrariesTable {
+  diagram_type_id: string;
+  library_id: string;
+  position: number;
 }
 
 export interface IconLibrariesTable {
@@ -115,10 +140,19 @@ export interface IconsTable {
   library_version: string;
   id: string;
   display_name: string;
-  /** TEXT[] — join-table candidate (also the one used in actual search filtering, see plan). */
-  keywords: Generated<string[]>;
   category: string;
   asset_ref: string;
+}
+
+/** Join table replacing `icons.keywords TEXT[]` (canvas-jtm.3) — the one array column that was
+ *  actually used for in-app search filtering (`@canvas/diagram-core`'s `searchIcons()`), not just
+ *  stored. No surrogate id — the composite key is the whole row. */
+export interface IconKeywordsTable {
+  library_id: string;
+  library_version: string;
+  icon_id: string;
+  keyword: string;
+  position: number;
 }
 
 export interface StandardsTable {
@@ -126,10 +160,6 @@ export interface StandardsTable {
   diagram_type_id: string;
   version: number;
   status: 'draft' | 'published' | 'retired';
-  /** TEXT[] — join-table candidate (checked on every diagram save, a hot path — see plan). */
-  allowed_shape_ids: Generated<string[]>;
-  /** TEXT[] — join-table candidate. */
-  mandatory_shape_ids: Generated<string[]>;
   allowed_icon_library_refs: GeneratedJsonColumn<unknown>;
   color_palette: GeneratedJsonColumn<unknown>;
   font_constraints: JsonColumn<unknown> | null;
@@ -138,6 +168,22 @@ export interface StandardsTable {
   name: string | null;
   description: string | null;
   retired_at: Timestamp | null;
+}
+
+/** Join table replacing `standards.allowed_shape_ids TEXT[]` (canvas-jtm.3) — checked on every
+ *  diagram save (a hot path), one reason array redesign chose a real join table over JSON-TEXT
+ *  here. No surrogate id — the composite key is the whole row. */
+export interface StandardAllowedShapesTable {
+  standard_id: string;
+  shape_id: string;
+  position: number;
+}
+
+/** Join table replacing `standards.mandatory_shape_ids TEXT[]` (canvas-jtm.3). */
+export interface StandardMandatoryShapesTable {
+  standard_id: string;
+  shape_id: string;
+  position: number;
 }
 
 export interface DiagramsTable {
@@ -236,11 +282,19 @@ export interface AiPersonaReferenceMaterialTable {
   id: Generated<string>;
   persona_id: string;
   content: string;
-  /** TEXT[], nullable (NULL/'{}' both mean "unscoped" — see 0010's own comment). Join-table
-   *  candidate like every other TEXT[] column above. */
-  diagram_families: string[] | null;
   created_at: GeneratedTimestamp;
   updated_at: GeneratedTimestamp;
+}
+
+/** Join table replacing `ai_persona_reference_material.diagram_families TEXT[]` (canvas-jtm.3).
+ *  No row at all (not a NULL marker, not an empty-set marker) means "unscoped" — the absence
+ *  itself now carries the meaning NULL/'{}' used to (see 0010's own comment on the old column),
+ *  so persona-reference-material.service.ts's `toStoredFamilies`'s empty-array-to-NULL collapsing
+ *  is replaced by simply not inserting any rows. */
+export interface AiPersonaReferenceMaterialFamiliesTable {
+  reference_material_id: string;
+  diagram_family: string;
+  position: number;
 }
 
 export interface SchemaMigrationsTable {
@@ -250,11 +304,17 @@ export interface SchemaMigrationsTable {
 
 export interface DB {
   users: UsersTable;
+  users_personas: UsersPersonasTable;
   projects: ProjectsTable;
   diagram_types: DiagramTypesTable;
+  diagram_types_personas: DiagramTypesPersonasTable;
+  diagram_type_palette_libraries: DiagramTypePaletteLibrariesTable;
   icon_libraries: IconLibrariesTable;
   icons: IconsTable;
+  icon_keywords: IconKeywordsTable;
   standards: StandardsTable;
+  standard_allowed_shapes: StandardAllowedShapesTable;
+  standard_mandatory_shapes: StandardMandatoryShapesTable;
   diagrams: DiagramsTable;
   diagram_versions: DiagramVersionsTable;
   templates: TemplatesTable;
@@ -265,5 +325,6 @@ export interface DB {
   chat_messages: ChatMessagesTable;
   ai_settings: AiSettingsTable;
   ai_persona_reference_material: AiPersonaReferenceMaterialTable;
+  ai_persona_reference_material_families: AiPersonaReferenceMaterialFamiliesTable;
   schema_migrations: SchemaMigrationsTable;
 }

@@ -100,9 +100,13 @@ describe('Diagrams API contract', () => {
     // of diagram type, which fails to parse for any type whose DSL family isn't "flowchart".
     const pool = (await import('../../src/db/pool.js')).getPool();
     await pool.query(
-      `INSERT INTO diagram_types (id, name, personas, abstraction_level, dsl_family, default_palette_library_ids)
-       VALUES ('c4-context', 'C4 Context', ARRAY['Technical'], 'Context', 'c4', ARRAY['c4-notation'])`,
+      `INSERT INTO diagram_types (id, name, abstraction_level, dsl_family)
+       VALUES ('c4-context', 'C4 Context', 'Context', 'c4')`,
     );
+    const db = (await import('../../src/db/client.js')).getDb();
+    const { setDiagramTypePersonas, setDiagramTypePaletteLibraries } = await import('../../src/db/array-columns.js');
+    await setDiagramTypePersonas(db, 'c4-context', ['Technical']);
+    await setDiagramTypePaletteLibraries(db, 'c4-context', ['c4-notation']);
 
     const createResponse = await app.inject({
       method: 'POST',

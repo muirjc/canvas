@@ -1,5 +1,6 @@
 import type { FastifyInstance } from 'fastify';
 import { getDb } from '../db/client.js';
+import { getUserPersonas } from '../db/array-columns.js';
 import { verifyPassword } from './password.js';
 import type { SessionUser } from './types.js';
 
@@ -30,7 +31,6 @@ export async function registerLocalAuthRoutes(app: FastifyInstance): Promise<voi
           'users.email',
           'users.name',
           'users.role',
-          'users.personas',
           'users.active',
           'local_credentials.password_hash',
           'local_credentials.password_salt',
@@ -47,7 +47,7 @@ export async function registerLocalAuthRoutes(app: FastifyInstance): Promise<voi
         email: row.email,
         name: row.name,
         role: row.role,
-        personas: row.personas,
+        personas: await getUserPersonas(db, row.id),
       };
       request.session.user = user;
       reply.send({ user });

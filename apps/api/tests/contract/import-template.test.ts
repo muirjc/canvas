@@ -2,6 +2,8 @@ import type { FastifyInstance } from 'fastify';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { buildTestApp, closeTestDb, resetDatabase, seedProject, seedUser } from '../helpers/setup.js';
 import { getPool } from '../../src/db/pool.js';
+import { getDb } from '../../src/db/client.js';
+import { setDiagramTypePersonas, setDiagramTypePaletteLibraries } from '../../src/db/array-columns.js';
 
 /**
  * Contract for POST /projects/:projectId/diagrams/import-template — importing a filled-in
@@ -70,12 +72,19 @@ describe('Import Template API contract', () => {
     await resetDatabase();
     const pool = getPool();
     await pool.query(
-      `INSERT INTO diagram_types (id, name, personas, abstraction_level, dsl_family, default_palette_library_ids)
+      `INSERT INTO diagram_types (id, name, abstraction_level, dsl_family)
        VALUES
-         ('flowchart', 'Generic Flowchart', ARRAY['Business','Enterprise','Solution','Technical'], 'N/A', 'flowchart', ARRAY['generic']),
-         ('c4-context', 'C4 Context', ARRAY['Technical'], 'Context', 'c4', ARRAY['c4-notation']),
-         ('sequence', 'Sequence Diagram', ARRAY['Solution','Technical'], 'N/A', 'sequence', ARRAY['generic'])`,
+         ('flowchart', 'Generic Flowchart', 'N/A', 'flowchart'),
+         ('c4-context', 'C4 Context', 'Context', 'c4'),
+         ('sequence', 'Sequence Diagram', 'N/A', 'sequence')`,
     );
+    const db = getDb();
+    await setDiagramTypePersonas(db, 'flowchart', ['Business', 'Enterprise', 'Solution', 'Technical']);
+    await setDiagramTypePaletteLibraries(db, 'flowchart', ['generic']);
+    await setDiagramTypePersonas(db, 'c4-context', ['Technical']);
+    await setDiagramTypePaletteLibraries(db, 'c4-context', ['c4-notation']);
+    await setDiagramTypePersonas(db, 'sequence', ['Solution', 'Technical']);
+    await setDiagramTypePaletteLibraries(db, 'sequence', ['generic']);
     const architect = await seedUser({ email: 'architect@example.com', password: 'architect-pass' });
     // Owned by the acting user: projects became access-controlled in feature 007, so a fixture
     // project must name who works in it.

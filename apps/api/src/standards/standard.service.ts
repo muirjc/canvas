@@ -1,6 +1,14 @@
-import type { StandardRules, IconLibraryRef, ColorPaletteEntry, FontConstraints } from '@canvas/diagram-core';
-import type { NodeShape } from '@canvas/diagram-core';
-import { getPool } from '../db/pool.js';
+import { sql } from 'kysely';
+import type { StandardRules, IconLibraryRef, ColorPaletteEntry, FontConstraints, NodeShape } from '@canvas/diagram-core';
+import { getDb } from '../db/client.js';
+import { currentTimestamp } from '../db/sql-helpers.js';
+import {
+  getStandardAllowedShapes,
+  getStandardMandatoryShapes,
+  getStandardShapesBatch,
+  setStandardAllowedShapes,
+  setStandardMandatoryShapes,
+} from '../db/array-columns.js';
 
 export type StandardStatus = 'draft' | 'published' | 'retired';
 
@@ -29,36 +37,51 @@ interface StandardRow {
   diagram_type_id: string;
   version: number;
   status: StandardStatus;
-  allowed_shape_ids: NodeShape[];
-  mandatory_shape_ids: NodeShape[];
   allowed_icon_library_refs: IconLibraryRef[];
   color_palette: ColorPaletteEntry[];
   font_constraints: FontConstraints | null;
   name: string | null;
   description: string | null;
-  published_at: string | null;
-  created_at: string;
-  retired_at: string | null;
+  published_at: Date | null;
+  created_at: Date;
+  retired_at: Date | null;
 }
 
-function toRecord(row: StandardRow): StandardRecord {
+/** Kysely infers `allowed_icon_library_refs`/`color_palette`/`font_constraints` as `unknown` on
+ *  select (db/schema.ts's `JsonColumn<unknown>` — the JSONB payload's real shape isn't known
+ *  statically). This cast trusts DB content matches `StandardRow` exactly like the pre-Kysely
+ *  raw-SQL `pool.query<StandardRow>(...)` generic type parameter always implicitly did — no new
+ *  runtime validation added or removed by moving to Kysely. */
+function asStandardRow(row: Record<string, unknown>): StandardRow {
+  return row as unknown as StandardRow;
+}
+
+function toRecord(
+  row: StandardRow,
+  shapes: { allowed: string[]; mandatory: string[] },
+): StandardRecord {
   return {
     id: row.id,
     diagramTypeId: row.diagram_type_id,
     version: row.version,
     status: row.status,
     rules: {
-      allowedShapeIds: row.allowed_shape_ids ?? [],
-      mandatoryShapeIds: row.mandatory_shape_ids ?? [],
+      // The join tables store plain TEXT, not NodeShape — this cast trusts DB content matches the
+      // union exactly like the pre-Kysely raw-SQL StandardRow's own generic type parameter always
+      // implicitly did (no new runtime validation added or removed here).
+      allowedShapeIds: shapes.allowed as NodeShape[],
+      mandatoryShapeIds: shapes.mandatory as NodeShape[],
       allowedIconLibraryRefs: row.allowed_icon_library_refs ?? [],
       colorPalette: row.color_palette ?? [],
       fontConstraints: row.font_constraints ?? undefined,
     },
     name: row.name,
     description: row.description,
-    publishedAt: row.published_at,
-    createdAt: row.created_at,
-    retiredAt: row.retired_at,
+    // See diagram-chat.service.ts's getChatMessages for why these casts are the pre-existing
+    // convention, not a new behavior change — node-postgres always returned a Date here.
+    publishedAt: row.published_at as unknown as string | null,
+    createdAt: row.created_at as unknown as string,
+    retiredAt: row.retired_at as unknown as string | null,
   };
 }
 
@@ -70,42 +93,53 @@ export interface CreateDraftStandardInput {
 }
 
 export async function createDraftStandard(input: CreateDraftStandardInput): Promise<StandardRecord> {
-  const pool = getPool();
-  const { rows: versionRows } = await pool.query<{ next_version: number }>(
-    'SELECT COALESCE(MAX(version), 0) + 1 AS next_version FROM standards WHERE diagram_type_id = $1',
-    [input.diagramTypeId],
-  );
-  const nextVersion = versionRows[0].next_version;
+  const db = getDb();
+  return db.transaction().execute(async (trx) => {
+    const { next_version: nextVersion } = await trx
+      .selectFrom('standards')
+      .select(sql<number>`COALESCE(MAX(version), 0) + 1`.as('next_version'))
+      .where('diagram_type_id', '=', input.diagramTypeId)
+      .executeTakeFirstOrThrow();
 
-  const { rows } = await pool.query<StandardRow>(
-    `INSERT INTO standards
-       (diagram_type_id, version, status, allowed_shape_ids, mandatory_shape_ids,
-        allowed_icon_library_refs, color_palette, font_constraints, name, description)
-     VALUES ($1, $2, 'draft', $3, $4, $5, $6, $7, $8, $9)
-     RETURNING *`,
-    [
-      input.diagramTypeId,
-      nextVersion,
-      input.rules.allowedShapeIds,
-      input.rules.mandatoryShapeIds,
-      JSON.stringify(input.rules.allowedIconLibraryRefs),
-      JSON.stringify(input.rules.colorPalette),
-      input.rules.fontConstraints ? JSON.stringify(input.rules.fontConstraints) : null,
-      // Fall back to the same derivation the migration used, so no standard is ever nameless.
-      input.name ?? `${input.diagramTypeId} v${nextVersion}`,
-      input.description ?? null,
-    ],
-  );
-  return toRecord(rows[0]);
+    const row = await trx
+      .insertInto('standards')
+      .values({
+        diagram_type_id: input.diagramTypeId,
+        version: nextVersion,
+        status: 'draft',
+        allowed_icon_library_refs: JSON.stringify(input.rules.allowedIconLibraryRefs),
+        color_palette: JSON.stringify(input.rules.colorPalette),
+        font_constraints: input.rules.fontConstraints ? JSON.stringify(input.rules.fontConstraints) : null,
+        // Fall back to the same derivation the migration used, so no standard is ever nameless.
+        name: input.name ?? `${input.diagramTypeId} v${nextVersion}`,
+        description: input.description ?? null,
+      })
+      .returningAll()
+      .executeTakeFirstOrThrow();
+
+    await setStandardAllowedShapes(trx, row.id, input.rules.allowedShapeIds);
+    await setStandardMandatoryShapes(trx, row.id, input.rules.mandatoryShapeIds);
+
+    return toRecord(asStandardRow(row), { allowed: input.rules.allowedShapeIds, mandatory: input.rules.mandatoryShapeIds });
+  });
 }
 
 async function getStandardById(id: string): Promise<StandardRow> {
-  const pool = getPool();
-  const { rows } = await pool.query<StandardRow>('SELECT * FROM standards WHERE id = $1', [id]);
-  if (!rows[0]) {
+  const db = getDb();
+  const row = await db.selectFrom('standards').selectAll().where('id', '=', id).executeTakeFirst();
+  if (!row) {
     throw new StandardNotFoundError(`No standard with id ${id}`);
   }
-  return rows[0];
+  return asStandardRow(row);
+}
+
+async function toRecordWithShapes(row: StandardRow): Promise<StandardRecord> {
+  const db = getDb();
+  const [allowed, mandatory] = await Promise.all([
+    getStandardAllowedShapes(db, row.id),
+    getStandardMandatoryShapes(db, row.id),
+  ]);
+  return toRecord(row, { allowed, mandatory });
 }
 
 /** Publishes a draft Standard, retiring whatever was previously published for its diagram type. */
@@ -115,58 +149,64 @@ export async function publishStandard(id: string): Promise<StandardRecord> {
     throw new StandardStateError(`Standard ${id} is "${row.status}", only "draft" standards can be published`);
   }
 
-  const pool = getPool();
-  const client = await pool.connect();
-  try {
-    await client.query('BEGIN');
-    await client.query(
-      // Supersession: the more common way a standard leaves force. Missing retired_at here
-      // would leave most retired standards undated (contracts/api-standards-versions.md).
-      `UPDATE standards SET status = 'retired', retired_at = COALESCE(retired_at, now())
-       WHERE diagram_type_id = $1 AND status = 'published'`,
-      [row.diagram_type_id],
-    );
-    const { rows } = await client.query<StandardRow>(
-      `UPDATE standards SET status = 'published', published_at = now() WHERE id = $1 RETURNING *`,
-      [id],
-    );
-    await client.query('COMMIT');
-    return toRecord(rows[0]);
-  } catch (error) {
-    await client.query('ROLLBACK');
-    throw error;
-  } finally {
-    client.release();
-  }
+  const db = getDb();
+  return db.transaction().execute(async (trx) => {
+    // Supersession: the more common way a standard leaves force. Missing retired_at here would
+    // leave most retired standards undated (contracts/api-standards-versions.md).
+    await trx
+      .updateTable('standards')
+      .set({ status: 'retired', retired_at: sql<Date>`COALESCE(retired_at, ${currentTimestamp()})` })
+      .where('diagram_type_id', '=', row.diagram_type_id)
+      .where('status', '=', 'published')
+      .execute();
+    const published = await trx
+      .updateTable('standards')
+      .set({ status: 'published', published_at: currentTimestamp() })
+      .where('id', '=', id)
+      .returningAll()
+      .executeTakeFirstOrThrow();
+    return toRecordWithShapes(asStandardRow(published));
+  });
 }
 
 export async function retireStandard(id: string): Promise<StandardRecord> {
-  const pool = getPool();
-  const { rows } = await pool.query<StandardRow>(
-    `UPDATE standards SET status = 'retired', retired_at = COALESCE(retired_at, now())
-     WHERE id = $1 RETURNING *`,
-    [id],
-  );
-  if (!rows[0]) {
+  const db = getDb();
+  const row = await db
+    .updateTable('standards')
+    .set({ status: 'retired', retired_at: sql<Date>`COALESCE(retired_at, ${currentTimestamp()})` })
+    .where('id', '=', id)
+    .returningAll()
+    .executeTakeFirst();
+  if (!row) {
     throw new StandardNotFoundError(`No standard with id ${id}`);
   }
-  return toRecord(rows[0]);
+  return toRecordWithShapes(asStandardRow(row));
 }
 
 export async function getActiveStandard(diagramTypeId: string): Promise<StandardRecord | null> {
-  const pool = getPool();
-  const { rows } = await pool.query<StandardRow>(
-    `SELECT * FROM standards WHERE diagram_type_id = $1 AND status = 'published'`,
-    [diagramTypeId],
-  );
-  return rows[0] ? toRecord(rows[0]) : null;
+  const db = getDb();
+  const row = await db
+    .selectFrom('standards')
+    .selectAll()
+    .where('diagram_type_id', '=', diagramTypeId)
+    .where('status', '=', 'published')
+    .executeTakeFirst();
+  return row ? toRecordWithShapes(asStandardRow(row)) : null;
 }
 
 export async function listStandards(diagramTypeId: string): Promise<StandardRecord[]> {
-  const pool = getPool();
-  const { rows } = await pool.query<StandardRow>(
-    'SELECT * FROM standards WHERE diagram_type_id = $1 ORDER BY version DESC',
-    [diagramTypeId],
+  const db = getDb();
+  const rows = await db
+    .selectFrom('standards')
+    .selectAll()
+    .where('diagram_type_id', '=', diagramTypeId)
+    .orderBy('version', 'desc')
+    .execute();
+  const { allowed, mandatory } = await getStandardShapesBatch(
+    db,
+    rows.map((r) => r.id),
   );
-  return rows.map(toRecord);
+  return rows.map((row) =>
+    toRecord(asStandardRow(row), { allowed: allowed.get(row.id) ?? [], mandatory: mandatory.get(row.id) ?? [] }),
+  );
 }

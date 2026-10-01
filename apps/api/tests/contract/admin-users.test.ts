@@ -68,6 +68,22 @@ describe('Admin users API contract', () => {
     expect(response.json().user.active).toBe(false);
   });
 
+  /** Regression test (canvas-jtm.3): a personas-only PATCH (no role/active) used to 500 —
+   *  "syntax error at or near 'where'" — found via manual verification, not by this suite, since
+   *  the two tests above each always set role or active and never personas alone. The bug was in
+   *  updateUser's Kysely conversion: with both role and active omitted, `.set({role: undefined,
+   *  active: undefined})` compiled to a completely empty SET clause. */
+  it('sets personas without touching role or active', async () => {
+    const response = await app.inject({
+      method: 'PATCH',
+      url: `/admin/users/${architectId}`,
+      headers: { cookie: adminCookie },
+      payload: { personas: ['Solution', 'Technical'] },
+    });
+    expect(response.statusCode).toBe(200);
+    expect(response.json().user).toMatchObject({ role: 'architect', active: true, personas: ['Solution', 'Technical'] });
+  });
+
   it('returns an aggregated overview for the admin console', async () => {
     const response = await app.inject({ method: 'GET', url: '/admin/overview', headers: { cookie: adminCookie } });
     expect(response.statusCode).toBe(200);
