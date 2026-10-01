@@ -1,5 +1,5 @@
-import { getPool, closePool } from '../db/pool.js';
-import { closeDb } from '../db/client.js';
+import { closePool } from '../db/pool.js';
+import { closeDb, getDb } from '../db/client.js';
 import { hashPassword } from '../auth/password.js';
 import { runMigrations } from '../db/migrate.js';
 import { seedDiagramTypes } from './diagram-types.seed.js';
@@ -13,7 +13,7 @@ import { seedAiPersonas } from './ai-personas.seed.js';
  */
 async function seed(): Promise<void> {
   await runMigrations();
-  const pool = getPool();
+  const db = getDb();
 
   await seedDiagramTypes();
   await seedLibraries();
@@ -25,20 +25,16 @@ async function seed(): Promise<void> {
     role: 'admin' | 'architect' | 'viewer',
     password: string,
   ): Promise<string> {
-    const { rows: existing } = await pool.query<{ id: string }>('SELECT id FROM users WHERE email = $1', [email]);
-    if (existing[0]) return existing[0].id;
+    const existing = await db.selectFrom('users').select('id').where('email', '=', email).executeTakeFirst();
+    if (existing) return existing.id;
 
-    const { rows } = await pool.query<{ id: string }>(
-      'INSERT INTO users (name, email, role) VALUES ($1, $2, $3) RETURNING id',
-      [name, email, role],
-    );
+    const user = await db.insertInto('users').values({ name, email, role }).returning('id').executeTakeFirstOrThrow();
     const { hash, salt } = hashPassword(password);
-    await pool.query('INSERT INTO local_credentials (user_id, password_hash, password_salt) VALUES ($1, $2, $3)', [
-      rows[0].id,
-      hash,
-      salt,
-    ]);
-    return rows[0].id;
+    await db
+      .insertInto('local_credentials')
+      .values({ user_id: user.id, password_hash: hash, password_salt: salt })
+      .execute();
+    return user.id;
   }
 
   const adminId = await ensureUser('Admin', 'admin@example.com', 'admin', 'admin-dev-password');
@@ -49,28 +45,27 @@ async function seed(): Promise<void> {
   // diagram-level grant and zero project access", which is this feature's own primary scenario.
   await ensureUser('Guest', 'guest@example.com', 'viewer', 'guest-dev-password');
 
-  const { rows: existingProjects } = await pool.query('SELECT id FROM projects WHERE name = $1', [
-    'Smoke Test',
-  ]);
-  const projectId = existingProjects[0]
-    ? existingProjects[0].id
-    : (
-        await pool.query<{ id: string }>(
-          "INSERT INTO projects (name, owner_id) VALUES ('Smoke Test', $1) RETURNING id",
-          [adminId],
-        )
-      ).rows[0].id;
+  const existingProject = await db.selectFrom('projects').select('id').where('name', '=', 'Smoke Test').executeTakeFirst();
+  const projectId = existingProject
+    ? existingProject.id
+    : (await db.insertInto('projects').values({ name: 'Smoke Test', owner_id: adminId }).returning('id').executeTakeFirstOrThrow())
+        .id;
 
   // The architect needs an explicit grant now that project visibility follows ownership
   // (feature 007, FR-013a). Without this the seeded environment has a signed-in user who can see
   // no projects at all and therefore cannot do anything — which is exactly what the backfill
   // produces for every non-owner on a real installation, so it is worth seeing in dev.
-  await pool.query(
-    `INSERT INTO share_grants (subject_type, subject_id, grantee_user_id, access_level, granted_by_user_id)
-     VALUES ('project', $1, $2, 'edit', $3)
-     ON CONFLICT (subject_type, subject_id, grantee_user_id) DO NOTHING`,
-    [projectId, architectId, adminId],
-  );
+  await db
+    .insertInto('share_grants')
+    .values({
+      subject_type: 'project',
+      subject_id: projectId,
+      grantee_user_id: architectId,
+      access_level: 'edit',
+      granted_by_user_id: adminId,
+    })
+    .onConflict((oc) => oc.columns(['subject_type', 'subject_id', 'grantee_user_id']).doNothing())
+    .execute();
 
   console.log('Seed complete.');
   console.log(`  Admin login: admin@example.com / admin-dev-password`);
@@ -79,10 +74,10 @@ async function seed(): Promise<void> {
   console.log(`  Project id: ${projectId}`);
 }
 
-// canvas-jtm.4: seedDiagramTypes/seedLibraries now go through db/client.ts's Kysely pool, a
-// separate connection from db/pool.ts's — both must close, or this script leaks an open
-// connection on exit. Remove the closePool() half once every call site is off db/pool.ts
-// (canvas-jtm.6).
+// canvas-jtm.6: every application-level query in this script is on Kysely now, but
+// runMigrations() (db/migrate.ts) deliberately stays on db/pool.ts's raw pg.Pool — a dependency-
+// free migration runner is a permanent design choice (Constitution VI), not a conversion still
+// pending — so both pools still need closing here.
 seed()
   .then(() => Promise.all([closeDb(), closePool()]))
   .catch((error) => {

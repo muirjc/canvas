@@ -45,10 +45,10 @@ async function purge(): Promise<void> {
   }
 }
 
-// canvas-jtm.4: findExpiredDiagramIds/purgeExpiredDiagrams now go through db/client.ts's Kysely
-// pool, a separate connection from db/pool.ts's — both must close, or this script leaks an open
-// connection on exit. Remove the closePool() half once every call site is off db/pool.ts
-// (canvas-jtm.6).
+// canvas-jtm.6: findExpiredDiagramIds/purgeExpiredDiagrams are on Kysely, but runMigrations()
+// (db/migrate.ts) deliberately stays on db/pool.ts's raw pg.Pool — a dependency-free migration
+// runner is a permanent design choice (Constitution VI), not a conversion still pending — so both
+// pools still need closing here.
 purge()
   .then(() => Promise.all([closeDb(), closePool()]))
   .catch((error) => {

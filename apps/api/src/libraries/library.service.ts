@@ -1,6 +1,5 @@
 import { sql } from 'kysely';
 import { loadLibrary, searchIcons, type Icon, type IconShapeLibraryManifest } from '@canvas/diagram-core';
-import { getPool } from '../db/pool.js';
 import { getDb } from '../db/client.js';
 import { getDiagramTypePaletteLibraries, getIconKeywordsBatch, setLibraryIconKeywords } from '../db/array-columns.js';
 
@@ -115,9 +114,11 @@ export async function searchIconsInLibrary(libraryId: string, version: string, q
  * left for the caller to treat as "no artwork available" rather than an error (FR-005-style
  * leniency — a stale or since-deleted icon shouldn't fail the whole export).
  *
- * Deliberately NOT yet converted to Kysely (canvas-jtm.3 scope: array-column redesign only — this
- * function has no array-column dependency, just a Postgres-specific `UNNEST`-for-multi-column-IN
- * technique, which is canvas-jtm.4's construct-cleanup territory).
+ * canvas-jtm.6: the original raw SQL expressed "any of these N (library_id, library_version, id)
+ * triples" via Postgres's `UNNEST`-for-multi-column-IN trick. Kysely has no portable equivalent
+ * for that, so this is an OR-of-ANDs instead — one AND'd triple per ref, each a plain equality
+ * match on the composite key — which is both portable and, for the "typically few" ref counts
+ * this function is documented to expect, not a meaningfully different query plan.
  */
 export async function resolveIconAssets(
   refs: { libraryId: string; libraryVersion: string; iconId: string }[],
@@ -125,17 +126,22 @@ export async function resolveIconAssets(
   const result = new Map<string, string>();
   if (refs.length === 0) return result;
 
-  const libraryIds = refs.map((r) => r.libraryId);
-  const libraryVersions = refs.map((r) => r.libraryVersion);
-  const iconIds = refs.map((r) => r.iconId);
-  const pool = getPool();
-  const { rows } = await pool.query<{ library_id: string; library_version: string; id: string; asset_ref: string }>(
-    `SELECT library_id, library_version, id, asset_ref FROM icons
-     WHERE (library_id, library_version, id) IN (
-       SELECT * FROM UNNEST($1::text[], $2::text[], $3::text[])
-     )`,
-    [libraryIds, libraryVersions, iconIds],
-  );
+  const db = getDb();
+  const rows = await db
+    .selectFrom('icons')
+    .select(['library_id', 'library_version', 'id', 'asset_ref'])
+    .where((eb) =>
+      eb.or(
+        refs.map((ref) =>
+          eb.and([
+            eb('library_id', '=', ref.libraryId),
+            eb('library_version', '=', ref.libraryVersion),
+            eb('id', '=', ref.iconId),
+          ]),
+        ),
+      ),
+    )
+    .execute();
   for (const row of rows) {
     result.set(`${row.library_id}@${row.library_version}@${row.id}`, row.asset_ref);
   }
