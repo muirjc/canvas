@@ -4,11 +4,11 @@ import { registerApiDocsRoutes } from '../../src/docs/api-docs.routes.js';
 
 /**
  * Unit coverage for canvas-docs' OpenAPI/Swagger wiring (api-docs.routes.ts). A bare Fastify
- * instance with only this one plugin registered -- same minimal pattern as idp-proxy.test.ts/
- * oidc.test.ts -- since neither @fastify/swagger nor @fastify/swagger-ui touch the database at
- * all, unlike the app.ts-level `enableApiDocs` gate this file deliberately does NOT re-test (that
- * belongs to config.test.ts's own `loadConfig() enableApiDocs` coverage; this file only tests
- * what registerApiDocsRoutes itself does once app.ts has decided to call it).
+ * instance with only this one plugin registered -- same minimal pattern as oidc.test.ts -- since
+ * neither @fastify/swagger nor @fastify/swagger-ui touch the database at all, unlike the
+ * app.ts-level `enableApiDocs` gate this file deliberately does NOT re-test (that belongs to
+ * config.test.ts's own `loadConfig() enableApiDocs` coverage; this file only tests what
+ * registerApiDocsRoutes itself does once app.ts has decided to call it).
  */
 let app: FastifyInstance;
 
