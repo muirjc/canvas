@@ -5,7 +5,6 @@ import { loadConfig, type AppConfig } from './config.js';
 import { registerApiDocsRoutes } from './docs/api-docs.routes.js';
 import { registerSession, registerSessionInfoRoutes } from './auth/session.js';
 import { registerOidcRoutes } from './auth/oidc.js';
-import { registerIdpProxyRoutes } from './auth/idp-proxy.routes.js';
 import { registerLocalAuthRoutes } from './auth/local.js';
 import { registerDiagramRoutes } from './diagrams/diagram.routes.js';
 import { registerDiagramTypeRoutes } from './diagrams/diagram-type.routes.js';
@@ -83,7 +82,6 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
   // they're registered unconditionally -- see registerSessionInfoRoutes's own doc comment.
   await registerSessionInfoRoutes(app);
   await registerOidcRoutes(app, config);
-  await registerIdpProxyRoutes(app, config);
   if (config.allowLocalAuth) {
     await registerLocalAuthRoutes(app);
   }

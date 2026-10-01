@@ -1,20 +1,16 @@
 import Fastify from 'fastify';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import * as client from 'openid-client';
 import {
   buildEndSessionUrl,
   extractRealmRoles,
   mapRealmRolesToUserRole,
   registerOidcRoutes,
-  rewriteToInternalUrl,
 } from '../../src/auth/oidc.js';
 import type { AppConfig } from '../../src/config.js';
 
 /**
- * canvas-ycu.1: `client.discovery()` itself is mocked -- a real call would need a real IdP.
- * `importOriginal` keeps everything else from the real `openid-client` module (in particular the
- * real `client.customFetch` symbol, so tests below can assert against the exact symbol key
- * `registerOidcRoutes` sets on `discoveryOptions`).
+ * `client.discovery()` itself is mocked -- a real call would need a real IdP. `importOriginal`
+ * keeps everything else from the real `openid-client` module.
  */
 const discoveryMock = vi.fn();
 vi.mock('openid-client', async (importOriginal) => {
@@ -85,41 +81,9 @@ describe('mapRealmRolesToUserRole()', () => {
 });
 
 /**
- * canvas-ycu.1: pure rewrite helper extracted out of the `customFetch` closure in
- * `registerOidcRoutes` specifically so it's unit-testable without mocking `client.discovery()`.
- */
-describe('rewriteToInternalUrl()', () => {
-  it('rewrites protocol+host to the internal URL, preserving path and query', () => {
-    const rewritten = rewriteToInternalUrl(
-      'https://public.example.com/realms/CanvasRealm/protocol/openid-connect/token?foo=bar',
-      'http://keycloak.internal.example.com:8080',
-    );
-    expect(rewritten.href).toBe(
-      'http://keycloak.internal.example.com:8080/realms/CanvasRealm/protocol/openid-connect/token?foo=bar',
-    );
-  });
-
-  it('preserves the hash fragment too', () => {
-    const rewritten = rewriteToInternalUrl(
-      'https://public.example.com/idp/realms/CanvasRealm#section',
-      'https://keycloak.internal.example.com',
-    );
-    expect(rewritten.href).toBe('https://keycloak.internal.example.com/idp/realms/CanvasRealm#section');
-  });
-
-  it('accepts URL instances for both arguments', () => {
-    const rewritten = rewriteToInternalUrl(
-      new URL('https://public.example.com/idp/realms/CanvasRealm'),
-      new URL('https://keycloak.internal.example.com'),
-    );
-    expect(rewritten.href).toBe('https://keycloak.internal.example.com/idp/realms/CanvasRealm');
-  });
-});
-
-/**
  * canvas-252: pure URL builder for OIDC RP-Initiated Logout, extracted out of the
- * `app.buildOidcLogoutUrl` closure in `registerOidcRoutes` the same way `rewriteToInternalUrl`
- * was extracted -- directly unit-testable, no `client.discovery()`/Configuration mocking needed.
+ * `app.buildOidcLogoutUrl` closure in `registerOidcRoutes` -- directly unit-testable, no
+ * `client.discovery()`/Configuration mocking needed.
  */
 describe('buildEndSessionUrl()', () => {
   it('sets client_id, id_token_hint, and post_logout_redirect_uri as query params', () => {
@@ -171,102 +135,12 @@ describe('buildEndSessionUrl()', () => {
 });
 
 /**
- * canvas-ycu.1: end-to-end coverage of `registerOidcRoutes`'s internal/public issuer split,
- * through the actual `client.discovery()` call site (mocked -- see the module-level `vi.mock`
- * above) rather than only the extracted `rewriteToInternalUrl()` helper in isolation.
- */
-describe('registerOidcRoutes() internal/public issuer split', () => {
-  function oidcConfig(overrides: Partial<AppConfig['oidc']> = {}): AppConfig {
-    return {
-      port: 3000,
-      databaseUrl: 'unused',
-      sessionSecret: 'unused-but-at-least-32-characters-long',
-      oidc: {
-        issuerUrl: 'https://public.example.com',
-        clientId: 'canvas-client',
-        clientSecret: 'secret',
-        redirectUri: 'http://localhost:5173/callback',
-        ...overrides,
-      },
-      allowLocalAuth: false,
-      webOrigins: ['http://localhost:5173'],
-      cookieSecure: false,
-      cookieSameSite: 'lax',
-      enableApiDocs: false,
-    };
-  }
-
-  beforeEach(() => {
-    discoveryMock.mockReset();
-    discoveryMock.mockResolvedValue({});
-  });
-
-  it('passes no discoveryOptions when internalIssuerUrl is unset (existing behavior)', async () => {
-    const app = Fastify();
-    await registerOidcRoutes(app, oidcConfig());
-    await app.ready();
-
-    expect(discoveryMock).toHaveBeenCalledTimes(1);
-    const [issuer, clientId, clientSecret, extra, discoveryOptions] = discoveryMock.mock.calls[0];
-    expect(issuer).toEqual(new URL('https://public.example.com'));
-    expect(clientId).toBe('canvas-client');
-    expect(clientSecret).toBe('secret');
-    expect(extra).toBeUndefined();
-    expect(discoveryOptions).toBeUndefined();
-
-    await app.close();
-  });
-
-  it('sets a customFetch rewriting requests to the internal URL when internalIssuerUrl is set', async () => {
-    const app = Fastify();
-    await registerOidcRoutes(
-      app,
-      oidcConfig({ internalIssuerUrl: 'https://keycloak.internal.example.com' }),
-    );
-    await app.ready();
-
-    expect(discoveryMock).toHaveBeenCalledTimes(1);
-    const [, , , , discoveryOptions] = discoveryMock.mock.calls[0];
-    expect(discoveryOptions).toBeDefined();
-
-    // Regression coverage for the exact bug class already found-and-fixed once in this code:
-    // deciding whether to pass discoveryOptions via `Object.keys(discoveryOptions).length` misses
-    // the symbol-keyed `customFetch` property entirely -- with `execute` unset (issuer is https,
-    // so allowInsecureRequests is never added), `Object.keys(discoveryOptions).length` is 0 even
-    // though a real, meaningful `customFetch` rewrite is present. The fix (`hasDiscoveryOptions`)
-    // must still pass discoveryOptions through in exactly this shape.
-    expect(Object.keys(discoveryOptions as object).length).toBe(0);
-    const customFetch = (discoveryOptions as Record<symbol, unknown>)[client.customFetch];
-    expect(typeof customFetch).toBe('function');
-
-    const fetchSpy = vi.fn().mockResolvedValue(new Response('ok'));
-    const originalFetch = global.fetch;
-    global.fetch = fetchSpy as unknown as typeof global.fetch;
-    try {
-      await (customFetch as (url: string, init?: RequestInit) => Promise<Response>)(
-        'https://public.example.com/realms/CanvasRealm/.well-known/openid-configuration?x=1',
-      );
-    } finally {
-      global.fetch = originalFetch;
-    }
-
-    expect(fetchSpy).toHaveBeenCalledTimes(1);
-    const [calledUrl] = fetchSpy.mock.calls[0];
-    expect(new URL(calledUrl as string | URL).href).toBe(
-      'https://keycloak.internal.example.com/realms/CanvasRealm/.well-known/openid-configuration?x=1',
-    );
-
-    await app.close();
-  });
-});
-
-/**
  * canvas-252: `registerOidcRoutes` decorates `app.buildOidcLogoutUrl` only when the discovered
  * issuer metadata actually advertises an `end_session_endpoint` -- read defensively (optional
- * chaining + try/catch) since `oidcConfig.serverMetadata` may be absent entirely (this file's own
- * bare `discoveryMock.mockResolvedValue({})`, used throughout the sibling describe block above)
- * or may itself throw. Either way `session.ts`'s `/auth/logout` must fall back to local-session-
- * only logout exactly as it did before this feature existed.
+ * chaining + try/catch) since `oidcConfig.serverMetadata` may be absent entirely (a bare
+ * `discoveryMock.mockResolvedValue({})`, as this describe block's own tests use below) or may
+ * itself throw. Either way `session.ts`'s `/auth/logout` must fall back to local-session-only
+ * logout exactly as it did before this feature existed.
  */
 describe('registerOidcRoutes() buildOidcLogoutUrl decoration (canvas-252)', () => {
   function oidcConfig(overrides: Partial<AppConfig['oidc']> = {}): AppConfig {
