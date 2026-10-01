@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { sql } from 'kysely';
 import type { StandardRules, IconLibraryRef, ColorPaletteEntry, FontConstraints, NodeShape } from '@canvas/diagram-core';
-import { getDb } from '../db/client.js';
+import { getDb, type DbExecutor } from '../db/client.js';
 import { currentTimestamp } from '../db/sql-helpers.js';
 import {
   getStandardAllowedShapes,
@@ -135,11 +135,20 @@ async function getStandardById(id: string): Promise<StandardRow> {
   return asStandardRow(row);
 }
 
-async function toRecordWithShapes(row: StandardRow): Promise<StandardRecord> {
-  const db = getDb();
+/**
+ * Takes an optional `DbExecutor` (defaulting to the standalone `getDb()` singleton) so a caller
+ * already inside a transaction can pass its own `trx` instead — required, not just tidier:
+ * `publishStandard` used to always call this with the implicit standalone `db`, which under
+ * Postgres's connection-pooled `pg.Pool` silently ran on a second, independent connection
+ * alongside the still-open outer transaction; under SQLite's single-connection `better-sqlite3`,
+ * that second query can never acquire the one connection the open transaction is still holding —
+ * a real deadlock, confirmed live (every `publishStandard` call hung until Vitest's own test
+ * timeout fired).
+ */
+async function toRecordWithShapes(row: StandardRow, executor: DbExecutor = getDb()): Promise<StandardRecord> {
   const [allowed, mandatory] = await Promise.all([
-    getStandardAllowedShapes(db, row.id),
-    getStandardMandatoryShapes(db, row.id),
+    getStandardAllowedShapes(executor, row.id),
+    getStandardMandatoryShapes(executor, row.id),
   ]);
   return toRecord(row, { allowed, mandatory });
 }
@@ -167,7 +176,7 @@ export async function publishStandard(id: string): Promise<StandardRecord> {
       .where('id', '=', id)
       .returningAll()
       .executeTakeFirstOrThrow();
-    return toRecordWithShapes(asStandardRow(published));
+    return toRecordWithShapes(asStandardRow(published), trx);
   });
 }
 

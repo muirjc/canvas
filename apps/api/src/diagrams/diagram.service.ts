@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { createEmptyDiagramModel, getDslFamily, validate, type DiagramModel, type ParseError } from '@canvas/diagram-core';
 import { getDb } from '../db/client.js';
-import { caseInsensitiveLike } from '../db/sql-helpers.js';
+import { caseInsensitiveLike, toDate } from '../db/sql-helpers.js';
 import { recordDiagramVersion } from './version.service.js';
 import { getActiveStandard } from '../standards/standard.service.js';
 import type { Violation } from '@canvas/diagram-core';
@@ -382,7 +382,7 @@ export async function restoreDiagram(id: string, restoredByUserId: string): Prom
   if (!row || row.deleted_at === null) {
     throw new DiagramNotFoundError(`No soft-deleted diagram with id ${id}`);
   }
-  if (!(row.deleted_at > retentionBoundary())) {
+  if (!(toDate(row.deleted_at) > retentionBoundary())) {
     throw new DiagramRetentionExpiredError(
       "This diagram's recovery window has passed and it is no longer available.",
     );

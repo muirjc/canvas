@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto';
 import type { FastifyInstance } from 'fastify';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { buildTestApp, closeTestDb, resetDatabase, seedFlowchartDiagramType, seedProject, seedUser } from '../helpers/setup.js';
-import { getPool } from '../../src/db/pool.js';
+import { getDb } from '../../src/db/client.js';
 import { findExpiredDiagramIds, purgeExpiredDiagrams } from '../../src/diagrams/diagram.service.js';
 
 /**
@@ -63,9 +63,9 @@ describe('purgeExpiredDiagrams()', () => {
    * [Array(1)]`) despite being reliably green in every local run.
    */
   async function softDeleteAndAge(id: string, ageDays: number): Promise<void> {
-    const pool = getPool();
+    const db = getDb();
     const deletedAt = new Date(Date.now() - ageDays * 24 * 60 * 60 * 1000);
-    await pool.query('UPDATE diagrams SET deleted_at = $2 WHERE id = $1', [id, deletedAt]);
+    await db.updateTable('diagrams').set({ deleted_at: deletedAt }).where('id', '=', id).execute();
   }
 
   it('leaves an active (never-deleted) diagram untouched', async () => {
@@ -74,7 +74,7 @@ describe('purgeExpiredDiagrams()', () => {
     const result = await purgeExpiredDiagrams();
 
     expect(result.purgedDiagramIds).toEqual([]);
-    const { rows } = await getPool().query('SELECT 1 FROM diagrams WHERE id = $1', [id]);
+    const rows = await getDb().selectFrom('diagrams').select('id').where('id', '=', id).execute();
     expect(rows).toHaveLength(1);
   });
 
@@ -85,7 +85,7 @@ describe('purgeExpiredDiagrams()', () => {
     expect(await findExpiredDiagramIds()).toEqual([]);
     const result = await purgeExpiredDiagrams();
     expect(result.purgedDiagramIds).toEqual([]);
-    const { rows } = await getPool().query('SELECT 1 FROM diagrams WHERE id = $1', [id]);
+    const rows = await getDb().selectFrom('diagrams').select('id').where('id', '=', id).execute();
     expect(rows).toHaveLength(1);
   });
 
@@ -97,7 +97,7 @@ describe('purgeExpiredDiagrams()', () => {
     const result = await purgeExpiredDiagrams();
 
     expect(result.purgedDiagramIds).toEqual([id]);
-    const { rows } = await getPool().query('SELECT 1 FROM diagrams WHERE id = $1', [id]);
+    const rows = await getDb().selectFrom('diagrams').select('id').where('id', '=', id).execute();
     expect(rows).toHaveLength(0);
   });
 
@@ -109,41 +109,50 @@ describe('purgeExpiredDiagrams()', () => {
   });
 
   it('deletes dependent diagram_versions, diagram_chats, chat_messages, and share_grants along with the diagram', async () => {
-    const pool = getPool();
+    const db = getDb();
     const id = await createDiagram('Diagram With Dependents');
 
     const otherUserId = (await seedUser({ email: 'other@example.com', password: 'other-pass' })).id;
-    await pool.query(
-      `INSERT INTO share_grants (id, subject_type, subject_id, grantee_user_id, access_level, granted_by_user_id)
-       VALUES ($1, 'diagram', $2, $3, 'view', $4)`,
-      [randomUUID(), id, otherUserId, ownerId],
-    );
+    await db
+      .insertInto('share_grants')
+      .values({
+        id: randomUUID(),
+        subject_type: 'diagram',
+        subject_id: id,
+        grantee_user_id: otherUserId,
+        access_level: 'view',
+        granted_by_user_id: ownerId,
+      })
+      .execute();
 
-    const { rows: chatRows } = await pool.query<{ id: string }>(
-      'INSERT INTO diagram_chats (id, diagram_id) VALUES ($1, $2) RETURNING id',
-      [randomUUID(), id],
-    );
-    const chatId = chatRows[0].id;
-    await pool.query(
-      "INSERT INTO chat_messages (id, diagram_chat_id, role, content) VALUES ($1, $2, 'user', 'hello')",
-      [randomUUID(), chatId],
-    );
+    const chatId = randomUUID();
+    await db.insertInto('diagram_chats').values({ id: chatId, diagram_id: id }).execute();
+    await db
+      .insertInto('chat_messages')
+      .values({ id: randomUUID(), diagram_chat_id: chatId, role: 'user', content: 'hello' })
+      .execute();
 
     await softDeleteAndAge(id, 45);
 
     const result = await purgeExpiredDiagrams();
     expect(result.purgedDiagramIds).toEqual([id]);
 
-    const { rows: versionRows } = await pool.query('SELECT 1 FROM diagram_versions WHERE diagram_id = $1', [id]);
+    const versionRows = await db.selectFrom('diagram_versions').select('id').where('diagram_id', '=', id).execute();
     expect(versionRows).toHaveLength(0);
-    const { rows: chatRowsAfter } = await pool.query('SELECT 1 FROM diagram_chats WHERE diagram_id = $1', [id]);
+    const chatRowsAfter = await db.selectFrom('diagram_chats').select('id').where('diagram_id', '=', id).execute();
     expect(chatRowsAfter).toHaveLength(0);
-    const { rows: messageRowsAfter } = await pool.query('SELECT 1 FROM chat_messages WHERE diagram_chat_id = $1', [chatId]);
+    const messageRowsAfter = await db
+      .selectFrom('chat_messages')
+      .select('id')
+      .where('diagram_chat_id', '=', chatId)
+      .execute();
     expect(messageRowsAfter).toHaveLength(0);
-    const { rows: grantRowsAfter } = await pool.query(
-      "SELECT 1 FROM share_grants WHERE subject_type = 'diagram' AND subject_id = $1",
-      [id],
-    );
+    const grantRowsAfter = await db
+      .selectFrom('share_grants')
+      .select('id')
+      .where('subject_type', '=', 'diagram')
+      .where('subject_id', '=', id)
+      .execute();
     expect(grantRowsAfter).toHaveLength(0);
   });
 
@@ -159,7 +168,7 @@ describe('purgeExpiredDiagrams()', () => {
     const result = await purgeExpiredDiagrams();
 
     expect(result.purgedDiagramIds.sort()).toEqual([expiredOne, expiredTwo].sort());
-    const { rows } = await getPool().query('SELECT id FROM diagrams ORDER BY name');
+    const rows = await getDb().selectFrom('diagrams').select('id').orderBy('name').execute();
     expect(rows.map((r) => r.id).sort()).toEqual([stillActive, withinWindow].sort());
   });
 });

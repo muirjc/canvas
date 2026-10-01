@@ -1,6 +1,7 @@
 import type { FastifyInstance } from 'fastify';
 import { requireAuth } from '../auth/middleware.js';
 import { getDb } from '../db/client.js';
+import { dbBoolean } from '../db/sql-helpers.js';
 
 /**
  * A minimal, non-admin-gated user lookup — any authenticated user needs this to share a diagram
@@ -25,7 +26,7 @@ export async function registerUserLookupRoutes(app: FastifyInstance): Promise<vo
         .selectFrom('users')
         .select(['id', 'name', 'email'])
         .where('email', '=', request.query.email)
-        .where('active', '=', true)
+        .where('active', '=', dbBoolean(true))
         .executeTakeFirst();
       reply.send({ user: user ?? null });
     },

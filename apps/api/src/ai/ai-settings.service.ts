@@ -1,5 +1,5 @@
 import { getDb } from '../db/client.js';
-import { currentTimestamp } from '../db/sql-helpers.js';
+import { currentTimestamp, dbBoolean, fromDbBoolean } from '../db/sql-helpers.js';
 
 export type AiProviderKind = 'anthropic' | 'openai' | 'mock' | 'unconfigured';
 
@@ -31,7 +31,7 @@ export function resolveAiProviderKind(env: NodeJS.ProcessEnv = process.env): AiP
 export async function getAiSettings(): Promise<AiSettings> {
   const db = getDb();
   const row = await db.selectFrom('ai_settings').select('chat_enabled').executeTakeFirstOrThrow();
-  return { chatEnabled: row.chat_enabled, provider: resolveAiProviderKind() };
+  return { chatEnabled: fromDbBoolean(row.chat_enabled), provider: resolveAiProviderKind() };
 }
 
 /** `provider` is read-only/derived from the environment, not stored — only `chatEnabled` is ever
@@ -45,7 +45,7 @@ export async function setAiSettings(input: SetAiSettingsInput): Promise<AiSettin
   const db = getDb();
   await db
     .updateTable('ai_settings')
-    .set({ chat_enabled: input.chatEnabled, updated_at: currentTimestamp() })
+    .set({ chat_enabled: dbBoolean(input.chatEnabled), updated_at: currentTimestamp() })
     .execute();
   return getAiSettings();
 }

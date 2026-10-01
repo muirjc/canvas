@@ -5,6 +5,7 @@ import { loadConfig } from '../../src/config.js';
 import { closePool, getPool } from '../../src/db/pool.js';
 import { closeDb, getDb } from '../../src/db/client.js';
 import { setDiagramTypePersonas, setDiagramTypePaletteLibraries } from '../../src/db/array-columns.js';
+import { dbBoolean } from '../../src/db/sql-helpers.js';
 import { hashPassword } from '../../src/auth/password.js';
 import { runMigrations } from '../../src/db/migrate.js';
 
@@ -16,7 +17,46 @@ export async function buildTestApp(): Promise<FastifyInstance> {
   return buildApp({ config, logger: false });
 }
 
-export async function resetDatabase(): Promise<void> {
+/**
+ * canvas-jtm.7: dialect-branches between Postgres's `TRUNCATE ... CASCADE` (fast, and already
+ * handles every FK-dependent table via CASCADE with no explicit ordering) and SQLite, which has no
+ * `TRUNCATE` at all — the portable replacement is a dependency-ordered sequence of `DELETE FROM`
+ * statements via Kysely (not raw SQL, so one definition works against either engine's actual
+ * driver). `diagrams.current_version_id` / `diagram_versions.diagram_id` form a real FK cycle
+ * (0001_init.sql's own late `ALTER TABLE ... ADD CONSTRAINT`, mirrored as an inline forward
+ * reference in the SQLite migration) — nulled out first so neither delete violates the other's FK.
+ */
+async function resetDatabaseSqlite(): Promise<void> {
+  const db = getDb();
+  await db.updateTable('diagrams').set({ current_version_id: null }).execute();
+  await db.deleteFrom('ai_persona_reference_material_families').execute();
+  await db.deleteFrom('chat_messages').execute();
+  await db.deleteFrom('diagram_chats').execute();
+  await db.deleteFrom('ai_persona_reference_material').execute();
+  await db.deleteFrom('ai_personas').execute();
+  await db.deleteFrom('share_grants').execute();
+  await db.deleteFrom('diagram_versions').execute();
+  await db.deleteFrom('diagrams').execute();
+  await db.deleteFrom('standard_allowed_shapes').execute();
+  await db.deleteFrom('standard_mandatory_shapes').execute();
+  await db.deleteFrom('standards').execute();
+  await db.deleteFrom('icon_keywords').execute();
+  await db.deleteFrom('icons').execute();
+  await db.deleteFrom('icon_libraries').execute();
+  await db.deleteFrom('diagram_type_palette_libraries').execute();
+  await db.deleteFrom('diagram_types_personas').execute();
+  await db.deleteFrom('templates').execute();
+  await db.deleteFrom('diagram_types').execute();
+  await db.deleteFrom('local_credentials').execute();
+  await db.deleteFrom('users_personas').execute();
+  await db.deleteFrom('projects').execute();
+  await db.deleteFrom('users').execute();
+  // ai_settings is a singleton row (CHECK (id = 1) constraint) seeded by the migration, not
+  // recreated by app code — reset its value instead of deleting so the row keeps existing.
+  await db.updateTable('ai_settings').set({ chat_enabled: dbBoolean(false) }).execute();
+}
+
+async function resetDatabasePostgres(): Promise<void> {
   const pool = getPool();
   // canvas-uw8: defense-in-depth on top of config.ts's own hard test-mode override — refuses to
   // run this TRUNCATE against anything that isn't clearly a test database, so a future code path
@@ -45,6 +85,11 @@ export async function resetDatabase(): Promise<void> {
   await pool.query('UPDATE ai_settings SET chat_enabled = false');
 }
 
+export async function resetDatabase(): Promise<void> {
+  const config = loadConfig();
+  return config.dbClient === 'sqlite' ? resetDatabaseSqlite() : resetDatabasePostgres();
+}
+
 export async function closeTestDb(): Promise<void> {
   // db/client.ts (Kysely) wraps its own separate pg.Pool instance alongside db/pool.ts's — both
   // must close, or a connection leaks past test teardown. Both stay needed permanently
@@ -63,17 +108,15 @@ interface SeedUserOptions {
 }
 
 export async function seedUser(options: SeedUserOptions): Promise<{ id: string }> {
-  const pool = getPool();
-  const { rows } = await pool.query<{ id: string }>(
-    `INSERT INTO users (id, name, email, role) VALUES ($1, $2, $3, $4) RETURNING id`,
-    [randomUUID(), options.name ?? options.email, options.email, options.role ?? 'architect'],
-  );
+  const db = getDb();
+  const id = randomUUID();
+  await db
+    .insertInto('users')
+    .values({ id, name: options.name ?? options.email, email: options.email, role: options.role ?? 'architect' })
+    .execute();
   const { hash, salt } = hashPassword(options.password);
-  await pool.query(
-    'INSERT INTO local_credentials (user_id, password_hash, password_salt) VALUES ($1, $2, $3)',
-    [rows[0].id, hash, salt],
-  );
-  return rows[0];
+  await db.insertInto('local_credentials').values({ user_id: id, password_hash: hash, password_salt: salt }).execute();
+  return { id };
 }
 
 const ALL_PERSONAS = ['Business', 'Enterprise', 'Solution', 'Technical'];
@@ -126,12 +169,10 @@ export async function seedDiagramType(id: string, dslFamily: string, name = id):
  * a user first is a precondition of every caller anyway.
  */
 export async function seedProject(name = 'Test Project', ownerId?: string): Promise<{ id: string }> {
-  const pool = getPool();
-  const owner = ownerId ?? (await pool.query<{ id: string }>('SELECT id FROM users ORDER BY created_at LIMIT 1')).rows[0]?.id;
+  const db = getDb();
+  const owner = ownerId ?? (await db.selectFrom('users').select('id').orderBy('created_at').limit(1).executeTakeFirst())?.id;
   if (!owner) throw new Error('seedProject needs a user to own the project — call seedUser first.');
-  const { rows } = await pool.query<{ id: string }>(
-    'INSERT INTO projects (id, name, owner_id) VALUES ($1, $2, $3) RETURNING id',
-    [randomUUID(), name, owner],
-  );
-  return rows[0];
+  const id = randomUUID();
+  await db.insertInto('projects').values({ id, name, owner_id: owner }).execute();
+  return { id };
 }

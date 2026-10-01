@@ -15,7 +15,11 @@ export async function listLibraries(): Promise<LibrarySummary[]> {
   const rows = await db
     .selectFrom('icon_libraries as l')
     .leftJoin('icons as i', (join) => join.onRef('i.library_id', '=', 'l.id').onRef('i.library_version', '=', 'l.version'))
-    .select(['l.id', 'l.version', 'l.license', sql<string>`COUNT(i.id)::text`.as('icon_count')])
+    // Plain COUNT(), no `::text` cast — that cast is Postgres-only syntax (SQLite has no `::`
+    // cast operator) and was never load-bearing: `Number(r.icon_count)` below already normalizes
+    // whichever runtime representation each driver hands back (`pg` returns a `bigint` COUNT as a
+    // string by default; better-sqlite3 returns a plain JS number).
+    .select(['l.id', 'l.version', 'l.license', sql<string | number>`COUNT(i.id)`.as('icon_count')])
     .groupBy(['l.id', 'l.version', 'l.license'])
     .orderBy('l.id')
     .orderBy('l.version')

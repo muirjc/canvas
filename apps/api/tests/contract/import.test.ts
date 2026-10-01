@@ -1,7 +1,6 @@
 import type { FastifyInstance } from 'fastify';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { buildTestApp, closeTestDb, resetDatabase, seedProject, seedUser } from '../helpers/setup.js';
-import { getPool } from '../../src/db/pool.js';
 import { getDb } from '../../src/db/client.js';
 import { setDiagramTypePersonas, setDiagramTypePaletteLibraries } from '../../src/db/array-columns.js';
 
@@ -26,15 +25,15 @@ describe('Import API contract', () => {
 
   beforeEach(async () => {
     await resetDatabase();
-    const pool = getPool();
-    await pool.query(
-      `INSERT INTO diagram_types (id, name, abstraction_level, dsl_family)
-       VALUES
-         ('flowchart', 'Generic Flowchart', 'N/A', 'flowchart'),
-         ('c4-context', 'C4 Context', 'Context', 'c4'),
-         ('sequence', 'Sequence Diagram', 'N/A', 'sequence')`,
-    );
     const db = getDb();
+    await db
+      .insertInto('diagram_types')
+      .values([
+        { id: 'flowchart', name: 'Generic Flowchart', abstraction_level: 'N/A', dsl_family: 'flowchart' },
+        { id: 'c4-context', name: 'C4 Context', abstraction_level: 'Context', dsl_family: 'c4' },
+        { id: 'sequence', name: 'Sequence Diagram', abstraction_level: 'N/A', dsl_family: 'sequence' },
+      ])
+      .execute();
     await setDiagramTypePersonas(db, 'flowchart', ['Business', 'Enterprise', 'Solution', 'Technical']);
     await setDiagramTypePaletteLibraries(db, 'flowchart', ['generic']);
     await setDiagramTypePersonas(db, 'c4-context', ['Technical']);

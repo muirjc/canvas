@@ -2,7 +2,6 @@ import type { FastifyInstance } from 'fastify';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { azureIconsManifest, awsIconsManifest, genericShapesManifest } from '@canvas/diagram-core';
 import { buildTestApp, closeTestDb, resetDatabase, seedUser } from '../helpers/setup.js';
-import { getPool } from '../../src/db/pool.js';
 import { getDb } from '../../src/db/client.js';
 import { setDiagramTypePersonas, setDiagramTypePaletteLibraries } from '../../src/db/array-columns.js';
 
@@ -38,12 +37,11 @@ describe('Libraries API contract', () => {
     adminCookie = await login('admin@example.com', 'admin-pass');
     architectCookie = await login('architect@example.com', 'architect-pass');
 
-    const pool = getPool();
-    await pool.query(
-      `INSERT INTO diagram_types (id, name, abstraction_level, dsl_family)
-       VALUES ('cloud-infrastructure', 'Cloud Infrastructure', 'N/A', 'architecture')`,
-    );
     const db = getDb();
+    await db
+      .insertInto('diagram_types')
+      .values({ id: 'cloud-infrastructure', name: 'Cloud Infrastructure', abstraction_level: 'N/A', dsl_family: 'architecture' })
+      .execute();
     await setDiagramTypePersonas(db, 'cloud-infrastructure', ['Technical']);
     await setDiagramTypePaletteLibraries(db, 'cloud-infrastructure', ['azure-icons', 'aws-icons']);
   });

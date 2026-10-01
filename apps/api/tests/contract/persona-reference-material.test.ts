@@ -5,7 +5,8 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { buildApp } from '../../src/app.js';
 import { loadConfig } from '../../src/config.js';
 import { runMigrations } from '../../src/db/migrate.js';
-import { getPool } from '../../src/db/pool.js';
+import { getDb } from '../../src/db/client.js';
+import { dbBoolean } from '../../src/db/sql-helpers.js';
 import { closeTestDb, resetDatabase, seedFlowchartDiagramType, seedProject, seedUser } from '../helpers/setup.js';
 
 /**
@@ -63,12 +64,12 @@ describe('Persona reference-material admin API contract (010-ai-diagram-knowledg
     const architectLogin = await app.inject({ method: 'POST', url: '/auth/local/login', payload: { email: 'architect@example.com', password: 'architect-pass' } });
     architectCookie = extractCookie(architectLogin);
 
-    const pool = getPool();
-    const { rows } = await pool.query<{ id: string }>(
-      "INSERT INTO ai_personas (id, name, category, system_prompt) VALUES ($1, 'Ref Persona', 'Business', 'You are a helpful assistant.') RETURNING id",
-      [randomUUID()],
-    );
-    personaId = rows[0].id;
+    const db = getDb();
+    personaId = randomUUID();
+    await db
+      .insertInto('ai_personas')
+      .values({ id: personaId, name: 'Ref Persona', category: 'Business', system_prompt: 'You are a helpful assistant.' })
+      .execute();
   });
 
   it('creates an entry and returns its full shape (201)', async () => {
@@ -219,14 +220,15 @@ describe('Persona reference-material admin API contract (010-ai-diagram-knowledg
   });
 
   it('404s a PATCH when entryId belongs to a different persona than the URL personaId', async () => {
-    const pool = getPool();
-    const { rows: otherPersona } = await pool.query<{ id: string }>(
-      "INSERT INTO ai_personas (id, name, category, system_prompt) VALUES ($1, 'Other Persona', 'Technical', 'x') RETURNING id",
-      [randomUUID()],
-    );
+    const db = getDb();
+    const otherPersonaId = randomUUID();
+    await db
+      .insertInto('ai_personas')
+      .values({ id: otherPersonaId, name: 'Other Persona', category: 'Technical', system_prompt: 'x' })
+      .execute();
     const created = await app.inject({
       method: 'POST',
-      url: `/admin/ai-personas/${otherPersona[0].id}/reference-material`,
+      url: `/admin/ai-personas/${otherPersonaId}/reference-material`,
       headers: { cookie: adminCookie },
       payload: { content: 'Belongs to other persona.' },
     });
@@ -243,7 +245,7 @@ describe('Persona reference-material admin API contract (010-ai-diagram-knowledg
     // Confirm it truly wasn't touched.
     const stillThere = await app.inject({
       method: 'GET',
-      url: `/admin/ai-personas/${otherPersona[0].id}/reference-material`,
+      url: `/admin/ai-personas/${otherPersonaId}/reference-material`,
       headers: { cookie: adminCookie },
     });
     expect(stillThere.json().entries[0].content).toBe('Belongs to other persona.');
@@ -348,7 +350,7 @@ describe('Persona reference-material admin API contract (010-ai-diagram-knowledg
     const chatArchitectCookie = extractCookie(architectChatLogin);
     const projectId = (await seedProject('Ref Material Project', architect.id)).id;
 
-    await getPool().query('UPDATE ai_settings SET chat_enabled = true');
+    await getDb().updateTable('ai_settings').set({ chat_enabled: dbBoolean(true) }).execute();
 
     const createDiagramResponse = await app.inject({
       method: 'POST',

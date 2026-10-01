@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { getDb } from '../db/client.js';
+import { dbBoolean } from '../db/sql-helpers.js';
 
 export type AccessLevel = 'view' | 'comment' | 'edit';
 export type SubjectType = 'diagram' | 'project';
@@ -55,7 +56,7 @@ export async function createShareGrant(input: CreateShareGrantInput): Promise<Sh
     .selectFrom('users')
     .select('id')
     .where('id', '=', input.granteeUserId)
-    .where('active', '=', true)
+    .where('active', '=', dbBoolean(true))
     .executeTakeFirst();
   if (!grantee) {
     throw new GranteeNotFoundError(`No active user with id ${input.granteeUserId}`);

@@ -1,10 +1,10 @@
 import { randomUUID } from 'node:crypto';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { getPool, closePool } from '../../src/db/pool.js';
-import { getDb, closeDb } from '../../src/db/client.js';
+import { getDb } from '../../src/db/client.js';
 import { setDiagramTypePersonas, setDiagramTypePaletteLibraries } from '../../src/db/array-columns.js';
 import { runMigrations } from '../../src/db/migrate.js';
 import { searchDiagrams } from '../../src/diagrams/search.service.js';
+import { closeTestDb, resetDatabase } from '../helpers/setup.js';
 
 const DIAGRAM_COUNT = 1200;
 
@@ -24,49 +24,44 @@ describe.skipIf(!process.env.RUN_PERF_TESTS)('Diagram search performance at scal
 
   beforeAll(async () => {
     await runMigrations();
-    const pool = getPool();
-    await pool.query(
-      `TRUNCATE TABLE share_grants, diagram_versions, diagrams, templates, standards, icons,
-         icon_libraries, projects, diagram_types, local_credentials, users RESTART IDENTITY CASCADE`,
-    );
-    await pool.query(
-      `INSERT INTO diagram_types (id, name, abstraction_level, dsl_family)
-       VALUES ('flowchart', 'Generic Flowchart', 'N/A', 'flowchart')`,
-    );
+    await resetDatabase();
     const db = getDb();
+    await db
+      .insertInto('diagram_types')
+      .values({ id: 'flowchart', name: 'Generic Flowchart', abstraction_level: 'N/A', dsl_family: 'flowchart' })
+      .execute();
     await setDiagramTypePersonas(db, 'flowchart', ['Technical']);
     await setDiagramTypePaletteLibraries(db, 'flowchart', ['generic']);
-    const { rows: userRows } = await pool.query<{ id: string }>(
-      `INSERT INTO users (id, name, email, role) VALUES ($1, 'Perf Owner', 'perf-owner@example.com', 'architect') RETURNING id`,
-      [randomUUID()],
-    );
-    ownerId = userRows[0].id;
+    ownerId = randomUUID();
+    await db
+      .insertInto('users')
+      .values({ id: ownerId, name: 'Perf Owner', email: 'perf-owner@example.com', role: 'architect' })
+      .execute();
     // owner_id was missing here even before canvas-jtm.10 (projects.owner_id has been NOT NULL
     // since feature 007) — presumably unnoticed since this whole suite is gated behind
     // RUN_PERF_TESTS and so never runs in ordinary CI. Fixed alongside the id fix below rather
     // than left for a future run to rediscover.
-    const { rows: projectRows } = await pool.query<{ id: string }>(
-      `INSERT INTO projects (id, name, owner_id) VALUES ($1, 'Perf Test Project', $2) RETURNING id`,
-      [randomUUID(), ownerId],
-    );
-    projectId = projectRows[0].id;
+    projectId = randomUUID();
+    await db.insertInto('projects').values({ id: projectId, name: 'Perf Test Project', owner_id: ownerId }).execute();
 
     // Bulk-insert diagrams directly (no version rows needed — search.service.ts's query only
     // touches the `diagrams` table itself, matching what it actually costs in production). Ids
-    // generated in JS and expanded via UNNEST — canvas-jtm.10 removed the gen_random_uuid()
-    // DEFAULT this used to rely on implicitly.
-    const diagramIds = Array.from({ length: DIAGRAM_COUNT }, () => randomUUID());
-    await pool.query(
-      `INSERT INTO diagrams (id, name, diagram_type_id, project_id, owner_id)
-       SELECT id, 'Diagram ' || ROW_NUMBER() OVER (), 'flowchart', $2, $3
-       FROM UNNEST($1::uuid[]) AS id`,
-      [diagramIds, projectId, ownerId],
-    );
+    // and names generated in JS and inserted as one array of row objects — canvas-jtm.10 removed
+    // the gen_random_uuid() DEFAULT this used to rely on implicitly, and Kysely's `.values([...])`
+    // array form replaces the previous Postgres-only `UNNEST($1::uuid[])` bulk-insert trick so this
+    // works against either dialect.
+    const diagramRows = Array.from({ length: DIAGRAM_COUNT }, (_, i) => ({
+      id: randomUUID(),
+      name: `Diagram ${i + 1}`,
+      diagram_type_id: 'flowchart',
+      project_id: projectId,
+      owner_id: ownerId,
+    }));
+    await db.insertInto('diagrams').values(diagramRows).execute();
   }, 60_000);
 
   afterAll(async () => {
-    await closeDb();
-    await closePool();
+    await closeTestDb();
   });
 
   it(`p95 search latency stays under 300ms across ${DIAGRAM_COUNT} diagrams`, async () => {
