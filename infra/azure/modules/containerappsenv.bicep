@@ -1,11 +1,13 @@
 // VNet-integrated Container Apps environment (canvas-ycu, mirrors ADP's infra/azure/modules/
 // containerappsenv.bicep).
 //
-// Hosts the API container app (external ingress) -- and, if canvas-mi9 (Keycloak/MFA) lands, its
-// own internal-ingress container app too, one environment rather than separate platforms, the
-// simplest viable compute layer versus AKS. `internal: false` at the environment level only
-// controls whether the environment's default domain gets a public endpoint at all; each
-// container app still independently chooses external vs internal-only ingress.
+// Hosts the API container app (external ingress) plus its manual-trigger jobs (migration, seed),
+// one environment rather than separate platforms -- the simplest viable compute layer versus AKS.
+// `internal: false` at the environment level only controls whether the environment's default
+// domain gets a public endpoint at all; each container app still independently chooses external
+// vs internal-only ingress (not that anything deployed here currently chooses internal-only --
+// this environment briefly also hosted a self-hosted Keycloak Container App that did, canvas-ycu.1,
+// removed by canvas-haz once the app moved to Microsoft Entra ID instead).
 
 @description('Azure region.')
 param location string
