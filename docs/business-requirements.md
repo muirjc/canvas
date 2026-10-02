@@ -120,7 +120,7 @@ this tagging is enforced in the product, not just documented (Constitution Princ
 - Importing a filled-in "intake template" document (a structured, fillable worksheet, distinct
   from raw Mermaid DSL paste) for a diagram type, compiled directly into DSL and rendered
   identically to any other diagram (added post-launch; see §8).
-- Single sign-on via an OIDC identity provider (Keycloak) with organization-enforced MFA, alongside
+- Single sign-on via an OIDC identity provider (Microsoft Entra ID) with organization-enforced MFA, alongside
   a local email/password fallback for dev/demo use, and a self-documenting REST API (OpenAPI/
   Swagger, opt-in) for integration consumers (added post-launch; see §8).
 - A reproducible Infrastructure-as-Code deployment (Azure) with a cost-control pause/resume/
@@ -211,8 +211,9 @@ deployable and securable":
 - **C4 Context template import** (`canvas-73s`) — importing a filled intake-template document,
   compiled to DSL and rendered through the existing pipeline; architected to extend to the
   remaining five diagram-type groups as follow-up work.
-- **Azure deployment** (`canvas-ycu`) — a reproducible Bicep IaC deployment with Keycloak SSO/MFA,
-  Key Vault-backed secrets, and a pause/resume/destroy cost-control lifecycle (see
+- **Azure deployment** (`canvas-ycu`, SSO migrated from self-hosted Keycloak to Microsoft Entra ID
+  by `canvas-haz`) — a reproducible Bicep IaC deployment with Entra ID SSO/MFA, Key Vault-backed
+  secrets, and a pause/resume/destroy cost-control lifecycle (see
   `docs/solution-architecture-document.md` §10).
 - **Self-documenting API** — an OpenAPI/Swagger specification generated from the live route table
   and served at `/docs`, opt-in via configuration.
