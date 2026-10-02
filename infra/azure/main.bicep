@@ -162,6 +162,19 @@ module seedJob 'modules/seedjob.bicep' = {
   }
 }
 
+module catalogSeedJob 'modules/catalogseedjob.bicep' = {
+  name: 'catalogSeedJobDeploy'
+  scope: rg
+  params: {
+    location: location
+    environmentId: containerAppsEnv.outputs.environmentId
+    identityId: keyVault.outputs.identityId
+    acrLoginServer: acr.outputs.loginServer
+    apiImageTag: apiImageTag
+    keyVaultUri: keyVault.outputs.keyVaultUri
+  }
+}
+
 output resourceGroupName string = rg.name
 output acrName string = acr.outputs.acrName
 output acrLoginServer string = acr.outputs.loginServer
@@ -179,3 +192,4 @@ output apiFqdn string = apiApp.outputs.fqdn
 output oidcRedirectUri string = oidcRedirectUri
 output migrationJobName string = migrationJob.outputs.jobName
 output seedJobName string = seedJob.outputs.jobName
+output catalogSeedJobName string = catalogSeedJob.outputs.jobName
