@@ -96,3 +96,64 @@ describe('loadConfig() enableApiDocs', () => {
     expect(loadConfig({ NODE_ENV: 'test', ENABLE_API_DOCS: 'yes' }).enableApiDocs).toBe(false);
   });
 });
+
+/**
+ * canvas-haz: a misconfigured Entra issuer URL fails deep inside openid-client with an opaque
+ * issuer-mismatch error (the discovered metadata's own `issuer` won't match what was passed to
+ * `discovery()`) -- this guard catches the two real mistakes at config-load time instead, with a
+ * message that says what's wrong. Scoped specifically to `login.microsoftonline.com` -- every
+ * other IdP's issuer URL (including this file's own `public.example.com` test fixtures elsewhere)
+ * is left entirely unvalidated, exactly as before this check existed.
+ */
+describe('loadConfig() OIDC_ISSUER_URL validation (Entra)', () => {
+  it('accepts a correctly-formed Entra v2.0 issuer URL', () => {
+    expect(() =>
+      loadConfig({ NODE_ENV: 'test', OIDC_ISSUER_URL: 'https://login.microsoftonline.com/11111111-1111-1111-1111-111111111111/v2.0' }),
+    ).not.toThrow();
+  });
+
+  it('ignores a non-Entra issuer URL entirely -- unvalidated, same as before this check existed', () => {
+    expect(() => loadConfig({ NODE_ENV: 'test', OIDC_ISSUER_URL: 'https://public.example.com/anything' })).not.toThrow();
+  });
+
+  it('passes through when OIDC_ISSUER_URL is unset', () => {
+    expect(() => loadConfig({ NODE_ENV: 'test' })).not.toThrow();
+  });
+
+  it('rejects an Entra issuer URL missing the /v2.0 suffix', () => {
+    expect(() =>
+      loadConfig({ NODE_ENV: 'test', OIDC_ISSUER_URL: 'https://login.microsoftonline.com/11111111-1111-1111-1111-111111111111' }),
+    ).toThrow('must end in "/v2.0"');
+  });
+
+  it('rejects the Keycloak-era-equivalent v1 issuer form (sts.windows.net)', () => {
+    // Not an Entra host at all, so this is the "ignored, non-Entra host" path -- included to
+    // document explicitly that this guard does NOT (and cannot) catch a v1 issuer by itself; the
+    // v1/v2 distinction is caught by requiring the login.microsoftonline.com /v2.0 suffix on the
+    // *configured* issuer, not by rejecting sts.windows.net directly.
+    expect(() =>
+      loadConfig({ NODE_ENV: 'test', OIDC_ISSUER_URL: 'https://sts.windows.net/11111111-1111-1111-1111-111111111111/' }),
+    ).not.toThrow();
+  });
+
+  it('rejects the /common multi-tenant alias', () => {
+    expect(() => loadConfig({ NODE_ENV: 'test', OIDC_ISSUER_URL: 'https://login.microsoftonline.com/common/v2.0' })).toThrow(
+      'multi-tenant alias "/common/..."',
+    );
+  });
+
+  it('rejects the /organizations and /consumers multi-tenant aliases too', () => {
+    expect(() =>
+      loadConfig({ NODE_ENV: 'test', OIDC_ISSUER_URL: 'https://login.microsoftonline.com/organizations/v2.0' }),
+    ).toThrow('multi-tenant alias "/organizations/..."');
+    expect(() =>
+      loadConfig({ NODE_ENV: 'test', OIDC_ISSUER_URL: 'https://login.microsoftonline.com/consumers/v2.0' }),
+    ).toThrow('multi-tenant alias "/consumers/..."');
+  });
+
+  it('rejects a malformed URL with a clear message rather than letting URL parsing throw raw', () => {
+    expect(() => loadConfig({ NODE_ENV: 'test', OIDC_ISSUER_URL: 'not a url' })).toThrow(
+      'OIDC_ISSUER_URL is not a valid URL',
+    );
+  });
+});

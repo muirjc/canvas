@@ -9,7 +9,7 @@ import type { AppConfig } from '../../src/config.js';
 
 /**
  * Reproduces the bug reported live against the Azure deployment: "Sign in with SSO" completes
- * a full, correct round trip through Keycloak (auth/oidc.ts's /auth/callback sets
+ * a full, correct round trip through the IdP (auth/oidc.ts's /auth/callback sets
  * request.session.user directly, no /auth/local/login involved), but the frontend's own
  * post-redirect session check (GET /auth/me, App.tsx) 404'd because /auth/me and /auth/logout
  * used to live inside auth/local.ts's registerLocalAuthRoutes, gated behind
@@ -98,7 +98,8 @@ describe('POST /auth/logout with an SSO-established session (canvas-252)', () =>
     let buildOidcLogoutUrlMock: ReturnType<typeof vi.fn> | undefined;
     if (decorateLogoutUrl) {
       buildOidcLogoutUrlMock = vi.fn(
-        (idTokenHint: string) => `https://keycloak.example.com/realms/CanvasRealm/protocol/openid-connect/logout?id_token_hint=${idTokenHint}`,
+        (idTokenHint: string) =>
+          `https://login.microsoftonline.com/11111111-1111-1111-1111-111111111111/oauth2/v2.0/logout?id_token_hint=${idTokenHint}`,
       );
       app.decorate('buildOidcLogoutUrl', buildOidcLogoutUrlMock);
     }
@@ -148,7 +149,8 @@ describe('POST /auth/logout with an SSO-established session (canvas-252)', () =>
     });
     expect(logoutResponse.statusCode).toBe(200);
     expect(logoutResponse.json()).toEqual({
-      logoutUrl: 'https://keycloak.example.com/realms/CanvasRealm/protocol/openid-connect/logout?id_token_hint=the-id-token',
+      logoutUrl:
+        'https://login.microsoftonline.com/11111111-1111-1111-1111-111111111111/oauth2/v2.0/logout?id_token_hint=the-id-token',
     });
     expect(buildOidcLogoutUrlMock).toHaveBeenCalledWith('the-id-token');
 
@@ -160,7 +162,7 @@ describe('POST /auth/logout with an SSO-established session (canvas-252)', () =>
     await app.close();
   });
 
-  it('returns plain 204 (no Keycloak round-trip) when the session has no oidcIdToken, even though buildOidcLogoutUrl is decorated', async () => {
+  it('returns plain 204 (no IdP round-trip) when the session has no oidcIdToken, even though buildOidcLogoutUrl is decorated', async () => {
     const { app, buildOidcLogoutUrlMock } = await buildSsoTestApp(true);
 
     const seedResponse = await app.inject({

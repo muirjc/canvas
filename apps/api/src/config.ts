@@ -69,6 +69,42 @@ const TEST_SESSION_SECRET = 'test-secret-at-least-32-characters-long';
 
 const VALID_SAME_SITE = new Set(['lax', 'none', 'strict']);
 
+// canvas-haz: a misconfigured OIDC_ISSUER_URL against Entra fails deep inside openid-client with
+// an opaque issuer-mismatch error (the discovered metadata's own `issuer` field won't match what
+// was passed to `discovery()`) -- this catches the two actual mistakes early, with a message that
+// says what's wrong and how to fix it, specifically for Entra's own issuer shape. Every other
+// IdP's issuer URL is left entirely unvalidated here, same as before this check existed.
+function validateOidcIssuerUrl(issuerUrl: string | undefined): void {
+  if (!issuerUrl) return;
+  let url: URL;
+  try {
+    url = new URL(issuerUrl);
+  } catch {
+    throw new Error(`OIDC_ISSUER_URL is not a valid URL: "${issuerUrl}"`);
+  }
+  if (url.hostname !== 'login.microsoftonline.com') return;
+
+  const segments = url.pathname.split('/').filter(Boolean);
+  const tenantSegment = segments[0];
+  // The multi-tenant aliases resolve to an issuer containing a literal `{tenantid}` placeholder,
+  // not a real tenant ID -- this app always authenticates against one specific tenant.
+  if (tenantSegment === 'common' || tenantSegment === 'organizations' || tenantSegment === 'consumers') {
+    throw new Error(
+      `OIDC_ISSUER_URL uses Entra's multi-tenant alias "/${tenantSegment}/..." -- this app needs a ` +
+        `real tenant ID in the issuer path instead: https://login.microsoftonline.com/<tenant-id>/v2.0`,
+    );
+  }
+  // Without the /v2.0 suffix, Entra's discovery document reports v1 metadata instead (issuer
+  // https://sts.windows.net/<tenant-id>/), which carries a different claims shape than this app
+  // expects (e.g. no flat top-level `roles` claim the way v2 tokens have it).
+  if (segments[segments.length - 1] !== 'v2.0') {
+    throw new Error(
+      `OIDC_ISSUER_URL must end in "/v2.0" (got: "${issuerUrl}") -- use ` +
+        `https://login.microsoftonline.com/<tenant-id>/v2.0`,
+    );
+  }
+}
+
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
   const isTest = env.NODE_ENV === 'test';
 
@@ -84,6 +120,8 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
 
   const dbClientEnvVar = isTest ? env.TEST_DB_CLIENT : env.DB_CLIENT;
   const dbClient: AppConfig['dbClient'] = dbClientEnvVar === 'sqlite' ? 'sqlite' : 'postgres';
+
+  validateOidcIssuerUrl(env.OIDC_ISSUER_URL);
 
   return {
     port: Number(env.PORT ?? 3000),

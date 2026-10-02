@@ -2,8 +2,9 @@ import Fastify from 'fastify';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   buildEndSessionUrl,
-  extractRealmRoles,
-  mapRealmRolesToUserRole,
+  extractEntraRoles,
+  extractIdentityFromIdToken,
+  mapIdpRolesToUserRole,
   registerOidcRoutes,
 } from '../../src/auth/oidc.js';
 import type { AppConfig } from '../../src/config.js';
@@ -21,62 +22,94 @@ vi.mock('openid-client', async (importOriginal) => {
   };
 });
 
-describe('extractRealmRoles()', () => {
-  it('reads roles from a well-formed realm_access.roles claim', () => {
-    expect(extractRealmRoles({ realm_access: { roles: ['admin', 'offline_access'] } })).toEqual([
-      'admin',
-      'offline_access',
-    ]);
+describe('extractEntraRoles()', () => {
+  it('reads roles from a well-formed flat roles claim', () => {
+    expect(extractEntraRoles({ roles: ['admin', 'SomeOtherAppRole'] })).toEqual(['admin', 'SomeOtherAppRole']);
   });
 
-  it('returns an empty array when realm_access is absent', () => {
-    expect(extractRealmRoles({})).toEqual([]);
+  it('returns an empty array when roles is absent', () => {
+    expect(extractEntraRoles({})).toEqual([]);
   });
 
-  it('returns an empty array when realm_access.roles is absent', () => {
-    expect(extractRealmRoles({ realm_access: {} })).toEqual([]);
-  });
-
-  it('returns an empty array when realm_access is not an object', () => {
-    expect(extractRealmRoles({ realm_access: 'not-an-object' })).toEqual([]);
-  });
-
-  it('returns an empty array when realm_access.roles is not an array', () => {
-    expect(extractRealmRoles({ realm_access: { roles: 'admin' } })).toEqual([]);
+  it('returns an empty array when roles is not an array', () => {
+    expect(extractEntraRoles({ roles: 'admin' })).toEqual([]);
   });
 
   it('filters out non-string entries rather than throwing -- an untyped claims bag from the IdP', () => {
-    expect(extractRealmRoles({ realm_access: { roles: ['admin', 42, null, 'viewer'] } })).toEqual([
-      'admin',
-      'viewer',
-    ]);
+    expect(extractEntraRoles({ roles: ['admin', 42, null, 'viewer'] })).toEqual(['admin', 'viewer']);
+  });
+
+  it('does NOT read a Keycloak-shaped nested realm_access.roles claim -- that was the previous IdP, not Entra', () => {
+    expect(extractEntraRoles({ realm_access: { roles: ['admin'] } })).toEqual([]);
   });
 });
 
 /**
- * canvas-mi9: highest-privilege realm role wins; no recognised role defaults to the
- * lowest-privilege 'viewer' rather than failing closed (no access) or open (silently admin).
+ * canvas-mi9: highest-privilege role wins; no recognised role defaults to the lowest-privilege
+ * 'viewer' rather than failing closed (no access) or open (silently admin).
  */
-describe('mapRealmRolesToUserRole()', () => {
+describe('mapIdpRolesToUserRole()', () => {
   it('maps a single recognised role directly', () => {
-    expect(mapRealmRolesToUserRole(['admin'])).toBe('admin');
-    expect(mapRealmRolesToUserRole(['architect'])).toBe('architect');
-    expect(mapRealmRolesToUserRole(['viewer'])).toBe('viewer');
+    expect(mapIdpRolesToUserRole(['admin'])).toBe('admin');
+    expect(mapIdpRolesToUserRole(['architect'])).toBe('architect');
+    expect(mapIdpRolesToUserRole(['viewer'])).toBe('viewer');
   });
 
   it('picks the highest-privilege role when a token carries more than one', () => {
-    expect(mapRealmRolesToUserRole(['viewer', 'admin'])).toBe('admin');
-    expect(mapRealmRolesToUserRole(['viewer', 'architect'])).toBe('architect');
-    expect(mapRealmRolesToUserRole(['architect', 'admin'])).toBe('admin');
+    expect(mapIdpRolesToUserRole(['viewer', 'admin'])).toBe('admin');
+    expect(mapIdpRolesToUserRole(['viewer', 'architect'])).toBe('architect');
+    expect(mapIdpRolesToUserRole(['architect', 'admin'])).toBe('admin');
   });
 
-  it('ignores unrecognised Keycloak built-in roles (e.g. offline_access) when picking', () => {
-    expect(mapRealmRolesToUserRole(['offline_access', 'architect'])).toBe('architect');
+  it('ignores unrecognised app roles when picking', () => {
+    expect(mapIdpRolesToUserRole(['SomeOtherAppRole', 'architect'])).toBe('architect');
   });
 
   it('defaults to viewer when no recognised role is present', () => {
-    expect(mapRealmRolesToUserRole([])).toBe('viewer');
-    expect(mapRealmRolesToUserRole(['offline_access', 'default-roles-canvasrealm'])).toBe('viewer');
+    expect(mapIdpRolesToUserRole([])).toBe('viewer');
+    expect(mapIdpRolesToUserRole(['SomeOtherAppRole'])).toBe('viewer');
+  });
+});
+
+describe('extractIdentityFromIdToken()', () => {
+  it('reads sub, email, and name directly off the ID token claims', () => {
+    expect(extractIdentityFromIdToken({ sub: 'abc123', email: 'jane@example.com', name: 'Jane Doe' })).toEqual({
+      sub: 'abc123',
+      email: 'jane@example.com',
+      name: 'Jane Doe',
+    });
+  });
+
+  it('lowercases the email claim -- Entra can return it in whatever case the directory stores it', () => {
+    expect(extractIdentityFromIdToken({ sub: 'abc123', email: 'Jane.Doe@Contoso.com' }).email).toBe(
+      'jane.doe@contoso.com',
+    );
+  });
+
+  it('falls back to preferred_username when email is absent and preferred_username looks like an email', () => {
+    expect(extractIdentityFromIdToken({ sub: 'abc123', preferred_username: 'Jane@Contoso.com' }).email).toBe(
+      'jane@contoso.com',
+    );
+  });
+
+  it('does not use preferred_username as email when it does not contain "@" -- Entra documents it as a mutable UPN, not guaranteed to look like an email', () => {
+    expect(extractIdentityFromIdToken({ sub: 'abc123', preferred_username: 'not-an-email' }).email).toBeUndefined();
+  });
+
+  it('prefers the real email claim over preferred_username when both are present', () => {
+    expect(
+      extractIdentityFromIdToken({ sub: 'abc123', email: 'real@example.com', preferred_username: 'upn@example.com' })
+        .email,
+    ).toBe('real@example.com');
+  });
+
+  it('returns undefined email and name when neither claim nor fallback is present', () => {
+    expect(extractIdentityFromIdToken({ sub: 'abc123' })).toEqual({ sub: 'abc123', email: undefined, name: undefined });
+  });
+
+  it('returns an empty string sub when the claim is missing or not a string -- callers must still check it', () => {
+    expect(extractIdentityFromIdToken({}).sub).toBe('');
+    expect(extractIdentityFromIdToken({ sub: 42 }).sub).toBe('');
   });
 });
 
