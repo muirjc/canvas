@@ -396,15 +396,27 @@ Disclosed deliberately, not silently carried:
   `schema` option.
 - **A pre-existing `fastify` vulnerability** (`canvas-ljx`) is un-remediated — two advisories
   against the pinned 5.10.0, one directly relevant given this app's `trustProxy: true` config.
-- **RP-Initiated Logout (`canvas-252`) is implemented and test-covered but not yet live-verified
-  against the real deployed IdP** — originally tracked against Keycloak (`canvas-252.1`, closed as
-  superseded once `canvas-haz` replaced that IdP entirely); the equivalent live check against Entra
-  ID is now part of `canvas-haz`'s own Phase 7 manual verification checklist (`RUNBOOK.md`'s "Entra
-  ID SSO" section), not yet performed — this coding session has no live Azure/Entra tenant access.
-- **The full Entra ID cutover (`canvas-haz` Phases 7-8: a real deploy + manual live verification
-  against a real tenant) has not yet happened** — Phases 1-6 (code, infra, and docs) are complete
-  and merged to `main`, but nothing has yet been deployed and signed into against a real Entra
-  tenant. Until that happens, this is still an unverified (if unit/contract-tested) integration.
+- **Entra ID cutover (`canvas-haz`): infra deployed and confirmed healthy, but the browser-based
+  sign-in verification is not yet confirmed complete.** A real `canvas-rg` stand-up against the
+  live tenant succeeded (`canvas-api` healthy at `/health`, `/auth/config` reports
+  `oidcEnabled: true` with no discovery/issuer errors, all 13 migrations applied, seed data loaded,
+  redirect URIs registered on the `canvas-azure` app registration, exactly one `AcrPull` role
+  assignment on the shared identity, no leftover Keycloak resources). What this did NOT prove,
+  because it needs a human in a real browser: actual SSO sign-in/role-mapping across the
+  admin/architect/viewer/dual-role/unassigned test matrix, tenant MFA enforcement, and the
+  sign-out round-trip back to the real web origin — `RUNBOOK.md`'s "Entra ID SSO" > "Manual
+  post-deploy live verification" checklist tracks exactly which items are still open.
+  RP-Initiated Logout (`canvas-252`) specifically is implemented and test-covered but, per the
+  above, not yet live-verified against this real deployment either (originally tracked against
+  Keycloak as `canvas-252.1`, closed as superseded once `canvas-haz` replaced that IdP).
+- **A real, independently-found deploy-blocking bug, found and fixed during this same cutover**:
+  the production `Dockerfile` was pinned to `node:20-slim` despite this project's documented/
+  CI-pinned Node 22 LTS runtime, and `better-sqlite3@13.0.3` has no prebuilt-binary install path at
+  all — it always compiles from source via `node-gyp`, which then failed outright with no Python/
+  C++ toolchain present. This project's own prior documentation (`docs/technology-stack.md`)
+  claimed a prebuilt binary was "confirmed" — that claim was never actually verified against a
+  truly from-scratch Docker build (a local dev machine's ambient `python3` masks the gap); fixed by
+  bumping to `node:22-slim` and adding `python3`/`make`/`g++` to the build stage only.
 - **Route-level request validation is inconsistent** — most routes hand-validate imperatively
   rather than via declarative Fastify/zod schema (see §7).
 - **SQLite's `LIKE` is ASCII-only case-insensitive**, unlike Postgres's `ILIKE` (full Unicode
