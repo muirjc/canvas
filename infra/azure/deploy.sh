@@ -262,12 +262,47 @@ az storage blob upload-batch \
   --auth-mode login --overwrite --output none
 
 SEED_JOB="$(az deployment sub show --name "canvas-foundation" --query "properties.outputs.seedJobName.value" -o tsv)"
+CATALOG_SEED_JOB="$(az deployment sub show --name "canvas-foundation" --query "properties.outputs.catalogSeedJobName.value" -o tsv)"
+
+# Polls a Container Apps Job execution until it reaches a terminal state, failing the whole
+# deploy (set -e) if the job itself fails -- a clean build with a failed migration or an empty
+# DiagramType catalog is not actually a working environment, so this script shouldn't report
+# success and hand that back to the caller silently.
+wait_for_job_execution() {
+  local job_name="$1" execution_name="$2" label="$3" status=""
+  echo "  Waiting for $label (execution $execution_name)..."
+  while true; do
+    status="$(az containerapp job execution show --name "$job_name" --job-execution-name "$execution_name" \
+      --resource-group "$RESOURCE_GROUP" --query "properties.status" -o tsv 2>/dev/null || true)"
+    case "$status" in
+      Succeeded)
+        echo "  $label succeeded."
+        return 0
+        ;;
+      Failed)
+        echo "  $label FAILED -- inspect its logs, then re-run this script once fixed:" >&2
+        echo "    az containerapp job execution list --name $job_name --resource-group $RESOURCE_GROUP -o table" >&2
+        return 1
+        ;;
+      *)
+        sleep 5
+        ;;
+    esac
+  done
+}
 
 echo
 echo "== Running database migrations (canvas-migrate job) =="
-az containerapp job start --name "$MIGRATION_JOB" --resource-group "$RESOURCE_GROUP" --output none
-echo "  Migration job started -- check status with:"
-echo "    az containerapp job execution list --name $MIGRATION_JOB --resource-group $RESOURCE_GROUP -o table"
+MIGRATION_EXECUTION="$(az containerapp job start --name "$MIGRATION_JOB" --resource-group "$RESOURCE_GROUP" --query name -o tsv)"
+wait_for_job_execution "$MIGRATION_JOB" "$MIGRATION_EXECUTION" "Migration job"
+
+echo
+echo "== Seeding reference/lookup data (canvas-seed-catalog job: DiagramTypes, icon/shape" \
+     "libraries, AiPersonas) =="
+echo "  Runs unconditionally, unlike canvas-seed below -- this is idempotent catalog data a" \
+     "fresh environment needs to be usable at all, not demo content."
+CATALOG_SEED_EXECUTION="$(az containerapp job start --name "$CATALOG_SEED_JOB" --resource-group "$RESOURCE_GROUP" --query name -o tsv)"
+wait_for_job_execution "$CATALOG_SEED_JOB" "$CATALOG_SEED_EXECUTION" "Catalog seed job"
 
 echo
 echo "== Done =="
@@ -275,8 +310,9 @@ echo "  API:      https://${API_FQDN}"
 echo "  Frontend: ${REAL_WEB_ORIGIN}"
 echo "  Key Vault: $KEY_VAULT_NAME"
 echo
-echo "Once the migration job above completes, seed dev/demo data (full DiagramType catalog,"
-echo "bundled icon libraries, one default project, one admin login) with:"
+echo "The DiagramType catalog, bundled icon/shape libraries, and default AiPersonas are already"
+echo "seeded (canvas-seed-catalog, above) -- the environment is usable as-is. To additionally seed"
+echo "throwaway dev/demo content (one default project, one admin login) on top of that, run:"
 echo "  az containerapp job start --name $SEED_JOB --resource-group $RESOURCE_GROUP"
 echo "NOT run automatically -- it creates a demo admin account with a published local password"
 echo "(apps/api/src/seed/run.ts), appropriate for a throwaway/demo environment, not unprompted"

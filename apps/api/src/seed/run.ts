@@ -2,23 +2,18 @@ import { randomUUID } from 'node:crypto';
 import { closePool } from '../db/pool.js';
 import { closeDb, getDb } from '../db/client.js';
 import { hashPassword } from '../auth/password.js';
-import { runMigrations } from '../db/migrate.js';
-import { seedDiagramTypes } from './diagram-types.seed.js';
-import { seedLibraries } from './libraries.seed.js';
-import { seedAiPersonas } from './ai-personas.seed.js';
+import { seedCatalog } from './catalog.js';
 
 /**
- * Seeds a minimal dev/demo dataset: the full built-in DiagramType catalog, the bundled Icon/Shape
- * Libraries, one default Project, and one admin user with local-auth credentials — matches
- * quickstart.md's local setup steps.
+ * Seeds a minimal dev/demo dataset: catalog.ts's reference data (DiagramTypes, Icon/Shape
+ * Libraries, AiPersonas) plus one default Project and one admin user with local-auth
+ * credentials — matches quickstart.md's local setup steps. See catalog.ts's own doc comment for
+ * why the reference-data portion lives there instead of here: it's safe to run unconditionally on
+ * a clean environment build, unlike the demo account this function also creates.
  */
 async function seed(): Promise<void> {
-  await runMigrations();
+  await seedCatalog();
   const db = getDb();
-
-  await seedDiagramTypes();
-  await seedLibraries();
-  await seedAiPersonas();
 
   async function ensureUser(
     name: string,
