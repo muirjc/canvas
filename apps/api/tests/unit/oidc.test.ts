@@ -1,20 +1,17 @@
 import Fastify from 'fastify';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import * as client from 'openid-client';
 import {
   buildEndSessionUrl,
-  extractRealmRoles,
-  mapRealmRolesToUserRole,
+  extractEntraRoles,
+  extractIdentityFromIdToken,
+  mapIdpRolesToUserRole,
   registerOidcRoutes,
-  rewriteToInternalUrl,
 } from '../../src/auth/oidc.js';
 import type { AppConfig } from '../../src/config.js';
 
 /**
- * canvas-ycu.1: `client.discovery()` itself is mocked -- a real call would need a real IdP.
- * `importOriginal` keeps everything else from the real `openid-client` module (in particular the
- * real `client.customFetch` symbol, so tests below can assert against the exact symbol key
- * `registerOidcRoutes` sets on `discoveryOptions`).
+ * `client.discovery()` itself is mocked -- a real call would need a real IdP. `importOriginal`
+ * keeps everything else from the real `openid-client` module.
  */
 const discoveryMock = vi.fn();
 vi.mock('openid-client', async (importOriginal) => {
@@ -25,101 +22,101 @@ vi.mock('openid-client', async (importOriginal) => {
   };
 });
 
-describe('extractRealmRoles()', () => {
-  it('reads roles from a well-formed realm_access.roles claim', () => {
-    expect(extractRealmRoles({ realm_access: { roles: ['admin', 'offline_access'] } })).toEqual([
-      'admin',
-      'offline_access',
-    ]);
+describe('extractEntraRoles()', () => {
+  it('reads roles from a well-formed flat roles claim', () => {
+    expect(extractEntraRoles({ roles: ['admin', 'SomeOtherAppRole'] })).toEqual(['admin', 'SomeOtherAppRole']);
   });
 
-  it('returns an empty array when realm_access is absent', () => {
-    expect(extractRealmRoles({})).toEqual([]);
+  it('returns an empty array when roles is absent', () => {
+    expect(extractEntraRoles({})).toEqual([]);
   });
 
-  it('returns an empty array when realm_access.roles is absent', () => {
-    expect(extractRealmRoles({ realm_access: {} })).toEqual([]);
-  });
-
-  it('returns an empty array when realm_access is not an object', () => {
-    expect(extractRealmRoles({ realm_access: 'not-an-object' })).toEqual([]);
-  });
-
-  it('returns an empty array when realm_access.roles is not an array', () => {
-    expect(extractRealmRoles({ realm_access: { roles: 'admin' } })).toEqual([]);
+  it('returns an empty array when roles is not an array', () => {
+    expect(extractEntraRoles({ roles: 'admin' })).toEqual([]);
   });
 
   it('filters out non-string entries rather than throwing -- an untyped claims bag from the IdP', () => {
-    expect(extractRealmRoles({ realm_access: { roles: ['admin', 42, null, 'viewer'] } })).toEqual([
-      'admin',
-      'viewer',
-    ]);
+    expect(extractEntraRoles({ roles: ['admin', 42, null, 'viewer'] })).toEqual(['admin', 'viewer']);
+  });
+
+  it('does NOT read a Keycloak-shaped nested realm_access.roles claim -- that was the previous IdP, not Entra', () => {
+    expect(extractEntraRoles({ realm_access: { roles: ['admin'] } })).toEqual([]);
   });
 });
 
 /**
- * canvas-mi9: highest-privilege realm role wins; no recognised role defaults to the
- * lowest-privilege 'viewer' rather than failing closed (no access) or open (silently admin).
+ * canvas-mi9: highest-privilege role wins; no recognised role defaults to the lowest-privilege
+ * 'viewer' rather than failing closed (no access) or open (silently admin).
  */
-describe('mapRealmRolesToUserRole()', () => {
+describe('mapIdpRolesToUserRole()', () => {
   it('maps a single recognised role directly', () => {
-    expect(mapRealmRolesToUserRole(['admin'])).toBe('admin');
-    expect(mapRealmRolesToUserRole(['architect'])).toBe('architect');
-    expect(mapRealmRolesToUserRole(['viewer'])).toBe('viewer');
+    expect(mapIdpRolesToUserRole(['admin'])).toBe('admin');
+    expect(mapIdpRolesToUserRole(['architect'])).toBe('architect');
+    expect(mapIdpRolesToUserRole(['viewer'])).toBe('viewer');
   });
 
   it('picks the highest-privilege role when a token carries more than one', () => {
-    expect(mapRealmRolesToUserRole(['viewer', 'admin'])).toBe('admin');
-    expect(mapRealmRolesToUserRole(['viewer', 'architect'])).toBe('architect');
-    expect(mapRealmRolesToUserRole(['architect', 'admin'])).toBe('admin');
+    expect(mapIdpRolesToUserRole(['viewer', 'admin'])).toBe('admin');
+    expect(mapIdpRolesToUserRole(['viewer', 'architect'])).toBe('architect');
+    expect(mapIdpRolesToUserRole(['architect', 'admin'])).toBe('admin');
   });
 
-  it('ignores unrecognised Keycloak built-in roles (e.g. offline_access) when picking', () => {
-    expect(mapRealmRolesToUserRole(['offline_access', 'architect'])).toBe('architect');
+  it('ignores unrecognised app roles when picking', () => {
+    expect(mapIdpRolesToUserRole(['SomeOtherAppRole', 'architect'])).toBe('architect');
   });
 
   it('defaults to viewer when no recognised role is present', () => {
-    expect(mapRealmRolesToUserRole([])).toBe('viewer');
-    expect(mapRealmRolesToUserRole(['offline_access', 'default-roles-canvasrealm'])).toBe('viewer');
+    expect(mapIdpRolesToUserRole([])).toBe('viewer');
+    expect(mapIdpRolesToUserRole(['SomeOtherAppRole'])).toBe('viewer');
   });
 });
 
-/**
- * canvas-ycu.1: pure rewrite helper extracted out of the `customFetch` closure in
- * `registerOidcRoutes` specifically so it's unit-testable without mocking `client.discovery()`.
- */
-describe('rewriteToInternalUrl()', () => {
-  it('rewrites protocol+host to the internal URL, preserving path and query', () => {
-    const rewritten = rewriteToInternalUrl(
-      'https://public.example.com/realms/CanvasRealm/protocol/openid-connect/token?foo=bar',
-      'http://keycloak.internal.example.com:8080',
-    );
-    expect(rewritten.href).toBe(
-      'http://keycloak.internal.example.com:8080/realms/CanvasRealm/protocol/openid-connect/token?foo=bar',
+describe('extractIdentityFromIdToken()', () => {
+  it('reads sub, email, and name directly off the ID token claims', () => {
+    expect(extractIdentityFromIdToken({ sub: 'abc123', email: 'jane@example.com', name: 'Jane Doe' })).toEqual({
+      sub: 'abc123',
+      email: 'jane@example.com',
+      name: 'Jane Doe',
+    });
+  });
+
+  it('lowercases the email claim -- Entra can return it in whatever case the directory stores it', () => {
+    expect(extractIdentityFromIdToken({ sub: 'abc123', email: 'Jane.Doe@Contoso.com' }).email).toBe(
+      'jane.doe@contoso.com',
     );
   });
 
-  it('preserves the hash fragment too', () => {
-    const rewritten = rewriteToInternalUrl(
-      'https://public.example.com/idp/realms/CanvasRealm#section',
-      'https://keycloak.internal.example.com',
+  it('falls back to preferred_username when email is absent and preferred_username looks like an email', () => {
+    expect(extractIdentityFromIdToken({ sub: 'abc123', preferred_username: 'Jane@Contoso.com' }).email).toBe(
+      'jane@contoso.com',
     );
-    expect(rewritten.href).toBe('https://keycloak.internal.example.com/idp/realms/CanvasRealm#section');
   });
 
-  it('accepts URL instances for both arguments', () => {
-    const rewritten = rewriteToInternalUrl(
-      new URL('https://public.example.com/idp/realms/CanvasRealm'),
-      new URL('https://keycloak.internal.example.com'),
-    );
-    expect(rewritten.href).toBe('https://keycloak.internal.example.com/idp/realms/CanvasRealm');
+  it('does not use preferred_username as email when it does not contain "@" -- Entra documents it as a mutable UPN, not guaranteed to look like an email', () => {
+    expect(extractIdentityFromIdToken({ sub: 'abc123', preferred_username: 'not-an-email' }).email).toBeUndefined();
+  });
+
+  it('prefers the real email claim over preferred_username when both are present', () => {
+    expect(
+      extractIdentityFromIdToken({ sub: 'abc123', email: 'real@example.com', preferred_username: 'upn@example.com' })
+        .email,
+    ).toBe('real@example.com');
+  });
+
+  it('returns undefined email and name when neither claim nor fallback is present', () => {
+    expect(extractIdentityFromIdToken({ sub: 'abc123' })).toEqual({ sub: 'abc123', email: undefined, name: undefined });
+  });
+
+  it('returns an empty string sub when the claim is missing or not a string -- callers must still check it', () => {
+    expect(extractIdentityFromIdToken({}).sub).toBe('');
+    expect(extractIdentityFromIdToken({ sub: 42 }).sub).toBe('');
   });
 });
 
 /**
  * canvas-252: pure URL builder for OIDC RP-Initiated Logout, extracted out of the
- * `app.buildOidcLogoutUrl` closure in `registerOidcRoutes` the same way `rewriteToInternalUrl`
- * was extracted -- directly unit-testable, no `client.discovery()`/Configuration mocking needed.
+ * `app.buildOidcLogoutUrl` closure in `registerOidcRoutes` -- directly unit-testable, no
+ * `client.discovery()`/Configuration mocking needed.
  */
 describe('buildEndSessionUrl()', () => {
   it('sets client_id, id_token_hint, and post_logout_redirect_uri as query params', () => {
@@ -171,102 +168,12 @@ describe('buildEndSessionUrl()', () => {
 });
 
 /**
- * canvas-ycu.1: end-to-end coverage of `registerOidcRoutes`'s internal/public issuer split,
- * through the actual `client.discovery()` call site (mocked -- see the module-level `vi.mock`
- * above) rather than only the extracted `rewriteToInternalUrl()` helper in isolation.
- */
-describe('registerOidcRoutes() internal/public issuer split', () => {
-  function oidcConfig(overrides: Partial<AppConfig['oidc']> = {}): AppConfig {
-    return {
-      port: 3000,
-      databaseUrl: 'unused',
-      sessionSecret: 'unused-but-at-least-32-characters-long',
-      oidc: {
-        issuerUrl: 'https://public.example.com',
-        clientId: 'canvas-client',
-        clientSecret: 'secret',
-        redirectUri: 'http://localhost:5173/callback',
-        ...overrides,
-      },
-      allowLocalAuth: false,
-      webOrigins: ['http://localhost:5173'],
-      cookieSecure: false,
-      cookieSameSite: 'lax',
-      enableApiDocs: false,
-    };
-  }
-
-  beforeEach(() => {
-    discoveryMock.mockReset();
-    discoveryMock.mockResolvedValue({});
-  });
-
-  it('passes no discoveryOptions when internalIssuerUrl is unset (existing behavior)', async () => {
-    const app = Fastify();
-    await registerOidcRoutes(app, oidcConfig());
-    await app.ready();
-
-    expect(discoveryMock).toHaveBeenCalledTimes(1);
-    const [issuer, clientId, clientSecret, extra, discoveryOptions] = discoveryMock.mock.calls[0];
-    expect(issuer).toEqual(new URL('https://public.example.com'));
-    expect(clientId).toBe('canvas-client');
-    expect(clientSecret).toBe('secret');
-    expect(extra).toBeUndefined();
-    expect(discoveryOptions).toBeUndefined();
-
-    await app.close();
-  });
-
-  it('sets a customFetch rewriting requests to the internal URL when internalIssuerUrl is set', async () => {
-    const app = Fastify();
-    await registerOidcRoutes(
-      app,
-      oidcConfig({ internalIssuerUrl: 'https://keycloak.internal.example.com' }),
-    );
-    await app.ready();
-
-    expect(discoveryMock).toHaveBeenCalledTimes(1);
-    const [, , , , discoveryOptions] = discoveryMock.mock.calls[0];
-    expect(discoveryOptions).toBeDefined();
-
-    // Regression coverage for the exact bug class already found-and-fixed once in this code:
-    // deciding whether to pass discoveryOptions via `Object.keys(discoveryOptions).length` misses
-    // the symbol-keyed `customFetch` property entirely -- with `execute` unset (issuer is https,
-    // so allowInsecureRequests is never added), `Object.keys(discoveryOptions).length` is 0 even
-    // though a real, meaningful `customFetch` rewrite is present. The fix (`hasDiscoveryOptions`)
-    // must still pass discoveryOptions through in exactly this shape.
-    expect(Object.keys(discoveryOptions as object).length).toBe(0);
-    const customFetch = (discoveryOptions as Record<symbol, unknown>)[client.customFetch];
-    expect(typeof customFetch).toBe('function');
-
-    const fetchSpy = vi.fn().mockResolvedValue(new Response('ok'));
-    const originalFetch = global.fetch;
-    global.fetch = fetchSpy as unknown as typeof global.fetch;
-    try {
-      await (customFetch as (url: string, init?: RequestInit) => Promise<Response>)(
-        'https://public.example.com/realms/CanvasRealm/.well-known/openid-configuration?x=1',
-      );
-    } finally {
-      global.fetch = originalFetch;
-    }
-
-    expect(fetchSpy).toHaveBeenCalledTimes(1);
-    const [calledUrl] = fetchSpy.mock.calls[0];
-    expect(new URL(calledUrl as string | URL).href).toBe(
-      'https://keycloak.internal.example.com/realms/CanvasRealm/.well-known/openid-configuration?x=1',
-    );
-
-    await app.close();
-  });
-});
-
-/**
  * canvas-252: `registerOidcRoutes` decorates `app.buildOidcLogoutUrl` only when the discovered
  * issuer metadata actually advertises an `end_session_endpoint` -- read defensively (optional
- * chaining + try/catch) since `oidcConfig.serverMetadata` may be absent entirely (this file's own
- * bare `discoveryMock.mockResolvedValue({})`, used throughout the sibling describe block above)
- * or may itself throw. Either way `session.ts`'s `/auth/logout` must fall back to local-session-
- * only logout exactly as it did before this feature existed.
+ * chaining + try/catch) since `oidcConfig.serverMetadata` may be absent entirely (a bare
+ * `discoveryMock.mockResolvedValue({})`, as this describe block's own tests use below) or may
+ * itself throw. Either way `session.ts`'s `/auth/logout` must fall back to local-session-only
+ * logout exactly as it did before this feature existed.
  */
 describe('registerOidcRoutes() buildOidcLogoutUrl decoration (canvas-252)', () => {
   function oidcConfig(overrides: Partial<AppConfig['oidc']> = {}): AppConfig {
