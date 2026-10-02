@@ -2,18 +2,35 @@
 # resolution (apps/api -> @canvas/diagram-core) works exactly as it does locally -- no
 # dereference-symlinks zip trick like docs/azure-deployment.md's older App Service path needed.
 #
-# node:20-slim (Debian glibc), not alpine: @resvg/resvg-js (apps/api's SVG->PNG export renderer)
+# node:22-slim (Debian glibc), not alpine: @resvg/resvg-js (apps/api's SVG->PNG export renderer)
 # ships prebuilt native binaries per platform via npm optionalDependencies: `npm ci` on Linux
 # fetches the right one automatically, but alpine's musl libc is a real compatibility risk for
 # native modules that only publish glibc builds -- slim avoids that question entirely rather than
-# debugging it on a first deploy.
+# debugging it on a first deploy. Node 22 (not 20) to match this project's actual documented/CI-
+# pinned runtime (README.md, RUNBOOK.md, .github/workflows/ci.yml's NODE_VERSION) -- this image was
+# stuck on node:20-slim, and better-sqlite3@13.0.3 declares `engines: {node: '>=22'}`, so node:20
+# triggered an EBADENGINE warning on top of its own separate problem below.
+#
+# python3/make/g++ in the build stage only (never copied into the runtime stage): a real,
+# independently-confirmed break found live during canvas-haz's Phase 7 deploy -- unlike
+# @resvg/resvg-js, better-sqlite3 has NO prebuilt-binary install path at all (confirmed directly:
+# its package.json has no "install"/postinstall script and no prebuild-install dependency; node-gyp
+# auto-runs because a binding.gyp is present). It always compiles its bundled SQLite C amalgamation
+# from source via node-gyp at `npm ci` time, on every platform, every time -- CLAUDE.md's prior
+# claim that this project had "confirmed" a prebuilt binary was never actually verified against a
+# truly from-scratch Docker build (this Dockerfile's own build had apparently never been exercised
+# end-to-end before, since a local dev machine/WSL distro's ambient python3 masks the gap). Without
+# a C++ compiler and Python, `npm ci` fails outright on this base image (and would on node:20-slim
+# too, independent of the engines mismatch above -- confirmed by reproducing the failure on both).
 #
 # Single stage, no --omit=dev pruning: this repo has no build step that needs devDependencies
 # gone from the runtime image (no native compiler toolchain, no huge unused packages) and the
 # added complexity of a leaner multi-stage prune isn't worth it for a first version -- optimize
 # later if image size or cold-start actually becomes a problem.
-FROM node:20-slim AS build
+FROM node:22-slim AS build
 WORKDIR /app
+RUN apt-get update && apt-get install -y --no-install-recommends python3 make g++ \
+  && rm -rf /var/lib/apt/lists/*
 
 # Root + every workspace's package.json first (better layer caching -- `npm ci` only re-runs
 # when a dependency actually changed, not on every source edit).
@@ -35,7 +52,7 @@ RUN npm run build --workspace=@canvas/diagram-core && npm run build --workspace=
 # The runtime image still needs node_modules (this Dockerfile does not prune devDependencies,
 # see the top-of-file note) and the migrations/ directory (read by dist/db/migrate.js at a path
 # relative to itself, not bundled into the compiled JS).
-FROM node:20-slim AS runtime
+FROM node:22-slim AS runtime
 WORKDIR /app
 ENV NODE_ENV=production
 COPY --from=build /app/node_modules node_modules
@@ -47,7 +64,7 @@ COPY --from=build /app/apps/api/package.json apps/api/package.json
 COPY --from=build /app/apps/api/migrations apps/api/migrations
 
 # Semgrep (dockerfile.security.missing-user) correctly flags running as root by default -- the
-# official node:20-slim base already ships a non-root `node` user (uid/gid 1000) for exactly this,
+# official node:22-slim base already ships a non-root `node` user (uid/gid 1000) for exactly this,
 # no separate useradd needed. chown happens as one layer over everything already copied, rather
 # than --chown on each COPY above, so file ownership can't drift between them.
 RUN chown -R node:node /app
