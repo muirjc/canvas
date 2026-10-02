@@ -37,7 +37,7 @@ formats — edits to the DSL update the canvas, and canvas edits regenerate the 
   structured, non-DSL input directly into a diagram.
 - **Projects, sharing, and lifecycle** — organize diagrams into projects/folders, share with
   view/comment/edit permissions, version history, and soft-delete with admin restore.
-- **SSO with enforced MFA** — Keycloak-backed OIDC login with realm-role-based access, alongside a
+- **SSO with enforced MFA** — Microsoft Entra ID OIDC login with App Role-based access, alongside a
   local email/password fallback for dev/demo use.
 - **Export** — Mermaid DSL, SVG, and PNG.
 
@@ -90,16 +90,16 @@ instead (e.g. `DATABASE_URL=./data/canvas.db`) in `apps/api/.env`, skip the `doc
 step above, and run the same `migrate`/`seed`/`dev` commands — see `RUNBOOK.md`'s "Database engine"
 section for the SQLite vs. PostgreSQL trade-off.
 
-See **[RUNBOOK.md](RUNBOOK.md)** for day-to-day operational commands, troubleshooting, Keycloak
+See **[RUNBOOK.md](RUNBOOK.md)** for day-to-day operational commands, troubleshooting, Entra ID
 SSO setup, and environment variable reference, and `specs/*/quickstart.md` for a step-by-step
 manual walkthrough of each feature.
 
 ## Deployment
 
 **[infra/azure/README.md](infra/azure/README.md)** has a reproducible Bicep IaC deployment to
-Azure — resource group, private VNet-integrated Postgres, Key Vault-backed secrets, Container Apps
-(API + Keycloak), and a Storage static site for the frontend, plus pause/resume/destroy lifecycle
-scripts for cost control.
+Azure — resource group, private VNet-integrated Postgres, Key Vault-backed secrets, a Container App
+for the API (authenticating against Microsoft Entra ID), and a Storage static site for the
+frontend, plus pause/resume/destroy lifecycle scripts for cost control.
 
 ## Documentation
 

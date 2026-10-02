@@ -1,8 +1,13 @@
 # canvas Development Guidelines
 
-Auto-generated from all feature plans. Last updated: 2026-10-01
+Auto-generated from all feature plans. Last updated: 2026-10-02
 
 ## Active Technologies
+- `jose` (`^6.2.2`) added to `apps/api` as a **test-only devDependency** (canvas-haz epic,
+  Microsoft Entra ID migration) — resolves to the copy already transitively installed by
+  `openid-client`, so nothing new is actually downloaded. Used solely by
+  `tests/contract/oidc-callback.test.ts` to generate an RS256 keypair and sign synthetic ID tokens
+  for a locally-controlled fake IdP; no production code imports it.
 - `kysely` (`^0.29`) added to `apps/api` (canvas-jtm epic) — a typed SQL query **compiler**, not
   an ORM (Constitution Principle VI amended, v1.1.0, to explicitly draw that line), replacing raw
   `pg.Pool`/hand-written SQL string queries across every `apps/api/src` file. `better-sqlite3`
@@ -78,6 +83,64 @@ tests are NON-NEGOTIABLE and must exist (and fail) before implementing any diagr
 work — see `.specify/memory/constitution.md` Principle IV.
 
 ## Recent Changes
+- `canvas-haz` epic (8 phases; 1-6 complete, 7-8 deferred to live Azure/Entra access this coding
+  session doesn't have): migrated SSO from a self-hosted Keycloak Container App to Microsoft Entra
+  ID — a real org identity platform, not a self-maintained one (realm-import maintenance, a
+  fragile admin-API reconciliation script, an extra always-on Azure resource with its own
+  database). Full cutover, no dual-IdP period (no live users to migrate mid-flight — this
+  project's own Azure reference deployment is routinely paused/destroyed for cost control).
+  **Phase 1** (PR #142): removed live Keycloak from CI/E2E/local compose — deleted the
+  Keycloak-themed `sso-login.spec.ts` outright (decided with the user: unit/contract tests against
+  mocked JWKS instead of a live-tenant E2E, since standing up a disposable cloud tenant per CI run
+  is a different order of complexity than `docker compose up`, and MFA now lives entirely in
+  tenant Conditional Access policy anyway, outside any test's reach regardless). **Phase 2**
+  (content merged via PR #144): deleted the `/idp` reverse-proxy + internal/public issuer split —
+  machinery that existed only because Keycloak's Container App ingress was internal-only; Entra's
+  issuer is always public, so it has no replacement, just removal. **Phase 3** (PR #144):
+  `apps/api/src/auth/oidc.ts` switched from Keycloak's nested `realm_access.roles` to Entra's flat
+  top-level `roles` claim (`extractEntraRoles`, `mapIdpRolesToUserRole` — kept the existing
+  priority-pick logic, since the App Roles manifest uses the exact strings `admin`/`architect`/
+  `viewer`, no mapping table needed); dropped the Keycloak userinfo-endpoint call entirely in favor
+  of reading `email`/`preferred_username`/`name` straight off the already-signature-verified ID
+  token (`extractIdentityFromIdToken`); added real hardening that was missing before — a nonce
+  (previously only PKCE verifier + state were checked), `client.enableNonRepudiationChecks` for
+  actual ID-token signature verification (confirmed directly against `openid-client` v6's own
+  source that this is NOT on by default — it trusts TLS-to-token-endpoint per OIDC Core 3.1.3.7
+  unless explicitly enabled), and a `config.ts` issuer-format guard rejecting the v1 endpoint shape
+  and the `/common`/`/organizations`/`/consumers` multi-tenant aliases at startup with a clear
+  error instead of an opaque failure deep inside `openid-client`. **Phase 4** (PR #145): a new
+  `tests/contract/oidc-callback.test.ts` — the real NFR-2 gate — drives the full `/auth/login` →
+  `/auth/callback` flow through genuinely-not-mocked `openid-client`/`oauth4webapi` against a
+  locally-generated RS256 keypair (`jose`, see Active Technologies), with `fetch` stubbed for
+  discovery/JWKS/token-endpoint. 15 cases, including the actual signature-verification proof:
+  tampered payload, wrong-key-same-`kid`, unknown `kid`, wrong `aud`/`iss` (including the v1 form),
+  expired token, wrong nonce, mismatched state — each confirmed to **fail** (wrongly pass) when
+  `enableNonRepudiationChecks` is temporarily removed, proving the hardening is load-bearing, not
+  just present. **Phase 5** (PR #146): relocated the shared managed identity's only `AcrPull` role
+  assignment from `modules/keycloak.bicep` into `modules/keyvault.bicep` (the identity's own home)
+  *before* deleting the former — skipping this ordering would silently break every container app's
+  ability to pull its image on the next from-scratch deploy, since an incremental deploy leaves an
+  already-granted role assignment in place and would have masked the gap until exactly the kind of
+  full teardown+redeploy Phase 7 does. Deleted `modules/keycloak.bicep`, `modules/usersjob.bicep`,
+  and `infra/keycloak/` wholesale; added `entraTenantId`/`entraClientId` params, deriving
+  `OIDC_ISSUER_URL` via `environment().authentication.loginEndpoint` (sovereign-cloud-correct
+  rather than a hardcoded hostname) plus the required `/v2.0` suffix; rewrote `deploy.sh` (447→304
+  lines), replacing the ~150-line Keycloak admin-API client-reconciliation block with a
+  `print-the-redirect-URIs-and-a-ready-to-paste-az-ad-app-update-command` approach — deliberately
+  not Graph-API-automated, since that would need broader app-registration permissions than the
+  deploying identity should likely hold. **Phase 6** (this entry): docs pass — `RUNBOOK.md`'s
+  "Keycloak SSO" section replaced with "Entra ID SSO" (tenant/app-registration setup steps, the new
+  contract-test-only testing posture, and the Phase 7 manual live-verification checklist);
+  `canvas-252.1` (Keycloak RP-Initiated Logout live-verification) closed as superseded — its own
+  `bd remember` note pointed at a Keycloak flow that no longer exists; a related bug,
+  `canvas-oo6` (deploy.sh's printed `canvas-keycloak-users` invocation not working), closed as
+  superseded for the same reason, since that job no longer exists. **Deliberately unchanged**
+  (explicit decisions made with the user, not oversights): `ALLOW_LOCAL_AUTH` fallback untouched;
+  identity matching stays email-only (no new `oid`/`tid` column — same risk profile this app
+  already accepted under Keycloak); a federated-credential (managed identity, no client secret at
+  all) is real future hardening, filed as a follow-up, not part of this cutover. **Phases 7-8**
+  (cutover deploy + manual live verification against a real tenant) remain open, blocked on live
+  Azure/Entra access this coding session doesn't have.
 - `canvas-jtm` epic (10 phases, now complete): `apps/api`'s database layer was hard-wired to
   PostgreSQL with zero abstraction — a single `pg.Pool` singleton, hand-written raw SQL across
   ~125 call sites, several Postgres-only constructs (`ILIKE`, `to_char`, `ON CONFLICT`,

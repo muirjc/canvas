@@ -14,13 +14,13 @@
 | Node.js | 22 LTS (pinned in CI as `NODE_VERSION: '22'`) |
 | npm | Whatever ships with Node 22 (npm workspaces monorepo — no separate package manager) |
 | PostgreSQL (default) OR SQLite | Postgres 16 (`postgres:16-alpine` locally; Azure Database for PostgreSQL Flexible Server, version 16, in the cloud) — **or** SQLite via the bundled `better-sqlite3` driver, no separate server process. Selected by `DB_CLIENT` (see `RUNBOOK.md`). SQLite is for local dev/evaluation/small self-hosted use, not larger concurrent production deployments — see `docs/solution-architecture-document.md` §12. |
-| Docker | Local dev only, and only needed for the Postgres engine (runs Postgres, optionally Keycloak) — not required at all when running against SQLite |
+| Docker | Local dev only, and only needed for the Postgres engine — not required at all when running against SQLite |
 
 ## External services (optional/pluggable)
 
 | Service | Version | Required for |
 |---|---|---|
-| Keycloak | 26.2 (`quay.io/keycloak/keycloak:26.2`) | SSO login with enforced MFA — optional locally (`ALLOW_LOCAL_AUTH` fallback), primary auth path on Azure |
+| Microsoft Entra ID | Tenant-hosted, no version to pin (OIDC v2.0 endpoint) | SSO login with App Role-based access and tenant-enforced MFA — optional locally (`ALLOW_LOCAL_AUTH` fallback), primary auth path on Azure. Requires a real Entra tenant + app registration even for local testing — see `RUNBOOK.md`'s "Entra ID SSO" section; there is no self-contained local-container equivalent (canvas-haz epic, replacing a self-hosted Keycloak Container App). |
 | Anthropic API | Claude models via `@ai-sdk/anthropic` | AI chat, when `AI_PROVIDER=anthropic` |
 | OpenAI API | via `@ai-sdk/openai` | AI chat, when `AI_PROVIDER=openai` |
 
@@ -49,8 +49,10 @@ Neither AI provider is required — `AI_PROVIDER=mock` gives fully deterministic
 | @resvg/resvg-js | ^2.6.2 |
 | @canvas/diagram-core | workspace (`packages/diagram-core`) |
 
-**Dev/test**: typescript ^5.7.2 · vitest ^2.1.8 · tsx ^4.19.2 · supertest ^7.0.0 · @types/node
-^22.10.2 · @types/pg ^8.11.10 · @types/better-sqlite3 ^9.6.0
+**Dev/test**: typescript ^5.7.2 · vitest ^2.1.8 · tsx ^4.19.2 · supertest ^7.0.0 · jose ^6.2.2
+(signs synthetic ID tokens in the Entra OIDC callback contract test — resolves to the copy already
+transitively installed by `openid-client`, nothing new downloaded) · @types/node ^22.10.2 ·
+@types/pg ^8.11.10 · @types/better-sqlite3 ^9.6.0
 
 ## `apps/web` (React frontend)
 
@@ -61,8 +63,7 @@ Neither AI provider is required — `AI_PROVIDER=mock` gives fully deterministic
 
 **Dev/test**: typescript ^5.7.2 · vite ^6.0.3 · vitest ^2.1.8 · @vitejs/plugin-react ^4.3.4 ·
 @playwright/test ^1.49.1 · @axe-core/playwright ^4.12.1 · @testing-library/react ^16.1.0 · jsdom
-^25.0.1 · otplib ^13.4.1 (drives real TOTP codes in the Keycloak SSO E2E spec) · @types/react
-^18.3.17 · @types/react-dom ^18.3.5
+^25.0.1 · @types/react ^18.3.17 · @types/react-dom ^18.3.5
 
 No UI framework/component library — plain React + hand-written CSS (`apps/web/src/styles/`).
 

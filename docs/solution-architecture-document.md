@@ -15,8 +15,8 @@ This document describes Canvas's technical architecture: how the system is struc
 technology choices behind it and why, how data flows through it, and how it is deployed and
 secured. It covers the platform as delivered through `specs/001` – `011` plus the substantial body
 of post-spec-kit hardening and completeness work tracked in `CLAUDE.md`'s Recent Changes log and
-the project's `bd` issue tracker (Azure deployment, Keycloak SSO with enforced MFA, the DSL
-full-compliance and canvas-UI-completeness epics, C4 template import, and self-hosted API
+the project's `bd` issue tracker (Azure deployment, Microsoft Entra ID SSO with enforced MFA, the
+DSL full-compliance and canvas-UI-completeness epics, C4 template import, and self-hosted API
 documentation).
 
 ## 2. Architecture Overview
@@ -49,7 +49,7 @@ apart.
                                     │ personas/chat history)       │
                                     └───────────────────────────┘
                           ┌───────────────────────────┐
-                          │ Keycloak (OIDC IdP, MFA)   │  (optional; local-auth
+                          │ Entra ID (OIDC IdP, MFA)   │  (optional; local-auth
                           └───────────────────────────┘   fallback always available)
                           ┌───────────────────────────┐
                           │ Anthropic / OpenAI (AI chat)│  (optional; mock provider
@@ -67,8 +67,8 @@ apart.
 | Backend runtime | Node.js | 22 LTS | Per `README.md`'s stated requirement |
 | Database | PostgreSQL or SQLite | Postgres 16 (Alpine locally, Azure Flexible Server in the cloud); SQLite via `better-sqlite3` | Single relational store — no separate document/cache store. Engine selected by `DB_CLIENT` (default `postgres`); SQLite is supported for local dev, evaluation, and small/single-team self-hosted use, not recommended for larger concurrent production deployments (single-writer serialization) — see §12 |
 | Database driver | Kysely (`^0.29`) over `pg` (Postgres) or `better-sqlite3` (SQLite) | — | Typed SQL query **compiler**, not an ORM — no entity/active-record layer, `.compile()` shows the exact SQL (`apps/api/src/db/client.ts`); see `.specify/memory/constitution.md` Principle VI |
-| Auth (OIDC) | `openid-client` | ^6.1 | PKCE authorization-code flow against Keycloak (or any OIDC-compliant IdP) |
-| Identity Provider | Keycloak | 26.2 | Self-hosted, realm-imported from version-controlled JSON (`infra/keycloak/CanvasRealm-realm.json`); enforces TOTP MFA on every SSO login |
+| Auth (OIDC) | `openid-client` | ^6.1 | PKCE authorization-code flow (+ nonce) against Microsoft Entra ID (or any OIDC-compliant IdP); ID-token signature verification against JWKS via `client.enableNonRepudiationChecks` |
+| Identity Provider | Microsoft Entra ID | Tenant-hosted, v2.0 OIDC endpoint | Org-managed, not self-hosted — a confidential (Web platform) app registration per environment; App Roles (`admin`/`architect`/`viewer`) drive authorization, MFA is enforced via tenant Conditional Access policy, not app code |
 | AI SDK | Vercel AI SDK (`ai`, `@ai-sdk/anthropic`, `@ai-sdk/openai`) | ^7.0 | Provider-swappable tool-calling; a fourth "mock" provider gives deterministic offline/CI behavior |
 | Auto-layout | `@dagrejs/dagre` | ^3.1 | DAG ranking/positioning for the flowchart-family "Auto Layout" toolbar action |
 | PNG export | `@resvg/resvg-js` | ^2.6 | Server-side SVG→PNG rasterization, no headless browser needed |
@@ -100,8 +100,10 @@ packages/diagram-core/src/{model,dsl,standards,libraries,render,template} # shar
   text panel, and the AI chat panel all read/write the same model object, kept in sync via
   `diagram-core`'s parse/serialize functions (`useDslSync.ts`).
 - **`apps/api`** is a Fastify server exposing a REST API (47 routes as of this document, see §7)
-  plus three narrow non-JSON concerns: an OIDC callback redirect, a reverse proxy to an
-  internal-only Keycloak (`/idp/*`, Azure only), and binary SVG/PNG export downloads.
+  plus two narrow non-JSON concerns: an OIDC callback redirect and binary SVG/PNG export downloads.
+  (A third — a reverse proxy to an internal-only self-hosted Keycloak, `/idp/*` — existed only while
+  Keycloak was the IdP; removed in the `canvas-haz` migration to Entra ID, whose issuer is always
+  public and needs no such proxy.)
 
 ### 4.2 The shared-kernel decision
 
@@ -215,15 +217,24 @@ persona-reference-material, diagram-chat).
   shape (`request.session.user`):
   - **Local email/password** (`ALLOW_LOCAL_AUTH`) — for local dev/demo; hashed credentials in a
     separate `local_credentials` table.
-  - **OIDC via Keycloak** (PKCE authorization-code flow) — the primary mechanism for a real
-    deployment. Keycloak realm policy **forces TOTP (MFA) enrollment** on every user's first
-    login; there is no way to complete SSO login without it (realm policy, not app code). Realm
-    roles (`admin`/`architect`/`viewer`) are re-read and re-synced into the local `users.role` on
-    every login — Keycloak is the source of truth once a user has signed in via SSO once.
+  - **OIDC via Microsoft Entra ID** (PKCE authorization-code flow, plus nonce) — the primary
+    mechanism for a real deployment. MFA enforcement is entirely **tenant-side** (a Conditional
+    Access policy, or Security Defaults) — there is no app-level enrollment step; Entra simply
+    won't complete the authorization unless the tenant's own policy is satisfied. A user must also
+    be explicitly assigned to the app registration ("Assignment required = Yes") to get a token at
+    all — authorization is fail-closed at the tenant level, before canvas's own role-mapping code
+    ever runs. App Roles (`admin`/`architect`/`viewer`, a flat top-level `roles` claim on the ID
+    token) are re-read and re-synced into the local `users.role` on every login — Entra is the
+    source of truth once a user has signed in via SSO once. ID-token signatures are verified
+    against the tenant's published JWKS (`client.enableNonRepudiationChecks` — not on by default in
+    `openid-client` v6, confirmed directly against its source); `iss`/`aud`/`exp`/nonce/state are
+    all validated before any session is established. User identity matching stays email-only (no
+    `oid`/`tid` column) — a deliberate, disclosed smallest-change decision, same risk profile this
+    app already accepted under Keycloak.
   - **Sign-out** performs a real RP-Initiated (OIDC) logout when the session came from SSO
-    (`canvas-252`): the local session is destroyed *and* the browser is navigated to Keycloak's
-    own `end_session_endpoint`, so Keycloak's SSO cookie is actually cleared — a local-auth
-    session gets a plain, fast local-only sign-out with no Keycloak round-trip.
+    (`canvas-252`): the local session is destroyed *and* the browser is navigated to Entra's own
+    `end_session_endpoint`, so Entra's own SSO cookie is actually cleared — a local-auth session
+    gets a plain, fast local-only sign-out with no IdP round-trip.
 - **Authorization**: three roles (`admin`/`architect`/`viewer`), plus fine-grained per-resource
   `share_grants` (view/comment/edit) at both the project and individual-diagram level, resolved by
   `resolveDiagramAccess`/`requireProjectAccess` middleware. No multi-tenancy — single-organization
@@ -244,9 +255,12 @@ persona-reference-material, diagram-chat).
   (the DSL's own click-href grammar has no escape syntax, so rejection — not escaping — is the
   only sound option). Reviewed by a dedicated appsec pass before merge, per that feature's own
   explicit requirement given the disclosed risk class.
-- **Secrets**: Azure deployment sources every secret (Postgres password, session secret, Keycloak
-  admin password, OIDC client secret, AI provider API keys) from Key Vault via managed-identity
-  secret references — never baked into a container image or Bicep parameter file.
+- **Secrets**: Azure deployment sources every secret (Postgres password, session secret, OIDC
+  client secret, AI provider API keys) from Key Vault via managed-identity secret references —
+  never baked into a container image or Bicep parameter file. The Entra client secret is a
+  smallest-change choice for now (reuses the existing Key Vault flow); a federated credential
+  (managed identity, no secret at all) is real future hardening, filed as a follow-up, not part of
+  the `canvas-haz` cutover.
 
 ## 9. AI Integration Architecture
 
@@ -271,8 +285,10 @@ a gap — real-provider validation is a separate manual/spot-check activity).
 
 ### 10.1 Local development
 
-`docker compose up -d` (Postgres only by default; `--profile sso` opts into a local Keycloak with
-a version-controlled realm import) + `npm run dev` per workspace. See `RUNBOOK.md`.
+`docker compose up -d` (Postgres only — no local-container IdP exists, unlike the self-hosted
+Keycloak this project used before `canvas-haz`; Entra ID is always a real, cloud-hosted tenant, so
+local SSO testing needs a real dev tenant + app registration, see `RUNBOOK.md`'s "Entra ID SSO"
+section) + `npm run dev` per workspace.
 
 ### 10.2 Azure (production-shaped reference deployment)
 
@@ -283,20 +299,25 @@ Reproducible Bicep IaC under `infra/azure/`, one resource group (`canvas-rg`):
 - **Data**: Postgres Flexible Server (private endpoint only) + a Key Vault (RBAC-authorized,
   purge-protection off by design so `destroy.sh` can fully clean up) + a Storage account (static
   website hosting for the built frontend).
-- **Compute**: a Container Apps environment hosting two apps — `canvas-api` (public ingress,
-  scale-to-zero eligible) and `canvas-keycloak` (**internal-ingress only**, reached exclusively
-  through `canvas-api`'s own `/idp/*` reverse proxy, since a browser can never reach an
-  internal-only Container App directly) — plus four manually-triggered jobs: `canvas-migrate`,
-  `canvas-seed`, `canvas-keycloak-users` (real user provisioning via the Keycloak admin REST API),
-  and the purge script's own future job slot.
+- **Compute**: a Container Apps environment hosting one app — `canvas-api` (public ingress,
+  scale-to-zero eligible) — plus two manually-triggered jobs: `canvas-migrate` and `canvas-seed`,
+  and the purge script's own future job slot. (Before `canvas-haz`, this environment also hosted a
+  second, internal-ingress-only `canvas-keycloak` Container App plus a `canvas-keycloak-users`
+  provisioning job and its own Postgres database — all removed once the IdP moved to Entra, which
+  needs no self-hosted compute or database of its own at all.)
 - **Container Registry**: images tagged with the deploying git commit's short SHA (never a
   floating `:latest` — Container Apps' own revision-diffing treats a reused tag string as a no-op
   even when the underlying digest changed, a real gotcha this project hit and documented).
 - **Bootstrap ordering quirk (disclosed, not a bug)**: `deploy.sh` needs **two passes** on a
-  genuine from-scratch deployment — pass one creates Key Vault itself (so the API/Keycloak
-  container apps' own secret references necessarily fail, since nothing exists in the vault yet);
-  pass two seeds the secrets and everything comes up clean. Re-running the same script is always
-  safe (cached local secrets, idempotent Keycloak client reconciliation via its admin REST API).
+  genuine from-scratch deployment — pass one creates Key Vault itself (so `canvas-api`'s own secret
+  references necessarily fail, since nothing exists in the vault yet); pass two seeds the secrets
+  and everything comes up clean. Re-running the same script is always safe (cached local secrets,
+  an idempotent AcrPull-grant skip-check). Entra's own app registration (redirect URIs, client
+  secret) is reconciled manually, not by `deploy.sh` — it prints the exact values to register plus
+  a ready-to-paste `az ad app update` command rather than calling Microsoft Graph automatically
+  (which would need broader app-registration permissions than the deploying identity should likely
+  hold) — a deliberate difference from how the former self-hosted Keycloak's own admin REST API was
+  reconciled automatically by the same script.
 - **Cost-control lifecycle**: `pause.sh` stops Postgres compute and drops both Container Apps to
   scale-to-zero-eligible (keeping all data); `resume.sh` reverses it; `destroy.sh` is the full,
   irreversible teardown (resource group deletion + Key Vault purge), with local cached secrets
@@ -319,9 +340,17 @@ Four layers, enforced by Constitution Principle IV for the first two:
    runs this suite as a `db-client: [postgres, sqlite]` matrix so dialect parity is continuously
    enforced, not just checked once locally.
 4. **End-to-end** (`apps/web/tests/e2e/`, Playwright + axe-core) — drives the real running app in
-   a real browser, including a dedicated SSO spec that completes a real Keycloak TOTP enrollment
-   (reads the live enrollment page's TOTP secret, computes a real code with `otplib`) rather than
-   mocking the IdP.
+   a real browser. SSO itself is deliberately **not** covered by a live-browser E2E spec (a
+   `canvas-haz` decision, not an oversight) — standing up a disposable Entra tenant per CI run is a
+   different order of complexity than the self-hosted Keycloak container this replaced, and MFA now
+   lives entirely in tenant Conditional Access policy, outside any test's reach regardless. Instead,
+   `apps/api/tests/contract/oidc-callback.test.ts` drives the real `/auth/login` → `/auth/callback`
+   flow through genuinely-not-mocked `openid-client`/`oauth4webapi` against a locally-generated
+   RS256 keypair (`jose`) — this is what actually proves ID-token signature verification, claim
+   validation, and role mapping, with no live tenant needed. The one thing this can't prove —
+   whether the *real* tenant's app registration, role assignments, and redirect-URI list are
+   configured correctly — is covered by a manual post-deploy checklist (`RUNBOOK.md`'s "Entra ID
+   SSO" section), run once per environment stand-up.
 
 CI (`.github/workflows/ci.yml`) runs `lint-and-build` → `unit-tests` → `e2e-tests` on every PR;
 `main` is branch-protected requiring all three green and the PR branch up to date.
@@ -338,6 +367,7 @@ CI (`.github/workflows/ci.yml`) runs `lint-and-build` → `unit-tests` → `e2e-
 | No ORM; typed SQL via Kysely (originally raw SQL via `pg`) | Sixteen tables, mostly straightforward CRUD plus a few polymorphic/recursive queries (project trees, access resolution) — judged not to need a full ORM's entity/active-record abstraction cost. Kysely was adopted specifically because it compiles typed method calls to real per-dialect SQL with no such layer (Constitution Principle VI), enabling the Postgres+SQLite support below without reversing the original "no ORM" decision |
 | SQLite as a second supported database engine, Postgres remains the default | Removes the hard requirement to run a standalone Postgres server (via Docker or otherwise) just to try the app locally — a real adoption barrier. Scoped deliberately to Postgres + SQLite only (no MySQL); SQLite is documented as suitable for local dev, evaluation, and small/single-team self-hosted use, not larger concurrent production deployments, because SQLite serializes writers (one writer at a time; `SQLITE_BUSY` under contention without WAL tuning this project does not attempt to add). The Azure reference deployment's own default stays Postgres — this makes SQLite a real, tested *option*, not a migration off Postgres. Engine-specific gaps are each isolated behind a single helper rather than scattered: `db/sql-helpers.ts` (`ILIKE`→`LIKE`, `to_char`→`strftime`, boolean 0/1 coercion) and two Kysely plugins in `db/client.ts` (`SqliteValueCoercionPlugin` for bound `Date`/`boolean` values, `SqliteJsonColumnsPlugin` for JSON-column auto-parse on read, since SQLite has neither a native boolean/timestamp type nor Postgres's automatic JSONB deserialization) |
 | AI tool-calling constrained to typed operations, never raw DSL | The same trust boundary a manual edit already has (standards validation, family-appropriate vocabulary) applies uniformly, with no AI-specific bypass path to audit separately |
+| Microsoft Entra ID replaces self-hosted Keycloak as the IdP (`canvas-haz`, full cutover, no dual-IdP period) | Keycloak required self-maintaining an always-on Container App, its own Postgres database, a version-controlled realm import, and a fragile admin-API reconciliation script — operational burden for an identity platform the organization already runs externally. Full cutover (not a phased/dual-IdP migration) was viable specifically because this is a single-organization deployment with no live users to migrate mid-flight, routinely paused/destroyed for cost control anyway. Kept unchanged: the `ALLOW_LOCAL_AUTH` fallback, email-only identity matching (no new `oid`/`tid` column), and the BFF/session-cookie architecture itself — this was an IdP swap, not an auth-architecture rewrite. SSO live-browser E2E coverage was dropped in favor of unit/contract tests against a mocked JWKS (see §11) — the IdP being a real cloud tenant rather than a disposable local container makes that trade-off clearly worth it here. |
 
 ## 13. Non-Functional Requirements / Quality Attributes
 
@@ -366,11 +396,15 @@ Disclosed deliberately, not silently carried:
   `schema` option.
 - **A pre-existing `fastify` vulnerability** (`canvas-ljx`) is un-remediated — two advisories
   against the pinned 5.10.0, one directly relevant given this app's `trustProxy: true` config.
-- **RP-Initiated Logout (`canvas-252`) is implemented and test-covered but not yet live-verified**
-  against a real deployed Keycloak (`canvas-252.1`) — the Azure environment was mid-teardown when
-  the fix landed.
-- **The Keycloak SSO E2E spec does not run in CI** — standing up Keycloak as a CI service
-  container is tracked separately; today it's a manual/local-only verification path.
+- **RP-Initiated Logout (`canvas-252`) is implemented and test-covered but not yet live-verified
+  against the real deployed IdP** — originally tracked against Keycloak (`canvas-252.1`, closed as
+  superseded once `canvas-haz` replaced that IdP entirely); the equivalent live check against Entra
+  ID is now part of `canvas-haz`'s own Phase 7 manual verification checklist (`RUNBOOK.md`'s "Entra
+  ID SSO" section), not yet performed — this coding session has no live Azure/Entra tenant access.
+- **The full Entra ID cutover (`canvas-haz` Phases 7-8: a real deploy + manual live verification
+  against a real tenant) has not yet happened** — Phases 1-6 (code, infra, and docs) are complete
+  and merged to `main`, but nothing has yet been deployed and signed into against a real Entra
+  tenant. Until that happens, this is still an unverified (if unit/contract-tested) integration.
 - **Route-level request validation is inconsistent** — most routes hand-validate imperatively
   rather than via declarative Fastify/zod schema (see §7).
 - **SQLite's `LIKE` is ASCII-only case-insensitive**, unlike Postgres's `ILIKE` (full Unicode

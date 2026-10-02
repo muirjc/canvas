@@ -13,7 +13,7 @@ walkthroughs, see `specs/*/quickstart.md`. For the "what is this project" overvi
 | `DATABASE_URL` | **yes**, unless `NODE_ENV=test` | For `DB_CLIENT=postgres` (default): `postgres://canvas:canvas_dev_password@localhost:5433/canvas`. For `DB_CLIENT=sqlite`: a file path (e.g. `./data/canvas.db`) or `:memory:`. Falls back automatically when `NODE_ENV=test` (to `.../canvas_test` for Postgres, or an in-memory SQLite database for `TEST_DB_CLIENT=sqlite`) — see `apps/api/src/config.ts`. |
 | `SESSION_SECRET` | **yes**, unless `NODE_ENV=test` | ≥32 characters. Falls back to a fixed test string when `NODE_ENV=test`. |
 | `ALLOW_LOCAL_AUTH` | no (default `false`) | Set `true` for local dev/demo — enables email/password login without OIDC. |
-| `OIDC_ISSUER_URL` / `OIDC_CLIENT_ID` / `OIDC_CLIENT_SECRET` / `OIDC_REDIRECT_URI` | no | Leave blank locally; SSO routes are disabled when unset (logged at startup). See "Keycloak SSO" below to actually try it locally. |
+| `OIDC_ISSUER_URL` / `OIDC_CLIENT_ID` / `OIDC_CLIENT_SECRET` / `OIDC_REDIRECT_URI` | no | Leave blank locally; SSO routes are disabled when unset (logged at startup). See "Entra ID SSO" below to actually try it locally. |
 | `WEB_ORIGINS` | no (default `http://localhost:5173`) | Comma-separated list of origins allowed to make credentialed CORS requests. |
 | `COOKIE_SECURE` | no (default `false`) | Set `true` for a split-origin deployment (frontend and API on different hosts, e.g. Azure — see `docs/azure-deployment.md` for a quick demo, or `infra/azure/README.md` for a proper IaC deployment). Forced `true` automatically whenever `COOKIE_SAME_SITE=none`. |
 | `COOKIE_SAME_SITE` | no (default `lax`) | `lax`/`none`/`strict`. Leave at the default for local dev and any same-origin deployment. `none` is required for a split-origin deployment — `lax` cookies are never attached to cross-site fetch/XHR calls. |
@@ -86,67 +86,124 @@ endpoint not yet schema-annotated, see its `apps/api/src/**/*.routes.ts` source 
 `ALLOW_LOCAL_AUTH`) so a real deployment doesn't expose its full route surface unintentionally —
 deliberately turn it on for that environment if you want it there too.
 
-## Keycloak SSO (canvas-mi9)
+## Entra ID SSO (canvas-haz)
 
-Local Keycloak with a reproducible, version-controlled realm import — no manual admin-console
-clickthrough needed. Not started by the plain `docker compose up -d` above (see
-`docker-compose.yml`'s own comment); opt in explicitly:
+Unlike the self-hosted Keycloak this replaced, there's no local-container IdP to `docker compose
+up` — Entra ID is always a real, cloud-hosted tenant. Local SSO testing needs a real (free) Entra
+dev tenant and its own app registration; `ALLOW_LOCAL_AUTH=true` remains the primary, fully
+self-contained local dev login path (see `.env.example`), and nothing about it changed in this
+migration.
 
-```bash
-docker compose --profile sso up -d keycloak
-```
+**One-time tenant setup** (a Global Administrator / Application Administrator does this in the
+Entra admin center — this is a tenant-side task, not app code, and only needs doing once per
+tenant):
 
-Wait for `curl http://localhost:8180/realms/CanvasRealm/.well-known/openid-configuration` to
-return `200` (a JVM boot takes a few seconds), then point the API at it:
+1. Create a single-tenant **app registration** (e.g. `canvas-dev` for local work, a separate
+   `canvas-azure` registration for the actual Azure deployment — kept separate because
+   `az ad app update --web-redirect-uris` *replaces* the whole redirect-URI list, so one shared
+   registration would have its localhost entries overwritten by every Azure redeploy).
+2. Authentication → add a **"Web"** platform (not SPA — canvas is a confidential BFF client; the
+   browser never sees an access/ID token, only a session cookie). Redirect URI:
+   `http://localhost:3000/auth/callback`. Post-logout redirect: `http://localhost:5173`.
+3. Certificates & secrets → create a client secret. Record its value (shown once) and its
+   expiry — Entra client secrets expire (6–24 months is typical); put the renewal date on a
+   calendar, since an expired secret fails every login with no advance warning.
+4. App roles → create exactly three, **Value** set to the literal strings `admin`, `architect`,
+   `viewer` (must match `UserRole` in `apps/api/src/auth/types.ts` exactly — this is what lets
+   `apps/api/src/auth/oidc.ts`'s `mapIdpRolesToUserRole` work with no mapping table at all).
+   Allowed member type: Users/Groups.
+5. Token configuration → add the optional claim **`email`** to the ID token (without it, work/
+   school accounts without a `mail` attribute set often have no usable email claim at all —
+   `extractIdentityFromIdToken` falls back to `preferred_username` only when it looks like an
+   email, and ultimately to a non-matching `${sub}@unknown.local` placeholder if neither is
+   present).
+6. Enterprise application → Properties → **"Assignment required" = Yes**. This is what makes
+   authorization fail-closed at the tenant level — a user with no app-role assignment can't even
+   obtain a token for this app, let alone reach canvas's own role-mapping code.
+7. Assign test users to the app roles you want to exercise locally.
+8. MFA is enforced entirely tenant-side now (a Conditional Access policy, or tenant Security
+   Defaults) — there is no app-level TOTP enrollment step the way Keycloak's realm policy forced
+   one. Confirm your tenant's policy actually requires MFA for this app if that parity matters to
+   you locally.
+
+**Local `.env`** once the app registration exists:
 
 ```bash
 # apps/api/.env — see .env.example's own comment on these four
-OIDC_ISSUER_URL=http://localhost:8180/realms/CanvasRealm
-OIDC_CLIENT_ID=canvas-api
-OIDC_CLIENT_SECRET=canvas-dev-client-secret-do-not-use-in-production
+OIDC_ISSUER_URL=https://login.microsoftonline.com/<tenant-id>/v2.0
+OIDC_CLIENT_ID=<canvas-dev app registration's Application (client) ID>
+OIDC_CLIENT_SECRET=<the client secret value from step 3>
 OIDC_REDIRECT_URI=http://localhost:3000/auth/callback
 ```
 
-Restart `npm run dev --workspace=@canvas/api` to pick up the new env vars (OIDC discovery runs
-once at startup, not per-request) and reload the frontend — `LoginForm.tsx` now shows a
-"Sign in with SSO" link. `infra/keycloak/CanvasRealm-realm.json` seeds two test users, each
-forced through Keycloak's own TOTP (MFA) enrollment on first login — there is no way to complete
-Keycloak SSO login without it, realm policy, not just app code:
+The `/v2.0` suffix is **required** — `apps/api/src/config.ts`'s `validateOidcIssuerUrl()` rejects
+a bare tenant path or the v1 endpoint (`https://sts.windows.net/<tenant-id>/`) at startup with a
+clear error, since the v1 token shape has no flat top-level `roles` claim. The multi-tenant
+aliases (`/common`, `/organizations`, `/consumers`) are rejected the same way — this app always
+authenticates against one specific tenant. Restart `npm run dev --workspace=@canvas/api` to pick
+up the new env vars (OIDC discovery runs once at startup, not per-request) — `LoginForm.tsx` now
+shows a "Sign in with SSO" link.
 
-| Email | Password | Keycloak realm role | canvas `UserRole` |
-|---|---|---|---|
-| `sso-admin@example.com` | `sso-admin-dev-password` | `admin` | `admin` |
-| `sso-architect@example.com` | `sso-architect-dev-password` | `architect` | `architect` |
+Role mapping (`apps/api/src/auth/oidc.ts`'s `extractEntraRoles`/`mapIdpRolesToUserRole`) reads the
+flat top-level `roles` claim on the ID token and re-syncs it on every login — Entra is the source
+of truth once a user signs in via SSO, so a role change there (or in the app's role assignments)
+takes effect on that user's very next login, not just at some later manual re-provisioning step.
+Identity matching stays **email-only** (no `oid`/`tid` column) — a deliberate, smallest-change
+decision made for this migration, same risk profile this app already accepted under Keycloak.
+Emails are lowercased before lookup (Entra can return mixed case; Postgres/SQLite string equality
+is case-sensitive). A user with none of `admin`/`architect`/`viewer` in `roles` defaults to
+`viewer` (least privilege) — in practice this rarely fires, since "Assignment required = Yes"
+above already prevents an unassigned user from getting a token at all.
 
-Role mapping (`apps/api/src/auth/oidc.ts`'s `mapRealmRolesToUserRole`) reads the realm roles
-claim (`realm_access.roles` in the ID token, via the realm's own "realm roles" protocol mapper)
-and re-syncs it on every login — Keycloak is the source of truth once a user signs in via SSO, so
-a role change there takes effect on that user's very next login, not just at some later manual
-re-provisioning step. A user with none of `admin`/`architect`/`viewer` as a realm role defaults to
-`viewer` (least privilege), never silently escalated.
-
-**Verified against a real Keycloak instance, not just realm config that's never exercised** —
-`apps/web/tests/e2e/sso-login.spec.ts` drives the actual login + first-time MFA enrollment
-through Keycloak's own login theme (reads the enrollment page's live TOTP secret, computes a real
-code with `otplib`, submits it) and confirms the resulting canvas session has the correctly
-mapped role. Two real bugs in the pre-existing OIDC callback code were found and fixed doing this
-(see `oidc.ts`'s own comments): a `request.hostname`-derived redirect URI silently missing its
-port, and a post-login redirect assuming same-origin frontend/API when canvas is deliberately
-split-origin. Neither was previously reachable by any test, since nothing had exercised a real
-OIDC round-trip before. This spec needs `E2E_SSO_READY=1` (on top of the usual `E2E_PROJECT_ID`)
-and a **freshly (re)started** Keycloak container — `docker compose --profile sso down keycloak &&
-docker compose --profile sso up -d keycloak` — its realm-imported users carry no persistent
-volume, so a `restart` (not a full recreate) leaves a completed enrollment from a prior run in
-place and the spec's "first-time enrollment" assumption no longer holds. **Runs in CI**
-(`.github/workflows/ci.yml`'s `e2e-tests` job, canvas-v4u) too — it brings up this exact
-docker-compose `keycloak` service fresh on every run (a GitHub Actions runner is itself always a
-clean VM, so the same-container "freshly started" requirement above is automatically satisfied
-there) and sets the same `OIDC_*`/`E2E_SSO_READY` values documented above.
+**Testing posture — unit/contract only, no live-tenant E2E**: the previous Keycloak-era
+`apps/web/tests/e2e/sso-login.spec.ts` (a live-browser spec driving a real self-hosted IdP's login
+theme) is gone; it had no Entra equivalent worth building (standing up a disposable cloud tenant
+per CI run is a different order of complexity than `docker compose up`, and MFA now lives entirely
+in tenant Conditional Access policy, outside any test's reach regardless). In its place,
+`apps/api/tests/contract/oidc-callback.test.ts` drives the real `/auth/login` → `/auth/callback`
+flow through the genuinely-not-mocked `openid-client`/`oauth4webapi` libraries, with `fetch`
+stubbed to serve a locally-generated RS256 keypair's discovery document, JWKS, and signed test ID
+tokens (via `jose`, a test-only devDependency) — this is what actually proves ID-token signature
+verification (`client.enableNonRepudiationChecks`), `iss`/`aud`/`exp`/nonce/state validation, and
+role mapping all work, without needing a live tenant. There is no local-equivalent live SSO test
+to run by hand; the **only** real-tenant verification is the manual post-deploy checklist below,
+run once against the actual deployed Azure environment.
 
 `ALLOW_LOCAL_AUTH=true` still works alongside SSO — both entry points render whenever both are
 configured; this is a genuine platform-wide, not-yet-revisited decision for a *deployed*
-environment (see `infra/azure/modules/apiapp.bicep`'s own `allowLocalAuth` param comment for why
-it currently defaults `true` there too, and what has to happen before that changes).
+environment (see `infra/azure/modules/apiapp.bicep`'s own `allowLocalAuth` param comment — it
+defaults `false` there specifically because Entra SSO is the intended only way in for that
+deployment, kept as a param purely as an emergency break-glass switch).
+
+### Manual post-deploy live verification (Entra, Phase 7 of canvas-haz)
+
+Nothing above is a substitute for actually trying this against the real deployed Azure
+environment once — the contract test proves the *code's* validation logic; it can't prove the
+*tenant's* app registration, role assignments, or redirect-URI list are configured correctly. Work
+through this checklist once per environment stand-up (and again any time the `canvas-azure` app
+registration's redirect URIs or client secret change):
+
+- `GET /auth/config` reports `oidcEnabled: true`; no discovery/issuer errors in the API's logs.
+- An admin-role test user: SSO → Entra's MFA prompt (per the tenant's Conditional Access policy) →
+  lands back on the real web origin (not Entra's own generic post-login page); `/auth/me` reports
+  `role: 'admin'`; the DB row's stored email is lowercased.
+- Architect/viewer test users map correctly; a user assigned two roles gets the higher of the two.
+- An unassigned user → Entra's own `AADSTS50105` → canvas's own friendly 403 (not a raw 500).
+- Change a test user's App Role assignment in Entra, sign out, sign in again → the role re-syncs
+  to the new value on that very next login.
+- Deactivate a user via canvas's own admin console → their next SSO attempt is rejected (403).
+- **Sign-out round-trips through Entra's logout and lands back on the real web origin** — this is
+  the one most likely to silently misconfigure: a redirect URI Entra doesn't recognize means it
+  stops at its own generic "you have signed out" page instead of bouncing back, with no error
+  surfaced anywhere in canvas's own logs.
+- `canvas-api`'s container app revision is healthy and successfully pulled its image; the
+  migration and seed job executions both succeed too (all three prove the relocated `AcrPull` role
+  assignment — see `infra/azure/modules/keyvault.bicep` — actually works); exactly one `AcrPull`
+  role assignment exists on the shared managed identity.
+- No `canvas-keycloak` container app, no `keycloak` Postgres database, and nothing under
+  `infra/keycloak/` remain anywhere in the environment.
+- `pause.sh`/`resume.sh` still work cleanly; a routine re-run of `deploy.sh` does not re-trigger a
+  `RoleAssignmentExists` error (confirms the AcrPull skip-logic still works after its relocation).
 
 ### Running servers detached, for scripted/agent workflows
 

@@ -72,11 +72,15 @@ inferred from the bead description alone)
 - Admin-defined, machine-checked Standards (shapes/colors/fonts/icon libraries) per diagram type
   (Constitution II) — a different governance axis from ADP's locked theme + LLM-as-Judge
   validation/verdict/audit-log system, with no overlap in what each one checks.
-- TypeScript/Fastify/Node backend, PostgreSQL storage, Keycloak OIDC auth. The auth alignment is
-  a genuine point of compatibility: this repo's own `infra/azure/README.md` already explicitly
-  states it "mirrors ADP's own" Keycloak/Container Apps patterns — the two platforms already agree
-  on how a user's identity and role should work, even though almost nothing else architecturally
-  aligns.
+- TypeScript/Fastify/Node backend, PostgreSQL storage, Microsoft Entra ID OIDC auth (`canvas-haz`
+  migrated this repo off a self-hosted Keycloak instance; see `docs/solution-architecture-document.md`
+  §12's decision log). This repo's `infra/azure/` IaC still generally "mirrors ADP's own" Container
+  Apps/Key Vault/VNet patterns — that infrastructure-shape alignment is unaffected — but the
+  specific auth-alignment claim this document previously made ("both already use Keycloak OIDC")
+  no longer holds as stated now that this repo authenticates against Entra ID instead. Whether ADP
+  itself still uses Keycloak, has also moved to Entra, or something else was not re-verified while
+  writing this revision — confirm ADP's current IdP directly before relying on the "no new auth
+  work" conclusion below.
 - No requirement-traceability, AI-provenance, audit-log, or verdict concept anywhere in
   `packages/diagram-core`'s model today — these are ADP-specific concerns Canvas was never asked
   to represent.
@@ -174,8 +178,14 @@ Two independently-verified technical facts make this concretely, not just concep
   types render/edit through the ported Canvas components against the new DSL-backed storage.
 - **Rendering/export for the new types uses Canvas's own SVG renderer directly** (already pure
   TS) — no need to extend `adp.renderer`'s Python/Structurizr pipeline, which stays C4-only.
-- **Auth needs no new work** — both already use Keycloak OIDC, and this repo's own
-  `infra/azure/README.md` already documents that alignment.
+- **Auth alignment needs re-checking, not assumed free** — this document previously claimed "no new
+  work" because both platforms used Keycloak OIDC; that is no longer true for this repo as of
+  `canvas-haz` (now Microsoft Entra ID, App Role-based, tenant-enforced MFA — see
+  `docs/solution-architecture-document.md` §8/§12). If ADP is still on Keycloak, integration would
+  need either ADP also moving to Entra, this repo moving back, or the two systems trusting two
+  different IdPs for the same user base — a real decision this document can no longer wave away,
+  and one that wasn't scoped or resolved while revising this document (ADP's current IdP wasn't
+  independently confirmed here).
 
 ## What is genuinely new engineering work, not free
 
