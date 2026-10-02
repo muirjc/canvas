@@ -12,6 +12,16 @@
 // (DATABASE_URL, SESSION_SECRET, ANTHROPIC_API_KEY/OPENAI_API_KEY) are set imperatively by
 // deploy.sh via `az keyvault secret set` after this deploys, so no secret value ever appears in
 // a Bicep template or ARM deployment parameter.
+//
+// canvas-haz: also the home of this identity's AcrPull grant (moved here from the now-deleted
+// modules/keycloak.bicep, which was the first consumer to deploy when it existed and so claimed
+// the one authoritative declaration -- see that module's own git history for the
+// RoleAssignmentExists idempotency story this grant's grantAcrPull skip-param exists for). This
+// module already creates the identity itself and its other role assignment
+// (identitySecretsUser below), so colocating AcrPull here means every other module that already
+// depends on keyVault.outputs.identityId (apiApp, migrationJob, seedJob, ...) gets an implicit
+// dependency on this grant too, for free -- the same thing depending on keycloak.outputs.fqdn used
+// to provide before that module existed.
 
 @description('Azure region.')
 param location string
@@ -25,12 +35,28 @@ param identityName string = 'canvas-identity'
 @description('Object ID of the principal running this deployment, granted Key Vault Secrets Officer so it can write secret values immediately after this deploys.')
 param deployerPrincipalId string
 
+@description('ACR resource ID -- the identity is granted AcrPull on this scope.')
+param acrId string
+
+@description('canvas-vp1: whether to (re-)declare the AcrPull role assignment this run. deploy.sh sets this to false once it has confirmed the identity already holds AcrPull on this scope, so a routine redeploy never re-PUTs an already-existing role assignment (a role-assignment PUT with unchanged properties is not reliably a safe no-op -- reproduced live, see the former modules/keycloak.bicep\'s own git history). Defaults to true so a from-scratch deploy (no prior assignment to detect) still grants it.')
+param grantAcrPull bool = true
+
 var keyVaultSecretsUserRoleId = subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '4633458b-17de-408a-b874-0445c86b69e6')
 var keyVaultSecretsOfficerRoleId = subscriptionResourceId('Microsoft.Authorization/roleDefinitions', 'b86a8fe4-44ce-4948-aee5-eccb2c155cd7')
 
 resource identity 'Microsoft.ManagedIdentity/userAssignedIdentities@2024-11-30' = {
   name: identityName
   location: location
+}
+
+resource acrPullAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (grantAcrPull) {
+  name: guid(acrId, identity.id, 'AcrPull', 'shared')
+  scope: resourceGroup()
+  properties: {
+    roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '7f951dda-4ed3-4680-a7ca-43fe172d538d')
+    principalId: identity.properties.principalId
+    principalType: 'ServicePrincipal'
+  }
 }
 
 resource keyVault 'Microsoft.KeyVault/vaults@2025-05-01' = {

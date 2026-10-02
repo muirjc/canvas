@@ -3,7 +3,12 @@
 # Resource group, ACR, VNet, private Postgres, Key Vault + managed identity, Container Apps
 # environment, API app, migration job, and a Storage static website for the frontend.
 #
-# Usage: ./deploy.sh [location]
+# Usage: ENTRA_CLIENT_ID=<id> [ENTRA_TENANT_ID=<id>] [ENTRA_CLIENT_SECRET=<secret>] ./deploy.sh [location]
+#
+# canvas-haz: ENTRA_CLIENT_ID (required) and ENTRA_CLIENT_SECRET (required on first run only --
+# cached afterward in infra/azure/.secrets/oidc-client-secret) come from the "canvas-azure" Entra
+# app registration -- see RUNBOOK.md's "Entra ID SSO" section for the one-time setup steps that
+# produce them. ENTRA_TENANT_ID defaults to the deploying subscription's own tenant.
 #
 # All secret VALUES (Postgres admin password, the assembled DATABASE_URL, SESSION_SECRET,
 # ANTHROPIC_API_KEY/OPENAI_API_KEY) are written into Key Vault BEFORE the main deployment runs,
@@ -29,7 +34,6 @@ REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 SECRETS_DIR="$SCRIPT_DIR/.secrets"
 PG_PASSWORD_FILE="$SECRETS_DIR/postgres-admin-password"
 SESSION_SECRET_FILE="$SECRETS_DIR/session-secret"
-KC_ADMIN_PASSWORD_FILE="$SECRETS_DIR/keycloak-admin-password"
 OIDC_CLIENT_SECRET_FILE="$SECRETS_DIR/oidc-client-secret"
 RESOURCE_GROUP="canvas-rg"
 
@@ -47,8 +51,6 @@ if [[ ! -f "$PG_PASSWORD_FILE" ]]; then
   # percent-encoding" bugs rather than adding escaping logic; 24 alphanumeric characters is still
   # ~140 bits of entropy, comfortably above Azure Postgres Flexible Server's own complexity floor
   # (needs 3 of upper/lower/digit/special -- alphanumeric alone already covers upper+lower+digit).
-  # Keycloak's own KC_DB_PASSWORD (modules/keycloak.bicep) passes this same value as a separate,
-  # non-URL-embedded env var, so it was never at risk from this specific bug.
   openssl rand -base64 32 | tr -dc 'A-Za-z0-9' | head -c 24 > "$PG_PASSWORD_FILE"
   chmod 600 "$PG_PASSWORD_FILE"
 fi
@@ -61,25 +63,37 @@ if [[ ! -f "$SESSION_SECRET_FILE" ]]; then
 fi
 SESSION_SECRET="$(cat "$SESSION_SECRET_FILE")"
 
-# canvas-ycu.1: Keycloak's own master-realm admin password, and the canvas-api confidential
-# client's OIDC secret -- generated and cached exactly like the two secrets above, NEVER the
-# infra/keycloak/CanvasRealm-realm.json dev placeholder ("canvas-dev-client-secret-do-not-use-
-# in-production", named that for exactly this reason). The realm import only bakes that
-# placeholder in on first boot; this script's post-deploy step further down (Reconciling
-# Keycloak's canvas-api client) overwrites it on the running server to match this real value.
-if [[ ! -f "$KC_ADMIN_PASSWORD_FILE" ]]; then
-  echo "Generating Keycloak admin password (first run) -> $KC_ADMIN_PASSWORD_FILE"
-  openssl rand -base64 24 > "$KC_ADMIN_PASSWORD_FILE"
-  chmod 600 "$KC_ADMIN_PASSWORD_FILE"
-fi
-KC_ADMIN_PASSWORD="$(cat "$KC_ADMIN_PASSWORD_FILE")"
-
-if [[ ! -f "$OIDC_CLIENT_SECRET_FILE" ]]; then
-  echo "Generating OIDC client secret (first run) -> $OIDC_CLIENT_SECRET_FILE"
-  openssl rand -base64 32 > "$OIDC_CLIENT_SECRET_FILE"
+# canvas-haz: unlike the self-hosted Keycloak this replaced (whose client secret this script could
+# freely generate itself, since it also owned reconciling that value into Keycloak's own running
+# config), Entra ID generates the "canvas-azure" app registration's client secret itself -- there
+# is no local-generate-and-push-to-the-IdP step possible here, only "the operator copies the real
+# value out of the Entra portal/`az ad app credential reset` once" (RUNBOOK.md's "Entra ID SSO"
+# section has the one-time setup steps). ENTRA_CLIENT_SECRET, if set, is cached to this same file
+# exactly like the other secrets above so it only needs to be supplied once; if neither is present
+# this is a hard error, not a silently-generated-and-therefore-useless placeholder.
+if [[ -n "${ENTRA_CLIENT_SECRET:-}" ]]; then
+  printf '%s' "$ENTRA_CLIENT_SECRET" > "$OIDC_CLIENT_SECRET_FILE"
   chmod 600 "$OIDC_CLIENT_SECRET_FILE"
+elif [[ ! -f "$OIDC_CLIENT_SECRET_FILE" ]]; then
+  echo "ERROR: no Entra client secret found." >&2
+  echo "Set ENTRA_CLIENT_SECRET to the 'canvas-azure' app registration's client secret value" >&2
+  echo "(generated once in the Entra portal or via 'az ad app credential reset' -- this script" >&2
+  echo "cannot generate it the way it could for the self-hosted Keycloak this replaced), or place" >&2
+  echo "it directly in $OIDC_CLIENT_SECRET_FILE." >&2
+  exit 1
 fi
 OIDC_CLIENT_SECRET="$(cat "$OIDC_CLIENT_SECRET_FILE")"
+
+# Defaults to the deploying subscription's own tenant, matching main.bicep's own entraTenantId
+# default -- override only if the app registration lives in a different tenant.
+ENTRA_TENANT_ID="${ENTRA_TENANT_ID:-$(az account show --query tenantId -o tsv)}"
+
+if [[ -z "${ENTRA_CLIENT_ID:-}" ]]; then
+  echo "ERROR: ENTRA_CLIENT_ID is required -- the 'canvas-azure' Entra app registration's" >&2
+  echo "Application (client) ID. See RUNBOOK.md's 'Entra ID SSO' section for the one-time setup" >&2
+  echo "steps that produce this value." >&2
+  exit 1
+fi
 
 DEPLOYER_PRINCIPAL_ID="$(az ad signed-in-user show --query id -o tsv)"
 
@@ -91,17 +105,19 @@ fi
 EXISTING_KEY_VAULT="$(az keyvault list --resource-group "$RESOURCE_GROUP" --query "[0].name" -o tsv 2>/dev/null || true)"
 EXISTING_ACR="$(az acr list --resource-group "$RESOURCE_GROUP" --query "[0].name" -o tsv 2>/dev/null || true)"
 
-# canvas-vp1: modules/keycloak.bicep's acrPullAssignment was being re-declared (and therefore
-# re-PUT by ARM) on literally every run, since main.bicep redeploys that module every time
-# regardless of which image tag changed -- and a role-assignment PUT with unchanged properties is
-# not reliably a safe no-op (reproduced live: "RoleAssignmentExists", 4 times in a row, including
-# immediately after deleting and letting a redeploy recreate it fresh). Rather than trying to make
-# a second PUT of an already-existing assignment land safely, skip it entirely once it's already
-# there: look up the shared identity (canvas-identity, created by modules/keyvault.bicep) and check
-# for an existing AcrPull grant AT THE RESOURCE GROUP -- keycloak.bicep's own acrPullAssignment
-# declares `scope: resourceGroup()`, not the ACR resource itself (broader than strictly needed, but
-# that's what's actually declared and re-PUT each run, so this must check the same scope or it will
-# never find what it's looking for -- confirmed live: an early version of this check queried the
+# canvas-vp1: modules/keyvault.bicep's acrPullAssignment (originally declared in the now-deleted
+# modules/keycloak.bicep, moved here by canvas-haz -- see that module's own header comment) was
+# being re-declared (and therefore re-PUT by ARM) on literally every run, since main.bicep
+# redeploys every module every time regardless of which image tag changed -- and a role-assignment
+# PUT with unchanged properties is not reliably a safe no-op (reproduced live: "RoleAssignmentExists",
+# 4 times in a row, including immediately after deleting and letting a redeploy recreate it fresh).
+# Rather than trying to make a second PUT of an already-existing assignment land safely, skip it
+# entirely once it's already there: look up the shared identity (canvas-identity, created by
+# modules/keyvault.bicep) and check for an existing AcrPull grant AT THE RESOURCE GROUP --
+# acrPullAssignment declares `scope: resourceGroup()`, not the ACR resource itself (broader than
+# strictly needed, but that's what's actually declared and re-PUT each run, so this must check the
+# same scope or it will never find what it's looking for -- confirmed live: an early version of
+# this check queried the
 # ACR's own resource ID and always came back empty even with the grant present one level up).
 GRANT_ACR_PULL="true"
 EXISTING_IDENTITY_PRINCIPAL_ID="$(az identity show --resource-group "$RESOURCE_GROUP" --name canvas-identity \
@@ -116,8 +132,9 @@ if [[ -n "$EXISTING_IDENTITY_PRINCIPAL_ID" ]]; then
 fi
 # Real frontend origin, once the storage account exists AND static website hosting has been
 # enabled on it (see modules/storage.bicep's own comment for why this isn't predictable ahead of
-# time the way ADP's Keycloak public URL is). Empty on a from-scratch first run; a subsequent run
-# picks up the real value once step "Enabling static website hosting" below has run at least once.
+# time the way canvas-api's own apiPublicBaseUrl is). Empty on a from-scratch first run; a
+# subsequent run picks up the real value once step "Enabling static website hosting" below has run
+# at least once.
 EXISTING_STORAGE="$(az storage account list --resource-group "$RESOURCE_GROUP" --query "[0].name" -o tsv 2>/dev/null || true)"
 WEB_ORIGIN=""
 if [[ -n "$EXISTING_STORAGE" ]]; then
@@ -132,11 +149,9 @@ if [[ -n "$EXISTING_KEY_VAULT" ]]; then
     --value "$PG_ADMIN_PASSWORD" --output none
   az keyvault secret set --vault-name "$EXISTING_KEY_VAULT" --name "session-secret" \
     --value "$SESSION_SECRET" --output none
-  az keyvault secret set --vault-name "$EXISTING_KEY_VAULT" --name "keycloak-admin-password" \
-    --value "$KC_ADMIN_PASSWORD" --output none
   az keyvault secret set --vault-name "$EXISTING_KEY_VAULT" --name "oidc-client-secret" \
     --value "$OIDC_CLIENT_SECRET" --output none
-  echo "  postgres-admin-password, session-secret, keycloak-admin-password, oidc-client-secret set."
+  echo "  postgres-admin-password, session-secret, oidc-client-secret set."
 
   # The connection string needs the server's real FQDN/DB name; both are fixed/known after this
   # script's first-ever successful run, so a live lookup is safe even before this run's own
@@ -166,18 +181,9 @@ else
   echo "== No existing Key Vault found -- skipping secret pre-seed (first-ever run) =="
 fi
 
-# Same commit -> same tag for both images (infra/keycloak/create-users.mjs now lives inside the
-# API image too, and CanvasRealm-realm.json's own content is what the Keycloak image bakes in --
-# both need a rebuild whenever either changes, and re-using API_IMAGE_TAG keeps that automatic
-# rather than needing a second independent tag scheme).
-KEYCLOAK_IMAGE_TAG="$API_IMAGE_TAG"
-
 if [[ -n "$EXISTING_ACR" ]]; then
   echo "== Building API image (repo root Dockerfile) to $EXISTING_ACR, tag $API_IMAGE_TAG =="
   az acr build --registry "$EXISTING_ACR" --image "canvas-api:${API_IMAGE_TAG}" "$REPO_ROOT" --output none
-  echo "== Building Keycloak image (infra/keycloak/) to $EXISTING_ACR, tag $KEYCLOAK_IMAGE_TAG =="
-  az acr build --registry "$EXISTING_ACR" --image "canvas-keycloak:${KEYCLOAK_IMAGE_TAG}" \
-    "$SCRIPT_DIR/../keycloak" --output none
 else
   echo "== No existing ACR found -- skipping image build (first-ever run) =="
 fi
@@ -189,7 +195,8 @@ az deployment sub what-if \
   --template-file "$SCRIPT_DIR/main.bicep" \
   --parameters location="$LOCATION" postgresAdminPassword="$PG_ADMIN_PASSWORD" \
     deployerPrincipalId="$DEPLOYER_PRINCIPAL_ID" apiImageTag="$API_IMAGE_TAG" \
-    keycloakImageTag="$KEYCLOAK_IMAGE_TAG" webOrigin="$WEB_ORIGIN" grantAcrPull="$GRANT_ACR_PULL"
+    webOrigin="$WEB_ORIGIN" grantAcrPull="$GRANT_ACR_PULL" \
+    entraTenantId="$ENTRA_TENANT_ID" entraClientId="$ENTRA_CLIENT_ID"
 
 echo
 read -r -p "Proceed with deployment? [y/N] " confirm
@@ -205,173 +212,15 @@ az deployment sub create \
   --template-file "$SCRIPT_DIR/main.bicep" \
   --parameters location="$LOCATION" postgresAdminPassword="$PG_ADMIN_PASSWORD" \
     deployerPrincipalId="$DEPLOYER_PRINCIPAL_ID" apiImageTag="$API_IMAGE_TAG" \
-    keycloakImageTag="$KEYCLOAK_IMAGE_TAG" webOrigin="$WEB_ORIGIN" grantAcrPull="$GRANT_ACR_PULL" \
+    webOrigin="$WEB_ORIGIN" grantAcrPull="$GRANT_ACR_PULL" \
+    entraTenantId="$ENTRA_TENANT_ID" entraClientId="$ENTRA_CLIENT_ID" \
   --output table
 
 STORAGE_ACCOUNT="$(az deployment sub show --name "canvas-foundation" --query "properties.outputs.storageAccountName.value" -o tsv)"
 KEY_VAULT_NAME="$(az deployment sub show --name "canvas-foundation" --query "properties.outputs.keyVaultName.value" -o tsv)"
 API_FQDN="$(az deployment sub show --name "canvas-foundation" --query "properties.outputs.apiFqdn.value" -o tsv)"
-KEYCLOAK_FQDN="$(az deployment sub show --name "canvas-foundation" --query "properties.outputs.keycloakFqdn.value" -o tsv)"
-KEYCLOAK_PUBLIC_BASE_URL="$(az deployment sub show --name "canvas-foundation" --query "properties.outputs.keycloakPublicBaseUrl.value" -o tsv)"
 MIGRATION_JOB="$(az deployment sub show --name "canvas-foundation" --query "properties.outputs.migrationJobName.value" -o tsv)"
-USERS_JOB="$(az deployment sub show --name "canvas-foundation" --query "properties.outputs.usersJobName.value" -o tsv)"
-
-# canvas-ycu.1: reconcile the CanvasRealm-realm.json-imported canvas-api client's redirectUris/
-# webOrigins/secret against reality. The image bakes in infra/keycloak/CanvasRealm-realm.json's
-# own placeholder values (localhost redirect URI, the checked-in dev secret) -- correct for local
-# docker-compose, but Keycloak's own default `start --import-realm` is IGNORE_EXISTING, so a
-# realm that already exists from a prior run of this script is never re-imported even after
-# rebuilding the image with different baked-in values. The only way to correct an already-running
-# realm's client, on every run (not just the first), is this admin-API PATCH -- talked to over
-# canvas-api's own /idp/* reverse proxy (apps/api/src/auth/idp-proxy.routes.ts), since Keycloak
-# itself has internal-only ingress and this script runs from outside the VNet.
-echo "== Reconciling Keycloak's canvas-api client (redirect URI, web origin, client secret, post-logout redirect URI) =="
-# canvas-0x7.1: this used to authenticate via grant_type=password direct-grant against admin-cli,
-# but Keycloak 25+/26's KC_BOOTSTRAP_ADMIN_PASSWORD-created admin is a TEMPORARY admin, and a
-# fresh realm's first-ever login attempt as that admin needs to go through the same
-# browser-style Authorization Code + PKCE flow the admin console itself uses -- direct-grant
-# against it is not a supported path (confirmed against a real Keycloak 26.2 instance in this
-# exact start/KC_BOOTSTRAP_ADMIN_PASSWORD/--http-relative-path=/idp configuration: the PKCE flow
-# below succeeds end-to-end; some Keycloak states restore direct-grant once its own
-# UPDATE_PASSWORD required-action machinery has run at least once, which never happens here).
-# Scripted with curl + python3, no new dependencies: (1) GET the master realm's auth endpoint for
-# the built-in security-admin-console public client with a generated code_verifier/S256
-# code_challenge, extracting the returned login form's action URL (which already carries
-# session_code/execution/tab_id); (2) POST username/password to that action URL without
-# following the redirect, capturing the authorization code from its Location header; (3) exchange
-# that code for an access token (grant_type=authorization_code, code_verifier); (4) use that
-# token for the same GET/PUT client-patch logic as before. security-admin-console's own
-# registered redirect URI is a relative wildcard (/admin/master/console/*) that Keycloak resolves
-# against its OWN configured hostname+relative-path (KC_HOSTNAME=keycloakPublicBaseUrl,
-# --http-relative-path=/idp) -- confirmed live that the redirect_uri sent here must therefore
-# include the /idp prefix itself, or Keycloak rejects the initial auth request outright with
-# "Invalid parameter: redirect_uri" before ever reaching a login form.
-#
-# Secrets are passed into the inline python via env vars (os.environ), not interpolated directly
-# into the python source string -- the DESIGN note on this bead flagged raw shell-into-python
-# string interpolation as its own class of bug independently hit elsewhere this session, worth
-# not repeating here even though every value passed below happens to come from a charset
-# (base64/JWT) that wouldn't itself break out of a quoted literal today.
-KC_ADMIN_TOKEN=""
-KC_ADMIN_REDIRECT_URI="${KEYCLOAK_PUBLIC_BASE_URL}/admin/master/console/"
-for attempt in 1 2 3 4 5 6; do
-  KC_ADMIN_TOKEN="$(
-    KC_BASE="https://${API_FQDN}/idp" KC_ADMIN_PASSWORD="$KC_ADMIN_PASSWORD" KC_REDIRECT_URI="$KC_ADMIN_REDIRECT_URI" \
-    python3 <<'PY' 2>/dev/null || true
-import base64, hashlib, os, re, secrets, sys
-import urllib.parse
-import urllib.request
-
-kc_base = os.environ['KC_BASE']
-password = os.environ['KC_ADMIN_PASSWORD']
-redirect_uri = os.environ['KC_REDIRECT_URI']
-
-def http(method, url, data=None, headers=None, cookie=None):
-    headers = dict(headers or {})
-    if cookie:
-        headers['Cookie'] = cookie
-    req = urllib.request.Request(url, data=data, method=method, headers=headers)
-    class NoRedirect(urllib.request.HTTPErrorProcessor):
-        def http_response(self, request, response):
-            return response
-        https_response = http_response
-    opener = urllib.request.build_opener(NoRedirect)
-    resp = opener.open(req)
-    set_cookie = resp.headers.get('Set-Cookie')
-    return resp, set_cookie
-
-code_verifier = secrets.token_urlsafe(48)
-code_challenge = base64.urlsafe_b64encode(hashlib.sha256(code_verifier.encode()).digest()).decode().rstrip('=')
-
-auth_url = kc_base + '/realms/master/protocol/openid-connect/auth?' + urllib.parse.urlencode({
-    'client_id': 'security-admin-console',
-    'redirect_uri': redirect_uri,
-    'response_type': 'code',
-    'scope': 'openid',
-    'code_challenge': code_challenge,
-    'code_challenge_method': 'S256',
-})
-resp, cookie = http('GET', auth_url)
-html = resp.read().decode()
-match = re.search(r'action="([^"]+)"', html)
-if not match:
-    sys.exit(1)
-action_url = match.group(1).replace('&amp;', '&')
-
-body = urllib.parse.urlencode({'username': 'admin', 'password': password, 'credentialId': ''}).encode()
-resp, cookie2 = http('POST', action_url, data=body,
-                      headers={'Content-Type': 'application/x-www-form-urlencoded'}, cookie=cookie)
-location = resp.headers.get('Location')
-if not location:
-    sys.exit(1)
-code = urllib.parse.parse_qs(urllib.parse.urlparse(location).query).get('code', [None])[0]
-if not code:
-    sys.exit(1)
-
-token_body = urllib.parse.urlencode({
-    'grant_type': 'authorization_code',
-    'code': code,
-    'redirect_uri': redirect_uri,
-    'client_id': 'security-admin-console',
-    'code_verifier': code_verifier,
-}).encode()
-req = urllib.request.Request(kc_base + '/realms/master/protocol/openid-connect/token', data=token_body, method='POST')
-with urllib.request.urlopen(req) as resp:
-    import json
-    token = json.load(resp).get('access_token')
-if not token:
-    sys.exit(1)
-print(token)
-PY
-  )"
-  if [[ -n "$KC_ADMIN_TOKEN" ]]; then
-    break
-  fi
-  if [[ "$attempt" == 6 ]]; then
-    echo "  WARNING: could not complete Keycloak's admin PKCE login after 6 attempts -- skipping"
-    echo "  client reconciliation. SSO login will use whatever redirectUris/secret are already"
-    echo "  imported (likely wrong on a first deploy) until you re-run this script."
-  else
-    echo "  Attempt $attempt: Keycloak not reachable/ready yet -- retrying in 15s..."
-    sleep 15
-  fi
-done
-
-if [[ -n "$KC_ADMIN_TOKEN" ]]; then
-  KC_CLIENT_ID="$(curl -s -f "https://${API_FQDN}/idp/admin/realms/CanvasRealm/clients?clientId=canvas-api" \
-    -H "Authorization: Bearer $KC_ADMIN_TOKEN" | python3 -c "import sys,json; print(json.load(sys.stdin)[0]['id'])")"
-  API_FQDN="$API_FQDN" KC_CLIENT_ID="$KC_CLIENT_ID" KC_ADMIN_TOKEN="$KC_ADMIN_TOKEN" OIDC_CLIENT_SECRET="$OIDC_CLIENT_SECRET" python3 <<'PY'
-import json, os, urllib.request
-
-api_fqdn = os.environ['API_FQDN']
-client_id = os.environ['KC_CLIENT_ID']
-token = os.environ['KC_ADMIN_TOKEN']
-secret = os.environ['OIDC_CLIENT_SECRET']
-
-url = f'https://{api_fqdn}/idp/admin/realms/CanvasRealm/clients/{client_id}'
-req = urllib.request.Request(url, headers={'Authorization': f'Bearer {token}'})
-with urllib.request.urlopen(req) as resp:
-    client = json.load(resp)
-
-client['redirectUris'] = [f'https://{api_fqdn}/auth/callback']
-client['webOrigins'] = [f'https://{api_fqdn}']
-client['secret'] = secret
-# canvas-252: RP-Initiated Logout (session.ts's /auth/logout) needs Keycloak to trust redirecting
-# back to this app's own origin after clearing its SSO session -- without this, Keycloak rejects
-# the post_logout_redirect_uri it's given and RP-Initiated Logout silently does nothing useful,
-# same failure mode this whole reconciliation step exists to avoid for redirectUris/webOrigins.
-client.setdefault('attributes', {})['post.logout.redirect.uris'] = f'https://{api_fqdn}/*'
-
-body = json.dumps(client).encode()
-req = urllib.request.Request(url, data=body, method='PUT', headers={
-    'Authorization': f'Bearer {token}',
-    'Content-Type': 'application/json',
-})
-with urllib.request.urlopen(req) as resp:
-    pass
-print('  canvas-api client redirectUris/webOrigins/secret/post-logout-redirect-uris updated.')
-PY
-fi
+OIDC_REDIRECT_URI="$(az deployment sub show --name "canvas-foundation" --query "properties.outputs.oidcRedirectUri.value" -o tsv)"
 
 echo "== Enabling static website hosting on $STORAGE_ACCOUNT (data-plane -- no Bicep resource for this, see modules/storage.bicep) =="
 # storage.bicep's Storage Blob Data Contributor role assignment for the deployer may have been
@@ -424,8 +273,6 @@ echo
 echo "== Done =="
 echo "  API:      https://${API_FQDN}"
 echo "  Frontend: ${REAL_WEB_ORIGIN}"
-echo "  Keycloak: ${KEYCLOAK_PUBLIC_BASE_URL} (internal-ingress -- only reachable through the"
-echo "            above /idp reverse proxy, never directly; internal FQDN: ${KEYCLOAK_FQDN})"
 echo "  Key Vault: $KEY_VAULT_NAME"
 echo
 echo "Once the migration job above completes, seed dev/demo data (full DiagramType catalog,"
@@ -435,13 +282,23 @@ echo "NOT run automatically -- it creates a demo admin account with a published 
 echo "(apps/api/src/seed/run.ts), appropriate for a throwaway/demo environment, not unprompted"
 echo "on every deploy of something meant to hold real data."
 echo
-echo "ALLOW_LOCAL_AUTH defaults to false for this deployment (apiapp.bicep) -- create real"
-echo "accounts in Keycloak (infra/keycloak/create-users.mjs, run as the canvas-keycloak-users"
-echo "job) before anyone can sign in. KC_USERS is real user data, so it's supplied per-invocation,"
-echo "never baked into this template or state:"
-echo '  az containerapp job start --name '"$USERS_JOB"' --resource-group '"$RESOURCE_GROUP"' \'
-echo '    --env-vars KC_USERS='"'"'[{"username":"jane","email":"jane@example.com","password":"...","role":"architect"}]'"'"''
-echo "role is one of admin/architect/viewer (apps/api/src/auth/oidc.ts's mapRealmRolesToUserRole)."
-echo "Each new user's first login is forced through Keycloak's own MFA (TOTP) enrollment --"
-echo "requiredActions is set explicitly per user by the script itself (see its own header comment"
-echo "for why the realm's defaultAction alone doesn't reach admin-API-created users)."
+echo "== Entra app registration -- action required =="
+echo "ALLOW_LOCAL_AUTH defaults to false for this deployment (apiapp.bicep) -- Entra ID sign-in is"
+echo "the only way in until you register this environment's real addresses on the 'canvas-azure'"
+echo "app registration's Authentication blade (Web platform). Unlike the self-hosted Keycloak this"
+echo "replaced, there is no admin REST API this script can PATCH on your behalf -- Graph API"
+echo "write access for app registrations is a broader permission than this script should assume it"
+echo "has, so this is a manual one-time step per environment (RUNBOOK.md's 'Entra ID SSO' section"
+echo "has the full walkthrough). Entra has one Redirect URIs list per app registration serving"
+echo "both sign-in and post-logout redirects -- add BOTH of these to it:"
+echo "  Sign-in callback:   ${OIDC_REDIRECT_URI}"
+echo "  Post-logout target: ${REAL_WEB_ORIGIN}"
+echo
+echo "Ready-to-paste (replaces the app registration's ENTIRE redirect URI list -- include any"
+echo "other environments' URIs you still need, e.g. the 'canvas-dev' localhost ones, in the same"
+echo "command if so):"
+echo "  az ad app update --id \"$ENTRA_CLIENT_ID\" --web-redirect-uris \"${OIDC_REDIRECT_URI}\" \"${REAL_WEB_ORIGIN}\""
+echo
+echo "App roles (admin/architect/viewer -- apps/api/src/auth/types.ts's UserRole) and user/group"
+echo "assignment are also managed entirely in the Entra portal; see RUNBOOK.md for the full"
+echo "one-time app-registration setup this environment depends on."

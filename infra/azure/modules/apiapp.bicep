@@ -1,10 +1,9 @@
 // API container app (canvas-ycu, mirrors ADP's infra/azure/modules/apiapp.bicep) -- the one
-// component the public actually reaches. Managed identity gets Key Vault Secrets User
-// (modules/keyvault.bicep) here; AcrPull on the shared identity is granted once, by
-// modules/keycloak.bicep (the first consumer to deploy) -- RBAC role assignments are scope-based
-// and additive, so that single grant already covers every container app using this same
-// identity, this one included, not just keycloak's own image pulls. This module used to declare
-// its own separate (functionally redundant) AcrPull grant; removed after a real deploy failure
+// component the public actually reaches. Managed identity gets Key Vault Secrets User AND AcrPull
+// (both from modules/keyvault.bicep, which owns the identity itself) -- RBAC role assignments are
+// scope-based and additive, so that one AcrPull grant already covers every container app using
+// this same identity, this one included. This module used to declare its own separate
+// (functionally redundant) AcrPull grant; removed after a real deploy failure
 // (RoleAssignmentExists) proved that redeploying an already-existing role assignment resource is
 // not reliably idempotent even when its principalId is provably unchanged -- one authoritative
 // declaration avoids the whole class of conflict rather than trying to make a second one
@@ -38,26 +37,20 @@ param webOrigin string
 @description('Port the API listens on inside the container (matches apps/api/src/config.ts PORT).')
 param apiPort int = 3000
 
-@description('canvas-ycu.1: Keycloak is now deployed alongside this app (modules/keycloak.bicep), so local email/password auth is no longer the only way to sign in -- defaults to false, requiring SSO + MFA for this deployment. Kept as a param, not hardcoded, purely as an emergency break-glass switch (e.g. Keycloak itself is unreachable) -- flip it back to true only for that, never as a standing configuration, or MFA becomes silently bypassable.')
+@description('canvas-haz: this deployment authenticates via Microsoft Entra ID, so local email/password auth is no longer the only way to sign in -- defaults to false, requiring SSO + whatever Conditional Access/MFA policy the tenant enforces for this app. Kept as a param, not hardcoded, purely as an emergency break-glass switch (e.g. the Entra tenant itself is unreachable) -- flip it back to true only for that, never as a standing configuration, or MFA becomes silently bypassable.')
 param allowLocalAuth bool = false
 
 @description('AI_PROVIDER value -- "mock" keeps AI chat on the deterministic fake NLU (no real API calls, no cost) until a real key is provided via Key Vault; switch to anthropic/openai once ANTHROPIC_API_KEY/OPENAI_API_KEY are set as real Key Vault secret values.')
 param aiProvider string = 'mock'
 
-@description('canvas-ycu.1: Keycloak container app FQDN (internal-only) from modules/keycloak.bicep -- canvas-api proxies /idp/* to this (apps/api/src/auth/idp-proxy.routes.ts).')
-param keycloakFqdn string
+@description('canvas-haz: Entra ID tenant ID this app authenticates against (RUNBOOK.md\'s "Entra ID SSO" section). OIDC_ISSUER_URL is derived from this plus the v2.0 endpoint suffix apps/api/src/config.ts\'s own validateOidcIssuerUrl() requires.')
+param entraTenantId string
 
-@description('Public base URL the browser reaches Keycloak through: https://<this-api-fqdn>/idp. Keycloak is configured (KC_HOSTNAME, modules/keycloak.bicep) to believe this is its own address, so its issuer claim and generated URLs already match this exactly.')
-param keycloakPublicBaseUrl string
+@description('canvas-haz: the "canvas-azure" Entra app registration\'s Application (client) ID.')
+param entraClientId string
 
-@description('This app\'s own OIDC callback URL: https://<this-api-fqdn>/auth/callback -- computed in main.bicep from the same stable base keycloakPublicBaseUrl is derived from (this app\'s own FQDN isn\'t knowable from within its own resource definition), rather than string-manipulated out of keycloakPublicBaseUrl here.')
+@description('This app\'s own OIDC callback URL: https://<this-api-fqdn>/auth/callback -- computed in main.bicep from this app\'s own predictable Container Apps FQDN (not knowable from within its own resource definition, hence computed one level up).')
 param oidcRedirectUri string
-
-@description('Keycloak realm name -- must match infra/keycloak/CanvasRealm-realm.json\'s own "realm" field.')
-param keycloakRealm string = 'CanvasRealm'
-
-@description('Keycloak client ID -- must match the confidential client baked into the realm export.')
-param keycloakClientId string = 'canvas-api'
 
 resource apiApp 'Microsoft.App/containerApps@2025-01-01' = {
   name: 'canvas-api'
@@ -132,20 +125,17 @@ resource apiApp 'Microsoft.App/containerApps@2025-01-01' = {
             { name: 'COOKIE_SAME_SITE', value: 'none' }
             { name: 'WEB_ORIGINS', value: webOrigin }
             { name: 'AI_PROVIDER', value: aiProvider }
-            // canvas-ycu.1: OIDC_ISSUER_URL is the PUBLIC address (matches Keycloak's own KC_
-            // HOSTNAME-reported issuer claim, and is what the browser is redirected to). The
-            // API calling that same public address for its own server-side discovery/token/
-            // userinfo calls does not reliably route back to itself within Container Apps'
-            // network (confirmed: the request can't even succeed before this process itself has
-            // started listening, an ordering problem independent of Container Apps specifics,
-            // not just an optimization) -- OIDC_INTERNAL_ISSUER_URL redirects those specific
-            // calls straight to Keycloak's own internal FQDN instead (oidc.ts's customFetch
-            // override), while KEYCLOAK_INTERNAL_URL is the separate target the /idp/* reverse
-            // proxy itself forwards browser-facing requests to.
-            { name: 'OIDC_ISSUER_URL', value: '${keycloakPublicBaseUrl}/realms/${keycloakRealm}' }
-            { name: 'OIDC_INTERNAL_ISSUER_URL', value: 'https://${keycloakFqdn}/idp/realms/${keycloakRealm}' }
-            { name: 'KEYCLOAK_INTERNAL_URL', value: 'https://${keycloakFqdn}' }
-            { name: 'OIDC_CLIENT_ID', value: keycloakClientId }
+            // canvas-haz: Entra's issuer is always public -- no internal/public split, no reverse
+            // proxy, no customFetch rewrite needed the way the self-hosted Keycloak this replaced
+            // required. environment().authentication.loginEndpoint already ends in '/' (it's
+            // 'https://login.microsoftonline.com/' in the public cloud, a different host entirely
+            // in sovereign clouds like Azure Government/China) -- using it rather than hardcoding
+            // the public-cloud hostname keeps this correct if this subscription is ever deployed
+            // into one of those. The /v2.0 suffix is REQUIRED -- apps/api/src/config.ts's own
+            // validateOidcIssuerUrl() fails fast at startup without it (a bare tenant path or the
+            // v1 endpoint produces a different claims shape, e.g. no flat top-level `roles` claim).
+            { name: 'OIDC_ISSUER_URL', value: '${environment().authentication.loginEndpoint}${entraTenantId}/v2.0' }
+            { name: 'OIDC_CLIENT_ID', value: entraClientId }
             { name: 'OIDC_CLIENT_SECRET', secretRef: 'oidc-client-secret' }
             { name: 'OIDC_REDIRECT_URI', value: oidcRedirectUri }
             { name: 'DATABASE_URL', secretRef: 'database-url' }
@@ -185,11 +175,11 @@ resource apiApp 'Microsoft.App/containerApps@2025-01-01' = {
       }
     }
   }
-  // No explicit dependsOn for the AcrPull grant needed here (see this file's own header comment
-  // -- that grant now lives solely in modules/keycloak.bicep): main.bicep's apiApp module already
-  // consumes keycloak.outputs.fqdn (keycloakFqdn below), which gives Bicep an implicit dependency
-  // on the keycloak module completing -- including its AcrPull role assignment -- before this one
-  // deploys.
+  // No explicit dependsOn for the AcrPull grant needed here (see this file's own header comment --
+  // that grant lives in modules/keyvault.bicep): this module already consumes
+  // keyVault.outputs.identityId/keyVaultUri (identityId/keyVaultUri params above), which gives
+  // Bicep an implicit dependency on the keyVault module completing -- including its AcrPull role
+  // assignment -- before this one deploys.
 }
 
 output fqdn string = apiApp.properties.configuration.ingress.fqdn

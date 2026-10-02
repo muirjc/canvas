@@ -48,8 +48,8 @@ resource deployerBlobContributor 'Microsoft.Authorization/roleAssignments@2022-0
 }
 
 output storageAccountName string = storageAccount.name
-// Deliberately NOT outputting the static website endpoint here (unlike ADP's
-// keycloakPublicBaseUrl, which IS predictable ahead of time from the Container Apps
+// Deliberately NOT outputting the static website endpoint here (unlike canvas-api's own
+// apiPublicBaseUrl, main.bicep, which IS predictable ahead of time from the Container Apps
 // environment's own stable default domain): a Storage static website's real hostname
 // (https://<account>.z##.web.core.windows.net) includes an internal cluster-assignment segment
 // Azure only allocates once static website hosting is actually enabled on the account (a
