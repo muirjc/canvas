@@ -2897,7 +2897,7 @@ export function Canvas({ model, onChange, dslFamily, toolbarContainer }: CanvasP
                   width={bar.width}
                   height={bar.yEnd - bar.yStart}
                   fill="#ffffff"
-                  stroke={isSelected ? '#2563eb' : '#333333'}
+                  stroke={isSelected ? SELECTION_STROKE : '#333333'}
                   strokeWidth={isSelected ? 2 : 1}
                   onPointerDown={handleContainerPointerDown(rawContainer)}
                 />
@@ -2952,7 +2952,7 @@ export function Canvas({ model, onChange, dslFamily, toolbarContainer }: CanvasP
           // the selection-blue stroke (a container can be selected AND a live drop target at the
           // same time, e.g. re-nesting a container that was already selected).
           const isDropTarget = containerDropTargetId === container.id;
-          const stroke = isDropTarget ? CONTAINER_DROP_TARGET_STROKE : isSelected ? '#2563eb' : isLabeledControlFlowBlock ? CONTROL_FLOW_STROKE : roleStyle.stroke;
+          const stroke = isDropTarget ? CONTAINER_DROP_TARGET_STROKE : isSelected ? SELECTION_STROKE : isLabeledControlFlowBlock ? CONTROL_FLOW_STROKE : roleStyle.stroke;
           const dasharray = isDropTarget ? undefined : isLabeledControlFlowBlock ? CONTROL_FLOW_DASHARRAY : roleStyle.strokeDasharray;
           // canvas-7vs.9: a leader line from this container's center to each attached node's own
           // position — a sequence note's target is its participant's lifeline (already resolved
@@ -3082,7 +3082,7 @@ export function Canvas({ model, onChange, dslFamily, toolbarContainer }: CanvasP
                   y={container.position.y + size.height - 5}
                   width={10}
                   height={10}
-                  fill="#2563eb"
+                  fill={SELECTION_STROKE}
                   style={{ cursor: 'nwse-resize' }}
                   onPointerDown={handleResizePointerDown(container)}
                 />

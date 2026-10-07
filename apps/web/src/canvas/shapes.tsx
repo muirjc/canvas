@@ -32,7 +32,10 @@ export function nodeSize(node: DiagramNode): { width: number; height: number } {
  * Node fill, stroke, and label styling are untouched — those come from admin-defined standards
  * and are produced by both renderers, which must agree for exports to match the canvas (SC-004).
  */
-export const SELECTION_STROKE = '#2563eb';
+// ADP-palette port: kept equal to tokens.css's --accent/--node-selected (#2874a6) — a hardcoded
+// JS constant, not a CSS var() reference, because it's read into plain SVG `stroke`/`fill`
+// attributes (not inline `style`) throughout Canvas.tsx, which don't resolve custom properties.
+export const SELECTION_STROKE = '#2874a6';
 
 export function renderNodeShape(node: DiagramNode, selected: boolean): JSX.Element {
   const { x, y } = node.position;

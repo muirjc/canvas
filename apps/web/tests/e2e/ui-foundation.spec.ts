@@ -38,7 +38,7 @@ test('the visual system is applied, not browser defaults', async ({ page }) => {
   const accent = await page.evaluate(() =>
     getComputedStyle(document.documentElement).getPropertyValue('--accent').trim(),
   );
-  expect(accent).toBe('#2563eb');
+  expect(accent).toBe('#2874a6');
 });
 
 test('the primary action on each screen is a filled, accented button', async ({ page }) => {
@@ -47,7 +47,7 @@ test('the primary action on each screen is a filled, accented button', async ({ 
   const loginBg = await page
     .getByTestId('login-submit')
     .evaluate((el) => getComputedStyle(el).backgroundColor);
-  expect(loginBg).toBe('rgb(37, 99, 235)');
+  expect(loginBg).toBe('rgb(40, 116, 166)');
 
   // Home: New Diagram is the primary action, and must be styled identically (FR-002).
   await signIn(page);
