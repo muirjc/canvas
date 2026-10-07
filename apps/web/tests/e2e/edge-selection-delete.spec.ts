@@ -3,7 +3,7 @@ import { expect, test, type Page } from '@playwright/test';
 const PROJECT_ID = process.env.E2E_PROJECT_ID;
 const ADMIN_EMAIL = 'admin@example.com';
 const ADMIN_PASSWORD = 'admin-dev-password';
-const SELECTION_STROKE = '#2563eb';
+const SELECTION_STROKE = '#2874a6';
 
 test.skip(!PROJECT_ID, 'E2E_PROJECT_ID env var not set — run `npm run seed` and export it first');
 
