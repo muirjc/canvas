@@ -45,9 +45,11 @@ A few other disclosed, by-design differences between the two engines:
 - The Playwright E2E suite runs against Postgres only; the SQLite dialect's CI coverage is the
   `unit-tests` job's matrix (see "CI" below).
 
-Running against SQLite with no Postgres/Docker at all:
+Running against SQLite with no Postgres/Docker at all (`better-sqlite3` won't create a missing
+parent directory on its own, so create `data/` first if `DATABASE_URL` points inside it):
 
 ```bash
+mkdir -p data
 # apps/api/.env
 DB_CLIENT=sqlite
 DATABASE_URL=./data/canvas.db   # or :memory: for a throwaway database
@@ -58,6 +60,46 @@ npm run migrate --workspace=@canvas/api
 npm run seed --workspace=@canvas/api
 npm run dev --workspace=@canvas/api
 ```
+
+Every `apps/api` script above (`dev`/`migrate`/`seed`/`seed:catalog`/`purge`) loads
+`apps/api/.env` itself via Node's native `--env-file-if-exists` flag — populating that file is
+enough, no shell export step needed on any platform.
+
+### Running on Windows without Docker
+
+Enterprise laptops that don't support Docker (or WSL2) can still run Canvas — SQLite mode above
+needs neither. The same steps, PowerShell-flavored:
+
+```powershell
+git clone <repo> ; cd canvas
+npm install                                              # see note below
+npm run build --workspace=@canvas/diagram-core           # must precede api/web build or run
+Copy-Item apps/api/.env.example apps/api/.env
+# edit apps/api/.env: DB_CLIENT=sqlite, DATABASE_URL=./data/canvas.db, ALLOW_LOCAL_AUTH=true,
+# SESSION_SECRET=<any 32+ character string>
+New-Item -ItemType Directory -Force data
+npm run migrate --workspace=@canvas/api
+npm run seed --workspace=@canvas/api                     # prints admin login + a demo project id
+npm run dev --workspace=@canvas/api                      # separate terminal
+npm run dev --workspace=@canvas/web                      # separate terminal
+```
+
+Sign in at `http://localhost:5173/?projectId=<seed-printed-id>` with `admin@example.com` /
+`admin-dev-password` and create a diagram to confirm everything actually works end to end.
+
+**The one real unknown on Windows: `npm install`'s handling of `better-sqlite3`.** Watch its
+output closely the first time:
+- No `gyp info`/`node-gyp rebuild` chatter for `better-sqlite3` → its bundled `prebuilds/win32-*`
+  binary loaded cleanly, no compiler needed. Proceed as normal.
+- If `node-gyp rebuild` runs and fails (missing Visual Studio Build Tools / Python) — this
+  project's own `infra/azure/Dockerfile` independently hit exactly this on a clean Linux
+  container build (see its header comment) — try `npm install --ignore-scripts` next: it skips
+  npm's implicit native-rebuild attempt, and the actual `.node` file `better-sqlite3` needs is
+  already bundled in the published package regardless of whether that rebuild step runs. Re-check
+  with `node -e "require('better-sqlite3')"`.
+- If that still fails, the remaining fallback (installing the VS Build Tools C++ workload +
+  Python) likely needs admin rights not available on a locked-down machine — don't assume it's
+  installable; this is the point to escalate rather than keep guessing.
 
 ## Starting everything from a cold clone
 
