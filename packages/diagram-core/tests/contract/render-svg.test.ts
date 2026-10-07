@@ -1750,3 +1750,88 @@ describe('renderToSvg: node click href/tooltip (jmuir-dzd.5)', () => {
     expect(svg).not.toContain('javascript:');
   });
 });
+
+/**
+ * canvas-ej5: before this, every C4 element (Person/System/Container/Component, and every Db/
+ * Queue/_Ext variant that collapses onto these same 4 roles) rendered identically — plain white
+ * fill, #333333 stroke, differentiated only by outline shape. These default colors match the
+ * canonical C4 model/Structurizr default theme (verified against github.com/rabidgremlin/
+ * c4model-svg's stencil), and the white/black text choice per role is computed from each color's
+ * real WCAG relative luminance, not hand-picked, so it stays correct if the palette ever changes.
+ */
+describe('renderToSvg C4 element default styling (canvas-ej5)', () => {
+  function c4NodeModel(role: string, shape: DiagramNode['shape'] = 'rectangle'): DiagramModel {
+    return {
+      diagramTypeId: 'c4-context',
+      nodes: [{ id: 'n1', label: 'Thing', shape, role, position: { x: 0, y: 0 } }],
+      edges: [],
+      containers: [],
+    };
+  }
+
+  it('gives Person its canonical fill/stroke and white label text', () => {
+    const svg = renderToSvg(c4NodeModel('person', 'person'));
+    expect(svg).toContain('fill="#08427b"');
+    expect(svg).toContain('stroke="#073b6f"');
+    expect(svg).toContain('fill="#ffffff">Thing</text>');
+  });
+
+  it('gives System its canonical fill/stroke and white label text', () => {
+    const svg = renderToSvg(c4NodeModel('system'));
+    expect(svg).toContain('fill="#1168bd"');
+    expect(svg).toContain('stroke="#1864ad"');
+    expect(svg).toContain('fill="#ffffff">Thing</text>');
+  });
+
+  it('gives Container its canonical fill/stroke and white label text', () => {
+    const svg = renderToSvg(c4NodeModel('container', 'rounded-rectangle'));
+    expect(svg).toContain('fill="#438dd5"');
+    expect(svg).toContain('stroke="#3d81c3"');
+    expect(svg).toContain('fill="#ffffff">Thing</text>');
+  });
+
+  it('gives Component its canonical (pale) fill/stroke and BLACK label text — the one role the reference uses dark text on', () => {
+    const svg = renderToSvg(c4NodeModel('component', 'rounded-rectangle'));
+    expect(svg).toContain('fill="#85bbf0"');
+    expect(svg).toContain('stroke="#78a8d8"');
+    expect(svg).toContain('fill="#000000">Thing</text>');
+  });
+
+  it('an explicit node.style.fillColor still wins over the C4 role default (admin/author override)', () => {
+    const model = c4NodeModel('person', 'person');
+    model.nodes[0].style = { fillColor: '#ff0000' };
+    const svg = renderToSvg(model);
+    expect(svg).toContain('fill="#ff0000"');
+    expect(svg).not.toContain('fill="#08427b"');
+    // Still readable against the custom color, not just always-white from the old person default.
+    expect(svg).toContain('fill="#ffffff">Thing</text>');
+  });
+
+  it('a non-C4 role is unaffected — plain default white fill, dark stroke, black text (no regression)', () => {
+    const model: DiagramModel = {
+      diagramTypeId: 'flowchart',
+      nodes: [{ id: 'n1', label: 'Plain', shape: 'rectangle', position: { x: 0, y: 0 } }],
+      edges: [],
+      containers: [],
+    };
+    const svg = renderToSvg(model);
+    expect(svg).toContain('fill="#ffffff"');
+    expect(svg).toContain('stroke="#333333"');
+    expect(svg).toContain('fill="#000000">Plain</text>');
+  });
+
+  it.each(['boundary', 'system-boundary', 'container-boundary', 'enterprise-boundary', 'deployment-node'])(
+    'C4 boundary role "%s" gets the reference-matched dashed treatment, distinct from the generic subgraph fallback',
+    (role) => {
+      const model: DiagramModel = {
+        diagramTypeId: 'c4-context',
+        nodes: [],
+        edges: [],
+        containers: [{ id: 'b1', label: 'Boundary', role, position: { x: 0, y: 0 }, size: { width: 200, height: 100 } }],
+      };
+      const svg = renderToSvg(model);
+      const g = svg.slice(svg.indexOf('data-container-id="b1"'));
+      expect(g).toContain('fill="none" stroke="#444444" stroke-dasharray="7.5,4.5"');
+    },
+  );
+});

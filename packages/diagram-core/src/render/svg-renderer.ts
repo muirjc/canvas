@@ -75,18 +75,19 @@ export function splitLabelLines(label: string, maxWidth?: number, fontSize?: num
  *  vertically centering the whole stacked block around `y` instead of just the first line.
  *  `maxWidth`, when supplied, word-wraps a too-long label to fit (canvas-3zb) instead of letting
  *  it overflow the node's box. */
-function renderLabelText(x: number, y: number, label: string, fontSize: number, centered: boolean, maxWidth?: number): string {
+function renderLabelText(x: number, y: number, label: string, fontSize: number, centered: boolean, maxWidth?: number, textColor = '#000000'): string {
+  const fillAttr = ` fill="${textColor}"`;
   const lines = splitLabelLines(label, maxWidth, fontSize);
   if (lines.length === 1) {
     const baseline = centered ? ' dominant-baseline="middle"' : '';
-    return `<text x="${x}" y="${y}"${baseline} text-anchor="middle" font-size="${fontSize}" font-family='${FONT_FAMILY}'>${escapeXml(label)}</text>`;
+    return `<text x="${x}" y="${y}"${baseline} text-anchor="middle" font-size="${fontSize}" font-family='${FONT_FAMILY}'${fillAttr}>${escapeXml(label)}</text>`;
   }
   const lineHeightEm = 1.2;
   const firstDy = centered ? (-(lines.length - 1) * lineHeightEm) / 2 : 0;
   const tspans = lines
     .map((line, i) => `<tspan x="${x}" dy="${i === 0 ? firstDy : lineHeightEm}em">${escapeXml(line)}</tspan>`)
     .join('');
-  return `<text x="${x}" y="${y}" text-anchor="middle" font-size="${fontSize}" font-family='${FONT_FAMILY}'>${tspans}</text>`;
+  return `<text x="${x}" y="${y}" text-anchor="middle" font-size="${fontSize}" font-family='${FONT_FAMILY}'${fillAttr}>${tspans}</text>`;
 }
 
 // canvas-23t.5: an icon node with no explicit size used to fall back to DEFAULT_NODE_SIZE — a box
@@ -649,11 +650,64 @@ function renderUmlCardinalityLabel(position: Point, text: string): string {
   return `<text x="${position.x}" y="${position.y}" font-size="11" font-family='${FONT_FAMILY}'>${escapeXml(text)}</text>`;
 }
 
+// canvas-ej5: WCAG relative luminance (same formula apps/web/scripts/check-contrast.mjs uses to
+// verify the app chrome's own tokens) — picks readable black/white label text against whatever a
+// node's effective fill resolves to (a C4 default below, or any explicit admin-set
+// NodeStyle.fillColor) instead of the fixed black text every node's label used unconditionally
+// before this existed. Threshold 0.45 reproduces the C4 reference palette's own text-color
+// choices exactly (person/system/container all comfortably under it -> white; component's pale
+// fill at 0.4682 -> black), confirmed by computing each color's real luminance, not eyeballed.
+function relativeLuminance(hex: string): number {
+  const h = hex.replace('#', '');
+  const full = h.length === 3 ? h.split('').map((c) => c + c).join('') : h.slice(0, 6);
+  const channels = full.match(/../g);
+  if (!channels || channels.length < 3) return 1; // malformed input: treat as light -> black text
+  const [r, g, b] = channels.map((pair) => {
+    const v = parseInt(pair, 16) / 255;
+    return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4);
+  });
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+}
+
+export function contrastTextColor(fillHex: string): string {
+  return relativeLuminance(fillHex) > 0.45 ? '#000000' : '#ffffff';
+}
+
+// canvas-wrk: shared so the 'person' shape's head size can't drift between svg-renderer.ts and
+// apps/web/src/canvas/shapes.tsx's own JSX version of the same shape (SC-004).
+export function clampPersonHeadRadius(width: number, height: number): number {
+  return Math.max(8, Math.min(20, Math.min(width, height) * 0.16));
+}
+
+// canvas-ej5: default fill/stroke per C4 element role, matching the canonical C4 model/Structurizr
+// default theme (verified against github.com/rabidgremlin/c4model-svg's stencil, the same palette
+// Structurizr itself ships as its default theme) — previously every C4 element (Person/System/
+// Container/Component and every Db/Queue/_Ext variant, which all already collapse onto these same
+// 4 roles via dsl/c4.ts's ELEMENT_TO_ROLE) rendered identically: plain white fill, #333333 stroke,
+// differentiated only by outline shape. Hardcoded role strings here (not imported from dsl/c4.ts)
+// matches this file's own established precedent (containerRoleStyle below hardcodes 'namespace'/
+// 'box'/note role strings the same way) — render/ deliberately never imports from dsl/, so a
+// renderer change can't accidentally couple to parser internals. Role strings must match C4_
+// ELEMENT_ROLES (dsl/c4.ts) exactly; a mismatch here cannot be caught by the type system.
+const C4_NODE_COLORS: Record<string, { fill: string; stroke: string }> = {
+  person: { fill: '#08427b', stroke: '#073b6f' },
+  system: { fill: '#1168bd', stroke: '#1864ad' },
+  container: { fill: '#438dd5', stroke: '#3d81c3' },
+  component: { fill: '#85bbf0', stroke: '#78a8d8' },
+};
+
+export function resolveNodeFillStroke(node: DiagramNode): { fill: string; stroke: string } {
+  const c4Default = node.role ? C4_NODE_COLORS[node.role] : undefined;
+  return {
+    fill: node.style?.fillColor ?? c4Default?.fill ?? '#ffffff',
+    stroke: node.style?.strokeColor ?? c4Default?.stroke ?? '#333333',
+  };
+}
+
 function renderNodeShape(node: DiagramNode): string {
   const { x, y } = node.position;
   const { width, height } = nodeSize(node);
-  const fill = node.style?.fillColor ?? '#ffffff';
-  const stroke = node.style?.strokeColor ?? '#333333';
+  const { fill, stroke } = resolveNodeFillStroke(node);
 
   switch (node.shape) {
     case 'circle':
@@ -770,8 +824,21 @@ function renderNodeShape(node: DiagramNode): string {
         .join(' ');
       return `<polygon points="${points}" fill="${fill}" stroke="${stroke}" />`;
     }
-    case 'person':
-      return `<rect x="${x}" y="${y}" width="${width}" height="${height}" rx="24" ry="24" fill="${fill}" stroke="${stroke}" />`;
+    case 'person': {
+      // canvas-wrk: previously just a heavily-rounded rect (rx/ry 24) — not a real person icon at
+      // all, indistinguishable from a pill-shaped Container box (confirmed live: the interactive
+      // canvas didn't even have this case, falling to the plain-rectangle default; this file's own
+      // version was equally wrong). Now a real C4-style bust: a head circle over a domed
+      // (rounded-top, flat-bottom) body, matching the reference stencil (github.com/rabidgremlin/
+      // c4model-svg) this diagram type's default colors were already matched against.
+      const headR = clampPersonHeadRadius(width, height);
+      const headCx = x + width / 2;
+      const headCy = y + headR + 4;
+      const bodyTop = headCy + headR + 3;
+      const bodyR = Math.min(20, width / 4);
+      const bodyPath = `M ${x} ${y + height} L ${x} ${bodyTop + bodyR} Q ${x} ${bodyTop} ${x + bodyR} ${bodyTop} L ${x + width - bodyR} ${bodyTop} Q ${x + width} ${bodyTop} ${x + width} ${bodyTop + bodyR} L ${x + width} ${y + height} Z`;
+      return `<g><path d="${bodyPath}" fill="${fill}" stroke="${stroke}" /><circle cx="${headCx}" cy="${headCy}" r="${headR}" fill="${fill}" stroke="${stroke}" /></g>`;
+    }
     case 'icon':
     case 'rectangle':
     default:
@@ -854,12 +921,13 @@ function renderNode(node: DiagramNode, resolveIcon?: IconResolver): string {
   }
 
   const rawLabel = node.icon ? `${node.label} [${node.icon.iconId}]` : node.label;
+  const { fill: plainFill } = resolveNodeFillStroke(node);
   return wrapNodeLink(
     node,
     [
       `<g data-node-id="${escapeXml(node.id)}">`,
       renderNodeShape(node),
-      renderLabelText(x + width / 2, y + height / 2, rawLabel, fontSize, true, labelMaxWidth),
+      renderLabelText(x + width / 2, y + height / 2, rawLabel, fontSize, true, labelMaxWidth, contrastTextColor(plainFill)),
       '</g>',
     ].join(''),
   );
@@ -887,6 +955,14 @@ export interface ContainerRoleStyle {
 }
 
 const NOTE_ROLES = new Set(['note-left', 'note-right', 'note-over', 'note']);
+// canvas-ej5: the 5 roles dsl/c4.ts's BOUNDARY_KEYWORD_TO_ROLE collapses onto (exported there as
+// C4_BOUNDARY_ROLES — hardcoded here rather than imported, see C4_NODE_COLORS' own comment above
+// for why render/ never imports from dsl/). Previously these fell through to the generic catch-all
+// below, same as a plain flowchart subgraph; now matched to the reference stencil's own boundary
+// treatment (stroke #444444, dash 7.5,4.5) instead — close to, but deliberately distinct from, the
+// generic fallback so a later change to that shared default can't silently drag C4 boundaries
+// along with it.
+const C4_BOUNDARY_ROLES = new Set(['boundary', 'system-boundary', 'container-boundary', 'enterprise-boundary', 'deployment-node']);
 
 export function containerRoleStyle(role: string | undefined): ContainerRoleStyle {
   // Sequence AND UML both use the word "note" for an annotation box — same pale-sticky-note
@@ -896,6 +972,7 @@ export function containerRoleStyle(role: string | undefined): ContainerRoleStyle
   // "the same kind of thing" as a control-flow block when both appear in one diagram.
   if (role === 'box') return { defaultFill: 'none', stroke: '#999999', strokeDasharray: '2,3' };
   if (role === 'namespace') return { defaultFill: '#f7f7f7', stroke: '#555555', headerBand: true };
+  if (role && C4_BOUNDARY_ROLES.has(role)) return { defaultFill: 'none', stroke: '#444444', strokeDasharray: '7.5,4.5' };
   return { defaultFill: 'none', stroke: '#888888', strokeDasharray: '6,4' };
 }
 

@@ -59,6 +59,8 @@ import {
   C4_BOUNDARY_ROLES,
   C4_ELEMENT_ROLES,
   UML_RELATION_KINDS,
+  resolveNodeFillStroke,
+  contrastTextColor,
   type CardinalityGlyph,
   type UmlEndpointGlyph,
   type DiagramContainer,
@@ -261,11 +263,12 @@ function renderLabelLines(
   fontSize: number,
   centered: boolean,
   maxWidth?: number,
+  fill = '#000000',
 ): JSX.Element {
   const lines = splitLabelLines(label, maxWidth, fontSize);
   if (lines.length === 1) {
     return (
-      <text x={x} y={y} textAnchor="middle" dominantBaseline={centered ? 'middle' : undefined} fontSize={fontSize}>
+      <text x={x} y={y} textAnchor="middle" dominantBaseline={centered ? 'middle' : undefined} fontSize={fontSize} fill={fill}>
         {label}
       </text>
     );
@@ -273,7 +276,7 @@ function renderLabelLines(
   const lineHeightEm = 1.2;
   const firstDy = centered ? (-(lines.length - 1) * lineHeightEm) / 2 : 0;
   return (
-    <text x={x} y={y} textAnchor="middle" fontSize={fontSize}>
+    <text x={x} y={y} textAnchor="middle" fontSize={fontSize} fill={fill}>
       {lines.map((line, i) => (
         <tspan key={i} x={x} dy={`${i === 0 ? firstDy : lineHeightEm}em`}>
           {line}
@@ -3479,6 +3482,7 @@ export function Canvas({ model, onChange, dslFamily, toolbarContainer }: CanvasP
                         14,
                         true,
                         Math.max(size.width - 16, 40),
+                        contrastTextColor(resolveNodeFillStroke(node).fill),
                       ))}
               {editingNodeId === node.id && (
                 <foreignObject x={node.position.x} y={node.position.y} width={size.width} height={size.height}>

@@ -1,4 +1,4 @@
-import { iconNodeSize, plainNodeSize, tableNodeLayout, type DiagramNode, type NodeShape } from '@canvas/diagram-core';
+import { clampPersonHeadRadius, iconNodeSize, plainNodeSize, resolveNodeFillStroke, tableNodeLayout, type DiagramNode, type NodeShape } from '@canvas/diagram-core';
 
 export const DEFAULT_NODE_SIZE = { width: 140, height: 60 };
 
@@ -40,8 +40,9 @@ export const SELECTION_STROKE = '#2874a6';
 export function renderNodeShape(node: DiagramNode, selected: boolean): JSX.Element {
   const { x, y } = node.position;
   const { width, height } = nodeSize(node);
-  const fill = node.style?.fillColor ?? '#ffffff';
-  const stroke = selected ? SELECTION_STROKE : (node.style?.strokeColor ?? '#333333');
+  const resolved = resolveNodeFillStroke(node);
+  const fill = resolved.fill;
+  const stroke = selected ? SELECTION_STROKE : resolved.stroke;
   const strokeWidth = selected ? 2 : 1;
 
   switch (node.shape) {
@@ -67,6 +68,24 @@ export function renderNodeShape(node: DiagramNode, selected: boolean): JSX.Eleme
         .map((p) => p.join(','))
         .join(' ');
       return <polygon points={points} fill={fill} stroke={stroke} strokeWidth={strokeWidth} />;
+    }
+    case 'person': {
+      // canvas-wrk: this case was simply missing before — fell through to the plain-rectangle
+      // `default` case, which is exactly the bug report ("the person shape is still a
+      // rectangle"). Mirrors svg-renderer.ts's own 'person' case exactly (SC-004): a head circle
+      // over a domed (rounded-top, flat-bottom) body.
+      const headR = clampPersonHeadRadius(width, height);
+      const headCx = x + width / 2;
+      const headCy = y + headR + 4;
+      const bodyTop = headCy + headR + 3;
+      const bodyR = Math.min(20, width / 4);
+      const bodyPath = `M ${x} ${y + height} L ${x} ${bodyTop + bodyR} Q ${x} ${bodyTop} ${x + bodyR} ${bodyTop} L ${x + width - bodyR} ${bodyTop} Q ${x + width} ${bodyTop} ${x + width} ${bodyTop + bodyR} L ${x + width} ${y + height} Z`;
+      return (
+        <g>
+          <path d={bodyPath} fill={fill} stroke={stroke} strokeWidth={strokeWidth} />
+          <circle cx={headCx} cy={headCy} r={headR} fill={fill} stroke={stroke} strokeWidth={strokeWidth} />
+        </g>
+      );
     }
     case 'cylinder': {
       // canvas-8n7: was silently falling through to a plain rectangle — mirrors
