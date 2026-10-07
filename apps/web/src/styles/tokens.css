@@ -21,16 +21,24 @@
   --surface-canvas: #ffffff;    /* the diagram drawing surface — must stay white */
 
   /* ---- Text ----------------------------------------------------------- */
-  --text-primary: #14181f;      /* body copy, headings, control labels */
-  --text-secondary: #5a6472;    /* supporting copy, table meta */
+  --text-primary: #141c26;      /* body copy, headings, control labels (ADP --ink, 17.16:1) */
+  --text-secondary: #47566a;    /* supporting copy, table meta (ADP --ink-2, 7.48:1) */
+  /* --text-tertiary intentionally NOT ported from ADP's --ink-3 (#7c8aa0, only 3.50:1) — fails
+     the 4.5 contrast floor this role requires. Keeping Canvas's own value. */
   --text-tertiary: #646d79;     /* timestamps, counts, placeholders */
   --text-inverse: #ffffff;      /* labels on accent/danger fills */
 
   /* ---- Accent (the only accent; used functionally, never decoratively) - */
-  --accent: #2563eb;
-  --accent-hover: #1d4ed8;
-  --accent-active: #1e40af;
-  --accent-subtle: #eff4ff;     /* selected row tint, active tab tint */
+  /* ADP-palette port (visual-polish phase 1): --accent/--accent-hover are ADP's literal
+     --accent/--accent-2 (5.07:1 / 7.63:1 vs white, both clear the 4.5 gate below).
+     --accent-active has no ADP equivalent (its system has only two accent steps) — darkened
+     15% further by hand. --accent-subtle is a solid 8% blend of the new --accent over white
+     (not ADP's raw alpha wash) because a 10% blend already drops under the 4.5 contrast floor
+     the gate enforces for "accent text on tinted background". */
+  --accent: #2874a6;
+  --accent-hover: #1c587f;
+  --accent-active: #184b6c;
+  --accent-subtle: #eef4f8;     /* selected row tint, active tab tint */
 
   /* ---- Borders -------------------------------------------------------- */
   /* --border-control is the ONLY border permitted on a form control: WCAG 1.4.11 requires 3:1
@@ -52,14 +60,17 @@
   --warning-surface: #f0b429;   /* violation-count badge fill */
 
   /* ---- Focus ---------------------------------------------------------- */
-  --focus-ring: #2563eb;
+  /* Kept equal to --accent (ADP-palette port) rather than left on the old blue — one accent
+     color in the UI, not two. 5.07:1+ against every surface this is paired against, clearing
+     the 3:1 floor with room to spare. */
+  --focus-ring: #2874a6;
   --focus-ring-width: 2px;
   --focus-ring-offset: 2px;
 
   /* ---- Canvas --------------------------------------------------------- */
   --canvas-grid-dot: #d8dde4;   /* decorative; CSS background only, never SVG content */
   --canvas-grid-size: 16px;
-  --node-selected: #2563eb;     /* selection stroke — screen only, never exported */
+  --node-selected: #2874a6;     /* selection stroke — screen only, never exported */
 
   /* ---- Typography ----------------------------------------------------- */
   /* System stacks only: no webfont, so nothing is fetched over the network (FR-003) and the
@@ -88,16 +99,21 @@
   --space-10: 40px;
 
   /* ---- Radius --------------------------------------------------------- */
-  --radius-sm: 4px;   /* checkboxes, tags */
-  --radius-md: 6px;   /* buttons, inputs, selects */
-  --radius-lg: 8px;   /* panels, cards */
-  --radius-xl: 12px;  /* modal dialogs */
+  /* Rounded up toward ADP's 8/12/16px scale (ADP-palette port) — same 4-role structure, rounder
+     values. */
+  --radius-sm: 6px;   /* checkboxes, tags */
+  --radius-md: 8px;   /* buttons, inputs, selects */
+  --radius-lg: 12px;  /* panels, cards */
+  --radius-xl: 16px;  /* modal dialogs */
 
   /* ---- Elevation ------------------------------------------------------ */
   /* Never applied to diagram nodes: the canvas sustains >50fps dragging 300 elements only
-     because nodes carry no shadow, filter, or transition (FR-028). */
-  --shadow-sm: 0 1px 2px rgba(20, 24, 31, 0.06);
-  --shadow-md: 0 4px 12px rgba(20, 24, 31, 0.1);
+     because nodes carry no shadow, filter, or transition (FR-028).
+     --shadow-sm/--shadow-md adopt ADP's softer dual-layer recipe, rebased onto Canvas's own ink
+     rgb (20,24,31) rather than ADP's (20,28,38) so shadows stay tonally consistent with the rest
+     of this file's grays. */
+  --shadow-sm: 0 1px 2px rgba(20, 24, 31, 0.06), 0 1px 1px rgba(20, 24, 31, 0.05);
+  --shadow-md: 0 2px 4px rgba(20, 24, 31, 0.06), 0 12px 28px rgba(20, 24, 31, 0.1);
   --shadow-modal: 0 16px 48px rgba(20, 24, 31, 0.18);
   --overlay-scrim: rgba(20, 24, 31, 0.45);
 

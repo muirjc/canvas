@@ -95,10 +95,16 @@ and its modules use whatever provider API versions are declared per-resource (e.
 
 - All internal package versions use `^` (caret) ranges — exact resolved versions are locked via
   `package-lock.json` (npm workspaces, single root lockfile for all four `package.json`s).
-- `better-sqlite3` is a native (prebuilt-binary) dependency, unlike `pg`'s pure-JS wire protocol —
-  confirmed it ships a prebuilt `linux-x64` (glibc) binary, so `npm ci` against the production
-  `node:20-slim` Dockerfile base needs no C++ toolchain (same reasoning already applied to
-  `@resvg/resvg-js`, the other native dependency in this image).
+- `better-sqlite3` is a native dependency, unlike `pg`'s pure-JS wire protocol, but — unlike
+  `@resvg/resvg-js`, the image's other native dependency — it has **no prebuilt-binary install
+  path at all**: no `install`/`postinstall` script, no `prebuild-install` dependency; it always
+  compiles its bundled SQLite C amalgamation from source via `node-gyp` (which auto-runs because a
+  `binding.gyp` is present), on every platform, every time. A prior version of this note claimed a
+  prebuilt binary was "confirmed" — that was never actually verified against a truly from-scratch
+  Docker build (a local dev machine's ambient `python3` masks the gap) and was found to be false
+  live during `canvas-haz`'s Phase 7 deploy: the production Dockerfile's build stage needs
+  `python3`/`make`/`g++` installed (never copied into the runtime stage) for `npm ci` to succeed at
+  all — see the Dockerfile's own comment for the full story.
 - `@canvas/diagram-core` is resolved by `apps/api`/`apps/web` via an npm workspace symlink to its
   **built** `dist/` output, not its TypeScript source — see `RUNBOOK.md`'s "Resetting state"
   section for the rebuild step this implies after any change to that package.

@@ -74,12 +74,12 @@ test('a container with no explicit fill color still has a hit-testable (not "non
 
   // The actual behavior this attribute enables: clicking dead-center (not on the border) selects
   // the container via its interior, not just its stroke -- selection recolors the stroke to the
-  // selection blue (Canvas.tsx: stroke={isSelected ? '#2563eb' : '#888'}), the same visible signal
+  // selection blue (shapes.tsx's SELECTION_STROKE, '#2874a6'), the same visible signal
   // the rest of this file's own tests rely on implicitly.
   const box = await rect.boundingBox();
   if (!box) throw new Error('container rect has no bounding box');
   await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
-  await expect(rect).toHaveAttribute('stroke', '#2563eb');
+  await expect(rect).toHaveAttribute('stroke', '#2874a6');
 });
 
 test('renames a container and the name survives save and reopen', async ({ page }) => {
