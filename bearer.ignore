@@ -10,5 +10,11 @@
     "comment": "canvas-eil: same false positive as _0 (the isTest ? TEST_SESSION_SECRET : ... ternary that consumes it) -- see that entry's comment.",
     "false_positive": true,
     "ignored_at": "2026-09-05T21:26:57Z"
+  },
+  "b6d409965456fc63d65d69eeabbb390d_0": {
+    "author": "muir.jc@gmail.com",
+    "comment": "canvas-pp2: javascript_lang_logger_leak on catalog.ts's `console.error(error)` in its CLI isMain catch block -- the exact same pattern already exists, unflagged, in db/migrate.ts (lines 115/120), seed/run.ts (80/90), purge/run.ts (7 instances), and server.ts (14): a one-shot CLI entry point needs to print the real error so an operator running `npm run migrate`/`seed`/`seed:catalog`/`purge` by hand can actually see what failed. Those are only unflagged because GitHub's code-scanning gate scopes to 'new alerts in code changed by this PR' -- catalog.ts is new, they aren't. Confirmed via a local, unredacted full-repo bearer scan (bearer scan . --format json) against this exact commit: the identical javascript_lang_logger_leak rule fires on all of the sibling files above with the same code_extract (`console.error(error);`), proving this is an established, already-accepted repo convention, not a new risk this PR introduces.",
+    "false_positive": true,
+    "ignored_at": "2026-10-07T13:15:00Z"
   }
 }
