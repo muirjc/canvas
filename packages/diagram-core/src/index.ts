@@ -6,7 +6,6 @@ export * from './libraries/svg-sanitizer.js';
 export * from './libraries/azure-icons.js';
 export * from './libraries/aws-icons.js';
 export * from './libraries/generic.js';
-export * from './libraries/c4-notation.js';
 export * from './dsl/types.js';
 export * from './dsl/flowchart-parser.js';
 export * from './dsl/flowchart-serializer.js';

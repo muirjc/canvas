@@ -7,12 +7,19 @@ import type { FastifyInstance } from 'fastify';
 
 /**
  * Contract for canvas-23t.4: every diagram type that already has a real icon library
- * (c4-notation, azure-icons/aws-icons) must NOT also include "generic" in
- * default_palette_library_ids — generic's five shape-alias entries duplicate the shape toolbar
- * and render as broken, artwork-less boxes when placed via the icon search path (verified live;
- * see docs/ui-review-brief.md finding #4). "generic" stays the SOLE entry for diagram types with
+ * (azure-icons/aws-icons) must NOT also include "generic" in default_palette_library_ids —
+ * generic's five shape-alias entries duplicate the shape toolbar and render as broken,
+ * artwork-less boxes when placed via the icon search path (verified live; see
+ * docs/ui-review-brief.md finding #4). "generic" stays the SOLE entry for diagram types with
  * no other icon library at all (plain flowchart variants, sequence, erd, uml), where it's the
  * only way to place any icon/shape at all.
+ *
+ * canvas-wrk: C4 types used to carry the exact same class of bug via their own 'c4-notation'
+ * library (every entry duplicated getAddableShapes('c4')'s shape toolbar, or — 'boundary' — was
+ * outright broken, referencing a NodeShape that never existed). That library was deleted
+ * entirely rather than fixed, since C4's shape toolbar alone is already complete; "generic" was
+ * deliberately NOT substituted in its place, since that would just reintroduce the identical
+ * redundancy under a different library id (see diagram-types.seed.ts's own C4_LIBRARIES comment).
  *
  * This exercises the real seedDiagramTypes() function directly, not a hand-built fixture row —
  * libraries.test.ts's own cloud-infrastructure fixture already hardcodes the "correct" answer
@@ -49,11 +56,10 @@ describe('Diagram type seed data: generic shape-alias scoping', () => {
   );
 
   it.each(['c4-context', 'c4-container', 'c4-component', 'c4-code', 'c4-deployment'])(
-    '%s already has c4-notation — generic is excluded',
+    '%s ships zero default palette libraries — its own shape toolbar is already complete, no shape-alias fallback needed',
     async (diagramTypeId) => {
       const palette = await paletteFor(diagramTypeId);
-      expect(palette).not.toContain('generic');
-      expect(palette).toContain('c4-notation');
+      expect(palette).toEqual([]);
     },
   );
 
