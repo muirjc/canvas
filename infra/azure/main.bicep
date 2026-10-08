@@ -16,7 +16,7 @@
 targetScope = 'subscription'
 
 @description('Azure region for all resources. Kept fully parameterized, not hardcoded -- this environment has hit real compute-quota restrictions in some regions (docs/azure-deployment.md), eastus2/westus2/centralus/westus3 are known to work.')
-param location string = 'eastus2'
+param location string = 'centralus'
 
 @description('Name of the resource group canvas is deployed into.')
 param resourceGroupName string = 'canvas-rg'
@@ -49,6 +49,10 @@ param entraTenantId string = tenant().tenantId
 
 @description('canvas-haz: the "canvas-azure" Entra app registration\'s Application (client) ID -- see RUNBOOK.md\'s "Entra ID SSO" section for the one-time setup steps that produce this value. No default: a missing client ID should fail the deployment loudly, not silently produce a broken OIDC_ISSUER_URL/OIDC_CLIENT_ID.')
 param entraClientId string
+
+@description('canvas-brq: forwarded to modules/apiapp.bicep\'s AI_PROVIDER -- "mock" (default, no real API calls) or "anthropic"/"openai". deploy.sh sets this from AI_PROVIDER and refuses a real provider while its Key Vault API key is still the "unset" placeholder.')
+@allowed(['mock', 'anthropic', 'openai'])
+param aiProvider string = 'mock'
 
 resource rg 'Microsoft.Resources/resourceGroups@2023-07-01' = {
   name: resourceGroupName
@@ -133,6 +137,7 @@ module apiApp 'modules/apiapp.bicep' = {
     entraTenantId: entraTenantId
     entraClientId: entraClientId
     oidcRedirectUri: oidcRedirectUri
+    aiProvider: aiProvider
   }
 }
 
