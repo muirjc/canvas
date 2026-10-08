@@ -3,7 +3,9 @@
 # Resource group, ACR, VNet, private Postgres, Key Vault + managed identity, Container Apps
 # environment, API app, migration job, and a Storage static website for the frontend.
 #
-# Usage: ENTRA_CLIENT_ID=<id> [ENTRA_TENANT_ID=<id>] [ENTRA_CLIENT_SECRET=<secret>] ./deploy.sh [location]
+# Usage: ENTRA_CLIENT_ID=<id> [ENTRA_TENANT_ID=<id>] [ENTRA_CLIENT_SECRET=<secret>] \
+#        [AI_PROVIDER=mock|anthropic|openai] [ANTHROPIC_API_KEY=<key>] [OPENAI_API_KEY=<key>] \
+#        ./deploy.sh [location]
 #
 # canvas-haz: ENTRA_CLIENT_ID (required) and ENTRA_CLIENT_SECRET (required on first run only --
 # cached afterward in infra/azure/.secrets/oidc-client-secret) come from the "canvas-azure" Entra
@@ -28,7 +30,9 @@
 
 set -euo pipefail
 
-LOCATION="${1:-eastus2}"
+# centralus (2026-10-08): eastus2 hit repeated Postgres SkuNotAvailable for Standard_B1ms; moved
+# here (matching ADP) rather than paying for a bigger SKU.
+LOCATION="${1:-centralus}"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 SECRETS_DIR="$SCRIPT_DIR/.secrets"
@@ -83,6 +87,37 @@ elif [[ ! -f "$OIDC_CLIENT_SECRET_FILE" ]]; then
   exit 1
 fi
 OIDC_CLIENT_SECRET="$(cat "$OIDC_CLIENT_SECRET_FILE")"
+
+# canvas-brq: AI provider + keys. Previously AI_PROVIDER was hardwired to mock (main.bicep never
+# forwarded apiapp.bicep's aiProvider param) and the keys were read from a repo-root .env that
+# doesn't exist in this repo (the real dev key lives in apps/api/.env), so Key Vault only ever got
+# the "unset" placeholder. Same caching shape as ENTRA_CLIENT_SECRET above: an env var, if set, is
+# written to .secrets/ so it only has to be supplied once; the provider choice is cached too, so a
+# routine re-run without AI_PROVIDER doesn't silently flip a live environment back to mock.
+AI_PROVIDER_FILE="$SECRETS_DIR/ai-provider"
+ANTHROPIC_KEY_FILE="$SECRETS_DIR/anthropic-api-key"
+OPENAI_KEY_FILE="$SECRETS_DIR/openai-api-key"
+for pair in "AI_PROVIDER:$AI_PROVIDER_FILE" "ANTHROPIC_API_KEY:$ANTHROPIC_KEY_FILE" "OPENAI_API_KEY:$OPENAI_KEY_FILE"; do
+  var="${pair%%:*}"; file="${pair#*:}"
+  if [[ -n "${!var:-}" ]]; then
+    printf '%s' "${!var}" > "$file"
+    chmod 600 "$file"
+  fi
+done
+AI_PROVIDER="$(cat "$AI_PROVIDER_FILE" 2>/dev/null || echo mock)"
+ANTHROPIC_KEY="$(cat "$ANTHROPIC_KEY_FILE" 2>/dev/null || true)"
+OPENAI_KEY="$(cat "$OPENAI_KEY_FILE" 2>/dev/null || true)"
+case "$AI_PROVIDER" in
+  mock) ;;
+  anthropic)
+    [[ -n "$ANTHROPIC_KEY" ]] || { echo "ERROR: AI_PROVIDER=anthropic but no Anthropic key -- set ANTHROPIC_API_KEY (cached to $ANTHROPIC_KEY_FILE)." >&2; exit 1; }
+    # A placeholder (e.g. a dev .env's dummy value) deploys "successfully" and then fails every
+    # chat with a 401 from Anthropic -- happened on canvas-brq's first deploy.
+    [[ "$ANTHROPIC_KEY" == sk-ant-* ]] || echo "WARNING: the Anthropic key doesn't start with 'sk-ant-' -- likely a placeholder; AI chat will fail." >&2
+    ;;
+  openai) [[ -n "$OPENAI_KEY" ]] || { echo "ERROR: AI_PROVIDER=openai but no OpenAI key -- set OPENAI_API_KEY (cached to $OPENAI_KEY_FILE)." >&2; exit 1; } ;;
+  *) echo "ERROR: AI_PROVIDER must be mock, anthropic or openai (got: $AI_PROVIDER)." >&2; exit 1 ;;
+esac
 
 # Defaults to the deploying subscription's own tenant, matching main.bicep's own entraTenantId
 # default -- override only if the app registration lives in a different tenant.
@@ -165,18 +200,13 @@ if [[ -n "$EXISTING_KEY_VAULT" ]]; then
     echo "  database-url set."
   fi
 
-  # AI provider keys are optional -- apiapp.bicep defaults AI_PROVIDER=mock (no real key needed)
-  # until these are actually set to something real. Empty-string secrets are valid Key Vault
-  # values and harmless as long as AI_PROVIDER stays "mock".
-  if [[ -f "$REPO_ROOT/.env" ]]; then
-    ANTHROPIC_KEY="$(grep -E '^ANTHROPIC_API_KEY=' "$REPO_ROOT/.env" 2>/dev/null | head -1 | cut -d= -f2-)"
-    OPENAI_KEY="$(grep -E '^OPENAI_API_KEY=' "$REPO_ROOT/.env" 2>/dev/null | head -1 | cut -d= -f2-)"
-  fi
+  # A provider without a real key is rejected up front (canvas-brq, above), so "unset" only ever
+  # lands here for a provider that isn't in use.
   az keyvault secret set --vault-name "$EXISTING_KEY_VAULT" --name "anthropic-api-key" \
     --value "${ANTHROPIC_KEY:-unset}" --output none
   az keyvault secret set --vault-name "$EXISTING_KEY_VAULT" --name "openai-api-key" \
     --value "${OPENAI_KEY:-unset}" --output none
-  echo "  anthropic-api-key, openai-api-key set (real values if found in .env, else a placeholder)."
+  echo "  anthropic-api-key, openai-api-key set (AI_PROVIDER=$AI_PROVIDER)."
 else
   echo "== No existing Key Vault found -- skipping secret pre-seed (first-ever run) =="
 fi
@@ -196,7 +226,7 @@ az deployment sub what-if \
   --parameters location="$LOCATION" postgresAdminPassword="$PG_ADMIN_PASSWORD" \
     deployerPrincipalId="$DEPLOYER_PRINCIPAL_ID" apiImageTag="$API_IMAGE_TAG" \
     webOrigin="$WEB_ORIGIN" grantAcrPull="$GRANT_ACR_PULL" \
-    entraTenantId="$ENTRA_TENANT_ID" entraClientId="$ENTRA_CLIENT_ID"
+    entraTenantId="$ENTRA_TENANT_ID" entraClientId="$ENTRA_CLIENT_ID" aiProvider="$AI_PROVIDER"
 
 echo
 read -r -p "Proceed with deployment? [y/N] " confirm
@@ -213,7 +243,7 @@ az deployment sub create \
   --parameters location="$LOCATION" postgresAdminPassword="$PG_ADMIN_PASSWORD" \
     deployerPrincipalId="$DEPLOYER_PRINCIPAL_ID" apiImageTag="$API_IMAGE_TAG" \
     webOrigin="$WEB_ORIGIN" grantAcrPull="$GRANT_ACR_PULL" \
-    entraTenantId="$ENTRA_TENANT_ID" entraClientId="$ENTRA_CLIENT_ID" \
+    entraTenantId="$ENTRA_TENANT_ID" entraClientId="$ENTRA_CLIENT_ID" aiProvider="$AI_PROVIDER" \
   --output table
 
 STORAGE_ACCOUNT="$(az deployment sub show --name "canvas-foundation" --query "properties.outputs.storageAccountName.value" -o tsv)"

@@ -22,7 +22,7 @@
 set -euo pipefail
 
 RESOURCE_GROUP="${1:-canvas-rg}"
-LOCATION="${2:-eastus2}"
+LOCATION="${2:-centralus}"  # must match where deploy.sh put the Key Vault, or the purge misses it
 
 echo "== Resources currently in $RESOURCE_GROUP =="
 if az group exists --name "$RESOURCE_GROUP" | grep -q true; then
