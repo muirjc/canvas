@@ -4,7 +4,8 @@
 # environment, API app, migration job, and a Storage static website for the frontend.
 #
 # Usage: ENTRA_CLIENT_ID=<id> [ENTRA_TENANT_ID=<id>] [ENTRA_CLIENT_SECRET=<secret>] \
-#        [AI_PROVIDER=mock|anthropic|openai] [ANTHROPIC_API_KEY=<key>] [OPENAI_API_KEY=<key>] \
+#        [CANVAS_AI_PROVIDER=mock|anthropic|openai] [CANVAS_ANTHROPIC_API_KEY=<key>] \
+#        [CANVAS_OPENAI_API_KEY=<key>] \
 #        ./deploy.sh [location]
 #
 # canvas-haz: ENTRA_CLIENT_ID (required) and ENTRA_CLIENT_SECRET (required on first run only --
@@ -93,11 +94,14 @@ OIDC_CLIENT_SECRET="$(cat "$OIDC_CLIENT_SECRET_FILE")"
 # doesn't exist in this repo (the real dev key lives in apps/api/.env), so Key Vault only ever got
 # the "unset" placeholder. Same caching shape as ENTRA_CLIENT_SECRET above: an env var, if set, is
 # written to .secrets/ so it only has to be supplied once; the provider choice is cached too, so a
-# routine re-run without AI_PROVIDER doesn't silently flip a live environment back to mock.
+# routine re-run without CANVAS_AI_PROVIDER doesn't silently flip a live environment back to mock.
 AI_PROVIDER_FILE="$SECRETS_DIR/ai-provider"
 ANTHROPIC_KEY_FILE="$SECRETS_DIR/anthropic-api-key"
 OPENAI_KEY_FILE="$SECRETS_DIR/openai-api-key"
-for pair in "AI_PROVIDER:$AI_PROVIDER_FILE" "ANTHROPIC_API_KEY:$ANTHROPIC_KEY_FILE" "OPENAI_API_KEY:$OPENAI_KEY_FILE"; do
+# CANVAS_-prefixed on purpose: the unprefixed ANTHROPIC_API_KEY is commonly already exported in a
+# developer's shell for other tools, and an earlier version of this block silently cached THAT key
+# over the one placed in .secrets/ (a different, invalid key ended up in production).
+for pair in "CANVAS_AI_PROVIDER:$AI_PROVIDER_FILE" "CANVAS_ANTHROPIC_API_KEY:$ANTHROPIC_KEY_FILE" "CANVAS_OPENAI_API_KEY:$OPENAI_KEY_FILE"; do
   var="${pair%%:*}"; file="${pair#*:}"
   if [[ -n "${!var:-}" ]]; then
     printf '%s' "${!var}" > "$file"
@@ -110,12 +114,12 @@ OPENAI_KEY="$(cat "$OPENAI_KEY_FILE" 2>/dev/null || true)"
 case "$AI_PROVIDER" in
   mock) ;;
   anthropic)
-    [[ -n "$ANTHROPIC_KEY" ]] || { echo "ERROR: AI_PROVIDER=anthropic but no Anthropic key -- set ANTHROPIC_API_KEY (cached to $ANTHROPIC_KEY_FILE)." >&2; exit 1; }
+    [[ -n "$ANTHROPIC_KEY" ]] || { echo "ERROR: AI_PROVIDER=anthropic but no Anthropic key -- set CANVAS_ANTHROPIC_API_KEY (cached to $ANTHROPIC_KEY_FILE)." >&2; exit 1; }
     # A placeholder (e.g. a dev .env's dummy value) deploys "successfully" and then fails every
     # chat with a 401 from Anthropic -- happened on canvas-brq's first deploy.
     [[ "$ANTHROPIC_KEY" == sk-ant-* ]] || echo "WARNING: the Anthropic key doesn't start with 'sk-ant-' -- likely a placeholder; AI chat will fail." >&2
     ;;
-  openai) [[ -n "$OPENAI_KEY" ]] || { echo "ERROR: AI_PROVIDER=openai but no OpenAI key -- set OPENAI_API_KEY (cached to $OPENAI_KEY_FILE)." >&2; exit 1; } ;;
+  openai) [[ -n "$OPENAI_KEY" ]] || { echo "ERROR: AI_PROVIDER=openai but no OpenAI key -- set CANVAS_OPENAI_API_KEY (cached to $OPENAI_KEY_FILE)." >&2; exit 1; } ;;
   *) echo "ERROR: AI_PROVIDER must be mock, anthropic or openai (got: $AI_PROVIDER)." >&2; exit 1 ;;
 esac
 
