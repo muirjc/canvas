@@ -46,6 +46,7 @@ interface StandardRow {
   published_at: Date | null;
   created_at: Date;
   retired_at: Date | null;
+  kind_rules: Partial<StandardRules> | null;
 }
 
 /** Kysely infers `allowed_icon_library_refs`/`color_palette`/`font_constraints` as `unknown` on
@@ -75,6 +76,7 @@ function toRecord(
       allowedIconLibraryRefs: row.allowed_icon_library_refs ?? [],
       colorPalette: row.color_palette ?? [],
       fontConstraints: row.font_constraints ?? undefined,
+      ...(row.kind_rules ?? {}),
     },
     name: row.name,
     description: row.description,
@@ -84,6 +86,25 @@ function toRecord(
     createdAt: row.created_at as unknown as string,
     retiredAt: row.retired_at as unknown as string | null,
   };
+}
+
+/** canvas-tfr: the v2 rule fields, stored together in `standards.kind_rules`. */
+const V2_RULE_KEYS = [
+  'elementKinds',
+  'connectorRules',
+  'connectorPolicy',
+  'containers',
+  'requireKnownKinds',
+  'severityOverrides',
+  'guidance',
+] as const satisfies readonly (keyof StandardRules)[];
+
+function v2RulesJson(rules: StandardRules): string {
+  const v2: Partial<StandardRules> = {};
+  for (const key of V2_RULE_KEYS) {
+    if (rules[key] !== undefined) (v2 as Record<string, unknown>)[key] = rules[key];
+  }
+  return JSON.stringify(v2);
 }
 
 export interface CreateDraftStandardInput {
@@ -115,6 +136,7 @@ export async function createDraftStandard(input: CreateDraftStandardInput): Prom
         // Fall back to the same derivation the migration used, so no standard is ever nameless.
         name: input.name ?? `${input.diagramTypeId} v${nextVersion}`,
         description: input.description ?? null,
+        kind_rules: v2RulesJson(input.rules),
       })
       .returningAll()
       .executeTakeFirstOrThrow();
@@ -123,6 +145,52 @@ export async function createDraftStandard(input: CreateDraftStandardInput): Prom
     await setStandardMandatoryShapes(trx, row.id, input.rules.mandatoryShapeIds);
 
     return toRecord(asStandardRow(row), { allowed: input.rules.allowedShapeIds, mandatory: input.rules.mandatoryShapeIds });
+  });
+}
+
+export interface UpdateDraftStandardInput {
+  rules: StandardRules;
+  name?: string;
+  description?: string | null;
+}
+
+/** canvas-tfr: edits a draft in place. Published/retired standards are immutable -- change them by
+ *  cloning to a new draft (`cloneStandard`) and publishing that. */
+export async function updateDraftStandard(id: string, input: UpdateDraftStandardInput): Promise<StandardRecord> {
+  const existing = await getStandardById(id);
+  if (existing.status !== 'draft') {
+    throw new StandardStateError(`Standard ${id} is "${existing.status}", only "draft" standards can be edited`);
+  }
+  const db = getDb();
+  return db.transaction().execute(async (trx) => {
+    const row = await trx
+      .updateTable('standards')
+      .set({
+        allowed_icon_library_refs: JSON.stringify(input.rules.allowedIconLibraryRefs),
+        color_palette: JSON.stringify(input.rules.colorPalette),
+        font_constraints: input.rules.fontConstraints ? JSON.stringify(input.rules.fontConstraints) : null,
+        kind_rules: v2RulesJson(input.rules),
+        ...(input.name !== undefined ? { name: input.name } : {}),
+        ...(input.description !== undefined ? { description: input.description } : {}),
+      })
+      .where('id', '=', id)
+      .returningAll()
+      .executeTakeFirstOrThrow();
+    await setStandardAllowedShapes(trx, id, input.rules.allowedShapeIds);
+    await setStandardMandatoryShapes(trx, id, input.rules.mandatoryShapeIds);
+    return toRecord(asStandardRow(row), { allowed: input.rules.allowedShapeIds, mandatory: input.rules.mandatoryShapeIds });
+  });
+}
+
+/** canvas-tfr: copies any standard (typically the published one) into a new draft at the next
+ *  version, so an admin can change a standard without editing the one currently in force. */
+export async function cloneStandard(id: string): Promise<StandardRecord> {
+  const source = await toRecordWithShapes(await getStandardById(id));
+  return createDraftStandard({
+    diagramTypeId: source.diagramTypeId,
+    rules: source.rules,
+    name: `${source.name ?? source.diagramTypeId} (copy)`,
+    description: source.description ?? undefined,
   });
 }
 
@@ -192,6 +260,11 @@ export async function retireStandard(id: string): Promise<StandardRecord> {
     throw new StandardNotFoundError(`No standard with id ${id}`);
   }
   return toRecordWithShapes(asStandardRow(row));
+}
+
+/** canvas-tfr: one standard by id (any status). */
+export async function getStandardRecord(id: string): Promise<StandardRecord> {
+  return toRecordWithShapes(await getStandardById(id));
 }
 
 export async function getActiveStandard(diagramTypeId: string): Promise<StandardRecord | null> {

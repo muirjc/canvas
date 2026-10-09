@@ -10,7 +10,8 @@ interface DiagramTypeSeed {
   defaultPaletteLibraryIds: string[];
 }
 
-const ALL_PERSONAS = ['Business', 'Enterprise', 'Solution', 'Technical'];
+export const PERSONAS = ['Business', 'Enterprise', 'Solution', 'Technical'] as const;
+const ALL_PERSONAS = [...PERSONAS];
 // canvas-23t.4: "generic"'s five entries (Rectangle, Circle, ...) are non-visual shape-alias
 // sentinels, not real icon artwork (packages/diagram-core/src/libraries/generic.ts) — they
 // duplicate the shape toolbar and render as broken, artwork-less boxes when placed via the icon
@@ -40,6 +41,9 @@ const DIAGRAM_TYPES: DiagramTypeSeed[] = [
   // implementation-level artifact, not something a Solution Architect typically curates.
   { id: 'c4-deployment', name: 'C4 Deployment', personas: ['Technical'], abstractionLevel: 'Deployment', dslFamily: 'c4', defaultPaletteLibraryIds: C4_LIBRARIES },
   { id: 'business-capability-map', name: 'Business Capability Map', personas: ['Business'], abstractionLevel: 'N/A', dslFamily: 'flowchart', defaultPaletteLibraryIds: ['generic'] },
+  // canvas-tfr: Porter value chain, the reference example of a standard below the flowchart family
+  // (its published standard is seeded by seed/reference-standards.seed.ts).
+  { id: 'value-chain', name: 'Value Chain', personas: ['Business', 'Enterprise'], abstractionLevel: 'N/A', dslFamily: 'flowchart', defaultPaletteLibraryIds: ['generic'] },
   { id: 'value-stream', name: 'Value Stream Diagram', personas: ['Business'], abstractionLevel: 'N/A', dslFamily: 'flowchart', defaultPaletteLibraryIds: ['generic'] },
   { id: 'application-landscape', name: 'Application/Enterprise Landscape', personas: ['Enterprise'], abstractionLevel: 'N/A', dslFamily: 'flowchart', defaultPaletteLibraryIds: ['generic'] },
   { id: 'roadmap', name: 'Roadmap', personas: ['Enterprise'], abstractionLevel: 'N/A', dslFamily: 'flowchart', defaultPaletteLibraryIds: ['generic'] },
@@ -51,6 +55,9 @@ const DIAGRAM_TYPES: DiagramTypeSeed[] = [
   { id: 'erd', name: 'Entity-Relationship Diagram', personas: ['Solution', 'Technical'], abstractionLevel: 'N/A', dslFamily: 'erd', defaultPaletteLibraryIds: ['generic'] },
   { id: 'uml', name: 'UML Class Diagram', personas: ['Solution', 'Technical'], abstractionLevel: 'N/A', dslFamily: 'uml', defaultPaletteLibraryIds: ['generic'] },
 ];
+
+/** canvas-tfr: ids an admin-created type may not take. */
+export const BUILTIN_DIAGRAM_TYPE_IDS: readonly string[] = DIAGRAM_TYPES.map((t) => t.id);
 
 export async function seedDiagramTypes(): Promise<void> {
   const db = getDb();
@@ -68,13 +75,19 @@ export async function seedDiagramTypes(): Promise<void> {
           dsl_family: type.dslFamily,
         })
         .onConflict((oc) =>
-          oc.column('id').doUpdateSet((eb) => ({
-            name: eb.ref('excluded.name'),
-            abstraction_level: eb.ref('excluded.abstraction_level'),
-            dsl_family: eb.ref('excluded.dsl_family'),
-          })),
+          oc
+            .column('id')
+            .doUpdateSet((eb) => ({
+              name: eb.ref('excluded.name'),
+              abstraction_level: eb.ref('excluded.abstraction_level'),
+              dsl_family: eb.ref('excluded.dsl_family'),
+            }))
+            // canvas-tfr: never overwrite an admin-created type that happens to share an id.
+            .where('diagram_types.origin', '=', 'builtin'),
         )
         .execute();
+      const row = await trx.selectFrom('diagram_types').select('origin').where('id', '=', type.id).executeTakeFirst();
+      if (row?.origin !== 'builtin') return;
       await setDiagramTypePersonas(trx, type.id, type.personas);
       await setDiagramTypePaletteLibraries(trx, type.id, type.defaultPaletteLibraryIds);
     });

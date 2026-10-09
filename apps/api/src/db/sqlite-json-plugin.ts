@@ -26,6 +26,7 @@ const JSON_COLUMN_NAMES = new Set([
   'last_validation_result',
   'violations_at_save',
   'tool_calls',
+  'kind_rules',
 ]);
 
 export class SqliteJsonColumnsPlugin implements KyselyPlugin {

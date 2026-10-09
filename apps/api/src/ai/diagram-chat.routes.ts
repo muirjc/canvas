@@ -71,6 +71,7 @@ export async function registerDiagramChatRoutes(
           message,
           currentDslContent,
           dslFamily: diagram.dslFamily,
+          diagramTypeId: diagram.diagramTypeId,
           personaId,
           model: options.languageModel,
         });

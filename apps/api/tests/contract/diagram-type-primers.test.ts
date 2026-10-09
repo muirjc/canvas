@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { DiagramModel } from '@canvas/diagram-core';
 import { createDiagramTools } from '../../src/ai/diagram-tools.js';
 import { getDiagramTypePrimer } from '../../src/ai/diagram-type-primers.js';
+import { collectEnumValues } from '../helpers/zod-enums.js';
 
 /**
  * 010-ai-diagram-knowledge, T023 (User Story 3, research.md §6): a drift guard for FR-005 — every
@@ -13,41 +14,6 @@ import { getDiagramTypePrimer } from '../../src/ai/diagram-type-primers.js';
  * than hand-copying the current enum lists into this file, which would just be a second place to
  * forget to update.
  */
-
-type ZodDef = {
-  type: string;
-  shape?: Record<string, unknown>;
-  element?: unknown;
-  innerType?: unknown;
-};
-
-/** Walks any Zod schema node (object/array/optional/nullable/default/readonly wrappers) looking
- *  for every reachable `ZodEnum`, collecting its literal option values into `out`. Schema shapes
- *  this file's tools don't currently use (union, record, etc.) are simply not recursed into —
- *  extend here if a future tool introduces one. */
-function collectEnumValues(schema: unknown, out: Set<string>): void {
-  const def = (schema as { def?: ZodDef } | undefined)?.def;
-  if (!def) return;
-  switch (def.type) {
-    case 'enum':
-      for (const value of (schema as { options: string[] }).options) out.add(value);
-      return;
-    case 'object':
-      for (const key of Object.keys(def.shape!)) collectEnumValues(def.shape![key], out);
-      return;
-    case 'array':
-      collectEnumValues(def.element, out);
-      return;
-    case 'optional':
-    case 'nullable':
-    case 'default':
-    case 'readonly':
-      collectEnumValues(def.innerType, out);
-      return;
-    default:
-      return;
-  }
-}
 
 const ALL_FAMILIES = ['flowchart', 'c4', 'architecture', 'sequence', 'erd', 'uml'] as const;
 

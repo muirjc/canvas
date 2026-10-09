@@ -24,9 +24,18 @@ import {
   UML_RELATION_KINDS,
   ER_SOURCE_CARDINALITY_TOKENS,
   ER_TARGET_CARDINALITY_TOKENS,
+  addElementOfKind,
+  applyConnectorRule,
+  applyElementKind,
+  classifyNode,
+  FAMILY_NODE_SHAPES,
+  FAMILY_SUPPORTS_ELEMENT_KINDS,
+  isApprovedColor,
+  resolveConnectorRule,
+  validate,
   type DiagramEdge,
   type DiagramModel,
-  type NodeShape,
+  type StandardRules,
 } from '@canvas/diagram-core';
 
 export interface ToolCallOutcome {
@@ -43,41 +52,9 @@ export interface DiagramToolsContext {
   recordOutcome?: (outcome: ToolCallOutcome) => void;
 }
 
-/**
- * 010-ai-diagram-knowledge, T021: `addNode`'s `shape` enum, widened from the single hardcoded
- * flowchart list to the family-appropriate `NodeShape` subset — confirmed against each family's
- * own `dsl/*.ts` parser, not assumed. `erd`/`uml` entities/classes are always plain rectangles;
- * `sequence` participants are rectangles (or 'person' for an actor); `c4` elements use whichever
- * shape their role maps to (`ELEMENT_TO_SHAPE` in dsl/c4.ts); `architecture` services are
- * 'icon'-shaped (dsl/architecture.ts's `SERVICE_PATTERN`) — a bare node with no icon artwork is
- * still valid, matching a service declared with empty `()` — plus 'circle', the shape a junction
- * (role: 'junction', canvas-2s6.6) needs; combine with setNodeRole to produce a real one, the same
- * "addNode then setNodeRole" composition already used for C4 element kinds. An unrecognized family
- * falls back to the full flowchart set.
- */
-const FAMILY_NODE_SHAPES: Record<string, readonly [NodeShape, ...NodeShape[]]> = {
-  flowchart: [
-    'rectangle',
-    'rounded-rectangle',
-    'circle',
-    'diamond',
-    'cylinder',
-    'stadium',
-    'subroutine',
-    'double-circle',
-    'hexagon',
-    'parallelogram',
-    'parallelogram-alt',
-    'trapezoid',
-    'trapezoid-alt',
-    'asymmetric',
-  ],
-  c4: ['rectangle', 'person', 'cylinder', 'stadium'],
-  sequence: ['rectangle', 'person'],
-  erd: ['rectangle'],
-  uml: ['rectangle'],
-  architecture: ['icon', 'circle'],
-};
+// 010-ai-diagram-knowledge, T021: `addNode`'s `shape` enum is the family-appropriate NodeShape
+// subset -- canvas-tfr moved that list (FAMILY_NODE_SHAPES) into diagram-core so the standards
+// definition check and admin editor share it.
 
 /** 010-ai-diagram-knowledge, T019: per-family enum options for the new diagram-type-specific
  *  tools below — each confirmed against the corresponding `dsl/*.ts` parser's own vocabulary
@@ -131,14 +108,22 @@ const CONTAINER_ROLE_OPTIONS: Partial<Record<string, readonly [string, ...string
 // schema — a real, independent gap from the canvas-UI one this bead's own name describes, found
 // while widening StylePatch (diagram-ops.ts) for the canvas popup and fixed here too, since both
 // layers route through the exact same patch shape (Constitution I).
-const stylePatchSchema = {
-  fillColor: z.string().optional().describe('Fill color as a hex code, e.g. "#1168bd".'),
-  strokeColor: z.string().optional().describe('Border/line color as a hex code, e.g. "#0b4884".'),
-  strokeWidth: z.number().optional().describe('Border/line thickness in pixels.'),
-  strokeDasharray: z.string().optional().describe('SVG stroke-dasharray, e.g. "5 5", for a dashed/dotted line.'),
-  fontFamily: z.string().optional().describe('Font family for the label text, e.g. "Arial".'),
-  fontSize: z.number().optional().describe('Font size for the label text, in pixels.'),
-};
+function stylePatchSchemaFor(swatches: readonly string[]) {
+  // canvas-tfr: under a strict standard (every element must be a kind) colors are limited to the
+  // standard's approved swatches; execute() additionally checks the element's own kind's list.
+  const color = (desc: string) =>
+    swatches.length > 0
+      ? z.enum(swatches as [string, ...string[]]).optional().describe(`${desc} Must be one of the standard's approved colors.`)
+      : z.string().optional().describe(desc);
+  return {
+    fillColor: color('Fill color as a hex code, e.g. "#1168bd".'),
+    strokeColor: color('Border/line color as a hex code, e.g. "#0b4884".'),
+    strokeWidth: z.number().optional().describe('Border/line thickness in pixels.'),
+    strokeDasharray: z.string().optional().describe('SVG stroke-dasharray, e.g. "5 5", for a dashed/dotted line.'),
+    fontFamily: z.string().optional().describe('Font family for the label text, e.g. "Arial".'),
+    fontSize: z.number().optional().describe('Font size for the label text, in pixels.'),
+  };
+}
 
 /**
  * The AI-facing tool surface (FR-009), one wrapper per targeted edit operation. Each wrapper
@@ -155,8 +140,18 @@ const stylePatchSchema = {
  * edit with no equivalent concept in the diagram's type"): there is no tool call to make for an
  * out-of-family request, not merely a description saying so (plan.md's Constitution Check).
  */
-export function createDiagramTools(context: DiagramToolsContext, family: string) {
+export function createDiagramTools(context: DiagramToolsContext, family: string, rules?: StandardRules) {
   const nodeShapes = FAMILY_NODE_SHAPES[family] ?? FAMILY_NODE_SHAPES.flowchart;
+  // canvas-tfr: the active standard's element kinds (only for families whose DSL can carry them).
+  const kinds = rules && FAMILY_SUPPORTS_ELEMENT_KINDS.has(family) ? (rules.elementKinds ?? []) : [];
+  const kindIds = kinds.map((k) => k.id);
+  const strictKinds = kinds.length > 0 && Boolean(rules?.requireKnownKinds);
+  const swatches = [...new Set(kinds.flatMap((k) => [...k.approvedFills, ...(k.approvedStrokes ?? [])]))];
+  const stylePatchSchema = stylePatchSchemaFor(strictKinds ? swatches : []);
+  const kindOfNode = (model: DiagramModel, nodeId: string) => {
+    const node = model.nodes.find((n) => n.id === nodeId);
+    return node && rules ? classifyNode(node, rules) : undefined;
+  };
   const record = (name: string, outcome: { applied: boolean; reason?: string }) => {
     context.recordOutcome?.({ tool: name, ...outcome });
     return outcome;
@@ -210,7 +205,18 @@ export function createDiagramTools(context: DiagramToolsContext, family: string)
         if (missing.length > 0) {
           return record('addEdge', { applied: false, reason: `No shape with id '${missing[0]}' was found.` });
         }
-        context.setModel(addEdge(model, { sourceId, targetId, label }));
+        // canvas-tfr: a standard's connector rules decide whether this pair may connect at all
+        // and, when allowed, what the connector looks like by default.
+        const rule = rules ? resolveConnectorRule(rules, kindOfNode(model, sourceId)?.id, kindOfNode(model, targetId)?.id) : undefined;
+        if (rules && !rule && rules.connectorPolicy === 'listed-only') {
+          const from = kindOfNode(model, sourceId)?.label ?? 'that element';
+          const to = kindOfNode(model, targetId)?.label ?? 'that element';
+          const allowed = (rules.connectorRules ?? []).map((r) => `${r.from} -> ${r.to}`).join(', ') || 'none';
+          return record('addEdge', { applied: false, reason: `The standard doesn't allow connecting ${from} to ${to}. Allowed: ${allowed}.` });
+        }
+        let next = addEdge(model, { sourceId, targetId, label });
+        if (rule) next = applyConnectorRule(next, next.edges[next.edges.length - 1].id, rule);
+        context.setModel(next);
         return record('addEdge', { applied: true });
       },
     }),
@@ -272,6 +278,14 @@ export function createDiagramTools(context: DiagramToolsContext, family: string)
         const model = context.getModel();
         if (!model.nodes.some((n) => n.id === nodeId)) {
           return record('updateNodeStyle', { applied: false, reason: `No shape with id '${nodeId}' was found.` });
+        }
+        const kind = kindOfNode(model, nodeId);
+        if (kind && patch.fillColor && kind.approvedFills.length > 0 && !isApprovedColor(patch.fillColor, kind.approvedFills)) {
+          return record('updateNodeStyle', { applied: false, reason: `${kind.label} fill must be one of: ${kind.approvedFills.join(', ')}.` });
+        }
+        const strokes = kind?.approvedStrokes ?? [];
+        if (kind && patch.strokeColor && strokes.length > 0 && !isApprovedColor(patch.strokeColor, strokes)) {
+          return record('updateNodeStyle', { applied: false, reason: `${kind.label} border must be one of: ${strokes.join(', ')}.` });
         }
         context.setModel(updateNodeStyle(model, nodeId, patch));
         return record('updateNodeStyle', { applied: true });
@@ -551,9 +565,51 @@ export function createDiagramTools(context: DiagramToolsContext, family: string)
   const activateParticipant = family === 'sequence' ? makeActivationTool('activate') : undefined;
   const deactivateParticipant = family === 'sequence' ? makeActivationTool('deactivate') : undefined;
 
-  return {
-    ...base,
-    ...(setNodeRole ? { setNodeRole } : {}),
+  // canvas-tfr: element-kind tools, present only when the active standard defines kinds.
+  const kindTools =
+    kindIds.length > 0
+      ? {
+          addElement: tool({
+            description:
+              'Add a new element of one of the standard\'s element kinds (it gets the kind\'s shape and ' +
+              'color automatically). Returns the new element\'s id — use it as sourceId/targetId in addEdge.',
+            inputSchema: z.object({
+              kind: z.enum(kindIds as [string, ...string[]]).describe('The element kind id.'),
+              label: z.string().optional().describe('Text shown on the element. Defaults to the kind name.'),
+            }),
+            execute: async ({ kind, label }) => {
+              const def = kinds.find((k) => k.id === kind)!;
+              const { model, nodeId } = addElementOfKind(context.getModel(), def, { label });
+              context.setModel(model);
+              return { ...record('addElement', { applied: true }), nodeId };
+            },
+          }),
+          setElementKind: tool({
+            description: 'Change an existing element to a different element kind of the standard.',
+            inputSchema: z.object({
+              nodeId: z.string().describe('The id of the element.'),
+              kind: z.enum(kindIds as [string, ...string[]]).describe('The element kind id.'),
+            }),
+            execute: async ({ nodeId, kind }) => {
+              const model = context.getModel();
+              if (!model.nodes.some((n) => n.id === nodeId)) {
+                return record('setElementKind', { applied: false, reason: `No shape with id '${nodeId}' was found.` });
+              }
+              context.setModel(applyElementKind(model, nodeId, kinds.find((k) => k.id === kind)!));
+              return record('setElementKind', { applied: true });
+            },
+          }),
+        }
+      : ({} as Record<never, never>);
+
+  // Under a strict standard, free-form shapes and raw roles would only produce unknown-kind
+  // violations, so the kind tools replace them.
+  const { addNode: freeAddNode, ...baseRest } = base;
+  const tools = {
+    ...baseRest,
+    ...(strictKinds ? ({} as Record<never, never>) : { addNode: freeAddNode }),
+    ...kindTools,
+    ...(setNodeRole && !(kindIds.length > 0 && family === 'c4') ? { setNodeRole } : {}),
     ...(setEntityAttributes ? { setEntityAttributes } : {}),
     ...(setClassMembers ? { setClassMembers } : {}),
     ...(setRelationshipKind ? { setRelationshipKind } : {}),
@@ -563,6 +619,34 @@ export function createDiagramTools(context: DiagramToolsContext, family: string)
     ...(activateParticipant ? { activateParticipant } : {}),
     ...(deactivateParticipant ? { deactivateParticipant } : {}),
   };
+
+  if (rules) attachNewViolations(tools, context, rules);
+  return tools;
+}
+
+/**
+ * canvas-tfr: every applied tool result also reports the standard violations that change
+ * introduced (diffed by element + rule, capped at 5), so the model can correct itself within the
+ * same turn. Only the value returned to the model grows; the recorded ToolCallOutcome stays the
+ * narrow {tool, applied, reason} shape the chat API persists.
+ */
+function attachNewViolations(tools: Record<string, unknown>, context: DiagramToolsContext, rules: StandardRules): void {
+  const key = (v: { elementId: string; rule: string }) => `${v.elementId}\u0000${v.rule}`;
+  for (const t of Object.values(tools)) {
+    const candidate = t as { execute?: (...args: unknown[]) => Promise<unknown> };
+    const original = candidate.execute;
+    if (!original) continue;
+    candidate.execute = async (...args: unknown[]) => {
+      const before = new Set(validate(context.getModel(), rules).map(key));
+      const result = await original(...args);
+      if (!result || typeof result !== 'object' || !(result as { applied?: boolean }).applied) return result;
+      const introduced = validate(context.getModel(), rules)
+        .filter((v) => !before.has(key(v)))
+        .slice(0, 5)
+        .map(({ rule, elementId, message, severity }) => ({ rule, elementId, message, severity }));
+      return introduced.length > 0 ? { ...result, newViolations: introduced } : result;
+    };
+  }
 }
 
 export type DiagramTools = ReturnType<typeof createDiagramTools>;

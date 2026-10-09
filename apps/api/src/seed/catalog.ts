@@ -5,10 +5,12 @@ import { runMigrations } from '../db/migrate.js';
 import { seedDiagramTypes } from './diagram-types.seed.js';
 import { seedLibraries } from './libraries.seed.js';
 import { seedAiPersonas } from './ai-personas.seed.js';
+import { seedReferenceStandards } from './reference-standards.seed.js';
 
 /**
  * Seeds reference/lookup data only: the full built-in DiagramType catalog, the bundled Icon/Shape
- * Libraries, and the default AiPersona per architect category. All three are idempotent catalog
+ * Libraries, the default AiPersona per architect category, and the published reference standards
+ * (Value Chain, C4 Context -- only into a type that has no standard yet). All are idempotent catalog
  * data (upsert or check-then-insert, never a published credential or demo content) that every
  * environment needs to be usable at all — a fresh database with no DiagramType rows can't create
  * a diagram. Deliberately separate from run.ts's own dev/demo seed (which also creates a
@@ -18,6 +20,8 @@ import { seedAiPersonas } from './ai-personas.seed.js';
 export async function seedCatalog(): Promise<void> {
   await runMigrations();
   await seedDiagramTypes();
+  // canvas-tfr: after the types exist; only fills a type with no standards at all.
+  await seedReferenceStandards();
   await seedLibraries();
   await seedAiPersonas();
 }
@@ -26,7 +30,7 @@ const isMain = process.argv[1] && fileURLToPath(import.meta.url) === process.arg
 if (isMain) {
   seedCatalog()
     .then(() => {
-      console.log('Catalog seed complete (DiagramTypes, Icon/Shape Libraries, AiPersonas).');
+      console.log('Catalog seed complete (DiagramTypes, reference Standards, Icon/Shape Libraries, AiPersonas).');
       return Promise.all([closeDb(), closePool()]);
     })
     .catch((error) => {

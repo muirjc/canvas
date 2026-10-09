@@ -1,6 +1,8 @@
 import { randomUUID } from 'node:crypto';
 import { generateText, stepCountIs, type LanguageModel } from 'ai';
-import { getDslFamily, isParseSuccess, type DiagramModel } from '@canvas/diagram-core';
+import { getDslFamily, isParseSuccess, validate, type DiagramModel, type StandardRules } from '@canvas/diagram-core';
+import { getActiveStandard } from '../standards/standard.service.js';
+import { buildStandardPrompt } from './standard-prompt.js';
 import { getDb } from '../db/client.js';
 import { getPersona } from './persona.service.js';
 import { listReferenceMaterialForFamily } from './persona-reference-material.service.js';
@@ -73,18 +75,29 @@ export async function getChatMessages(diagramId: string): Promise<ChatMessageRec
 }
 
 /** A short textual summary of the current diagram, given to the model each turn so it can
- * reference existing shapes/connectors by id (e.g. to remove or rename one). */
-function describeModel(model: DiagramModel): string {
-  const nodes = model.nodes.map((n) => `- ${n.id}: "${n.label}" (${n.shape})`).join('\n') || '(none yet)';
+ * reference existing shapes/connectors by id (e.g. to remove or rename one). canvas-tfr: under a
+ * standard it also shows each element's kind and the violations the diagram currently has. */
+function describeModel(model: DiagramModel, rules?: StandardRules): string {
+  const nodes =
+    model.nodes
+      .map((n) => `- ${n.id}: "${n.label}" (${n.shape}${rules && n.role ? `, kind: ${n.role}${n.external ? ' external' : ''}` : ''})`)
+      .join('\n') || '(none yet)';
   const edges =
     model.edges.map((e) => `- ${e.id}: ${e.sourceId} -> ${e.targetId}${e.label ? ` ("${e.label}")` : ''}`).join('\n') ||
     '(none yet)';
-  return `Current shapes:\n${nodes}\n\nCurrent connectors:\n${edges}`;
+  let summary = `Current shapes:\n${nodes}\n\nCurrent connectors:\n${edges}`;
+  if (rules) {
+    const violations = validate(model, rules).slice(0, 10);
+    if (violations.length > 0) {
+      summary += `\n\nCurrent standard violations:\n${violations.map((v) => `- [${v.severity}] ${v.elementId}: ${v.message}`).join('\n')}`;
+    }
+  }
+  return summary;
 }
 
 /** 010-ai-diagram-knowledge, T008/T031 (research.md §2, contracts/api-ai-chat-contract.md):
  * composition order is persona's own system prompt (or the default) → that family's
- * domain-concept primer → the persona's reference-material entries scoped to `dslFamily` or
+ * domain-concept primer → the active standard, if any (canvas-tfr) → the persona's reference-material entries scoped to `dslFamily` or
  * unscoped (User Story 4) → the current diagram's summary. Reference material is never placed
  * ahead of or in place of the persona's own system prompt (FR-008); a persona with no matching
  * entries (including one with none at all, e.g. no `personaId`) behaves identically to before
@@ -94,15 +107,20 @@ async function buildSystemPrompt(
   personaSystemPrompt: string | undefined,
   dslFamily: string,
   model: DiagramModel,
+  rules?: StandardRules,
 ): Promise<string> {
   const parts = [personaSystemPrompt ?? DEFAULT_SYSTEM_PROMPT];
   const primer = getDiagramTypePrimer(dslFamily);
   if (primer) parts.push(primer.summary);
+  // canvas-tfr: the active standard sits after the generic family primer (it narrows it) and
+  // before the persona's reference material and the model summary.
+  const standardPrompt = rules ? buildStandardPrompt(rules, dslFamily) : undefined;
+  if (standardPrompt) parts.push(standardPrompt);
   if (personaId) {
     const referenceMaterial = await listReferenceMaterialForFamily(personaId, dslFamily);
     for (const entry of referenceMaterial) parts.push(entry.content);
   }
-  parts.push(describeModel(model));
+  parts.push(describeModel(model, rules));
   return parts.join('\n\n');
 }
 
@@ -117,6 +135,8 @@ export interface SendChatMessageInput {
    * (any non-flowchart diagram's chat request threw a 422 DslParseError). Required, not optional:
    * there is no safe default family to fall back to. */
   dslFamily: string;
+  /** canvas-tfr: the diagram's type, used to load its active standard. Omitted = no standard. */
+  diagramTypeId?: string;
   personaId?: string;
   /** Test injection point (research.md §8) — production callers omit this and the configured
    * provider (apps/api/src/ai/provider.ts) is used. */
@@ -144,6 +164,9 @@ export async function sendChatMessage(input: SendChatMessageInput): Promise<Send
   const persona = chat.personaId ? await getPersona(chat.personaId) : undefined;
   const history = await getChatMessages(input.diagramId);
 
+  const standard = input.diagramTypeId ? await getActiveStandard(input.diagramTypeId) : null;
+  const rules = standard?.rules;
+
   const toolCalls: ToolCallOutcome[] = [];
   const tools = createDiagramTools(
     {
@@ -154,9 +177,10 @@ export async function sendChatMessage(input: SendChatMessageInput): Promise<Send
       recordOutcome: (outcome) => toolCalls.push(outcome),
     },
     input.dslFamily,
+    rules,
   );
 
-  const system = await buildSystemPrompt(chat.personaId, persona?.systemPrompt, input.dslFamily, model);
+  const system = await buildSystemPrompt(chat.personaId, persona?.systemPrompt, input.dslFamily, model, rules);
 
   const result = await generateText({
     model: input.model ?? getLanguageModel(),
@@ -166,7 +190,9 @@ export async function sendChatMessage(input: SendChatMessageInput): Promise<Send
       { role: 'user' as const, content: input.message },
     ],
     tools,
-    stopWhen: stepCountIs(5),
+    // canvas-tfr: a few extra steps under a standard so the model can fix the newViolations its
+    // own edits introduced within the same turn.
+    stopWhen: stepCountIs(rules ? 8 : 5),
   });
 
   const updatedDslContent = family.serialize(model);
