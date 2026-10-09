@@ -6,7 +6,7 @@ import { DiagramEditor, type DiagramEditorHandle } from './DiagramEditor';
 import { NewDiagramDialog } from './NewDiagramDialog';
 import { ProjectPicker } from './ProjectPicker';
 import { readProjectIdFromUrl, syncProjectIdToUrl, withProjectContext } from './project-context';
-import { StandardsEditor } from '../admin/StandardsEditor';
+import { StandardsAdminPage } from '../admin/StandardsAdminPage';
 import { UsersPage } from '../admin/UsersPage';
 import { AdminOverview } from '../admin/AdminOverview';
 import { DeletedDiagramsPage } from '../admin/DeletedDiagramsPage';
@@ -244,11 +244,11 @@ export function App() {
     else if (adminParam === 'deleted') adminScreen = <DeletedDiagramsPage />;
     else if (adminParam === 'deleted-projects') adminScreen = <DeletedProjectsPage />;
     else if (adminParam === 'ai-personas') adminScreen = <PersonaAdminPage />;
-    else adminScreen = <StandardsEditor diagramTypeId="flowchart" />;
+    else adminScreen = <StandardsAdminPage />;
     // Wrapping here rather than inside each screen is what centres and navigates all five
     // without any of them being edited (research §10).
     content = (
-      <AdminShell activeParam={adminParam} projectId={projectId}>
+      <AdminShell activeParam={adminParam === 'true' ? 'standards' : adminParam} projectId={projectId}>
         {adminScreen}
       </AdminShell>
     );
@@ -401,7 +401,7 @@ export function App() {
             <a data-testid="admin-overview-link" href={withProjectContext({ admin: 'overview' }, projectId)}>
               Overview
             </a>
-            <a data-testid="admin-console-link" href={withProjectContext({ admin: 'true' }, projectId)}>
+            <a data-testid="admin-console-link" href={withProjectContext({ admin: 'standards' }, projectId)}>
               Standards
             </a>
             <a data-testid="admin-users-link" href={withProjectContext({ admin: 'users' }, projectId)}>

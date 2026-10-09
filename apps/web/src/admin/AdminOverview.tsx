@@ -28,7 +28,7 @@ export function AdminOverview() {
         <dd data-testid="overview-library-count">{overview.libraryCount}</dd>
       </dl>
       <nav>
-        <a data-testid="overview-link-standards" href="?admin=true">
+        <a data-testid="overview-link-standards" href="?admin=standards">
           Manage Standards
         </a>
         <a data-testid="overview-link-users" href="?admin=users">

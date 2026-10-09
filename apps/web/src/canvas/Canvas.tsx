@@ -73,8 +73,19 @@ import {
   type EntityAttribute,
   type ClassMember,
   type NodeLink,
+  addElementOfKind,
+  applyConnectorRule,
+  applyElementKind,
+  classifyNode,
+  FAMILY_SUPPORTS_ELEMENT_KINDS,
+  resolveConnectorRule,
+  type ElementKind,
+  type Severity,
+  type StandardRules,
+  type Violation,
 } from '@canvas/diagram-core';
 import { getAddableShapes, nodeSize, renderNodeShape, SELECTION_STROKE } from './shapes';
+import { SwatchPicker } from './SwatchPicker';
 import { ConfirmDialog } from './ConfirmDialog';
 import { api } from '../app/api';
 import { Icon } from '../ui/Icon';
@@ -242,7 +253,18 @@ export interface CanvasProps {
    * where it already lives. Omit it and the toolbar renders in place, as before.
    */
   toolbarContainer?: HTMLElement | null;
+  /** canvas-tfr: the diagram type's active standard. When it defines element kinds (flowchart/c4),
+   *  the toolbar offers "Add <kind>" instead of (or alongside) free shapes, the style popup offers
+   *  only the kind's approved swatches, and connect mode follows the connector rules. */
+  standardRules?: StandardRules;
+  /** canvas-tfr: live standards violations, drawn as a severity dot on each affected element. */
+  violations?: Violation[];
+  /** canvas-tfr: select (and scroll to) an element -- e.g. clicking an issue in the Issues tab.
+   *  `nonce` makes re-requesting the same element re-trigger. */
+  focusRequest?: { id: string; nonce: number };
 }
+
+const SEVERITY_DOT_COLOR: Record<Severity, string> = { error: '#c81e1e', warning: '#d97706', info: '#64748b' };
 
 /** Minimum a container may be dragged down to, so it never becomes un-grabbable. */
 const MIN_CONTAINER_SIZE = { width: 80, height: 60 };
@@ -1125,8 +1147,21 @@ function descendantContainerIds(model: DiagramModel, containerId: string): Set<s
  * labels via direct manipulation. Renders the same DiagramModel that packages/diagram-core
  * parses/serializes, so every edit here is reflected in the Mermaid DSL by useDslSync.
  */
-export function Canvas({ model, onChange, dslFamily, toolbarContainer }: CanvasProps) {
+export function Canvas({ model, onChange, dslFamily, toolbarContainer, standardRules, violations, focusRequest }: CanvasProps) {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  // canvas-tfr: element kinds from the active standard (only for families whose DSL carries them).
+  const standardKinds: ElementKind[] =
+    standardRules && FAMILY_SUPPORTS_ELEMENT_KINDS.has(dslFamily) ? (standardRules.elementKinds ?? []) : [];
+  const kindsActive = standardKinds.length > 0;
+  const strictKinds = kindsActive && Boolean(standardRules?.requireKnownKinds);
+  const kindOfNode = (node: DiagramNode | undefined) => (node && standardRules ? classifyNode(node, standardRules) : undefined);
+  const [connectNotice, setConnectNotice] = useState<string | null>(null);
+  const worstSeverityByElement = new Map<string, Severity>();
+  for (const v of violations ?? []) {
+    const rank = (sv: Severity) => (sv === 'error' ? 3 : sv === 'warning' ? 2 : 1);
+    const prev = worstSeverityByElement.get(v.elementId);
+    if (!prev || rank(v.severity) > rank(prev)) worstSeverityByElement.set(v.elementId, v.severity);
+  }
   const [connectMode, setConnectMode] = useState(false);
   const [connectSourceId, setConnectSourceId] = useState<string | null>(null);
   // canvas-7rr: chosen once per connection, applied when the second shape is clicked. 'reversed'
@@ -1219,6 +1254,28 @@ export function Canvas({ model, onChange, dslFamily, toolbarContainer }: CanvasP
   // selectedContainerId's own pattern rather than folding into selectedIds (which would need
   // groupSelected/its button to start distinguishing node ids from edge ids within the same Set).
   const [selectedEdgeId, setSelectedEdgeId] = useState<string | null>(null);
+  // canvas-tfr: an Issues-tab click selects the offending element and scrolls it into view.
+  useEffect(() => {
+    if (!focusRequest) return;
+    const { id } = focusRequest;
+    if (model.nodes.some((n) => n.id === id)) {
+      setSelectedIds(new Set([id]));
+      setSelectedEdgeId(null);
+      setSelectedContainerId(null);
+    } else if (model.edges.some((e) => e.id === id)) {
+      setSelectedIds(new Set());
+      setSelectedEdgeId(id);
+      setSelectedContainerId(null);
+    } else if (model.containers.some((c) => c.id === id)) {
+      setSelectedIds(new Set());
+      setSelectedEdgeId(null);
+      setSelectedContainerId(id);
+    } else {
+      return;
+    }
+    const el = document.querySelector(`[data-testid="node-${id}"], [data-testid="edge-${id}"], [data-testid="container-${id}"]`);
+    if (el && 'scrollIntoView' in el) (el as Element).scrollIntoView({ block: 'center', inline: 'center', behavior: 'smooth' });
+  }, [focusRequest]);
   // canvas-2s6.2: a SECOND, independent edge-selection concept — sequence-only, multi-select,
   // used purely to gather which messages a new loop/alt/opt/par/critical/break/rect block should
   // enclose (Shift/Ctrl+click accumulates, mirroring handleNodePointerDown's own canvas-558
@@ -1356,6 +1413,11 @@ export function Canvas({ model, onChange, dslFamily, toolbarContainer }: CanvasP
     onChange(addNode(model, { shape }));
   };
 
+  // canvas-tfr: a new element of a standard's kind -- role, default shape and default swatch.
+  const handleAddKind = (kind: ElementKind) => {
+    onChange(addElementOfKind(model, kind).model);
+  };
+
   // canvas-2s6.6: a dedicated "Add Junction" action rather than a role-conversion popup on an
   // existing node (like C4's own renderKindAffordance/renderKindPopup) -- converting an existing
   // icon-bearing service to role: 'junction' would produce a state architecture.ts's own parser
@@ -1387,6 +1449,20 @@ export function Canvas({ model, onChange, dslFamily, toolbarContainer }: CanvasP
         setConnectSourceId(node.id);
       } else if (connectSourceId !== node.id) {
         const reversed = connectArrowStyle === 'reversed';
+        // canvas-tfr: the standard's connector rules decide whether this pair may connect at all.
+        const ruleSourceId = reversed ? node.id : connectSourceId;
+        const ruleTargetId = reversed ? connectSourceId : node.id;
+        const fromKind = kindsActive ? kindOfNode(model.nodes.find((n) => n.id === ruleSourceId)) : undefined;
+        const toKind = kindsActive ? kindOfNode(model.nodes.find((n) => n.id === ruleTargetId)) : undefined;
+        const connectorRule = kindsActive && standardRules ? resolveConnectorRule(standardRules, fromKind?.id, toKind?.id) : undefined;
+        if (kindsActive && !connectorRule && standardRules?.connectorPolicy === 'listed-only') {
+          setConnectNotice(
+            `The standard doesn't allow connecting ${fromKind?.label ?? 'an unclassified element'} to ${toKind?.label ?? 'an unclassified element'}.`,
+          );
+          setConnectSourceId(null);
+          return;
+        }
+        setConnectNotice(null);
         // canvas-hox follow-up: a plain arrowhead is not valid ER notation at all -- real
         // erDiagram relationships always show crow's-foot cardinality on both ends, never a
         // directional arrow, so ERD ignores connectArrowStyle/reversed entirely and uses its own
@@ -1456,6 +1532,7 @@ export function Canvas({ model, onChange, dslFamily, toolbarContainer }: CanvasP
             targetAnchor: connectArchTargetAnchor || undefined,
           });
         }
+        if (connectorRule) next = applyConnectorRule(next, next.edges[next.edges.length - 1].id, connectorRule);
         onChange(next);
         setConnectSourceId(null);
         setConnectMode(false);
@@ -1798,7 +1875,16 @@ export function Canvas({ model, onChange, dslFamily, toolbarContainer }: CanvasP
    *  string (no null-clear convention like StylePatch's), so this applies immediately on change
    *  rather than needing a separate commit step — Done just closes it, mirroring the toolbar's own
    *  live-applying Container Kind picker. */
-  const renderKindPopup = (id: string, x: number, y: number, currentRole: string | undefined, onPick: (role: string) => void, onClose: () => void) => (
+  const renderKindPopup = (
+    id: string,
+    x: number,
+    y: number,
+    currentRole: string | undefined,
+    onPick: (role: string) => void,
+    onClose: () => void,
+    // canvas-tfr: the standard's element kinds replace the raw C4 roles when present.
+    options: { value: string; label: string }[] = C4_ELEMENT_ROLES.map((role) => ({ value: role, label: C4_ELEMENT_ROLE_LABELS[role] })),
+  ) => (
     <foreignObject x={x} y={y} width={STYLE_POPUP_WIDTH} height={STYLE_POPUP_HEIGHT}>
       <div
         className="card cluster"
@@ -1821,9 +1907,9 @@ export function Canvas({ model, onChange, dslFamily, toolbarContainer }: CanvasP
             <option value="" disabled>
               Choose a kind…
             </option>
-            {C4_ELEMENT_ROLES.map((role) => (
-              <option key={role} value={role}>
-                {C4_ELEMENT_ROLE_LABELS[role]}
+            {options.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
               </option>
             ))}
           </select>
@@ -1988,6 +2074,9 @@ export function Canvas({ model, onChange, dslFamily, toolbarContainer }: CanvasP
     showFill: boolean,
     onPatch: (patch: StylePatch) => void,
     onClose: () => void,
+    // canvas-tfr: approved swatches from the element's kind (or connector rule); when present they
+    // replace the free color input, and "Reset" restores the first (default) swatch.
+    swatches?: { fills?: string[]; strokes?: string[]; effectiveFill?: string; effectiveStroke?: string },
   ) => (
     <foreignObject x={x} y={y} width={STYLE_POPUP_WIDTH} height={STYLE_POPUP_HEIGHT}>
       <div
@@ -1999,7 +2088,21 @@ export function Canvas({ model, onChange, dslFamily, toolbarContainer }: CanvasP
           if (event.key === 'Escape') onClose();
         }}
       >
-        {showFill && (
+        {showFill && swatches?.fills && swatches.fills.length > 0 && (
+          <div className="cluster cluster--tight" style={{ flexWrap: 'nowrap', alignItems: 'center' }}>
+            <span style={{ width: 60 }}>Fill</span>
+            <SwatchPicker id={id} kind="fill" swatches={swatches.fills} value={swatches.effectiveFill} onPick={(hex) => onPatch({ fillColor: hex })} autoFocus />
+            <button
+              type="button"
+              className="btn btn--tertiary btn--compact"
+              data-testid={`style-clear-fill-${id}`}
+              onClick={() => onPatch({ fillColor: swatches.fills![0] })}
+            >
+              Reset
+            </button>
+          </div>
+        )}
+        {showFill && !(swatches?.fills && swatches.fills.length > 0) && (
           <div className="cluster cluster--tight" style={{ flexWrap: 'nowrap', alignItems: 'center' }}>
             <span style={{ width: 60 }}>Fill</span>
             <input
@@ -2021,6 +2124,27 @@ export function Canvas({ model, onChange, dslFamily, toolbarContainer }: CanvasP
             </button>
           </div>
         )}
+        {swatches?.strokes && swatches.strokes.length > 0 ? (
+          <div className="cluster cluster--tight" style={{ flexWrap: 'nowrap', alignItems: 'center' }}>
+            <span style={{ width: 60 }}>Stroke</span>
+            <SwatchPicker
+              id={id}
+              kind="stroke"
+              swatches={swatches.strokes}
+              value={swatches.effectiveStroke}
+              onPick={(hex) => onPatch({ strokeColor: hex })}
+              autoFocus={!showFill}
+            />
+            <button
+              type="button"
+              className="btn btn--tertiary btn--compact"
+              data-testid={`style-clear-stroke-${id}`}
+              onClick={() => onPatch({ strokeColor: swatches.strokes![0] })}
+            >
+              Reset
+            </button>
+          </div>
+        ) : (
         <div className="cluster cluster--tight" style={{ flexWrap: 'nowrap', alignItems: 'center' }}>
           <span style={{ width: 60 }}>Stroke</span>
           <input
@@ -2041,6 +2165,7 @@ export function Canvas({ model, onChange, dslFamily, toolbarContainer }: CanvasP
             Clear
           </button>
         </div>
+        )}
         <div className="cluster cluster--tight" style={{ flexWrap: 'nowrap' }}>
           <label className="field__label" htmlFor={`style-stroke-width-${id}`}>
             Width
@@ -2288,7 +2413,29 @@ export function Canvas({ model, onChange, dslFamily, toolbarContainer }: CanvasP
 
   const toolbar = (
     <div role="toolbar" aria-label="Diagram tools">
-      {addableShapes.length > 0 && (
+      {kindsActive && (
+        <div className="rail-section" data-testid="kind-toolbar">
+          <p className="section-label rail-section__label">Elements</p>
+          <div className="tool-list">
+            {standardKinds.map((kind) => (
+              <button
+                key={kind.id}
+                type="button"
+                className="btn btn--secondary"
+                data-testid={`add-kind-${kind.id}`}
+                title={kind.description ? `Add ${kind.label}: ${kind.description}` : `Add ${kind.label}`}
+                onClick={() => handleAddKind(kind)}
+              >
+                {kind.approvedFills[0] && (
+                  <span aria-hidden="true" className="std-swatch" style={{ background: kind.approvedFills[0] }} />
+                )}
+                {kind.label}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+      {addableShapes.length > 0 && !strictKinds && (
         <div className="rail-section">
           <p className="section-label rail-section__label">Shapes</p>
           <div className="shape-grid">
@@ -2325,6 +2472,11 @@ export function Canvas({ model, onChange, dslFamily, toolbarContainer }: CanvasP
             <Icon name="arrow-right" />
             {connectMode ? 'Cancel Connect' : 'Connect'}
           </button>
+          {connectNotice && (
+            <p className="canvas-notice" role="alert" data-testid="connect-notice">
+              {connectNotice}
+            </p>
+          )}
           {/* canvas-7rr: chosen before clicking the second shape — the only way to draw a
               bidirectional or no-arrowhead connector interactively used to be two separate edges
               faking it (A->B and B->A). Not shown for ERD, UML, or architecture, each of which has
@@ -3301,6 +3453,15 @@ export function Canvas({ model, onChange, dslFamily, toolbarContainer }: CanvasP
                   false,
                   (patch) => onChange(updateEdgeStyle(model, edge.id, patch)),
                   () => setStylingEdgeId(null),
+                  (() => {
+                    if (!kindsActive || !standardRules) return undefined;
+                    const rule = resolveConnectorRule(
+                      standardRules,
+                      kindOfNode(model.nodes.find((n) => n.id === edge.sourceId))?.id,
+                      kindOfNode(model.nodes.find((n) => n.id === edge.targetId))?.id,
+                    );
+                    return rule?.approvedStrokes?.length ? { strokes: rule.approvedStrokes, effectiveStroke: edge.style?.strokeColor } : undefined;
+                  })(),
                 )}
               {/* canvas-2s6.3/canvas-2s6.4: a third edge affordance, UML/ERD-only, stacked further
                   above the other two (same x range, same rationale as the palette's own
@@ -3420,7 +3581,21 @@ export function Canvas({ model, onChange, dslFamily, toolbarContainer }: CanvasP
               {lifeline && (
                 <line x1={lifeline.x} y1={lifeline.top} x2={lifeline.x} y2={lifeline.bottom} stroke="#888888" strokeDasharray="4,2" />
               )}
-              {renderNodeShape(node, selectedIds.has(node.id))}
+              {renderNodeShape(node, selectedIds.has(node.id), model.diagramTypeId)}
+              {worstSeverityByElement.has(node.id) && (
+                <circle
+                  data-testid={`violation-dot-${node.id}`}
+                  data-severity={worstSeverityByElement.get(node.id)}
+                  cx={node.position.x + 4}
+                  cy={node.position.y + 4}
+                  r={5}
+                  fill={SEVERITY_DOT_COLOR[worstSeverityByElement.get(node.id)!]}
+                  stroke="#ffffff"
+                  strokeWidth={1.5}
+                >
+                  <title>{`Standards ${worstSeverityByElement.get(node.id) === 'error' ? 'must-fix issue' : worstSeverityByElement.get(node.id)} — see Issues`}</title>
+                </circle>
+              )}
               {iconMarkup && iconLayout && (
                 <image
                   x={iconLayout.iconX}
@@ -3482,7 +3657,7 @@ export function Canvas({ model, onChange, dslFamily, toolbarContainer }: CanvasP
                         14,
                         true,
                         Math.max(size.width - 16, 40),
-                        contrastTextColor(resolveNodeFillStroke(node).fill),
+                        contrastTextColor(resolveNodeFillStroke(node, model.diagramTypeId).fill),
                       ))}
               {editingNodeId === node.id && (
                 <foreignObject x={node.position.x} y={node.position.y} width={size.width} height={size.height}>
@@ -3542,6 +3717,12 @@ export function Canvas({ model, onChange, dslFamily, toolbarContainer }: CanvasP
                   true,
                   (patch) => onChange(updateNodeStyle(model, node.id, patch)),
                   () => setStylingNodeId(null),
+                  (() => {
+                    const kind = kindOfNode(node);
+                    if (!kind) return undefined;
+                    const effective = resolveNodeFillStroke(node, model.diagramTypeId);
+                    return { fills: kind.approvedFills, strokes: kind.approvedStrokes, effectiveFill: effective.fill, effectiveStroke: effective.stroke };
+                  })(),
                 )}
               {/* canvas-vcv: every node in an ERD diagram is an entity (attributes); every node in
                   a UML diagram is a class (members) — there is no other node kind in either family
@@ -3583,11 +3764,12 @@ export function Canvas({ model, onChange, dslFamily, toolbarContainer }: CanvasP
                   family (erd/uml vs c4). */}
               {editingNodeId !== node.id &&
                 !connectMode &&
-                dslFamily === 'c4' &&
+                (dslFamily === 'c4' || kindsActive) &&
                 (hoveredId === node.id || selectedIds.has(node.id)) &&
                 renderKindAffordance(
                   node.id,
-                  node.position.x + size.width - 76,
+                  // flowchart's link affordance owns the -76 slot, so a standard's kind picker sits beside it.
+                  node.position.x + size.width - (dslFamily === 'flowchart' ? 100 : 76),
                   node.position.y + 2,
                   () => {
                     setEditingNodeId(null);
@@ -3603,9 +3785,13 @@ export function Canvas({ model, onChange, dslFamily, toolbarContainer }: CanvasP
                   node.id,
                   stylePopupPos.x,
                   stylePopupPos.y,
-                  node.role,
-                  (role) => onChange(updateNodeRole(model, node.id, role)),
+                  kindsActive ? kindOfNode(node)?.id : node.role,
+                  (value) => {
+                    const kind = standardKinds.find((k) => k.id === value);
+                    onChange(kind ? applyElementKind(model, node.id, kind) : updateNodeRole(model, node.id, value));
+                  },
                   () => setEditingKindNodeId(null),
+                  kindsActive ? standardKinds.map((k) => ({ value: k.id, label: k.label })) : undefined,
                 )}
               {/* jmuir-dzd.5: flowchart's own click href/tooltip interaction — DiagramNode.link is
                   flowchart-only, same family-gated precedent as C4's own kind affordance above.

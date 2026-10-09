@@ -13,6 +13,7 @@ import { api, ApiError, type DiagramDto, type IconDto } from './api';
 import { Icon } from '../ui/Icon';
 import { RailTabs } from '../ui/RailTabs';
 import { Modal } from '../ui/Modal';
+import { useActiveStandard, useLiveViolations } from '../standards/useStandard';
 
 let iconNodeCounter = 0;
 function nextIconNodeId(): string {
@@ -57,7 +58,14 @@ export const DiagramEditor = forwardRef<DiagramEditorHandle, DiagramEditorProps>
   const [diagram, setDiagram] = useState(initialDiagram);
   const [model, setModel] = useState<DiagramModel>(() => initialModelFromDsl(diagram));
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
+  // The server's result of the last save -- shown until the standard has loaded, then superseded
+  // by the live check below (the server stays the authority for what gets stored).
   const [violations, setViolations] = useState(diagram.lastValidationResult);
+  // canvas-tfr: the diagram type's active standard drives the canvas tools, the DSL panel's
+  // live check and the Issues tab. Re-fetched if a save reports a different standard version.
+  const [standardRefreshKey, setStandardRefreshKey] = useState(0);
+  const standard = useActiveStandard(diagram.diagramTypeId, standardRefreshKey);
+  const [focusRequest, setFocusRequest] = useState<{ id: string; nonce: number } | undefined>(undefined);
   const [versionRefreshToken, setVersionRefreshToken] = useState(0);
   const [sharing, setSharing] = useState(false);
   // canvas-8x1: click-to-edit, mirroring ProjectsPage.tsx's own rename pattern for a project row —
@@ -78,6 +86,8 @@ export const DiagramEditor = forwardRef<DiagramEditorHandle, DiagramEditorProps>
   // otherwise Canvas renders its toolbar in place on the first pass and never moves it.
   const [toolbarContainer, setToolbarContainer] = useState<HTMLDivElement | null>(null);
   const { dsl, parseErrors, applyDsl } = useDslSync(model, setModel, diagram.dslFamily);
+  const liveViolations = useLiveViolations(model, standard?.rules);
+  const shownViolations = liveViolations ?? violations;
 
   // Unsaved-change detection (feature 007, FR-013d). `saveStatus` above is REQUEST state — it
   // never becomes "dirty" when the model changes — so there was previously no way to answer
@@ -158,6 +168,9 @@ export const DiagramEditor = forwardRef<DiagramEditorHandle, DiagramEditorProps>
     try {
       const { diagram: saved } = await api.saveDiagram(diagram.id, dsl);
       setViolations(saved.lastValidationResult);
+      // The server checked against a different standard than the one loaded here (published or
+      // retired since this editor opened): pick up the current one so live checks agree again.
+      if ((saved.standardVersionAtLastCheck ?? null) !== (standard?.version ?? null)) setStandardRefreshKey((k) => k + 1);
       setVersionRefreshToken((t) => t + 1);
       setLastSavedDsl(dsl);
       setSaveStatus('saved');
@@ -264,7 +277,15 @@ export const DiagramEditor = forwardRef<DiagramEditorHandle, DiagramEditorProps>
         </div>
 
         <div className="editor__canvas" data-testid="canvas-surface">
-          <Canvas model={model} onChange={setModel} dslFamily={diagram.dslFamily} toolbarContainer={toolbarContainer} />
+          <Canvas
+            model={model}
+            onChange={setModel}
+            dslFamily={diagram.dslFamily}
+            toolbarContainer={toolbarContainer}
+            standardRules={standard?.rules}
+            violations={liveViolations}
+            focusRequest={focusRequest}
+          />
         </div>
 
         <div className="editor__rail-right">
@@ -275,7 +296,9 @@ export const DiagramEditor = forwardRef<DiagramEditorHandle, DiagramEditorProps>
               {
                 id: 'dsl',
                 label: 'DSL',
-                render: () => <DslPanel dsl={dsl} parseErrors={parseErrors} onApply={applyDsl} />,
+                render: () => (
+                  <DslPanel dsl={dsl} parseErrors={parseErrors} onApply={applyDsl} rules={standard?.rules} dslFamily={diagram.dslFamily} />
+                ),
               },
               {
                 id: 'chat',
@@ -288,10 +311,17 @@ export const DiagramEditor = forwardRef<DiagramEditorHandle, DiagramEditorProps>
                 id: 'issues',
                 label: 'Issues',
                 badge:
-                  violations.length > 0 ? (
-                    <span className="badge badge--warning">{violations.length}</span>
+                  shownViolations.length > 0 ? (
+                    <span className="badge badge--warning">{shownViolations.length}</span>
                   ) : undefined,
-                render: () => <ViolationsPanel violations={violations} />,
+                render: () => (
+                  <ViolationsPanel
+                    violations={shownViolations}
+                    rules={standard?.rules}
+                    live={liveViolations !== undefined}
+                    onSelectElement={(id) => setFocusRequest((prev) => ({ id, nonce: (prev?.nonce ?? 0) + 1 }))}
+                  />
+                ),
               },
               {
                 id: 'history',

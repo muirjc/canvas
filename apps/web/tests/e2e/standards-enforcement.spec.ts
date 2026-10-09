@@ -1,8 +1,7 @@
 import { expect, test } from '@playwright/test';
+import { createAndPublishShapeStandard, openLegacyRules, openStandardsAdmin, publishFromEditor } from './standards-admin-helpers';
 
 const PROJECT_ID = process.env.E2E_PROJECT_ID;
-const ADMIN_EMAIL = 'admin@example.com';
-const ADMIN_PASSWORD = 'admin-dev-password';
 
 test.skip(!PROJECT_ID, 'E2E_PROJECT_ID env var not set — run `npm run seed` and export it first');
 
@@ -12,15 +11,9 @@ test.skip(!PROJECT_ID, 'E2E_PROJECT_ID env var not set — run `npm run seed` an
  * successfully (soft-flag, FR-024) while the violation is specifically surfaced (FR-013).
  */
 test('admin publishes a standard; a violating diagram is soft-flagged, not blocked', async ({ page }) => {
-  await page.goto('/?admin=true');
-  await page.getByTestId('login-email').fill(ADMIN_EMAIL);
-  await page.getByTestId('login-password').fill(ADMIN_PASSWORD);
-  await page.getByTestId('login-submit').click();
-  await page.waitForURL('**/*?admin=true');
-
-  await page.getByTestId('allowed-shape-rectangle').locator('input').check();
-  await page.getByTestId('create-publish-standard').click();
-  await expect(page.getByTestId('standards-editor-message')).toContainText('Published standard');
+  // ?admin=true is a legacy alias that lands on the Standards page with flowchart pre-selected.
+  await openStandardsAdmin(page, '/?admin=true');
+  await createAndPublishShapeStandard(page, { name: `Rect only ${Date.now()}`, allowed: ['rectangle'] });
 
   await page.goto(`/?projectId=${PROJECT_ID}`);
   await page.getByTestId('new-diagram').click();
@@ -51,11 +44,10 @@ test('admin publishes a standard; a violating diagram is soft-flagged, not block
  * over `NodeShape`.
  */
 test('admin standards editor governs the nine new shapes, including a mandatory-shape violation', async ({ page }) => {
-  await page.goto('/?admin=true');
-  await page.getByTestId('login-email').fill(ADMIN_EMAIL);
-  await page.getByTestId('login-password').fill(ADMIN_PASSWORD);
-  await page.getByTestId('login-submit').click();
-  await page.waitForURL('**/*?admin=true');
+  await openStandardsAdmin(page, '/?admin=true');
+  await page.getByTestId('standard-new').click();
+  await page.getByTestId('standard-name-input').fill(`Hexagon ${Date.now()}`);
+  await openLegacyRules(page);
 
   const newShapes = [
     'stadium',
@@ -74,8 +66,7 @@ test('admin standards editor governs the nine new shapes, including a mandatory-
   }
 
   await page.getByTestId('mandatory-shape-hexagon').locator('input').check();
-  await page.getByTestId('create-publish-standard').click();
-  await expect(page.getByTestId('standards-editor-message')).toContainText('Published standard');
+  await publishFromEditor(page);
 
   await page.goto(`/?projectId=${PROJECT_ID}`);
   await page.getByTestId('new-diagram').click();

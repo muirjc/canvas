@@ -1,3 +1,4 @@
+import type { StandardRules, Violation } from '@canvas/diagram-core';
 import { loadWebConfig } from '../config';
 
 const { apiBaseUrl } = loadWebConfig();
@@ -54,7 +55,9 @@ export interface DiagramDto {
   diagramTypeId: string;
   dslFamily: string;
   dslContent: string;
-  lastValidationResult: { elementId: string; rule: string; message: string; severity: string }[];
+  lastValidationResult: Violation[];
+  /** canvas-tfr: version of the standard the last save was checked against (null = none). */
+  standardVersionAtLastCheck?: number | null;
   /** canvas-hbk: resolved owner name (not a raw UUID) and creation/last-modified timestamps —
    *  already stored server-side, previously never sent to the client. */
   ownerName: string;
@@ -62,15 +65,12 @@ export interface DiagramDto {
   updatedAt: string;
 }
 
-export interface StandardRulesDto {
-  allowedShapeIds: string[];
-  mandatoryShapeIds: string[];
-  allowedIconLibraryRefs: { libraryId: string; libraryVersion: string }[];
-  colorPalette: { role: string; colorHex: string }[];
-  fontConstraints?: { family?: string; minSize?: number; maxSize?: number };
-}
+/** canvas-tfr: the full rule set (v1 fields + v2 element kinds), diagram-core's own type -- the
+ *  server returns it nested under `rules`. (The previous flattened DTO didn't match the server's
+ *  actual response shape; it went unnoticed only because nothing read it.) */
+export type StandardRulesDto = StandardRules;
 
-export interface StandardDto extends StandardRulesDto {
+export interface StandardDto {
   id: string;
   diagramTypeId: string;
   version: number;
@@ -78,9 +78,17 @@ export interface StandardDto extends StandardRulesDto {
   /** Human-readable identity; backfilled for standards predating feature 006. */
   name: string | null;
   description: string | null;
+  rules: StandardRules;
+  publishedAt: string | null;
   createdAt: string;
   /** Present only once the standard has left force. */
   retiredAt: string | null;
+}
+
+/** canvas-tfr: a 400 from POST/PUT standards carries these. */
+export interface DefinitionIssueDto {
+  path: string;
+  message: string;
 }
 
 export interface DiagramTypeDto {
@@ -90,6 +98,17 @@ export interface DiagramTypeDto {
   abstractionLevel: string;
   dslFamily: string;
   defaultPaletteLibraryIds: string[];
+  /** canvas-tfr: 'builtin' (seeded catalog) or 'custom' (admin-created). */
+  origin: 'builtin' | 'custom';
+  description: string | null;
+}
+
+export interface CustomDiagramTypeInput {
+  name: string;
+  dslFamily: string;
+  personas: string[];
+  paletteLibraryIds?: string[];
+  description?: string | null;
 }
 
 export interface IconDto {
@@ -277,12 +296,20 @@ export const api = {
     request<{ standards: StandardDto[] }>(`/diagram-types/${diagramTypeId}/standards`),
   createStandard: (
     diagramTypeId: string,
-    rules: Partial<StandardRulesDto> & { name?: string; description?: string },
+    rules: Partial<StandardRulesDto> & { name?: string; description?: string | null },
   ) =>
     request<{ standard: StandardDto }>(`/diagram-types/${diagramTypeId}/standards`, {
       method: 'POST',
       body: JSON.stringify(rules),
     }),
+  /** canvas-tfr: drafts only (409 otherwise). */
+  updateStandard: (id: string, rules: StandardRulesDto & { name?: string; description?: string | null }) =>
+    request<{ standard: StandardDto }>(`/standards/${id}`, { method: 'PUT', body: JSON.stringify(rules) }),
+  cloneStandard: (id: string) => request<{ standard: StandardDto }>(`/standards/${id}/clone`, { method: 'POST' }),
+  createDiagramType: (input: CustomDiagramTypeInput) =>
+    request<{ diagramType: DiagramTypeDto }>('/admin/diagram-types', { method: 'POST', body: JSON.stringify(input) }),
+  updateDiagramType: (id: string, patch: Partial<CustomDiagramTypeInput>) =>
+    request<{ diagramType: DiagramTypeDto }>(`/admin/diagram-types/${id}`, { method: 'PATCH', body: JSON.stringify(patch) }),
   publishStandard: (id: string) => request<{ standard: StandardDto }>(`/standards/${id}/publish`, { method: 'POST' }),
   retireStandard: (id: string) => request<{ standard: StandardDto }>(`/standards/${id}/retire`, { method: 'POST' }),
   listDiagramTypes: (persona?: string) =>

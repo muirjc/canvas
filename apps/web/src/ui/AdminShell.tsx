@@ -3,11 +3,10 @@ import { withProjectContext } from '../app/project-context';
 import { Icon } from './Icon';
 
 /** The six admin destinations, in the order they appear in the navigation. `param` is the
- *  `?admin=` value that reaches each one — "true" is the standards editor, for historical
- *  reasons predating the other destinations. */
+ *  `?admin=` value that reaches each one (`?admin=true` is a legacy alias for `standards`). */
 const DESTINATIONS = [
   { id: 'overview', param: 'overview', label: 'Overview' },
-  { id: 'standards', param: 'true', label: 'Standards' },
+  { id: 'standards', param: 'standards', label: 'Standards' },
   { id: 'users', param: 'users', label: 'Users' },
   { id: 'deleted', param: 'deleted', label: 'Deleted Diagrams' },
   { id: 'deleted-projects', param: 'deleted-projects', label: 'Deleted Projects' },
