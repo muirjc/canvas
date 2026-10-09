@@ -24,8 +24,10 @@ export function useActiveStandard(diagramTypeId: string | undefined, refreshKey 
         if (!cancelled) setStandard(standard);
       })
       .catch((error) => {
+        // Only the status code is logged, never the error object itself: an API error can echo
+        // request/response detail into the browser console (Bearer javascript_lang_logger_leak).
         if (!cancelled && !(error instanceof ApiError && error.status === 404)) {
-          console.error('Failed to load active standard', error);
+          console.error(`Failed to load active standard (status ${error instanceof ApiError ? error.status : 'unknown'})`);
         }
         if (!cancelled) setStandard(null);
       });
