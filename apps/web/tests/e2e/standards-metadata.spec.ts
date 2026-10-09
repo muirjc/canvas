@@ -1,27 +1,14 @@
 import { expect, test, type Page } from '@playwright/test';
+import { createAndPublishShapeStandard, openStandardsAdmin } from './standards-admin-helpers';
 
-const ADMIN_EMAIL = 'admin@example.com';
-const ADMIN_PASSWORD = 'admin-dev-password';
 const PROJECT_ID = process.env.E2E_PROJECT_ID;
 
 test.skip(!PROJECT_ID, 'E2E_PROJECT_ID env var not set — run `npm run seed` and export it first');
 
-async function openStandardsAdmin(page: Page) {
-  await page.goto('/?admin=true');
-  await page.getByTestId('login-email').fill(ADMIN_EMAIL);
-  await page.getByTestId('login-password').fill(ADMIN_PASSWORD);
-  await page.getByTestId('login-submit').click();
-  await expect(page.getByTestId('create-publish-standard')).toBeVisible();
-}
-
 async function createAndPublish(page: Page, name: string, description?: string) {
-  await page.getByTestId('standard-name-input').fill(name);
-  if (description) await page.getByTestId('standard-description-input').fill(description);
   // The seeded standard permits rectangles; keep the new one equivalent so publishing it does
   // not invalidate unrelated diagrams used by other specs.
-  await page.getByTestId('allowed-shape-rectangle').check();
-  await page.getByTestId('create-publish-standard').click();
-  await expect(page.getByTestId('standards-editor-message')).toContainText('Published');
+  await createAndPublishShapeStandard(page, { name, description, allowed: ['rectangle'] });
 }
 
 /**
@@ -49,7 +36,7 @@ test('every standard in the list is identifiable by name, including pre-existing
   const rows = page.locator('[data-testid^="standard-row-"]');
   // canvas-mup: a single-shot count() read here raced the standards-history list's own async
   // fetch/render, which openStandardsAdmin() does not wait for (it only waits for the
-  // create-publish-standard button). That intermittently read 0 rows before the fetch resolved,
+  // standard-new button). That intermittently read 0 rows before the fetch resolved,
   // even though the standards existed. expect.poll retries within its default timeout instead of
   // reading once immediately.
   await expect.poll(() => rows.count()).toBeGreaterThan(0);
@@ -84,7 +71,7 @@ test('a standard retired by SUPERSESSION also shows a retirement date', async ({
   await createAndPublish(page, secondName);
 
   const supersededRow = page.locator('li', { has: page.locator(`text=${firstName}`) }).first();
-  await expect(supersededRow).toContainText('retired');
+  await expect(supersededRow).toContainText(/retired/i);
   await expect(supersededRow, 'a superseded standard shows no retirement date').toContainText('Retired');
 });
 

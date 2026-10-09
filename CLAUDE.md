@@ -83,6 +83,25 @@ tests are NON-NEGOTIABLE and must exist (and fail) before implementing any diagr
 work — see `.specify/memory/constitution.md` Principle IV.
 
 ## Recent Changes
+- `canvas-tfr` epic (Standards v2): standards are now defined as **element kinds** — named,
+  semantic elements (e.g. a value chain's Primary Activity, C4 Context's External System) with
+  allowed shapes, approved fill/stroke swatches, min/max counts and connector rules — carried on
+  `node.role` so one definition drives all three authoring channels. Flowchart carries the kind as
+  the node's Mermaid class (`A[x]:::primary_activity`; no `classDef` emitted, since the parser's
+  class pass would overwrite a user-chosen swatch); C4 `_Ext` macros now set `DiagramNode.external`
+  and round-trip instead of collapsing. The finer-than-family grain comes from **admin-defined
+  diagram types** (`diagram_types.origin` builtin|custom; the catalog seed never overwrites a
+  custom row) rather than a new profile layer. Enforcement is "constrain + flag", never blocking:
+  draw (kind toolbar, swatch-only style popup, connector rules in connect mode) and chat (standard
+  in the system prompt, `addElement`/`setElementKind` tools with kind enums, swatch-limited colors,
+  `newViolations` fed back for self-correction) only offer what the standard allows; hand-written
+  DSL is flagged live with line numbers; the Issues tab validates live with Must fix / Warning /
+  Info severities and click-to-select. Published reference standards for **Value Chain** (new
+  built-in type) and **C4 Context** are seeded into any type with no standard yet. New admin page
+  `?admin=standards` (`?admin=true` alias). Migrations: Postgres `0014_standards_v2.sql`, SQLite
+  `sqlite/0002_standards_v2.sql` (a new file — existing SQLite DBs never re-run `0001`). Follow-up
+  `canvas-jki`: flip classDef/front-matter style precedence so `classDef` lines can be emitted for
+  portable Mermaid export.
 - `canvas-haz` epic (8 phases; 1-6 complete, 7-8 deferred to live Azure/Entra access this coding
   session doesn't have): migrated SSO from a self-hosted Keycloak Container App to Microsoft Entra
   ID — a real org identity platform, not a self-maintained one (realm-import maintenance, a

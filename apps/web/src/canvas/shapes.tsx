@@ -37,10 +37,11 @@ export function nodeSize(node: DiagramNode): { width: number; height: number } {
 // attributes (not inline `style`) throughout Canvas.tsx, which don't resolve custom properties.
 export const SELECTION_STROKE = '#2874a6';
 
-export function renderNodeShape(node: DiagramNode, selected: boolean): JSX.Element {
+/** canvas-tfr: `diagramTypeId` scopes C4 role colors to C4 diagrams (see resolveNodeFillStroke). */
+export function renderNodeShape(node: DiagramNode, selected: boolean, diagramTypeId?: string): JSX.Element {
   const { x, y } = node.position;
   const { width, height } = nodeSize(node);
-  const resolved = resolveNodeFillStroke(node);
+  const resolved = resolveNodeFillStroke(node, diagramTypeId);
   const fill = resolved.fill;
   const stroke = selected ? SELECTION_STROKE : resolved.stroke;
   const strokeWidth = selected ? 2 : 1;

@@ -446,6 +446,26 @@
 .violation__icon { color: var(--warning); flex-shrink: 0; margin-block-start: 2px; }
 .violation__rule { display: block; color: var(--text-tertiary); }
 .violation__message { display: block; color: var(--text-secondary); }
+/* canvas-tfr: severity groups + click-to-select. Severity is always also spelled out in the group
+   heading ("Must fix"/"Warning"/"Info"), never color-only. */
+.violation-group__label { padding: var(--space-2) var(--space-4) 0; margin: 0; }
+.violation__icon--error { color: var(--danger); }
+.violation__icon--info { color: var(--text-tertiary); }
+.violation__select {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  width: 100%;
+  padding: 0;
+  border: none;
+  background: none;
+  font: inherit;
+  text-align: start;
+  color: inherit;
+  cursor: pointer;
+}
+.violation__select:hover .violation__message { color: var(--text-primary); }
+.violation__select:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 
 /* ---- Chat ---------------------------------------------------------------- */
 
@@ -661,3 +681,42 @@
   margin-block-end: var(--space-3);
   color: var(--text-secondary);
 }
+
+/* ---- Standards admin (canvas-tfr) ----------------------------------------- */
+
+.std-layout { display: grid; grid-template-columns: 260px minmax(0, 1fr); gap: var(--space-6); align-items: start; }
+@media (max-width: 800px) { .std-layout { grid-template-columns: 1fr; } }
+.std-types { background: var(--surface-raised); border: var(--border-width) solid var(--border-default); border-radius: var(--radius-lg); }
+.std-types__family { margin: var(--space-3) var(--space-4) var(--space-1); }
+.std-types__list { list-style: none; margin: 0; padding: 0 var(--space-2) var(--space-2); }
+.std-types__item { display: flex; width: 100%; justify-content: space-between; align-items: center; gap: var(--space-2); padding: var(--space-2); border: 0; border-radius: var(--radius-md); background: transparent; color: var(--text-primary); text-align: left; cursor: pointer; }
+.std-types__item:hover { background: var(--accent-subtle); }
+.std-types__item[aria-current='true'] { background: var(--accent-subtle); font-weight: var(--text-body-strong-weight); box-shadow: inset 3px 0 0 var(--accent); }
+.std-header { margin-block-end: var(--space-3); }
+.std-header h3 { margin: 0; }
+.pill { display: inline-flex; align-items: center; gap: var(--space-1); padding: 0 var(--space-2); border-radius: 9px; background: var(--surface-sunken); color: var(--text-secondary); font-size: var(--text-caption-size); line-height: 18px; }
+.std-section { padding: var(--space-4); }
+.std-section > * + * { margin-block-start: var(--space-3); }
+.std-section summary { cursor: pointer; }
+.std-summary { padding: var(--space-3) var(--space-4); border-color: var(--danger); }
+.std-item { border: var(--border-width) solid var(--border-subtle); border-radius: var(--radius-md); padding: var(--space-3); }
+.std-item > * + * { margin-block-start: var(--space-3); }
+.std-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: var(--space-3); }
+.std-grid .field { margin-block-end: 0; }
+.std-fieldset { border: 0; margin: 0; padding: 0; min-width: 0; }
+.std-swatches { list-style: none; margin: 0; padding: 0; }
+.std-chip { display: inline-flex; align-items: center; gap: var(--space-2); padding: 2px var(--space-2); border: var(--border-width) solid var(--border-default); border-radius: var(--radius-md); }
+.std-swatch { display: inline-block; width: 16px; height: 16px; border-radius: 3px; border: 1px solid var(--border-default); }
+.std-chip-x { border: 0; background: transparent; color: var(--text-secondary); cursor: pointer; font-size: 1.1em; line-height: 1; padding: 0 var(--space-1); }
+.std-hex { width: 7.5em; }
+.std-table { width: 100%; border-collapse: collapse; }
+.std-table th, .std-table td { text-align: left; padding: var(--space-1) var(--space-2); border-block-end: var(--border-width) solid var(--border-subtle); font-weight: normal; }
+
+/* ---- Standards swatch picker + canvas notices (canvas-tfr) ------------------ */
+.swatch-picker { display: flex; flex-wrap: wrap; gap: var(--space-1); }
+.swatch-picker__swatch { width: 24px; height: 24px; min-height: 0; padding: 0; border: 1px solid var(--border-default); border-radius: var(--radius-sm, 4px); cursor: pointer; }
+.swatch-picker__swatch--selected { outline: 2px solid var(--accent); outline-offset: 2px; }
+.swatch-picker__swatch:focus-visible { outline: 2px solid var(--text-primary); outline-offset: 2px; }
+.canvas-notice { margin: var(--space-2) 0 0; font-size: var(--text-small-size); color: var(--danger); }
+.dsl-standards { border-block-start: var(--border-width) solid var(--border-subtle); padding: var(--space-2) 0 0; max-height: 40%; overflow-y: auto; }
+.dsl-standards .section-label { padding: 0 var(--space-4); }

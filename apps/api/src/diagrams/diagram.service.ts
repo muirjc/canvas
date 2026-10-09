@@ -26,6 +26,9 @@ export interface DiagramRecord {
   ownerName: string;
   dslContent: string;
   lastValidationResult: Violation[];
+  /** canvas-tfr: version of the standard `lastValidationResult` was computed against (null = none),
+   *  so the editor can tell when its loaded standard is out of date. */
+  standardVersionAtLastCheck: number | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -154,6 +157,7 @@ export async function getDiagram(id: string): Promise<DiagramRecord> {
       'd.owner_id',
       'u.name as owner_name',
       'd.last_validation_result',
+      'd.standard_version_at_last_check',
       'd.created_at',
       'd.updated_at',
       'v.dsl_content',
@@ -178,6 +182,7 @@ export async function getDiagram(id: string): Promise<DiagramRecord> {
     // — this cast trusts DB content matches `Violation[]` exactly like the pre-Kysely raw-SQL
     // `pool.query<DiagramRow>(...)` generic type parameter always implicitly did.
     lastValidationResult: row.last_validation_result as unknown as Violation[],
+    standardVersionAtLastCheck: row.standard_version_at_last_check ?? null,
     // See diagram-chat.service.ts's getChatMessages for why these casts are the pre-existing
     // convention, not a new behavior change — node-postgres always returned a Date here.
     createdAt: row.created_at as unknown as string,

@@ -11,7 +11,7 @@ test.skip(!PROJECT_ID, 'E2E_PROJECT_ID env var not set — run `npm run seed` an
 /** The five admin destinations, by the query parameter that reaches them. */
 const DESTINATIONS = [
   { param: 'overview', nav: 'admin-nav-overview' },
-  { param: 'true', nav: 'admin-nav-standards' },
+  { param: 'standards', nav: 'admin-nav-standards' },
   { param: 'users', nav: 'admin-nav-users' },
   { param: 'deleted', nav: 'admin-nav-deleted' },
   { param: 'ai-personas', nav: 'admin-nav-ai-personas' },
