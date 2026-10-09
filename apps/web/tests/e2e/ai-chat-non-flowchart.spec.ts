@@ -134,7 +134,11 @@ test('sets a C4 element role via chat', async ({ page }) => {
   await loginAndEnableChat(page);
 
   await page.getByTestId('new-diagram').click();
-  await page.getByTestId('diagram-type-c4-context').check();
+  // canvas-tfr: C4 Container, not C4 Context -- C4 Context now ships a published standard whose
+  // element kinds replace the raw setNodeRole tool with the kind-aware setElementKind (covered by
+  // the API's diagram-tools-standard tests). This spec exercises the generic role tool, which a C4
+  // type without a standard still offers.
+  await page.getByTestId('diagram-type-c4-container').check();
   await page.getByTestId('confirm-new-diagram').click();
   await expect(page.getByTestId('diagram-canvas')).toBeVisible();
 

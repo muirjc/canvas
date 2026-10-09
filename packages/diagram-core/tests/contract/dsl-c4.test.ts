@@ -128,6 +128,8 @@ describe('C4 DSL family (Context/Container/Component/Code)', () => {
         const node = result.model.nodes.find((n) => n.id === 'db')!;
         expect(node.role).toBe('system');
         expect(node.shape).toBe('cylinder');
+        // canvas-tfr: _Ext is no longer collapsed -- it sets the external flag.
+        expect(node.external).toBe(true);
       }
     });
 

@@ -546,11 +546,13 @@ export function parseFlowchart(dsl: string): ParseResult {
   // the intuition that a more specific, node-targeted directive wins over a shared named class.
   for (const { nodeIds, className } of classAssignments) {
     const classStyle = classDefs.get(className);
-    if (!classStyle) continue;
     for (const nodeId of nodeIds) {
       const node = nodesById.get(nodeId);
       if (!node) continue;
-      node.style = { ...node.style, ...classStyle };
+      // canvas-tfr: a node's (first) class IS its standards element kind -- set even when no
+      // classDef exists, since a kind needs no Mermaid styling to be meaningful.
+      node.role ??= className;
+      if (classStyle) node.style = { ...node.style, ...classStyle };
     }
   }
 

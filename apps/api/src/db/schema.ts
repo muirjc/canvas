@@ -110,6 +110,9 @@ export interface DiagramTypesTable {
   name: string;
   abstraction_level: string;
   dsl_family: string;
+  /** canvas-tfr: 'builtin' (seeded catalog) or 'custom' (admin-created); the seed never touches custom rows. */
+  origin: Generated<'builtin' | 'custom'>;
+  description: string | null;
 }
 
 /** Join table replacing `diagram_types.personas TEXT[]` (canvas-jtm.3). No surrogate id — the
@@ -169,6 +172,8 @@ export interface StandardsTable {
   name: string | null;
   description: string | null;
   retired_at: Timestamp | null;
+  /** canvas-tfr: v2 rule fields (elementKinds, connectorRules, ...) as one JSON document; '{}' = none. */
+  kind_rules: GeneratedJsonColumn<unknown>;
 }
 
 /** Join table replacing `standards.allowed_shape_ids TEXT[]` (canvas-jtm.3) — checked on every

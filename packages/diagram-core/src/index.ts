@@ -1,6 +1,8 @@
 export * from './model/diagram-model.js';
 export * from './model/diagram-ops.js';
 export * from './model/auto-layout.js';
+export * from './model/family-capabilities.js';
+export * from './model/standard-ops.js';
 export * from './libraries/library-loader.js';
 export * from './libraries/svg-sanitizer.js';
 export * from './libraries/azure-icons.js';
@@ -18,6 +20,8 @@ export * from './dsl/erd.js';
 export * from './dsl/uml.js';
 export * from './standards/schema.js';
 export * from './standards/validator.js';
+export * from './standards/kinds.js';
+export * from './standards/definition-check.js';
 export * from './render/svg-renderer.js';
 export * from './render/sequence-layout.js';
 export * from './template/types.js';

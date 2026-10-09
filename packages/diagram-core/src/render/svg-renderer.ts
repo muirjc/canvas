@@ -696,18 +696,31 @@ const C4_NODE_COLORS: Record<string, { fill: string; stroke: string }> = {
   component: { fill: '#85bbf0', stroke: '#78a8d8' },
 };
 
-export function resolveNodeFillStroke(node: DiagramNode): { fill: string; stroke: string } {
-  const c4Default = node.role ? C4_NODE_COLORS[node.role] : undefined;
+// canvas-tfr: C4 `_Ext` elements (DiagramNode.external) -- Structurizr's own external greys.
+const C4_EXTERNAL_NODE_COLORS: Record<string, { fill: string; stroke: string }> = {
+  person: { fill: '#686868', stroke: '#5d5d5d' },
+  system: { fill: '#999999', stroke: '#8a8a8a' },
+  container: { fill: '#b3b3b3', stroke: '#a6a6a6' },
+  component: { fill: '#cccccc', stroke: '#bdbdbd' },
+};
+
+/** canvas-tfr: `diagramTypeId`, when given, scopes the C4 role defaults to C4 diagrams only
+ *  (ids starting "c4"); omitted keeps the legacy role-only behavior for existing callers. */
+export function resolveNodeFillStroke(node: DiagramNode, diagramTypeId?: string): { fill: string; stroke: string } {
+  const c4Applies = diagramTypeId === undefined || diagramTypeId.startsWith('c4');
+  const c4Default = c4Applies && node.role
+    ? (node.external ? C4_EXTERNAL_NODE_COLORS[node.role] : undefined) ?? C4_NODE_COLORS[node.role]
+    : undefined;
   return {
     fill: node.style?.fillColor ?? c4Default?.fill ?? '#ffffff',
     stroke: node.style?.strokeColor ?? c4Default?.stroke ?? '#333333',
   };
 }
 
-function renderNodeShape(node: DiagramNode): string {
+function renderNodeShape(node: DiagramNode, diagramTypeId?: string): string {
   const { x, y } = node.position;
   const { width, height } = nodeSize(node);
-  const { fill, stroke } = resolveNodeFillStroke(node);
+  const { fill, stroke } = resolveNodeFillStroke(node, diagramTypeId);
 
   switch (node.shape) {
     case 'circle':
@@ -866,7 +879,7 @@ function wrapNodeLink(node: DiagramNode, markup: string): string {
   return `<a href="${escapeXml(node.link.href)}"${targetAttr}>${titleMarkup}${markup}</a>`;
 }
 
-function renderNode(node: DiagramNode, resolveIcon?: IconResolver): string {
+function renderNode(node: DiagramNode, resolveIcon?: IconResolver, diagramTypeId?: string): string {
   const { x, y } = node.position;
   const { width, height } = nodeSize(node);
   const fontSize = node.style?.fontSize ?? 14;
@@ -885,7 +898,7 @@ function renderNode(node: DiagramNode, resolveIcon?: IconResolver): string {
       node,
       [
         `<g data-node-id="${escapeXml(node.id)}">`,
-        renderNodeShape(node),
+        renderNodeShape(node, diagramTypeId),
         `<g transform="translate(${layout.iconX}, ${layout.iconY}) scale(${layout.iconSize / 48})">${iconMarkup}</g>`,
         renderLabelText(layout.labelX, layout.labelY, node.label, layout.labelFontSize, false, layout.labelMaxWidth),
         '</g>',
@@ -903,7 +916,7 @@ function renderNode(node: DiagramNode, resolveIcon?: IconResolver): string {
       node,
       [
         `<g data-node-id="${escapeXml(node.id)}">`,
-        renderNodeShape(node),
+        renderNodeShape(node, diagramTypeId),
         `<line x1="${x}" y1="${tableLayout.dividerY}" x2="${x + width}" y2="${tableLayout.dividerY}" stroke="${stroke}" />`,
         tableLayout.stereotype
           ? `<text x="${tableLayout.stereotype.x}" y="${tableLayout.stereotype.y}" text-anchor="middle" font-size="${tableLayout.stereotype.fontSize}" font-family='${FONT_FAMILY}'>${escapeXml(tableLayout.stereotype.text)}</text>`
@@ -921,12 +934,12 @@ function renderNode(node: DiagramNode, resolveIcon?: IconResolver): string {
   }
 
   const rawLabel = node.icon ? `${node.label} [${node.icon.iconId}]` : node.label;
-  const { fill: plainFill } = resolveNodeFillStroke(node);
+  const { fill: plainFill } = resolveNodeFillStroke(node, diagramTypeId);
   return wrapNodeLink(
     node,
     [
       `<g data-node-id="${escapeXml(node.id)}">`,
-      renderNodeShape(node),
+      renderNodeShape(node, diagramTypeId),
       renderLabelText(x + width / 2, y + height / 2, rawLabel, fontSize, true, labelMaxWidth, contrastTextColor(plainFill)),
       '</g>',
     ].join(''),
@@ -1332,7 +1345,7 @@ export function renderToSvg(model: DiagramModel, resolveIcon?: IconResolver): st
     })
     .join('');
   const edgeMarkup = model.edges.map((e) => renderEdge(e, nodesById, containersById)).join('');
-  const nodeMarkup = model.nodes.map((n) => renderNode(n, resolveIcon)).join('');
+  const nodeMarkup = model.nodes.map((n) => renderNode(n, resolveIcon, model.diagramTypeId)).join('');
 
   return [
     `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">`,

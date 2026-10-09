@@ -108,6 +108,13 @@ export function createMockLanguageModel() {
         return noToolCallResult(system);
       }
 
+      // canvas-tfr: "add a <kind id> called X" -> addElement, when the standard offers that kind
+      // (e.g. "add a primary_activity called Operations"). Checked before the generic shape rule.
+      const kindMatch = text.match(/add (?:an? )?([a-z][a-z0-9_]*) (?:called|named) ['"]?([^'".]+)['"]?/i);
+      if (kindMatch && kindMatch[1] !== 'shape' && toolAvailable(options, 'addElement')) {
+        return toolCallResult('addElement', { kind: kindMatch[1].toLowerCase(), label: kindMatch[2].trim() });
+      }
+
       const addMatch = text.match(/add (?:an? )?(?:(\S+) )?shape (?:called|named) ['"]?([^'".]+)['"]?/i);
       if (addMatch) {
         const shape = SHAPE_WORDS.includes(addMatch[1] as (typeof SHAPE_WORDS)[number])

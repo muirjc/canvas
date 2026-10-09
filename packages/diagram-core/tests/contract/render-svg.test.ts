@@ -1835,3 +1835,41 @@ describe('renderToSvg C4 element default styling (canvas-ej5)', () => {
     },
   );
 });
+
+// canvas-tfr: effective fill/stroke is scoped by diagram family, and C4 `external` nodes render grey.
+describe('canvas-tfr: family-scoped default colors and C4 external styling', () => {
+  const mk = (diagramTypeId: string, node: Partial<DiagramNode>): DiagramModel => ({
+    diagramTypeId,
+    nodes: [{ id: 'n1', label: 'N', shape: 'rectangle', position: { x: 0, y: 0 }, ...node }],
+    edges: [],
+    containers: [],
+  });
+
+  it('renders an external C4 system grey (#999999)', () => {
+    expect(renderToSvg(mk('c4-context', { role: 'system', external: true }))).toContain('fill="#999999"');
+  });
+
+  it('renders an external C4 person darker grey (#686868)', () => {
+    expect(renderToSvg(mk('c4-context', { role: 'person', shape: 'person', external: true }))).toContain('#686868');
+  });
+
+  it('keeps the blue default for an internal C4 system', () => {
+    const svg = renderToSvg(mk('c4-context', { role: 'system' }));
+    expect(svg).toContain('fill="#1168bd"');
+    expect(svg).not.toContain('#999999');
+  });
+
+  it('does not apply C4 role colors to a flowchart-family node that happens to have role "system"', () => {
+    const svg = renderToSvg(mk('flowchart', { role: 'system' }));
+    expect(svg).toContain('fill="#ffffff"');
+    expect(svg).not.toContain('#1168bd');
+  });
+
+  it('resolveNodeFillStroke without a diagramTypeId keeps the legacy role-only behavior', async () => {
+    const { resolveNodeFillStroke } = await import('../../src/render/svg-renderer.js');
+    const n: DiagramNode = { id: 'n', label: 'N', shape: 'rectangle', role: 'system', position: { x: 0, y: 0 } };
+    expect(resolveNodeFillStroke(n).fill).toBe('#1168bd');
+    expect(resolveNodeFillStroke(n, 'flowchart').fill).toBe('#ffffff');
+    expect(resolveNodeFillStroke(n, 'c4-context').fill).toBe('#1168bd');
+  });
+});
