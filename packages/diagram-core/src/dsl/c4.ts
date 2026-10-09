@@ -354,6 +354,9 @@ export function parseC4(dsl: string): ParseResult {
         label,
         shape: ELEMENT_TO_SHAPE[kind],
         role: ELEMENT_TO_ROLE[kind],
+        // canvas-tfr: the `_Ext` variants used to collapse silently onto their base kind; the flag
+        // now survives so standards can tell an External System from an internal one.
+        ...(kind.endsWith('_Ext') ? { external: true } : {}),
         position: positions[id] ?? (isFreshImport ? PLACEHOLDER_POSITION : nextAutoPosition()),
         style: styles[id],
         containerId: containerStack[containerStack.length - 1],
@@ -484,6 +487,11 @@ export function parseC4(dsl: string): ParseResult {
 }
 
 function elementKindFor(node: DiagramNode): string {
+  const base = baseElementKindFor(node);
+  return node.external ? `${base}_Ext` : base;
+}
+
+function baseElementKindFor(node: DiagramNode): string {
   if (node.role === 'person') return 'Person';
   if (node.role === 'system') {
     if (node.shape === 'cylinder') return 'SystemDb';

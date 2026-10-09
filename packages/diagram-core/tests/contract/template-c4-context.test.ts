@@ -238,9 +238,9 @@ describe('c4ContextTemplateCompiler: _Ext suffix', () => {
     expect(isParseSuccess(parsed)).toBe(true);
     if (!isParseSuccess(parsed)) return;
     const entity = parsed.model.nodes.find((n) => n.id === 'paymentGateway')!;
-    // _Ext collapses to the same role as its base kind (a known, disclosed limitation of C4's own
-    // model -- no field distinguishes "external") -- this only confirms the DSL keyword itself.
+    // canvas-tfr: _Ext keeps the base kind's role but now also sets `external` on the node.
     expect(entity.role).toBe('system');
+    expect(entity.external).toBe(true);
   });
 
   it('an External-scoped Person entity emits Person_Ext', () => {

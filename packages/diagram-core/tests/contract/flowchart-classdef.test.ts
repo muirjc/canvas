@@ -186,7 +186,7 @@ describe('flowchart parser: ::: class shorthand', () => {
     }
   });
 
-  it('round-trips a ::: shorthand-applied style through canvas.styles front matter, not a literal ::: line', () => {
+  it('round-trips a ::: shorthand-applied style through canvas.styles front matter (canvas-tfr: class name re-emitted as :::)', () => {
     const result = parseFlowchart(
       'flowchart TD\n  A[Start]\n  classDef highlight fill:#f9f,stroke:#333\n  A:::highlight\n',
     );
@@ -195,7 +195,9 @@ describe('flowchart parser: ::: class shorthand', () => {
 
     const dsl = serializeFlowchart(result.model);
     expect(dsl).toContain('styles:');
-    expect(dsl).not.toMatch(/:::/);
+    // canvas-tfr: the class name now round-trips as `:::highlight` and sets node.role; only the
+    // classDef LINE itself is still never re-emitted (style lives in front-matter).
+    expect(dsl).toMatch(/A\[Start\]:::highlight|A:::highlight/);
     expect(dsl).not.toMatch(/^\s*classDef/m);
 
     const reparsed = parseFlowchart(dsl);
@@ -335,7 +337,7 @@ describe('flowchart parser: ::: shorthand combined with an inline shape+label', 
     }
   });
 
-  it('round-trips the applied style through canvas.styles front matter, not a literal ":::" line', () => {
+  it('round-trips the applied style through canvas.styles front matter (canvas-tfr: class name re-emitted as :::)', () => {
     const result = parseFlowchart(
       'flowchart TD\n  classDef highlight fill:#f9f,stroke:#333\n  A[Start]:::highlight\n',
     );
@@ -344,7 +346,9 @@ describe('flowchart parser: ::: shorthand combined with an inline shape+label', 
 
     const dsl = serializeFlowchart(result.model);
     expect(dsl).toContain('styles:');
-    expect(dsl).not.toMatch(/:::/);
+    // canvas-tfr: the class name now round-trips as `:::highlight` and sets node.role; only the
+    // classDef LINE itself is still never re-emitted (style lives in front-matter).
+    expect(dsl).toMatch(/A\[Start\]:::highlight|A:::highlight/);
     expect(dsl).not.toMatch(/^\s*classDef/m);
 
     const reparsed = parseFlowchart(dsl);

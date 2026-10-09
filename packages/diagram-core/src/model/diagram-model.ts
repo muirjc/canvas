@@ -95,6 +95,9 @@ export interface DiagramNode {
   shape: NodeShape;
   /** Semantic role used by Standards validation, e.g. "person", "system", "container". */
   role?: string;
+  /** canvas-tfr: C4 only -- declared with an `_Ext` macro (`System_Ext`, `Person_Ext`, ...), i.e.
+   *  outside the system being described. Rendered grey; round-trips back to the `_Ext` keyword. */
+  external?: boolean;
   position: Position;
   size?: Size;
   style?: NodeStyle;

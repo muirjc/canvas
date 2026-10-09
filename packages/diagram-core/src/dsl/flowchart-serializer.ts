@@ -20,9 +20,15 @@ const SHAPE_DELIMITERS: Record<NodeShape, [string, string]> = {
   asymmetric: ['>', ']'],
 };
 
+// canvas-tfr: a role that is a valid ID token round-trips as the node's Mermaid class (its
+// standards element kind). Deliberately no `classDef` line: the parser's class pass would apply it
+// over the node's own front-matter style, resetting a user-chosen swatch on every reload.
+const CLASS_TOKEN = /^[A-Za-z0-9_]+$/;
+
 function serializeNode(node: DiagramNode): string {
   const [open, close] = SHAPE_DELIMITERS[node.shape];
-  return `  ${node.id}${open}${node.label}${close}`;
+  const kindSuffix = node.role && CLASS_TOKEN.test(node.role) ? `:::${node.role}` : '';
+  return `  ${node.id}${open}${node.label}${close}${kindSuffix}`;
 }
 
 // jmuir-dzd.5: real Mermaid grammar (unlike style/classDef, which round-trip via front-matter,
