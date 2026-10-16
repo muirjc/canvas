@@ -1,4 +1,4 @@
-import type { FastifyInstance, FastifyReply } from 'fastify';
+import type { FastifyBaseLogger, FastifyInstance, FastifyReply } from 'fastify';
 import { requireAuth, requireRole } from '../auth/middleware.js';
 import { loadDiagramTypeDslFamily, UnknownDiagramTypeError } from '../diagrams/diagram.service.js';
 import { parseStandardBody } from './standard-rules.schema.js';
@@ -30,6 +30,21 @@ function handleServiceError(error: unknown, reply: FastifyReply): void {
     return;
   }
   throw error;
+}
+
+/**
+ * Re-checks every diagram of a type against its current standard without holding up the response.
+ * The promise MUST be caught: an unhandled rejection terminates a Node process by default, so a
+ * failed background re-check (e.g. a transient database error) would otherwise take the API down.
+ * It also surfaced in CI as a Postgres deadlock reported outside any test, when a still-running
+ * re-check collided with the next test's TRUNCATE. Cached violations are refreshed again on each
+ * diagram's next save, so a failed re-check is logged, not retried.
+ */
+function revalidateInBackground(log: FastifyBaseLogger, diagramTypeId: string): void {
+  revalidateDiagramsForType(diagramTypeId).catch((error: unknown) => {
+    // The error's name only, not the object: driver errors can carry query detail.
+    log.warn({ diagramTypeId, errorName: error instanceof Error ? error.name : 'unknown' }, 'Background standards revalidation failed');
+  });
 }
 
 export async function registerStandardRoutes(app: FastifyInstance): Promise<void> {
@@ -124,7 +139,7 @@ export async function registerStandardRoutes(app: FastifyInstance): Promise<void
         const standard = await publishStandard(request.params.id);
         // Fire-and-forget: existing diagrams of this type are re-evaluated against the newly
         // published standard, never silently auto-modified (FR-014).
-        void revalidateDiagramsForType(standard.diagramTypeId);
+        revalidateInBackground(request.log, standard.diagramTypeId);
         reply.send({ standard });
       } catch (error) {
         handleServiceError(error, reply);
@@ -140,7 +155,7 @@ export async function registerStandardRoutes(app: FastifyInstance): Promise<void
         const standard = await retireStandard(request.params.id);
         // canvas-tfr: retiring removes the rules in force, so cached violations must be refreshed
         // too (previously only publish re-checked, leaving stale flags after a retire).
-        void revalidateDiagramsForType(standard.diagramTypeId);
+        revalidateInBackground(request.log, standard.diagramTypeId);
         reply.send({ standard });
       } catch (error) {
         handleServiceError(error, reply);
