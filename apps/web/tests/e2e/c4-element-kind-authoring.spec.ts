@@ -13,11 +13,12 @@ test.skip(!PROJECT_ID, 'E2E_PROJECT_ID env var not set — run `npm run seed` an
  * Person element could only ever come from DSL/import, never toolbar creation.
  */
 
-// canvas-chq: an imported C4 diagram lands on the alphabetically-first C4 type (c4-code), which now
-// ships a published starter standard (kinds: container, component, software_system, and their
-// external variants). A type with a standard offers its element KINDS in the popup instead of raw
-// roles, so these popup specs pick kinds by id (the raw-role popup only applies to a standard-less type).
-const C4_DSL = ['C4Context', '  Person(user, "User")', '  System(sys, "System")', ''].join('\n');
+// canvas-cc3: an import now lands on the type its header names. These specs use a C4Container
+// diagram: its starter standard (canvas-chq) is non-strict, so the free shape toolbar stays, and its
+// popup offers the standard's element KINDS (person, software_system, container, ... and external
+// variants) rather than raw roles -- so the popup specs pick kinds by id. (C4 Context's strict
+// reference standard would hide the shape toolbar these specs exercise.)
+const C4_DSL = ['C4Container', '  Person(user, "User")', '  System(sys, "System")', ''].join('\n');
 
 async function login(page: Page) {
   await page.goto(`/?projectId=${PROJECT_ID}`);

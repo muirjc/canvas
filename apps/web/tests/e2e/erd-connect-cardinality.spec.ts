@@ -23,6 +23,9 @@ async function newErdDiagramWithTwoEntities(page: Page) {
   await page.getByTestId('add-shape-rectangle').click();
 }
 
+/** A regex matching `text` literally (ER cardinality tokens are full of regex metacharacters). */
+const literal = (text: string) => new RegExp(text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
+
 /**
  * canvas-hox follow-up: reported live that connect mode's own "Direction" picker
  * (connect-arrow-direction.spec.ts) still applied to ERD — offering Forward/Reversed/
@@ -49,8 +52,9 @@ test('defaults to the standard one-to-many cardinality when neither picker is to
   await connectShapes(nodes.nth(0), nodes.nth(1));
   await expect(page.locator('[data-testid^="edge-"]')).toHaveCount(1);
 
-  const dsl = await page.getByTestId('dsl-panel').inputValue();
-  expect(dsl).toContain('||--o{');
+  // The DSL panel syncs one render after the canvas, so poll it rather than read it once
+  // (a single-shot read raced the edge's arrival in CI -- canvas-whz).
+  await expect(page.getByTestId('dsl-panel')).toHaveValue(literal('||--o{'));
 });
 
 test('each of the four cardinality options is selectable on both sides and produces the correct token', async ({ page }) => {
@@ -64,8 +68,9 @@ test('each of the four cardinality options is selectable on both sides and produ
   await connectShapes(nodes.nth(0), nodes.nth(1));
   await expect(page.locator('[data-testid^="edge-"]')).toHaveCount(1);
 
-  const dsl = await page.getByTestId('dsl-panel').inputValue();
-  expect(dsl).toContain('|o--|{');
+  // The DSL panel syncs one render after the canvas, so poll it rather than read it once
+  // (a single-shot read raced the edge's arrival in CI -- canvas-whz).
+  await expect(page.getByTestId('dsl-panel')).toHaveValue(literal('|o--|{'));
 });
 
 test('picking "exactly one" on both sides produces a one-to-one relationship', async ({ page }) => {
@@ -79,8 +84,9 @@ test('picking "exactly one" on both sides produces a one-to-one relationship', a
   await connectShapes(nodes.nth(0), nodes.nth(1));
   await expect(page.locator('[data-testid^="edge-"]')).toHaveCount(1);
 
-  const dsl = await page.getByTestId('dsl-panel').inputValue();
-  expect(dsl).toContain('||--||');
+  // The DSL panel syncs one render after the canvas, so poll it rather than read it once
+  // (a single-shot read raced the edge's arrival in CI -- canvas-whz).
+  await expect(page.getByTestId('dsl-panel')).toHaveValue(literal('||--||'));
 });
 
 test('picking "zero or many" on both sides produces a many-to-many relationship', async ({ page }) => {
@@ -94,6 +100,7 @@ test('picking "zero or many" on both sides produces a many-to-many relationship'
   await connectShapes(nodes.nth(0), nodes.nth(1));
   await expect(page.locator('[data-testid^="edge-"]')).toHaveCount(1);
 
-  const dsl = await page.getByTestId('dsl-panel').inputValue();
-  expect(dsl).toContain('}o--o{');
+  // The DSL panel syncs one render after the canvas, so poll it rather than read it once
+  // (a single-shot read raced the edge's arrival in CI -- canvas-whz).
+  await expect(page.getByTestId('dsl-panel')).toHaveValue(literal('}o--o{'));
 });
