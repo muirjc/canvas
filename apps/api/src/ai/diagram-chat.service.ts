@@ -20,6 +20,20 @@ export interface ChatMessageRecord {
   createdAt: string;
 }
 
+/**
+ * canvas-s3o: Create with AI's planning phase. Turns in `plan` mode get NO drawing tools -- with tools
+ * available a model tends to draw on its first reply, skipping the persona's clarifying questions --
+ * and this section tells it what the phase is for. The user ends it with the dialog's Create diagram
+ * button, which sends a normal (`build`) turn.
+ */
+export type ChatMode = 'plan' | 'build';
+export const PLANNING_INSTRUCTIONS = [
+  'The user is describing a NEW diagram in the "Create with AI" dialog. Nothing is drawn in this phase -- you have no drawing tools yet.',
+  'Follow your clarifying-question practice: if anything that materially changes the diagram is unclear (scope, audience, level of detail, notation), ask concise numbered questions, offering a default for each.',
+  'When you have enough, play back in a few lines what you will build -- the diagram type, scope, the main elements, and your key assumptions -- and tell the user to click "Create diagram" when they are happy, or to reply with changes.',
+  'Do not output the diagram itself (no Mermaid, code or element lists longer than a short outline) in this phase.',
+].join('\n');
+
 const DEFAULT_SYSTEM_PROMPT = 'You are an assistant that helps create and edit flowchart diagrams.';
 
 async function getOrCreateDiagramChat(
@@ -109,6 +123,7 @@ async function buildSystemPrompt(
   dslFamily: string,
   model: DiagramModel,
   rules?: StandardRules,
+  mode: ChatMode = 'build',
 ): Promise<string> {
   // canvas-7wx: the persona's own prompt comes first, untouched. Each section the app appends gets
   // its own `##` heading -- persona prompts are authored in Markdown, and without headings
@@ -126,6 +141,7 @@ async function buildSystemPrompt(
     if (referenceMaterial.length > 0) section('Reference material', referenceMaterial.map((entry) => entry.content).join('\n\n'));
   }
   section('Current diagram', describeModel(model, rules));
+  if (mode === 'plan') section('Create with AI — planning', PLANNING_INSTRUCTIONS);
   return parts.join('\n\n');
 }
 
@@ -142,6 +158,8 @@ export interface SendChatMessageInput {
   dslFamily: string;
   /** canvas-tfr: the diagram's type, used to load its active standard. Omitted = no standard. */
   diagramTypeId?: string;
+  /** canvas-s3o: 'plan' = Create with AI's planning phase (no drawing tools); default 'build'. */
+  mode?: ChatMode;
   personaId?: string;
   /** Test injection point (research.md §8) — production callers omit this and the configured
    * provider (apps/api/src/ai/provider.ts) is used. */
@@ -185,7 +203,8 @@ export async function sendChatMessage(input: SendChatMessageInput): Promise<Send
     rules,
   );
 
-  const system = await buildSystemPrompt(chat.personaId, persona?.systemPrompt, input.dslFamily, model, rules);
+  const mode: ChatMode = input.mode ?? 'build';
+  const system = await buildSystemPrompt(chat.personaId, persona?.systemPrompt, input.dslFamily, model, rules, mode);
 
   const result = await generateText({
     model: input.model ?? getLanguageModel(),
@@ -194,10 +213,11 @@ export async function sendChatMessage(input: SendChatMessageInput): Promise<Send
       ...history.map((m) => ({ role: m.role, content: m.content }) as const),
       { role: 'user' as const, content: input.message },
     ],
-    tools,
+    // canvas-s3o: a planning turn can only talk -- no tools, one step.
+    tools: mode === 'plan' ? {} : tools,
     // canvas-tfr: a few extra steps under a standard so the model can fix the newViolations its
     // own edits introduced within the same turn.
-    stopWhen: stepCountIs(rules ? 8 : 5),
+    stopWhen: stepCountIs(mode === 'plan' ? 1 : rules ? 8 : 5),
   });
 
   const updatedDslContent = family.serialize(model);

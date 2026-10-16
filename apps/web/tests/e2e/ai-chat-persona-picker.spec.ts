@@ -65,9 +65,13 @@ test('a diagram with existing chat history never shows the persona picker', asyn
   await page.getByTestId('ai-create-persona').selectOption({ label: 'Business Architect' });
   await page.getByTestId('ai-create-description').fill('Add a shape called Kickoff');
   await page.getByTestId('ai-create-confirm').click();
+  // canvas-s3o: the dialog only plans; the editor opens once Create diagram is clicked.
+  await expect(page.getByTestId('create-chat-assistant')).toBeVisible();
+  await expect(page.getByTestId('diagram-canvas')).toHaveCount(0);
+  await page.getByTestId('ai-create-build').click();
   await expect(page.getByTestId('diagram-canvas')).toBeVisible();
 
   await page.getByTestId('rail-tab-chat').click();
-  await expect(page.locator('[data-testid="chat-message-user"]')).toHaveCount(1);
+  await expect(page.locator('[data-testid="chat-message-user"]')).toHaveCount(2);
   await expect(page.getByTestId('chat-persona-select')).toHaveCount(0);
 });

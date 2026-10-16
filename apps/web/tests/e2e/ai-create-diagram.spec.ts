@@ -29,6 +29,10 @@ test('creates a flowchart diagram from a natural-language description via a chos
   await page.getByTestId('ai-create-persona').selectOption({ label: 'Business Architect' });
   await page.getByTestId('ai-create-description').fill('Add a shape called Order Received');
   await page.getByTestId('ai-create-confirm').click();
+  // canvas-s3o: the dialog only plans; the editor opens once Create diagram is clicked.
+  await expect(page.getByTestId('create-chat-assistant')).toBeVisible();
+  await expect(page.getByTestId('diagram-canvas')).toHaveCount(0);
+  await page.getByTestId('ai-create-build').click();
 
   // A populated flowchart diagram opens directly in the canvas editor (FR-005/FR-006).
   await expect(page.getByTestId('diagram-canvas')).toBeVisible();

@@ -41,6 +41,25 @@ function lastUserText(options: LanguageModelV4CallOptions): string {
     .join(' ');
 }
 
+/** Every user message's text, oldest first. */
+function userTexts(options: LanguageModelV4CallOptions): string[] {
+  return options.prompt
+    .filter((m) => m.role === 'user')
+    .map((m) =>
+      m.content
+        .filter((part): part is { type: 'text'; text: string } => part.type === 'text')
+        .map((part) => part.text)
+        .join(' '),
+    );
+}
+
+// canvas-ltm/canvas-s3o: Create with AI conversation phrases.
+const VAGUE_CREATE = /^(create|draw|make|build)\b.*\bdiagram\b/i;
+const CLARIFYING_QUESTION = 'Before I draw this, what are the main steps or elements you want included?';
+const DRAW_NOW = /create the diagram now|go ahead and draw/i;
+/** Requests the rules below can turn into a drawing (used to replay one on "create the diagram now"). */
+const CONCRETE_REQUEST = [/add (?:an? )?(?:\S+ )?shape (?:called|named)/i, /add (?:an? )?[a-z][a-z0-9_]* (?:called|named)/i];
+
 function systemText(options: LanguageModelV4CallOptions): string {
   return options.prompt.find((m) => m.role === 'system')?.content ?? '';
 }
@@ -93,7 +112,7 @@ export function createMockLanguageModel() {
         return noToolCallResult('Done.');
       }
 
-      const text = lastUserText(options);
+      let text = lastUserText(options);
       const system = systemText(options);
 
       // 010-ai-diagram-knowledge, T034: this file's other rules only ever inspect the system
@@ -106,6 +125,20 @@ export function createMockLanguageModel() {
       // real provider would need or have.
       if (/^what do you know about this diagram\??$/i.test(text.trim())) {
         return noToolCallResult(system);
+      }
+
+      // canvas-s3o: Create with AI's planning phase offers no tools -- the mock only talks: a vague
+      // request gets a clarifying question, anything else a short play-back of what it will build.
+      if (!options.tools || options.tools.length === 0) {
+        if (VAGUE_CREATE.test(text.trim())) return noToolCallResult(CLARIFYING_QUESTION);
+        return noToolCallResult(`Here's what I'll build: "${text.trim()}". Click Create diagram when you're ready.`);
+      }
+
+      // canvas-s3o: the dialog's Create diagram message -- act on the most recent earlier concrete
+      // request from the planning conversation (e.g. "Add a shape called X"), as a real model would.
+      if (DRAW_NOW.test(text)) {
+        const earlier = userTexts(options).slice(0, -1).reverse().find((t) => CONCRETE_REQUEST.some((r) => r.test(t)));
+        if (earlier) text = earlier;
       }
 
       // canvas-tfr: "add a <kind id> called X" -> addElement, when the standard offers that kind
@@ -234,12 +267,12 @@ export function createMockLanguageModel() {
       // canvas-ltm: Create with AI's follow-up-question flow. A vague "create a ... diagram" request
       // names nothing concrete, so (like a real persona prompted to clarify first) the mock asks a
       // question instead of drawing; the user's answer is then handled by the concrete rules above.
-      if (/^(create|draw|make|build)\b.*\bdiagram\b/i.test(text.trim())) {
-        return noToolCallResult('Before I draw this, what are the main steps or elements you want included?');
+      if (VAGUE_CREATE.test(text.trim())) {
+        return noToolCallResult(CLARIFYING_QUESTION);
       }
 
       // canvas-ltm: the dialog's "Just draw it" message -- draw something rather than ask again.
-      if (/go ahead and draw/i.test(text) && toolAvailable(options, 'addNode')) {
+      if (DRAW_NOW.test(text) && toolAvailable(options, 'addNode')) {
         return toolCallResult('addNode', { shape: 'rectangle', label: 'Draft step' });
       }
 
