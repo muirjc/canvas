@@ -31,7 +31,9 @@ export function DiagramTypeDialog({ diagramType, onSaved, onClose }: DiagramType
   const [errors, setErrors] = useState<string[]>([]);
   const [saving, setSaving] = useState(false);
   // Server returns 409 when the family can't change (diagrams already exist); lock from then on.
-  const [familyLocked, setFamilyLocked] = useState(false);
+  // canvas-chq: a built-in type's family never changes; a custom type's locks once it has diagrams.
+  const isBuiltin = diagramType?.origin === 'builtin';
+  const [familyLocked, setFamilyLocked] = useState(isBuiltin);
 
   const togglePersona = (persona: string) =>
     setPersonas((prev) => (prev.includes(persona) ? prev.filter((p) => p !== persona) : [...prev, persona]));
@@ -114,7 +116,9 @@ export function DiagramTypeDialog({ diagramType, onSaved, onClose }: DiagramType
           ))}
         </select>
         <span className="meta">
-          {familyLocked
+          {isBuiltin
+            ? 'Built-in type — its family can’t change.'
+            : familyLocked
             ? 'The family is locked because diagrams of this type already exist.'
             : 'Decides the syntax and which shapes are available. Cannot be changed once diagrams exist.'}
         </span>

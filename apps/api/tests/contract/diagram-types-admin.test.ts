@@ -37,6 +37,7 @@ describe('Custom diagram types admin API contract', () => {
       description: string | null;
       personas: string[];
       dslFamily: string;
+      adminEdited: boolean;
     }>;
 
   beforeEach(async () => {
@@ -121,10 +122,28 @@ describe('Custom diagram types admin API contract', () => {
       });
     });
 
-    it('returns 409 for a built-in type', async () => {
-      expect((await patchType('flowchart', { name: 'Hacked' })).statusCode).toBe(409);
-      const flowchart = (await listTypes()).find((t) => t.id === 'flowchart');
-      expect(flowchart?.name).not.toBe('Hacked');
+    it('edits a built-in type (name, description, personas) and flags it admin-edited', async () => {
+      const before = (await listTypes()).find((t) => t.id === 'flowchart');
+      expect(before).toMatchObject({ origin: 'builtin', adminEdited: false });
+
+      const response = await patchType('flowchart', { name: 'Renamed Flow', description: 'mine', personas: ['Technical'] });
+      expect(response.statusCode).toBe(200);
+      expect(response.json().diagramType).toMatchObject({
+        id: 'flowchart',
+        name: 'Renamed Flow',
+        description: 'mine',
+        personas: ['Technical'],
+        origin: 'builtin',
+        adminEdited: true,
+      });
+      expect((await listTypes()).find((t) => t.id === 'flowchart')).toMatchObject({ name: 'Renamed Flow', adminEdited: true });
+    });
+
+    it("returns 409 when a built-in type's family would change, and leaves it unedited", async () => {
+      expect((await patchType('flowchart', { dslFamily: 'erd' })).statusCode).toBe(409);
+      expect((await listTypes()).find((t) => t.id === 'flowchart')).toMatchObject({ dslFamily: 'flowchart', adminEdited: false });
+      // Re-sending the same family is not a change.
+      expect((await patchType('flowchart', { dslFamily: 'flowchart', name: 'Same Family' })).statusCode).toBe(200);
     });
 
     it('returns 404 for an unknown id', async () => {
@@ -182,6 +201,25 @@ describe('Custom diagram types admin API contract', () => {
       await seedDiagramTypes();
       const type = (await listTypes()).find((t) => t.id === 'safe-type');
       expect(type).toMatchObject({ name: 'Safe Type', dslFamily: 'erd', personas: ['Business'], origin: 'custom', description: 'mine' });
+    });
+
+    it("keeps an admin-edited built-in type's name, description and personas across a re-seed", async () => {
+      await patchType('flowchart', { name: 'Admin Flow', description: 'kept', personas: ['Technical'] });
+      await seedDiagramTypes();
+      expect((await listTypes()).find((t) => t.id === 'flowchart')).toMatchObject({
+        name: 'Admin Flow',
+        description: 'kept',
+        personas: ['Technical'],
+        adminEdited: true,
+      });
+    });
+
+    it('still applies seed updates to an unedited built-in type', async () => {
+      const { getDb } = await import('../../src/db/client.js');
+      const original = (await listTypes()).find((t) => t.id === 'flowchart')!.name;
+      await getDb().updateTable('diagram_types').set({ name: 'Tampered' }).where('id', '=', 'flowchart').execute();
+      await seedDiagramTypes();
+      expect((await listTypes()).find((t) => t.id === 'flowchart')).toMatchObject({ name: original, adminEdited: false });
     });
 
     it('does not take over a custom row whose id collides with a built-in id (direct insert)', async () => {

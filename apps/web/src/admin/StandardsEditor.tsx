@@ -42,8 +42,11 @@ interface Issue {
 
 export interface StandardsEditorProps {
   diagramType: DiagramTypeDto;
-  /** An existing draft to edit; omit to author a new one. */
+  /** The standard to show: a draft is edited in place; a published or retired one is "revised" --
+   *  saving creates a new version from its rules (canvas-chq). Omit to author a new one. */
   standard?: StandardDto;
+  /** canvas-chq: open read-only first, with an Edit button. */
+  readOnly?: boolean;
   onDone: (message: string) => void;
   onCancel: () => void;
 }
@@ -57,7 +60,11 @@ function cleanRules(rules: StandardRules, family: string): StandardRules {
       const k: ElementKind = { ...kind, description: kind.description?.trim() || undefined };
       if (!k.approvedStrokes?.length) delete k.approvedStrokes;
       if (family !== 'c4') delete k.match;
-      if (k.match && !k.match.external) k.match = { role: k.match.role };
+      // canvas-chq: always store an explicit external flag. The checkbox shows internal vs external,
+      // and diagram-core's classifyNode treats an absent flag as "match either" -- so stripping
+      // `external: false` (as this used to) made e.g. Software System also claim External System
+      // nodes after any save, flagging them against the wrong swatches.
+      if (k.match) k.match = { role: k.match.role, external: Boolean(k.match.external) };
       return k;
     });
   }
@@ -68,7 +75,12 @@ function cleanRules(rules: StandardRules, family: string): StandardRules {
  * Authoring screen for one Standard (a draft) of one diagram type: element kinds, connector rules,
  * groupings, strictness and the legacy v1 rules. Definition problems are shown inline before save.
  */
-export function StandardsEditor({ diagramType, standard, onDone, onCancel }: StandardsEditorProps) {
+export function StandardsEditor({ diagramType, standard, readOnly = false, onDone, onCancel }: StandardsEditorProps) {
+  // canvas-chq: a published/retired standard is never edited in place -- its rules seed a new
+  // version, so the old one stays in history and publishing re-checks diagrams.
+  const isDraftSource = standard?.status === 'draft';
+  const revising = Boolean(standard) && !isDraftSource;
+  const [viewing, setViewing] = useState(readOnly);
   const family = diagramType.dslFamily;
   const supportsKinds = FAMILY_SUPPORTS_ELEMENT_KINDS.has(family);
   const familyShapes: readonly string[] = FAMILY_NODE_SHAPES[family] ?? FAMILY_NODE_SHAPES.flowchart;
@@ -77,7 +89,7 @@ export function StandardsEditor({ diagramType, standard, onDone, onCancel }: Sta
   const [name, setName] = useState(standard?.name ?? '');
   const [description, setDescription] = useState(standard?.description ?? '');
   const [rules, setRules] = useState<StandardRules>(() => standard?.rules ?? emptyStandardRules());
-  const [savedStandard, setSavedStandard] = useState<StandardDto | undefined>(standard);
+  const [savedStandard, setSavedStandard] = useState<StandardDto | undefined>(isDraftSource ? standard : undefined);
   const [serverIssues, setServerIssues] = useState<Issue[]>([]);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [savedNote, setSavedNote] = useState<string | null>(null);
@@ -146,7 +158,11 @@ export function StandardsEditor({ diagramType, standard, onDone, onCancel }: Sta
     setBusy(true);
     try {
       await api.publishStandard(saved.id);
-      onDone(`Published standard v${saved.version} for ${diagramType.name}.`);
+      onDone(
+        revising && standard
+          ? `Published v${saved.version} for ${diagramType.name}, replacing v${standard.version}.`
+          : `Published standard v${saved.version} for ${diagramType.name}.`,
+      );
     } catch (error) {
       setSaveError((error as Error).message);
     } finally {
@@ -207,12 +223,26 @@ export function StandardsEditor({ diagramType, standard, onDone, onCancel }: Sta
         <button type="button" className="btn btn--tertiary btn--compact" data-testid="standard-back" onClick={onCancel}>
           <Icon name="chevron-right" className="icon--flip" /> Back to versions
         </button>
-        <h2 className="spacer">
-          {savedStandard ? `Edit draft v${savedStandard.version}` : 'New standard'} — {diagramType.name}
+        <h2 className="spacer" data-testid="standard-editor-title">
+          {viewing && standard
+            ? `${standard.name ?? 'Standard'} — v${standard.version} (${standard.status})`
+            : savedStandard
+              ? `Edit draft v${savedStandard.version}`
+              : revising && standard
+                ? `Edit v${standard.version} as a new version`
+                : 'New standard'}{' '}
+          — {diagramType.name}
         </h2>
       </div>
 
-      {issues.length > 0 && (
+      {!viewing && revising && standard && !savedStandard && (
+        <p className="card std-section" role="note" data-testid="standard-revise-banner">
+          You&rsquo;re editing v{standard.version} ({standard.status}). Saving creates a new version; publishing it makes it the
+          active standard and re-checks existing diagrams of this type. v{standard.version} stays in the history.
+        </p>
+      )}
+
+      {!viewing && issues.length > 0 && (
         <div role="alert" className="card std-summary" data-testid="standard-issues">
           <strong>
             {issues.length} problem{issues.length === 1 ? '' : 's'} to fix before saving
@@ -225,6 +255,8 @@ export function StandardsEditor({ diagramType, standard, onDone, onCancel }: Sta
         </div>
       )}
 
+      {/* canvas-chq: one native disabled fieldset makes the whole form read-only in view mode. */}
+      <fieldset disabled={viewing} className="std-fieldset stack" data-testid="standard-form">
       {/* ---- Basics ---- */}
       <section className="card std-section" aria-labelledby="std-basics">
         <h3 id="std-basics" className="section-label">Basics</h3>
@@ -456,22 +488,35 @@ export function StandardsEditor({ diagramType, standard, onDone, onCancel }: Sta
           ))}
         </ul>
       </details>
+      </fieldset>
 
       {saveError && <p role="alert" className="field__error" data-testid="standard-save-error">{saveError}</p>}
       {savedNote && <p role="status" data-testid="standard-saved-note">{savedNote}</p>}
 
-      <div className="cluster">
-        <button type="button" className="btn btn--secondary" data-testid="standard-cancel" onClick={onCancel}>
-          {savedStandard ? 'Close' : 'Cancel'}
-        </button>
-        <span className="spacer" />
-        <button type="button" className="btn btn--secondary" data-testid="standard-save" disabled={issues.length > 0 || busy} onClick={saveDraft}>
-          Save draft
-        </button>
-        <button type="button" className="btn btn--primary" data-testid="standard-publish" disabled={issues.length > 0 || busy} onClick={() => setConfirmPublish(true)}>
-          Publish
-        </button>
-      </div>
+      {viewing ? (
+        <div className="cluster">
+          <button type="button" className="btn btn--secondary" data-testid="standard-cancel" onClick={onCancel}>
+            Close
+          </button>
+          <span className="spacer" />
+          <button type="button" className="btn btn--primary" data-testid="standard-view-edit" onClick={() => setViewing(false)}>
+            {standard?.status === 'retired' ? 'Edit as new version' : 'Edit'}
+          </button>
+        </div>
+      ) : (
+        <div className="cluster">
+          <button type="button" className="btn btn--secondary" data-testid="standard-cancel" onClick={onCancel}>
+            {savedStandard ? 'Close' : 'Cancel'}
+          </button>
+          <span className="spacer" />
+          <button type="button" className="btn btn--secondary" data-testid="standard-save" disabled={issues.length > 0 || busy} onClick={saveDraft}>
+            {revising && !savedStandard ? 'Save as draft' : 'Save draft'}
+          </button>
+          <button type="button" className="btn btn--primary" data-testid="standard-publish" disabled={issues.length > 0 || busy} onClick={() => setConfirmPublish(true)}>
+            {revising ? 'Save & publish new version' : 'Publish'}
+          </button>
+        </div>
+      )}
 
       {confirmPublish && (
         <Modal

@@ -83,6 +83,20 @@ tests are NON-NEGOTIABLE and must exist (and fail) before implementing any diagr
 work — see `.specify/memory/constitution.md` Principle IV.
 
 ## Recent Changes
+- `canvas-chq`: every standard is viewable and editable on `?admin=standards`. Published/retired
+  versions previously showed metadata only; now any version opens read-only (one native
+  `<fieldset disabled>`), and Edit on a published/retired version "revises" it — its rules seed a
+  NEW version that Save & publish makes active (the old one is retired and kept, diagrams
+  re-checked); drafts still edit in place. Every built-in type now gets a published **starter
+  standard** (`BUILT_IN_STANDARDS` in `seed/reference-standards.seed.ts`) — descriptive, not
+  restrictive: C4 levels get the standard C4 element kinds/colors (relationships need a label, a
+  warning), other types get their family's full shape list plus guidance — seeded only into types
+  with no standard yet. Built-in diagram types are editable too (name/description/personas; never
+  the family); `diagram_types.admin_edited` (Postgres `0015`, SQLite `0003`) stops the catalog seed
+  overwriting an edited row. Fixed along the way: the editor's `cleanRules` stripped
+  `match.external: false` from C4 kinds, so after any save Software System also claimed External
+  System nodes (diagram-core treats an absent flag as "either") — it now always stores an explicit
+  boolean.
 - `canvas-ltm`: Create with AI supports follow-up questions. Persona prompts (edited in the admin
   UI) now ask the AI to clarify underspecified requests, but `CreateViaChatDialog` was one-shot —
   it discarded the assistant's reply and opened an empty diagram. A reply with no applied tool

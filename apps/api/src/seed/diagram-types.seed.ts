@@ -1,4 +1,5 @@
 import { getDb } from '../db/client.js';
+import { dbBoolean } from '../db/sql-helpers.js';
 import { setDiagramTypePersonas, setDiagramTypePaletteLibraries } from '../db/array-columns.js';
 
 interface DiagramTypeSeed {
@@ -83,11 +84,13 @@ export async function seedDiagramTypes(): Promise<void> {
               dsl_family: eb.ref('excluded.dsl_family'),
             }))
             // canvas-tfr: never overwrite an admin-created type that happens to share an id.
-            .where('diagram_types.origin', '=', 'builtin'),
+            // canvas-chq: nor a built-in type an admin has since edited.
+            .where('diagram_types.origin', '=', 'builtin')
+            .where('diagram_types.admin_edited', '=', dbBoolean(false)),
         )
         .execute();
-      const row = await trx.selectFrom('diagram_types').select('origin').where('id', '=', type.id).executeTakeFirst();
-      if (row?.origin !== 'builtin') return;
+      const row = await trx.selectFrom('diagram_types').select(['origin', 'admin_edited']).where('id', '=', type.id).executeTakeFirst();
+      if (row?.origin !== 'builtin' || row.admin_edited) return;
       await setDiagramTypePersonas(trx, type.id, type.personas);
       await setDiagramTypePaletteLibraries(trx, type.id, type.defaultPaletteLibraryIds);
     });

@@ -1,5 +1,6 @@
 import { dslFamilies } from '@canvas/diagram-core';
 import { getDb } from '../db/client.js';
+import { dbBoolean, fromDbBoolean } from '../db/sql-helpers.js';
 import {
   getDiagramTypePaletteLibrariesBatch,
   getDiagramTypePersonasBatch,
@@ -35,6 +36,8 @@ export interface DiagramTypeRecord {
   dslFamily: string;
   defaultPaletteLibraryIds: string[];
   origin: 'builtin' | 'custom';
+  /** canvas-chq: a built-in type an admin has edited (the catalog seed no longer updates it). */
+  adminEdited: boolean;
   description: string | null;
 }
 
@@ -88,9 +91,11 @@ export async function createCustomDiagramType(input: CustomDiagramTypeInput): Pr
   return getDiagramTypeRecord(id);
 }
 
-/** Only custom types can be edited, and their family is locked once any diagram uses the type
- *  (re-familying would leave those diagrams' DSL unparseable). */
-export async function updateCustomDiagramType(
+/** canvas-chq: any type can be edited. A built-in type's family can never change (its catalog
+ *  definition, AI primer and tooling are family-specific); a custom type's family is locked once any
+ *  diagram uses it (re-familying would leave those diagrams' DSL unparseable). Editing a built-in
+ *  type marks it admin_edited so the catalog seed stops overwriting the admin's changes. */
+export async function updateDiagramType(
   id: string,
   patch: Partial<CustomDiagramTypeInput>,
 ): Promise<DiagramTypeRecord> {
@@ -98,7 +103,9 @@ export async function updateCustomDiagramType(
   const db = getDb();
   const row = await db.selectFrom('diagram_types').select(['origin', 'dsl_family']).where('id', '=', id).executeTakeFirst();
   if (!row) throw new DiagramTypeNotFoundError(`No diagram type with id ${id}`);
-  if (row.origin !== 'custom') throw new DiagramTypeConflictError(`"${id}" is a built-in diagram type and can't be edited.`);
+  if (row.origin === 'builtin' && patch.dslFamily !== undefined && patch.dslFamily !== row.dsl_family) {
+    throw new DiagramTypeConflictError(`"${id}" is a built-in diagram type, so its family can't change.`);
+  }
   if (patch.dslFamily !== undefined && patch.dslFamily !== row.dsl_family) {
     const used = await db.selectFrom('diagrams').select('id').where('diagram_type_id', '=', id).executeTakeFirst();
     if (used) throw new DiagramTypeConflictError(`"${id}" already has diagrams, so its family can't change.`);
@@ -108,6 +115,7 @@ export async function updateCustomDiagramType(
       ...(patch.name !== undefined ? { name: patch.name.trim() } : {}),
       ...(patch.dslFamily !== undefined ? { dsl_family: patch.dslFamily } : {}),
       ...(patch.description !== undefined ? { description: patch.description } : {}),
+      ...(row.origin === 'builtin' ? { admin_edited: dbBoolean(true) } : {}),
     };
     if (Object.keys(set).length > 0) await trx.updateTable('diagram_types').set(set).where('id', '=', id).execute();
     if (patch.personas !== undefined) await setDiagramTypePersonas(trx, id, patch.personas);
@@ -127,7 +135,7 @@ export async function listDiagramTypeRecords(ids?: string[]): Promise<DiagramTyp
   const db = getDb();
   let query = db
     .selectFrom('diagram_types')
-    .select(['id', 'name', 'abstraction_level', 'dsl_family', 'origin', 'description'])
+    .select(['id', 'name', 'abstraction_level', 'dsl_family', 'origin', 'admin_edited', 'description'])
     .orderBy('name');
   if (ids) query = query.where('id', 'in', ids.length > 0 ? ids : ['']);
   const rows = await query.execute();
@@ -144,6 +152,7 @@ export async function listDiagramTypeRecords(ids?: string[]): Promise<DiagramTyp
     dslFamily: r.dsl_family,
     defaultPaletteLibraryIds: paletteLibrariesByType.get(r.id) ?? [],
     origin: r.origin,
+    adminEdited: fromDbBoolean(r.admin_edited),
     description: r.description,
   }));
 }
