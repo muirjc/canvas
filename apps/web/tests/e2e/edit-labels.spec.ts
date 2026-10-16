@@ -1,4 +1,5 @@
 import { expect, test, type Locator } from '@playwright/test';
+import { connectShapes } from './helpers/connect';
 
 const PROJECT_ID = process.env.E2E_PROJECT_ID;
 const ADMIN_EMAIL = 'admin@example.com';
@@ -54,8 +55,7 @@ test('edits shape and connector labels', async ({ page }) => {
   // Connect the two shapes, then add a connector label — previously unsupported entirely.
   await page.getByTestId('connect-mode-toggle').click();
   const nodes = page.locator('[data-testid^="node-"]');
-  await nodes.nth(0).click();
-  await nodes.nth(1).click();
+  await connectShapes(nodes.nth(0), nodes.nth(1));
 
   const edge = page.locator('[data-testid^="edge-"]').first();
   await dblclickEdgeLine(edge);

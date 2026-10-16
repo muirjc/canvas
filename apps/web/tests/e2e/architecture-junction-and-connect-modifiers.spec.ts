@@ -1,4 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
+import { connectShapes } from './helpers/connect';
 
 const PROJECT_ID = process.env.E2E_PROJECT_ID;
 const ADMIN_EMAIL = 'admin@example.com';
@@ -90,8 +91,7 @@ test('"Forward" direction produces "-->", the default before this bead had no ef
   await importDsl(page, 'Architecture Forward Arrow', ARCHITECTURE_DSL);
 
   await page.getByTestId('connect-mode-toggle').click();
-  await page.getByTestId('node-left').click();
-  await page.getByTestId('node-right').click();
+  await connectShapes(page.getByTestId('node-left'), page.getByTestId('node-right'));
 
   const source = await dsl(page);
   expect(source).toMatch(/left\S* --> \S*right/);
@@ -103,8 +103,7 @@ test('"Reversed" direction produces "<--"', async ({ page }) => {
 
   await page.getByTestId('connect-mode-toggle').click();
   await page.getByTestId('connect-arch-direction').selectOption('reversed');
-  await page.getByTestId('node-left').click();
-  await page.getByTestId('node-right').click();
+  await connectShapes(page.getByTestId('node-left'), page.getByTestId('node-right'));
 
   const source = await dsl(page);
   expect(source).toMatch(/left\S* <-- \S*right/);
@@ -116,8 +115,7 @@ test('"No arrowhead" produces a plain "--" connector', async ({ page }) => {
 
   await page.getByTestId('connect-mode-toggle').click();
   await page.getByTestId('connect-arch-direction').selectOption('none');
-  await page.getByTestId('node-left').click();
-  await page.getByTestId('node-right').click();
+  await connectShapes(page.getByTestId('node-left'), page.getByTestId('node-right'));
 
   const source = await dsl(page);
   expect(source).toMatch(/left\S* -- \S*right/);
@@ -129,8 +127,7 @@ test('checking "First entity\'s group" produces a {group} suffix on the source s
 
   await page.getByTestId('connect-mode-toggle').click();
   await page.getByTestId('connect-arch-source-is-group').check();
-  await page.getByTestId('node-left').click();
-  await page.getByTestId('node-right').click();
+  await connectShapes(page.getByTestId('node-left'), page.getByTestId('node-right'));
 
   const source = await dsl(page);
   expect(source).toContain('left{group} --> right');
@@ -143,8 +140,7 @@ test('picking an anchor on each side produces real :T/:B tokens', async ({ page 
   await page.getByTestId('connect-mode-toggle').click();
   await page.getByTestId('connect-arch-source-anchor').selectOption('B');
   await page.getByTestId('connect-arch-target-anchor').selectOption('T');
-  await page.getByTestId('node-left').click();
-  await page.getByTestId('node-right').click();
+  await connectShapes(page.getByTestId('node-left'), page.getByTestId('node-right'));
 
   const source = await dsl(page);
   expect(source).toContain('left:B --> T:right');
