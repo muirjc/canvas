@@ -231,6 +231,18 @@ export function createMockLanguageModel() {
         return toolCallResult('activateParticipant', { participantId });
       }
 
+      // canvas-ltm: Create with AI's follow-up-question flow. A vague "create a ... diagram" request
+      // names nothing concrete, so (like a real persona prompted to clarify first) the mock asks a
+      // question instead of drawing; the user's answer is then handled by the concrete rules above.
+      if (/^(create|draw|make|build)\b.*\bdiagram\b/i.test(text.trim())) {
+        return noToolCallResult('Before I draw this, what are the main steps or elements you want included?');
+      }
+
+      // canvas-ltm: the dialog's "Just draw it" message -- draw something rather than ask again.
+      if (/go ahead and draw/i.test(text) && toolAvailable(options, 'addNode')) {
+        return toolCallResult('addNode', { shape: 'rectangle', label: 'Draft step' });
+      }
+
       return noToolCallResult("I'm not sure how to help with that.");
     },
   });
