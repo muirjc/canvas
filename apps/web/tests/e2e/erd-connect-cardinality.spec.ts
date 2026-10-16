@@ -1,4 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
+import { connectShapes } from './helpers/connect';
 
 const PROJECT_ID = process.env.E2E_PROJECT_ID;
 const ADMIN_EMAIL = 'admin@example.com';
@@ -45,8 +46,7 @@ test('defaults to the standard one-to-many cardinality when neither picker is to
 
   await page.getByTestId('connect-mode-toggle').click();
   const nodes = page.locator('[data-testid^="node-"]');
-  await nodes.nth(0).click();
-  await nodes.nth(1).click();
+  await connectShapes(nodes.nth(0), nodes.nth(1));
   await expect(page.locator('[data-testid^="edge-"]')).toHaveCount(1);
 
   const dsl = await page.getByTestId('dsl-panel').inputValue();
@@ -61,8 +61,7 @@ test('each of the four cardinality options is selectable on both sides and produ
   await page.getByTestId('connect-er-target-cardinality').selectOption('|{'); // one or many
 
   const nodes = page.locator('[data-testid^="node-"]');
-  await nodes.nth(0).click();
-  await nodes.nth(1).click();
+  await connectShapes(nodes.nth(0), nodes.nth(1));
   await expect(page.locator('[data-testid^="edge-"]')).toHaveCount(1);
 
   const dsl = await page.getByTestId('dsl-panel').inputValue();
@@ -77,8 +76,7 @@ test('picking "exactly one" on both sides produces a one-to-one relationship', a
   await page.getByTestId('connect-er-target-cardinality').selectOption('||');
 
   const nodes = page.locator('[data-testid^="node-"]');
-  await nodes.nth(0).click();
-  await nodes.nth(1).click();
+  await connectShapes(nodes.nth(0), nodes.nth(1));
   await expect(page.locator('[data-testid^="edge-"]')).toHaveCount(1);
 
   const dsl = await page.getByTestId('dsl-panel').inputValue();
@@ -93,8 +91,7 @@ test('picking "zero or many" on both sides produces a many-to-many relationship'
   await page.getByTestId('connect-er-target-cardinality').selectOption('o{');
 
   const nodes = page.locator('[data-testid^="node-"]');
-  await nodes.nth(0).click();
-  await nodes.nth(1).click();
+  await connectShapes(nodes.nth(0), nodes.nth(1));
   await expect(page.locator('[data-testid^="edge-"]')).toHaveCount(1);
 
   const dsl = await page.getByTestId('dsl-panel').inputValue();

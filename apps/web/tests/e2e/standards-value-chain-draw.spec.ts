@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test';
+import { connectShapes } from './helpers/connect';
 import { PROJECT_ID, addKind, login, newDiagram, readDsl } from './standards-v2-helpers';
 
 test.skip(!PROJECT_ID, 'E2E_PROJECT_ID env var not set — run `npm run seed` and export it first');
@@ -51,14 +52,12 @@ test('value chain: kind toolbar, live issues, kind styling, connector policy, se
   // Connector policy: support -> margin refused.
   const edges = page.locator('[data-testid^="edge-"]');
   await page.getByTestId('connect-mode-toggle').click();
-  await page.getByTestId(`node-${support}`).click();
-  await page.getByTestId(`node-${margin}`).click();
+  await connectShapes(page.getByTestId(`node-${support}`), page.getByTestId(`node-${margin}`));
   await expect(page.getByTestId('connect-notice')).toBeVisible();
   await expect(edges).toHaveCount(0);
 
   // primary -> margin allowed.
-  await page.getByTestId(`node-${primary}`).click();
-  await page.getByTestId(`node-${margin}`).click();
+  await connectShapes(page.getByTestId(`node-${primary}`), page.getByTestId(`node-${margin}`));
   await expect(edges).toHaveCount(1);
 
   // Save + reload.

@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test';
+import { connectShapes } from './helpers/connect';
 
 const PROJECT_ID = process.env.E2E_PROJECT_ID;
 const ADMIN_EMAIL = 'admin@example.com';
@@ -36,11 +37,12 @@ test('draws a bidirectional connector when Bidirectional is chosen', async ({ pa
   await page.getByTestId('connect-arrow-style').selectOption('both');
 
   const nodes = page.locator('[data-testid^="node-"]');
-  await nodes.nth(0).click();
-  await nodes.nth(1).click();
+  await connectShapes(nodes.nth(0), nodes.nth(1));
 
   await expect(page.locator('[data-testid^="edge-"]')).toHaveCount(1);
   await expect(page.getByTestId('dsl-panel')).toContainText('<-->');
+  // The connect-source mark is cleared once the connection completes.
+  await expect(nodes.nth(0)).not.toHaveAttribute('data-connect-source', 'true');
 });
 
 test('draws a connector with no arrowhead when No arrowhead is chosen', async ({ page }) => {
@@ -50,8 +52,7 @@ test('draws a connector with no arrowhead when No arrowhead is chosen', async ({
   await page.getByTestId('connect-arrow-style').selectOption('none');
 
   const nodes = page.locator('[data-testid^="node-"]');
-  await nodes.nth(0).click();
-  await nodes.nth(1).click();
+  await connectShapes(nodes.nth(0), nodes.nth(1));
 
   // canvas-i2q: without this wait, the DSL panel read below can race the second click's React
   // state update (onChange -> addEdge -> re-render -> DSL sync) and see stale content with zero
@@ -73,8 +74,7 @@ test('reverses source/target when Reversed is chosen — no separate second edge
   const nodes = page.locator('[data-testid^="node-"]');
   const firstId = await nodes.nth(0).getAttribute('data-testid');
   const secondId = await nodes.nth(1).getAttribute('data-testid');
-  await nodes.nth(0).click();
-  await nodes.nth(1).click();
+  await connectShapes(nodes.nth(0), nodes.nth(1));
 
   // Exactly one edge exists — a "reversed" connection is the swapped endpoint, not a second edge
   // stacked on top of a forward one.
@@ -93,8 +93,7 @@ test('defaults to a plain forward arrow when no direction is chosen', async ({ p
 
   await page.getByTestId('connect-mode-toggle').click();
   const nodes = page.locator('[data-testid^="node-"]');
-  await nodes.nth(0).click();
-  await nodes.nth(1).click();
+  await connectShapes(nodes.nth(0), nodes.nth(1));
 
   // canvas-i2q: this test flaked repeatedly across many unrelated PRs this session (zero edges
   // in the resulting DSL) — a single-shot read here raced the second click's React state update

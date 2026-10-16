@@ -1,4 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
+import { connectShapes } from './helpers/connect';
 
 const PROJECT_ID = process.env.E2E_PROJECT_ID;
 const ADMIN_EMAIL = 'admin@example.com';
@@ -50,8 +51,7 @@ test('drawing a connection with Non-identifying checked produces a dotted relati
 
   await page.getByTestId('connect-mode-toggle').click();
   await page.getByTestId('connect-er-non-identifying').check();
-  await page.getByTestId('node-CUSTOMER').click();
-  await page.getByTestId('node-ORDER').click();
+  await connectShapes(page.getByTestId('node-CUSTOMER'), page.getByTestId('node-ORDER'));
 
   await expect(page.locator('[data-testid^="edge-"]')).toHaveCount(1);
   const source = await dsl(page);
@@ -63,8 +63,7 @@ test('drawing a connection with the checkbox left unchecked stays a solid (ident
   await importDsl(page, 'ER Draw Identifying Default', 'erDiagram\n  CUSTOMER\n  ORDER\n');
 
   await page.getByTestId('connect-mode-toggle').click();
-  await page.getByTestId('node-CUSTOMER').click();
-  await page.getByTestId('node-ORDER').click();
+  await connectShapes(page.getByTestId('node-CUSTOMER'), page.getByTestId('node-ORDER'));
 
   await expect(page.locator('[data-testid^="edge-"]')).toHaveCount(1);
   const source = await dsl(page);
