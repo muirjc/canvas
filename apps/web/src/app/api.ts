@@ -100,6 +100,8 @@ export interface DiagramTypeDto {
   defaultPaletteLibraryIds: string[];
   /** canvas-tfr: 'builtin' (seeded catalog) or 'custom' (admin-created). */
   origin: 'builtin' | 'custom';
+  /** canvas-chq: a built-in type an admin has edited (the catalog seed no longer overwrites it). */
+  adminEdited?: boolean;
   description: string | null;
 }
 

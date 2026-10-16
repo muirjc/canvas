@@ -13,6 +13,10 @@ test.skip(!PROJECT_ID, 'E2E_PROJECT_ID env var not set — run `npm run seed` an
  * Person element could only ever come from DSL/import, never toolbar creation.
  */
 
+// canvas-chq: an imported C4 diagram lands on the alphabetically-first C4 type (c4-code), which now
+// ships a published starter standard (kinds: container, component, software_system, and their
+// external variants). A type with a standard offers its element KINDS in the popup instead of raw
+// roles, so these popup specs pick kinds by id (the raw-role popup only applies to a standard-less type).
 const C4_DSL = ['C4Context', '  Person(user, "User")', '  System(sys, "System")', ''].join('\n');
 
 async function login(page: Page) {
@@ -69,17 +73,17 @@ test('the element-kind affordance and popup are absent for non-C4 families', asy
   await expect(page.getByTestId('edit-kind-Animal')).toHaveCount(0);
 });
 
-test('setting an existing element\'s kind to Person via the popup produces a real "Person(" line', async ({ page }) => {
+test('setting an existing element\'s kind to Container via the popup produces a real "Container(" line', async ({ page }) => {
   await login(page);
-  await importDsl(page, 'C4 Set Kind Person', C4_DSL);
+  await importDsl(page, 'C4 Set Kind Container', C4_DSL);
 
   await page.getByTestId('node-sys').hover();
   await page.getByTestId('edit-kind-sys').click();
-  await page.getByTestId('kind-role-select-sys').selectOption('person');
+  await page.getByTestId('kind-role-select-sys').selectOption('container');
   await page.getByTestId('kind-done-sys').click();
 
   const source = await dsl(page);
-  expect(source).toMatch(/Person\(sys,/);
+  expect(source).toMatch(/Container\(sys,/);
 });
 
 test('a toolbar-added cylinder node, given kind=System via the popup, serializes as "SystemDb("', async ({ page }) => {
@@ -92,7 +96,7 @@ test('a toolbar-added cylinder node, given kind=System via the popup, serializes
 
   await newNode.hover();
   await page.getByTestId(`edit-kind-${newNodeId}`).click();
-  await page.getByTestId(`kind-role-select-${newNodeId}`).selectOption('system');
+  await page.getByTestId(`kind-role-select-${newNodeId}`).selectOption('software_system');
   await page.getByTestId(`kind-done-${newNodeId}`).click();
 
   const source = await dsl(page);
@@ -103,7 +107,7 @@ test('the kind popup reflects the element\'s current role when reopened', async 
   await login(page);
   await importDsl(page, 'C4 Kind Popup Reflects Role', C4_DSL);
 
-  await page.getByTestId('node-user').hover();
-  await page.getByTestId('edit-kind-user').click();
-  await expect(page.getByTestId('kind-role-select-user')).toHaveValue('person');
+  await page.getByTestId('node-sys').hover();
+  await page.getByTestId('edit-kind-sys').click();
+  await expect(page.getByTestId('kind-role-select-sys')).toHaveValue('software_system');
 });

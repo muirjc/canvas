@@ -18,7 +18,7 @@ export function StandardsAdminPage() {
   const [types, setTypes] = useState<DiagramTypeDto[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [standards, setStandards] = useState<StandardDto[]>([]);
-  const [editing, setEditing] = useState<{ standard?: StandardDto } | null>(null);
+  const [editing, setEditing] = useState<{ standard?: StandardDto; readOnly?: boolean } | null>(null);
   const [typeDialog, setTypeDialog] = useState<{ diagramType?: DiagramTypeDto } | null>(null);
   const [pendingPublish, setPendingPublish] = useState<StandardDto | null>(null);
   const [message, setMessage] = useState<string | null>(null);
@@ -78,6 +78,7 @@ export function StandardsAdminPage() {
       <StandardsEditor
         diagramType={selected}
         standard={editing.standard}
+        readOnly={editing.readOnly}
         onCancel={() => {
           setEditing(null);
           void refresh();
@@ -121,7 +122,9 @@ export function StandardsAdminPage() {
                       onClick={() => setSelectedId(type.id)}
                     >
                       <span>{type.name}</span>
-                      <span className="pill">{type.origin === 'custom' ? 'Custom' : 'Built-in'}</span>
+                      <span className="pill">
+                        {type.origin === 'custom' ? 'Custom' : type.adminEdited ? 'Built-in · edited' : 'Built-in'}
+                      </span>
                     </button>
                   </li>
                 ))}
@@ -136,17 +139,26 @@ export function StandardsAdminPage() {
               <div className="cluster std-header">
                 <h3 data-testid="standards-selected-type">{selected.name}</h3>
                 <span className="meta">{selected.dslFamily} family</span>
-                {selected.origin === 'custom' && (
+                {/* canvas-chq: built-in types are editable too (family stays fixed). */}
+                <button
+                  type="button"
+                  className="btn btn--tertiary btn--compact"
+                  data-testid="diagram-type-edit"
+                  onClick={() => setTypeDialog({ diagramType: selected })}
+                >
+                  Edit type
+                </button>
+                <span className="spacer" />
+                {active && (
                   <button
                     type="button"
-                    className="btn btn--tertiary btn--compact"
-                    data-testid="diagram-type-edit"
-                    onClick={() => setTypeDialog({ diagramType: selected })}
+                    className="btn btn--secondary"
+                    data-testid="standard-view-active"
+                    onClick={() => setEditing({ standard: active, readOnly: true })}
                   >
-                    Edit type
+                    View active standard
                   </button>
                 )}
-                <span className="spacer" />
                 {active && (
                   <button
                     type="button"
@@ -174,7 +186,10 @@ export function StandardsAdminPage() {
               )}
               {standards.length === 0 ? (
                 <p className="meta" data-testid="standards-empty">
-                  No standards yet for this diagram type. Diagrams of this type are unchecked until one is published.
+                  No standard yet for this diagram type, so its diagrams aren&rsquo;t checked.{' '}
+                  <button type="button" className="btn btn--tertiary btn--compact" data-testid="standard-create-empty" onClick={() => newDraft(false)}>
+                    Create one
+                  </button>
                 </p>
               ) : (
                 <ul className="card" data-testid="standards-history">
@@ -182,7 +197,15 @@ export function StandardsAdminPage() {
                     <li key={standard.id} className="row" data-testid={`standard-row-${standard.id}`}>
                       <span className="row__main">
                         <span className="row__title">
-                          {standard.name ?? `${standard.diagramTypeId} v${standard.version}`}{' '}
+                          <button
+                            type="button"
+                            className="btn btn--link"
+                            data-testid={`standard-view-${standard.id}`}
+                            title="View this standard"
+                            onClick={() => setEditing({ standard, readOnly: true })}
+                          >
+                            {standard.name ?? `${standard.diagramTypeId} v${standard.version}`}
+                          </button>{' '}
                           <span className="meta">v{standard.version}</span>{' '}
                           <span className="pill" data-testid={`standard-status-${standard.id}`}>
                             {STATUS_LABEL[standard.status]}
@@ -196,16 +219,19 @@ export function StandardsAdminPage() {
                         </span>
                       </span>
                       <span className="row__actions">
+                        {/* canvas-chq: every version is editable -- a draft in place, a published or
+                            retired one as a new version (StandardsEditor's revise mode). */}
+                        <button
+                          type="button"
+                          className="btn btn--tertiary btn--compact"
+                          data-testid={`standard-edit-${standard.id}`}
+                          title={standard.status === 'draft' ? 'Edit this draft' : 'Edit as a new version'}
+                          onClick={() => setEditing({ standard })}
+                        >
+                          Edit
+                        </button>
                         {standard.status === 'draft' && (
                           <>
-                            <button
-                              type="button"
-                              className="btn btn--tertiary btn--compact"
-                              data-testid={`standard-edit-${standard.id}`}
-                              onClick={() => setEditing({ standard })}
-                            >
-                              Edit
-                            </button>
                             <button
                               type="button"
                               className="btn btn--tertiary btn--compact"

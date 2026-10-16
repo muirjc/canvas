@@ -133,12 +133,23 @@ test('adds a UML class member and sets a relationship kind via chat', async ({ p
 test('sets a C4 element role via chat', async ({ page }) => {
   await loginAndEnableChat(page);
 
+  // canvas-tfr / canvas-chq: every built-in C4 type now ships a published standard whose element
+  // kinds replace the raw setNodeRole tool with the kind-aware setElementKind (covered by the API's
+  // diagram-tools-standard tests). This spec exercises the generic role tool, which only a type
+  // WITHOUT a standard still offers -- so use a fresh admin-created custom C4-family type (never
+  // has a standard) instead of a built-in one.
+  const typeResponse = await page.request.post(`${API_BASE_URL}/admin/diagram-types`, {
+    data: {
+      name: `C4 No Standard ${Date.now()}`,
+      dslFamily: 'c4',
+      personas: ['Business', 'Enterprise', 'Solution', 'Technical'],
+    },
+  });
+  expect(typeResponse.status()).toBe(201);
+  const customTypeId = (await typeResponse.json()).diagramType.id as string;
+  await page.reload();
   await page.getByTestId('new-diagram').click();
-  // canvas-tfr: C4 Container, not C4 Context -- C4 Context now ships a published standard whose
-  // element kinds replace the raw setNodeRole tool with the kind-aware setElementKind (covered by
-  // the API's diagram-tools-standard tests). This spec exercises the generic role tool, which a C4
-  // type without a standard still offers.
-  await page.getByTestId('diagram-type-c4-container').check();
+  await page.getByTestId(`diagram-type-${customTypeId}`).check();
   await page.getByTestId('confirm-new-diagram').click();
   await expect(page.getByTestId('diagram-canvas')).toBeVisible();
 

@@ -112,6 +112,8 @@ export interface DiagramTypesTable {
   dsl_family: string;
   /** canvas-tfr: 'builtin' (seeded catalog) or 'custom' (admin-created); the seed never touches custom rows. */
   origin: Generated<'builtin' | 'custom'>;
+  /** canvas-chq: a built-in row an admin has edited -- the catalog seed leaves it alone. */
+  admin_edited: Generated<boolean>;
   description: string | null;
 }
 

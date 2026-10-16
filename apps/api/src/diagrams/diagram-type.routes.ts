@@ -6,7 +6,7 @@ import {
   DiagramTypeNotFoundError,
   DiagramTypeValidationError,
   listDiagramTypeRecords,
-  updateCustomDiagramType,
+  updateDiagramType,
   type CustomDiagramTypeInput,
 } from './diagram-type.service.js';
 
@@ -71,7 +71,7 @@ export async function registerDiagramTypeRoutes(app: FastifyInstance): Promise<v
     { preHandler: requireRole('admin'), schema: { tags: ['DiagramTypes'], security: [{ cookieAuth: [] }] } },
     async (request, reply) => {
       try {
-        reply.send({ diagramType: await updateCustomDiagramType(request.params.id, request.body ?? {}) });
+        reply.send({ diagramType: await updateDiagramType(request.params.id, request.body ?? {}) });
       } catch (error) {
         handleError(error, reply);
       }
