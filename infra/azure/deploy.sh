@@ -294,7 +294,7 @@ echo "== Building and deploying the frontend to $STORAGE_ACCOUNT =="
 az storage blob upload-batch \
   --account-name "$STORAGE_ACCOUNT" --destination '$web' --source "$REPO_ROOT/apps/web/dist" \
   --auth-mode login --overwrite --output none
-# canvas-u2p: index.html must never be served from a browser's cache. Without a Cache-Control
+# canvas-oyp: index.html must never be served from a browser's cache. Without a Cache-Control
 # header browsers cache it heuristically, keep loading the PREVIOUS build's bundle after a deploy,
 # and users silently run old code (seen live: the Create-with-AI dialog kept its pre-#159 one-shot
 # behavior after deploying). The bundles it references are content-hashed (Vite), so they can stay
