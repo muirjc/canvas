@@ -30,7 +30,7 @@ export async function registerDiagramChatRoutes(
 ): Promise<void> {
   app.post<{
     Params: { id: string };
-    Body: { message: string; currentDslContent: string; personaId?: string };
+    Body: { message: string; currentDslContent: string; personaId?: string; mode?: 'plan' | 'build' };
   }>(
     '/diagrams/:id/chat/messages',
     {
@@ -48,6 +48,8 @@ export async function registerDiagramChatRoutes(
             message: { type: 'string', minLength: 1 },
             currentDslContent: { type: 'string', minLength: 1 },
             personaId: { type: 'string' },
+            // canvas-s3o: Create with AI's planning phase -- the model can talk but not draw.
+            mode: { type: 'string', enum: ['plan', 'build'] },
           },
         },
       },
@@ -59,7 +61,7 @@ export async function registerDiagramChatRoutes(
         return;
       }
 
-      const { message, currentDslContent, personaId } = request.body;
+      const { message, currentDslContent, personaId, mode } = request.body;
 
       try {
         // 010-ai-diagram-knowledge, T003: resolve the diagram's real dslFamily the same way every
@@ -73,6 +75,7 @@ export async function registerDiagramChatRoutes(
           dslFamily: diagram.dslFamily,
           diagramTypeId: diagram.diagramTypeId,
           personaId,
+          mode,
           model: options.languageModel,
         });
         reply.send(result);

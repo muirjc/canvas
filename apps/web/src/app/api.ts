@@ -434,7 +434,8 @@ export const api = {
     }),
   deletePersonaReferenceMaterial: (personaId: string, entryId: string) =>
     request<void>(`/admin/ai-personas/${personaId}/reference-material/${entryId}`, { method: 'DELETE' }),
-  sendChatMessage: (diagramId: string, body: { message: string; currentDslContent: string; personaId?: string }) =>
+  /** canvas-s3o: `mode: 'plan'` = Create with AI's planning phase (the AI can talk but not draw). */
+  sendChatMessage: (diagramId: string, body: { message: string; currentDslContent: string; personaId?: string; mode?: 'plan' | 'build' }) =>
     request<SendChatMessageResultDto>(`/diagrams/${diagramId}/chat/messages`, { method: 'POST', body: JSON.stringify(body) }),
   getChatMessages: (diagramId: string) => request<{ messages: ChatMessageDto[] }>(`/diagrams/${diagramId}/chat/messages`),
   getAiSettings: () => request<AiSettingsDto>('/admin/ai-settings'),
