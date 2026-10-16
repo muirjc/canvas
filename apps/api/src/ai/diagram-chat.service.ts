@@ -96,7 +96,8 @@ function describeModel(model: DiagramModel, rules?: StandardRules): string {
 }
 
 /** 010-ai-diagram-knowledge, T008/T031 (research.md §2, contracts/api-ai-chat-contract.md):
- * composition order is persona's own system prompt (or the default) → that family's
+ * composition order (each appended section under its own `##` heading, canvas-7wx) is persona's
+ * own system prompt (or the default) → that family's
  * domain-concept primer → the active standard, if any (canvas-tfr) → the persona's reference-material entries scoped to `dslFamily` or
  * unscoped (User Story 4) → the current diagram's summary. Reference material is never placed
  * ahead of or in place of the persona's own system prompt (FR-008); a persona with no matching
@@ -109,18 +110,22 @@ async function buildSystemPrompt(
   model: DiagramModel,
   rules?: StandardRules,
 ): Promise<string> {
+  // canvas-7wx: the persona's own prompt comes first, untouched. Each section the app appends gets
+  // its own `##` heading -- persona prompts are authored in Markdown, and without headings
+  // everything appended would read as part of whichever section the persona's prompt ended on.
   const parts = [personaSystemPrompt ?? DEFAULT_SYSTEM_PROMPT];
+  const section = (heading: string, body: string) => parts.push(`## ${heading}\n\n${body}`);
   const primer = getDiagramTypePrimer(dslFamily);
-  if (primer) parts.push(primer.summary);
+  if (primer) section('Diagram type', primer.summary);
   // canvas-tfr: the active standard sits after the generic family primer (it narrows it) and
   // before the persona's reference material and the model summary.
   const standardPrompt = rules ? buildStandardPrompt(rules, dslFamily) : undefined;
-  if (standardPrompt) parts.push(standardPrompt);
+  if (standardPrompt) section('Diagram standard', standardPrompt);
   if (personaId) {
     const referenceMaterial = await listReferenceMaterialForFamily(personaId, dslFamily);
-    for (const entry of referenceMaterial) parts.push(entry.content);
+    if (referenceMaterial.length > 0) section('Reference material', referenceMaterial.map((entry) => entry.content).join('\n\n'));
   }
-  parts.push(describeModel(model, rules));
+  section('Current diagram', describeModel(model, rules));
   return parts.join('\n\n');
 }
 
