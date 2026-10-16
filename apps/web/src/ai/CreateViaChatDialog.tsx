@@ -12,8 +12,9 @@ import { groupPersonasByCategory } from './persona-grouping';
 
 export interface CreateViaChatDialogProps {
   projectId: string;
-  /** `openChat`: the AI asked follow-up questions first, so the editor should open on the Chat tab
-   *  where that exchange continues. */
+  /** `openChat`: open the editor on the Chat tab -- the AI asked follow-up questions, or replied with
+   *  text alongside the drawing (assumptions, open questions, next steps) that would otherwise sit
+   *  unseen behind the DSL tab. */
   onCreated: (diagram: DiagramDto, options: { openChat: boolean }) => void;
   onCancel: () => void;
 }
@@ -135,7 +136,9 @@ export function CreateViaChatDialog({ projectId, onCreated, onCancel }: CreateVi
       setPendingMessage(null);
       if (drewSomething(result.toolCalls)) {
         setDrawnDsl(result.updatedDslContent);
-        await finish(target, result.updatedDslContent, transcript.length > 0);
+        // Open on Chat whenever there's something to read there: a prior Q&A, or the AI's own
+        // write-up of what it drew (persona prompts typically end with assumptions and open questions).
+        await finish(target, result.updatedDslContent, transcript.length > 0 || Boolean(result.assistantMessage?.trim()));
         return;
       }
       setTranscript((t) => [...t, { role: 'assistant', content: result.assistantMessage || 'Could you tell me more?' }]);

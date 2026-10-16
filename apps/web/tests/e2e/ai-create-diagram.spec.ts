@@ -32,9 +32,10 @@ test('creates a flowchart diagram from a natural-language description via a chos
 
   // A populated flowchart diagram opens directly in the canvas editor (FR-005/FR-006).
   await expect(page.getByTestId('diagram-canvas')).toBeVisible();
-  // No clarifying conversation happened, so the editor opens on the DSL tab as before (canvas-ltm).
-  await expect(page.getByTestId('rail-tab-dsl')).toHaveAttribute('aria-selected', 'true');
+  // The editor opens on the Chat tab so the AI's reply about what it drew is visible (canvas-ltm).
+  await expect(page.getByTestId('rail-tab-chat')).toHaveAttribute('aria-selected', 'true');
   await expect(page.locator('[data-testid^="node-"]')).toHaveCount(1);
+  await page.getByTestId('rail-tab-dsl').click();
   await expect(page.getByTestId('dsl-panel')).toContainText('Order Received');
 
   // The AI-created shape is a normal, fully-editable node — same manual rename path as any
