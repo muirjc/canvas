@@ -1,4 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
+import { connectShapes } from './helpers/connect';
 
 const PROJECT_ID = process.env.E2E_PROJECT_ID;
 const ADMIN_EMAIL = 'admin@example.com';
@@ -55,8 +56,7 @@ test('drawing a connection with kind=inheritance and cardinalities produces a re
   await page.getByTestId('connect-uml-relation-kind').selectOption('inheritance');
   await page.getByTestId('connect-uml-source-cardinality').fill('1');
   await page.getByTestId('connect-uml-target-cardinality').fill('*');
-  await page.getByTestId('node-Dog').click();
-  await page.getByTestId('node-Animal').click();
+  await connectShapes(page.getByTestId('node-Dog'), page.getByTestId('node-Animal'));
 
   // canvas-i2q precedent (connect-arrow-direction.spec.ts): without this wait, reading the DSL
   // panel below can race the second click's React state update.
@@ -70,8 +70,7 @@ test('drawing a connection with no picker changes defaults to a plain associatio
   await importDsl(page, 'UML Draw Default', UML_DSL);
 
   await page.getByTestId('connect-mode-toggle').click();
-  await page.getByTestId('node-Dog').click();
-  await page.getByTestId('node-Animal').click();
+  await connectShapes(page.getByTestId('node-Dog'), page.getByTestId('node-Animal'));
 
   await expect(page.locator('[data-testid^="edge-"]')).toHaveCount(1);
   const source = await dsl(page);

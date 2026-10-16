@@ -3568,6 +3568,9 @@ export function Canvas({ model, onChange, dslFamily, toolbarContainer, standardR
             <g
               key={node.id}
               data-testid={`node-${node.id}`}
+              // canvas-whz: marks the shape a connection is being drawn from, so the second click's
+              // target is unambiguous (and testable) -- there was previously no indication at all.
+              data-connect-source={connectMode && connectSourceId === node.id ? 'true' : undefined}
               onPointerDown={handleNodePointerDown(rawNode)}
               onPointerEnter={() => setHoveredId(node.id)}
               onPointerLeave={() => setHoveredId((current) => (current === node.id ? null : current))}
@@ -3581,7 +3584,7 @@ export function Canvas({ model, onChange, dslFamily, toolbarContainer, standardR
               {lifeline && (
                 <line x1={lifeline.x} y1={lifeline.top} x2={lifeline.x} y2={lifeline.bottom} stroke="#888888" strokeDasharray="4,2" />
               )}
-              {renderNodeShape(node, selectedIds.has(node.id), model.diagramTypeId)}
+              {renderNodeShape(node, selectedIds.has(node.id) || (connectMode && connectSourceId === node.id), model.diagramTypeId)}
               {worstSeverityByElement.has(node.id) && (
                 <circle
                   data-testid={`violation-dot-${node.id}`}

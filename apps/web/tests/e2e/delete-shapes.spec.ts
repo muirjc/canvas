@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test';
+import { connectShapes } from './helpers/connect';
 
 const PROJECT_ID = process.env.E2E_PROJECT_ID;
 const ADMIN_EMAIL = 'admin@example.com';
@@ -48,8 +49,7 @@ test('deleting a connected shape also removes its connector (no dangling referen
   await page.getByTestId('add-shape-circle').click();
   await page.getByTestId('connect-mode-toggle').click();
   const nodes = page.locator('[data-testid^="node-"]');
-  await nodes.nth(0).click();
-  await nodes.nth(1).click();
+  await connectShapes(nodes.nth(0), nodes.nth(1));
   await expect(page.locator('[data-testid^="edge-"]')).toHaveCount(1);
 
   await nodes.nth(0).click();
