@@ -32,6 +32,8 @@ test('creates a flowchart diagram from a natural-language description via a chos
 
   // A populated flowchart diagram opens directly in the canvas editor (FR-005/FR-006).
   await expect(page.getByTestId('diagram-canvas')).toBeVisible();
+  // No clarifying conversation happened, so the editor opens on the DSL tab as before (canvas-ltm).
+  await expect(page.getByTestId('rail-tab-dsl')).toHaveAttribute('aria-selected', 'true');
   await expect(page.locator('[data-testid^="node-"]')).toHaveCount(1);
   await expect(page.getByTestId('dsl-panel')).toContainText('Order Received');
 

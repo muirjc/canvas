@@ -720,3 +720,6 @@
 .canvas-notice { margin: var(--space-2) 0 0; font-size: var(--text-small-size); color: var(--danger); }
 .dsl-standards { border-block-start: var(--border-width) solid var(--border-subtle); padding: var(--space-2) 0 0; max-height: 40%; overflow-y: auto; }
 .dsl-standards .section-label { padding: 0 var(--space-4); }
+
+/* ---- Create with AI conversation (canvas-ltm) ------------------------------- */
+.create-chat__transcript { max-height: 18rem; overflow-y: auto; padding: var(--space-2) 0; margin-block-end: var(--space-3); }

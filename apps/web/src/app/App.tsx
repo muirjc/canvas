@@ -27,6 +27,12 @@ export function App() {
   const [user, setUser] = useState<SessionUser | null>(null);
   const [checkedSession, setCheckedSession] = useState(false);
   const [diagram, setDiagram] = useState<DiagramDto | null>(null);
+  // canvas-ltm: open the editor's Chat tab when Create with AI involved a back-and-forth.
+  const [openDiagramOnChat, setOpenDiagramOnChat] = useState(false);
+  useEffect(() => {
+    // Only the diagram Create with AI just opened gets the Chat tab; any later open starts on DSL.
+    if (!diagram) setOpenDiagramOnChat(false);
+  }, [diagram]);
   const [pickingType, setPickingType] = useState(false);
   const [importing, setImporting] = useState(false);
   const [importingTemplate, setImportingTemplate] = useState(false);
@@ -284,7 +290,14 @@ export function App() {
       />
     );
   } else if (diagram) {
-    content = <DiagramEditor diagram={diagram} ref={diagramEditorRef} onRequestClose={requestGoHome} />;
+    content = (
+      <DiagramEditor
+        diagram={diagram}
+        ref={diagramEditorRef}
+        onRequestClose={requestGoHome}
+        initialRailTab={openDiagramOnChat ? 'chat' : 'dsl'}
+      />
+    );
   } else {
     content = (
       <main className="page">
@@ -469,8 +482,9 @@ export function App() {
       {creatingViaChat && projectId && (
         <CreateViaChatDialog
           projectId={projectId}
-          onCreated={(created) => {
+          onCreated={(created, { openChat }) => {
             setCreatingViaChat(false);
+            setOpenDiagramOnChat(openChat);
             setDiagram(created);
           }}
           onCancel={() => setCreatingViaChat(false)}

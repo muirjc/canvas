@@ -83,6 +83,17 @@ tests are NON-NEGOTIABLE and must exist (and fail) before implementing any diagr
 work — see `.specify/memory/constitution.md` Principle IV.
 
 ## Recent Changes
+- `canvas-ltm`: Create with AI supports follow-up questions. Persona prompts (edited in the admin
+  UI) now ask the AI to clarify underspecified requests, but `CreateViaChatDialog` was one-shot —
+  it discarded the assistant's reply and opened an empty diagram. A reply with no applied tool
+  call now keeps the user in the dialog as a short conversation (answer, or "Just draw it"); the
+  editor opens only once a reply draws something, on the Chat tab when a conversation happened.
+  No API change: the existing chat endpoint already persists each turn and replays history. Also
+  fixed: the AI-drawn DSL was never saved (the editor took it as its saved baseline, so leaving
+  silently lost it) — the dialog now saves before opening; the dialog gains a diagram-type picker
+  filtered by the persona's category (was hardcoded to `flowchart`); cancelling before anything is
+  drawn deletes the empty diagram. `mock-nlu.ts` asks a question for a vague "create a … diagram"
+  request and draws a placeholder on "go ahead and draw", for deterministic tests.
 - `canvas-tfr` epic (Standards v2): standards are now defined as **element kinds** — named,
   semantic elements (e.g. a value chain's Primary Activity, C4 Context's External System) with
   allowed shapes, approved fill/stroke swatches, min/max counts and connector rules — carried on

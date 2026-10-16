@@ -28,6 +28,9 @@ export interface DiagramEditorProps {
    *  usable without a shell around it (there is currently none, but no prop should be load-bearing
    *  for rendering at all). */
   onRequestClose?: () => void;
+  /** canvas-ltm: which side-rail tab opens first -- 'chat' right after Create with AI when the AI
+   *  asked follow-up questions, so that exchange is in view. Defaults to the DSL tab. */
+  initialRailTab?: 'dsl' | 'chat';
 }
 
 /**
@@ -52,7 +55,7 @@ function initialModelFromDsl(diagram: DiagramDto): DiagramModel {
 }
 
 export const DiagramEditor = forwardRef<DiagramEditorHandle, DiagramEditorProps>(function DiagramEditor(
-  { diagram: initialDiagram, onRequestClose },
+  { diagram: initialDiagram, onRequestClose, initialRailTab = 'dsl' },
   ref,
 ) {
   const [diagram, setDiagram] = useState(initialDiagram);
@@ -291,7 +294,7 @@ export const DiagramEditor = forwardRef<DiagramEditorHandle, DiagramEditorProps>
         <div className="editor__rail-right">
           <RailTabs
             aria-label="Diagram panels"
-            initialTabId="dsl"
+            initialTabId={initialRailTab}
             tabs={[
               {
                 id: 'dsl',
