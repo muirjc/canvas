@@ -10,7 +10,9 @@ test.skip(!PROJECT_ID, 'E2E_PROJECT_ID env var not set — run `npm run seed` an
 /**
  * canvas-ltm: "Create with AI" follow-up questions. Written against the API's AI_PROVIDER=mock
  * rule-based NLU (apps/api/src/ai/mock-nlu.ts): a vague "Create a ... diagram" request gets a
- * question instead of tool calls; "Add a shape called X" / "go ahead and draw" draw.
+ * question instead of tool calls; "Add a shape called X" is played back. canvas-s3o: every dialog
+ * turn is a planning turn (no tools), so nothing is drawn -- and the editor does not open -- until
+ * the user clicks "Create diagram" (ai-create-build).
  */
 const VAGUE = 'Create a diagram of our order process';
 const QUESTION = 'Before I draw this, what are the main steps or elements you want included?';
@@ -37,16 +39,23 @@ async function startConversation(page: Page, name: string) {
   await expect(page.getByTestId('diagram-canvas')).toHaveCount(0);
 }
 
-test('a vague request gets a follow-up question; the answer draws, opens the Chat tab, and is auto-saved', async ({ page }) => {
+test('a vague request gets a question; the answer is played back; Create diagram draws, opens the Chat tab, and is auto-saved', async ({ page }) => {
   const name = `Clarify ${Date.now()}`;
   await startConversation(page, name);
 
   await page.getByTestId('ai-create-answer').fill('Add a shape called Order Received');
   await page.getByTestId('ai-create-answer-send').click();
+  await expect(page.getByTestId('create-chat-assistant').last()).toContainText("Here's what I'll build");
+  await expect(page.getByTestId('create-chat-assistant').last()).toContainText('Order Received');
+  // Still planning: nothing drawn, no editor yet.
+  await expect(page.getByTestId('diagram-canvas')).toHaveCount(0);
+
+  await page.getByTestId('ai-create-build').click();
 
   await expect(page.getByTestId('diagram-canvas')).toBeVisible();
   await expect(page.getByTestId('rail-tab-chat')).toHaveAttribute('aria-selected', 'true');
-  await expect(page.locator('[data-testid="chat-message-user"]')).toHaveCount(2);
+  // description, answer, and the Create diagram message
+  await expect(page.locator('[data-testid="chat-message-user"]')).toHaveCount(3);
   await expect(page.locator('[data-testid="chat-message-assistant"]').first()).toContainText(QUESTION);
   await expect(page.locator('[data-testid^="node-"]')).toHaveCount(1);
 
@@ -60,12 +69,22 @@ test('a vague request gets a follow-up question; the answer draws, opens the Cha
   await expect(page.getByTestId('dsl-panel')).toContainText('Order Received');
 });
 
-test('"Just draw it" draws a placeholder and opens the editor', async ({ page }) => {
-  await startConversation(page, `JustDraw ${Date.now()}`);
-  await page.getByTestId('ai-create-draw-now').click();
+test('a concrete description is played back in the dialog; the editor opens only after Create diagram', async ({ page }) => {
+  await openDialog(page, `Concrete ${Date.now()}`);
+  await page.getByTestId('ai-create-persona').selectOption({ label: 'Business Architect' });
+  await page.getByTestId('ai-create-type').selectOption('flowchart');
+  await page.getByTestId('ai-create-description').fill('Add a shape called Order Received');
+  await page.getByTestId('ai-create-confirm').click();
+
+  await expect(page.getByTestId('create-chat-assistant')).toContainText("Here's what I'll build");
+  await expect(page.getByTestId('diagram-canvas')).toHaveCount(0);
+
+  await page.getByTestId('ai-create-build').click();
   await expect(page.getByTestId('diagram-canvas')).toBeVisible();
+  await expect(page.getByTestId('rail-tab-chat')).toHaveAttribute('aria-selected', 'true');
+  await expect(page.locator('[data-testid^="node-"]')).toHaveCount(1);
   await page.getByTestId('rail-tab-dsl').click();
-  await expect(page.getByTestId('dsl-panel')).toContainText('Draft step');
+  await expect(page.getByTestId('dsl-panel')).toContainText('Order Received');
 });
 
 test('cancelling mid-conversation removes the empty diagram', async ({ page }) => {
@@ -81,15 +100,18 @@ test('cancelling mid-conversation removes the empty diagram', async ({ page }) =
   await expect(page.getByText(name)).toHaveCount(0);
 });
 
-test('the type picker creates a Value Chain diagram directly, with the standard\'s element kind', async ({ page }) => {
+test('the type picker creates a Value Chain diagram (after Create diagram), with the standard\'s element kind', async ({ page }) => {
   await openDialog(page, `VC ${Date.now()}`);
   await page.getByTestId('ai-create-persona').selectOption({ label: 'Business Architect' });
   await page.getByTestId('ai-create-type').selectOption('value-chain');
   await page.getByTestId('ai-create-description').fill('add a primary_activity called Operations');
   await page.getByTestId('ai-create-confirm').click();
+  await expect(page.getByTestId('create-chat-assistant')).toBeVisible();
+  await expect(page.getByTestId('diagram-canvas')).toHaveCount(0);
+  await page.getByTestId('ai-create-build').click();
 
   await expect(page.getByTestId('diagram-canvas')).toBeVisible();
-  // Opens on Chat (the AI's reply is there), even without a conversation.
+  // Opens on Chat (the AI's reply is there).
   await expect(page.getByTestId('rail-tab-chat')).toHaveAttribute('aria-selected', 'true');
   await page.getByTestId('rail-tab-dsl').click();
   await expect(page.getByTestId('dsl-panel')).toContainText(':::primary_activity');

@@ -24,9 +24,9 @@ interface TranscriptMessage {
   content: string;
 }
 
-/** canvas-ltm: sent by "Just draw it" so a user is never stuck answering questions. */
-export const DRAW_NOW_MESSAGE =
-  'Please go ahead and draw the diagram now, using your best assumptions for anything still unclear.';
+/** canvas-s3o: sent by "Create diagram" -- the one turn in the dialog that may draw. */
+export const CREATE_NOW_MESSAGE =
+  'Please create the diagram now, as discussed, using your best assumptions for anything still unclear.';
 
 /** A reply "drew" when at least one tool call actually changed the diagram; anything else (a
  *  text-only reply) means the AI is asking or waiting, so the conversation stays in the dialog. */
@@ -110,8 +110,12 @@ export function CreateViaChatDialog({ projectId, onCreated, onCancel }: CreateVi
     onCreated(saved, { openChat: hadConversation });
   };
 
-  /** Sends one message in the conversation, creating the diagram first if this is the opening one. */
-  const send = async (message: string) => {
+  /**
+   * Sends one message in the conversation, creating the diagram first if this is the opening one.
+   * canvas-s3o: every turn is a `plan` turn (the AI can ask and play back, but has no drawing tools)
+   * except the Create diagram turn (`build`), so the back-and-forth always happens here first.
+   */
+  const send = async (message: string, mode: 'plan' | 'build' = 'plan') => {
     setError(null);
     setBusy(true);
     setPendingMessage(message);
@@ -131,6 +135,7 @@ export function CreateViaChatDialog({ projectId, onCreated, onCancel }: CreateVi
         currentDslContent: currentDsl,
         // Fixed by the server at the chat's first message; harmless on later ones.
         personaId,
+        mode,
       });
       setDslContent(result.updatedDslContent);
       setPendingMessage(null);
@@ -165,7 +170,7 @@ export function CreateViaChatDialog({ projectId, onCreated, onCancel }: CreateVi
       }
       return;
     }
-    if (pendingMessage) await send(pendingMessage);
+    if (pendingMessage) await send(pendingMessage, pendingMessage === CREATE_NOW_MESSAGE ? 'build' : 'plan');
   };
 
   const cancel = async () => {
@@ -205,20 +210,20 @@ export function CreateViaChatDialog({ projectId, onCreated, onCancel }: CreateVi
               <button
                 type="button"
                 className="btn btn--secondary"
-                data-testid="ai-create-draw-now"
-                disabled={busy}
-                onClick={() => void send(DRAW_NOW_MESSAGE)}
-              >
-                Just draw it
-              </button>
-              <button
-                type="button"
-                className="btn btn--primary"
                 data-testid="ai-create-answer-send"
                 disabled={!answer.trim() || busy}
                 onClick={() => void send(answer.trim())}
               >
                 {busy ? 'Thinking…' : 'Send answer'}
+              </button>
+              <button
+                type="button"
+                className="btn btn--primary"
+                data-testid="ai-create-build"
+                disabled={busy}
+                onClick={() => void send(CREATE_NOW_MESSAGE, 'build')}
+              >
+                Create diagram
               </button>
             </>
           ) : (
@@ -301,8 +306,8 @@ export function CreateViaChatDialog({ projectId, onCreated, onCancel }: CreateVi
       ) : (
         <>
           <p className="meta">
-            The AI has a few questions before it draws {name ? `“${name}”` : 'your diagram'}. Answer them, or choose
-            “Just draw it” to let it use its best assumptions.
+            Talk {name ? `“${name}”` : 'the diagram'} through with the AI. When it has what it needs, click{' '}
+            <strong>Create diagram</strong>.
           </p>
           <ul className="chat-messages create-chat__transcript" data-testid="ai-create-transcript" aria-live="polite">
             {transcript.map((m, i) => (

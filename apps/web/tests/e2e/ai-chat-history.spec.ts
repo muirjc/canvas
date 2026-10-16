@@ -27,16 +27,21 @@ test('resumes a diagram\'s prior chat conversation on reopen', async ({ page }) 
   await page.getByTestId('ai-create-persona').selectOption({ label: 'Business Architect' });
   await page.getByTestId('ai-create-description').fill('Add a shape called Kickoff');
   await page.getByTestId('ai-create-confirm').click();
+  // canvas-s3o: the dialog only plans; the editor opens once Create diagram is clicked.
+  await expect(page.getByTestId('create-chat-assistant')).toBeVisible();
+  await expect(page.getByTestId('diagram-canvas')).toHaveCount(0);
+  await page.getByTestId('ai-create-build').click();
   await expect(page.getByTestId('diagram-canvas')).toBeVisible();
   // The rail shows one panel at a time (feature 005) — select Chat. Navigation only.
   await page.getByTestId('rail-tab-chat').click();
-  await expect(page.locator('[data-testid="chat-message-user"]')).toHaveCount(1);
-
-  // A follow-up chat message adds a second exchange.
-  await page.getByTestId('chat-input').fill('Add a shape called Wrapup');
-  await page.getByTestId('chat-send').click();
   await expect(page.locator('[data-testid="chat-message-user"]')).toHaveCount(2);
   await expect(page.locator('[data-testid="chat-message-assistant"]')).toHaveCount(2);
+
+  // A follow-up chat message adds a further exchange (create + build were the first two).
+  await page.getByTestId('chat-input').fill('Add a shape called Wrapup');
+  await page.getByTestId('chat-send').click();
+  await expect(page.locator('[data-testid="chat-message-user"]')).toHaveCount(3);
+  await expect(page.locator('[data-testid="chat-message-assistant"]')).toHaveCount(3);
 
   const userMessagesBeforeReload = await page.locator('[data-testid="chat-message-user"]').allTextContents();
 
@@ -50,8 +55,8 @@ test('resumes a diagram\'s prior chat conversation on reopen', async ({ page }) 
 
   // The rail shows one panel at a time (feature 005) — select Chat. Navigation only.
   await page.getByTestId('rail-tab-chat').click();
-  await expect(page.locator('[data-testid="chat-message-user"]')).toHaveCount(2);
-  await expect(page.locator('[data-testid="chat-message-assistant"]')).toHaveCount(2);
+  await expect(page.locator('[data-testid="chat-message-user"]')).toHaveCount(3);
+  await expect(page.locator('[data-testid="chat-message-assistant"]')).toHaveCount(3);
   expect(await page.locator('[data-testid="chat-message-user"]').allTextContents()).toEqual(userMessagesBeforeReload);
 
   // A diagram that's never been chatted with (hand-created here) starts with an empty panel.
