@@ -136,6 +136,59 @@ describe('Import API contract', () => {
     expect(response.json().diagram.diagramTypeId).toBe('c4-context');
   });
 
+  // canvas-cc3: without a hint, the type named by the DSL header wins over "first type in the
+  // family by id" -- these extra types all sort before the right answer alphabetically.
+  describe('resolves the diagram type from the DSL header when no hint is given', () => {
+    beforeEach(async () => {
+      await getDb()
+        .insertInto('diagram_types')
+        .values([
+          { id: 'c4-code', name: 'C4 Code', abstraction_level: 'Code', dsl_family: 'c4' },
+          { id: 'c4-container', name: 'C4 Container', abstraction_level: 'Container', dsl_family: 'c4' },
+          { id: 'business-capability-map', name: 'Business Capability Map', abstraction_level: 'N/A', dsl_family: 'flowchart' },
+        ])
+        .execute();
+    });
+
+    const importDsl = (dslContent: string, diagramTypeHint?: string) =>
+      app.inject({
+        method: 'POST',
+        url: `/projects/${projectId}/diagrams/import`,
+        headers: { cookie: sessionCookie },
+        payload: { name: 'Imported', dslContent, ...(diagramTypeHint ? { diagramTypeHint } : {}) },
+      });
+
+    it('C4Context -> c4-context (not the alphabetically first c4-code)', async () => {
+      const response = await importDsl('C4Context\n  Person(user, "User")\n');
+      expect(response.statusCode).toBe(201);
+      expect(response.json().diagram.diagramTypeId).toBe('c4-context');
+    });
+
+    it('C4Container -> c4-container', async () => {
+      const response = await importDsl('C4Container\n  Container(api, "API")\n');
+      expect(response.statusCode).toBe(201);
+      expect(response.json().diagram.diagramTypeId).toBe('c4-container');
+    });
+
+    it('a plain flowchart -> the generic flowchart type (not business-capability-map)', async () => {
+      const response = await importDsl('flowchart TD\n  A --> B\n');
+      expect(response.statusCode).toBe(201);
+      expect(response.json().diagram.diagramTypeId).toBe('flowchart');
+    });
+
+    it("a header whose type isn't registered falls back to the family's generic type", async () => {
+      const response = await importDsl('C4Deployment\n  Deployment_Node(live, "Live") {\n  }\n');
+      expect(response.statusCode).toBe(201);
+      expect(response.json().diagram.diagramTypeId).toBe('c4-context');
+    });
+
+    it('an explicit hint still wins over the header', async () => {
+      const response = await importDsl('C4Context\n  Person(user, "User")\n', 'c4-container');
+      expect(response.statusCode).toBe(201);
+      expect(response.json().diagram.diagramTypeId).toBe('c4-container');
+    });
+  });
+
   it('rejects a hint whose DSL family does not match the content', async () => {
     const response = await app.inject({
       method: 'POST',
