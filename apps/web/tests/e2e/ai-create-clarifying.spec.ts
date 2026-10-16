@@ -89,6 +89,8 @@ test('the type picker creates a Value Chain diagram directly, with the standard\
   await page.getByTestId('ai-create-confirm').click();
 
   await expect(page.getByTestId('diagram-canvas')).toBeVisible();
-  await expect(page.getByTestId('rail-tab-dsl')).toHaveAttribute('aria-selected', 'true');
+  // Opens on Chat (the AI's reply is there), even without a conversation.
+  await expect(page.getByTestId('rail-tab-chat')).toHaveAttribute('aria-selected', 'true');
+  await page.getByTestId('rail-tab-dsl').click();
   await expect(page.getByTestId('dsl-panel')).toContainText(':::primary_activity');
 });

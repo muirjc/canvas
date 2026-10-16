@@ -580,10 +580,12 @@ describe('Persona reference material composed into the chat system prompt (010-a
     const system = capturedSystem as string;
 
     const primerSummary = getDiagramTypePrimer('erd')!.summary;
+    // canvas-7wx: appended sections now carry their own `##` headings; no reference material
+    // means no Reference material section at all.
     const expectedSystem = [
       personaSystemPrompt,
-      primerSummary,
-      'Current shapes:\n(none yet)\n\nCurrent connectors:\n(none yet)',
+      `## Diagram type\n\n${primerSummary}`,
+      '## Current diagram\n\nCurrent shapes:\n(none yet)\n\nCurrent connectors:\n(none yet)',
     ].join('\n\n');
     expect(system).toEqual(expectedSystem);
   });

@@ -72,6 +72,25 @@ describe('sendChatMessage with a published standard', () => {
     expect(result.assistantMessage).toContain('#dbeafe');
   });
 
+  it('puts each appended section under its own heading, after the persona prompt (canvas-7wx)', async () => {
+    const result = await sendChatMessage({
+      diagramId,
+      message: INTROSPECT,
+      currentDslContent: 'flowchart TD\n',
+      dslFamily: 'flowchart',
+      diagramTypeId: TYPE_ID,
+      model: createMockLanguageModel(),
+    });
+    const prompt = result.assistantMessage;
+    const order = ['## Diagram type', '## Diagram standard', '## Current diagram'].map((h) => prompt.indexOf(`\n${h}\n`));
+    expect(order.every((i) => i > 0)).toBe(true);
+    expect([...order].sort((a, b) => a - b)).toEqual(order);
+    // The persona's own prompt (here the default) stays first and unheaded.
+    expect(prompt.startsWith('## ')).toBe(false);
+    // No persona in this chat, so no reference-material section.
+    expect(prompt).not.toContain('## Reference material');
+  });
+
   it('has no standard section without diagramTypeId', async () => {
     const result = await sendChatMessage({
       diagramId,
