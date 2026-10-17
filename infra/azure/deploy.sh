@@ -182,15 +182,35 @@ if [[ -n "$EXISTING_STORAGE" ]]; then
   WEB_ORIGIN="${WEB_ORIGIN%/}"  # az returns a trailing slash; WEB_ORIGINS/CORS origin must not have one
 fi
 
+# canvas-28j: Container Apps caches a Key Vault secret reference's VALUE at the app/job level
+# (refreshed only every ~30 min) and a new revision does NOT refetch it -- found live 2026-10-08:
+# a real Anthropic key written to KV at 21:08 was still the old placeholder in the 21:14 revision
+# ('invalid x-api-key'). So every secret whose value this run actually changes is recorded here and
+# force-refreshed after the deployment (refresh_kv_secret_refs, below). The list lives in .secrets/
+# rather than a shell variable so a run that dies between writing KV and refreshing the apps still
+# gets refreshed on the next run, even though KV will already hold the new value by then.
+PENDING_REFRESH_FILE="$SECRETS_DIR/pending-secret-refresh"
+
+# Writes a KV secret only if its value differs (no needless new secret versions), recording the
+# name for refresh when it does.
+kv_set_tracked() {
+  local name="$1" value="$2" current
+  current="$(az keyvault secret show --vault-name "$EXISTING_KEY_VAULT" --name "$name" \
+    --query value -o tsv 2>/dev/null || true)"
+  if [[ "$current" == "$value" ]]; then
+    return 0
+  fi
+  az keyvault secret set --vault-name "$EXISTING_KEY_VAULT" --name "$name" --value "$value" --output none
+  echo "$name" >> "$PENDING_REFRESH_FILE"
+  chmod 600 "$PENDING_REFRESH_FILE"
+  echo "  $name changed."
+}
+
 if [[ -n "$EXISTING_KEY_VAULT" ]]; then
   echo "== Pre-seeding secrets into existing Key Vault ($EXISTING_KEY_VAULT) =="
-  az keyvault secret set --vault-name "$EXISTING_KEY_VAULT" --name "postgres-admin-password" \
-    --value "$PG_ADMIN_PASSWORD" --output none
-  az keyvault secret set --vault-name "$EXISTING_KEY_VAULT" --name "session-secret" \
-    --value "$SESSION_SECRET" --output none
-  az keyvault secret set --vault-name "$EXISTING_KEY_VAULT" --name "oidc-client-secret" \
-    --value "$OIDC_CLIENT_SECRET" --output none
-  echo "  postgres-admin-password, session-secret, oidc-client-secret set."
+  kv_set_tracked "postgres-admin-password" "$PG_ADMIN_PASSWORD"
+  kv_set_tracked "session-secret" "$SESSION_SECRET"
+  kv_set_tracked "oidc-client-secret" "$OIDC_CLIENT_SECRET"
 
   # The connection string needs the server's real FQDN/DB name; both are fixed/known after this
   # script's first-ever successful run, so a live lookup is safe even before this run's own
@@ -199,18 +219,14 @@ if [[ -n "$EXISTING_KEY_VAULT" ]]; then
     --name canvas-postgres --query "fullyQualifiedDomainName" -o tsv 2>/dev/null || true)"
   if [[ -n "$POSTGRES_FQDN" ]]; then
     DATABASE_URL="postgres://canvas_admin:${PG_ADMIN_PASSWORD}@${POSTGRES_FQDN}:5432/canvas?sslmode=require"
-    az keyvault secret set --vault-name "$EXISTING_KEY_VAULT" --name "database-url" \
-      --value "$DATABASE_URL" --output none
-    echo "  database-url set."
+    kv_set_tracked "database-url" "$DATABASE_URL"
   fi
 
   # A provider without a real key is rejected up front (canvas-brq, above), so "unset" only ever
   # lands here for a provider that isn't in use.
-  az keyvault secret set --vault-name "$EXISTING_KEY_VAULT" --name "anthropic-api-key" \
-    --value "${ANTHROPIC_KEY:-unset}" --output none
-  az keyvault secret set --vault-name "$EXISTING_KEY_VAULT" --name "openai-api-key" \
-    --value "${OPENAI_KEY:-unset}" --output none
-  echo "  anthropic-api-key, openai-api-key set (AI_PROVIDER=$AI_PROVIDER)."
+  kv_set_tracked "anthropic-api-key" "${ANTHROPIC_KEY:-unset}"
+  kv_set_tracked "openai-api-key" "${OPENAI_KEY:-unset}"
+  echo "  Secrets up to date (AI_PROVIDER=$AI_PROVIDER)."
 else
   echo "== No existing Key Vault found -- skipping secret pre-seed (first-ever run) =="
 fi
@@ -288,6 +304,49 @@ if [[ "$REAL_WEB_ORIGIN" != "$WEB_ORIGIN" ]]; then
     --set-env-vars "WEB_ORIGINS=${REAL_WEB_ORIGIN}" --output none
 fi
 
+SEED_JOB="$(az deployment sub show --name "canvas-foundation" --query "properties.outputs.seedJobName.value" -o tsv)"
+CATALOG_SEED_JOB="$(az deployment sub show --name "canvas-foundation" --query "properties.outputs.catalogSeedJobName.value" -o tsv)"
+
+# canvas-28j: force canvas-api and the jobs to refetch any KV secret this (or an earlier,
+# interrupted) run changed -- see PENDING_REFRESH_FILE above. Re-setting a secret with its same
+# keyvaultref makes Container Apps re-read it from Key Vault; canvas-api's running replicas then
+# need a revision restart to see it (a secret change creates no new revision), while a job's next
+# execution simply starts with the new value. Each app's own secret list is read live so this
+# never touches a secret an app doesn't reference. Runs after the WEB_ORIGINS patch (which creates
+# a new revision -- one that would otherwise still carry the cached values) and before the
+# migration job (which needs a rotated database-url).
+refresh_kv_secret_refs() {
+  [[ -s "$PENDING_REFRESH_FILE" ]] || return 0
+  local changed identity_id kv_uri target kind name args revision secret
+  changed="$(sort -u "$PENDING_REFRESH_FILE")"
+  echo "== Refreshing rotated Key Vault secret references: ${changed//$'\n'/ } =="
+  identity_id="$(az identity show --resource-group "$RESOURCE_GROUP" --name canvas-identity --query id -o tsv)"
+  kv_uri="$(az keyvault show --name "$KEY_VAULT_NAME" --query properties.vaultUri -o tsv)"
+  for target in "app:canvas-api" "job:$MIGRATION_JOB" "job:$SEED_JOB" "job:$CATALOG_SEED_JOB"; do
+    kind="${target%%:*}"; name="${target#*:}"
+    local -a cmd=(az containerapp)
+    [[ "$kind" == job ]] && cmd+=(job)
+    args=()
+    while read -r secret; do
+      grep -qxF "$secret" <<<"$changed" && args+=("${secret}=keyvaultref:${kv_uri}secrets/${secret},identityref:${identity_id}")
+    done < <("${cmd[@]}" show --name "$name" --resource-group "$RESOURCE_GROUP" \
+      --query "properties.configuration.secrets[].name" -o tsv)
+    [[ ${#args[@]} -gt 0 ]] || continue
+    "${cmd[@]}" secret set --name "$name" --resource-group "$RESOURCE_GROUP" --secrets "${args[@]}" --output none
+    echo "  $name: refreshed ${#args[@]} secret(s)."
+    if [[ "$kind" == app ]]; then
+      for revision in $(az containerapp revision list --name "$name" --resource-group "$RESOURCE_GROUP" \
+        --query "[?properties.active].name" -o tsv); do
+        az containerapp revision restart --name "$name" --resource-group "$RESOURCE_GROUP" \
+          --revision "$revision" --output none
+        echo "  $name: restarted revision $revision."
+      done
+    fi
+  done
+  rm -f "$PENDING_REFRESH_FILE"
+}
+refresh_kv_secret_refs
+
 echo "== Building and deploying the frontend to $STORAGE_ACCOUNT =="
 ( cd "$REPO_ROOT" && npm ci && npm run build --workspace=@canvas/diagram-core && \
   VITE_API_BASE_URL="https://${API_FQDN}" npm run build --workspace=@canvas/web )
@@ -303,9 +362,6 @@ az storage blob upload \
   --account-name "$STORAGE_ACCOUNT" --container-name '$web' --name index.html \
   --file "$REPO_ROOT/apps/web/dist/index.html" --content-type "text/html" \
   --content-cache-control "no-cache" --auth-mode login --overwrite --output none
-
-SEED_JOB="$(az deployment sub show --name "canvas-foundation" --query "properties.outputs.seedJobName.value" -o tsv)"
-CATALOG_SEED_JOB="$(az deployment sub show --name "canvas-foundation" --query "properties.outputs.catalogSeedJobName.value" -o tsv)"
 
 # Polls a Container Apps Job execution until it reaches a terminal state, failing the whole
 # deploy (set -e) if the job itself fails -- a clean build with a failed migration or an empty

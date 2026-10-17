@@ -217,6 +217,15 @@ environment (see `infra/azure/modules/apiapp.bicep`'s own `allowLocalAuth` param
 defaults `false` there specifically because Entra SSO is the intended only way in for that
 deployment, kept as a param purely as an emergency break-glass switch).
 
+**Rotating a secret on the Azure deployment** (the Entra client secret when it expires, an AI key,
+the Postgres password): put the new value in place (`ENTRA_CLIENT_SECRET=…` / `CANVAS_*_API_KEY=…`,
+or edit the file under `infra/azure/.secrets/`) and re-run `infra/azure/deploy.sh`. Don't only
+`az keyvault secret set` it by hand: Container Apps caches a Key Vault reference's value for about
+30 minutes, and a new revision does not refetch it. `deploy.sh` writes only the values that
+changed, then points the affected `canvas-api`/job secrets at Key Vault again and restarts
+`canvas-api`'s active revision (canvas-28j). A run that fails partway leaves the list of pending
+secrets in `.secrets/pending-secret-refresh`, and the next run picks it up.
+
 ### Manual post-deploy live verification (Entra, Phase 7 of canvas-haz)
 
 Nothing above is a substitute for actually trying this against the real deployed Azure
