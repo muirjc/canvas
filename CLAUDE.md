@@ -127,8 +127,7 @@ work — see `.specify/memory/constitution.md` Principle IV.
   `sqlite/0002_standards_v2.sql` (a new file — existing SQLite DBs never re-run `0001`). Follow-up
   `canvas-jki`: flip classDef/front-matter style precedence so `classDef` lines can be emitted for
   portable Mermaid export.
-- `canvas-haz` epic (8 phases; 1-6 complete, 7-8 deferred to live Azure/Entra access this coding
-  session doesn't have): migrated SSO from a self-hosted Keycloak Container App to Microsoft Entra
+- `canvas-haz` epic (8 phases, now complete — live cutover verified 2026-10-17): migrated SSO from a self-hosted Keycloak Container App to Microsoft Entra
   ID — a real org identity platform, not a self-maintained one (realm-import maintenance, a
   fragile admin-API reconciliation script, an extra always-on Azure resource with its own
   database). Full cutover, no dual-IdP period (no live users to migrate mid-flight — this
@@ -182,9 +181,15 @@ work — see `.specify/memory/constitution.md` Principle IV.
   (explicit decisions made with the user, not oversights): `ALLOW_LOCAL_AUTH` fallback untouched;
   identity matching stays email-only (no new `oid`/`tid` column — same risk profile this app
   already accepted under Keycloak); a federated-credential (managed identity, no client secret at
-  all) is real future hardening, filed as a follow-up, not part of this cutover. **Phases 7-8**
-  (cutover deploy + manual live verification against a real tenant) remain open, blocked on live
-  Azure/Entra access this coding session doesn't have.
+  all) is real future hardening, filed as a follow-up (`canvas-haz.9`, moved out of the epic), not
+  part of this cutover. **Phase 0 + Phase 7** (2026-10-08 → 10-17): rebuilt the Azure environment
+  from scratch in centralus and ran the full manual checklist against the real tenant — every item
+  passed (sign-in and role mapping for admin/architect/viewer, a dual-role user getting the higher
+  role, an unassigned user getting `AADSTS50105` then the app's friendly 403, an Entra role change
+  re-syncing on next login, a deactivated user rejected, sign-out round-tripping through Entra).
+  Found along the way: the `canvas-azure` service principal had Assignment required turned off
+  (any tenant user could sign in as `viewer`), now on; and rotated Key Vault secrets weren't
+  reaching the running app (`canvas-28j`, fixed in `deploy.sh`).
 - `canvas-jtm` epic (10 phases, now complete): `apps/api`'s database layer was hard-wired to
   PostgreSQL with zero abstraction — a single `pg.Pool` singleton, hand-written raw SQL across
   ~125 call sites, several Postgres-only constructs (`ILIKE`, `to_char`, `ON CONFLICT`,
