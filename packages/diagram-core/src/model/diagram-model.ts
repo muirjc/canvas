@@ -101,6 +101,10 @@ export interface DiagramNode {
   position: Position;
   size?: Size;
   style?: NodeStyle;
+  /** canvas-7hp: C4 only -- the element's Mermaid `$tags` list, in order. A tag naming one of the
+   *  active standard's element kinds picks that kind (classifyNode), which is how several kinds can
+   *  share one C4 role (e.g. six kinds of System). Other tags are preserved untouched. */
+  tags?: string[];
   icon?: IconRef;
   /** Id of the DiagramContainer this node is nested inside, if any. */
   containerId?: ElementId;

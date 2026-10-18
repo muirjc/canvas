@@ -57,9 +57,14 @@ const ELEMENT_KINDS = [
 // trailing args, this accepts any number of them generically and discards all but the label,
 // extending this file's own pre-existing "capture optionally, don't model" precedent (already
 // used for Person's single optional description) to the whole element-macro family at once.
+// canvas-7hp: trailing args may also be Mermaid's named form ($tags="...", $link="...",
+// $sprite="..."), in any order -- a line using one used to hard-error. $tags is modeled
+// (DiagramNode.tags, the per-element kind carrier); the other named args are accepted and dropped
+// like the positional extras.
 const ELEMENT_PATTERN = new RegExp(
-  `^(${ELEMENT_KINDS.join('|')})\\(\\s*(${ID})\\s*,\\s*"([^"]*)"(?:\\s*,\\s*"[^"]*")*\\s*\\)$`,
+  `^(${ELEMENT_KINDS.join('|')})\\(\\s*(${ID})\\s*,\\s*"([^"]*)"((?:\\s*,\\s*(?:"[^"]*"|\\$[A-Za-z]+\\s*=\\s*"[^"]*"))*)\\s*\\)$`,
 );
+const TAGS_ARG = /\$tags\s*=\s*"([^"]*)"/;
 // Rel(from, to, "label", ?"technology") and its BiRel/Rel_Back/directional variants
 // (jmuir-dtu.3) — the Up/Down/Left/Right long forms and their U/D/L/R short forms are both real
 // Mermaid syntax. The optional 4th "technology" arg (e.g. "SMTP", "JDBC") is captured but not
@@ -348,7 +353,11 @@ export function parseC4(dsl: string): ParseResult {
 
     const elementMatch = line.match(ELEMENT_PATTERN);
     if (elementMatch) {
-      const [, kind, id, label] = elementMatch;
+      const [, kind, id, label, trailingArgs] = elementMatch;
+      const tags = (trailingArgs.match(TAGS_ARG)?.[1] ?? '')
+        .split(',')
+        .map((tag) => tag.trim())
+        .filter(Boolean);
       nodesById.set(id, {
         id,
         label,
@@ -360,6 +369,7 @@ export function parseC4(dsl: string): ParseResult {
         position: positions[id] ?? (isFreshImport ? PLACEHOLDER_POSITION : nextAutoPosition()),
         style: styles[id],
         containerId: containerStack[containerStack.length - 1],
+        ...(tags.length > 0 ? { tags } : {}),
       });
       continue;
     }
@@ -486,6 +496,12 @@ export function parseC4(dsl: string): ParseResult {
   return { model };
 }
 
+/** One element macro line, e.g. `System(a, "A", $tags="new_system")`. */
+function elementLine(node: DiagramNode): string {
+  const tags = node.tags && node.tags.length > 0 ? `, $tags="${node.tags.join(',')}"` : '';
+  return `${elementKindFor(node)}(${node.id}, "${node.label}"${tags})`;
+}
+
 function elementKindFor(node: DiagramNode): string {
   const base = baseElementKindFor(node);
   return node.external ? `${base}_Ext` : base;
@@ -551,7 +567,7 @@ export function serializeC4(model: import('../model/diagram-model.js').DiagramMo
     const out: string[] = [`${boundaryKeywordFor(container)}(${container.id}, "${container.label}") {`];
     for (const node of model.nodes) {
       if (node.containerId === container.id) {
-        out.push(`  ${elementKindFor(node)}(${node.id}, "${node.label}")`);
+        out.push(`  ${elementLine(node)}`);
         emitted.add(node.id);
       }
     }
@@ -566,7 +582,7 @@ export function serializeC4(model: import('../model/diagram-model.js').DiagramMo
     lines.push(...emitContainer(container));
   }
   for (const node of model.nodes) {
-    if (!emitted.has(node.id)) lines.push(`${elementKindFor(node)}(${node.id}, "${node.label}")`);
+    if (!emitted.has(node.id)) lines.push(elementLine(node));
   }
   for (const edge of model.edges) {
     // Rel_Back/Rel_U/D/L/R aren't distinguishable after parse (Rel_Back is folded into a plain

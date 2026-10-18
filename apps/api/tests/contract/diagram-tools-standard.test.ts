@@ -166,6 +166,41 @@ describe('createDiagramTools with a standard -- c4 (C4 Context)', () => {
   });
 });
 
+describe('createDiagramTools with a standard -- c4 kinds sharing a role (canvas-7hp)', () => {
+  const systemKind = (id: string, fill: string) => ({
+    id,
+    label: id,
+    shapes: [],
+    approvedFills: [fill],
+    match: { role: 'system', external: false },
+  });
+  const rules = {
+    allowedShapeIds: [],
+    mandatoryShapeIds: [],
+    allowedIconLibraryRefs: [],
+    colorPalette: [],
+    elementKinds: [systemKind('re_used', '#9ca3af'), systemKind('new_system', '#22c55e'), systemKind('retired_system', '#ef4444')],
+  };
+
+  it('addElement tags the new System with its kind and gives it that kind\'s fill', async () => {
+    const { run, getModel } = setup('c4', rules);
+    const result = await run('addElement', { kind: 'new_system', label: 'Claims' });
+    const node = getModel().nodes.find((n) => n.id === result.nodeId)!;
+    expect(node.role).toBe('system');
+    expect(node.tags).toEqual(['new_system']);
+    expect(node.style?.fillColor).toBe('#22c55e');
+  });
+
+  it('setElementKind moves the tag to the new kind', async () => {
+    const { run, getModel } = setup('c4', rules);
+    const { nodeId } = await run('addElement', { kind: 'new_system' });
+    expect((await run('setElementKind', { nodeId, kind: 'retired_system' })).applied).toBe(true);
+    const node = getModel().nodes.find((n) => n.id === nodeId)!;
+    expect(node.tags).toEqual(['retired_system']);
+    expect(node.style?.fillColor).toBe('#ef4444');
+  });
+});
+
 describe('createDiagramTools with a standard -- architecture (jmuir-dtu.28)', () => {
   const rules = {
     allowedShapeIds: [],
