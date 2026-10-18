@@ -14,6 +14,9 @@ export interface CanvasFrontMatter {
     /** Per-edge style overrides (`linkStyle`) — keyed by edge id, same shape as node `styles`. */
     edgeStyles?: Record<string, NodeStyle>;
     icons?: Record<string, { libraryId: string; libraryVersion: string; iconId: string }>;
+    /** jmuir-dtu.28: element kind per node id, for families whose Mermaid grammar can't carry one
+     *  (architecture-beta). */
+    kinds?: Record<string, string>;
   };
 }
 

@@ -35,5 +35,19 @@ export const FAMILY_NODE_SHAPES: Record<string, readonly [NodeShape, ...NodeShap
 };
 
 /** canvas-tfr: families whose DSL can carry an element kind (flowchart via `:::kind`, C4 via its
- *  own role + `_Ext`). Other families support only the v1 standard rules. */
-export const FAMILY_SUPPORTS_ELEMENT_KINDS: ReadonlySet<string> = new Set(['flowchart', 'c4']);
+ *  own role + `_Ext`, architecture via front-matter `canvas.kinds` -- jmuir-dtu.28, since
+ *  architecture-beta has no class/tag syntax). Other families support only the v1 standard rules. */
+export const FAMILY_SUPPORTS_ELEMENT_KINDS: ReadonlySet<string> = new Set(['flowchart', 'c4', 'architecture']);
+
+/** jmuir-dtu.28: the shapes an element kind may use, where that differs from FAMILY_NODE_SHAPES.
+ *  Architecture kinds classify services only -- a junction (the 'circle') is its own role and is
+ *  never kinded. */
+export const FAMILY_KIND_SHAPES: Record<string, readonly NodeShape[]> = {
+  ...FAMILY_NODE_SHAPES,
+  architecture: ['icon'],
+};
+
+/** jmuir-dtu.28: kind ids that would collide with a role the family's own DSL already uses. */
+export const FAMILY_RESERVED_KIND_IDS: Record<string, readonly string[]> = {
+  architecture: ['junction'],
+};

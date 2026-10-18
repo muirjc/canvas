@@ -1,4 +1,4 @@
-import { FAMILY_NODE_SHAPES, FAMILY_SUPPORTS_ELEMENT_KINDS } from '../model/family-capabilities.js';
+import { FAMILY_KIND_SHAPES, FAMILY_RESERVED_KIND_IDS, FAMILY_SUPPORTS_ELEMENT_KINDS } from '../model/family-capabilities.js';
 import { C4_ELEMENT_ROLES } from '../dsl/c4.js';
 import { KIND_ID_PATTERN, RESERVED_KIND_IDS, type StandardRules } from './schema.js';
 
@@ -15,7 +15,7 @@ const HEX = /^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/;
  * apply to, before it can be saved. Returns [] when valid. Rejects:
  *  - kind ids not matching KIND_ID_PATTERN, reserved ids (RESERVED_KIND_IDS), duplicate kind ids
  *  - element kinds on a family that doesn't support them (FAMILY_SUPPORTS_ELEMENT_KINDS)
- *  - kind shapes outside FAMILY_NODE_SHAPES[family]
+ *  - kind shapes outside FAMILY_KIND_SHAPES[family]; family-reserved ids (FAMILY_RESERVED_KIND_IDS)
  *  - fills/strokes that aren't #rgb or #rrggbb hex
  *  - minCount > maxCount, negative counts
  *  - `match` on a non-C4 family; a C4 `match.role` not in C4_ELEMENT_ROLES
@@ -30,13 +30,14 @@ export function checkStandardDefinition(rules: StandardRules, family: string): D
     issues.push({ path: 'elementKinds', message: `Element kinds aren't supported for the "${family}" diagram family.` });
   }
 
-  const familyShapes: readonly string[] = FAMILY_NODE_SHAPES[family] ?? FAMILY_NODE_SHAPES.flowchart;
+  const familyShapes: readonly string[] = FAMILY_KIND_SHAPES[family] ?? FAMILY_KIND_SHAPES.flowchart;
+  const familyReserved = FAMILY_RESERVED_KIND_IDS[family] ?? [];
   const seenKindIds = new Set<string>();
   kinds.forEach((kind, i) => {
     const at = `elementKinds[${i}]`;
     if (!KIND_ID_PATTERN.test(kind.id)) {
       issues.push({ path: `${at}.id`, message: `Kind id "${kind.id}" must start with a lowercase letter and use only lowercase letters, digits and underscores.` });
-    } else if ((RESERVED_KIND_IDS as readonly string[]).includes(kind.id.toLowerCase())) {
+    } else if ([...RESERVED_KIND_IDS, ...familyReserved].includes(kind.id.toLowerCase())) {
       issues.push({ path: `${at}.id`, message: `Kind id "${kind.id}" is a reserved word.` });
     }
     if (seenKindIds.has(kind.id)) {

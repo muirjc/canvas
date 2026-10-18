@@ -579,7 +579,11 @@ export function createDiagramTools(context: DiagramToolsContext, family: string,
             }),
             execute: async ({ kind, label }) => {
               const def = kinds.find((k) => k.id === kind)!;
-              const { model, nodeId } = addElementOfKind(context.getModel(), def, { label });
+              // jmuir-dtu.28: an architecture element is a service ('icon'), not a plain rectangle.
+              const { model, nodeId } = addElementOfKind(context.getModel(), def, {
+                label,
+                ...(family === 'architecture' ? { fallbackShape: 'icon' as const } : {}),
+              });
               context.setModel(model);
               return { ...record('addElement', { applied: true }), nodeId };
             },
@@ -592,8 +596,13 @@ export function createDiagramTools(context: DiagramToolsContext, family: string,
             }),
             execute: async ({ nodeId, kind }) => {
               const model = context.getModel();
-              if (!model.nodes.some((n) => n.id === nodeId)) {
+              const target = model.nodes.find((n) => n.id === nodeId);
+              if (!target) {
                 return record('setElementKind', { applied: false, reason: `No shape with id '${nodeId}' was found.` });
+              }
+              // jmuir-dtu.28: re-kinding a junction would silently turn it into a service on save.
+              if (family === 'architecture' && target.role === 'junction') {
+                return record('setElementKind', { applied: false, reason: `'${nodeId}' is a junction; junctions can't have an element kind.` });
               }
               context.setModel(applyElementKind(model, nodeId, kinds.find((k) => k.id === kind)!));
               return record('setElementKind', { applied: true });

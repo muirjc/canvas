@@ -166,6 +166,46 @@ describe('createDiagramTools with a standard -- c4 (C4 Context)', () => {
   });
 });
 
+describe('createDiagramTools with a standard -- architecture (jmuir-dtu.28)', () => {
+  const rules = {
+    allowedShapeIds: [],
+    mandatoryShapeIds: [],
+    allowedIconLibraryRefs: [],
+    colorPalette: [],
+    elementKinds: [
+      { id: 'core_service', label: 'Core Service', shapes: [], approvedFills: ['#dbeafe'] },
+      { id: 'third_party', label: 'Third Party', shapes: ['icon' as const], approvedFills: ['#fde68a'] },
+    ],
+  };
+
+  it('offers addElement/setElementKind for architecture', () => {
+    const { tools } = setup('architecture', rules);
+    expect(tools).toHaveProperty('addElement');
+    expect(tools).toHaveProperty('setElementKind');
+  });
+
+  it('addElement creates a service (icon shape) with the kind role and fill', async () => {
+    const { run, getModel } = setup('architecture', rules);
+    const result = await run('addElement', { kind: 'core_service', label: 'Orders API' });
+    expect(result.applied).toBe(true);
+    const node = getModel().nodes.find((n) => n.id === result.nodeId)!;
+    expect(node.shape).toBe('icon');
+    expect(node.role).toBe('core_service');
+    expect(node.style?.fillColor).toBe('#dbeafe');
+  });
+
+  it('setElementKind refuses a junction (it would silently become a service)', async () => {
+    const { run, getModel } = setup('architecture', rules);
+    const { nodeId } = await run('addElement', { kind: 'core_service' });
+    const model = getModel();
+    model.nodes.push({ id: 'j1', label: '', shape: 'circle', role: 'junction', position: { x: 0, y: 0 } });
+    const refused = await run('setElementKind', { nodeId: 'j1', kind: 'third_party' });
+    expect(refused.applied).toBe(false);
+    expect(getModel().nodes.find((n) => n.id === 'j1')!.role).toBe('junction');
+    expect((await run('setElementKind', { nodeId, kind: 'third_party' })).applied).toBe(true);
+  });
+});
+
 describe('createDiagramTools without rules', () => {
   it.each(['flowchart', 'c4', 'architecture', 'sequence', 'erd', 'uml'])(
     'tool set for %s is identical with rules omitted or undefined',
