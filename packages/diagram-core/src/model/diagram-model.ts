@@ -252,6 +252,9 @@ export interface DiagramContainer {
   style?: NodeStyle;
   /** Id of a parent container, for nested grouping. */
   parentContainerId?: ElementId;
+  /** jmuir-dtu.30: architecture groups only -- the `group id(icon)[Title]` icon, resolved like a
+   *  service's (DiagramNode.icon). */
+  icon?: IconRef;
   /** Semantic kind, mirroring DiagramNode.role. Sequence diagrams only: 'note-left',
    * 'note-right', 'note-over', 'loop', 'alt', 'else', 'opt', 'par', 'and', 'critical', 'option',
    * 'break', 'rect' (a `rect <color> ... end` background highlight — the color lives in `style`,

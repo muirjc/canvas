@@ -141,14 +141,22 @@ export function parseArchitecture(dsl: string): ParseResult {
 
     const groupMatch = line.match(GROUP_PATTERN);
     if (groupMatch) {
-      const [, id, , label, parentGroupId] = groupMatch;
+      const [, id, iconName, label, parentGroupId] = groupMatch;
       const meta = containerMeta[id];
+      // jmuir-dtu.30: the group's icon was captured but discarded, so every save rewrote it as
+      // (cloud). Resolved exactly like a service's; group and service ids share one namespace in
+      // Mermaid, so the front-matter icons map serves both.
+      // `(cloud)` is the serializer's default for a group with no icon, so it reads back as none --
+      // that keeps a model built without one stable across save/reload, and the text is unchanged.
+      const token = iconName.trim();
+      const groupIcon = upgradeLegacyBuiltInIcon(icons[id]) ?? (token === 'cloud' ? undefined : resolveIconFromName(token));
       containersById.set(id, {
         id,
         label,
         position: meta ? { x: meta.x, y: meta.y } : nextAutoPosition(),
         size: meta?.width !== undefined && meta?.height !== undefined ? { width: meta.width, height: meta.height } : undefined,
         parentContainerId: parentGroupId,
+        ...(groupIcon ? { icon: groupIcon } : {}),
       });
       continue;
     }
@@ -249,7 +257,10 @@ export function serializeArchitecture(model: DiagramModel): string {
           .filter((c) => c.size)
           .map((c) => [c.id, { x: c.position.x, y: c.position.y, width: c.size!.width, height: c.size!.height }]),
       ),
-      icons: Object.fromEntries(model.nodes.filter((n) => n.icon).map((n) => [n.id, n.icon!])),
+      icons: Object.fromEntries([
+        ...model.nodes.filter((n) => n.icon).map((n) => [n.id, n.icon!] as const),
+        ...model.containers.filter((c) => c.icon).map((c) => [c.id, c.icon!] as const),
+      ]),
     },
   };
   // jmuir-dtu.28: only written when present, so a diagram with no kinds/styles is unchanged.
@@ -269,7 +280,7 @@ export function serializeArchitecture(model: DiagramModel): string {
     // dependency between a group and its parent's own declaration line, mirroring how service/
     // junction's identical "in" clause already round-trips regardless of declaration order.
     const inClause = group.parentContainerId ? ` in ${group.parentContainerId}` : '';
-    lines.push(`group ${group.id}(cloud)[${group.label}]${inClause}`);
+    lines.push(`group ${group.id}(${group.icon ? iconToken(group.icon) : 'cloud'})[${group.label}]${inClause}`);
   }
   for (const node of model.nodes) {
     const inClause = node.containerId ? ` in ${node.containerId}` : '';
@@ -280,11 +291,7 @@ export function serializeArchitecture(model: DiagramModel): string {
     // Iconify-sourced icons (jmuir-dtu.5) re-emit as "prefix:iconId" so the reference survives
     // textually too, not just via the front-matter icons[id] entry -- matters for a fresh export
     // with no prior front-matter round-trip yet.
-    const iconName = node.icon
-      ? node.icon.libraryVersion === 'iconify'
-        ? `${node.icon.libraryId}:${node.icon.iconId}`
-        : node.icon.iconId
-      : 'default';
+    const iconName = node.icon ? iconToken(node.icon) : 'default';
     lines.push(`service ${node.id}(${iconName})[${node.label}]${inClause}`);
   }
   for (const edge of model.edges) {
@@ -304,6 +311,11 @@ export function serializeArchitecture(model: DiagramModel): string {
   }
 
   return joinFrontMatter(frontMatter, `${lines.join('\n')}\n`);
+}
+
+/** The `(icon)` token for a service or group: iconify refs as "prefix:iconId", others the bare id. */
+function iconToken(icon: NonNullable<DiagramNode['icon']>): string {
+  return icon.libraryVersion === 'iconify' ? `${icon.libraryId}:${icon.iconId}` : icon.iconId;
 }
 
 /** jmuir-dtu.5: resolves a service's `(iconName)` token to an IconRef on first import (no
