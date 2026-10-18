@@ -55,6 +55,15 @@ describe('Diagram type seed data: generic shape-alias scoping', () => {
     },
   );
 
+  // jmuir-dtu.27: architecture-family types also offer Mermaid's built-in architecture icons.
+  it.each(['cloud-infrastructure', 'network', 'deployment'])('%s also offers the Mermaid built-in architecture icons', async (diagramTypeId) => {
+    expect(await paletteFor(diagramTypeId)).toContain('mermaid-architecture');
+  });
+
+  it('solution-architecture (flowchart family) does not get the architecture-only icon set', async () => {
+    expect(await paletteFor('solution-architecture')).not.toContain('mermaid-architecture');
+  });
+
   it.each(['c4-context', 'c4-container', 'c4-component', 'c4-code', 'c4-deployment'])(
     '%s ships zero default palette libraries — its own shape toolbar is already complete, no shape-alias fallback needed',
     async (diagramTypeId) => {

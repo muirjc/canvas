@@ -2,6 +2,7 @@ import { createEmptyDiagramModel, type DiagramContainer, type DiagramModel, type
 import { splitFrontMatter, joinFrontMatter, stripTrailingComment, type CanvasFrontMatter } from './front-matter.js';
 import type { ParseError, ParseResult } from './types.js';
 import { computeArchitectureLayout } from '../model/architecture-layout.js';
+import { MERMAID_ARCHITECTURE_ICON_IDS, mermaidArchitectureIconsManifest } from '../libraries/mermaid-architecture-icons.js';
 
 const ID = String.raw`[A-Za-z0-9_]+`;
 
@@ -150,7 +151,7 @@ export function parseArchitecture(dsl: string): ParseResult {
     const serviceMatch = line.match(SERVICE_PATTERN);
     if (serviceMatch) {
       const [, id, iconName, label, groupId] = serviceMatch;
-      const iconRef = icons[id];
+      const iconRef = upgradeLegacyBuiltInIcon(icons[id]);
       nodesById.set(id, {
         id,
         label,
@@ -308,5 +309,24 @@ function resolveIconFromName(iconName: string): DiagramNode['icon'] {
     const [, libraryId, iconId] = iconifyMatch;
     return { libraryId, libraryVersion: 'iconify', iconId };
   }
+  if (isMermaidBuiltInIcon(iconName)) return builtInIconRef(iconName);
   return { libraryId: 'generic', libraryVersion: '1.0.0', iconId: iconName };
+}
+
+// jmuir-dtu.27: Mermaid's five built-in architecture icons resolve to the bundled
+// mermaid-architecture library; before that they pointed at 'generic', which has no such icons.
+function isMermaidBuiltInIcon(name: string): name is (typeof MERMAID_ARCHITECTURE_ICON_IDS)[number] {
+  return (MERMAID_ARCHITECTURE_ICON_IDS as readonly string[]).includes(name);
+}
+
+function builtInIconRef(iconId: string): NonNullable<DiagramNode['icon']> {
+  return { libraryId: mermaidArchitectureIconsManifest.id, libraryVersion: mermaidArchitectureIconsManifest.version, iconId };
+}
+
+/** A diagram saved before jmuir-dtu.27 stored `generic/<built-in name>` in front-matter. The
+ *  generic library never had those ids, so upgrading the reference can't change anything that
+ *  used to draw. */
+function upgradeLegacyBuiltInIcon(ref: DiagramNode['icon']): DiagramNode['icon'] {
+  if (ref && ref.libraryId === 'generic' && isMermaidBuiltInIcon(ref.iconId)) return builtInIconRef(ref.iconId);
+  return ref;
 }
