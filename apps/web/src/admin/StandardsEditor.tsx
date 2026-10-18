@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   C4_BOUNDARY_ROLES,
   C4_ELEMENT_ROLES,
@@ -670,12 +670,34 @@ interface SwatchesProps {
 
 function Swatches({ label, testId, values, onChange }: SwatchesProps) {
   const [draft, setDraft] = useState('#4f46e5');
+  // canvas-lti: true once the hex box holds something typed but not yet added.
+  const [hexPending, setHexPending] = useState(false);
   const valid = HEX.test(draft);
   const picker = /^#[0-9a-fA-F]{6}$/.test(draft) ? draft : '#000000';
-  const add = () => {
-    if (!valid || values.includes(draft)) return;
-    onChange([...values, draft]);
+  const addColor = (color: string) => {
+    setHexPending(false);
+    if (!HEX.test(color) || values.includes(color)) return;
+    onChange([...values, color]);
   };
+  const add = () => addColor(draft);
+
+  // canvas-lti: picking a colour used to only set the draft -- it joined the list only after a
+  // separate "Add color" click, but the picker kept showing it, so it looked chosen and Save
+  // silently dropped it (a whole standard was published with no fills this way). Choosing a colour
+  // now adds it. React's onChange on a color input fires on every 'input' event while the user
+  // drags through the palette, so this listens for the native 'change' event, which fires once
+  // when the choice is committed.
+  const pickerRef = useRef<HTMLInputElement>(null);
+  const addColorRef = useRef(addColor);
+  addColorRef.current = addColor;
+  useEffect(() => {
+    const input = pickerRef.current;
+    if (!input) return;
+    const onCommit = () => addColorRef.current(input.value);
+    input.addEventListener('change', onCommit);
+    return () => input.removeEventListener('change', onCommit);
+  }, []);
+  const pendingNotAdded = hexPending && valid && !values.includes(draft);
   return (
     <fieldset className="std-fieldset" data-testid={testId}>
       <legend className="field__label">{label}</legend>
@@ -697,12 +719,32 @@ function Swatches({ label, testId, values, onChange }: SwatchesProps) {
         ))}
       </ul>
       <div className="cluster">
-        <input type="color" aria-label={`${label}: pick a color`} data-testid={`${testId}-picker`} value={picker} onChange={(e) => setDraft(e.target.value)} />
-        <input aria-label={`${label}: hex value`} data-testid={`${testId}-hex`} className="mono std-hex" value={draft} onChange={(e) => setDraft(e.target.value)} />
+        <input ref={pickerRef} type="color" aria-label={`${label}: pick a color`} data-testid={`${testId}-picker`} value={picker} onChange={(e) => setDraft(e.target.value)} />
+        <input
+          aria-label={`${label}: hex value`}
+          data-testid={`${testId}-hex`}
+          className="mono std-hex"
+          value={draft}
+          onChange={(e) => {
+            setDraft(e.target.value);
+            setHexPending(true);
+          }}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') {
+              e.preventDefault();
+              add();
+            }
+          }}
+        />
         <button type="button" className="btn btn--secondary btn--compact" data-testid={`${testId}-add`} disabled={!valid} onClick={add}>
           Add color
         </button>
         {!valid && <span className="field__error">Use #rgb or #rrggbb.</span>}
+        {pendingNotAdded && (
+          <span className="field__error" role="status" data-testid={`${testId}-pending`}>
+            {draft} isn't added yet. Press Enter or Add color to keep it.
+          </span>
+        )}
       </div>
     </fieldset>
   );
