@@ -583,6 +583,8 @@ export function createDiagramTools(context: DiagramToolsContext, family: string,
               const { model, nodeId } = addElementOfKind(context.getModel(), def, {
                 label,
                 ...(family === 'architecture' ? { fallbackShape: 'icon' as const } : {}),
+                // canvas-7hp: lets a C4 element carry a $tags kind when several kinds share its role.
+                ...(rules ? { rules } : {}),
               });
               context.setModel(model);
               return { ...record('addElement', { applied: true }), nodeId };
@@ -604,7 +606,7 @@ export function createDiagramTools(context: DiagramToolsContext, family: string,
               if (family === 'architecture' && target.role === 'junction') {
                 return record('setElementKind', { applied: false, reason: `'${nodeId}' is a junction; junctions can't have an element kind.` });
               }
-              context.setModel(applyElementKind(model, nodeId, kinds.find((k) => k.id === kind)!));
+              context.setModel(applyElementKind(model, nodeId, kinds.find((k) => k.id === kind)!, rules));
               return record('setElementKind', { applied: true });
             },
           }),

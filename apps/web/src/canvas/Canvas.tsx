@@ -1416,7 +1416,13 @@ export function Canvas({ model, onChange, dslFamily, toolbarContainer, standardR
   // canvas-tfr: a new element of a standard's kind -- role, default shape and default swatch.
   const handleAddKind = (kind: ElementKind) => {
     // jmuir-dtu.28: an architecture element is a service ('icon'), not a plain rectangle.
-    onChange(addElementOfKind(model, kind, dslFamily === 'architecture' ? { fallbackShape: 'icon' } : undefined).model);
+    // canvas-7hp: the rules let a C4 element carry a $tags kind when several kinds share its role.
+    onChange(
+      addElementOfKind(model, kind, {
+        ...(dslFamily === 'architecture' ? { fallbackShape: 'icon' as const } : {}),
+        ...(standardRules ? { rules: standardRules } : {}),
+      }).model,
+    );
   };
 
   // canvas-2s6.6: a dedicated "Add Junction" action rather than a role-conversion popup on an
@@ -3794,7 +3800,7 @@ export function Canvas({ model, onChange, dslFamily, toolbarContainer, standardR
                   kindsActive ? kindOfNode(node)?.id : node.role,
                   (value) => {
                     const kind = standardKinds.find((k) => k.id === value);
-                    onChange(kind ? applyElementKind(model, node.id, kind) : updateNodeRole(model, node.id, value));
+                    onChange(kind ? applyElementKind(model, node.id, kind, standardRules) : updateNodeRole(model, node.id, value));
                   },
                   () => setEditingKindNodeId(null),
                   kindsActive ? standardKinds.map((k) => ({ value: k.id, label: k.label })) : undefined,

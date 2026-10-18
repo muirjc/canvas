@@ -4,16 +4,56 @@ import type { ConnectorRule, EdgeArrow, EdgeLineStyle, ElementKind, StandardRule
 /**
  * canvas-tfr: which element kind (if any) a node is. A kind matches when the node's role equals
  * `kind.match?.role ?? kind.id` and, if `kind.match.external` is set, the node's `external` flag
- * (absent = false) equals it. First match in `rules.elementKinds` order wins.
+ * (absent = false) equals it. First match in `rules.elementKinds` order wins -- unless the node's
+ * tags name a fitting kind (canvas-7hp), which wins outright.
  */
 export function classifyNode(node: DiagramNode, rules: StandardRules): ElementKind | undefined {
   if (!node.role) return undefined;
-  return rules.elementKinds?.find((kind) => {
-    const role = kind.match?.role ?? kind.id;
-    if (role !== node.role) return false;
-    const wantExternal = kind.match?.external;
-    return wantExternal === undefined || wantExternal === Boolean(node.external);
+  const kinds = rules.elementKinds ?? [];
+  // canvas-7hp: an explicit per-element kind (a C4 `$tags` entry naming a kind) wins, as long as
+  // that kind actually fits the node -- this is how several kinds can share one C4 role. The
+  // first fitting tag decides; tags that aren't kind ids are ignored.
+  for (const tag of node.tags ?? []) {
+    const tagged = kinds.find((kind) => kind.id === tag && kindFitsNode(kind, node));
+    if (tagged) return tagged;
+  }
+  return kinds.find((kind) => kindFitsNode(kind, node));
+}
+
+/** Whether a node's role (+ external flag) satisfies a kind's match, ignoring tags. */
+function kindFitsNode(kind: ElementKind, node: Pick<DiagramNode, 'role' | 'external'>): boolean {
+  const role = kind.match?.role ?? kind.id;
+  if (role !== node.role) return false;
+  const wantExternal = kind.match?.external;
+  return wantExternal === undefined || wantExternal === Boolean(node.external);
+}
+
+/**
+ * canvas-7hp: true when another kind in `rules` would also match an element of `kind` by role (+
+ * external) alone -- i.e. the element needs an explicit tag to be identified as `kind`. Decided by
+ * overlap, not list order, so reordering kinds later can't silently change an untagged element.
+ */
+export function kindNeedsTag(kind: ElementKind, rules: StandardRules): boolean {
+  if (!kind.match) return false;
+  const sample = { role: kind.match.role, external: kind.match.external };
+  return (rules.elementKinds ?? []).some((other) => {
+    if (other.id === kind.id) return false;
+    if (kindFitsNode(other, { role: sample.role, external: sample.external ?? false })) return true;
+    // A kind with external unset matches both; overlapping in either direction is ambiguous.
+    return sample.external === undefined && kindFitsNode(other, { role: sample.role, external: true });
   });
+}
+
+/**
+ * canvas-7hp: the node's tags after it becomes `kind`: every tag naming one of the standard's kinds
+ * is dropped, unrelated tags are kept in order, and `kind.id` leads the list when the kind needs a
+ * tag (kindNeedsTag). Undefined when nothing is left.
+ */
+export function tagsForKind(node: Pick<DiagramNode, 'tags'>, kind: ElementKind, rules: StandardRules): string[] | undefined {
+  const kindIds = new Set((rules.elementKinds ?? []).map((k) => k.id));
+  const others = (node.tags ?? []).filter((tag) => !kindIds.has(tag));
+  const next = kindNeedsTag(kind, rules) ? [kind.id, ...others] : others;
+  return next.length > 0 ? next : undefined;
 }
 
 /**
