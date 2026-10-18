@@ -112,3 +112,32 @@ test('an imported architecture-beta nested group renders inside its parent group
   expect(encloses(vpc, await nodeBox(page, 'web'))).toBe(true);
   expect(encloses(vpc, await nodeBox(page, 'store'))).toBe(true);
 });
+
+/**
+ * jmuir-dtu.27: Mermaid's five built-in architecture icon names used to resolve to a library with
+ * no such icons, so imported services drew no artwork. They now resolve to the bundled
+ * `mermaid-architecture` library; the canvas draws resolved icon markup as an <image> with a
+ * data: URI (canvas-8n7), fetched asynchronously, hence the web-first assertions.
+ */
+test('imported architecture-beta built-in icons render artwork on the canvas', async ({ page }) => {
+  await login(page);
+  await importDsl(
+    page,
+    `Arch Builtin Icons ${Date.now()}`,
+    [
+      'architecture-beta',
+      '    service c(cloud)[Cloud]',
+      '    service db(database)[Database]',
+      '    service d(disk)[Disk]',
+      '    service net(internet)[Internet]',
+      '    service srv(server)[Server]',
+      '',
+    ].join('\n'),
+  );
+
+  for (const id of ['c', 'db', 'd', 'net', 'srv']) {
+    const artwork = page.locator(`[data-testid="node-${id}"] image`);
+    await expect(artwork).toHaveCount(1);
+    await expect(artwork).toHaveAttribute('href', /^data:image\/svg\+xml;base64,.+/);
+  }
+});

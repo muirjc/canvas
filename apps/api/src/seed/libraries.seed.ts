@@ -1,4 +1,4 @@
-import { azureIconsManifest, awsIconsManifest, genericShapesManifest } from '@canvas/diagram-core';
+import { azureIconsManifest, awsIconsManifest, genericShapesManifest, mermaidArchitectureIconsManifest } from '@canvas/diagram-core';
 import { ingestLibrary } from '../libraries/library.service.js';
 
 /** Ingests every bundled Icon/Shape Library (FR-008, FR-010). Adding a new one is one more call.
@@ -12,4 +12,5 @@ export async function seedLibraries(): Promise<void> {
   await ingestLibrary(genericShapesManifest);
   await ingestLibrary(azureIconsManifest);
   await ingestLibrary(awsIconsManifest);
+  await ingestLibrary(mermaidArchitectureIconsManifest);
 }

@@ -19,6 +19,9 @@ const ALL_PERSONAS = [...PERSONAS];
 // search path. Only worth including for a diagram type with no OTHER icon library at all, where
 // it's the sole way to place any icon/shape through that path — never alongside a real library.
 const CLOUD_LIBRARIES = ['azure-icons', 'aws-icons'];
+// jmuir-dtu.27: architecture-beta diagrams also get Mermaid's five built-in icons (cloud, database,
+// disk, internet, server), the ones nearly every architecture-beta example is written with.
+const ARCHITECTURE_LIBRARIES = ['mermaid-architecture', ...CLOUD_LIBRARIES];
 // canvas-wrk: C4 diagram types previously shipped the now-deleted 'c4-notation' library (every
 // entry was a shape-alias sentinel exactly duplicating getAddableShapes('c4')'s own shape
 // toolbar, or — for 'boundary' — outright broken, referencing a NodeShape that never existed).
@@ -50,9 +53,9 @@ const DIAGRAM_TYPES: DiagramTypeSeed[] = [
   { id: 'roadmap', name: 'Roadmap', personas: ['Enterprise'], abstractionLevel: 'N/A', dslFamily: 'flowchart', defaultPaletteLibraryIds: ['generic'] },
   { id: 'solution-architecture', name: 'Solution Architecture', personas: ['Solution'], abstractionLevel: 'N/A', dslFamily: 'flowchart', defaultPaletteLibraryIds: CLOUD_LIBRARIES },
   { id: 'sequence', name: 'Sequence Diagram', personas: ['Solution', 'Technical'], abstractionLevel: 'N/A', dslFamily: 'sequence', defaultPaletteLibraryIds: ['generic'] },
-  { id: 'network', name: 'Network Diagram', personas: ['Technical'], abstractionLevel: 'N/A', dslFamily: 'architecture', defaultPaletteLibraryIds: CLOUD_LIBRARIES },
-  { id: 'deployment', name: 'Deployment Diagram', personas: ['Technical'], abstractionLevel: 'N/A', dslFamily: 'architecture', defaultPaletteLibraryIds: CLOUD_LIBRARIES },
-  { id: 'cloud-infrastructure', name: 'Cloud Infrastructure Diagram', personas: ['Technical'], abstractionLevel: 'N/A', dslFamily: 'architecture', defaultPaletteLibraryIds: CLOUD_LIBRARIES },
+  { id: 'network', name: 'Network Diagram', personas: ['Technical'], abstractionLevel: 'N/A', dslFamily: 'architecture', defaultPaletteLibraryIds: ARCHITECTURE_LIBRARIES },
+  { id: 'deployment', name: 'Deployment Diagram', personas: ['Technical'], abstractionLevel: 'N/A', dslFamily: 'architecture', defaultPaletteLibraryIds: ARCHITECTURE_LIBRARIES },
+  { id: 'cloud-infrastructure', name: 'Cloud Infrastructure Diagram', personas: ['Technical'], abstractionLevel: 'N/A', dslFamily: 'architecture', defaultPaletteLibraryIds: ARCHITECTURE_LIBRARIES },
   { id: 'erd', name: 'Entity-Relationship Diagram', personas: ['Solution', 'Technical'], abstractionLevel: 'N/A', dslFamily: 'erd', defaultPaletteLibraryIds: ['generic'] },
   { id: 'uml', name: 'UML Class Diagram', personas: ['Solution', 'Technical'], abstractionLevel: 'N/A', dslFamily: 'uml', defaultPaletteLibraryIds: ['generic'] },
 ];
