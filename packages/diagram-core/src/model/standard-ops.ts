@@ -1,4 +1,4 @@
-import type { DiagramModel, DiagramNode, ElementId, Position } from './diagram-model.js';
+import type { DiagramModel, DiagramNode, ElementId, NodeShape, Position } from './diagram-model.js';
 import { addNode, updateEdgeArrowStyle, updateEdgeStyle, updateNodeRole, updateNodeStyle } from './diagram-ops.js';
 import type { ConnectorRule, ElementKind } from '../standards/schema.js';
 import { connectorDefaults, isApprovedColor, kindDefaults } from '../standards/kinds.js';
@@ -32,10 +32,12 @@ function withExternal(model: DiagramModel, nodeId: ElementId, external: boolean 
 export function addElementOfKind(
   model: DiagramModel,
   kind: ElementKind,
-  opts?: { label?: string; position?: Position },
+  opts?: { label?: string; position?: Position; fallbackShape?: NodeShape },
 ): AddElementOfKindResult {
   const defaults = kindDefaults(kind);
-  let next = addNode(model, { shape: defaults.shape ?? 'rectangle', label: opts?.label ?? kind.label });
+  // jmuir-dtu.28: a kind with no shape list falls back to the family's own element shape when the
+  // caller knows it (an architecture service is 'icon'), else a plain rectangle.
+  let next = addNode(model, { shape: defaults.shape ?? opts?.fallbackShape ?? 'rectangle', label: opts?.label ?? kind.label });
   const nodeId = next.nodes[next.nodes.length - 1].id;
   next = updateNodeRole(next, nodeId, defaults.role);
   next = withExternal(next, nodeId, defaults.external);

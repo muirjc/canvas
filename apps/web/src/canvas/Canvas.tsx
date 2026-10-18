@@ -1415,7 +1415,8 @@ export function Canvas({ model, onChange, dslFamily, toolbarContainer, standardR
 
   // canvas-tfr: a new element of a standard's kind -- role, default shape and default swatch.
   const handleAddKind = (kind: ElementKind) => {
-    onChange(addElementOfKind(model, kind).model);
+    // jmuir-dtu.28: an architecture element is a service ('icon'), not a plain rectangle.
+    onChange(addElementOfKind(model, kind, dslFamily === 'architecture' ? { fallbackShape: 'icon' } : undefined).model);
   };
 
   // canvas-2s6.6: a dedicated "Add Junction" action rather than a role-conversion popup on an
@@ -3768,6 +3769,8 @@ export function Canvas({ model, onChange, dslFamily, toolbarContainer, standardR
               {editingNodeId !== node.id &&
                 !connectMode &&
                 (dslFamily === 'c4' || kindsActive) &&
+                // jmuir-dtu.28: a junction can't have a kind (re-kinding would make it a service).
+                !(dslFamily === 'architecture' && node.role === 'junction') &&
                 (hoveredId === node.id || selectedIds.has(node.id)) &&
                 renderKindAffordance(
                   node.id,

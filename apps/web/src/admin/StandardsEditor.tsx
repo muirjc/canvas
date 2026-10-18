@@ -3,6 +3,7 @@ import {
   C4_BOUNDARY_ROLES,
   C4_ELEMENT_ROLES,
   DEFAULT_SEVERITY,
+  FAMILY_KIND_SHAPES,
   FAMILY_NODE_SHAPES,
   FAMILY_SUPPORTS_ELEMENT_KINDS,
   RULE_IDS,
@@ -84,6 +85,8 @@ export function StandardsEditor({ diagramType, standard, readOnly = false, onDon
   const family = diagramType.dslFamily;
   const supportsKinds = FAMILY_SUPPORTS_ELEMENT_KINDS.has(family);
   const familyShapes: readonly string[] = FAMILY_NODE_SHAPES[family] ?? FAMILY_NODE_SHAPES.flowchart;
+  // jmuir-dtu.28: a kind's shape choices can be narrower than the family's (architecture kinds are services only).
+  const kindShapes: readonly string[] = FAMILY_KIND_SHAPES[family] ?? FAMILY_KIND_SHAPES.flowchart;
   const isC4 = family === 'c4';
 
   const [name, setName] = useState(standard?.name ?? '');
@@ -293,7 +296,7 @@ export function StandardsEditor({ diagramType, standard, readOnly = false, onDon
                 index={i}
                 kind={kind}
                 isC4={isC4}
-                familyShapes={familyShapes}
+                familyShapes={kindShapes}
                 onLabel={(label) => setKindLabel(i, label)}
                 onPatch={(next) => patchKind(i, next)}
                 onRemove={() => removeKind(i)}

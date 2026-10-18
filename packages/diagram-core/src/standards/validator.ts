@@ -130,6 +130,10 @@ function checkKinds(model: DiagramModel, rules: StandardRules, violations: Viola
   for (const node of model.nodes) {
     const kind = classifyNode(node, rules);
     if (!kind) {
+      // jmuir-dtu.28: an architecture junction is a routing point that can never carry a kind, so
+      // requireKnownKinds doesn't apply to it. (Only architecture junctions have this role; a
+      // flowchart kind that happens to be called 'junction' matched above and never gets here.)
+      if (node.role === 'junction') continue;
       if (rules.requireKnownKinds) {
         violations.push({
           elementId: node.id,

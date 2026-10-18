@@ -63,6 +63,11 @@ export function parseArchitecture(dsl: string): ParseResult {
   const positions = frontMatter.canvas?.positions ?? {};
   const containerMeta = frontMatter.canvas?.containers ?? {};
   const icons = frontMatter.canvas?.icons ?? {};
+  // jmuir-dtu.28: architecture-beta has no class/tag syntax, so a service's element kind (its role)
+  // and its style ride in front-matter. Junctions keep their own 'junction' role and are never
+  // kinded.
+  const kinds = frontMatter.canvas?.kinds ?? {};
+  const styles = frontMatter.canvas?.styles ?? {};
   // jmuir-dtu.26: same fresh-import gate as c4.ts (canvas-m0g). With no stored geometry at all,
   // every element is laid out in one post-pass by computeArchitectureLayout, which sizes groups
   // to enclose their contents and honours edge anchor sides and align rows/columns. A diagram
@@ -159,6 +164,8 @@ export function parseArchitecture(dsl: string): ParseResult {
         position: positions[id] ?? nextAutoPosition(),
         containerId: groupId,
         icon: iconRef ?? resolveIconFromName(iconName),
+        ...(kinds[id] ? { role: kinds[id] } : {}),
+        ...(styles[id] ? { style: styles[id] } : {}),
       });
       continue;
     }
@@ -245,6 +252,11 @@ export function serializeArchitecture(model: DiagramModel): string {
       icons: Object.fromEntries(model.nodes.filter((n) => n.icon).map((n) => [n.id, n.icon!])),
     },
   };
+  // jmuir-dtu.28: only written when present, so a diagram with no kinds/styles is unchanged.
+  const kinded = model.nodes.filter((n) => n.role && n.role !== 'junction');
+  if (kinded.length > 0) frontMatter.canvas!.kinds = Object.fromEntries(kinded.map((n) => [n.id, n.role!]));
+  const styled = model.nodes.filter((n) => n.role !== 'junction' && n.style && Object.keys(n.style).length > 0);
+  if (styled.length > 0) frontMatter.canvas!.styles = Object.fromEntries(styled.map((n) => [n.id, n.style!]));
 
   const lines: string[] = ['architecture-beta'];
   if (model.title) lines.push(`title ${model.title}`);
