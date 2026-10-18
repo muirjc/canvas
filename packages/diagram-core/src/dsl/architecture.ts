@@ -1,6 +1,7 @@
 import { createEmptyDiagramModel, type DiagramContainer, type DiagramModel, type DiagramNode } from '../model/diagram-model.js';
 import { splitFrontMatter, joinFrontMatter, stripTrailingComment, type CanvasFrontMatter } from './front-matter.js';
 import type { ParseError, ParseResult } from './types.js';
+import { computeArchitectureLayout } from '../model/architecture-layout.js';
 
 const ID = String.raw`[A-Za-z0-9_]+`;
 
@@ -61,6 +62,12 @@ export function parseArchitecture(dsl: string): ParseResult {
   const positions = frontMatter.canvas?.positions ?? {};
   const containerMeta = frontMatter.canvas?.containers ?? {};
   const icons = frontMatter.canvas?.icons ?? {};
+  // jmuir-dtu.26: same fresh-import gate as c4.ts (canvas-m0g). With no stored geometry at all,
+  // every element is laid out in one post-pass by computeArchitectureLayout, which sizes groups
+  // to enclose their contents and honours edge anchor sides and align rows/columns. A diagram
+  // with stored geometry keeps the per-element nextAutoPosition() fallback for anything that
+  // still lacks a position.
+  const isFreshImport = Object.keys(positions).length === 0 && Object.keys(containerMeta).length === 0;
 
   const lines = body.split(/\r?\n/);
   const errors: ParseError[] = [];
@@ -201,6 +208,17 @@ export function parseArchitecture(dsl: string): ParseResult {
   }
 
   if (errors.length > 0) return { errors };
+
+  if (isFreshImport) {
+    const allNodes = Array.from(nodesById.values());
+    const allContainers = Array.from(containersById.values());
+    const layout = computeArchitectureLayout(allNodes, allContainers, edges, alignments);
+    for (const node of allNodes) node.position = layout.nodePositions.get(node.id) ?? node.position;
+    for (const container of allContainers) {
+      container.position = layout.containerPositions.get(container.id) ?? container.position;
+      container.size = layout.containerSizes.get(container.id) ?? container.size;
+    }
+  }
 
   const model = createEmptyDiagramModel('cloud-infrastructure');
   model.nodes = Array.from(nodesById.values());
