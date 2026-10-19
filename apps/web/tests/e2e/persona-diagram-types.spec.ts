@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test';
+import { expectSignedIn } from './auth-helpers';
 
 const PROJECT_ID = process.env.E2E_PROJECT_ID;
 const ADMIN_EMAIL = 'admin@example.com';
@@ -15,7 +16,7 @@ test('offers scoped diagram types and finds Azure/AWS icons by name', async ({ p
   await page.getByTestId('login-email').fill(ADMIN_EMAIL);
   await page.getByTestId('login-password').fill(ADMIN_PASSWORD);
   await page.getByTestId('login-submit').click();
-  await page.waitForURL('**/*');
+  await expectSignedIn(page);
 
   await page.getByTestId('new-diagram').click();
   // The full built-in catalog is offered (no persona filter applied in this dialog instance).

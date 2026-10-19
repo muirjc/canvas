@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test';
+import { expectSignedIn } from './auth-helpers';
 
 const PROJECT_ID = process.env.E2E_PROJECT_ID;
 const OWNER_EMAIL = 'admin@example.com';
@@ -16,7 +17,7 @@ test('deletes a diagram, sees it only as metadata, and restores it', async ({ pa
   await page.getByTestId('login-email').fill(OWNER_EMAIL);
   await page.getByTestId('login-password').fill(OWNER_PASSWORD);
   await page.getByTestId('login-submit').click();
-  await page.waitForURL('**/*');
+  await expectSignedIn(page);
 
   await page.getByTestId('new-diagram').click();
   await page.getByTestId('diagram-type-flowchart').check();
@@ -55,7 +56,7 @@ test('cancelling the delete confirmation leaves the diagram in place', async ({ 
   await page.getByTestId('login-email').fill(OWNER_EMAIL);
   await page.getByTestId('login-password').fill(OWNER_PASSWORD);
   await page.getByTestId('login-submit').click();
-  await page.waitForURL('**/*');
+  await expectSignedIn(page);
 
   await expect(page.getByTestId('project-browser')).toBeVisible();
   const deleteButtons = page.locator('[data-testid^="delete-diagram-"]');

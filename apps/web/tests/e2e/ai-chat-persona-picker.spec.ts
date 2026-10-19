@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test';
+import { expectSignedIn } from './auth-helpers';
 
 const PROJECT_ID = process.env.E2E_PROJECT_ID;
 const ADMIN_EMAIL = 'admin@example.com';
@@ -19,7 +20,7 @@ test('offers a persona picker before the first chat message on a hand-created di
   await page.getByTestId('login-email').fill(ADMIN_EMAIL);
   await page.getByTestId('login-password').fill(ADMIN_PASSWORD);
   await page.getByTestId('login-submit').click();
-  await page.waitForURL('**/*');
+  await expectSignedIn(page);
 
   // AI chat is off by default (FR-020); its admin toggle UI is on the persona admin screen.
   await page.request.patch(`${API_BASE_URL}/admin/ai-settings`, { data: { chatEnabled: true } });
@@ -58,7 +59,7 @@ test('a diagram with existing chat history never shows the persona picker', asyn
   await page.getByTestId('login-email').fill(ADMIN_EMAIL);
   await page.getByTestId('login-password').fill(ADMIN_PASSWORD);
   await page.getByTestId('login-submit').click();
-  await page.waitForURL('**/*');
+  await expectSignedIn(page);
   await page.request.patch(`${API_BASE_URL}/admin/ai-settings`, { data: { chatEnabled: true } });
 
   await page.getByTestId('create-via-ai-chat').click();

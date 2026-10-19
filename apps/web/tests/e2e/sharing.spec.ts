@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test';
+import { expectSignedIn } from './auth-helpers';
 
 const PROJECT_ID = process.env.E2E_PROJECT_ID;
 const OWNER_EMAIL = 'admin@example.com';
@@ -23,7 +24,7 @@ test('shares a diagram at view access (edit blocked), then upgrades to edit (all
   await ownerPage.getByTestId('login-email').fill(OWNER_EMAIL);
   await ownerPage.getByTestId('login-password').fill(OWNER_PASSWORD);
   await ownerPage.getByTestId('login-submit').click();
-  await ownerPage.waitForURL('**/*');
+  await expectSignedIn(ownerPage);
 
   await ownerPage.getByTestId('new-diagram').click();
   await ownerPage.getByTestId('diagram-type-flowchart').check();
@@ -44,7 +45,7 @@ test('shares a diagram at view access (edit blocked), then upgrades to edit (all
   await granteePage.getByTestId('login-email').fill(GRANTEE_EMAIL);
   await granteePage.getByTestId('login-password').fill(GRANTEE_PASSWORD);
   await granteePage.getByTestId('login-submit').click();
-  await granteePage.waitForURL('**/*');
+  await expectSignedIn(granteePage);
 
   await expect(granteePage.getByTestId('project-browser')).toBeVisible();
   // Diagrams are listed newest-first (project.service.ts orders by created_at DESC), so the

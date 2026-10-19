@@ -1,4 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
+import { expectSignedIn } from './auth-helpers';
 
 const PROJECT_ID = process.env.E2E_PROJECT_ID;
 const ADMIN_EMAIL = 'admin@example.com';
@@ -21,7 +22,7 @@ async function login(page: Page) {
   await page.getByTestId('login-email').fill(ADMIN_EMAIL);
   await page.getByTestId('login-password').fill(ADMIN_PASSWORD);
   await page.getByTestId('login-submit').click();
-  await page.waitForURL('**/*');
+  await expectSignedIn(page);
 }
 
 async function importDsl(page: Page, name: string, source: string) {

@@ -1,4 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
+import { expectSignedIn } from './auth-helpers';
 
 const PROJECT_ID = process.env.E2E_PROJECT_ID;
 const ADMIN_EMAIL = 'admin@example.com';
@@ -22,7 +23,7 @@ async function openDialog(page: Page, name: string) {
   await page.getByTestId('login-email').fill(ADMIN_EMAIL);
   await page.getByTestId('login-password').fill(ADMIN_PASSWORD);
   await page.getByTestId('login-submit').click();
-  await page.waitForURL('**/*');
+  await expectSignedIn(page);
   await page.request.patch(`${API_BASE_URL}/admin/ai-settings`, { data: { chatEnabled: true } });
   await page.getByTestId('create-via-ai-chat').click();
   await expect(page.getByRole('dialog', { name: 'Create via AI Chat' })).toBeVisible();

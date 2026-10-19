@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test';
+import { expectSignedIn } from './auth-helpers';
 
 const PROJECT_ID = process.env.E2E_PROJECT_ID;
 const ADMIN_EMAIL = 'admin@example.com';
@@ -18,7 +19,7 @@ test('creates a flowchart diagram from a natural-language description via a chos
   await page.getByTestId('login-email').fill(ADMIN_EMAIL);
   await page.getByTestId('login-password').fill(ADMIN_PASSWORD);
   await page.getByTestId('login-submit').click();
-  await page.waitForURL('**/*');
+  await expectSignedIn(page);
 
   // AI chat is off by default (FR-020) and its admin toggle UI doesn't exist yet (User Story 3) —
   // enable it directly via the same admin endpoint that toggle will eventually call.
