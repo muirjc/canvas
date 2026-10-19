@@ -9,10 +9,9 @@ import {
   updatePersona,
 } from './persona.service.js';
 
-function handleError(error: unknown, reply: FastifyReply): void {
+function handleError(error: unknown, reply: FastifyReply): FastifyReply {
   if (error instanceof InvalidPersonaCategoryError) {
-    reply.code(400).send({ error: error.message });
-    return;
+    return reply.code(400).send({ error: error.message });
   }
   throw error;
 }
@@ -22,7 +21,7 @@ export async function registerPersonaRoutes(app: FastifyInstance): Promise<void>
     '/ai-personas',
     { preHandler: requireAuth, schema: { tags: ['AI'], security: [{ cookieAuth: [] }] } },
     async (_request, reply) => {
-      reply.send({ personas: await listActivePersonas() });
+      return reply.send({ personas: await listActivePersonas() });
     },
   );
 
@@ -30,7 +29,7 @@ export async function registerPersonaRoutes(app: FastifyInstance): Promise<void>
     '/admin/ai-personas',
     { preHandler: requireRole('admin'), schema: { tags: ['AI'], security: [{ cookieAuth: [] }] } },
     async (_request, reply) => {
-      reply.send({ personas: await listAllPersonas() });
+      return reply.send({ personas: await listAllPersonas() });
     },
   );
 
@@ -40,9 +39,9 @@ export async function registerPersonaRoutes(app: FastifyInstance): Promise<void>
     async (request, reply) => {
       try {
         const persona = await createPersona(request.body);
-        reply.code(201).send({ persona });
+        return reply.code(201).send({ persona });
       } catch (error) {
-        handleError(error, reply);
+        return handleError(error, reply);
       }
     },
   );
@@ -54,12 +53,11 @@ export async function registerPersonaRoutes(app: FastifyInstance): Promise<void>
       try {
         const persona = await updatePersona(request.params.id, request.body);
         if (!persona) {
-          reply.code(404).send({ error: 'Persona not found' });
-          return;
+          return reply.code(404).send({ error: 'Persona not found' });
         }
-        reply.send({ persona });
+        return reply.send({ persona });
       } catch (error) {
-        handleError(error, reply);
+        return handleError(error, reply);
       }
     },
   );
@@ -70,10 +68,9 @@ export async function registerPersonaRoutes(app: FastifyInstance): Promise<void>
     async (request, reply) => {
       const persona = await archivePersona(request.params.id);
       if (!persona) {
-        reply.code(404).send({ error: 'Persona not found' });
-        return;
+        return reply.code(404).send({ error: 'Persona not found' });
       }
-      reply.send({ persona });
+      return reply.send({ persona });
     },
   );
 }

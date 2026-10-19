@@ -13,14 +13,12 @@ import {
 
 const VALID_ACCESS_LEVELS: AccessLevel[] = ['view', 'comment', 'edit'];
 
-function handleError(error: unknown, reply: FastifyReply): void {
+function handleError(error: unknown, reply: FastifyReply): FastifyReply {
   if (error instanceof GranteeNotFoundError) {
-    reply.code(400).send({ error: error.message });
-    return;
+    return reply.code(400).send({ error: error.message });
   }
   if (error instanceof ShareGrantNotFoundError) {
-    reply.code(404).send({ error: error.message });
-    return;
+    return reply.code(404).send({ error: error.message });
   }
   throw error;
 }
@@ -58,9 +56,9 @@ function registerSubjectRoutes(app: FastifyInstance, subjectType: SubjectType): 
           accessLevel,
           grantedByUserId: request.session.user!.id,
         });
-        reply.code(201).send({ grant });
+        return reply.code(201).send({ grant });
       } catch (error) {
-        handleError(error, reply);
+        return handleError(error, reply);
       }
     },
   );
@@ -69,7 +67,7 @@ function registerSubjectRoutes(app: FastifyInstance, subjectType: SubjectType): 
     basePath,
     { preHandler: requireAuth, schema: { tags: ['Sharing'], security: [{ cookieAuth: [] }] } },
     async (request, reply) => {
-      reply.send({ grants: await listShareGrants(subjectType, request.params.id) });
+      return reply.send({ grants: await listShareGrants(subjectType, request.params.id) });
     },
   );
 }
@@ -87,7 +85,7 @@ export async function registerSharingRoutes(app: FastifyInstance): Promise<void>
     '/shared-diagrams',
     { preHandler: requireAuth, schema: { tags: ['Sharing'], security: [{ cookieAuth: [] }] } },
     async (request, reply) => {
-      reply.send({ diagrams: await listSharedDiagramsForUser(request.session.user!.id) });
+      return reply.send({ diagrams: await listSharedDiagramsForUser(request.session.user!.id) });
     },
   );
 
@@ -97,9 +95,9 @@ export async function registerSharingRoutes(app: FastifyInstance): Promise<void>
     async (request, reply) => {
       try {
         await revokeShareGrant(request.params.id);
-        reply.code(204).send();
+        return reply.code(204).send();
       } catch (error) {
-        handleError(error, reply);
+        return handleError(error, reply);
       }
     },
   );

@@ -3,6 +3,7 @@ import { getDb } from '../db/client.js';
 import { getUserPersonas } from '../db/array-columns.js';
 import { verifyPassword } from './password.js';
 import type { SessionUser } from './types.js';
+import { startAuthenticatedSession } from './session.js';
 
 /**
  * Local email/password login — only registered when config.allowLocalAuth is true.
@@ -18,8 +19,7 @@ export async function registerLocalAuthRoutes(app: FastifyInstance): Promise<voi
     async (request, reply) => {
       const { email, password } = request.body;
       if (!email || !password) {
-        reply.code(400).send({ error: 'email and password are required' });
-        return;
+        return reply.code(400).send({ error: 'email and password are required' });
       }
 
       const db = getDb();
@@ -38,8 +38,7 @@ export async function registerLocalAuthRoutes(app: FastifyInstance): Promise<voi
         .where('users.email', '=', email)
         .executeTakeFirst();
       if (!row || !row.active || !verifyPassword(password, row.password_hash, row.password_salt)) {
-        reply.code(401).send({ error: 'Invalid email or password' });
-        return;
+        return reply.code(401).send({ error: 'Invalid email or password' });
       }
 
       const user: SessionUser = {
@@ -49,8 +48,9 @@ export async function registerLocalAuthRoutes(app: FastifyInstance): Promise<voi
         role: row.role,
         personas: await getUserPersonas(db, row.id),
       };
-      request.session.user = user;
-      reply.send({ user });
+      // canvas-4xo: a new session id on sign-in (no fixation), stamped for the absolute lifetime.
+      await startAuthenticatedSession(request, user);
+      return reply.send({ user });
     },
   );
 }

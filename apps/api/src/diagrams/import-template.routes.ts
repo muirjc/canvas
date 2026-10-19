@@ -4,14 +4,12 @@ import { requireAuth } from '../auth/middleware.js';
 import { DslValidationError } from './diagram.service.js';
 import { importTemplate, UnsupportedTemplateTypeError } from './import-template.service.js';
 
-function handleImportTemplateError(error: unknown, reply: FastifyReply): void {
+function handleImportTemplateError(error: unknown, reply: FastifyReply): FastifyReply {
   if (error instanceof DslValidationError) {
-    reply.code(422).send({ error: 'Template could not be compiled', details: error.errors });
-    return;
+    return reply.code(422).send({ error: 'Template could not be compiled', details: error.errors });
   }
   if (error instanceof UnsupportedTemplateTypeError) {
-    reply.code(422).send({ error: error.message });
-    return;
+    return reply.code(422).send({ error: error.message });
   }
   throw error;
 }
@@ -49,9 +47,9 @@ export async function registerImportTemplateRoutes(app: FastifyInstance): Promis
           projectId: request.params.projectId,
           ownerId: request.session.user!.id,
         });
-        reply.code(201).send({ diagram });
+        return reply.code(201).send({ diagram });
       } catch (error) {
-        handleImportTemplateError(error, reply);
+        return handleImportTemplateError(error, reply);
       }
     },
   );

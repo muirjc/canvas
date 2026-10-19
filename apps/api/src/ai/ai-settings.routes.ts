@@ -15,7 +15,7 @@ export async function registerAiSettingsRoutes(app: FastifyInstance): Promise<vo
     '/ai-settings',
     { preHandler: requireAuth, schema: { tags: ['AI'], security: [{ cookieAuth: [] }] } },
     async (_request, reply) => {
-      reply.send(await getAiSettings());
+      return reply.send(await getAiSettings());
     },
   );
 
@@ -23,7 +23,7 @@ export async function registerAiSettingsRoutes(app: FastifyInstance): Promise<vo
     '/admin/ai-settings',
     { preHandler: requireRole('admin'), schema: { tags: ['AI'], security: [{ cookieAuth: [] }] } },
     async (_request, reply) => {
-      reply.send(await getAiSettings());
+      return reply.send(await getAiSettings());
     },
   );
 
@@ -39,7 +39,7 @@ export async function registerAiSettingsRoutes(app: FastifyInstance): Promise<vo
       },
     },
     async (request, reply) => {
-      reply.send(await setAiSettings({ chatEnabled: request.body.chatEnabled }));
+      return reply.send(await setAiSettings({ chatEnabled: request.body.chatEnabled }));
     },
   );
 }

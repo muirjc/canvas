@@ -310,7 +310,16 @@ export interface SchemaMigrationsTable {
   applied_at: GeneratedTimestamp;
 }
 
+/** canvas-4xo: server-side sessions (auth/session-store.ts). `expires_at` is epoch milliseconds;
+ *  node-postgres returns BIGINT as a string, SQLite as a number -- only compared in SQL, never read. */
+export interface SessionsTable {
+  id: string;
+  data: string;
+  expires_at: ColumnType<number | string, number, number>;
+}
+
 export interface DB {
+  sessions: SessionsTable;
   users: UsersTable;
   users_personas: UsersPersonasTable;
   projects: ProjectsTable;

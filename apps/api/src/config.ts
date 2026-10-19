@@ -33,6 +33,12 @@ export interface AppConfig {
    */
   cookieSecure: boolean;
   cookieSameSite: 'lax' | 'none' | 'strict';
+  /** canvas-4xo: a session unused for this long expires (the cookie's Max-Age, refreshed on every
+   *  request). SESSION_IDLE_MINUTES, default 480 (8 hours). */
+  sessionIdleMinutes: number;
+  /** canvas-4xo: a signed-in session ends this long after sign-in, however active.
+   *  SESSION_MAX_HOURS, default 12. */
+  sessionMaxHours: number;
   /** Serves an OpenAPI/Swagger spec + interactive UI at /docs (app.ts). Opt-in, same posture as
    *  allowLocalAuth above: false unless explicitly enabled, so the public Azure deployment doesn't
    *  expose its full route surface by default just because this repo added the capability — a
@@ -143,5 +149,19 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
     cookieSecure,
     cookieSameSite,
     enableApiDocs: env.ENABLE_API_DOCS === 'true',
+    sessionIdleMinutes: positiveNumber(env, 'SESSION_IDLE_MINUTES', 480),
+    sessionMaxHours: positiveNumber(env, 'SESSION_MAX_HOURS', 12),
   };
+}
+
+/** canvas-4xo: a positive number from the environment, or the fallback when unset; anything else is
+ *  a startup error rather than a silently ignored setting. */
+function positiveNumber(env: NodeJS.ProcessEnv, name: string, fallback: number): number {
+  const raw = env[name];
+  if (raw === undefined || raw === '') return fallback;
+  const value = Number(raw);
+  if (!Number.isFinite(value) || value <= 0) {
+    throw new Error(`${name} must be a positive number (got "${raw}").`);
+  }
+  return value;
 }

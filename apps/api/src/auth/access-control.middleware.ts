@@ -22,8 +22,7 @@ export function requireDiagramOwnerOrAdmin() {
   return async (request: FastifyRequest<{ Params: { id: string } }>, reply: FastifyReply): Promise<void> => {
     const user = request.session.user;
     if (!user) {
-      reply.code(401).send({ error: 'Authentication required' });
-      return;
+      return reply.code(401).send({ error: 'Authentication required' });
     }
     const db = getDb();
     const row = await db
@@ -34,7 +33,7 @@ export function requireDiagramOwnerOrAdmin() {
     if (!row) return; // let the route's own not-found handling fire
 
     if (row.owner_id !== user.id && user.role !== 'admin') {
-      reply.code(403).send({ error: 'Only this diagram\'s owner or an admin can delete it.' });
+      return reply.code(403).send({ error: 'Only this diagram\'s owner or an admin can delete it.' });
     }
   };
 }
@@ -49,8 +48,7 @@ export function requireProjectOwnerOrAdmin() {
   return async (request: FastifyRequest<{ Params: { id: string } }>, reply: FastifyReply): Promise<void> => {
     const user = request.session.user;
     if (!user) {
-      reply.code(401).send({ error: 'Authentication required' });
-      return;
+      return reply.code(401).send({ error: 'Authentication required' });
     }
     const db = getDb();
     const row = await db
@@ -61,7 +59,7 @@ export function requireProjectOwnerOrAdmin() {
     if (!row) return; // let the route's own not-found handling fire
 
     if (row.owner_id !== user.id && user.role !== 'admin') {
-      reply.code(403).send({ error: 'Only this project\'s owner or an admin can do that.' });
+      return reply.code(403).send({ error: 'Only this project\'s owner or an admin can do that.' });
     }
   };
 }
@@ -85,8 +83,7 @@ export function requireProjectAccess(required: AccessLevel, paramName: string) {
   return async (request: FastifyRequest, reply: FastifyReply): Promise<void> => {
     const user = request.session.user;
     if (!user) {
-      reply.code(401).send({ error: 'Authentication required' });
-      return;
+      return reply.code(401).send({ error: 'Authentication required' });
     }
 
     const projectId = (request.params as Record<string, string | undefined>)[paramName];
@@ -95,15 +92,14 @@ export function requireProjectAccess(required: AccessLevel, paramName: string) {
         { paramName, params: request.params, url: request.url },
         'requireProjectAccess was given a parameter name this route does not define — refusing the request rather than letting it through unchecked',
       );
-      reply.code(500).send({ error: 'Access control is misconfigured for this route.' });
-      return;
+      return reply.code(500).send({ error: 'Access control is misconfigured for this route.' });
     }
 
     if (!(await projectExists(projectId))) return; // let the route's own not-found handling fire
 
     const level = await resolveProjectAccess(user.id, projectId);
     if (!accessAtLeast(level, required)) {
-      reply.code(403).send({
+      return reply.code(403).send({
         error: level
           ? `This action requires "${required}" access, but you only have "${level}" access to this project.`
           : 'You do not have access to this project.',
@@ -116,8 +112,7 @@ export function requireDiagramAccess(required: AccessLevel) {
   return async (request: FastifyRequest<{ Params: { id: string } }>, reply: FastifyReply): Promise<void> => {
     const user = request.session.user;
     if (!user) {
-      reply.code(401).send({ error: 'Authentication required' });
-      return;
+      return reply.code(401).send({ error: 'Authentication required' });
     }
     const db = getDb();
     const row = await db.selectFrom('diagrams').select('id').where('id', '=', request.params.id).executeTakeFirst();
@@ -125,7 +120,7 @@ export function requireDiagramAccess(required: AccessLevel) {
 
     const level = await resolveDiagramAccess(user.id, request.params.id);
     if (!accessAtLeast(level, required)) {
-      reply.code(403).send({
+      return reply.code(403).send({
         error: level
           ? `This action requires "${required}" access, but you only have "${level}" access to this diagram.`
           : 'You do not have access to this diagram.',

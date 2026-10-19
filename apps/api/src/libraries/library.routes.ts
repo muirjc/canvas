@@ -8,7 +8,7 @@ export async function registerLibraryRoutes(app: FastifyInstance): Promise<void>
     '/libraries',
     { preHandler: requireAuth, schema: { tags: ['Libraries'], security: [{ cookieAuth: [] }] } },
     async (_request, reply) => {
-      reply.send({ libraries: await listLibraries() });
+      return reply.send({ libraries: await listLibraries() });
     },
   );
 
@@ -18,9 +18,9 @@ export async function registerLibraryRoutes(app: FastifyInstance): Promise<void>
     async (request, reply) => {
       try {
         await ingestLibrary(request.body);
-        reply.code(201).send({ status: 'ingested', id: request.body.id, version: request.body.version });
+        return reply.code(201).send({ status: 'ingested', id: request.body.id, version: request.body.version });
       } catch (error) {
-        reply.code(400).send({ error: (error as Error).message });
+        return reply.code(400).send({ error: (error as Error).message });
       }
     },
   );
@@ -30,7 +30,7 @@ export async function registerLibraryRoutes(app: FastifyInstance): Promise<void>
     { preHandler: requireAuth, schema: { tags: ['Libraries'], security: [{ cookieAuth: [] }] } },
     async (request, reply) => {
       const icons = await searchIconsInLibrary(request.params.id, request.params.version, request.query.query ?? '');
-      reply.send({ icons });
+      return reply.send({ icons });
     },
   );
 
@@ -51,7 +51,7 @@ export async function registerLibraryRoutes(app: FastifyInstance): Promise<void>
     },
     async (request, reply) => {
       const icons = await searchIconsForDiagramType(request.query.diagramTypeId, request.query.query ?? '');
-      reply.send({ icons });
+      return reply.send({ icons });
     },
   );
 }

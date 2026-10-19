@@ -11,10 +11,9 @@ export interface DiagramChatRoutesOptions {
   languageModel?: LanguageModel;
 }
 
-function handleError(error: unknown, reply: FastifyReply): void {
+function handleError(error: unknown, reply: FastifyReply): FastifyReply {
   if (error instanceof DslParseError) {
-    reply.code(422).send({ error: error.message });
-    return;
+    return reply.code(422).send({ error: error.message });
   }
   throw error;
 }
@@ -57,8 +56,7 @@ export async function registerDiagramChatRoutes(
     async (request, reply) => {
       const settings = await getAiSettings();
       if (!settings.chatEnabled) {
-        reply.code(503).send({ error: 'AI chat is currently disabled by an administrator.' });
-        return;
+        return reply.code(503).send({ error: 'AI chat is currently disabled by an administrator.' });
       }
 
       const { message, currentDslContent, personaId, mode } = request.body;
@@ -78,9 +76,9 @@ export async function registerDiagramChatRoutes(
           mode,
           model: options.languageModel,
         });
-        reply.send(result);
+        return reply.send(result);
       } catch (error) {
-        handleError(error, reply);
+        return handleError(error, reply);
       }
     },
   );
@@ -89,7 +87,7 @@ export async function registerDiagramChatRoutes(
     '/diagrams/:id/chat/messages',
     { preHandler: requireDiagramAccess('edit'), schema: { tags: ['AI'], security: [{ cookieAuth: [] }] } },
     async (request, reply) => {
-      reply.send({ messages: await getChatMessages(request.params.id) });
+      return reply.send({ messages: await getChatMessages(request.params.id) });
     },
   );
 }
