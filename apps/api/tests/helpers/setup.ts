@@ -8,6 +8,7 @@ import { setDiagramTypePersonas, setDiagramTypePaletteLibraries } from '../../sr
 import { dbBoolean } from '../../src/db/sql-helpers.js';
 import { hashPassword } from '../../src/auth/password.js';
 import { runMigrations } from '../../src/db/migrate.js';
+import { drainBackgroundTasks } from '../../src/background/tasks.js';
 
 export async function buildTestApp(): Promise<FastifyInstance> {
   process.env.NODE_ENV = 'test';
@@ -86,11 +87,16 @@ async function resetDatabasePostgres(): Promise<void> {
 }
 
 export async function resetDatabase(): Promise<void> {
+  // canvas-yrp: background work started by the previous test (e.g. re-checking diagrams after a
+  // standard was published) must finish before its tables are emptied -- otherwise it races the
+  // TRUNCATE below and Postgres reports a deadlock against whichever test runs next.
+  await drainBackgroundTasks();
   const config = loadConfig();
   return config.dbClient === 'sqlite' ? resetDatabaseSqlite() : resetDatabasePostgres();
 }
 
 export async function closeTestDb(): Promise<void> {
+  await drainBackgroundTasks();
   // db/client.ts (Kysely) wraps its own separate pg.Pool instance alongside db/pool.ts's — both
   // must close, or a connection leaks past test teardown. Both stay needed permanently
   // (canvas-jtm.6): runMigrations() (db/migrate.ts, called by buildTestApp()) deliberately stays

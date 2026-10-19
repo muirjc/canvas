@@ -14,6 +14,7 @@ import {
   StandardNotFoundError,
   StandardStateError,
 } from './standard.service.js';
+import { runInBackground } from '../background/tasks.js';
 import { revalidateDiagramsForType } from './revalidate.service.js';
 
 function handleServiceError(error: unknown, reply: FastifyReply): void {
@@ -36,15 +37,19 @@ function handleServiceError(error: unknown, reply: FastifyReply): void {
  * Re-checks every diagram of a type against its current standard without holding up the response.
  * The promise MUST be caught: an unhandled rejection terminates a Node process by default, so a
  * failed background re-check (e.g. a transient database error) would otherwise take the API down.
- * It also surfaced in CI as a Postgres deadlock reported outside any test, when a still-running
- * re-check collided with the next test's TRUNCATE. Cached violations are refreshed again on each
+ * It also surfaced in CI as a Postgres deadlock, when a still-running re-check collided with the next
+ * test's TRUNCATE -- hence runInBackground, which lets that work be drained (canvas-yrp). Cached violations are refreshed again on each
  * diagram's next save, so a failed re-check is logged, not retried.
  */
 function revalidateInBackground(log: FastifyBaseLogger, diagramTypeId: string): void {
-  revalidateDiagramsForType(diagramTypeId).catch((error: unknown) => {
-    // The error's name only, not the object: driver errors can carry query detail.
-    log.warn({ diagramTypeId, errorName: error instanceof Error ? error.name : 'unknown' }, 'Background standards revalidation failed');
-  });
+  // canvas-yrp: tracked, so app.close() and the tests' resetDatabase() wait for it to finish.
+  runInBackground(
+    () => revalidateDiagramsForType(diagramTypeId),
+    (error: unknown) => {
+      // The error's name only, not the object: driver errors can carry query detail.
+      log.warn({ diagramTypeId, errorName: error instanceof Error ? error.name : 'unknown' }, 'Background standards revalidation failed');
+    },
+  );
 }
 
 export async function registerStandardRoutes(app: FastifyInstance): Promise<void> {
