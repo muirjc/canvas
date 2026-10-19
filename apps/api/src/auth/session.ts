@@ -14,14 +14,22 @@ import { DbSessionStore } from './session-store.js';
  * - a signed-in session also ends sessionMaxHours after sign-in, however active (see the
  *   onRequest hook below);
  * - nothing is stored for a request that never writes to its session (saveUninitialized: false).
- * The cookie name stays the library default, `sessionId`.
+ * The cookie is named SESSION_COOKIE_NAME, not the library default.
  */
+/**
+ * The session cookie's name. Not @fastify/session's default ('sessionId'): a default name tells an
+ * attacker which session library to target, and Bearer flags it (javascript_express_default_cookie_
+ * config). Exported so the API docs and tests use the one value.
+ */
+export const SESSION_COOKIE_NAME = 'cid';
+
 export async function registerSession(app: FastifyInstance, config: AppConfig): Promise<void> {
   const idleMs = config.sessionIdleMinutes * 60 * 1000;
   const maxMs = config.sessionMaxHours * 60 * 60 * 1000;
   await app.register(cookie);
   await app.register(session, {
     secret: config.sessionSecret,
+    cookieName: SESSION_COOKIE_NAME,
     store: new DbSessionStore(idleMs),
     saveUninitialized: false,
     cookie: {

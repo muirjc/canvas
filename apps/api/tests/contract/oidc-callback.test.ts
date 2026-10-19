@@ -6,6 +6,7 @@ import { loadConfig } from '../../src/config.js';
 import { runMigrations } from '../../src/db/migrate.js';
 import { getDb } from '../../src/db/client.js';
 import { closeTestDb, resetDatabase } from '../helpers/setup.js';
+import { SESSION_COOKIE_NAME } from '../../src/auth/session.js';
 
 /**
  * canvas-haz.5 (Phase 4 of the Keycloak -> Entra migration, the NFR-2 test gate the migration
@@ -143,9 +144,9 @@ async function startLogin(): Promise<{ cookie: string; state: string; nonce: str
   const location = new URL(response.headers.location as string);
   const setCookie = response.headers['set-cookie'];
   const cookie = (Array.isArray(setCookie) ? setCookie : [setCookie]).find(
-    (c): c is string => typeof c === 'string' && c.startsWith('sessionId='),
+    (c): c is string => typeof c === 'string' && c.startsWith(`${SESSION_COOKIE_NAME}=`),
   );
-  if (!cookie) throw new Error('expected a sessionId cookie from GET /auth/login');
+  if (!cookie) throw new Error('expected a session cookie from GET /auth/login');
   return {
     cookie: cookie.split(';')[0],
     state: location.searchParams.get('state')!,
@@ -162,9 +163,9 @@ async function callback(cookie: string, state: string): Promise<{ statusCode: nu
 function signedInCookie(response: { headers: Record<string, unknown> }): string {
   const setCookie = response.headers['set-cookie'];
   const cookie = (Array.isArray(setCookie) ? setCookie : [setCookie]).find(
-    (c): c is string => typeof c === 'string' && c.startsWith('sessionId='),
+    (c): c is string => typeof c === 'string' && c.startsWith(`${SESSION_COOKIE_NAME}=`),
   );
-  if (!cookie) throw new Error('expected the callback to set a new sessionId cookie');
+  if (!cookie) throw new Error('expected the callback to set a new session cookie');
   return cookie.split(';')[0];
 }
 

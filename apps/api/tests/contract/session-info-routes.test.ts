@@ -6,6 +6,7 @@ import { closeTestDb, resetDatabase } from '../helpers/setup.js';
 import { runMigrations } from '../../src/db/migrate.js';
 import { registerSession, registerSessionInfoRoutes } from '../../src/auth/session.js';
 import type { AppConfig } from '../../src/config.js';
+import { SESSION_COOKIE_NAME } from '../../src/auth/session.js';
 
 /**
  * Reproduces the bug reported live against the Azure deployment: "Sign in with SSO" completes
@@ -140,9 +141,9 @@ describe('POST /auth/logout with an SSO-established session (canvas-252)', () =>
   function extractSessionCookie(response: { headers: Record<string, unknown> }): string {
     const setCookie = response.headers['set-cookie'];
     const cookie = (Array.isArray(setCookie) ? setCookie : [setCookie]).find(
-      (c): c is string => typeof c === 'string' && c.startsWith('sessionId='),
+      (c): c is string => typeof c === 'string' && c.startsWith(`${SESSION_COOKIE_NAME}=`),
     );
-    if (!cookie) throw new Error('expected a sessionId cookie in the response, found none');
+    if (!cookie) throw new Error('expected a session cookie in the response, found none');
     return cookie.split(';')[0];
   }
 

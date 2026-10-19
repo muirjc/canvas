@@ -1,6 +1,7 @@
 import type { FastifyInstance } from 'fastify';
 import swagger from '@fastify/swagger';
 import swaggerUi from '@fastify/swagger-ui';
+import { SESSION_COOKIE_NAME } from '../auth/session.js';
 
 /**
  * OpenAPI/Swagger spec + interactive UI, gated behind config.enableApiDocs (app.ts) -- opt-in,
@@ -39,10 +40,10 @@ export async function registerApiDocsRoutes(app: FastifyInstance): Promise<void>
           cookieAuth: {
             type: 'apiKey',
             in: 'cookie',
-            // @fastify/session's own default cookie name (session.ts registers no `cookieName`
-            // override) -- every authenticated route reads request.session.user, set by either
-            // POST /auth/local/login or the OIDC callback (GET /auth/callback).
-            name: 'sessionId',
+            // The session cookie (auth/session.ts) -- every authenticated route reads
+            // request.session.user, set by either POST /auth/local/login or the OIDC callback
+            // (GET /auth/callback).
+            name: SESSION_COOKIE_NAME,
           },
         },
       },
