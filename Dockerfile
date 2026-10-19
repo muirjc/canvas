@@ -62,6 +62,10 @@ COPY --from=build /app/packages/diagram-core/package.json packages/diagram-core/
 COPY --from=build /app/apps/api/dist apps/api/dist
 COPY --from=build /app/apps/api/package.json apps/api/package.json
 COPY --from=build /app/apps/api/migrations apps/api/migrations
+# jmuir-dtu.29: a locally generated AWS icon library (vendor-icons/aws-icons.json), if the deploying
+# machine has one -- the catalog seed loads it in place of the placeholder AWS icons. The folder
+# always exists (its README is committed), so this COPY never fails when the file is absent.
+COPY vendor-icons vendor-icons
 
 # Semgrep (dockerfile.security.missing-user) correctly flags running as root by default -- the
 # official node:22-slim base already ships a non-root `node` user (uid/gid 1000) for exactly this,

@@ -117,6 +117,16 @@ npm run dev --workspace=@canvas/web                     # separate terminal; for
 Sign in at `http://localhost:5173/?projectId=<seed-printed-id>` with `admin@example.com` /
 `admin-dev-password` (or `architect@example.com` / `architect-dev-password`).
 
+## Real AWS icons (optional)
+
+The AWS icon library ships as placeholder artwork. AWS's real icons aren't committed (public repo;
+AWS's terms only explicitly cover using them to create diagrams), so each environment can generate
+them from its own copy of AWS's icon package. The steps are in [`vendor-icons/README.md`](vendor-icons/README.md):
+download the package, run `packages/diagram-core/scripts/generate-aws-icons.mjs`, then re-run the
+catalog seed. For Azure, generate the file before running `infra/azure/deploy.sh`; the image copies
+`vendor-icons/` and the catalog-seed job loads it. Diagrams keep working either way: both libraries
+use the same `aws-icons@2024.1` version and icon ids.
+
 ## API documentation
 
 Set `ENABLE_API_DOCS=true` in `apps/api/.env` and restart the API dev server to serve an
