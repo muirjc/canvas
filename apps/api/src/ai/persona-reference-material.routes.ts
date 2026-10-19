@@ -10,10 +10,9 @@ import {
   updateReferenceMaterial,
 } from './persona-reference-material.service.js';
 
-function handleError(error: unknown, reply: FastifyReply): void {
+function handleError(error: unknown, reply: FastifyReply): FastifyReply {
   if (error instanceof InvalidReferenceMaterialContentError || error instanceof InvalidReferenceMaterialFamilyError) {
-    reply.code(400).send({ error: error.message });
-    return;
+    return reply.code(400).send({ error: error.message });
   }
   throw error;
 }
@@ -29,10 +28,9 @@ export async function registerPersonaReferenceMaterialRoutes(app: FastifyInstanc
     { preHandler: requireRole('admin'), schema: { tags: ['AI'], security: [{ cookieAuth: [] }] } },
     async (request, reply) => {
       if (!(await getPersona(request.params.id))) {
-        reply.code(404).send({ error: 'Persona not found' });
-        return;
+        return reply.code(404).send({ error: 'Persona not found' });
       }
-      reply.send({ entries: await listReferenceMaterial(request.params.id) });
+      return reply.send({ entries: await listReferenceMaterial(request.params.id) });
     },
   );
 
@@ -41,14 +39,13 @@ export async function registerPersonaReferenceMaterialRoutes(app: FastifyInstanc
     { preHandler: requireRole('admin'), schema: { tags: ['AI'], security: [{ cookieAuth: [] }] } },
     async (request, reply) => {
       if (!(await getPersona(request.params.id))) {
-        reply.code(404).send({ error: 'Persona not found' });
-        return;
+        return reply.code(404).send({ error: 'Persona not found' });
       }
       try {
         const entry = await createReferenceMaterial(request.params.id, request.body);
-        reply.code(201).send({ entry });
+        return reply.code(201).send({ entry });
       } catch (error) {
-        handleError(error, reply);
+        return handleError(error, reply);
       }
     },
   );
@@ -60,12 +57,11 @@ export async function registerPersonaReferenceMaterialRoutes(app: FastifyInstanc
       try {
         const entry = await updateReferenceMaterial(request.params.personaId, request.params.entryId, request.body);
         if (!entry) {
-          reply.code(404).send({ error: 'Reference material entry not found' });
-          return;
+          return reply.code(404).send({ error: 'Reference material entry not found' });
         }
-        reply.send({ entry });
+        return reply.send({ entry });
       } catch (error) {
-        handleError(error, reply);
+        return handleError(error, reply);
       }
     },
   );
@@ -76,10 +72,9 @@ export async function registerPersonaReferenceMaterialRoutes(app: FastifyInstanc
     async (request, reply) => {
       const deleted = await deleteReferenceMaterial(request.params.personaId, request.params.entryId);
       if (!deleted) {
-        reply.code(404).send({ error: 'Reference material entry not found' });
-        return;
+        return reply.code(404).send({ error: 'Reference material entry not found' });
       }
-      reply.code(204).send();
+      return reply.code(204).send();
     },
   );
 }

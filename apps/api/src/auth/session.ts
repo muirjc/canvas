@@ -1,18 +1,68 @@
 import cookie from '@fastify/cookie';
 import session from '@fastify/session';
-import type { FastifyInstance } from 'fastify';
+import type { FastifyInstance, FastifyRequest } from 'fastify';
 import type { AppConfig } from '../config.js';
+import { DbSessionStore } from './session-store.js';
 
+/**
+ * canvas-4xo: sessions used to run on every @fastify/session default -- the in-memory store (lost
+ * on restart, unbounded, single-replica only), no expiry, and a session created for every
+ * anonymous request. Now:
+ * - the store is the database (DbSessionStore);
+ * - the cookie's Max-Age is the idle timeout, refreshed on every request (`rolling`, the
+ *   library's default), and the library itself rejects a restored session past it;
+ * - a signed-in session also ends sessionMaxHours after sign-in, however active (see the
+ *   onRequest hook below);
+ * - nothing is stored for a request that never writes to its session (saveUninitialized: false).
+ * The cookie name stays the library default, `sessionId`.
+ */
 export async function registerSession(app: FastifyInstance, config: AppConfig): Promise<void> {
+  const idleMs = config.sessionIdleMinutes * 60 * 1000;
+  const maxMs = config.sessionMaxHours * 60 * 60 * 1000;
   await app.register(cookie);
   await app.register(session, {
     secret: config.sessionSecret,
+    store: new DbSessionStore(idleMs),
+    saveUninitialized: false,
     cookie: {
       secure: config.cookieSecure,
       httpOnly: true,
       sameSite: config.cookieSameSite,
+      maxAge: idleMs,
     },
   });
+
+  // Runs after @fastify/session's own onRequest hook (registered just above) has restored the
+  // session. A session from before canvas-4xo has no authenticatedAt and is treated as expired.
+  app.addHook('onRequest', async (request) => {
+    const { user, authenticatedAt } = request.session;
+    if (user && (typeof authenticatedAt !== 'number' || Date.now() - authenticatedAt > maxMs)) {
+      await replaceSession(request);
+    }
+  });
+}
+
+/**
+ * canvas-4xo: swaps the request's session for a fresh, empty one with a new id, and deletes the
+ * old one from the store (regenerate() alone leaves it valid until it expires). Used at sign-in,
+ * so a session id known before login can't be used after it (session fixation), and when a
+ * session passes its absolute lifetime.
+ */
+export async function replaceSession(request: FastifyRequest): Promise<void> {
+  const previous = request.session;
+  const previousId = previous.sessionId;
+  await previous.regenerate();
+  await new Promise<void>((resolve, reject) => {
+    request.sessionStore.destroy(previousId, (error) => (error ? reject(error) : resolve()));
+  });
+}
+
+/** canvas-4xo: starts a signed-in session for `user`: a new session id, stamped with the sign-in
+ *  time the absolute lifetime is measured from. */
+export async function startAuthenticatedSession(request: FastifyRequest, user: NonNullable<FastifyRequest['session']['user']>): Promise<void> {
+  await replaceSession(request);
+  request.session.user = user;
+  request.session.authenticatedAt = Date.now();
 }
 
 /**
@@ -49,10 +99,9 @@ export async function registerSessionInfoRoutes(app: FastifyInstance): Promise<v
         // and fetch silently follows redirects itself rather than navigating the browser -- Keycloak
         // would never actually see the real top-level page load its own logout endpoint needs to
         // clear its session cookie. The frontend does the real navigation instead (AppShell.tsx).
-        reply.code(200).send({ logoutUrl: app.buildOidcLogoutUrl(oidcIdToken) });
-        return;
+        return reply.code(200).send({ logoutUrl: app.buildOidcLogoutUrl(oidcIdToken) });
       }
-      reply.code(204).send();
+      return reply.code(204).send();
     },
   );
 
@@ -65,10 +114,9 @@ export async function registerSessionInfoRoutes(app: FastifyInstance): Promise<v
     { schema: { tags: ['Auth'], security: [] } },
     async (request, reply) => {
       if (!request.session.user) {
-        reply.code(401).send({ error: 'Not authenticated' });
-        return;
+        return reply.code(401).send({ error: 'Not authenticated' });
       }
-      reply.send({ user: request.session.user });
+      return reply.send({ user: request.session.user });
     },
   );
 }

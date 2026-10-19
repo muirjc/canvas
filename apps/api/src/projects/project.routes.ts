@@ -16,18 +16,15 @@ import {
   restoreProject,
 } from './project.service.js';
 
-function handleServiceError(error: unknown, reply: FastifyReply): void {
+function handleServiceError(error: unknown, reply: FastifyReply): FastifyReply {
   if (error instanceof ProjectNotFoundError) {
-    reply.code(404).send({ error: error.message });
-    return;
+    return reply.code(404).send({ error: error.message });
   }
   if (error instanceof ProjectCycleError) {
-    reply.code(400).send({ error: error.message });
-    return;
+    return reply.code(400).send({ error: error.message });
   }
   if (error instanceof ProjectHasContentError || error instanceof ProjectRetentionExpiredError) {
-    reply.code(409).send({ error: error.message });
-    return;
+    return reply.code(409).send({ error: error.message });
   }
   throw error;
 }
@@ -52,9 +49,9 @@ export async function registerProjectRoutes(app: FastifyInstance): Promise<void>
       const { name, parentProjectId } = request.body;
       try {
         const project = await createProject({ name, parentProjectId, ownerId: request.session.user!.id });
-        reply.code(201).send({ project });
+        return reply.code(201).send({ project });
       } catch (error) {
-        handleServiceError(error, reply);
+        return handleServiceError(error, reply);
       }
     },
   );
@@ -67,7 +64,7 @@ export async function registerProjectRoutes(app: FastifyInstance): Promise<void>
     '/projects',
     { preHandler: requireAuth, schema: { tags: ['Projects'], security: [{ cookieAuth: [] }] } },
     async (request, reply) => {
-      reply.send({ projects: await listProjectsForUser(request.session.user!.id) });
+      return reply.send({ projects: await listProjectsForUser(request.session.user!.id) });
     },
   );
 
@@ -79,9 +76,9 @@ export async function registerProjectRoutes(app: FastifyInstance): Promise<void>
     },
     async (request, reply) => {
       try {
-        reply.send({ project: await getProject(request.params.id) });
+        return reply.send({ project: await getProject(request.params.id) });
       } catch (error) {
-        handleServiceError(error, reply);
+        return handleServiceError(error, reply);
       }
     },
   );
@@ -94,9 +91,9 @@ export async function registerProjectRoutes(app: FastifyInstance): Promise<void>
     },
     async (request, reply) => {
       try {
-        reply.send({ tree: await getProjectTree(request.params.id) });
+        return reply.send({ tree: await getProjectTree(request.params.id) });
       } catch (error) {
-        handleServiceError(error, reply);
+        return handleServiceError(error, reply);
       }
     },
   );
@@ -116,9 +113,9 @@ export async function registerProjectRoutes(app: FastifyInstance): Promise<void>
       const { name } = request.body;
       try {
         const project = await renameProject(request.params.id, name);
-        reply.send({ project });
+        return reply.send({ project });
       } catch (error) {
-        handleServiceError(error, reply);
+        return handleServiceError(error, reply);
       }
     },
   );
@@ -132,9 +129,9 @@ export async function registerProjectRoutes(app: FastifyInstance): Promise<void>
     async (request, reply) => {
       try {
         await deleteProject(request.params.id, request.session.user!.id);
-        reply.code(204).send();
+        return reply.code(204).send();
       } catch (error) {
-        handleServiceError(error, reply);
+        return handleServiceError(error, reply);
       }
     },
   );
@@ -143,7 +140,7 @@ export async function registerProjectRoutes(app: FastifyInstance): Promise<void>
     '/admin/deleted-projects',
     { preHandler: requireRole('admin'), schema: { tags: ['Projects'], security: [{ cookieAuth: [] }] } },
     async (_request, reply) => {
-      reply.send({ projects: await listDeletedProjects() });
+      return reply.send({ projects: await listDeletedProjects() });
     },
   );
 
@@ -154,9 +151,9 @@ export async function registerProjectRoutes(app: FastifyInstance): Promise<void>
       try {
         await restoreProject(request.params.id, request.session.user!.id);
         const project = await getProject(request.params.id);
-        reply.send({ project });
+        return reply.send({ project });
       } catch (error) {
-        handleServiceError(error, reply);
+        return handleServiceError(error, reply);
       }
     },
   );

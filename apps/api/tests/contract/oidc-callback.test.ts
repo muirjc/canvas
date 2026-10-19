@@ -153,8 +153,19 @@ async function startLogin(): Promise<{ cookie: string; state: string; nonce: str
   };
 }
 
-async function callback(cookie: string, state: string): Promise<{ statusCode: number; json: () => unknown }> {
+async function callback(cookie: string, state: string): Promise<{ statusCode: number; json: () => unknown; headers: Record<string, unknown> }> {
   return app.inject({ method: 'GET', url: `/auth/callback?code=test-code&state=${encodeURIComponent(state)}`, headers: { cookie } });
+}
+
+/** canvas-4xo: signing in issues a NEW session id (no session fixation), so requests after the
+ *  callback use the cookie it sets, not the pre-login one from startLogin(). */
+function signedInCookie(response: { headers: Record<string, unknown> }): string {
+  const setCookie = response.headers['set-cookie'];
+  const cookie = (Array.isArray(setCookie) ? setCookie : [setCookie]).find(
+    (c): c is string => typeof c === 'string' && c.startsWith('sessionId='),
+  );
+  if (!cookie) throw new Error('expected the callback to set a new sessionId cookie');
+  return cookie.split(';')[0];
 }
 
 describe('OIDC callback against a real openid-client validation pipeline (canvas-haz.5)', () => {
@@ -165,12 +176,17 @@ describe('OIDC callback against a real openid-client validation pipeline (canvas
     const response = await callback(cookie, state);
     expect(response.statusCode).toBe(302);
     expect(response.headers.location).toBe(WEB_ORIGIN);
+    const session = signedInCookie(response);
 
-    const me = await app.inject({ method: 'GET', url: '/auth/me', headers: { cookie } });
+    // canvas-4xo: no session fixation -- the pre-login session id is replaced, and dead.
+    expect(session).not.toBe(cookie);
+    expect((await app.inject({ method: 'GET', url: '/auth/me', headers: { cookie } })).statusCode).toBe(401);
+
+    const me = await app.inject({ method: 'GET', url: '/auth/me', headers: { cookie: session } });
     expect(me.statusCode).toBe(200);
     expect(me.json().user).toMatchObject({ email: 'jane.doe@contoso.com', name: 'Jane Doe', role: 'admin' });
 
-    const logout = await app.inject({ method: 'POST', url: '/auth/logout', headers: { cookie } });
+    const logout = await app.inject({ method: 'POST', url: '/auth/logout', headers: { cookie: session } });
     expect(logout.statusCode).toBe(200);
     const logoutUrl = new URL(logout.json().logoutUrl);
     expect(logoutUrl.origin + logoutUrl.pathname).toBe(END_SESSION_ENDPOINT);
@@ -185,8 +201,8 @@ describe('OIDC callback against a real openid-client validation pipeline (canvas
     const { cookie, state, nonce } = await startLogin();
     setTokenEndpointResponse(await signIdToken(realPrivateKey, baseClaims({ nonce, roles: ['viewer', 'architect'] })));
 
-    await callback(cookie, state);
-    const me = await app.inject({ method: 'GET', url: '/auth/me', headers: { cookie } });
+    const session = signedInCookie(await callback(cookie, state));
+    const me = await app.inject({ method: 'GET', url: '/auth/me', headers: { cookie: session } });
     expect(me.json().user.role).toBe('architect');
   });
 
@@ -196,8 +212,8 @@ describe('OIDC callback against a real openid-client validation pipeline (canvas
     delete claims.roles;
     setTokenEndpointResponse(await signIdToken(realPrivateKey, claims));
 
-    await callback(cookie, state);
-    const me = await app.inject({ method: 'GET', url: '/auth/me', headers: { cookie } });
+    const session = signedInCookie(await callback(cookie, state));
+    const me = await app.inject({ method: 'GET', url: '/auth/me', headers: { cookie: session } });
     expect(me.json().user.role).toBe('viewer');
   });
 
@@ -207,8 +223,8 @@ describe('OIDC callback against a real openid-client validation pipeline (canvas
     delete claims.roles;
     setTokenEndpointResponse(await signIdToken(realPrivateKey, claims));
 
-    await callback(cookie, state);
-    const me = await app.inject({ method: 'GET', url: '/auth/me', headers: { cookie } });
+    const session = signedInCookie(await callback(cookie, state));
+    const me = await app.inject({ method: 'GET', url: '/auth/me', headers: { cookie: session } });
     expect(me.json().user.role).toBe('viewer');
   });
 
@@ -219,9 +235,9 @@ describe('OIDC callback against a real openid-client validation pipeline (canvas
 
     const second = await startLogin();
     setTokenEndpointResponse(await signIdToken(realPrivateKey, baseClaims({ nonce: second.nonce, roles: ['viewer'] })));
-    await callback(second.cookie, second.state);
+    const session = signedInCookie(await callback(second.cookie, second.state));
 
-    const me = await app.inject({ method: 'GET', url: '/auth/me', headers: { cookie: second.cookie } });
+    const me = await app.inject({ method: 'GET', url: '/auth/me', headers: { cookie: session } });
     expect(me.json().user.role).toBe('viewer');
 
     const db = getDb();

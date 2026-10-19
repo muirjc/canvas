@@ -4,10 +4,9 @@ import { getAdminOverview, listUsers, updateUser, UserNotFoundError, type Update
 
 const VALID_ROLES = ['admin', 'architect', 'viewer'];
 
-function handleError(error: unknown, reply: FastifyReply): void {
+function handleError(error: unknown, reply: FastifyReply): FastifyReply {
   if (error instanceof UserNotFoundError) {
-    reply.code(404).send({ error: error.message });
-    return;
+    return reply.code(404).send({ error: error.message });
   }
   throw error;
 }
@@ -17,7 +16,7 @@ export async function registerAdminRoutes(app: FastifyInstance): Promise<void> {
     '/admin/users',
     { preHandler: requireRole('admin'), schema: { tags: ['Admin'], security: [{ cookieAuth: [] }] } },
     async (_request, reply) => {
-      reply.send({ users: await listUsers() });
+      return reply.send({ users: await listUsers() });
     },
   );
 
@@ -46,9 +45,9 @@ export async function registerAdminRoutes(app: FastifyInstance): Promise<void> {
     async (request, reply) => {
       try {
         const user = await updateUser(request.params.id, request.body);
-        reply.send({ user });
+        return reply.send({ user });
       } catch (error) {
-        handleError(error, reply);
+        return handleError(error, reply);
       }
     },
   );
@@ -57,7 +56,7 @@ export async function registerAdminRoutes(app: FastifyInstance): Promise<void> {
     '/admin/overview',
     { preHandler: requireRole('admin'), schema: { tags: ['Admin'], security: [{ cookieAuth: [] }] } },
     async (_request, reply) => {
-      reply.send({ overview: await getAdminOverview() });
+      return reply.send({ overview: await getAdminOverview() });
     },
   );
 }

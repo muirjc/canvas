@@ -21,22 +21,18 @@ import {
 import { searchDiagrams } from './search.service.js';
 import { DiagramVersionNotFoundError, getDiagramVersionContent, listDiagramVersions } from './version.service.js';
 
-function handleServiceError(error: unknown, reply: FastifyReply): void {
+function handleServiceError(error: unknown, reply: FastifyReply): FastifyReply {
   if (error instanceof DslValidationError) {
-    reply.code(422).send({ error: 'DSL could not be parsed', details: error.errors });
-    return;
+    return reply.code(422).send({ error: 'DSL could not be parsed', details: error.errors });
   }
   if (error instanceof DiagramNotFoundError || error instanceof DiagramVersionNotFoundError) {
-    reply.code(404).send({ error: error.message });
-    return;
+    return reply.code(404).send({ error: error.message });
   }
   if (error instanceof DiagramRetentionExpiredError) {
-    reply.code(409).send({ error: error.message });
-    return;
+    return reply.code(409).send({ error: error.message });
   }
   if (error instanceof UnknownDiagramTypeError) {
-    reply.code(400).send({ error: error.message });
-    return;
+    return reply.code(400).send({ error: error.message });
   }
   throw error;
 }
@@ -74,9 +70,9 @@ export async function registerDiagramRoutes(app: FastifyInstance): Promise<void>
           ownerId: request.session.user!.id,
           initialDslContent,
         });
-        reply.code(201).send({ diagram });
+        return reply.code(201).send({ diagram });
       } catch (error) {
-        handleServiceError(error, reply);
+        return handleServiceError(error, reply);
       }
     },
   );
@@ -93,7 +89,7 @@ export async function registerDiagramRoutes(app: FastifyInstance): Promise<void>
         query: request.query.query,
         diagramTypeId: request.query.type,
       });
-      reply.send({ diagrams });
+      return reply.send({ diagrams });
     },
   );
 
@@ -106,9 +102,9 @@ export async function registerDiagramRoutes(app: FastifyInstance): Promise<void>
     async (request, reply) => {
       try {
         const diagram = await getDiagram(request.params.id);
-        reply.send({ diagram });
+        return reply.send({ diagram });
       } catch (error) {
-        handleServiceError(error, reply);
+        return handleServiceError(error, reply);
       }
     },
   );
@@ -131,9 +127,9 @@ export async function registerDiagramRoutes(app: FastifyInstance): Promise<void>
           dslContent,
           authorId: request.session.user!.id,
         });
-        reply.send({ diagram });
+        return reply.send({ diagram });
       } catch (error) {
-        handleServiceError(error, reply);
+        return handleServiceError(error, reply);
       }
     },
   );
@@ -163,9 +159,9 @@ export async function registerDiagramRoutes(app: FastifyInstance): Promise<void>
       const { name } = request.body;
       try {
         const diagram = await renameDiagram(request.params.id, name);
-        reply.send({ diagram });
+        return reply.send({ diagram });
       } catch (error) {
-        handleServiceError(error, reply);
+        return handleServiceError(error, reply);
       }
     },
   );
@@ -191,9 +187,9 @@ export async function registerDiagramRoutes(app: FastifyInstance): Promise<void>
       const { description } = request.body;
       try {
         const diagram = await updateDiagramDescription(request.params.id, description);
-        reply.send({ diagram });
+        return reply.send({ diagram });
       } catch (error) {
-        handleServiceError(error, reply);
+        return handleServiceError(error, reply);
       }
     },
   );
@@ -219,23 +215,21 @@ export async function registerDiagramRoutes(app: FastifyInstance): Promise<void>
     async (request, reply) => {
       const { projectId } = request.body;
       if (!(await projectExists(projectId))) {
-        reply.code(404).send({ error: `No project with id ${projectId}` });
-        return;
+        return reply.code(404).send({ error: `No project with id ${projectId}` });
       }
       const level = await resolveProjectAccess(request.session.user!.id, projectId);
       if (!accessAtLeast(level, 'edit')) {
-        reply.code(403).send({
+        return reply.code(403).send({
           error: level
             ? `This action requires "edit" access, but you only have "${level}" access to the destination project.`
             : 'You do not have access to the destination project.',
         });
-        return;
       }
       try {
         const diagram = await moveDiagram(request.params.id, projectId);
-        reply.send({ diagram });
+        return reply.send({ diagram });
       } catch (error) {
-        handleServiceError(error, reply);
+        return handleServiceError(error, reply);
       }
     },
   );
@@ -249,7 +243,7 @@ export async function registerDiagramRoutes(app: FastifyInstance): Promise<void>
         limit: Number.isFinite(parsedLimit) ? parsedLimit : undefined,
         search: request.query.q,
       });
-      reply.send(page);
+      return reply.send(page);
     },
   );
 
@@ -263,9 +257,9 @@ export async function registerDiagramRoutes(app: FastifyInstance): Promise<void>
           dslContent: restoredContent,
           authorId: request.session.user!.id,
         });
-        reply.send({ diagram });
+        return reply.send({ diagram });
       } catch (error) {
-        handleServiceError(error, reply);
+        return handleServiceError(error, reply);
       }
     },
   );
@@ -276,9 +270,9 @@ export async function registerDiagramRoutes(app: FastifyInstance): Promise<void>
     async (request, reply) => {
       try {
         await deleteDiagram(request.params.id, request.session.user!.id);
-        reply.code(204).send();
+        return reply.code(204).send();
       } catch (error) {
-        handleServiceError(error, reply);
+        return handleServiceError(error, reply);
       }
     },
   );
@@ -292,7 +286,7 @@ export async function registerDiagramRoutes(app: FastifyInstance): Promise<void>
         limit: Number.isFinite(parsedLimit) ? parsedLimit : undefined,
         search: request.query.q,
       });
-      reply.send(page);
+      return reply.send(page);
     },
   );
 
@@ -303,9 +297,9 @@ export async function registerDiagramRoutes(app: FastifyInstance): Promise<void>
       try {
         await restoreDiagram(request.params.id, request.session.user!.id);
         const diagram = await getDiagram(request.params.id);
-        reply.send({ diagram });
+        return reply.send({ diagram });
       } catch (error) {
-        handleServiceError(error, reply);
+        return handleServiceError(error, reply);
       }
     },
   );

@@ -52,20 +52,18 @@ export async function registerExportRoutes(app: FastifyInstance): Promise<void> 
         reply.header('Content-Type', CONTENT_TYPES[format]);
         reply.header('Content-Disposition', CONTENT_DISPOSITIONS[format]);
         if (format === 'mermaid') {
-          reply.send(exportMermaid(diagram.dslContent));
+          return reply.send(exportMermaid(diagram.dslContent));
         } else if (format === 'svg') {
-          reply.send(await exportSvg(dslFamilyId, diagram.dslContent));
+          return reply.send(await exportSvg(dslFamilyId, diagram.dslContent));
         } else {
-          reply.send(await exportPng(dslFamilyId, diagram.dslContent));
+          return reply.send(await exportPng(dslFamilyId, diagram.dslContent));
         }
       } catch (error) {
         if (error instanceof DiagramNotFoundError) {
-          reply.code(404).send({ error: error.message });
-          return;
+          return reply.code(404).send({ error: error.message });
         }
         if (error instanceof UnrenderableDiagramError) {
-          reply.code(422).send({ error: error.message });
-          return;
+          return reply.code(422).send({ error: error.message });
         }
         throw error;
       }

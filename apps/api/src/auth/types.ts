@@ -11,5 +11,7 @@ export interface SessionUser {
 declare module '@fastify/session' {
   interface FastifySessionObject {
     user?: SessionUser;
+    /** canvas-4xo: when this session signed in (epoch ms); the absolute lifetime runs from it. */
+    authenticatedAt?: number;
   }
 }

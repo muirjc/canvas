@@ -157,3 +157,22 @@ describe('loadConfig() OIDC_ISSUER_URL validation (Entra)', () => {
     );
   });
 });
+
+describe('loadConfig() session lifetimes (canvas-4xo)', () => {
+  it('defaults to an 8-hour idle timeout and a 12-hour absolute lifetime', () => {
+    const config = loadConfig({ NODE_ENV: 'test' });
+    expect(config.sessionIdleMinutes).toBe(480);
+    expect(config.sessionMaxHours).toBe(12);
+  });
+
+  it('honors SESSION_IDLE_MINUTES and SESSION_MAX_HOURS', () => {
+    const config = loadConfig({ NODE_ENV: 'test', SESSION_IDLE_MINUTES: '30', SESSION_MAX_HOURS: '4' });
+    expect(config.sessionIdleMinutes).toBe(30);
+    expect(config.sessionMaxHours).toBe(4);
+  });
+
+  it('rejects a non-positive or non-numeric value at startup', () => {
+    expect(() => loadConfig({ NODE_ENV: 'test', SESSION_IDLE_MINUTES: '0' })).toThrow(/SESSION_IDLE_MINUTES/);
+    expect(() => loadConfig({ NODE_ENV: 'test', SESSION_MAX_HOURS: 'soon' })).toThrow(/SESSION_MAX_HOURS/);
+  });
+});

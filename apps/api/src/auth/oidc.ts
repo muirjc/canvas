@@ -5,6 +5,7 @@ import { getDb } from '../db/client.js';
 import { getUserPersonas } from '../db/array-columns.js';
 import type { AppConfig } from '../config.js';
 import type { SessionUser, UserRole } from './types.js';
+import { startAuthenticatedSession } from './session.js';
 
 declare module '@fastify/session' {
   interface FastifySessionObject {
@@ -259,7 +260,7 @@ export async function registerOidcRoutes(app: FastifyInstance, config: AppConfig
         nonce,
       });
 
-      reply.redirect(authorizationUrl.href);
+      return reply.redirect(authorizationUrl.href);
     },
   );
 
@@ -271,8 +272,7 @@ export async function registerOidcRoutes(app: FastifyInstance, config: AppConfig
     async (request, reply) => {
       const { oidcCodeVerifier, oidcState, oidcNonce } = request.session;
       if (!oidcCodeVerifier || !oidcState || !oidcNonce) {
-        reply.code(400).send({ error: 'No pending OIDC login for this session' });
-        return;
+        return reply.code(400).send({ error: 'No pending OIDC login for this session' });
       }
       // Cleared up front, not just on success -- a failed login (bad signature, denied
       // authorization, ...) must not leave a stale pending-login state a retry could reuse.
@@ -299,8 +299,7 @@ export async function registerOidcRoutes(app: FastifyInstance, config: AppConfig
         });
         const claims = tokens.claims();
         if (!claims?.sub) {
-          reply.code(401).send({ error: 'OIDC provider did not return a subject claim' });
-          return;
+          return reply.code(401).send({ error: 'OIDC provider did not return a subject claim' });
         }
 
         const identity = extractIdentityFromIdToken(claims);
@@ -311,7 +310,8 @@ export async function registerOidcRoutes(app: FastifyInstance, config: AppConfig
           roles: extractEntraRoles(claims),
         });
 
-        request.session.user = user;
+        // canvas-4xo: a new session id on sign-in (no fixation), stamped for the absolute lifetime.
+        await startAuthenticatedSession(request, user);
         // canvas-252: kept for the life of the session so /auth/logout can pass it as
         // id_token_hint on RP-Initiated Logout -- without it, signing out never actually clears
         // the IdP's own SSO session, so the very next SSO login silently re-authenticates the
@@ -323,11 +323,10 @@ export async function registerOidcRoutes(app: FastifyInstance, config: AppConfig
         // caught before this bead because nothing had exercised a full OIDC round-trip against a
         // real IdP. config.webOrigins is the same list CORS already trusts for credentialed
         // requests from this app's own frontend -- reusing it here rather than a separate env var.
-        reply.redirect(config.webOrigins[0]);
+        return reply.redirect(config.webOrigins[0]);
       } catch (error) {
         if (error instanceof InactiveUserError) {
-          reply.code(403).send({ error: 'This account has been deactivated.' });
-          return;
+          return reply.code(403).send({ error: 'This account has been deactivated.' });
         }
         // canvas-haz: the IdP redirected back with its own `?error=...` params (e.g. Entra's
         // AADSTS50105 for a user with no app-role assignment) -- the user authenticated
@@ -336,15 +335,14 @@ export async function registerOidcRoutes(app: FastifyInstance, config: AppConfig
         // registration) but never shown to the end user, who can't act on an IdP error code.
         if (error instanceof client.AuthorizationResponseError) {
           app.log.warn({ error: error.error, description: error.error_description }, 'OIDC authorization denied');
-          reply.code(403).send({ error: 'You are not authorized to access this application.' });
-          return;
+          return reply.code(403).send({ error: 'You are not authorized to access this application.' });
         }
         // Any other failure here is a token-validation problem (bad/tampered signature, wrong
         // issuer/audience, expired token, state/nonce mismatch, ...) -- previously surfaced as an
         // undifferentiated 500. Logged with the error's own message only, never the request's
         // tokens/claims, which can contain sensitive identity data.
         app.log.warn({ err: (error as Error).message }, 'OIDC callback failed validation');
-        reply.code(401).send({ error: 'SSO sign-in failed' });
+        return reply.code(401).send({ error: 'SSO sign-in failed' });
       }
     },
   );

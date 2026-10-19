@@ -17,18 +17,15 @@ import {
 import { runInBackground } from '../background/tasks.js';
 import { revalidateDiagramsForType } from './revalidate.service.js';
 
-function handleServiceError(error: unknown, reply: FastifyReply): void {
+function handleServiceError(error: unknown, reply: FastifyReply): FastifyReply {
   if (error instanceof StandardNotFoundError) {
-    reply.code(404).send({ error: error.message });
-    return;
+    return reply.code(404).send({ error: error.message });
   }
   if (error instanceof UnknownDiagramTypeError) {
-    reply.code(404).send({ error: error.message });
-    return;
+    return reply.code(404).send({ error: error.message });
   }
   if (error instanceof StandardStateError) {
-    reply.code(409).send({ error: error.message });
-    return;
+    return reply.code(409).send({ error: error.message });
   }
   throw error;
 }
@@ -59,10 +56,9 @@ export async function registerStandardRoutes(app: FastifyInstance): Promise<void
     async (request, reply) => {
       const standard = await getActiveStandard(request.params.id);
       if (!standard) {
-        reply.code(404).send({ error: `No published standard for diagram type ${request.params.id}` });
-        return;
+        return reply.code(404).send({ error: `No published standard for diagram type ${request.params.id}` });
       }
-      reply.send({ standard });
+      return reply.send({ standard });
     },
   );
 
@@ -70,7 +66,7 @@ export async function registerStandardRoutes(app: FastifyInstance): Promise<void
     '/diagram-types/:id/standards',
     { preHandler: requireAuth, schema: { tags: ['Standards'], security: [{ cookieAuth: [] }] } },
     async (request, reply) => {
-      reply.send({ standards: await listStandards(request.params.id) });
+      return reply.send({ standards: await listStandards(request.params.id) });
     },
   );
 
@@ -82,8 +78,7 @@ export async function registerStandardRoutes(app: FastifyInstance): Promise<void
         const family = await loadDiagramTypeDslFamily(request.params.id);
         const parsed = parseStandardBody(request.body, family);
         if (!parsed.ok) {
-          reply.code(400).send({ error: 'Invalid standard definition', issues: parsed.issues });
-          return;
+          return reply.code(400).send({ error: 'Invalid standard definition', issues: parsed.issues });
         }
         const standard = await createDraftStandard({
           diagramTypeId: request.params.id,
@@ -91,9 +86,9 @@ export async function registerStandardRoutes(app: FastifyInstance): Promise<void
           name: parsed.name,
           description: parsed.description ?? undefined,
         });
-        reply.code(201).send({ standard });
+        return reply.code(201).send({ standard });
       } catch (error) {
-        handleServiceError(error, reply);
+        return handleServiceError(error, reply);
       }
     },
   );
@@ -108,17 +103,16 @@ export async function registerStandardRoutes(app: FastifyInstance): Promise<void
         const family = await loadDiagramTypeDslFamily(existing.diagramTypeId);
         const parsed = parseStandardBody(request.body, family);
         if (!parsed.ok) {
-          reply.code(400).send({ error: 'Invalid standard definition', issues: parsed.issues });
-          return;
+          return reply.code(400).send({ error: 'Invalid standard definition', issues: parsed.issues });
         }
         const standard = await updateDraftStandard(request.params.id, {
           rules: parsed.rules,
           name: parsed.name,
           description: parsed.description,
         });
-        reply.send({ standard });
+        return reply.send({ standard });
       } catch (error) {
-        handleServiceError(error, reply);
+        return handleServiceError(error, reply);
       }
     },
   );
@@ -129,9 +123,9 @@ export async function registerStandardRoutes(app: FastifyInstance): Promise<void
     { preHandler: requireRole('admin'), schema: { tags: ['Standards'], security: [{ cookieAuth: [] }] } },
     async (request, reply) => {
       try {
-        reply.code(201).send({ standard: await cloneStandard(request.params.id) });
+        return reply.code(201).send({ standard: await cloneStandard(request.params.id) });
       } catch (error) {
-        handleServiceError(error, reply);
+        return handleServiceError(error, reply);
       }
     },
   );
@@ -145,9 +139,9 @@ export async function registerStandardRoutes(app: FastifyInstance): Promise<void
         // Fire-and-forget: existing diagrams of this type are re-evaluated against the newly
         // published standard, never silently auto-modified (FR-014).
         revalidateInBackground(request.log, standard.diagramTypeId);
-        reply.send({ standard });
+        return reply.send({ standard });
       } catch (error) {
-        handleServiceError(error, reply);
+        return handleServiceError(error, reply);
       }
     },
   );
@@ -161,9 +155,9 @@ export async function registerStandardRoutes(app: FastifyInstance): Promise<void
         // canvas-tfr: retiring removes the rules in force, so cached violations must be refreshed
         // too (previously only publish re-checked, leaving stale flags after a retire).
         revalidateInBackground(request.log, standard.diagramTypeId);
-        reply.send({ standard });
+        return reply.send({ standard });
       } catch (error) {
-        handleServiceError(error, reply);
+        return handleServiceError(error, reply);
       }
     },
   );

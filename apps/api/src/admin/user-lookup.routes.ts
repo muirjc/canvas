@@ -28,7 +28,7 @@ export async function registerUserLookupRoutes(app: FastifyInstance): Promise<vo
         .where('email', '=', request.query.email)
         .where('active', '=', dbBoolean(true))
         .executeTakeFirst();
-      reply.send({ user: user ?? null });
+      return reply.send({ user: user ?? null });
     },
   );
 }

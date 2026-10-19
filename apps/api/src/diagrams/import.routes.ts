@@ -4,14 +4,12 @@ import { requireAuth } from '../auth/middleware.js';
 import { DslValidationError } from './diagram.service.js';
 import { DiagramTypeHintMismatchError, importDiagram, UnrecognizedDslError } from './import.service.js';
 
-function handleImportError(error: unknown, reply: FastifyReply): void {
+function handleImportError(error: unknown, reply: FastifyReply): FastifyReply {
   if (error instanceof DslValidationError) {
-    reply.code(422).send({ error: 'DSL could not be parsed', details: error.errors });
-    return;
+    return reply.code(422).send({ error: 'DSL could not be parsed', details: error.errors });
   }
   if (error instanceof UnrecognizedDslError || error instanceof DiagramTypeHintMismatchError) {
-    reply.code(422).send({ error: error.message });
-    return;
+    return reply.code(422).send({ error: error.message });
   }
   throw error;
 }
@@ -49,9 +47,9 @@ export async function registerImportRoutes(app: FastifyInstance): Promise<void> 
           projectId: request.params.projectId,
           ownerId: request.session.user!.id,
         });
-        reply.code(201).send({ diagram });
+        return reply.code(201).send({ diagram });
       } catch (error) {
-        handleImportError(error, reply);
+        return handleImportError(error, reply);
       }
     },
   );

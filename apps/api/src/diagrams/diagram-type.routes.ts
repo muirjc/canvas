@@ -10,18 +10,15 @@ import {
   type CustomDiagramTypeInput,
 } from './diagram-type.service.js';
 
-function handleError(error: unknown, reply: FastifyReply): void {
+function handleError(error: unknown, reply: FastifyReply): FastifyReply {
   if (error instanceof DiagramTypeValidationError) {
-    reply.code(400).send({ error: error.message });
-    return;
+    return reply.code(400).send({ error: error.message });
   }
   if (error instanceof DiagramTypeNotFoundError) {
-    reply.code(404).send({ error: error.message });
-    return;
+    return reply.code(404).send({ error: error.message });
   }
   if (error instanceof DiagramTypeConflictError) {
-    reply.code(409).send({ error: error.message });
-    return;
+    return reply.code(409).send({ error: error.message });
   }
   throw error;
 }
@@ -40,7 +37,7 @@ export async function registerDiagramTypeRoutes(app: FastifyInstance): Promise<v
       const diagramTypes = (await listDiagramTypeRecords()).filter(
         (t) => !request.query.persona || t.personas.includes(request.query.persona),
       );
-      reply.send({ diagramTypes });
+      return reply.send({ diagramTypes });
     },
   );
 
@@ -51,7 +48,7 @@ export async function registerDiagramTypeRoutes(app: FastifyInstance): Promise<v
     async (request, reply) => {
       try {
         const body = request.body ?? ({} as CustomDiagramTypeInput);
-        reply.code(201).send({
+        return reply.code(201).send({
           diagramType: await createCustomDiagramType({
             name: String(body.name ?? ''),
             dslFamily: String(body.dslFamily ?? ''),
@@ -61,7 +58,7 @@ export async function registerDiagramTypeRoutes(app: FastifyInstance): Promise<v
           }),
         });
       } catch (error) {
-        handleError(error, reply);
+        return handleError(error, reply);
       }
     },
   );
@@ -71,9 +68,9 @@ export async function registerDiagramTypeRoutes(app: FastifyInstance): Promise<v
     { preHandler: requireRole('admin'), schema: { tags: ['DiagramTypes'], security: [{ cookieAuth: [] }] } },
     async (request, reply) => {
       try {
-        reply.send({ diagramType: await updateDiagramType(request.params.id, request.body ?? {}) });
+        return reply.send({ diagramType: await updateDiagramType(request.params.id, request.body ?? {}) });
       } catch (error) {
-        handleError(error, reply);
+        return handleError(error, reply);
       }
     },
   );

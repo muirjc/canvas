@@ -64,7 +64,8 @@ describe('session info routes (/auth/me, /auth/logout) with local auth disabled'
 
 /**
  * canvas-252: RP-Initiated Logout coverage for POST /auth/logout. Built as its own minimal
- * Fastify app (registerSession + registerSessionInfoRoutes directly, no database/migrations, no
+ * Fastify app (registerSession + registerSessionInfoRoutes directly -- migrations only for the
+ * sessions table since canvas-4xo -- no
  * full registerOidcRoutes/client.discovery() involved) rather than reusing buildApp() -- the
  * describe block above already establishes that `registerOidcRoutes` is what would normally
  * decorate `app.buildOidcLogoutUrl` (see oidc.test.ts's own dedicated coverage of that decoration
@@ -75,6 +76,16 @@ describe('session info routes (/auth/me, /auth/logout) with local auth disabled'
  * suite).
  */
 describe('POST /auth/logout with an SSO-established session (canvas-252)', () => {
+  // canvas-4xo: sessions now live in the database (auth/session-store.ts), so this minimal app needs
+  // the schema too -- and on SQLite the block above's closeTestDb() discarded the in-memory DB.
+  beforeAll(async () => {
+    await runMigrations();
+  });
+
+  afterAll(async () => {
+    await closeTestDb();
+  });
+
   function testConfig(): AppConfig {
     return {
       port: 3000,
@@ -86,6 +97,8 @@ describe('POST /auth/logout with an SSO-established session (canvas-252)', () =>
       cookieSecure: false,
       cookieSameSite: 'lax',
       enableApiDocs: false,
+      sessionIdleMinutes: 480,
+      sessionMaxHours: 12,
     };
   }
 
@@ -115,8 +128,10 @@ describe('POST /auth/logout with an SSO-established session (canvas-252)', () =>
         role: 'architect',
         personas: [],
       };
+      // canvas-4xo: a signed-in session carries its sign-in time (the absolute lifetime runs from it).
+      request.session.authenticatedAt = Date.now();
       if (request.body.oidcIdToken) request.session.oidcIdToken = request.body.oidcIdToken;
-      reply.code(204).send();
+      return reply.code(204).send();
     });
     await app.ready();
     return { app, buildOidcLogoutUrlMock };
