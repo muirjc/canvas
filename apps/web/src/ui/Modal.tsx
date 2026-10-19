@@ -40,6 +40,15 @@ export function Modal({
 }: ModalProps) {
   const ref = useRef<HTMLDialogElement>(null);
   const openerRef = useRef<HTMLElement | null>(null);
+  // canvas-0sa: the latest onClose, read by the native cancel handler. Callers commonly pass an
+  // inline `onClose={() => ...}` -- a new function on every render. With onClose as the open/close
+  // effect's dependency, every re-render (e.g. each keystroke in a field) closed the dialog and
+  // re-ran showModal(), which moves focus to the first focusable control: typing in the Create via
+  // AI Chat description kept jumping back to Name. The effect now runs once per mount.
+  const onCloseRef = useRef(onClose);
+  useEffect(() => {
+    onCloseRef.current = onClose;
+  }, [onClose]);
 
   useEffect(() => {
     const dialog = ref.current;
@@ -57,7 +66,7 @@ export function Modal({
     // Deliberately NOT preventDefault: the native close is what restores focus to the control
     // that opened the dialog. Suppressing it and unmounting from React instead leaves focus on
     // <body>, silently failing FR-017's last clause. We only mirror the close into React state.
-    const handleCancel = () => onClose();
+    const handleCancel = () => onCloseRef.current();
     dialog.addEventListener('cancel', handleCancel);
 
     return () => {
@@ -70,7 +79,7 @@ export function Modal({
       const opener = openerRef.current;
       if (opener && opener.isConnected) opener.focus();
     };
-  }, [onClose]);
+  }, []);
 
   const heading = title === undefined ? label : title;
 
