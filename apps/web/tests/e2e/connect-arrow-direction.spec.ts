@@ -83,10 +83,10 @@ test('reverses source/target when Reversed is chosen — no separate second edge
 
   const firstNodeId = firstId!.replace('node-', '');
   const secondNodeId = secondId!.replace('node-', '');
-  const dsl = await page.getByTestId('dsl-panel').inputValue();
   // The second-clicked shape is the arrow's source, the first-clicked is its target.
+  // canvas-blt: a web-first (polling) assertion, not a single inputValue() read -- see DslPanel.
   const reversedLine = new RegExp(`${secondNodeId}\\s*-->\\s*${firstNodeId}`);
-  expect(dsl).toMatch(reversedLine);
+  await expect(page.getByTestId('dsl-panel')).toHaveValue(reversedLine);
 });
 
 test('defaults to a plain forward arrow when no direction is chosen', async ({ page }) => {

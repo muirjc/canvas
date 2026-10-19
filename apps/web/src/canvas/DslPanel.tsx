@@ -20,11 +20,17 @@ export function DslPanel({ dsl, parseErrors, onApply, rules, dslFamily }: DslPan
   const [checkedDraft, setCheckedDraft] = useState(dsl);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
-  // Keep the draft in sync when the canvas changes the model (and thus the derived DSL),
-  // but don't clobber in-progress typing.
-  useEffect(() => {
+  // Keep the draft in sync when the canvas changes the model (and thus the derived DSL), but don't
+  // clobber in-progress typing (the draft only resets when the DSL itself changes).
+  // canvas-blt: adjusted during render (React's pattern for state that follows a prop) rather than
+  // in a useEffect -- the effect updated the textarea one commit AFTER the canvas, so a canvas edit
+  // (e.g. drawing a connector) briefly showed the new edge while the panel still held the old DSL;
+  // E2E specs reading the panel right after the edge appeared intermittently saw no edge line.
+  const [syncedDsl, setSyncedDsl] = useState(dsl);
+  if (dsl !== syncedDsl) {
+    setSyncedDsl(dsl);
     setDraft(dsl);
-  }, [dsl]);
+  }
 
   // canvas-tfr: debounce so the check runs when typing pauses, not on every keystroke.
   useEffect(() => {
