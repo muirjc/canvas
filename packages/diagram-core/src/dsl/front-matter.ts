@@ -1,5 +1,6 @@
 import { parse as parseYaml, stringify as stringifyYaml } from 'yaml';
 import type { NodeStyle } from '../model/diagram-model.js';
+import { AWS_ICONS_VERSION, LEGACY_AWS_PLACEHOLDER_VERSION } from '../libraries/aws-icons.js';
 
 /**
  * The platform's visual-metadata extension point (research.md §1): free-form positions, sizes,
@@ -33,7 +34,23 @@ export function splitFrontMatter(dsl: string): SplitDocument {
     return { frontMatter: {}, body: dsl };
   }
   const parsed = parseYaml(match[1]) as CanvasFrontMatter | null;
-  return { frontMatter: parsed ?? {}, body: dsl.slice(match[0].length) };
+  return { frontMatter: upgradeLegacyIconRefs(parsed ?? {}), body: dsl.slice(match[0].length) };
+}
+
+/**
+ * jmuir-dtu.29: the aws-icons library's version moved from '2024.1-placeholder' to
+ * AWS_ICONS_VERSION (shared by the placeholder and a locally generated real library). Rewriting
+ * saved references here covers every diagram family, since they all read icons from front-matter.
+ */
+function upgradeLegacyIconRefs(frontMatter: CanvasFrontMatter): CanvasFrontMatter {
+  const icons = frontMatter.canvas?.icons;
+  if (!icons) return frontMatter;
+  for (const ref of Object.values(icons)) {
+    if (ref && ref.libraryId === 'aws-icons' && String(ref.libraryVersion) === LEGACY_AWS_PLACEHOLDER_VERSION) {
+      ref.libraryVersion = AWS_ICONS_VERSION;
+    }
+  }
+  return frontMatter;
 }
 
 /**
