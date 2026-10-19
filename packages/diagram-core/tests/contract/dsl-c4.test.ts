@@ -659,9 +659,9 @@ describe('C4 DSL family (Context/Container/Component/Code)', () => {
       if (!isParseSuccess(result)) return;
       expect(result.model.edges).toHaveLength(1);
       expect(result.model.edges[0].label).toBe('Sends e-mails');
-      // Captured-but-discarded, matching ELEMENT_PATTERN's own established treatment of the
-      // optional description arg -- not modeled, not leaked into the label.
-      expect(JSON.stringify(result.model)).not.toContain('SMTP');
+      // canvas-1u2: modeled now (it used to be discarded and lost on save) -- and still not leaked
+      // into the label.
+      expect(result.model.edges[0].technology).toBe('SMTP');
     });
 
     it('a 3-arg Rel (no technology) still parses exactly as before -- no regression', () => {
@@ -731,10 +731,10 @@ describe('C4 DSL family (Context/Container/Component/Code)', () => {
       expect(webApp).toMatchObject({ label: 'Web Application', role: 'container', containerId: 'c1' });
       const database = result.model.nodes.find((n) => n.id === 'database');
       expect(database).toMatchObject({ label: 'Database', role: 'container', shape: 'cylinder' });
-      // Technology and description are captured-but-discarded, same as Person's own optional
-      // description arg -- not modeled, not leaked into the label.
-      expect(JSON.stringify(result.model)).not.toContain('JavaScript, React');
-      expect(JSON.stringify(result.model)).not.toContain('Stores user registration');
+      // canvas-1u2: technology and description are modeled now (they used to be discarded and lost
+      // on save) -- and still kept out of the label.
+      expect(webApp).toMatchObject({ technology: 'JavaScript, React', description: 'Delivers the static content and the SPA' });
+      expect(database).toMatchObject({ technology: 'SQL Database', description: 'Stores user registration, hashed auth credentials, access logs' });
     });
 
     it('the real reported bank-boundary C4Container example (5 Container/ContainerDb macros, each with technology + description) parses end-to-end with zero errors', () => {

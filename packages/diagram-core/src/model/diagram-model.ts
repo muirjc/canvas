@@ -101,6 +101,11 @@ export interface DiagramNode {
   position: Position;
   size?: Size;
   style?: NodeStyle;
+  /** canvas-1u2: C4 only -- the element's description (Person/System's 3rd argument, Container/
+   *  Component's 4th, or `$descr`). Kept through save; not yet rendered. */
+  description?: string;
+  /** canvas-1u2: C4 Container/Component only -- the technology argument (3rd, or `$techn`). */
+  technology?: string;
   /** canvas-7hp: C4 only -- the element's Mermaid `$tags` list, in order. A tag naming one of the
    *  active standard's element kinds picks that kind (classifyNode), which is how several kinds can
    *  share one C4 role (e.g. six kinds of System). Other tags are preserved untouched. */
@@ -245,6 +250,10 @@ export interface DiagramEdge {
   /** Sequence diagrams only: id of the control-flow-block/branch DiagramContainer this message
    * is nested inside, if any — mirrors DiagramNode.containerId's meaning. */
   containerId?: ElementId;
+  /** canvas-1u2: C4 Rel family only -- the relationship's technology (4th argument or `$techn`). */
+  technology?: string;
+  /** canvas-1u2: C4 Rel family only -- the relationship's description (5th argument or `$descr`). */
+  description?: string;
 }
 
 /** A visual grouping/boundary (e.g., a C4 "System Boundary" or a Mermaid subgraph). */
