@@ -26,6 +26,8 @@ export interface CustomDiagramTypeInput {
   personas: string[];
   paletteLibraryIds?: string[];
   description?: string | null;
+  /** canvas-9ff: PATCH only -- hide/unhide (any type). */
+  hidden?: boolean;
 }
 
 export interface DiagramTypeRecord {
@@ -39,6 +41,8 @@ export interface DiagramTypeRecord {
   /** canvas-chq: a built-in type an admin has edited (the catalog seed no longer updates it). */
   adminEdited: boolean;
   description: string | null;
+  /** canvas-9ff: left out of the create pickers; existing diagrams unaffected. */
+  hidden: boolean;
 }
 
 /** "Process Map (Ops)" -> "process-map-ops". */
@@ -60,6 +64,9 @@ function validate(input: Partial<CustomDiagramTypeInput>): void {
     if (input.personas.length === 0) throw new DiagramTypeValidationError('Choose at least one persona.');
     const unknown = input.personas.filter((p) => !(PERSONAS as readonly string[]).includes(p));
     if (unknown.length > 0) throw new DiagramTypeValidationError(`Unknown persona(s): ${unknown.join(', ')}.`);
+  }
+  if (input.hidden !== undefined && typeof input.hidden !== 'boolean') {
+    throw new DiagramTypeValidationError('hidden must be true or false.');
   }
 }
 
@@ -110,12 +117,21 @@ export async function updateDiagramType(
     const used = await db.selectFrom('diagrams').select('id').where('diagram_type_id', '=', id).executeTakeFirst();
     if (used) throw new DiagramTypeConflictError(`"${id}" already has diagrams, so its family can't change.`);
   }
+  // canvas-9ff: hiding isn't editing the type's definition, so it doesn't mark a built-in
+  // admin-edited (catalog updates keep reaching it); the catalog seed never touches `hidden`.
+  const editsDefinition =
+    patch.name !== undefined ||
+    patch.dslFamily !== undefined ||
+    patch.description !== undefined ||
+    patch.personas !== undefined ||
+    patch.paletteLibraryIds !== undefined;
   await db.transaction().execute(async (trx) => {
     const set = {
       ...(patch.name !== undefined ? { name: patch.name.trim() } : {}),
       ...(patch.dslFamily !== undefined ? { dsl_family: patch.dslFamily } : {}),
       ...(patch.description !== undefined ? { description: patch.description } : {}),
-      ...(row.origin === 'builtin' ? { admin_edited: dbBoolean(true) } : {}),
+      ...(patch.hidden !== undefined ? { hidden: dbBoolean(patch.hidden) } : {}),
+      ...(row.origin === 'builtin' && editsDefinition ? { admin_edited: dbBoolean(true) } : {}),
     };
     if (Object.keys(set).length > 0) await trx.updateTable('diagram_types').set(set).where('id', '=', id).execute();
     if (patch.personas !== undefined) await setDiagramTypePersonas(trx, id, patch.personas);
@@ -135,7 +151,7 @@ export async function listDiagramTypeRecords(ids?: string[]): Promise<DiagramTyp
   const db = getDb();
   let query = db
     .selectFrom('diagram_types')
-    .select(['id', 'name', 'abstraction_level', 'dsl_family', 'origin', 'admin_edited', 'description'])
+    .select(['id', 'name', 'abstraction_level', 'dsl_family', 'origin', 'admin_edited', 'description', 'hidden'])
     .orderBy('name');
   if (ids) query = query.where('id', 'in', ids.length > 0 ? ids : ['']);
   const rows = await query.execute();
@@ -154,5 +170,45 @@ export async function listDiagramTypeRecords(ids?: string[]): Promise<DiagramTyp
     origin: r.origin,
     adminEdited: fromDbBoolean(r.admin_edited),
     description: r.description,
+    hidden: fromDbBoolean(r.hidden),
   }));
+}
+
+/**
+ * canvas-9ff: deletes a custom diagram type no diagram or template uses, with its standards (its
+ * persona and palette links cascade). Built-in types can only be hidden -- the catalog seed would
+ * recreate a deleted one. A soft-deleted diagram still counts as a use: it can be restored, and its
+ * row still references the type.
+ */
+export async function deleteCustomDiagramType(id: string): Promise<void> {
+  const db = getDb();
+  const row = await db.selectFrom('diagram_types').select(['origin']).where('id', '=', id).executeTakeFirst();
+  if (!row) throw new DiagramTypeNotFoundError(`No diagram type with id ${id}`);
+  if (row.origin === 'builtin') {
+    throw new DiagramTypeConflictError(`"${id}" is a built-in diagram type and can't be deleted; hide it instead.`);
+  }
+  const countOf = async (table: 'diagrams' | 'templates') =>
+    Number(
+      (
+        await db
+          .selectFrom(table)
+          .select((eb) => eb.fn.countAll<string | number>().as('n'))
+          .where('diagram_type_id', '=', id)
+          .executeTakeFirstOrThrow()
+      ).n,
+    );
+  const [diagrams, templates] = await Promise.all([countOf('diagrams'), countOf('templates')]);
+  if (diagrams > 0 || templates > 0) {
+    const uses = [
+      diagrams > 0 ? `${diagrams} diagram${diagrams === 1 ? '' : 's'}` : '',
+      templates > 0 ? `${templates} template${templates === 1 ? '' : 's'}` : '',
+    ].filter(Boolean);
+    throw new DiagramTypeConflictError(
+      `"${id}" is used by ${uses.join(' and ')} (deleted diagrams included), so it can't be deleted; hide it instead.`,
+    );
+  }
+  await db.transaction().execute(async (trx) => {
+    await trx.deleteFrom('standards').where('diagram_type_id', '=', id).execute();
+    await trx.deleteFrom('diagram_types').where('id', '=', id).execute();
+  });
 }

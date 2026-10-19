@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { api, ApiError, type DiagramTypeDto, type StandardDto } from '../app/api';
 import { ConfirmDialog } from '../canvas/ConfirmDialog';
+import { Modal } from '../ui/Modal';
 import { DiagramTypeDialog } from './DiagramTypeDialog';
 import { StandardsEditor } from './StandardsEditor';
 
@@ -21,11 +22,13 @@ export function StandardsAdminPage() {
   const [editing, setEditing] = useState<{ standard?: StandardDto; readOnly?: boolean } | null>(null);
   const [typeDialog, setTypeDialog] = useState<{ diagramType?: DiagramTypeDto } | null>(null);
   const [pendingPublish, setPendingPublish] = useState<StandardDto | null>(null);
+  const [pendingHide, setPendingHide] = useState<DiagramTypeDto | null>(null);
+  const [pendingDelete, setPendingDelete] = useState<DiagramTypeDto | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    api.listDiagramTypes().then(({ diagramTypes }) => {
+    api.listDiagramTypes(undefined, { includeHidden: true }).then(({ diagramTypes }) => {
       setTypes(diagramTypes);
       // ?admin=true historically meant "the flowchart standards editor" -- keep that default.
       setSelectedId((current) => current ?? diagramTypes.find((t) => t.id === 'flowchart')?.id ?? diagramTypes[0]?.id ?? null);
@@ -59,6 +62,32 @@ export function StandardsAdminPage() {
       await action();
       setMessage(success);
       await refresh();
+    } catch (e) {
+      setError(e instanceof ApiError ? e.message : (e as Error).message);
+    }
+  };
+
+  const setHidden = async (type: DiagramTypeDto, hidden: boolean) => {
+    setError(null);
+    setMessage(null);
+    try {
+      const { diagramType } = await api.setDiagramTypeHidden(type.id, hidden);
+      setTypes((prev) => prev.map((t) => (t.id === diagramType.id ? diagramType : t)));
+      setMessage(hidden ? `Hid "${type.name}".` : `"${type.name}" is visible again.`);
+    } catch (e) {
+      setError(e instanceof ApiError ? e.message : (e as Error).message);
+    }
+  };
+
+  const deleteType = async (type: DiagramTypeDto) => {
+    setError(null);
+    setMessage(null);
+    try {
+      await api.deleteDiagramType(type.id);
+      const remaining = types.filter((t) => t.id !== type.id);
+      setTypes(remaining);
+      setSelectedId(remaining.find((t) => t.id === 'flowchart')?.id ?? remaining[0]?.id ?? null);
+      setMessage(`Deleted "${type.name}".`);
     } catch (e) {
       setError(e instanceof ApiError ? e.message : (e as Error).message);
     }
@@ -125,6 +154,11 @@ export function StandardsAdminPage() {
                       <span className="pill">
                         {type.origin === 'custom' ? 'Custom' : type.adminEdited ? 'Built-in · edited' : 'Built-in'}
                       </span>
+                      {type.hidden && (
+                        <span className="pill" data-testid={`standards-type-hidden-${type.id}`}>
+                          Hidden
+                        </span>
+                      )}
                     </button>
                   </li>
                 ))}
@@ -148,6 +182,24 @@ export function StandardsAdminPage() {
                 >
                   Edit type
                 </button>
+                <button
+                  type="button"
+                  className="btn btn--tertiary btn--compact"
+                  data-testid="diagram-type-hide-toggle"
+                  onClick={() => (selected.hidden ? void setHidden(selected, false) : setPendingHide(selected))}
+                >
+                  {selected.hidden ? 'Show type' : 'Hide type'}
+                </button>
+                {selected.origin === 'custom' && (
+                  <button
+                    type="button"
+                    className="btn btn--tertiary-danger btn--compact"
+                    data-testid="diagram-type-delete"
+                    onClick={() => setPendingDelete(selected)}
+                  >
+                    Delete type
+                  </button>
+                )}
                 <span className="spacer" />
                 {active && (
                   <button
@@ -173,6 +225,11 @@ export function StandardsAdminPage() {
                   New standard
                 </button>
               </div>
+              {selected.hidden && (
+                <p className="meta">
+                  Hidden: not offered when creating a diagram. Existing diagrams of this type are unaffected.
+                </p>
+              )}
               {selected.description && <p className="meta">{selected.description}</p>}
               {message && (
                 <p role="status" data-testid="standards-editor-message">
@@ -288,6 +345,50 @@ export function StandardsAdminPage() {
             setSelectedId(saved.id);
           }}
         />
+      )}
+      {pendingHide && (
+        <ConfirmDialog
+          message={`Hide "${pendingHide.name}"? It is removed from the New Diagram, Create with AI and Import pickers. Existing diagrams of this type are unaffected, and you can show it again from this page.`}
+          onCancel={() => setPendingHide(null)}
+          onConfirm={() => {
+            const target = pendingHide;
+            setPendingHide(null);
+            void setHidden(target, true);
+          }}
+        />
+      )}
+      {pendingDelete && (
+        <Modal
+          role="alertdialog"
+          label="Confirm delete diagram type"
+          title={null}
+          testId="diagram-type-delete-dialog"
+          onClose={() => setPendingDelete(null)}
+          footer={
+            <>
+              <button type="button" className="btn btn--secondary" onClick={() => setPendingDelete(null)}>
+                Cancel
+              </button>
+              <button
+                type="button"
+                className="btn btn--danger"
+                data-testid="diagram-type-delete-confirm"
+                onClick={() => {
+                  const target = pendingDelete;
+                  setPendingDelete(null);
+                  void deleteType(target);
+                }}
+              >
+                Delete type
+              </button>
+            </>
+          }
+        >
+          <p>
+            Delete the custom diagram type &ldquo;{pendingDelete.name}&rdquo;? This can&rsquo;t be undone. If any
+            diagram uses it, deletion is refused and hiding it is the alternative.
+          </p>
+        </Modal>
       )}
       {pendingPublish && (
         <ConfirmDialog

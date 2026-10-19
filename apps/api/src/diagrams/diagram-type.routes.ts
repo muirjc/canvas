@@ -2,6 +2,7 @@ import type { FastifyInstance, FastifyReply } from 'fastify';
 import { requireAuth, requireRole } from '../auth/middleware.js';
 import {
   createCustomDiagramType,
+  deleteCustomDiagramType,
   DiagramTypeConflictError,
   DiagramTypeNotFoundError,
   DiagramTypeValidationError,
@@ -30,12 +31,15 @@ function handleError(error: unknown, reply: FastifyReply): FastifyReply {
  * filter runs in JS.
  */
 export async function registerDiagramTypeRoutes(app: FastifyInstance): Promise<void> {
-  app.get<{ Querystring: { persona?: string } }>(
+  app.get<{ Querystring: { persona?: string; includeHidden?: string } }>(
     '/diagram-types',
     { preHandler: requireAuth, schema: { tags: ['DiagramTypes'], security: [{ cookieAuth: [] }] } },
     async (request, reply) => {
+      // canvas-9ff: hidden types are left out of the create pickers by default; the admin page and
+      // the project browser (which labels existing diagrams) pass includeHidden=true.
+      const includeHidden = request.query.includeHidden === 'true';
       const diagramTypes = (await listDiagramTypeRecords()).filter(
-        (t) => !request.query.persona || t.personas.includes(request.query.persona),
+        (t) => (includeHidden || !t.hidden) && (!request.query.persona || t.personas.includes(request.query.persona)),
       );
       return reply.send({ diagramTypes });
     },
@@ -69,6 +73,20 @@ export async function registerDiagramTypeRoutes(app: FastifyInstance): Promise<v
     async (request, reply) => {
       try {
         return reply.send({ diagramType: await updateDiagramType(request.params.id, request.body ?? {}) });
+      } catch (error) {
+        return handleError(error, reply);
+      }
+    },
+  );
+
+  // canvas-9ff: deletes an unused custom type; a built-in or in-use type answers 409 suggesting Hide.
+  app.delete<{ Params: { id: string } }>(
+    '/admin/diagram-types/:id',
+    { preHandler: requireRole('admin'), schema: { tags: ['DiagramTypes'], security: [{ cookieAuth: [] }] } },
+    async (request, reply) => {
+      try {
+        await deleteCustomDiagramType(request.params.id);
+        return reply.code(204).send();
       } catch (error) {
         return handleError(error, reply);
       }

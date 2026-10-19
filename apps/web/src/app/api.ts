@@ -103,6 +103,9 @@ export interface DiagramTypeDto {
   /** canvas-chq: a built-in type an admin has edited (the catalog seed no longer overwrites it). */
   adminEdited?: boolean;
   description: string | null;
+  /** canvas-9ff: hidden from the create pickers (listed only with includeHidden); existing diagrams
+   *  of it keep working. */
+  hidden?: boolean;
 }
 
 export interface CustomDiagramTypeInput {
@@ -314,8 +317,20 @@ export const api = {
     request<{ diagramType: DiagramTypeDto }>(`/admin/diagram-types/${id}`, { method: 'PATCH', body: JSON.stringify(patch) }),
   publishStandard: (id: string) => request<{ standard: StandardDto }>(`/standards/${id}/publish`, { method: 'POST' }),
   retireStandard: (id: string) => request<{ standard: StandardDto }>(`/standards/${id}/retire`, { method: 'POST' }),
-  listDiagramTypes: (persona?: string) =>
-    request<{ diagramTypes: DiagramTypeDto[] }>(`/diagram-types${persona ? `?persona=${encodeURIComponent(persona)}` : ''}`),
+  /** canvas-9ff: hidden types are left out unless `includeHidden` -- the create pickers want them
+   *  out; the admin page and the project browser (labelling existing diagrams) want them in. */
+  listDiagramTypes: (persona?: string, options: { includeHidden?: boolean } = {}) => {
+    const params = new URLSearchParams();
+    if (persona) params.set('persona', persona);
+    if (options.includeHidden) params.set('includeHidden', 'true');
+    const query = params.toString();
+    return request<{ diagramTypes: DiagramTypeDto[] }>(`/diagram-types${query ? `?${query}` : ''}`);
+  },
+  /** canvas-9ff: show or hide any diagram type (admin). */
+  setDiagramTypeHidden: (id: string, hidden: boolean) =>
+    request<{ diagramType: DiagramTypeDto }>(`/admin/diagram-types/${id}`, { method: 'PATCH', body: JSON.stringify({ hidden }) }),
+  /** canvas-9ff: delete an unused custom diagram type (admin); 409 when built-in or in use. */
+  deleteDiagramType: (id: string) => request<void>(`/admin/diagram-types/${id}`, { method: 'DELETE' }),
   searchIcons: (diagramTypeId: string, query: string) =>
     request<{ icons: IconDto[] }>(`/icons/search?diagramTypeId=${encodeURIComponent(diagramTypeId)}&query=${encodeURIComponent(query)}`),
   /** canvas-8n7: every icon in one library/version, including `assetRef` (the real SVG markup) —

@@ -140,7 +140,8 @@ export function ProjectBrowser({ rootProjectId, projects, onOpenDiagram, onBackT
   const isFiltering = query.trim() !== '' || typeFilter !== '';
 
   useEffect(() => {
-    api.listDiagramTypes().then(({ diagramTypes }) => setDiagramTypes(diagramTypes)).catch(() => {});
+    // canvas-9ff: includes hidden types -- existing diagrams of a hidden type still need its name.
+    api.listDiagramTypes(undefined, { includeHidden: true }).then(({ diagramTypes }) => setDiagramTypes(diagramTypes)).catch(() => {});
   }, []);
 
   const refresh = () => {
