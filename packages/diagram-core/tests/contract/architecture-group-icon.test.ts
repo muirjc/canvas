@@ -25,8 +25,21 @@ describe('jmuir-dtu.30: a group icon survives save', () => {
     expect(out).toContain(`group g(${icon})[G]`);
   });
 
-  it('(cloud) is the default, so it reads back as no icon -- the text still round-trips', () => {
-    expect(parseOk('architecture-beta\n    group g(cloud)[G]\n').containers[0].icon).toBeUndefined();
+  // jmuir-dtu.31: (cloud) is also the serializer's default for a group with no icon. Pasted Mermaid
+  // (no front-matter) means a real cloud icon; a diagram this app saved (front-matter present)
+  // without an icons entry for the group means none -- so both kinds of model stay stable.
+  it('(cloud) in pasted Mermaid (no front-matter) is a real cloud icon', () => {
+    expect(parseOk('architecture-beta\n    group g(cloud)[G]\n').containers[0].icon?.iconId).toBe('cloud');
+  });
+
+  it('(cloud) in a diagram this app saved, with no icons entry for the group, means no icon', () => {
+    const saved = '---\ncanvas:\n  positions: {}\n  containers:\n    g: { x: 0, y: 0, width: 200, height: 100 }\n---\narchitecture-beta\n    group g(cloud)[G]\n';
+    expect(parseOk(saved).containers[0].icon).toBeUndefined();
+  });
+
+  it('an imported cloud group keeps its cloud icon through save', () => {
+    const once = roundTrip('architecture-beta\n    group g(cloud)[G]\n');
+    expect(parseOk(once).containers[0].icon?.iconId).toBe('cloud');
   });
 
   it('a built-in group icon resolves to the mermaid-architecture library', () => {

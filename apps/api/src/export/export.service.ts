@@ -26,7 +26,8 @@ export function exportMermaid(dslContent: string): string {
  *  icon refs, so exported SVG/PNG actually draws real icon artwork instead of silently omitting
  *  it (the gap this bug's acceptance criteria assumed was already closed, but never was). */
 async function buildIconResolver(model: DiagramModel): Promise<IconResolver | undefined> {
-  const refs = model.nodes.flatMap((n) => (n.icon ? [n.icon] : []));
+  // jmuir-dtu.31: architecture groups draw their icon too.
+  const refs = [...model.nodes, ...model.containers].flatMap((element) => (element.icon ? [element.icon] : []));
   if (refs.length === 0) return undefined;
   const assets = await resolveIconAssets(refs);
   return (icon) => assets.get(`${icon.libraryId}@${icon.libraryVersion}@${icon.iconId}`);
