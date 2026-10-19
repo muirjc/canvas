@@ -71,4 +71,21 @@ describe('Diagram export: Mermaid built-in architecture icons (jmuir-dtu.27)', (
       expect(exportResponse.body, `${icon.id} artwork`).toContain(icon.assetRef);
     }
   });
+
+  it('draws an architecture group\'s icon in its header (jmuir-dtu.31)', async () => {
+    const dsl = 'architecture-beta\n    group vpc(server)[VPC]\n';
+    const createResponse = await app.inject({
+      method: 'POST',
+      url: `/projects/${projectId}/diagrams`,
+      headers: { cookie: sessionCookie },
+      payload: { name: 'Group icon', diagramTypeId: 'cloud-infrastructure', initialDslContent: dsl },
+    });
+    expect(createResponse.statusCode).toBe(201);
+    const { diagram } = createResponse.json();
+    const exportResponse = await app.inject({ method: 'GET', url: `/diagrams/${diagram.id}/export?format=svg`, headers: { cookie: sessionCookie } });
+    expect(exportResponse.statusCode).toBe(200);
+    const group = exportResponse.body.slice(exportResponse.body.indexOf('data-container-id="vpc"'));
+    const server = mermaidArchitectureIconsManifest.icons.find((i) => i.id === 'server')!.assetRef;
+    expect(group).toContain(server);
+  });
 });

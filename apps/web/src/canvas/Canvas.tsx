@@ -39,6 +39,7 @@ import {
   computeBounds,
   computeSequenceLayout,
   SELF_MESSAGE_LOOP_WIDTH,
+  containerHeaderLayout,
   containerRoleStyle,
   LABELED_CONTROL_FLOW_ROLES,
   CONTROL_FLOW_STROKE,
@@ -1356,21 +1357,31 @@ export function Canvas({ model, onChange, dslFamily, toolbarContainer, standardR
   // sees an empty cache and issues its own fetch, since neither instance's ref-write can
   // suppress the other's decision to fetch.
   const [iconArtwork, setIconArtwork] = useState<Map<string, string>>(new Map());
+  // jmuir-dtu.31: libraries already requested. Each fetch replaces `iconArtwork`, which re-runs
+  // this effect; an icon its library doesn't contain (an unknown name, an iconify ref whose
+  // "library" doesn't exist) never lands in the cache, so without this the same library was
+  // refetched in an endless loop -- 1,500+ requests seen in one local API log.
+  const requestedLibraries = useRef<Set<string>>(new Set());
 
   useEffect(() => {
     const toFetch = new Map<string, { libraryId: string; libraryVersion: string }>();
-    for (const node of model.nodes) {
-      if (node.shape === 'icon' && node.icon) {
-        const libraryKey = `${node.icon.libraryId}@${node.icon.libraryVersion}`;
-        const cacheKey = `${libraryKey}@${node.icon.iconId}`;
-        if (!iconArtwork.has(cacheKey)) {
-          toFetch.set(libraryKey, { libraryId: node.icon.libraryId, libraryVersion: node.icon.libraryVersion });
-        }
+    // Icon nodes, plus architecture groups' header icons (jmuir-dtu.31).
+    const refs = [
+      ...model.nodes.flatMap((node) => (node.shape === 'icon' && node.icon ? [node.icon] : [])),
+      ...model.containers.flatMap((container) => (container.icon ? [container.icon] : [])),
+    ];
+    for (const icon of refs) {
+      const libraryKey = `${icon.libraryId}@${icon.libraryVersion}`;
+      const cacheKey = `${libraryKey}@${icon.iconId}`;
+      if (!iconArtwork.has(cacheKey) && !requestedLibraries.current.has(libraryKey)) {
+        toFetch.set(libraryKey, { libraryId: icon.libraryId, libraryVersion: icon.libraryVersion });
       }
     }
     if (toFetch.size === 0) return;
+    for (const libraryKey of toFetch.keys()) requestedLibraries.current.add(libraryKey);
 
     let cancelled = false;
+    let finished = false;
     Promise.all(
       Array.from(toFetch.values()).map(({ libraryId, libraryVersion }) =>
         api
@@ -1379,6 +1390,7 @@ export function Canvas({ model, onChange, dslFamily, toolbarContainer, standardR
           .catch(() => ({ libraryId, libraryVersion, icons: [] })),
       ),
     ).then((results) => {
+      finished = true;
       if (cancelled) return;
       setIconArtwork((prev) => {
         const next = new Map(prev);
@@ -1396,8 +1408,10 @@ export function Canvas({ model, onChange, dslFamily, toolbarContainer, standardR
     });
     return () => {
       cancelled = true;
+      // Results discarded before they arrived: let the next run request these libraries again.
+      if (!finished) for (const libraryKey of toFetch.keys()) requestedLibraries.current.delete(libraryKey);
     };
-  }, [model.nodes, iconArtwork]);
+  }, [model.nodes, model.containers, iconArtwork]);
 
   const updateNode = useCallback(
     (id: string, patch: Partial<DiagramNode>) => {
@@ -3108,6 +3122,12 @@ export function Canvas({ model, onChange, dslFamily, toolbarContainer, standardR
           // JSX is what actually renders them on canvas — Canvas.tsx has no separate block
           // function the way svg-renderer.ts does, per the `container` shadow-copy above).
           const roleStyle = containerRoleStyle(container.role);
+          const containerIconMarkup = container.icon
+            ? iconArtwork.get(`${container.icon.libraryId}@${container.icon.libraryVersion}@${container.icon.iconId}`)
+            : undefined;
+          const headerLayout = containerIconMarkup
+            ? containerHeaderLayout(container, { headerBand: Boolean(roleStyle.headerBand), hasIcon: true })
+            : null;
           const isLabeledControlFlowBlock = Boolean(container.role && LABELED_CONTROL_FLOW_ROLES.has(container.role));
           // canvas-2s6.8: a distinct highlight while another container is being dragged over this
           // one, so the user sees where it would nest before releasing — takes priority even over
@@ -3180,8 +3200,25 @@ export function Canvas({ model, onChange, dslFamily, toolbarContainer, standardR
               {roleStyle.headerBand && (
                 <rect x={container.position.x} y={container.position.y} width={size.width} height={20} fill={roleStyle.stroke} opacity={0.18} />
               )}
+              {/* jmuir-dtu.31: an architecture group's header icon, from the same
+                  containerHeaderLayout svg-renderer.ts uses (SC-004); drawn as an <image> data URI
+                  like icon nodes, never injected markup. */}
+              {containerIconMarkup && headerLayout && (
+                <image
+                  data-testid={`group-icon-${container.id}`}
+                  x={headerLayout.iconX}
+                  y={headerLayout.iconY}
+                  width={headerLayout.iconSize}
+                  height={headerLayout.iconSize}
+                  href={iconMarkupToDataUri(containerIconMarkup)}
+                />
+              )}
               {editingContainerId !== container.id && (
-                <text x={container.position.x + 8} y={container.position.y + (isLabeledControlFlowBlock ? 14 : roleStyle.headerBand ? 14 : 16)} fontSize={12}>
+                <text
+                  x={headerLayout ? headerLayout.labelX : container.position.x + 8}
+                  y={container.position.y + (isLabeledControlFlowBlock ? 14 : roleStyle.headerBand ? 14 : 16)}
+                  fontSize={12}
+                >
                   {container.label}
                 </text>
               )}

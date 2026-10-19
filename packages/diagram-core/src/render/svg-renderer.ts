@@ -1014,9 +1014,45 @@ function renderAttachmentConnectors(container: DiagramContainer, width: number, 
  *  the non-sequence call site below) vs. a sequence participant's lifeline at the note's own row
  *  (a sequence node's `position` is a placeholder, research.md §1 — `renderSequenceNoteOrBox`
  *  resolves its own targets from the computed layout instead of calling this with a node lookup). */
-function renderContainer(container: DiagramContainer, connectorTargets: { x: number; y: number }[] = []): string {
+export interface ContainerHeaderLayout {
+  iconX: number;
+  iconY: number;
+  iconSize: number;
+  labelX: number;
+  labelY: number;
+}
+
+/**
+ * jmuir-dtu.31: where a container's header icon (an architecture group's DiagramContainer.icon) and
+ * label sit. Without an icon the label keeps its old position exactly. Exported so the interactive
+ * canvas draws the identical header (SC-004).
+ */
+export function containerHeaderLayout(
+  container: DiagramContainer,
+  options: { headerBand: boolean; hasIcon: boolean },
+): ContainerHeaderLayout {
+  const { x, y } = container.position;
+  const iconSize = 16;
+  const labelY = y + (options.headerBand ? 14 : 16);
+  const iconX = x + 6;
+  // Vertically centred on the label's line (12px text, baseline at labelY).
+  const iconY = labelY - 12;
+  return { iconX, iconY, iconSize, labelX: options.hasIcon ? iconX + iconSize + 4 : x + 8, labelY };
+}
+
+function renderContainerIcon(layout: ContainerHeaderLayout, iconMarkup: string | undefined): string {
+  if (!iconMarkup) return '';
+  return `<g transform="translate(${layout.iconX}, ${layout.iconY}) scale(${layout.iconSize / 48})">${iconMarkup}</g>`;
+}
+
+function renderContainer(
+  container: DiagramContainer,
+  connectorTargets: { x: number; y: number }[] = [],
+  resolveIcon?: IconResolver,
+): string {
   const { x, y } = container.position;
   const { width, height } = container.size ?? { width: 300, height: 200 };
+  const iconMarkup = container.icon ? resolveIcon?.(container.icon) : undefined;
   // canvas-7vs.2: a sequence `rect <color> ... end` background highlight's entire visual purpose
   // is its fill color (diagram-model.ts's own doc comment on DiagramContainer.role: "the color
   // lives in style, not label, which stays empty") -- previously hardcoded to 'none', so the
@@ -1026,6 +1062,7 @@ function renderContainer(container: DiagramContainer, connectorTargets: { x: num
   const fill = container.style?.fillColor ?? roleStyle.defaultFill;
   const dasharray = roleStyle.strokeDasharray ? ` stroke-dasharray="${roleStyle.strokeDasharray}"` : '';
   const connectorMarkup = renderAttachmentConnectors(container, width, height, connectorTargets);
+  const header = containerHeaderLayout(container, { headerBand: Boolean(roleStyle.headerBand), hasIcon: Boolean(iconMarkup) });
   if (roleStyle.headerBand) {
     const bandHeight = 20;
     return [
@@ -1033,7 +1070,8 @@ function renderContainer(container: DiagramContainer, connectorTargets: { x: num
       connectorMarkup,
       `<rect x="${x}" y="${y}" width="${width}" height="${height}" fill="${fill}" stroke="${roleStyle.stroke}"${dasharray} />`,
       `<rect x="${x}" y="${y}" width="${width}" height="${bandHeight}" fill="${roleStyle.stroke}" opacity="0.18" />`,
-      `<text x="${x + 8}" y="${y + 14}" font-size="12" font-family='${FONT_FAMILY}'>${escapeXml(container.label)}</text>`,
+      renderContainerIcon(header, iconMarkup),
+      `<text x="${header.labelX}" y="${header.labelY}" font-size="12" font-family='${FONT_FAMILY}'>${escapeXml(container.label)}</text>`,
       '</g>',
     ].join('');
   }
@@ -1041,7 +1079,8 @@ function renderContainer(container: DiagramContainer, connectorTargets: { x: num
     `<g data-container-id="${escapeXml(container.id)}">`,
     connectorMarkup,
     `<rect x="${x}" y="${y}" width="${width}" height="${height}" fill="${fill}" stroke="${roleStyle.stroke}"${dasharray} />`,
-    `<text x="${x + 8}" y="${y + 16}" font-size="12" font-family='${FONT_FAMILY}'>${escapeXml(container.label)}</text>`,
+    renderContainerIcon(header, iconMarkup),
+    `<text x="${header.labelX}" y="${header.labelY}" font-size="12" font-family='${FONT_FAMILY}'>${escapeXml(container.label)}</text>`,
     '</g>',
   ].join('');
 }
@@ -1341,7 +1380,7 @@ export function renderToSvg(model: DiagramModel, resolveIcon?: IconResolver): st
         .map((id) => nodesById.get(id))
         .filter((n): n is DiagramNode => n !== undefined)
         .map((n) => nodeCenter(n));
-      return renderContainer(c, targets);
+      return renderContainer(c, targets, resolveIcon);
     })
     .join('');
   const edgeMarkup = model.edges.map((e) => renderEdge(e, nodesById, containersById)).join('');

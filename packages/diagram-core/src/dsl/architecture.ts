@@ -146,10 +146,15 @@ export function parseArchitecture(dsl: string): ParseResult {
       // jmuir-dtu.30: the group's icon was captured but discarded, so every save rewrote it as
       // (cloud). Resolved exactly like a service's; group and service ids share one namespace in
       // Mermaid, so the front-matter icons map serves both.
-      // `(cloud)` is the serializer's default for a group with no icon, so it reads back as none --
-      // that keeps a model built without one stable across save/reload, and the text is unchanged.
+      // `(cloud)` is also the serializer's default for a group with no icon. In a diagram this app
+      // saved (front-matter present) a group with no icons entry therefore has no icon -- keeping a
+      // model built without one stable across save/reload. In pasted Mermaid (no front-matter) it
+      // is a real cloud icon, as Mermaid draws it (jmuir-dtu.31); once saved, that icon lands in
+      // the icons map and survives.
       const token = iconName.trim();
-      const groupIcon = upgradeLegacyBuiltInIcon(icons[id]) ?? (token === 'cloud' ? undefined : resolveIconFromName(token));
+      const savedByApp = frontMatter.canvas !== undefined;
+      const groupIcon =
+        upgradeLegacyBuiltInIcon(icons[id]) ?? (token === 'cloud' && savedByApp ? undefined : resolveIconFromName(token));
       containersById.set(id, {
         id,
         label,

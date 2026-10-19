@@ -141,3 +141,74 @@ test('imported architecture-beta built-in icons render artwork on the canvas', a
     await expect(artwork).toHaveAttribute('href', /^data:image\/svg\+xml;base64,.+/);
   }
 });
+
+/**
+ * jmuir-dtu.31: an architecture group draws its icon in the header, beside the label. A group
+ * declared with no icon draws no <image> at all.
+ */
+test('imported architecture-beta groups draw their icon beside the label', async ({ page }) => {
+  await login(page);
+  await importDsl(
+    page,
+    `Arch Group Icons ${Date.now()}`,
+    [
+      'architecture-beta',
+      '    group vpc(server)[VPC]',
+      '    group api(cloud)[API]',
+      '    group plain()[Plain]',
+      '    service a(database)[A] in vpc',
+      '',
+    ].join('\n'),
+  );
+
+  for (const id of ['vpc', 'api']) {
+    const icon = page.getByTestId(`group-icon-${id}`);
+    await expect(icon).toBeVisible();
+    await expect(icon).toHaveAttribute('href', /^data:image\/svg\+xml;base64,.+/);
+  }
+  await expect(page.getByTestId('group-icon-plain')).toHaveCount(0);
+
+  const iconBox = (await page.getByTestId('group-icon-vpc').boundingBox())!;
+  const label = page.locator('[data-testid="container-vpc"] text', { hasText: 'VPC' }).first();
+  await expect(label).toBeVisible();
+  const labelBox = (await label.boundingBox())!;
+  expect(labelBox.x).toBeGreaterThanOrEqual(iconBox.x + iconBox.width);
+});
+
+/**
+ * jmuir-dtu.31 regression: a library whose icon is missing (unknown name, or an iconify ref whose
+ * "library" 404s) used to be refetched endlessly, because each fetch replaced the cache map and
+ * re-ran the effect. apps/web/src/app/main.tsx renders <StrictMode>, whose dev-only double effect
+ * can legitimately request a library twice, so the bound is 2 per library URL, not 1.
+ */
+test('icons missing from their library are not refetched in a loop', async ({ page }) => {
+  const iconRequests = new Map<string, number>();
+  page.on('request', (request) => {
+    const url = request.url();
+    if (/\/libraries\/[^/]+\/versions\/[^/]+\/icons/.test(url)) {
+      iconRequests.set(url, (iconRequests.get(url) ?? 0) + 1);
+    }
+  });
+
+  await login(page);
+  await importDsl(
+    page,
+    `Arch Missing Icons ${Date.now()}`,
+    [
+      'architecture-beta',
+      '    service a(mystery)[A]',
+      '    service b(logos:aws-lambda)[B]',
+      '    service c(database)[C]',
+      '',
+    ].join('\n'),
+  );
+
+  await expect(page.locator('[data-testid="node-c"] image')).toBeVisible();
+  // Real loop symptom is continuous requests; give it time to show up.
+  await page.waitForTimeout(2000);
+
+  expect(iconRequests.size).toBeGreaterThan(0);
+  for (const [url, count] of iconRequests) {
+    expect(count, `requests for ${url}`).toBeLessThanOrEqual(2);
+  }
+});
