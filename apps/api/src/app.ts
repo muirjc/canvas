@@ -21,6 +21,7 @@ import { registerAiSettingsRoutes } from './ai/ai-settings.routes.js';
 import { registerPersonaRoutes } from './ai/persona.routes.js';
 import { registerPersonaReferenceMaterialRoutes } from './ai/persona-reference-material.routes.js';
 import { registerDiagramChatRoutes } from './ai/diagram-chat.routes.js';
+import { drainBackgroundTasks } from './background/tasks.js';
 
 export interface BuildAppOptions {
   config?: AppConfig;
@@ -50,6 +51,12 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
     // defeats the whole point of declarative request-shape validation. Every real caller already
     // sends correctly-typed JSON, so disabling coercion only tightens rejection of malformed input.
     ajv: { customOptions: { coerceTypes: false } },
+  });
+
+  // canvas-yrp: finish background work (e.g. standards re-checks) before the server closes, so it
+  // isn't cut off mid-write and doesn't outlive the database connections it uses.
+  app.addHook('onClose', async () => {
+    await drainBackgroundTasks();
   });
 
   app.setErrorHandler((error: FastifyError, request, reply) => {
