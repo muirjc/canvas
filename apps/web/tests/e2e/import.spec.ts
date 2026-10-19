@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test';
+import { expectSignedIn } from './auth-helpers';
 
 const PROJECT_ID = process.env.E2E_PROJECT_ID;
 const ADMIN_EMAIL = 'admin@example.com';
@@ -15,7 +16,7 @@ test('imports a pasted Mermaid diagram and it becomes fully editable', async ({ 
   await page.getByTestId('login-email').fill(ADMIN_EMAIL);
   await page.getByTestId('login-password').fill(ADMIN_PASSWORD);
   await page.getByTestId('login-submit').click();
-  await page.waitForURL('**/*');
+  await expectSignedIn(page);
 
   await page.getByTestId('import-diagram-button').click();
   await page.getByTestId('import-name').fill('Pasted Diagram');
@@ -40,7 +41,7 @@ test('imports the spec\'s originally-failing example ("graph" header, emoji labe
   await page.getByTestId('login-email').fill(ADMIN_EMAIL);
   await page.getByTestId('login-password').fill(ADMIN_PASSWORD);
   await page.getByTestId('login-submit').click();
-  await page.waitForURL('**/*');
+  await expectSignedIn(page);
 
   const dsl = [
     'graph TD',
@@ -70,7 +71,7 @@ test('imports a sequence diagram with a note and a loop, both rendered as visibl
   await page.getByTestId('login-email').fill(ADMIN_EMAIL);
   await page.getByTestId('login-password').fill(ADMIN_PASSWORD);
   await page.getByTestId('login-submit').click();
-  await page.waitForURL('**/*');
+  await expectSignedIn(page);
 
   const dsl = [
     'sequenceDiagram',
@@ -101,7 +102,7 @@ test('rejects unrecognized pasted text with a specific error, not a silent failu
   await page.getByTestId('login-email').fill(ADMIN_EMAIL);
   await page.getByTestId('login-password').fill(ADMIN_PASSWORD);
   await page.getByTestId('login-submit').click();
-  await page.waitForURL('**/*');
+  await expectSignedIn(page);
 
   await page.getByTestId('import-diagram-button').click();
   await page.getByTestId('import-textarea').fill('this is not any known diagram syntax\n');

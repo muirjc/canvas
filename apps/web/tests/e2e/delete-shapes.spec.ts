@@ -1,5 +1,6 @@
 import { expect, test } from '@playwright/test';
 import { connectShapes } from './helpers/connect';
+import { expectSignedIn } from './auth-helpers';
 
 const PROJECT_ID = process.env.E2E_PROJECT_ID;
 const ADMIN_EMAIL = 'admin@example.com';
@@ -12,7 +13,7 @@ async function signInAndCreateDiagram(page: import('@playwright/test').Page) {
   await page.getByTestId('login-email').fill(ADMIN_EMAIL);
   await page.getByTestId('login-password').fill(ADMIN_PASSWORD);
   await page.getByTestId('login-submit').click();
-  await page.waitForURL('**/*');
+  await expectSignedIn(page);
   await page.getByTestId('new-diagram').click();
   await page.getByTestId('diagram-type-flowchart').check();
   await page.getByTestId('confirm-new-diagram').click();

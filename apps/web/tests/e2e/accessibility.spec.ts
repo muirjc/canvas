@@ -1,5 +1,6 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, test } from '@playwright/test';
+import { expectSignedIn } from './auth-helpers';
 
 const PROJECT_ID = process.env.E2E_PROJECT_ID;
 const API_BASE_URL = process.env.VITE_API_BASE_URL ?? 'http://localhost:3000';
@@ -32,7 +33,7 @@ test.describe('Accessibility (WCAG 2.1 AA)', () => {
     await page.getByTestId('login-email').fill(ADMIN_EMAIL);
     await page.getByTestId('login-password').fill(ADMIN_PASSWORD);
     await page.getByTestId('login-submit').click();
-    await page.waitForURL('**/*');
+    await expectSignedIn(page);
     await auditPage(page);
   });
 
@@ -41,7 +42,7 @@ test.describe('Accessibility (WCAG 2.1 AA)', () => {
     await page.getByTestId('login-email').fill(ADMIN_EMAIL);
     await page.getByTestId('login-password').fill(ADMIN_PASSWORD);
     await page.getByTestId('login-submit').click();
-    await page.waitForURL('**/*');
+    await expectSignedIn(page);
 
     await page.getByTestId('new-diagram').click();
     await page.getByTestId('diagram-type-flowchart').check();
@@ -82,7 +83,7 @@ test.describe('Accessibility (WCAG 2.1 AA)', () => {
     await page.getByTestId('login-email').fill(ADMIN_EMAIL);
     await page.getByTestId('login-password').fill(ADMIN_PASSWORD);
     await page.getByTestId('login-submit').click();
-    await page.waitForURL('**/*');
+    await expectSignedIn(page);
 
     await page.getByTestId('new-diagram').click();
     await page.getByTestId('diagram-type-flowchart').check();

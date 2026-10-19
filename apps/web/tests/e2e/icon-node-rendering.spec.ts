@@ -1,8 +1,10 @@
 import { readFileSync } from 'node:fs';
 import { expect, test } from '@playwright/test';
 import { awsIconsManifest } from '@canvas/diagram-core';
+import { expectSignedIn } from './auth-helpers';
 
 const PROJECT_ID = process.env.E2E_PROJECT_ID;
+const API_BASE_URL = process.env.VITE_API_BASE_URL ?? 'http://localhost:3000';
 const ADMIN_EMAIL = 'admin@example.com';
 const ADMIN_PASSWORD = 'admin-dev-password';
 
@@ -13,7 +15,7 @@ async function login(page: import('@playwright/test').Page) {
   await page.getByTestId('login-email').fill(ADMIN_EMAIL);
   await page.getByTestId('login-password').fill(ADMIN_PASSWORD);
   await page.getByTestId('login-submit').click();
-  await page.waitForURL('**/*');
+  await expectSignedIn(page);
 }
 
 /**
@@ -32,7 +34,22 @@ async function expectRealIconArtwork(page: import('@playwright/test').Page) {
   const href = await iconImage.getAttribute('href');
   expect(href).toMatch(/^data:image\/svg\+xml;base64,/);
   const decoded = Buffer.from(href!.split(',')[1], 'base64').toString('utf-8');
-  expect(decoded).toContain('#ec7211');
+  expect(decoded).toContain(await servedLambdaArtwork(page));
+}
+
+/**
+ * jmuir-dtu.29: the Lambda artwork this environment's API actually serves -- the bundled
+ * placeholder in CI, or AWS's real icon where a developer has generated vendor-icons/aws-icons.json
+ * (canvas-1r1 found this spec hard-coded the placeholder's #ec7211 colour). Comparing against the
+ * served markup checks the exact artwork either way.
+ */
+async function servedLambdaArtwork(page: import('@playwright/test').Page): Promise<string> {
+  const response = await page.request.get(`${API_BASE_URL}/libraries/aws-icons/versions/${awsIconsManifest.version}/icons`);
+  expect(response.ok()).toBe(true);
+  const { icons } = (await response.json()) as { icons: { id: string; assetRef: string }[] };
+  const lambda = icons.find((icon) => icon.id === 'lambda');
+  expect(lambda, 'aws-icons serves a lambda icon').toBeDefined();
+  return lambda!.assetRef;
 }
 
 /**
@@ -125,7 +142,7 @@ test('exports the icon node with the same real artwork', async ({ page }) => {
   expect(path).not.toBeNull();
   const svg = readFileSync(path!, 'utf-8');
 
-  expect(svg).toContain('#ec7211');
+  expect(svg).toContain(await servedLambdaArtwork(page));
 });
 
 /**
