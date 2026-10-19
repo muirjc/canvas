@@ -6,6 +6,7 @@ import { loadConfig, type AppConfig } from '../../src/config.js';
 import { getDb } from '../../src/db/client.js';
 import { runMigrations } from '../../src/db/migrate.js';
 import { closeTestDb, resetDatabase, seedUser } from '../helpers/setup.js';
+import { SESSION_COOKIE_NAME } from '../../src/auth/session.js';
 
 /**
  * canvas-4xo: sessions used every @fastify/session default -- an in-memory store (lost on restart,
@@ -25,7 +26,7 @@ describe('sessions: database store, expiry, no anonymous sessions (canvas-4xo)',
   function sessionCookie(response: { headers: Record<string, unknown> }): string | undefined {
     const setCookie = response.headers['set-cookie'];
     const all = (Array.isArray(setCookie) ? setCookie : [setCookie]).filter((c): c is string => typeof c === 'string');
-    return all.find((c) => c.startsWith('sessionId='))?.split(';')[0];
+    return all.find((c) => c.startsWith(`${SESSION_COOKIE_NAME}=`))?.split(';')[0];
   }
 
   async function login(instance: FastifyInstance): Promise<string> {
@@ -88,7 +89,7 @@ describe('sessions: database store, expiry, no anonymous sessions (canvas-4xo)',
       url: '/auth/local/login',
       payload: { email: 'session@example.com', password: 'session-pass' },
     });
-    const setCookie = String([response.headers['set-cookie']].flat().find((c) => String(c).startsWith('sessionId=')));
+    const setCookie = String([response.headers['set-cookie']].flat().find((c) => String(c).startsWith(`${SESSION_COOKIE_NAME}=`)));
     // @fastify/session writes the expiry as Expires=, 30 minutes from now.
     const expires = Date.parse(setCookie.match(/Expires=([^;]+)/i)![1]);
     expect(Math.abs(expires - (Date.now() + 30 * 60 * 1000))).toBeLessThan(5000);

@@ -4,6 +4,7 @@ import { buildApp } from '../../src/app.js';
 import { loadConfig } from '../../src/config.js';
 import { closeTestDb, resetDatabase, seedUser } from '../helpers/setup.js';
 import { runMigrations } from '../../src/db/migrate.js';
+import { SESSION_COOKIE_NAME } from '../../src/auth/session.js';
 
 /**
  * canvas-azure-deploy: a split-origin deployment (a static-hosted frontend calling a separately
@@ -55,7 +56,7 @@ describe('session cookie attributes', () => {
     const response = await login(app);
     expect(response.statusCode).toBe(200);
     const setCookie = response.headers['set-cookie'];
-    const sessionCookie = (Array.isArray(setCookie) ? setCookie : [setCookie]).find((c) => c?.startsWith('sessionId='));
+    const sessionCookie = (Array.isArray(setCookie) ? setCookie : [setCookie]).find((c) => c?.startsWith(`${SESSION_COOKIE_NAME}=`));
     expect(sessionCookie).toBeDefined();
     expect(sessionCookie).not.toMatch(/Secure/i);
     expect(sessionCookie).toMatch(/SameSite=Lax/i);
@@ -66,7 +67,7 @@ describe('session cookie attributes', () => {
     const response = await login(app, { 'x-forwarded-proto': 'https' });
     expect(response.statusCode).toBe(200);
     const setCookie = response.headers['set-cookie'];
-    const sessionCookie = (Array.isArray(setCookie) ? setCookie : [setCookie]).find((c) => c?.startsWith('sessionId='));
+    const sessionCookie = (Array.isArray(setCookie) ? setCookie : [setCookie]).find((c) => c?.startsWith(`${SESSION_COOKIE_NAME}=`));
     expect(sessionCookie).toBeDefined();
     expect(sessionCookie).toMatch(/Secure/i);
     expect(sessionCookie).toMatch(/SameSite=None/i);
@@ -76,7 +77,7 @@ describe('session cookie attributes', () => {
     app = await buildAppWithConfig({ cookieSecure: true, cookieSameSite: 'none' });
     const loginResponse = await login(app, { 'x-forwarded-proto': 'https' });
     const setCookie = loginResponse.headers['set-cookie'];
-    const sessionCookie = (Array.isArray(setCookie) ? setCookie : [setCookie]).find((c) => c?.startsWith('sessionId='))!;
+    const sessionCookie = (Array.isArray(setCookie) ? setCookie : [setCookie]).find((c) => c?.startsWith(`${SESSION_COOKIE_NAME}=`))!;
     const cookieValue = sessionCookie.split(';')[0];
 
     const meResponse = await app.inject({

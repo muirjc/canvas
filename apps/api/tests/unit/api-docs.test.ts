@@ -1,6 +1,7 @@
 import Fastify, { type FastifyInstance } from 'fastify';
 import { afterEach, describe, expect, it } from 'vitest';
 import { registerApiDocsRoutes } from '../../src/docs/api-docs.routes.js';
+import { SESSION_COOKIE_NAME } from '../../src/auth/session.js';
 
 /**
  * Unit coverage for canvas-docs' OpenAPI/Swagger wiring (api-docs.routes.ts). A bare Fastify
@@ -49,13 +50,13 @@ describe('registerApiDocsRoutes()', () => {
 
     const response = await app.inject({ method: 'GET', url: '/docs/json' });
     const doc = response.json();
-    // @fastify/session's own default cookie name (options.cookieName || 'sessionId',
-    // node_modules/@fastify/session/index.js) -- session.ts never overrides it.
+    // The session cookie's real name (auth/session.ts), not @fastify/session's default.
     expect(doc.components.securitySchemes.cookieAuth).toMatchObject({
       type: 'apiKey',
       in: 'cookie',
-      name: 'sessionId',
+      name: SESSION_COOKIE_NAME,
     });
+    expect(SESSION_COOKIE_NAME).not.toBe('sessionId');
   });
 
   it('registered before a route means that route IS documented (registration-order requirement)', async () => {
