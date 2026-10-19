@@ -54,9 +54,9 @@ const ELEMENT_KINDS = [
 // line before this fix, since the pattern only ever allowed one trailing quoted group. Real
 // Mermaid's own c4Diagram.jison grammar in fact allows further optional args after that
 // (sprite/tags/link) for every element kind -- rather than hardcoding "exactly 0, 1, or 2"
-// trailing args, this accepts any number of them generically and discards all but the label,
-// extending this file's own pre-existing "capture optionally, don't model" precedent (already
-// used for Person's single optional description) to the whole element-macro family at once.
+// trailing args, this accepts any number of them generically. canvas-1u2: description and
+// technology are modeled (they used to be discarded, so every save of an imported diagram lost
+// them); sprite and link are accepted and dropped.
 // canvas-7hp: trailing args may also be Mermaid's named form ($tags="...", $link="...",
 // $sprite="..."), in any order -- a line using one used to hard-error. $tags is modeled
 // (DiagramNode.tags, the per-element kind carrier); the other named args are accepted and dropped
@@ -64,16 +64,42 @@ const ELEMENT_KINDS = [
 const ELEMENT_PATTERN = new RegExp(
   `^(${ELEMENT_KINDS.join('|')})\\(\\s*(${ID})\\s*,\\s*"([^"]*)"((?:\\s*,\\s*(?:"[^"]*"|\\$[A-Za-z]+\\s*=\\s*"[^"]*"))*)\\s*\\)$`,
 );
-const TAGS_ARG = /\$tags\s*=\s*"([^"]*)"/;
-// Rel(from, to, "label", ?"technology") and its BiRel/Rel_Back/directional variants
-// (jmuir-dtu.3) — the Up/Down/Left/Right long forms and their U/D/L/R short forms are both real
-// Mermaid syntax. The optional 4th "technology" arg (e.g. "SMTP", "JDBC") is captured but not
-// separately modeled, matching ELEMENT_PATTERN's own established treatment of Person/System's
-// optional description arg immediately above — a deliberate, already-reviewed "capture
-// optionally, don't model" precedent in this file, not a shortcut invented here.
+// canvas-1u2: one quoted argument or one `$name="value"` named argument after the label.
+const TRAILING_ARG = /\s*,\s*(?:"([^"]*)"|\$([A-Za-z]+)\s*=\s*"([^"]*)")/g;
+
+/**
+ * canvas-1u2: an element's or relationship's arguments after its label, by name. Positional
+ * arguments take their name from `order` (Mermaid's signature); a named `$name="..."` argument
+ * wins over a positional one. Empty values count as absent.
+ */
+function trailingArgs(raw: string, order: readonly string[]): Record<string, string> {
+  const args: Record<string, string> = {};
+  let position = 0;
+  for (const match of raw.matchAll(TRAILING_ARG)) {
+    const [, positional, name, value] = match;
+    if (name !== undefined) {
+      if (value) args[name] = value;
+    } else {
+      const key = order[position];
+      position += 1;
+      if (key && positional && args[key] === undefined) args[key] = positional;
+    }
+  }
+  return args;
+}
+
+const PERSON_SYSTEM_ARGS = ['descr', 'sprite', 'tags'] as const;
+const CONTAINER_COMPONENT_ARGS = ['techn', 'descr', 'sprite', 'tags'] as const;
+const REL_ARGS = ['techn', 'descr', 'sprite', 'tags'] as const;
+const hasTechnology = (kind: string) => kind.startsWith('Container') || kind.startsWith('Component');
+// Rel(from, to, "label", ?"technology", ?"description", ...) and its BiRel/Rel_Back/directional
+// variants (jmuir-dtu.3) — the Up/Down/Left/Right long forms and their U/D/L/R short forms are both
+// real Mermaid syntax.
 const REL_KINDS = ['Rel', 'BiRel', 'Rel_Back', 'Rel_U', 'Rel_D', 'Rel_L', 'Rel_R', 'Rel_Up', 'Rel_Down', 'Rel_Left', 'Rel_Right'] as const;
+// canvas-1u2: technology and description are modeled now, and named args are accepted like on
+// elements (sprite/tags/link are accepted and dropped).
 const REL_PATTERN = new RegExp(
-  `^(${REL_KINDS.join('|')})\\(\\s*(${ID})\\s*,\\s*(${ID})\\s*,\\s*"([^"]*)"(?:\\s*,\\s*"[^"]*")?\\s*\\)$`,
+  `^(${REL_KINDS.join('|')})\\(\\s*(${ID})\\s*,\\s*(${ID})\\s*,\\s*"([^"]*)"((?:\\s*,\\s*(?:"[^"]*"|\\$[A-Za-z]+\\s*=\\s*"[^"]*"))*)\\s*\\)$`,
 );
 // jmuir-dtu.3.2: Deployment_Node (and its Node/Node_L/Node_R shortcuts -- Node is documented as
 // simply "short name of Deployment_Node()", Node_L/Node_R the same with a left/right layout
@@ -353,8 +379,10 @@ export function parseC4(dsl: string): ParseResult {
 
     const elementMatch = line.match(ELEMENT_PATTERN);
     if (elementMatch) {
-      const [, kind, id, label, trailingArgs] = elementMatch;
-      const tags = (trailingArgs.match(TAGS_ARG)?.[1] ?? '')
+      const [, kind, id, label, rawArgs] = elementMatch;
+      // canvas-1u2: description/technology used to be discarded with every other trailing arg.
+      const args = trailingArgs(rawArgs, hasTechnology(kind) ? CONTAINER_COMPONENT_ARGS : PERSON_SYSTEM_ARGS);
+      const tags = (args.tags ?? '')
         .split(',')
         .map((tag) => tag.trim())
         .filter(Boolean);
@@ -369,6 +397,8 @@ export function parseC4(dsl: string): ParseResult {
         position: positions[id] ?? (isFreshImport ? PLACEHOLDER_POSITION : nextAutoPosition()),
         style: styles[id],
         containerId: containerStack[containerStack.length - 1],
+        ...(args.descr ? { description: args.descr } : {}),
+        ...(args.techn && hasTechnology(kind) ? { technology: args.techn } : {}),
         ...(tags.length > 0 ? { tags } : {}),
       });
       continue;
@@ -376,7 +406,8 @@ export function parseC4(dsl: string): ParseResult {
 
     const relMatch = line.match(REL_PATTERN);
     if (relMatch) {
-      const [, kind, from, to, label] = relMatch;
+      const [, kind, from, to, label, rawArgs] = relMatch;
+      const relArgs = trailingArgs(rawArgs, REL_ARGS);
       edgeCounter += 1;
       // BiRel renders as a bidirectional edge (both endpoints arrowed) — same 'both' value
       // flowchart's own <--> already uses (canvas-7rr). Rel_Back is semantically Rel(to, from,
@@ -394,6 +425,8 @@ export function parseC4(dsl: string): ParseResult {
         label,
         arrow: kind === 'BiRel' ? 'both' : undefined,
         style: edgeStyles[edgeId],
+        ...(relArgs.techn ? { technology: relArgs.techn } : {}),
+        ...(relArgs.descr ? { description: relArgs.descr } : {}),
       });
       continue;
     }
@@ -498,8 +531,23 @@ export function parseC4(dsl: string): ParseResult {
 
 /** One element macro line, e.g. `System(a, "A", $tags="new_system")`. */
 function elementLine(node: DiagramNode): string {
+  const kind = elementKindFor(node);
+  // canvas-1u2: positional, in Mermaid's order; an empty technology slot keeps a description in
+  // the right position.
+  const args = hasTechnology(kind) ? optionalArgs([node.technology, node.description]) : optionalArgs([node.description]);
   const tags = node.tags && node.tags.length > 0 ? `, $tags="${node.tags.join(',')}"` : '';
-  return `${elementKindFor(node)}(${node.id}, "${node.label}"${tags})`;
+  return `${kind}(${node.id}, "${node.label}"${args}${tags})`;
+}
+
+/** `, "a", "b"` for the given optional positional args, trailing absent ones omitted and earlier
+ *  absent ones written as "" so later ones keep their position. */
+function optionalArgs(values: (string | undefined)[]): string {
+  let last = values.length - 1;
+  while (last >= 0 && !values[last]) last -= 1;
+  return values
+    .slice(0, last + 1)
+    .map((value) => `, "${value ?? ''}"`)
+    .join('');
 }
 
 function elementKindFor(node: DiagramNode): string {
@@ -592,7 +640,7 @@ export function serializeC4(model: import('../model/diagram-model.js').DiagramMo
     // mechanism; a directive that only maps to existing model fields re-serializes in its
     // canonical form, not byte-for-byte, same as style/classDef/linkStyle before it).
     const kind = edge.arrow === 'both' ? 'BiRel' : 'Rel';
-    lines.push(`${kind}(${edge.sourceId}, ${edge.targetId}, "${edge.label ?? ''}")`);
+    lines.push(`${kind}(${edge.sourceId}, ${edge.targetId}, "${edge.label ?? ''}"${optionalArgs([edge.technology, edge.description])})`);
   }
 
   return joinFrontMatter(frontMatter, `${lines.join('\n')}\n`);
