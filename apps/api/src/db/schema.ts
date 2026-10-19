@@ -114,6 +114,8 @@ export interface DiagramTypesTable {
   origin: Generated<'builtin' | 'custom'>;
   /** canvas-chq: a built-in row an admin has edited -- the catalog seed leaves it alone. */
   admin_edited: Generated<boolean>;
+  /** canvas-9ff: hidden from the create pickers; existing diagrams unaffected. */
+  hidden: Generated<boolean>;
   description: string | null;
 }
 
