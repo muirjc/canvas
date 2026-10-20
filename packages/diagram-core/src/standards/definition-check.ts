@@ -1,5 +1,6 @@
 import { FAMILY_KIND_SHAPES, FAMILY_RESERVED_KIND_IDS, FAMILY_SUPPORTS_ELEMENT_KINDS } from '../model/family-capabilities.js';
 import { C4_ELEMENT_ROLES } from '../dsl/c4.js';
+import { classifyNode } from './kinds.js';
 import { KIND_ID_PATTERN, RESERVED_KIND_IDS, type StandardRules } from './schema.js';
 
 export interface DefinitionIssue {
@@ -92,4 +93,33 @@ export function checkStandardDefinition(rules: StandardRules, family: string): D
   });
 
   return issues;
+}
+
+/**
+ * canvas-e05: non-blocking notes on a standard's definition, shown beside the errors above but
+ * never preventing a save. Today: a C4 kind whose match (role + external) is also satisfied by an
+ * EARLIER kind. Since canvas-7hp that's legitimate -- the editor and the AI write the kind's id into
+ * the element's $tags -- but an element without that tag (hand-written or imported DSL) is
+ * classified as the earlier kind, which the author should know. Names the kind that wins. A kind
+ * with `external` unset is checked for both internal and external elements.
+ */
+export function standardDefinitionNotices(rules: StandardRules, family: string): DefinitionIssue[] {
+  if (family !== 'c4') return [];
+  const notices: DefinitionIssue[] = [];
+  (rules.elementKinds ?? []).forEach((kind, i) => {
+    if (!kind.match) return;
+    const samples = kind.match.external === undefined ? [false, true] : [kind.match.external];
+    const winners = new Set<string>();
+    for (const external of samples) {
+      const winner = classifyNode({ id: 'sample', label: '', shape: 'rectangle', position: { x: 0, y: 0 }, role: kind.match.role, external }, rules);
+      if (winner && winner.id !== kind.id) winners.add(winner.label?.trim() || winner.id);
+    }
+    if (winners.size === 0) return;
+    const names = [...winners].map((w) => `"${w}"`).join(' and ');
+    notices.push({
+      path: `elementKinds[${i}].match`,
+      message: `"${kind.label?.trim() || kind.id}" has the same C4 role as ${names}. Elements drawn in the editor or by the AI are tagged with their kind, so they are told apart; an untagged element in hand-written or imported DSL counts as ${names}.`,
+    });
+  });
+  return notices;
 }
