@@ -92,6 +92,16 @@ const PERSON_SYSTEM_ARGS = ['descr', 'sprite', 'tags'] as const;
 const CONTAINER_COMPONENT_ARGS = ['techn', 'descr', 'sprite', 'tags'] as const;
 const REL_ARGS = ['techn', 'descr', 'sprite', 'tags'] as const;
 const hasTechnology = (kind: string) => kind.startsWith('Container') || kind.startsWith('Component');
+
+// canvas-aoa: each boundary family's positional args after the label, per Mermaid's signatures.
+const DEPLOYMENT_NODE_ARGS = ['type', 'descr', 'sprite', 'tags'] as const;
+const GENERIC_BOUNDARY_ARGS = ['type', 'tags'] as const;
+const NAMED_BOUNDARY_ARGS = ['tags'] as const;
+function boundaryArgOrder(role: string | undefined): readonly string[] {
+  if (role === 'deployment-node') return DEPLOYMENT_NODE_ARGS;
+  if (role === 'boundary') return GENERIC_BOUNDARY_ARGS;
+  return NAMED_BOUNDARY_ARGS;
+}
 // Rel(from, to, "label", ?"technology", ?"description", ...) and its BiRel/Rel_Back/directional
 // variants (jmuir-dtu.3) — the Up/Down/Left/Right long forms and their U/D/L/R short forms are both
 // real Mermaid syntax.
@@ -115,11 +125,13 @@ const DEPLOYMENT_NODE_KINDS = ['Deployment_Node', 'Node_L', 'Node_R', 'Node'] as
 // canvas-??? (Boundary): the generic, no-particular-semantic-type boundary macro
 // (Boundary(alias, label, ?"type")) was missing from this alternation entirely — every real C4
 // file using a plain custom-labeled grouping (real Mermaid docs' own bank-boundary example uses
-// exactly this) hard-errored. Grammatically identical to System_Boundary/etc (same optional
-// 3rd-arg "type" string, captured-but-discarded the same way) -- just another literal keyword on
-// the same production, not a new code path.
+// exactly this) hard-errored. Grammatically identical to System_Boundary/etc -- just another
+// literal keyword on the same production, not a new code path.
+// canvas-aoa: trailing args (positional or named) are captured and mapped by the keyword's own
+// signature -- type, description and tags used to be discarded (lost on save), and a named arg
+// ($tags=...) on a boundary line was a parse error.
 const BOUNDARY_START = new RegExp(
-  `^(Boundary|System_Boundary|Container_Boundary|Enterprise_Boundary|${DEPLOYMENT_NODE_KINDS.join('|')})\\(\\s*(${ID})\\s*,\\s*"([^"]*)"(?:\\s*,\\s*"[^"]*")?\\s*\\)\\s*\\{$`,
+  `^(Boundary|System_Boundary|Container_Boundary|Enterprise_Boundary|${DEPLOYMENT_NODE_KINDS.join('|')})\\(\\s*(${ID})\\s*,\\s*"([^"]*)"((?:\\s*,\\s*(?:"[^"]*"|\\$[A-Za-z]+\\s*=\\s*"[^"]*"))*)\\s*\\)\\s*\\{$`,
 );
 // canvas-7vs.11: which boundary keyword was actually used used to be discarded entirely (every
 // one of the five collapsed into the same untyped DiagramContainer, role left undefined) — this
@@ -457,12 +469,20 @@ export function parseC4(dsl: string): ParseResult {
 
     const boundaryStart = line.match(BOUNDARY_START);
     if (boundaryStart) {
-      const [, keyword, id, label] = boundaryStart;
+      const [, keyword, id, label, rawArgs] = boundaryStart;
       const meta = containerMeta[id];
+      const args = trailingArgs(rawArgs, boundaryArgOrder(BOUNDARY_KEYWORD_TO_ROLE[keyword]));
+      const tags = (args.tags ?? '')
+        .split(',')
+        .map((tag) => tag.trim())
+        .filter(Boolean);
       containersById.set(id, {
         id,
         label,
         role: BOUNDARY_KEYWORD_TO_ROLE[keyword],
+        ...(args.type ? { boundaryType: args.type } : {}),
+        ...(args.descr ? { description: args.descr } : {}),
+        ...(tags.length > 0 ? { tags } : {}),
         position: meta ? { x: meta.x, y: meta.y } : (isFreshImport ? PLACEHOLDER_POSITION : nextAutoPosition()),
         size: meta?.width !== undefined && meta?.height !== undefined ? { width: meta.width, height: meta.height } : undefined,
         parentContainerId: containerStack[containerStack.length - 1],
@@ -612,7 +632,17 @@ export function serializeC4(model: import('../model/diagram-model.js').DiagramMo
     (container.role && ROLE_TO_BOUNDARY_KEYWORD[container.role]) || defaultBoundaryKeyword;
 
   const emitContainer = (container: DiagramContainer): string[] => {
-    const out: string[] = [`${boundaryKeywordFor(container)}(${container.id}, "${container.label}") {`];
+    const keyword = boundaryKeywordFor(container);
+    // canvas-aoa: positional args in Mermaid's order for the keyword, then $tags.
+    const role = BOUNDARY_KEYWORD_TO_ROLE[keyword];
+    const positional =
+      role === 'deployment-node'
+        ? optionalArgs([container.boundaryType, container.description])
+        : role === 'boundary'
+          ? optionalArgs([container.boundaryType])
+          : '';
+    const tags = container.tags && container.tags.length > 0 ? `, $tags="${container.tags.join(',')}"` : '';
+    const out: string[] = [`${keyword}(${container.id}, "${container.label}"${positional}${tags}) {`];
     for (const node of model.nodes) {
       if (node.containerId === container.id) {
         out.push(`  ${elementLine(node)}`);

@@ -264,6 +264,13 @@ export interface DiagramContainer {
   size?: Size;
   style?: NodeStyle;
   /** Id of a parent container, for nested grouping. */
+  /** canvas-aoa: C4 Boundary / Deployment_Node only -- the boundary's type argument (e.g.
+   *  "Company", "Azure", "Ubuntu 22.04"). */
+  boundaryType?: string;
+  /** canvas-aoa: C4 Deployment_Node family only -- its description argument. */
+  description?: string;
+  /** canvas-aoa: C4 boundaries -- the boundary's Mermaid `$tags` list, in order. */
+  tags?: string[];
   parentContainerId?: ElementId;
   /** jmuir-dtu.30: architecture groups only -- the `group id(icon)[Title]` icon, resolved like a
    *  service's (DiagramNode.icon). */

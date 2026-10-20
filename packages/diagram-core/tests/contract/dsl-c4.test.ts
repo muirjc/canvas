@@ -395,14 +395,16 @@ describe('C4 DSL family (Context/Container/Component/Code)', () => {
       }
     });
 
-    it('Deployment_Node(id, "Label", "Type") (with optional type arg) parses; the type is not retained anywhere and does not leak into the label', () => {
+    it('Deployment_Node(id, "Label", "Type") (with optional type arg) parses; the type is kept as boundaryType and does not leak into the label', () => {
       const result = parseC4('C4Deployment\n  Deployment_Node(live, "Live", "Azure") {\n  }\n');
       expect(isParseSuccess(result)).toBe(true);
       if (isParseSuccess(result)) {
         expect(result.model.containers).toHaveLength(1);
         const container = result.model.containers[0];
         expect(container.label).toBe('Live');
-        expect(JSON.stringify(result.model)).not.toContain('Azure');
+        // canvas-aoa: the type is modeled now (it used to be discarded and lost on save), still
+        // not in the label.
+        expect(container.boundaryType).toBe('Azure');
       }
     });
 
@@ -648,9 +650,10 @@ describe('C4 DSL family (Context/Container/Component/Code)', () => {
       expect(result.model.containers).toHaveLength(1);
       expect(result.model.containers[0]).toMatchObject({ id: 'b3', label: 'Bank Boundary 3', role: 'boundary' });
       expect(result.model.nodes.find((n) => n.id === 'a')?.containerId).toBe('b3');
-      // The optional "type" arg is captured-but-discarded, matching this file's own established
-      // precedent (Deployment_Node's optional type arg) -- not modeled, not leaked into the label.
-      expect(JSON.stringify(result.model)).not.toContain('perimeter');
+      // canvas-aoa: the optional "type" arg is modeled now (it used to be discarded and lost on
+      // save), and still kept out of the label.
+      expect(result.model.containers[0].boundaryType).toBe('perimeter');
+      expect(result.model.containers[0].label).not.toContain('perimeter');
     });
 
     it('Rel(from, to, "label", "technology") -- the optional 4th arg -- parses without error', () => {
