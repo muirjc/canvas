@@ -6,7 +6,14 @@
 # Usage: ENTRA_CLIENT_ID=<id> [ENTRA_TENANT_ID=<id>] [ENTRA_CLIENT_SECRET=<secret>] \
 #        [CANVAS_AI_PROVIDER=mock|anthropic|openai] [CANVAS_ANTHROPIC_API_KEY=<key>] \
 #        [CANVAS_OPENAI_API_KEY=<key>] \
-#        ./deploy.sh [location]
+#        ./deploy.sh [--what-if-only | --yes] [location]
+#
+# canvas-7zw: by default the script shows the what-if and asks before applying. Two flags make it
+# usable without a terminal to answer that prompt (e.g. Claude Code driven from a phone):
+#   --what-if-only  run everything read-only up to and including the what-if, then exit -- no Key
+#                   Vault writes, no image build, no deployment.
+#   --yes           skip the confirmation prompt and apply. Meant for after a --what-if-only run
+#                   has been reviewed, as a separate, explicit command.
 #
 # canvas-haz: ENTRA_CLIENT_ID (required) and ENTRA_CLIENT_SECRET (required on first run only --
 # cached afterward in infra/azure/.secrets/oidc-client-secret) come from the "canvas-azure" Entra
@@ -33,7 +40,21 @@ set -euo pipefail
 
 # centralus (2026-10-08): eastus2 hit repeated Postgres SkuNotAvailable for Standard_B1ms; moved
 # here (matching ADP) rather than paying for a bigger SKU.
-LOCATION="${1:-centralus}"
+WHAT_IF_ONLY=false
+ASSUME_YES=false
+LOCATION="centralus"
+for arg in "$@"; do
+  case "$arg" in
+    --what-if-only) WHAT_IF_ONLY=true ;;
+    --yes) ASSUME_YES=true ;;
+    -*) echo "Unknown option: $arg" >&2; exit 2 ;;
+    *) LOCATION="$arg" ;;
+  esac
+done
+if [[ "$WHAT_IF_ONLY" == true && "$ASSUME_YES" == true ]]; then
+  echo "--what-if-only and --yes can't be combined." >&2
+  exit 2
+fi
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 SECRETS_DIR="$SCRIPT_DIR/.secrets"
@@ -141,6 +162,15 @@ if ! git -C "$REPO_ROOT" diff --quiet 2>/dev/null || ! git -C "$REPO_ROOT" diff 
   API_IMAGE_TAG="${API_IMAGE_TAG}-dirty-$(date +%s)"
 fi
 
+# canvas-7zw: what-if and the deployment both fail with ServerStoppedError against a paused
+# Postgres, buried in Azure's multi-error output -- say so up front instead.
+POSTGRES_STATE="$(az postgres flexible-server show --resource-group "$RESOURCE_GROUP" --name canvas-postgres \
+  --query state -o tsv 2>/dev/null || true)"
+if [[ "$POSTGRES_STATE" == "Stopped" || "$POSTGRES_STATE" == "Stopping" ]]; then
+  echo "canvas-postgres is $POSTGRES_STATE (environment paused) -- run ./resume.sh first." >&2
+  exit 1
+fi
+
 EXISTING_KEY_VAULT="$(az keyvault list --resource-group "$RESOURCE_GROUP" --query "[0].name" -o tsv 2>/dev/null || true)"
 EXISTING_ACR="$(az acr list --resource-group "$RESOURCE_GROUP" --query "[0].name" -o tsv 2>/dev/null || true)"
 
@@ -206,7 +236,9 @@ kv_set_tracked() {
   echo "  $name changed."
 }
 
-if [[ -n "$EXISTING_KEY_VAULT" ]]; then
+if [[ "$WHAT_IF_ONLY" == true ]]; then
+  echo "== --what-if-only: skipping Key Vault secret writes and the image build =="
+elif [[ -n "$EXISTING_KEY_VAULT" ]]; then
   echo "== Pre-seeding secrets into existing Key Vault ($EXISTING_KEY_VAULT) =="
   kv_set_tracked "postgres-admin-password" "$PG_ADMIN_PASSWORD"
   kv_set_tracked "session-secret" "$SESSION_SECRET"
@@ -231,7 +263,9 @@ else
   echo "== No existing Key Vault found -- skipping secret pre-seed (first-ever run) =="
 fi
 
-if [[ -n "$EXISTING_ACR" ]]; then
+if [[ "$WHAT_IF_ONLY" == true ]]; then
+  :
+elif [[ -n "$EXISTING_ACR" ]]; then
   echo "== Building API image (repo root Dockerfile) to $EXISTING_ACR, tag $API_IMAGE_TAG =="
   az acr build --registry "$EXISTING_ACR" --image "canvas-api:${API_IMAGE_TAG}" "$REPO_ROOT" --output none
 else
@@ -249,10 +283,18 @@ az deployment sub what-if \
     entraTenantId="$ENTRA_TENANT_ID" entraClientId="$ENTRA_CLIENT_ID" aiProvider="$AI_PROVIDER"
 
 echo
-read -r -p "Proceed with deployment? [y/N] " confirm
-if [[ "$confirm" != "y" && "$confirm" != "Y" ]]; then
-  echo "Aborted."
-  exit 1
+if [[ "$WHAT_IF_ONLY" == true ]]; then
+  echo "== --what-if-only: stopping before the deployment (image tag would be $API_IMAGE_TAG) =="
+  exit 0
+fi
+if [[ "$ASSUME_YES" == true ]]; then
+  echo "== --yes: proceeding without the confirmation prompt =="
+else
+  read -r -p "Proceed with deployment? [y/N] " confirm
+  if [[ "$confirm" != "y" && "$confirm" != "Y" ]]; then
+    echo "Aborted."
+    exit 1
+  fi
 fi
 
 echo "== Deploying =="
