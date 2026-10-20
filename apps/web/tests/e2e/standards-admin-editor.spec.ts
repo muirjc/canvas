@@ -1,9 +1,23 @@
 import { expect, test } from '@playwright/test';
 import { openStandardsAdmin } from './standards-admin-helpers';
+import { deleteCustomDiagramType } from './diagram-type-helpers';
+import { ADMIN_EMAIL, ADMIN_PASSWORD, API_BASE_URL } from './standards-v2-helpers';
 
 const PROJECT_ID = process.env.E2E_PROJECT_ID;
 
 test.skip(!PROJECT_ID, 'E2E_PROJECT_ID env var not set — run `npm run seed` and export it first');
+
+let createdTypeId = '';
+
+test.afterAll(async ({ browser }) => {
+  // canvas-lj9: the type ends up unused, so delete it (and its standards) rather than leave junk behind.
+  if (!createdTypeId) return;
+  const page = await browser.newPage();
+  const login = await page.request.post(`${API_BASE_URL}/auth/local/login`, { data: { email: ADMIN_EMAIL, password: ADMIN_PASSWORD } });
+  expect(login.ok()).toBe(true);
+  await deleteCustomDiagramType(page.request, createdTypeId);
+  await page.close();
+});
 
 /**
  * canvas-tfr Standards v2 admin: custom diagram type -> element-kind standard (swatches, connector
@@ -31,6 +45,7 @@ test('admin builds, publishes, clones and retires a kind-based standard for a cu
   await expect(typeButton).toContainText('Custom');
   await expect(typeButton).toHaveAttribute('aria-current', 'true');
   const typeId = (await typeButton.getAttribute('data-testid'))!.replace('standards-type-', '');
+  createdTypeId = typeId;
   await expect(page.getByTestId('standards-empty')).toBeVisible();
 
   // --- new standard with two kinds and a connector rule ----------------------------------

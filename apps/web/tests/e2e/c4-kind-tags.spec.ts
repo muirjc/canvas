@@ -1,4 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
+import { ensureCustomDiagramType, hideCustomDiagramType } from './diagram-type-helpers';
 import { API_BASE_URL, PROJECT_ID, addKind, applyDsl, login, readDsl } from './standards-v2-helpers';
 
 test.skip(!PROJECT_ID, 'E2E_PROJECT_ID env var not set — run `npm run seed` and export it first');
@@ -8,7 +9,7 @@ test.skip(!PROJECT_ID, 'E2E_PROJECT_ID env var not set — run `npm run seed` an
  * approved fill). The kind is carried by Mermaid C4's named `$tags="..."` argument so the right one
  * survives save/reload and is selectable per node.
  *
- * The standard is published onto a uniquely named CUSTOM c4-family type, never a built-in one,
+ * The standard is published onto a fixed-name (reused every run, canvas-lj9) CUSTOM c4-family type, never a built-in one,
  * because this suite runs against the developer's real database.
  */
 test.describe.configure({ mode: 'serial' });
@@ -26,15 +27,7 @@ const systemKind = (id: string, label: string, fill: string) => ({
 });
 
 async function setupType(page: Page) {
-  const typeRes = await page.request.post(`${API_BASE_URL}/admin/diagram-types`, {
-    data: {
-      name: `C4 Kind Tags ${Date.now()}`,
-      dslFamily: 'c4',
-      personas: ['Business', 'Enterprise', 'Solution', 'Technical'],
-    },
-  });
-  expect(typeRes.status()).toBe(201);
-  typeId = (await typeRes.json()).diagramType.id as string;
+  typeId = await ensureCustomDiagramType(page.request, { name: 'E2E C4 Kind Tags', dslFamily: 'c4' });
 
   const stdRes = await page.request.post(`${API_BASE_URL}/diagram-types/${typeId}/standards`, {
     data: {
@@ -72,11 +65,13 @@ async function openKindPicker(page: Page, nodeId: string) {
 }
 
 test.afterAll(async ({ browser }) => {
-  // Clean up: soft-delete the diagrams and retire the standard. (A custom type has no delete route.)
+  // Clean up: soft-delete the diagrams, retire the standard and hide the reused type.
   const page = await browser.newPage();
   await login(page);
   for (const id of createdDiagramIds) await page.request.delete(`${API_BASE_URL}/diagrams/${id}`);
   if (standardId) await page.request.post(`${API_BASE_URL}/standards/${standardId}/retire`);
+  // canvas-lj9: keep the reused "E2E ..." type out of the developer's pickers between runs.
+  await hideCustomDiagramType(page.request, typeId);
   await page.close();
 });
 
