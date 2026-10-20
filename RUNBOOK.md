@@ -359,7 +359,8 @@ github.com -s workflow`); if a push is rejected again, re-run that, or use the G
 
 Every action in the workflows is pinned to a full commit SHA with its version as a trailing comment
 (`uses: actions/checkout@<sha> # v7.0.1`, canvas-b4o). Pin new actions the same way;
-`.github/dependabot.yml` opens a weekly grouped PR to move the pins forward.
+`.github/dependabot.yml` opens a weekly grouped PR to move the pins forward, proposing only releases
+at least 14 days old (`cooldown`).
 
 ## Branch protection
 
