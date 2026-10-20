@@ -145,6 +145,9 @@ export function iconNodeSize(node: DiagramNode): Size {
 // canvas-8th: a C4 element's technology and description (kept since canvas-1u2) are drawn under its
 // name, the way Mermaid does: name (bold), then "[technology]", then the description, each
 // word-wrapped. Such an element gets a wider box than a bare label needs, growing in height to fit.
+// canvas-hzf: every C4 element also shows its type ("[Software System]"), folded together with the
+// technology for a container/component ("[Container: Java, Spring MVC]"). An element with only the
+// type line keeps the default width -- a one-line name plus the type still fits the default height.
 const DESCRIBED_NODE_WIDTH = 200;
 const DESCRIPTION_FONT_SIZE = 11;
 const DESCRIBED_PADDING = 10;
@@ -152,7 +155,18 @@ const DESCRIBED_BLOCK_GAP = 4;
 const DESCRIBED_LINE_HEIGHT = 1.25;
 
 function isDescribedNode(node: DiagramNode): boolean {
-  return Boolean(node.technology || node.description) && node.shape !== 'icon' && tableRows(node).length === 0;
+  return Boolean(node.technology || node.description || node.c4TypeLabel) && node.shape !== 'icon' && tableRows(node).length === 0;
+}
+
+/** canvas-hzf: only a description or technology needs the wider box; a type line alone doesn't. */
+function describedNodeWidth(node: DiagramNode): number {
+  return node.technology || node.description ? DESCRIBED_NODE_WIDTH : DEFAULT_NODE_SIZE.width;
+}
+
+/** canvas-hzf: the bracketed line under a C4 element's name -- type and technology together. */
+function typeLine(node: DiagramNode): string | undefined {
+  if (node.c4TypeLabel) return `[${node.c4TypeLabel}${node.technology ? `: ${node.technology}` : ''}]`;
+  return node.technology ? `[${node.technology}]` : undefined;
 }
 
 interface DescribedTextLine {
@@ -168,7 +182,7 @@ function describedTextLines(node: DiagramNode, width: number): DescribedTextLine
   const labelSize = node.style?.fontSize ?? 14;
   const blocks: { text: string; fontSize: number; bold: boolean }[] = [
     { text: node.label, fontSize: labelSize, bold: true },
-    ...(node.technology ? [{ text: `[${node.technology}]`, fontSize: DESCRIPTION_FONT_SIZE, bold: false }] : []),
+    ...(typeLine(node) ? [{ text: typeLine(node)!, fontSize: DESCRIPTION_FONT_SIZE, bold: false }] : []),
     ...(node.description ? [{ text: node.description, fontSize: DESCRIPTION_FONT_SIZE, bold: false }] : []),
   ];
   return blocks.flatMap((block, b) =>
@@ -240,12 +254,13 @@ function personBodyTop(y: number, width: number, height: number): number {
 
 export function plainNodeSize(node: DiagramNode): Size {
   if (isDescribedNode(node)) {
-    const lines = describedTextLines(node, DESCRIBED_NODE_WIDTH);
+    const width = describedNodeWidth(node);
+    const lines = describedTextLines(node, width);
     const textHeight = Math.max(DEFAULT_NODE_SIZE.height, Math.ceil(describedContentHeight(lines) + DESCRIBED_PADDING * 2));
-    if (node.shape !== 'person') return { width: DESCRIBED_NODE_WIDTH, height: textHeight };
+    if (node.shape !== 'person') return { width, height: textHeight };
     // A person also needs room for its head above the body that holds the text. The head radius
     // depends on the final size, so size for the largest head (radius 20) -- always enough room.
-    return { width: DESCRIBED_NODE_WIDTH, height: textHeight + 2 * 20 + 7 };
+    return { width, height: textHeight + 2 * 20 + 7 };
   }
   const width = DEFAULT_NODE_SIZE.width;
   const fontSize = node.style?.fontSize ?? 14;

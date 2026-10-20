@@ -7,7 +7,8 @@ import type { DiagramModel } from '../../src/model/diagram-model.js';
 function normalize(model: DiagramModel) {
   return {
     diagramTypeId: model.diagramTypeId,
-    nodes: [...model.nodes].sort((a, b) => a.id.localeCompare(b.id)),
+    // canvas-hzf: c4TypeLabel is derived from role at parse time, never serialized -- not content.
+    nodes: [...model.nodes].map(({ c4TypeLabel: _derived, ...node }) => node).sort((a, b) => a.id.localeCompare(b.id)),
     edges: [...model.edges].sort((a, b) => a.id.localeCompare(b.id)),
     containers: [...model.containers].sort((a, b) => a.id.localeCompare(b.id)),
   };
