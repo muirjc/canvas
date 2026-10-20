@@ -140,3 +140,9 @@ Feature work is tracked under `specs/<number>-<slug>/` using the GitHub spec-kit
 (constitution → specify → clarify → plan → tasks → implement). Each feature directory has a
 `spec.md`, `plan.md`, `tasks.md`, and `quickstart.md`. See `CLAUDE.md` for the full list of active
 technologies and conventions.
+
+## License
+
+Canvas is licensed under the [Apache License 2.0](LICENSE). Third-party icon artwork bundled or
+generated for the icon libraries (e.g. Microsoft Azure Architecture Icons) remains under its
+owners' own terms — see each library manifest's `license` field.
