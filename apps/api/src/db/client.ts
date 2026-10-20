@@ -10,6 +10,7 @@ import pg from 'pg';
 import { loadConfig } from '../config.js';
 import type { DB } from './schema.js';
 import { SqliteJsonColumnsPlugin } from './sqlite-json-plugin.js';
+import { SqliteTimestampPlugin } from './sqlite-timestamp-plugin.js';
 import { SqliteValueCoercionPlugin } from './sqlite-value-coercion-plugin.js';
 
 type SqliteDatabase = InstanceType<typeof Database>;
@@ -43,7 +44,7 @@ export function getDb(): Kysely<DB> {
         // Order matters: coercion runs on the way IN (query transform), JSON parsing on the way
         // OUT (result transform) — both apply to every query regardless of plugin order here, but
         // listed in that logical "write then read" sequence for clarity.
-        plugins: [new SqliteValueCoercionPlugin(), new SqliteJsonColumnsPlugin()],
+        plugins: [new SqliteValueCoercionPlugin(), new SqliteJsonColumnsPlugin(), new SqliteTimestampPlugin()],
       });
     } else {
       db = new Kysely<DB>({
