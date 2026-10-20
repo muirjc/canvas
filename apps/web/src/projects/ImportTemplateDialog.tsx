@@ -3,6 +3,7 @@ import { templateCompilers } from '@canvas/diagram-core';
 import { api, ApiError, type DiagramDto, type DiagramTypeDto } from '../app/api';
 import { UnsupportedElementNotice } from '../canvas/UnsupportedElementNotice';
 import { Modal } from '../ui/Modal';
+import { TEMPLATE_DOCS } from './template-docs';
 
 export interface ImportTemplateDialogProps {
   projectId: string;
@@ -99,6 +100,18 @@ export function ImportTemplateDialog({ projectId, persona, onImported, onCancel 
           </li>
         ))}
       </ul>
+      {selected && TEMPLATE_DOCS[selected] && (
+        <p className="meta">
+          Fill in the blank template, then paste or upload it below.{' '}
+          <a
+            data-testid="download-template"
+            href={`data:text/markdown;charset=utf-8,${encodeURIComponent(TEMPLATE_DOCS[selected].text)}`}
+            download={TEMPLATE_DOCS[selected].fileName}
+          >
+            Download the blank template
+          </a>
+        </p>
+      )}
       <div className="field">
         <input
           data-testid="import-template-file"

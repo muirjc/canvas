@@ -208,9 +208,11 @@ deployable and securable":
   "the DSL parses this construct" and "a user can create/edit it visually" for every one of those
   same constructs across all six families, plus cross-family drag-to-nest containers and
   auto-layout.
-- **C4 Context template import** (`canvas-73s`) — importing a filled intake-template document,
-  compiled to DSL and rendered through the existing pipeline; architected to extend to the
-  remaining five diagram-type groups as follow-up work.
+- **Template import** (`canvas-73s`, `canvas-73s.1`–`.5`) — importing a filled intake-template
+  document, compiled to DSL and rendered through the existing pipeline, for C4 Context, C4
+  Container/Component/Deployment, sequence, ERD, UML class and the architecture family
+  (network/deployment/cloud infrastructure). The blank templates live in `docs/*-template.md` and
+  can be downloaded from the Import from Template dialog.
 - **Azure deployment** (`canvas-ycu`, SSO migrated from self-hosted Keycloak to Microsoft Entra ID
   by `canvas-haz`) — a reproducible Bicep IaC deployment with Entra ID SSO/MFA, Key Vault-backed
   secrets, and a pause/resume/destroy cost-control lifecycle (see

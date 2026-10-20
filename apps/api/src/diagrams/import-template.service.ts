@@ -12,7 +12,7 @@ export interface ImportTemplateInput {
 }
 
 /**
- * Imports a filled-in Markdown "intake template" (docs/c4-context-template.md and future
+ * Imports a filled-in Markdown "intake template" (docs/c4-context-template.md and its
  * per-diagram-type siblings) as a new diagram. Unlike raw DSL import (import.service.ts),
  * `diagramTypeId` is a required input here rather than auto-detected -- a filled-in template has
  * no header line the way Mermaid DSL text does, so the caller (the UI's type picker) must say

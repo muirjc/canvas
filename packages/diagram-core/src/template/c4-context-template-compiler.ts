@@ -1,5 +1,6 @@
 import type { ParseError } from '../dsl/types.js';
-import { extractFirstTable, splitIntoSections, type MarkdownSection } from './markdown-table.js';
+import { extractFirstTable, splitIntoSections } from './markdown-table.js';
+import { AliasAllocator, err, findSection, readMetadataFields } from './template-helpers.js';
 import type { TemplateCompiler, TemplateCompileResult } from './types.js';
 
 /**
@@ -44,59 +45,11 @@ interface StyleLine {
   borderColor?: string;
 }
 
-function findSection(sections: MarkdownSection[], match: string): MarkdownSection | undefined {
-  const normalize = (s: string) => s.replace(/^\d+\.\s*/, '').trim().toLowerCase();
-  return sections.find((s) => normalize(s.heading).startsWith(match));
-}
-
 /** Mermaid C4 string literals have no escape mechanism (`"([^"]*)"` in c4.ts's own ELEMENT_PATTERN
  *  / REL_PATTERN) -- a literal `"` in user-entered text would otherwise produce DSL the real
  *  parser can't read back. Replacing with a plain quote keeps the generated DSL always valid. */
 function sanitizeText(value: string): string {
   return value.replace(/"/g, "'");
-}
-
-/** "Payment Gateway" -> "paymentGateway". Non-alphanumeric characters are dropped as separators;
- *  the first token is lowercased, every later token is capitalized. A name with no letters/digits
- *  at all falls back to "entity" rather than producing an empty/illegal id. */
-function slugify(name: string): string {
-  const tokens = name.split(/[^A-Za-z0-9]+/).filter(Boolean);
-  if (tokens.length === 0) return 'entity';
-  return tokens
-    .map((token, i) =>
-      i === 0 ? token.charAt(0).toLowerCase() + token.slice(1) : token.charAt(0).toUpperCase() + token.slice(1).toLowerCase(),
-    )
-    .join('');
-}
-
-/** One shared collision map across the central system + every entity + every boundary, since they
- *  all share one DSL alias namespace as sibling macro args. First occurrence of a slug keeps it
- *  as-is; each later collision gets a numeric suffix -- a disclosed simplification, never a silent
- *  merge of two rows that happen to slugify identically. */
-class AliasAllocator {
-  private used = new Map<string, number>();
-
-  allocate(name: string): string {
-    const base = slugify(name);
-    const count = this.used.get(base) ?? 0;
-    this.used.set(base, count + 1);
-    return count === 0 ? base : `${base}${count + 1}`;
-  }
-}
-
-function err(message: string): ParseError {
-  return { line: 0, content: '', message };
-}
-
-/** The doc's metadata table is "Field | Value", one row per field -- read it as a field->value
- *  map rather than the usual "one row per record" shape every other section table has. */
-function readMetadataFields(section: MarkdownSection): Map<string, string> {
-  const fields = new Map<string, string>();
-  for (const row of extractFirstTable(section.body)) {
-    const field = row['Field'];
-    if (field !== undefined) fields.set(field.trim(), (row['Value'] ?? '').trim());
-  }
-  return fields;
 }
 
 export const c4ContextTemplateCompiler: TemplateCompiler = {
