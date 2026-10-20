@@ -1,4 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
+import { ensureCustomDiagramType, hideCustomDiagramType } from './diagram-type-helpers';
 import { API_BASE_URL, PROJECT_ID, addKind, applyDsl, login, readDsl } from './standards-v2-helpers';
 
 test.skip(!PROJECT_ID, 'E2E_PROJECT_ID env var not set — run `npm run seed` and export it first');
@@ -7,7 +8,7 @@ test.skip(!PROJECT_ID, 'E2E_PROJECT_ID env var not set — run `npm run seed` an
  * jmuir-dtu.28: a standard's element kinds now also drive architecture-beta diagrams. A service's
  * kind is node.role, persisted in front-matter as `canvas.kinds`, its fill in `canvas.styles`.
  *
- * The standard is published onto a uniquely named CUSTOM architecture-family type, never a built-in
+ * The standard is published onto a fixed-name (reused every run, canvas-lj9) CUSTOM architecture-family type, never a built-in
  * one, because this suite runs against the developer's real database.
  */
 const ARCH_DSL = ['architecture-beta', '    service a(server)[A]', '    junction j', ''].join('\n');
@@ -19,15 +20,7 @@ let standardId = '';
 const createdDiagramIds: string[] = [];
 
 async function setupType(page: Page) {
-  const typeRes = await page.request.post(`${API_BASE_URL}/admin/diagram-types`, {
-    data: {
-      name: `Arch Kinds ${Date.now()}`,
-      dslFamily: 'architecture',
-      personas: ['Business', 'Enterprise', 'Solution', 'Technical'],
-    },
-  });
-  expect(typeRes.status()).toBe(201);
-  typeId = (await typeRes.json()).diagramType.id as string;
+  typeId = await ensureCustomDiagramType(page.request, { name: 'E2E Arch Kinds', dslFamily: 'architecture' });
 
   const stdRes = await page.request.post(`${API_BASE_URL}/diagram-types/${typeId}/standards`, {
     data: {
@@ -58,11 +51,13 @@ async function newTypedDiagram(page: Page): Promise<string> {
 }
 
 test.afterAll(async ({ browser }) => {
-  // Clean up: soft-delete the diagrams and retire the standard. (A custom type has no delete route.)
+  // Clean up: soft-delete the diagrams, retire the standard and hide the reused type.
   const page = await browser.newPage();
   await login(page);
   for (const id of createdDiagramIds) await page.request.delete(`${API_BASE_URL}/diagrams/${id}`);
   if (standardId) await page.request.post(`${API_BASE_URL}/standards/${standardId}/retire`);
+  // canvas-lj9: keep the reused "E2E ..." type out of the developer's pickers between runs.
+  await hideCustomDiagramType(page.request, typeId);
   await page.close();
 });
 

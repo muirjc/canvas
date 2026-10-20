@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test';
+import { deleteCustomDiagramType } from './diagram-type-helpers';
 import { API_BASE_URL, PROJECT_ID, login } from './standards-v2-helpers';
 
 test.skip(!PROJECT_ID, 'E2E_PROJECT_ID env var not set — run `npm run seed` and export it first');
@@ -32,7 +33,7 @@ test.beforeAll(async ({ browser }) => {
 });
 
 test.afterAll(async ({ browser }) => {
-  // A custom type has no delete route, so retire its standard.
+  // canvas-lj9: the type is unused by any diagram, so delete it (and its standards).
   const page = await browser.newPage();
   await login(page);
   if (!standardId) {
@@ -44,6 +45,7 @@ test.afterAll(async ({ browser }) => {
   } else {
     await page.request.post(`${API_BASE_URL}/standards/${standardId}/retire`);
   }
+  await deleteCustomDiagramType(page.request, typeId);
   await page.close();
 });
 

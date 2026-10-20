@@ -1,5 +1,6 @@
 import { expect, test } from '@playwright/test';
 import { expectSignedIn } from './auth-helpers';
+import { ensureCustomDiagramType, hideCustomDiagramType } from './diagram-type-helpers';
 
 const PROJECT_ID = process.env.E2E_PROJECT_ID;
 const ADMIN_EMAIL = 'admin@example.com';
@@ -139,15 +140,10 @@ test('sets a C4 element role via chat', async ({ page }) => {
   // diagram-tools-standard tests). This spec exercises the generic role tool, which only a type
   // WITHOUT a standard still offers -- so use a fresh admin-created custom C4-family type (never
   // has a standard) instead of a built-in one.
-  const typeResponse = await page.request.post(`${API_BASE_URL}/admin/diagram-types`, {
-    data: {
-      name: `C4 No Standard ${Date.now()}`,
-      dslFamily: 'c4',
-      personas: ['Business', 'Enterprise', 'Solution', 'Technical'],
-    },
-  });
-  expect(typeResponse.status()).toBe(201);
-  const customTypeId = (await typeResponse.json()).diagramType.id as string;
+  const customTypeId = await ensureCustomDiagramType(page.request, { name: 'E2E C4 No Standard', dslFamily: 'c4' });
+  // The reused type must never gain a standard (it would swap setNodeRole for setElementKind).
+  const standardCheck = await page.request.get(`${API_BASE_URL}/diagram-types/${customTypeId}/standard`);
+  expect(standardCheck.status()).toBe(404);
   await page.reload();
   await page.getByTestId('new-diagram').click();
   await page.getByTestId(`diagram-type-${customTypeId}`).check();
@@ -168,6 +164,9 @@ test('sets a C4 element role via chat', async ({ page }) => {
   const dsl = await page.getByTestId('dsl-panel').inputValue();
   expect(dsl).toMatch(/System\(sys,/);
   expect(dsl).not.toMatch(/Container\(sys,/);
+
+  // canvas-lj9: keep the reused "E2E ..." type out of the developer's pickers between runs.
+  await hideCustomDiagramType(page.request, customTypeId);
 });
 
 test('activates a sequence participant via chat', async ({ page }) => {

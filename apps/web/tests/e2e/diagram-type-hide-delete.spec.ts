@@ -1,5 +1,6 @@
 import { expect, test, type Page } from '@playwright/test';
 import { expectSignedIn } from './auth-helpers';
+import { ensureCustomDiagramType } from './diagram-type-helpers';
 import { ADMIN_EMAIL, ADMIN_PASSWORD, API_BASE_URL, PROJECT_ID } from './standards-v2-helpers';
 
 test.skip(!PROJECT_ID, 'E2E_PROJECT_ID env var not set — run `npm run seed` and export it first');
@@ -84,7 +85,9 @@ test('hiding a type removes it from the New Diagram dialog; showing it restores 
 
 test('deleting a type that has diagrams is refused with a message pointing at hide', async ({ page }) => {
   await login(page);
-  const type = await createCustomType(page, 'In Use');
+  const name = 'E2E In Use';
+  const type = { id: await ensureCustomDiagramType(page.request, { name, dslFamily: 'flowchart' }), name };
+  createdTypeIds.push(type.id);
   const res = await page.request.post(`${API_BASE_URL}/projects/${PROJECT_ID}/diagrams`, {
     data: { name: `In use ${Date.now()}`, diagramTypeId: type.id, initialDslContent: 'flowchart TD\n  A[Start]\n' },
   });
@@ -95,7 +98,7 @@ test('deleting a type that has diagrams is refused with a message pointing at hi
   await page.getByTestId('diagram-type-delete').click();
   await page.getByTestId('diagram-type-delete-confirm').click();
 
-  await expect(page.getByTestId('standards-error')).toContainText(/1 diagram/);
+  await expect(page.getByTestId('standards-error')).toContainText(/\d+ diagrams?/);
   await expect(page.getByTestId('standards-error')).toContainText(/hide/i);
   await expect(page.getByTestId(`standards-type-${type.id}`)).toBeVisible();
 });
