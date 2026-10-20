@@ -2,10 +2,12 @@ import { closePool } from '../db/pool.js';
 import { closeDb } from '../db/client.js';
 import { runMigrations } from '../db/migrate.js';
 import { DIAGRAM_RETENTION_DAYS, findExpiredDiagramIds, purgeExpiredDiagrams } from '../diagrams/diagram.service.js';
+import { PROJECT_RETENTION_DAYS, findExpiredProjectIds, purgeExpiredProjects } from '../projects/project.service.js';
 
 /**
  * Ops-run housekeeping script (jmuir-yvh) — physically deletes diagrams whose soft-delete
- * retention window (DIAGRAM_RETENTION_DAYS) has fully elapsed. Deliberately a manually-invoked
+ * retention window (DIAGRAM_RETENTION_DAYS) has fully elapsed, then projects past
+ * PROJECT_RETENTION_DAYS that no longer hold any diagrams or sub-projects (canvas-d3m). Deliberately a manually-invoked
  * script, not a scheduler/cron built into the app itself (Constitution VI; see
  * specs/002-editing-lifecycle-enhancements/research.md §1, which named exactly this as the
  * eventual mechanism). Run this periodically via whatever scheduling the deployment already has
@@ -14,7 +16,7 @@ import { DIAGRAM_RETENTION_DAYS, findExpiredDiagramIds, purgeExpiredDiagrams } f
  * project already expects `npm run migrate`/`npm run seed` to be invoked from outside the app.
  *
  * Usage:
- *   npm run purge --workspace=@canvas/api             # physically deletes expired diagrams
+ *   npm run purge --workspace=@canvas/api             # physically deletes expired diagrams, then projects
  *   npm run purge --workspace=@canvas/api -- --dry-run  # lists candidate ids, deletes nothing
  */
 async function purge(): Promise<void> {
@@ -22,25 +24,33 @@ async function purge(): Promise<void> {
 
   const dryRun = process.argv.includes('--dry-run');
   if (dryRun) {
-    const ids = await findExpiredDiagramIds();
-    if (ids.length === 0) {
-      console.log(`No diagrams past their ${DIAGRAM_RETENTION_DAYS}-day retention window — nothing to purge.`);
-      return;
-    }
-    console.log(`[dry run] ${ids.length} diagram(s) would be purged (past their ${DIAGRAM_RETENTION_DAYS}-day retention window):`);
-    for (const id of ids) {
-      console.log(`  ${id}`);
-    }
+    listIds('[dry run] diagram(s) would be purged', 'diagrams', DIAGRAM_RETENTION_DAYS, await findExpiredDiagramIds());
+    // Without deleting the diagrams first, which expired projects would still be blocked can't be
+    // known -- so this lists every candidate.
+    listIds('[dry run] project(s) are candidates (purged only once they hold no diagrams or sub-projects)', 'projects', PROJECT_RETENTION_DAYS, await findExpiredProjectIds());
     return;
   }
 
-  const result = await purgeExpiredDiagrams();
-  if (result.purgedDiagramIds.length === 0) {
-    console.log(`No diagrams past their ${DIAGRAM_RETENTION_DAYS}-day retention window — nothing to purge.`);
+  // Diagrams first: a project is only purged once no diagram rows point at it (canvas-d3m).
+  const diagrams = await purgeExpiredDiagrams();
+  listIds('Purged diagram(s)', 'diagrams', DIAGRAM_RETENTION_DAYS, diagrams.purgedDiagramIds);
+  const projects = await purgeExpiredProjects();
+  listIds('Purged project(s)', 'projects', PROJECT_RETENTION_DAYS, projects.purgedProjectIds);
+  if (projects.skipped.length > 0) {
+    console.log(`Skipped ${projects.skipped.length} expired project(s) still in use:`);
+    for (const { id, reason } of projects.skipped) {
+      console.log(`  ${id} (${reason})`);
+    }
+  }
+}
+
+function listIds(heading: string, noun: string, retentionDays: number, ids: string[]): void {
+  if (ids.length === 0) {
+    console.log(`No ${noun} past their ${retentionDays}-day retention window — nothing to purge.`);
     return;
   }
-  console.log(`Purged ${result.purgedDiagramIds.length} diagram(s) past their ${DIAGRAM_RETENTION_DAYS}-day retention window:`);
-  for (const id of result.purgedDiagramIds) {
+  console.log(`${heading} past their ${retentionDays}-day retention window: ${ids.length}`);
+  for (const id of ids) {
     console.log(`  ${id}`);
   }
 }

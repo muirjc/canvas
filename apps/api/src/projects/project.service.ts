@@ -312,3 +312,69 @@ export async function getProjectTree(rootId: string): Promise<ProjectTreeNode> {
 
   return build(root);
 }
+
+/**
+ * Ids of soft-deleted projects past their retention window (canvas-d3m) -- the candidates
+ * purgeExpiredProjects() considers. Split out so `npm run purge -- --dry-run` can list them.
+ */
+export async function findExpiredProjectIds(): Promise<string[]> {
+  const rows = await getDb()
+    .selectFrom('projects')
+    .select('id')
+    .where('deleted_at', 'is not', null)
+    .where('deleted_at', '<=', retentionBoundary())
+    .execute();
+  return rows.map((r) => r.id);
+}
+
+export interface ProjectPurgeResult {
+  purgedProjectIds: string[];
+  /** Expired projects left in place because something still points at them. */
+  skipped: { id: string; reason: string }[];
+}
+
+/**
+ * Physically deletes projects past their retention window (canvas-d3m), the project counterpart
+ * of purgeExpiredDiagrams() (jmuir-yvh) and invoked the same way, from the ops-run purge script.
+ *
+ * A project is purged only once nothing references it: no diagram rows in any state (diagrams.
+ * project_id has no ON DELETE CASCADE, and a soft-deleted diagram still inside its own retention
+ * window must stay restorable) and no child project rows (parent_project_id DOES cascade, so
+ * deleting the parent would silently destroy them). deleteProject() already refuses to soft-delete
+ * a project with live content, so normally a project's diagrams were deleted before it and expire
+ * first -- the purge script runs purgeExpiredDiagrams() before this. Anything still referenced is
+ * skipped and reported, never deleted. Expired children are purged before their expired parents
+ * (one pass per level). share_grants has no FK, so its project grants are deleted explicitly.
+ */
+export async function purgeExpiredProjects(): Promise<ProjectPurgeResult> {
+  const db = getDb();
+  const purged: string[] = [];
+  let remaining = await findExpiredProjectIds();
+  const blockReasons = new Map<string, string>();
+
+  while (remaining.length > 0) {
+    const [diagramRows, childRows] = await Promise.all([
+      db.selectFrom('diagrams').select('project_id').where('project_id', 'in', remaining).groupBy('project_id').execute(),
+      db.selectFrom('projects').select('parent_project_id').where('parent_project_id', 'in', remaining).groupBy('parent_project_id').execute(),
+    ]);
+    blockReasons.clear();
+    for (const row of diagramRows) blockReasons.set(row.project_id, 'still contains diagrams');
+    for (const row of childRows) {
+      if (row.parent_project_id && !blockReasons.has(row.parent_project_id)) blockReasons.set(row.parent_project_id, 'still has sub-projects');
+    }
+    const ready = remaining.filter((id) => !blockReasons.has(id));
+    if (ready.length === 0) break;
+
+    await db.transaction().execute(async (trx) => {
+      await trx.deleteFrom('share_grants').where('subject_type', '=', 'project').where('subject_id', 'in', ready).execute();
+      await trx.deleteFrom('projects').where('id', 'in', ready).execute();
+    });
+    purged.push(...ready);
+    remaining = remaining.filter((id) => blockReasons.has(id));
+  }
+
+  return {
+    purgedProjectIds: purged,
+    skipped: remaining.map((id) => ({ id, reason: blockReasons.get(id) ?? 'still referenced' })),
+  };
+}
