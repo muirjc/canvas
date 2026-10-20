@@ -149,6 +149,27 @@ describe('Diagrams API contract', () => {
     expect(response.statusCode).toBe(404);
   });
 
+  // canvas-jki: colours live in Canvas's front matter, which other Mermaid tools ignore -- the
+  // export adds plain `style` lines for them, without changing the saved DSL.
+  it('a flowchart\'s colours are exported as style lines other Mermaid tools understand', async () => {
+    const dsl = '---\ncanvas:\n  styles:\n    A:\n      fillColor: "#dbeafe"\n---\nflowchart TD\n  A[Start] --> B[End]\n';
+    const createResponse = await app.inject({
+      method: 'POST',
+      url: `/projects/${projectId}/diagrams`,
+      headers: { cookie: sessionCookie },
+      payload: { name: 'Portable Export', diagramTypeId: 'flowchart', initialDslContent: dsl },
+    });
+    const { diagram } = createResponse.json();
+
+    const exported = await app.inject({ method: 'GET', url: `/diagrams/${diagram.id}/export?format=mermaid`, headers: { cookie: sessionCookie } });
+    expect(exported.statusCode).toBe(200);
+    expect(exported.body).toContain('A[Start]');
+    expect(exported.body).toContain('style A fill:#dbeafe');
+
+    const stored = await app.inject({ method: 'GET', url: `/diagrams/${diagram.id}`, headers: { cookie: sessionCookie } });
+    expect(stored.json().diagram.dslContent).not.toContain('style A');
+  });
+
   it('exports a diagram as mermaid, svg, and png', async () => {
     const createResponse = await app.inject({
       method: 'POST',
