@@ -352,9 +352,14 @@ screenshots/traces of the failing test.
 
 ### Pushing to `.github/workflows/*`
 
-The `gh` CLI's OAuth token on this machine lacks the `workflow` scope, so `git push` is rejected
-for any change under `.github/workflows/`. Use the GitHub MCP `push_files`/`create_or_update_file`
-tools for those specific files instead; `git push` works normally for everything else.
+Pushing a change under `.github/workflows/` needs a token with the `workflow` scope, or `git push`
+is rejected. The `gh` CLI's token on this machine has it since 2026-10-20 (`gh auth refresh -h
+github.com -s workflow`); if a push is rejected again, re-run that, or use the GitHub MCP
+`push_files` tool.
+
+Every action in the workflows is pinned to a full commit SHA with its version as a trailing comment
+(`uses: actions/checkout@<sha> # v7.0.1`, canvas-b4o). Pin new actions the same way;
+`.github/dependabot.yml` opens a weekly grouped PR to move the pins forward.
 
 ## Branch protection
 

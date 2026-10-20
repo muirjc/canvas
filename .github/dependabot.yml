@@ -1,0 +1,12 @@
+# canvas-b4o: every action in .github/workflows/ is pinned to a full commit SHA (with the version as
+# a trailing comment); Dependabot keeps those pins current. GitHub Actions only -- npm dependencies
+# are updated deliberately, not by bot.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      github-actions:
+        patterns: ['*']
