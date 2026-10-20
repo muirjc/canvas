@@ -100,9 +100,18 @@ az login
 cd infra/azure
 ENTRA_CLIENT_ID=<app registration's client ID> \
 ENTRA_CLIENT_SECRET=<app registration's client secret, first run only -- cached afterward> \
-./deploy.sh              # defaults to eastus2 -- see main.bicep's location param comment for
-                          # why: this environment has hit real compute-quota restrictions in
-                          # some regions before (docs/azure-deployment.md's own note).
+./deploy.sh              # defaults to centralus -- eastus2 hit repeated Postgres
+                          # SkuNotAvailable for Standard_B1ms (2026-10-08).
+```
+
+Without a terminal to answer the confirmation prompt (e.g. Claude Code driven from a phone,
+canvas-7zw), split it into two explicit commands:
+
+```bash
+ENTRA_CLIENT_ID=<id> ./deploy.sh --what-if-only   # read-only: what-if, then exit (no Key Vault
+                                                  # writes, no image build, no deployment)
+ENTRA_CLIENT_ID=<id> ./deploy.sh --yes            # apply without prompting, once the what-if
+                                                  # has been reviewed
 ```
 
 This is a **two-pass bootstrap** on a genuine from-scratch environment, same shape ADP's own
@@ -120,7 +129,8 @@ Vault exists and it completes normally.
 3. Builds + pushes the API image to ACR, tagged with the git short SHA — **not** a floating
    `:latest`, which Container Apps' revision diffing treats as a no-op even when the underlying
    digest changed (a real gotcha ADP hit).
-4. Runs `az deployment sub what-if` (dry run) and asks for confirmation before applying.
+4. Runs `az deployment sub what-if` (dry run) and asks for confirmation before applying
+   (`--what-if-only` stops here; `--yes` skips the prompt).
 5. Enables static website hosting on the Storage account (a data-plane setting with no ARM
    resource — see `modules/storage.bicep`'s own comment) and patches the API app's `WEB_ORIGINS`
    to the real URL as a second pass, since that URL isn't predictable ahead of the account
@@ -147,6 +157,28 @@ az containerapp job start --name canvas-seed --resource-group canvas-rg
 
 Azure auto-restarts a stopped Postgres Flexible Server after 7 days if not resumed manually —
 `pause.sh` prints this reminder every time.
+
+## Driving it from Claude Code without a terminal (canvas-7zw)
+
+Claude Code's auto mode blocks piping `y` into `deploy.sh`'s prompt, and Claude can't add its own
+permission rules, so add these by hand once (`.claude/settings.local.json` at the repo root, or
+`~/.claude/settings.json`), run from `infra/azure`:
+
+```json
+{
+  "permissions": {
+    "allow": [
+      "Bash(./resume.sh*)",
+      "Bash(./pause.sh*)",
+      "Bash(ENTRA_CLIENT_ID=* ./deploy.sh --what-if-only*)",
+      "Bash(ENTRA_CLIENT_ID=* ./deploy.sh --yes*)"
+    ]
+  }
+}
+```
+
+Then a deploy is: resume, `--what-if-only` (Claude shows you the plan), your approval in chat,
+`--yes`, pause. `deploy.sh` runs `npm ci` locally, which stops a running local API dev server.
 
 ## Full teardown (destroys ALL data)
 
