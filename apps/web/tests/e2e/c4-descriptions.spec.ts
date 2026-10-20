@@ -120,14 +120,16 @@ test('C4 technology and description are drawn on the canvas', async ({ page }) =
   await expect(api.locator('text').first()).toHaveAttribute('font-weight', 'bold');
   const apiDetails = page.getByTestId('c4-detail-api');
   await expect(apiDetails).toHaveCount(2);
-  await expect(apiDetails.nth(0)).toHaveText('[Java, Spring]');
+  // canvas-hzf: the technology line carries the element type too.
+  await expect(apiDetails.nth(0)).toHaveText('[Container: Java, Spring]');
   await expect(apiDetails.nth(1)).toHaveText('Handles requests');
 
   const customer = page.getByTestId('node-customer');
   await expect(customer.locator('text', { hasText: 'A bank customer' })).toHaveCount(1);
-  await expect(customer.locator('text', { hasText: '[' })).toHaveCount(0);
+  await expect(customer.locator('text', { hasText: '[' })).toHaveText('[Person]');
 
-  await expect(page.getByTestId('c4-detail-plain')).toHaveCount(0);
+  // canvas-hzf: an element with no description or technology still shows its type.
+  await expect(page.getByTestId('c4-detail-plain')).toHaveText('[Software System]');
 
   const tech = page.locator('[data-testid^="rel-technology-"]');
   await expect(tech).toHaveCount(1);
@@ -158,7 +160,19 @@ test('C4 SVG export includes technology and description', async ({ page }) => {
   const path = await download.path();
   expect(path).not.toBeNull();
   const svg = readFileSync(path!, 'utf-8');
-  expect(svg).toContain('[Java, Spring]');
+  expect(svg).toContain('[Container: Java, Spring]');
+  expect(svg).toContain('[Software System]');
   expect(svg).toContain('Handles requests');
   expect(svg).toContain('[HTTPS]');
+});
+
+/** canvas-hzf: the type line follows a kind change in the editor at once, without a reload. */
+test('C4 type line updates when an element is given a different kind', async ({ page }) => {
+  await importDrawn(page);
+  await expect(page.getByTestId('c4-detail-plain')).toHaveText('[Software System]');
+
+  await page.getByTestId('node-plain').hover();
+  await page.getByTestId('edit-kind-plain').click();
+  await page.getByTestId('kind-role-select-plain').selectOption('container');
+  await expect(page.getByTestId('c4-detail-plain')).toHaveText('[Container]');
 });

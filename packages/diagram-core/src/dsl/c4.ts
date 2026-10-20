@@ -1,4 +1,4 @@
-import { createEmptyDiagramModel, type DiagramContainer, type DiagramNode, type NodeStyle } from '../model/diagram-model.js';
+import { createEmptyDiagramModel, type DiagramContainer, type DiagramModel, type DiagramNode, type NodeStyle } from '../model/diagram-model.js';
 import { splitFrontMatter, joinFrontMatter, stripTrailingComment, type CanvasFrontMatter } from './front-matter.js';
 import type { ParseError, ParseResult } from './types.js';
 import { computeContainmentLayout } from '../model/containment-layout.js';
@@ -230,6 +230,29 @@ const ELEMENT_TO_ROLE: Record<string, string> = {
  *  no separate model field to distinguish it (see the comment atop this map), so picking a role
  *  here can never express "external" either — consistent with what the DSL itself already loses. */
 export const C4_ELEMENT_ROLES = ['person', 'system', 'container', 'component'] as const;
+
+/** canvas-hzf: the element type C4 notation prints under an element's name, per role. */
+const C4_TYPE_LABELS: Record<string, string> = {
+  person: 'Person',
+  system: 'Software System',
+  container: 'Container',
+  component: 'Component',
+};
+
+/** canvas-hzf: `node` with `c4TypeLabel` derived from its role (removed for a role with none). */
+export function withC4TypeLabel(node: DiagramNode): DiagramNode {
+  const label = node.role ? C4_TYPE_LABELS[node.role] : undefined;
+  if (node.c4TypeLabel === label) return node;
+  const { c4TypeLabel: _drop, ...rest } = node;
+  return label ? { ...rest, c4TypeLabel: label } : rest;
+}
+
+/** canvas-hzf: a C4 model with every node's `c4TypeLabel` brought up to date; the same object when
+ *  nothing changed (so React memoization downstream holds). */
+export function withC4TypeLabels(model: DiagramModel): DiagramModel {
+  const nodes = model.nodes.map(withC4TypeLabel);
+  return nodes.every((node, i) => node === model.nodes[i]) ? model : { ...model, nodes };
+}
 // Db variants reuse the existing 'cylinder' shape (already established for SystemDb); Queue
 // variants use 'stadium' (pill shape) as the closest existing visual analog to Mermaid's own
 // queue rendering — deliberately not a new NodeShape value, reusing what flowchart-family
@@ -403,6 +426,7 @@ export function parseC4(dsl: string): ParseResult {
         label,
         shape: ELEMENT_TO_SHAPE[kind],
         role: ELEMENT_TO_ROLE[kind],
+        c4TypeLabel: C4_TYPE_LABELS[ELEMENT_TO_ROLE[kind]],
         // canvas-tfr: the `_Ext` variants used to collapse silently onto their base kind; the flag
         // now survives so standards can tell an External System from an internal one.
         ...(kind.endsWith('_Ext') ? { external: true } : {}),

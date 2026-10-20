@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import {
   addContainer,
@@ -34,6 +34,7 @@ import {
   setSequenceAutonumber,
   splitLabelLines,
   describedNodeLayout,
+  withC4TypeLabels,
   plainLabelCenterY,
   edgeTechnologyLayout,
   clipEdgeEndpoint,
@@ -1151,7 +1152,10 @@ function descendantContainerIds(model: DiagramModel, containerId: string): Set<s
  * labels via direct manipulation. Renders the same DiagramModel that packages/diagram-core
  * parses/serializes, so every edit here is reflected in the Mermaid DSL by useDslSync.
  */
-export function Canvas({ model, onChange, dslFamily, toolbarContainer, standardRules, violations, focusRequest }: CanvasProps) {
+export function Canvas({ model: modelProp, onChange, dslFamily, toolbarContainer, standardRules, violations, focusRequest }: CanvasProps) {
+  // canvas-hzf: a C4 element's type line ("[Software System]") is derived from its role; refresh it
+  // here so a kind picked in the editor shows at once, not only after the next reload/parse.
+  const model = useMemo(() => (dslFamily === 'c4' ? withC4TypeLabels(modelProp) : modelProp), [modelProp, dslFamily]);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   // canvas-tfr: element kinds from the active standard (only for families whose DSL carries them).
   const standardKinds: ElementKind[] =
