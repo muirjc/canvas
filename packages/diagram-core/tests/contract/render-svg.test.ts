@@ -846,7 +846,7 @@ describe('plainNodeSize() (canvas-4lu)', () => {
     return {
       id: 'A',
       label,
-      shape: 'person',
+      shape: 'rectangle', // canvas-8th: a person adds head room (asserted separately below)
       position: { x: 0, y: 0 },
       ...overrides,
     };
@@ -854,6 +854,12 @@ describe('plainNodeSize() (canvas-4lu)', () => {
 
   it('returns exactly DEFAULT_NODE_SIZE for a short single-line label (no regression)', () => {
     expect(plainNodeSize(plainNode('Customer'))).toEqual({ width: 140, height: 60 });
+  });
+
+  it("canvas-8th: a person gets extra height for its head, so its label fits in the body below it", () => {
+    const person = plainNodeSize(plainNode('Customer', { shape: 'person' }));
+    expect(person.width).toBe(140);
+    expect(person.height).toBe(60 + 2 * 20 + 7);
   });
 
   it('returns a height strictly greater than DEFAULT_NODE_SIZE.height for a label that wraps to multiple lines', () => {

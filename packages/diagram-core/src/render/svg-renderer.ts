@@ -142,14 +142,133 @@ export function iconNodeSize(node: DiagramNode): Size {
  *  Exported for the same reason `iconNodeSize`/`tableNodeLayout` are: the interactive canvas
  *  (apps/web/src/canvas/shapes.tsx) reuses this exact calculation rather than re-deriving it, so
  *  the two renderers can't drift (SC-004). */
+// canvas-8th: a C4 element's technology and description (kept since canvas-1u2) are drawn under its
+// name, the way Mermaid does: name (bold), then "[technology]", then the description, each
+// word-wrapped. Such an element gets a wider box than a bare label needs, growing in height to fit.
+const DESCRIBED_NODE_WIDTH = 200;
+const DESCRIPTION_FONT_SIZE = 11;
+const DESCRIBED_PADDING = 10;
+const DESCRIBED_BLOCK_GAP = 4;
+const DESCRIBED_LINE_HEIGHT = 1.25;
+
+function isDescribedNode(node: DiagramNode): boolean {
+  return Boolean(node.technology || node.description) && node.shape !== 'icon' && tableRows(node).length === 0;
+}
+
+interface DescribedTextLine {
+  text: string;
+  fontSize: number;
+  bold: boolean;
+  /** Extra space above this line (between the name, technology and description blocks). */
+  gapBefore: number;
+}
+
+function describedTextLines(node: DiagramNode, width: number): DescribedTextLine[] {
+  const maxWidth = Math.max(width - 16, 40);
+  const labelSize = node.style?.fontSize ?? 14;
+  const blocks: { text: string; fontSize: number; bold: boolean }[] = [
+    { text: node.label, fontSize: labelSize, bold: true },
+    ...(node.technology ? [{ text: `[${node.technology}]`, fontSize: DESCRIPTION_FONT_SIZE, bold: false }] : []),
+    ...(node.description ? [{ text: node.description, fontSize: DESCRIPTION_FONT_SIZE, bold: false }] : []),
+  ];
+  return blocks.flatMap((block, b) =>
+    splitLabelLines(block.text, maxWidth, block.fontSize).map((text, i) => ({
+      text,
+      fontSize: block.fontSize,
+      bold: block.bold,
+      gapBefore: b > 0 && i === 0 ? DESCRIBED_BLOCK_GAP : 0,
+    })),
+  );
+}
+
+function describedContentHeight(lines: DescribedTextLine[]): number {
+  return lines.reduce((sum, line) => sum + line.gapBefore + line.fontSize * DESCRIBED_LINE_HEIGHT, 0);
+}
+
+export interface DescribedNodeLine {
+  text: string;
+  /** Centre x of the line (text-anchor middle). */
+  x: number;
+  /** Vertical middle of the line (dominant-baseline middle). */
+  y: number;
+  fontSize: number;
+  bold: boolean;
+}
+
+/**
+ * canvas-8th: the lines a described C4 element draws -- its name, "[technology]" and description,
+ * wrapped and vertically centred in its box -- or null for any node without a technology or
+ * description (which keeps the plain centred label). Exported so the interactive canvas draws the
+ * identical lines (SC-004).
+ */
+export function describedNodeLayout(node: DiagramNode): { lines: DescribedNodeLine[] } | null {
+  if (!isDescribedNode(node)) return null;
+  const { width, height } = nodeSize(node);
+  const lines = describedTextLines(node, width);
+  // A person's text goes in the body under the head (renderNodeShape's 'person' geometry).
+  const regionTop = node.shape === 'person' ? personBodyTop(node.position.y, width, height) : node.position.y;
+  const regionHeight = node.position.y + height - regionTop;
+  let cursor = regionTop + (regionHeight - describedContentHeight(lines)) / 2;
+  return {
+    lines: lines.map((line) => {
+      cursor += line.gapBefore;
+      const lineHeight = line.fontSize * DESCRIBED_LINE_HEIGHT;
+      const y = cursor + lineHeight / 2;
+      cursor += lineHeight;
+      return { text: line.text, x: node.position.x + width / 2, y, fontSize: line.fontSize, bold: line.bold };
+    }),
+  };
+}
+
+/**
+ * canvas-8th: where a C4 relationship's "[technology]" sits -- just under its label at the
+ * connector's midpoint -- or null when it has none. Shared by both renderers (SC-004).
+ */
+export function edgeTechnologyLayout(
+  edge: DiagramEdge,
+  midX: number,
+  midY: number,
+): { text: string; x: number; y: number; fontSize: number } | null {
+  if (!edge.technology) return null;
+  return { text: `[${edge.technology}]`, x: midX, y: midY + 10, fontSize: 10 };
+}
+
+/** Where a person shape's body starts -- below its head (matches renderNodeShape's 'person'). */
+function personBodyTop(y: number, width: number, height: number): number {
+  return y + 2 * clampPersonHeadRadius(width, height) + 7;
+}
+
 export function plainNodeSize(node: DiagramNode): Size {
+  if (isDescribedNode(node)) {
+    const lines = describedTextLines(node, DESCRIBED_NODE_WIDTH);
+    const textHeight = Math.max(DEFAULT_NODE_SIZE.height, Math.ceil(describedContentHeight(lines) + DESCRIBED_PADDING * 2));
+    if (node.shape !== 'person') return { width: DESCRIBED_NODE_WIDTH, height: textHeight };
+    // A person also needs room for its head above the body that holds the text. The head radius
+    // depends on the final size, so size for the largest head (radius 20) -- always enough room.
+    return { width: DESCRIBED_NODE_WIDTH, height: textHeight + 2 * 20 + 7 };
+  }
   const width = DEFAULT_NODE_SIZE.width;
   const fontSize = node.style?.fontSize ?? 14;
   const labelMaxWidth = Math.max(width - 16, 40);
   const lines = splitLabelLines(node.label, labelMaxWidth, fontSize);
   const lineHeight = fontSize * 1.2;
   const contentHeight = lines.length * lineHeight + 16;
+  // canvas-8th: a person's label sits in the body below its head, so the box needs the head's room
+  // too (it used to centre in the whole box and hide behind the head).
+  if (node.shape === 'person') return { width, height: Math.max(DEFAULT_NODE_SIZE.height, contentHeight) + 2 * 20 + 7 };
   return { width, height: Math.max(DEFAULT_NODE_SIZE.height, contentHeight) };
+}
+
+/**
+ * canvas-8th: the vertical centre for a plain (undescribed) node's label -- the box's centre, except
+ * a person's, which is the centre of its body below the head. Shared with the interactive canvas
+ * (SC-004).
+ */
+export function plainLabelCenterY(node: DiagramNode): number {
+  const { width, height } = nodeSize(node);
+  if (node.shape !== 'person') return node.position.y + height / 2;
+  const top = personBodyTop(node.position.y, width, height);
+  return (top + node.position.y + height) / 2;
 }
 
 // canvas-x66: an ER entity's attributes (EntityAttribute[]) or a UML class's members
@@ -935,12 +1054,30 @@ function renderNode(node: DiagramNode, resolveIcon?: IconResolver, diagramTypeId
 
   const rawLabel = node.icon ? `${node.label} [${node.icon.iconId}]` : node.label;
   const { fill: plainFill } = resolveNodeFillStroke(node, diagramTypeId);
+  const described = describedNodeLayout(node);
+  if (described) {
+    const textColor = contrastTextColor(plainFill);
+    return wrapNodeLink(
+      node,
+      [
+        `<g data-node-id="${escapeXml(node.id)}">`,
+        renderNodeShape(node, diagramTypeId),
+        described.lines
+          .map(
+            (line) =>
+              `<text x="${line.x}" y="${line.y}" dominant-baseline="middle" text-anchor="middle" font-size="${line.fontSize}"${line.bold ? ' font-weight="bold"' : ''} font-family='${FONT_FAMILY}' fill="${textColor}">${escapeXml(line.text)}</text>`,
+          )
+          .join(''),
+        '</g>',
+      ].join(''),
+    );
+  }
   return wrapNodeLink(
     node,
     [
       `<g data-node-id="${escapeXml(node.id)}">`,
       renderNodeShape(node, diagramTypeId),
-      renderLabelText(x + width / 2, y + height / 2, rawLabel, fontSize, true, labelMaxWidth, contrastTextColor(plainFill)),
+      renderLabelText(x + width / 2, plainLabelCenterY(node), rawLabel, fontSize, true, labelMaxWidth, contrastTextColor(plainFill)),
       '</g>',
     ].join(''),
   );
@@ -1114,6 +1251,10 @@ function renderEdge(
     ? clipToAnchorSide(targetBox.center, targetBox.size, edge.targetAnchor)
     : clipEdgeEndpoint(targetBox.center, targetBox.size, targetBox.shape, sourceBox.center.x, sourceBox.center.y);
   const label = edge.label ? renderLabelText(midX, midY - 4, edge.label, 12, false) : '';
+  const technology = edgeTechnologyLayout(edge, midX, midY);
+  const technologyMarkup = technology
+    ? `<text x="${technology.x}" y="${technology.y}" text-anchor="middle" font-size="${technology.fontSize}" font-family='${FONT_FAMILY}' fill="#555555">${escapeXml(technology.text)}</text>`
+    : '';
   // Grouping B: lineStyle supplies a default treatment (dotted dasharray, thick width) that an
   // explicit edge.style (linkStyle) override still wins over, since linkStyle is layered on top.
   const isInvisible = edge.lineStyle === 'invisible';
@@ -1169,7 +1310,7 @@ function renderEdge(
           ? renderUmlCardinalityLabel(umlCardinalityLabelPosition(clippedTo, from.x - to.x, from.y - to.y), edge.targetCardinality)
           : '',
       ].join('');
-  return `<g data-edge-id="${escapeXml(edge.id)}"><line x1="${clippedFrom.x}" y1="${clippedFrom.y}" x2="${clippedTo.x}" y2="${clippedTo.y}" stroke="${stroke}"${strokeWidth}${strokeDasharray}${markerStart}${markerEnd} />${cardinalityMarkup}${umlMarkerMarkup}${cardinalityLabelMarkup}${label}</g>`;
+  return `<g data-edge-id="${escapeXml(edge.id)}"><line x1="${clippedFrom.x}" y1="${clippedFrom.y}" x2="${clippedTo.x}" y2="${clippedTo.y}" stroke="${stroke}"${strokeWidth}${strokeDasharray}${markerStart}${markerEnd} />${cardinalityMarkup}${umlMarkerMarkup}${cardinalityLabelMarkup}${label}${technologyMarkup}</g>`;
 }
 
 /** Exported so the interactive canvas can size itself to match actual content exactly the way

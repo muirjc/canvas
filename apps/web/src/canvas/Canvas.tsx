@@ -33,6 +33,9 @@ import {
   updateClassMembers,
   setSequenceAutonumber,
   splitLabelLines,
+  describedNodeLayout,
+  plainLabelCenterY,
+  edgeTechnologyLayout,
   clipEdgeEndpoint,
   clipToAnchorSide,
   architectureEndpointBox,
@@ -3438,6 +3441,15 @@ export function Canvas({ model, onChange, dslFamily, toolbarContainer, standardR
                 fill="transparent"
               />
               {!isEditingThisEdge && edge.label && renderLabelLines(midX, midY - 4, edge.label, 12, false)}
+              {(() => {
+                // canvas-8th: a C4 relationship's [technology], from the export's own layout.
+                const technology = edgeTechnologyLayout(edge, midX, midY);
+                return technology && !isEditingThisEdge ? (
+                  <text data-testid={`edge-technology-${edge.id}`} x={technology.x} y={technology.y} textAnchor="middle" fontSize={technology.fontSize} fill="#555555">
+                    {technology.text}
+                  </text>
+                ) : null;
+              })()}
               {isEditingThisEdge && (
                 <foreignObject x={midX - 60} y={midY - 12} width={120} height={24}>
                   <input
@@ -3608,6 +3620,7 @@ export function Canvas({ model, onChange, dslFamily, toolbarContainer, standardR
           // over a divider, one row below it per ER attribute/UML member, both from the shared
           // tableNodeLayout calculation, so canvas and export agree (SC-004).
           const tableLayout = tableNodeLayout(node);
+          const describedLayout = describedNodeLayout(node);
           return (
             <g
               key={node.id}
@@ -3697,15 +3710,36 @@ export function Canvas({ model, onChange, dslFamily, toolbarContainer, standardR
                         true,
                         Math.max(size.width - 16, 40),
                       )
-                    : renderLabelLines(
-                        node.position.x + size.width / 2,
-                        node.position.y + size.height / 2,
-                        node.label,
-                        14,
-                        true,
-                        Math.max(size.width - 16, 40),
-                        contrastTextColor(resolveNodeFillStroke(node, model.diagramTypeId).fill),
-                      ))}
+                    : describedLayout
+                      ? (() => {
+                          // canvas-8th: a C4 element's name, [technology] and description, from the
+                          // same describedNodeLayout the export uses (SC-004).
+                          const textColor = contrastTextColor(resolveNodeFillStroke(node, model.diagramTypeId).fill);
+                          return describedLayout.lines.map((line, i) => (
+                            <text
+                              key={i}
+                              data-testid={i === 0 ? undefined : `node-detail-${node.id}`}
+                              x={line.x}
+                              y={line.y}
+                              textAnchor="middle"
+                              dominantBaseline="middle"
+                              fontSize={line.fontSize}
+                              fontWeight={line.bold ? 'bold' : undefined}
+                              fill={textColor}
+                            >
+                              {line.text}
+                            </text>
+                          ));
+                        })()
+                      : renderLabelLines(
+                          node.position.x + size.width / 2,
+                          plainLabelCenterY(node),
+                          node.label,
+                          14,
+                          true,
+                          Math.max(size.width - 16, 40),
+                          contrastTextColor(resolveNodeFillStroke(node, model.diagramTypeId).fill),
+                        ))}
               {editingNodeId === node.id && (
                 <foreignObject x={node.position.x} y={node.position.y} width={size.width} height={size.height}>
                   <input
