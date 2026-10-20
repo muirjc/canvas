@@ -157,7 +157,8 @@ describe('Import Template API contract', () => {
       method: 'POST',
       url: `/projects/${projectId}/diagrams/import-template`,
       headers: { cookie: sessionCookie },
-      payload: { name: 'Unsupported', diagramTypeId: 'sequence', templateContent: VALID_TEMPLATE },
+      // flowchart has no template compiler (sequence did until canvas-73s.1).
+      payload: { name: 'Unsupported', diagramTypeId: 'flowchart', templateContent: VALID_TEMPLATE },
     });
     expect(response.statusCode).toBe(422);
     const body = response.json();
