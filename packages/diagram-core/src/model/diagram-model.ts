@@ -106,6 +106,12 @@ export interface DiagramNode {
   description?: string;
   /** canvas-1u2: C4 Container/Component only -- the technology argument (3rd, or `$techn`). */
   technology?: string;
+  /** canvas-hzf: C4 only, DERIVED -- the element type C4 notation prints under the name
+   *  ("Person", "Software System", "Container", "Component"), from `role`. Set by parseC4 and
+   *  refreshed by withC4TypeLabels() (the editor runs it on every render, so a kind change shows at
+   *  once); never serialized. Kept on the node because sizing (nodeSize) sees only the node, and a
+   *  non-C4 node can carry the same role string (a flowchart kind named "system"). */
+  c4TypeLabel?: string;
   /** canvas-7hp: C4 only -- the element's Mermaid `$tags` list, in order. A tag naming one of the
    *  active standard's element kinds picks that kind (classifyNode), which is how several kinds can
    *  share one C4 role (e.g. six kinds of System). Other tags are preserved untouched. */
