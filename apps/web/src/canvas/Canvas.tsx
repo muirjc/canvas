@@ -3445,7 +3445,7 @@ export function Canvas({ model, onChange, dslFamily, toolbarContainer, standardR
                 // canvas-8th: a C4 relationship's [technology], from the export's own layout.
                 const technology = edgeTechnologyLayout(edge, midX, midY);
                 return technology && !isEditingThisEdge ? (
-                  <text data-testid={`edge-technology-${edge.id}`} x={technology.x} y={technology.y} textAnchor="middle" fontSize={technology.fontSize} fill="#555555">
+                  <text data-testid={`rel-technology-${edge.id}`} x={technology.x} y={technology.y} textAnchor="middle" fontSize={technology.fontSize} fill="#555555">
                     {technology.text}
                   </text>
                 ) : null;
@@ -3718,7 +3718,7 @@ export function Canvas({ model, onChange, dslFamily, toolbarContainer, standardR
                           return describedLayout.lines.map((line, i) => (
                             <text
                               key={i}
-                              data-testid={i === 0 ? undefined : `node-detail-${node.id}`}
+                              data-testid={i === 0 ? undefined : `c4-detail-${node.id}`}
                               x={line.x}
                               y={line.y}
                               textAnchor="middle"

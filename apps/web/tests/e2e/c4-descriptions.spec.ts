@@ -118,7 +118,7 @@ test('C4 technology and description are drawn on the canvas', async ({ page }) =
   const api = page.getByTestId('node-api');
   await expect(api.locator('text').first()).toHaveText('API');
   await expect(api.locator('text').first()).toHaveAttribute('font-weight', 'bold');
-  const apiDetails = page.getByTestId('node-detail-api');
+  const apiDetails = page.getByTestId('c4-detail-api');
   await expect(apiDetails).toHaveCount(2);
   await expect(apiDetails.nth(0)).toHaveText('[Java, Spring]');
   await expect(apiDetails.nth(1)).toHaveText('Handles requests');
@@ -127,9 +127,9 @@ test('C4 technology and description are drawn on the canvas', async ({ page }) =
   await expect(customer.locator('text', { hasText: 'A bank customer' })).toHaveCount(1);
   await expect(customer.locator('text', { hasText: '[' })).toHaveCount(0);
 
-  await expect(page.getByTestId('node-detail-plain')).toHaveCount(0);
+  await expect(page.getByTestId('c4-detail-plain')).toHaveCount(0);
 
-  const tech = page.locator('[data-testid^="edge-technology-"]');
+  const tech = page.locator('[data-testid^="rel-technology-"]');
   await expect(tech).toHaveCount(1);
   await expect(tech).toHaveText('[HTTPS]');
 });
