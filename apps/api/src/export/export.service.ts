@@ -1,5 +1,5 @@
 import { Resvg } from '@resvg/resvg-js';
-import { getDslFamily, renderToSvg, type DiagramModel, type IconResolver } from '@canvas/diagram-core';
+import { getDslFamily, renderToSvg, toPortableMermaid, type DiagramModel, type IconResolver } from '@canvas/diagram-core';
 import { resolveIconAssets } from '../libraries/library.service.js';
 
 export class UnrenderableDiagramError extends Error {}
@@ -18,8 +18,10 @@ function parseOrThrow(dslFamilyId: string, dslContent: string): DiagramModel {
   return result.model;
 }
 
+/** canvas-jki: the saved DSL, plus plain `style`/`linkStyle` lines for a flowchart's colours so
+ *  other Mermaid tools show them (toPortableMermaid). */
 export function exportMermaid(dslContent: string): string {
-  return dslContent;
+  return toPortableMermaid(dslContent);
 }
 
 /** canvas-8n7: builds a resolveIcon backed by one batched DB lookup of the model's own distinct
