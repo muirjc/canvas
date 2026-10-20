@@ -8,6 +8,7 @@ import {
   FAMILY_SUPPORTS_ELEMENT_KINDS,
   RULE_IDS,
   checkStandardDefinition,
+  standardDefinitionNotices,
   emptyStandardRules,
   type ConnectorRule,
   type ElementKind,
@@ -113,6 +114,8 @@ export function StandardsEditor({ diagramType, standard, readOnly = false, onDon
 
   const cleaned = useMemo(() => cleanRules(rules, family), [rules, family]);
   const clientIssues = useMemo(() => checkStandardDefinition(cleaned, family), [cleaned, family]);
+  // canvas-e05: notes that never block saving (e.g. C4 kinds sharing a role), shown on each kind.
+  const notices = useMemo(() => standardDefinitionNotices(cleaned, family), [cleaned, family]);
   const nameIssues: Issue[] = name.trim() ? [] : [{ path: 'name', message: 'Give the standard a name.' }];
   const issues: Issue[] = [...nameIssues, ...clientIssues, ...serverIssues.filter((s) => !clientIssues.some((c) => c.path === s.path && c.message === s.message))];
   const errs = (path: string) => issues.filter((issue) => issue.path === path);
@@ -301,6 +304,7 @@ export function StandardsEditor({ diagramType, standard, readOnly = false, onDon
                 onPatch={(next) => patchKind(i, next)}
                 onRemove={() => removeKind(i)}
                 FieldErrors={FieldErrors}
+                notices={notices.filter((n) => n.path === `elementKinds[${i}].match`).map((n) => n.message)}
               />
             ))}
             <button type="button" className="btn btn--secondary" data-testid="kind-add" onClick={addKind}>
@@ -555,9 +559,11 @@ interface KindCardProps {
   onPatch: (next: Partial<ElementKind>) => void;
   onRemove: () => void;
   FieldErrors: (props: { path: string; id?: string }) => JSX.Element | null;
+  /** canvas-e05: non-blocking notes about this kind's definition. */
+  notices: string[];
 }
 
-function KindCard({ index: i, kind, isC4, familyShapes, onLabel, onPatch, onRemove, FieldErrors }: KindCardProps) {
+function KindCard({ index: i, kind, isC4, familyShapes, onLabel, onPatch, onRemove, FieldErrors, notices }: KindCardProps) {
   const at = `elementKinds[${i}]`;
   const toggleShape = (shape: string) =>
     onPatch({ shapes: (kind.shapes as string[]).includes(shape) ? kind.shapes.filter((s) => s !== shape) : [...kind.shapes, shape as ElementKind['shapes'][number]] });
@@ -657,6 +663,11 @@ function KindCard({ index: i, kind, isC4, familyShapes, onLabel, onPatch, onRemo
           Remove kind
         </button>
       </div>
+      {notices.length > 0 && (
+        <p className="meta" data-testid={`kind-notice-${i}`}>
+          {notices.join(' ')}
+        </p>
+      )}
     </div>
   );
 }

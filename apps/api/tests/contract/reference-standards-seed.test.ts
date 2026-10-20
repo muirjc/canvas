@@ -1,6 +1,6 @@
 import type { FastifyInstance } from 'fastify';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
-import { checkStandardDefinition } from '@canvas/diagram-core';
+import { checkStandardDefinition, standardDefinitionNotices } from '@canvas/diagram-core';
 import { buildTestApp, closeTestDb, resetDatabase, seedProject, seedUser } from '../helpers/setup.js';
 import { getDb } from '../../src/db/client.js';
 import { seedDiagramTypes } from '../../src/seed/diagram-types.seed.js';
@@ -103,10 +103,12 @@ describe('Built-in standards seed', () => {
   });
 
   it.each(BUILT_IN_STANDARDS.map((s) => [s.diagramTypeId, s] as const))(
-    'the %s standard passes checkStandardDefinition for its type family',
+    'the %s standard passes checkStandardDefinition for its type family, with no notices',
     async (typeId, standard) => {
       const row = await getDb().selectFrom('diagram_types').select('dsl_family').where('id', '=', typeId).executeTakeFirstOrThrow();
       expect(checkStandardDefinition(standard.rules, row.dsl_family as never)).toEqual([]);
+      // canvas-e05: no built-in standard should ship with kinds that shadow each other.
+      expect(standardDefinitionNotices(standard.rules, row.dsl_family as never)).toEqual([]);
     },
   );
 
