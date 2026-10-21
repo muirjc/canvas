@@ -85,20 +85,24 @@ test('switching project changes which diagrams are listed and where new ones are
   expect((await listed.json()).diagrams).toHaveLength(1);
 });
 
-test('switching project changes the address without burying the back button', async ({ page }) => {
+test('switching project pushes history so Back returns to the previous project', async ({ page }) => {
+  // canvas-t3b.2: every screen change pushes history (the old "address is replaced" rule is gone).
   await signIn(page, ADMIN_EMAIL, ADMIN_PASSWORD);
   const a = await createProject(page, `Back Test A ${Date.now()}`);
   const b = await createProject(page, `Back Test B ${Date.now()}`);
 
   await page.goto(`/?projectId=${PROJECT_ID}`);
+  await expect(page.getByTestId('project-picker')).toBeVisible();
   await page.getByTestId('project-picker').selectOption(a);
+  await expect(page).toHaveURL(new RegExp(`projectId=${a}`));
   await page.getByTestId('project-picker').selectOption(b);
-  await page.getByTestId('project-picker').selectOption(a);
+  await expect(page).toHaveURL(new RegExp(`projectId=${b}`));
 
-  // Three switches must not mean three presses to escape: the address is REPLACED, not pushed
-  // (FR-012). One press leaves the app entirely rather than walking back through the switches.
   await page.goBack();
-  await expect(page).not.toHaveURL(new RegExp(`projectId=${b}`));
+  await expect(page).toHaveURL(new RegExp(`projectId=${a}`));
+  await expect(page.getByTestId('project-picker')).toHaveValue(a);
+  await page.goBack();
+  await expect(page).toHaveURL(new RegExp(`projectId=${PROJECT_ID}`));
 });
 
 test('a link copied while viewing a project opens that same project for a colleague with access', async ({
@@ -136,8 +140,10 @@ test('an address naming a project the user cannot reach explains itself and leav
   await signIn(architectPage, ARCHITECT_EMAIL, ARCHITECT_PASSWORD, `/?projectId=${inaccessible}`);
 
   // Told plainly, and left able to carry on rather than stuck on a dead screen (FR-013).
+  // canvas-t3b.2: "carry on" is now the Projects top level, not a fallback project.
   await expect(architectPage.getByTestId('app-error')).toBeVisible();
-  await expect(architectPage.getByTestId('new-diagram')).toBeVisible();
+  await expect(architectPage.getByTestId('projects-page-list')).toBeVisible();
+  await expect(architectPage.getByTestId('new-diagram')).toHaveCount(0);
 
   await adminContext.close();
   await architectContext.close();
@@ -146,8 +152,10 @@ test('an address naming a project the user cannot reach explains itself and leav
 test('a malformed project identifier is treated as no project rather than causing a failure', async ({ page }) => {
   await signIn(page, ADMIN_EMAIL, ADMIN_PASSWORD, '/?projectId=not-a-uuid');
 
-  // Falls back to a project the user actually has, rather than erroring on the malformed value.
-  await expect(page.getByTestId('new-diagram')).toBeVisible();
+  // canvas-t3b.2: lands silently on the Projects top level rather than erroring on the malformed value.
+  await expect(page.getByTestId('projects-page-list')).toBeVisible();
+  await expect(page.getByTestId('new-diagram')).toHaveCount(0);
+  await expect(page.getByTestId('app-error')).toHaveCount(0);
 });
 
 test('switching project with unsaved changes warns, and cancelling keeps the work', async ({ page }) => {
@@ -171,14 +179,17 @@ test('switching project with unsaved changes warns, and cancelling keeps the wor
   await page.getByTestId('project-picker').selectOption(otherProjectId);
 
   // Warned, not silently discarded (FR-013d).
-  await expect(page.getByTestId('project-switch-confirm')).toBeVisible();
+  await expect(page.getByTestId('home-nav-confirm')).toBeVisible();
 
   // Cancelling leaves the diagram and the edit exactly where they were, still in the original
   // project — this is the assertion SC-006b turns on.
-  await page.getByTestId('cancel-project-switch').click();
-  await expect(page.getByTestId('project-switch-confirm')).toHaveCount(0);
+  await page.getByTestId('cancel-home-nav').click();
+  await expect(page.getByTestId('home-nav-confirm')).toHaveCount(0);
   await expect(page.getByTestId('diagram-canvas')).toBeVisible();
-  await expect(page).toHaveURL(new RegExp(`projectId=${PROJECT_ID}`));
+  // canvas-t3b.2: the editor's address names the diagram, and cancelling leaves it there.
+  await expect(page).toHaveURL(/diagramId=/);
+  await expect(page).not.toHaveURL(new RegExp(`projectId=${otherProjectId}`));
+  await expect(page.locator('[data-testid^="node-"]')).toHaveCount(1);
 });
 
 test('confirming a project switch with unsaved changes does leave the editor', async ({ page }) => {
@@ -194,8 +205,8 @@ test('confirming a project switch with unsaved changes does leave the editor', a
   await expect(page.locator('[data-testid^="node-"]')).toHaveCount(1);
 
   await page.getByTestId('project-picker').selectOption(otherProjectId);
-  await expect(page.getByTestId('project-switch-confirm')).toBeVisible();
-  await page.getByTestId('confirm-project-switch').click();
+  await expect(page.getByTestId('home-nav-confirm')).toBeVisible();
+  await page.getByTestId('confirm-home-nav').click();
 
   await expect(page.getByTestId('diagram-canvas')).toHaveCount(0);
   await expect(page).toHaveURL(new RegExp(`projectId=${otherProjectId}`));

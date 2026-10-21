@@ -21,9 +21,18 @@ async function signIn(page: Page, url: string) {
  * completely — so these tests deliberately enter the app the way a real user does.
  */
 
-test('a user landing on the app root can create a diagram', async ({ page }) => {
+/** canvas-t3b.2: a bare address lands the seeded admin (many projects, no hint) on the Projects top level. */
+async function openSeededProject(page: Page) {
+  await expect(page.getByTestId('projects-page-list')).toBeVisible();
+  await expect(page.getByTestId('new-diagram')).toHaveCount(0);
+  await page.getByTestId(`projects-page-view-diagrams-${PROJECT_ID}`).click();
+  await expect(page.getByTestId('new-diagram')).toBeVisible();
+}
+
+test('a user landing on the app root can open a project and create a diagram', async ({ page }) => {
   // The real entry point: no query string at all.
   await signIn(page, '/');
+  await openSeededProject(page);
 
   await page.getByTestId('new-diagram').click();
   await page.getByTestId('diagram-type-flowchart').check();
@@ -37,6 +46,7 @@ test('a user landing on the app root can create a diagram', async ({ page }) => 
 
 test('the other two home actions work for a user landing on the app root', async ({ page }) => {
   await signIn(page, '/');
+  await openSeededProject(page);
 
   await page.getByTestId('import-diagram-button').click();
   await expect(page.getByTestId('app-error')).toHaveCount(0);

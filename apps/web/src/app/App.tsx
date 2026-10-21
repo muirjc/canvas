@@ -5,7 +5,17 @@ import { AppShell } from './AppShell';
 import { DiagramEditor, type DiagramEditorHandle } from './DiagramEditor';
 import { NewDiagramDialog } from './NewDiagramDialog';
 import { ProjectPicker } from './ProjectPicker';
-import { readProjectIdFromUrl, syncProjectIdToUrl, withProjectContext } from './project-context';
+import { withProjectContext } from './project-context';
+import {
+  isBareAddress,
+  locationToSearch,
+  parseLocation,
+  readLastProjectId,
+  resolveLanding,
+  sameLocation,
+  writeLastProjectId,
+  type Location,
+} from './navigation';
 import { StandardsAdminPage } from '../admin/StandardsAdminPage';
 import { UsersPage } from '../admin/UsersPage';
 import { AdminOverview } from '../admin/AdminOverview';
@@ -39,29 +49,28 @@ export function App() {
   const [creatingViaChat, setCreatingViaChat] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // The project the user is working in. Seeded from the address so existing links keep working
-  // (FR-016), then held in application state so navigation cannot discard it (FR-005) — which is
-  // the whole defect this feature fixes.
-  const [projectId, setProjectId] = useState<string | null>(() => readProjectIdFromUrl());
+  // canvas-t3b.2: where the user is -- one value read from and written to the address, replacing
+  // the global "current project" (docs/browse-screen-design.md §1-§3). navigate() is the only way
+  // it changes; the browser's Back/Forward re-read it (popstate).
+  const [location, setLocation] = useState<Location>(() => parseLocation(window.location.search));
+  const locationRef = useRef(location);
+  // Landing rules apply once, to a bare address (design decisions 1-2).
+  const landingPending = useRef(isBareAddress(window.location.search));
+  // A navigation waiting on the "leave without saving?" confirm; viaHistory = it came from Back/Forward.
+  const [pendingNav, setPendingNav] = useState<{ to: Location; viaHistory: boolean } | null>(null);
+  const skipGuardOnce = useRef(false);
   const [projects, setProjects] = useState<ProjectDto[] | null>(null);
   // Diagrams shared directly with this user, independent of project access (feature 008,
   // FR-001/FR-002). Fetched alongside — not gated on — the project list, since a user with zero
   // projects still needs to see this.
   const [sharedDiagrams, setSharedDiagrams] = useState<SharedDiagramDto[]>([]);
+  const [sharedLoaded, setSharedLoaded] = useState(false);
   // canvas-wuc: gates the "Create with AI" button client-side (chatEnabled) and warns when the
   // configured provider is the mock/placeholder one, rather than only surfacing either as a 503
   // after the user has already typed a request. `null` while unknown — kept enabled during that
   // brief window rather than flashing disabled-then-enabled on every load.
   const [aiStatus, setAiStatus] = useState<AiSettingsDto | null>(null);
-  const [pendingProjectId, setPendingProjectId] = useState<string | null>(null);
-  const [confirmingHome, setConfirmingHome] = useState(false);
   const [creatingProject, setCreatingProject] = useState(false);
-  // canvas-228.1: a third navigation destination alongside "go home" and "switch project", with
-  // its own pending-confirm state rather than folding into either — it needs the exact same
-  // unsaved-changes guard, but lands somewhere else (the new Projects screen, not the current
-  // project's diagram list).
-  const [viewingProjects, setViewingProjects] = useState(false);
-  const [confirmingViewProjects, setConfirmingViewProjects] = useState(false);
   // canvas-eow: read synchronously at switch-time via ref, not mirrored into a parent useState —
   // see DiagramEditorHandle's doc comment for why the mirrored-state version was a genuine race.
   const diagramEditorRef = useRef<DiagramEditorHandle>(null);
@@ -74,26 +83,15 @@ export function App() {
       .finally(() => setCheckedSession(true));
   }, []);
 
-  // Resolve which project to work in, once we know who the user is: the one the address names if
-  // it is actually available to them, else the only one they have, else the first. Never invent
-  // one (FR-015).
+  // The projects this user can see. Which one (if any) they're in comes from the address
+  // (location), checked against this list below.
   useEffect(() => {
     if (!user) return;
     let cancelled = false;
     api
       .listProjects()
       .then(({ projects: available }) => {
-        if (cancelled) return;
-        setProjects(available);
-        setProjectId((current) => {
-          if (current && available.some((p) => p.id === current)) return current;
-          if (current) {
-            // An address naming a project that is gone, or was never theirs. Say so and leave
-            // them somewhere usable rather than on a dead screen (FR-013).
-            setError('That project is not available to you. Showing your projects instead.');
-          }
-          return available[0]?.id ?? null;
-        });
+        if (!cancelled) setProjects(available);
       })
       .catch((err) => {
         if (!cancelled) setError((err as Error).message);
@@ -115,6 +113,9 @@ export function App() {
       })
       .catch(() => {
         if (!cancelled) setSharedDiagrams([]);
+      })
+      .finally(() => {
+        if (!cancelled) setSharedLoaded(true);
       });
     return () => {
       cancelled = true;
@@ -139,91 +140,176 @@ export function App() {
     };
   }, [user]);
 
-  // Keep the address naming the project in view so a copied link opens it (FR-011), without
-  // adding a history entry per switch (FR-012).
+  const adminParam = new URLSearchParams(window.location.search).get('admin');
+
+  /** Shows a location without touching the address (the address is already right, or written by
+   *  the caller). */
+  const applyLocation = (to: Location) => {
+    locationRef.current = to;
+    setLocation(to);
+  };
+
+  const urlFor = (to: Location) => {
+    const search = locationToSearch(to);
+    return `${window.location.pathname}${search === '?' ? '' : search}`;
+  };
+
+  /**
+   * The one way screens change (design §3). Leaving an editor with unsaved changes asks first --
+   * read synchronously via ref (canvas-eow) -- unless `force`. Pushes a history entry so Back goes
+   * up a level (design §2); `replace` for redirects that shouldn't be returnable to.
+   */
+  const navigate = (to: Location, options: { replace?: boolean; force?: boolean } = {}) => {
+    const from = locationRef.current;
+    if (!options.force && from.screen === 'diagram' && !sameLocation(from, to) && diagramEditorRef.current?.hasUnsavedChanges()) {
+      setPendingNav({ to, viaHistory: false });
+      return;
+    }
+    if (options.replace) window.history.replaceState(null, '', urlFor(to));
+    else if (!sameLocation(from, to)) window.history.pushState(null, '', urlFor(to));
+    setError(null);
+    applyLocation(to);
+  };
+
+  // Back/Forward: show what the address now names. A popstate can't be cancelled, so leaving a
+  // dirty editor this way puts the editor's address back and asks; confirming goes back again.
   useEffect(() => {
-    if (projects === null) return; // don't strip a valid id from the address before it is checked
-    syncProjectIdToUrl(projectId);
-  }, [projectId, projects]);
+    const onPopState = () => {
+      const to = parseLocation(window.location.search);
+      const from = locationRef.current;
+      if (skipGuardOnce.current) {
+        skipGuardOnce.current = false;
+      } else if (from.screen === 'diagram' && !sameLocation(from, to) && diagramEditorRef.current?.hasUnsavedChanges()) {
+        window.history.pushState(null, '', urlFor(from));
+        setPendingNav({ to, viaHistory: true });
+        return;
+      }
+      setError(null);
+      applyLocation(to);
+    };
+    window.addEventListener('popstate', onPopState);
+    return () => window.removeEventListener('popstate', onPopState);
+    // Registered once: applyLocation/urlFor only use refs, state setters and window.
+  }, []);
 
-  const applyProjectChange = (nextProjectId: string) => {
-    setProjectId(nextProjectId);
-    setDiagram(null);
-    setError(null);
-  };
+  // Closing or reloading the tab with unsaved changes gets the browser's own prompt (design §2).
+  useEffect(() => {
+    const onBeforeUnload = (event: BeforeUnloadEvent) => {
+      if (locationRef.current.screen === 'diagram' && diagramEditorRef.current?.hasUnsavedChanges()) {
+        event.preventDefault();
+        event.returnValue = '';
+      }
+    };
+    window.addEventListener('beforeunload', onBeforeUnload);
+    return () => window.removeEventListener('beforeunload', onBeforeUnload);
+  }, []);
 
-  const requestProjectChange = (nextProjectId: string) => {
-    if (nextProjectId === projectId) return;
-    // Never discard unsaved work silently (FR-013d). Read synchronously via ref — see
-    // DiagramEditorHandle's doc comment for why a mirrored parent state was a genuine race.
-    if (diagram && diagramEditorRef.current?.hasUnsavedChanges()) {
-      setPendingProjectId(nextProjectId);
+  // A deep link opened in a fresh tab: put the top level underneath it, so Back goes up within the
+  // app rather than leaving it (design §2).
+  useEffect(() => {
+    if (window.history.length !== 1 || adminParam || parseLocation(window.location.search).screen === 'projects') return;
+    const deepLink = window.location.href;
+    window.history.replaceState(null, '', window.location.pathname);
+    window.history.pushState(null, '', deepLink);
+  }, []);
+
+  // A bare address lands per the landing rules, once the projects and shared diagrams are known.
+  useEffect(() => {
+    if (!landingPending.current || projects === null || !sharedLoaded) return;
+    landingPending.current = false;
+    if (locationRef.current.screen !== 'projects') return; // the user already went somewhere
+    const landing = resolveLanding(projects.map((p) => p.id), sharedDiagrams.length, readLastProjectId());
+    if (landing.screen !== 'projects') navigate(landing, { replace: true, force: true });
+  }, [projects, sharedLoaded, sharedDiagrams]);
+
+  // An address naming a project that is gone, or was never theirs: say so and show the top level
+  // rather than a dead screen (feature 007 FR-013). A project that is theirs -- however it was
+  // reached, link included -- becomes the landing hint for next time (design decision 2).
+  useEffect(() => {
+    if (projects === null || adminParam || location.screen !== 'project') return;
+    if (projects.some((p) => p.id === location.projectId)) {
+      writeLastProjectId(location.projectId);
       return;
     }
-    applyProjectChange(nextProjectId);
-  };
+    navigate({ screen: 'projects' }, { replace: true, force: true });
+    setError('That project is not available to you. Showing your projects instead.');
+  }, [projects, location]);
 
-  /** Closes the open diagram back to the project browser, staying in the same project — the
-   *  same unsaved-changes guard as switching project, since discarding work silently is exactly
-   *  as wrong here as it is there. */
-  const requestGoHome = () => {
-    if (diagram && diagramEditorRef.current?.hasUnsavedChanges()) {
-      setConfirmingHome(true);
+  // The open diagram follows the address: fetched for ?diagramId= (a link or a reload), dropped on
+  // any other screen. A diagram the user can't open shows the top level with an error.
+  useEffect(() => {
+    if (location.screen !== 'diagram') {
+      setDiagram(null);
       return;
     }
-    setDiagram(null);
-    setError(null);
+    if (!user || diagram?.id === location.diagramId) return;
+    let cancelled = false;
+    api
+      .getDiagram(location.diagramId)
+      .then(({ diagram: loaded }) => {
+        if (!cancelled) setDiagram(loaded);
+      })
+      .catch(() => {
+        if (cancelled) return;
+        navigate({ screen: 'projects' }, { replace: true, force: true });
+        setError('That diagram is not available to you.');
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [location, user, diagram?.id]);
+
+  /** The project in view: the one a project screen shows, or the open diagram's. */
+  const currentProjectId =
+    location.screen === 'project' ? location.projectId : location.screen === 'diagram' ? (diagram?.projectId ?? null) : null;
+
+  /** Opens a diagram the app already has (just created or imported) without fetching it again. */
+  const showDiagram = (loaded: DiagramDto) => {
+    setDiagram(loaded);
+    navigate({ screen: 'diagram', diagramId: loaded.id });
   };
 
-  /** canvas-228.1: reaches the new Projects screen, guarded exactly like requestGoHome. */
-  const requestViewProjects = () => {
-    if (diagram && diagramEditorRef.current?.hasUnsavedChanges()) {
-      setConfirmingViewProjects(true);
-      return;
+  const confirmPendingNav = () => {
+    const pending = pendingNav;
+    setPendingNav(null);
+    if (!pending) return;
+    if (pending.viaHistory) {
+      // The editor's address was put back on top of the destination; step back onto it.
+      skipGuardOnce.current = true;
+      window.history.back();
+    } else {
+      navigate(pending.to, { force: true });
     }
-    setDiagram(null);
-    setError(null);
-    setViewingProjects(true);
   };
 
   const createDiagram = async (diagramTypeId: string) => {
     // The guard runs BEFORE the picker closes. It used to run after, so a failure threw away the
     // diagram type the user had just chosen and made them pick again (FR-003).
-    if (!projectId) {
+    if (!currentProjectId) {
       setError('Choose or create a project first.');
       return;
     }
     setPickingType(false);
     try {
-      const { diagram } = await api.createDiagram(projectId, { name: 'Untitled Diagram', diagramTypeId });
-      setDiagram(diagram);
+      const { diagram: created } = await api.createDiagram(currentProjectId, { name: 'Untitled Diagram', diagramTypeId });
+      showDiagram(created);
     } catch (err) {
       setError((err as Error).message);
     }
   };
 
-  const openDiagram = async (diagramId: string) => {
-    try {
-      const { diagram } = await api.getDiagram(diagramId);
-      setDiagram(diagram);
-    } catch (err) {
-      setError((err as Error).message);
-    }
-  };
+  const openDiagram = (diagramId: string) => navigate({ screen: 'diagram', diagramId });
 
   const createFirstProject = async (name: string) => {
     try {
       const { project } = await api.createProject({ name });
       setProjects((current) => [...(current ?? []), project]);
-      setProjectId(project.id);
       setCreatingProject(false);
-      setError(null);
+      navigate({ screen: 'project', projectId: project.id });
     } catch (err) {
       setError((err as Error).message);
     }
   };
-
-  const adminParam = new URLSearchParams(window.location.search).get('admin');
 
   if (!checkedSession) return <p>Loading…</p>;
   if (!user) return <LoginForm onSuccess={(loggedInUser) => setUser(loggedInUser)} />;
@@ -237,7 +323,12 @@ export function App() {
     setCreatingViaChat(false);
     setError(null);
     setProjects(null);
-    setProjectId(null);
+    setSharedLoaded(false);
+    setPendingNav(null);
+    // Signing back in starts from a bare address again, landing rules included.
+    window.history.replaceState(null, '', window.location.pathname);
+    landingPending.current = true;
+    applyLocation({ screen: 'projects' });
   };
 
   const hasNoProjects = projects !== null && projects.length === 0;
@@ -254,47 +345,66 @@ export function App() {
     // Wrapping here rather than inside each screen is what centres and navigates all five
     // without any of them being edited (research §10).
     content = (
-      <AdminShell activeParam={adminParam === 'true' ? 'standards' : adminParam} projectId={projectId}>
+      <AdminShell activeParam={adminParam === 'true' ? 'standards' : adminParam} projectId={currentProjectId}>
         {adminScreen}
       </AdminShell>
     );
-  } else if (viewingProjects) {
+  } else if (
+    (location.screen === 'projects' && (projects === null || (landingPending.current && !sharedLoaded))) ||
+    (location.screen === 'diagram' && diagram?.id !== location.diagramId)
+  ) {
+    // Waiting for the project list (or, on a bare address, what to land on), or the diagram.
     content = (
-      <ProjectsPage
-        projects={projects ?? []}
-        currentUser={user}
-        onCreated={(project) => {
-          setProjects((current) => [...(current ?? []), project]);
-          setProjectId(project.id);
-          setViewingProjects(false);
-        }}
-        onRenamed={(renamedProjectId, name) => {
-          setProjects((current) => current?.map((p) => (p.id === renamedProjectId ? { ...p, name } : p)) ?? current);
-        }}
-        onDeleted={(deletedProjectId) => {
-          const remaining = (projects ?? []).filter((p) => p.id !== deletedProjectId);
-          setProjects(remaining);
-          // The current project just got deleted out from under the user — same "never invent
-          // one, fall back to the first available" rule the initial project-resolution effect
-          // already uses (App.tsx's own useEffect for user/projects above).
-          if (projectId === deletedProjectId) {
-            setDiagram(null);
-            setProjectId(remaining[0]?.id ?? null);
-          }
-        }}
-        onViewDiagrams={(viewProjectId) => {
-          applyProjectChange(viewProjectId);
-          setViewingProjects(false);
-        }}
-        onClose={() => setViewingProjects(false)}
-      />
+      <main className="page">
+        <p className="state" aria-busy="true">
+          Loading…
+        </p>
+      </main>
     );
-  } else if (diagram) {
+  } else if (location.screen === 'projects' && !hasNoProjects) {
+    const lastProjectId = readLastProjectId();
+    const resumable = lastProjectId && (projects ?? []).some((p) => p.id === lastProjectId) ? lastProjectId : null;
+    content = (
+      <>
+        {error && (
+          <p role="alert" className="page" data-testid="app-error">
+            {error}
+          </p>
+        )}
+        <ProjectsPage
+          projects={projects ?? []}
+          currentUser={user}
+          onCreated={(project) => {
+            setProjects((current) => [...(current ?? []), project]);
+            navigate({ screen: 'project', projectId: project.id });
+          }}
+          onRenamed={(renamedProjectId, name) => {
+            setProjects((current) => current?.map((p) => (p.id === renamedProjectId ? { ...p, name } : p)) ?? current);
+          }}
+          onDeleted={(deletedProjectId) => {
+            setProjects((current) => current?.filter((p) => p.id !== deletedProjectId) ?? current);
+            if (readLastProjectId() === deletedProjectId) writeLastProjectId(null);
+          }}
+          onViewDiagrams={(viewProjectId) => navigate({ screen: 'project', projectId: viewProjectId })}
+          // Until the Browse screen replaces this page (canvas-t3b.3), "close" returns to the last
+          // project opened, when there is one.
+          onClose={resumable ? () => navigate({ screen: 'project', projectId: resumable }) : undefined}
+        />
+      </>
+    );
+  } else if (location.screen === 'diagram' && diagram) {
+    // (Only reached once `diagram` is the one the address names -- see the loading branch above.)
+    // The back button names where it goes (design §7): the diagram's project when the user can
+    // see it -- taken from the diagram as it is now, so it's right after a Move -- else Projects.
+    const diagramProject = (projects ?? []).find((p) => p.id === diagram.projectId);
     content = (
       <DiagramEditor
         diagram={diagram}
         ref={diagramEditorRef}
-        onRequestClose={requestGoHome}
+        backLabel={diagramProject ? diagramProject.name : 'Projects'}
+        onRequestClose={() =>
+          navigate(diagramProject ? { screen: 'project', projectId: diagramProject.id } : { screen: 'projects' })
+        }
         initialRailTab={openDiagramOnChat ? 'chat' : 'dsl'}
       />
     );
@@ -397,12 +507,12 @@ export function App() {
             {error}
           </p>
         )}
-        {projectId && (
+        {location.screen === 'project' && (
           <ProjectBrowser
-            rootProjectId={projectId}
+            rootProjectId={location.projectId}
             projects={projects ?? []}
             onOpenDiagram={openDiagram}
-            onBackToProjects={requestViewProjects}
+            onBackToProjects={() => navigate({ screen: 'projects' })}
           />
         )}
         {user.role === 'admin' && (
@@ -411,19 +521,19 @@ export function App() {
             {/* Built through withProjectContext so the project survives the hop. These links being
                 absolute query-string replacements is exactly how the context was lost — on the way
                 IN to the admin console, one hop before the back link that gets blamed for it. */}
-            <a data-testid="admin-overview-link" href={withProjectContext({ admin: 'overview' }, projectId)}>
+            <a data-testid="admin-overview-link" href={withProjectContext({ admin: 'overview' }, currentProjectId)}>
               Overview
             </a>
-            <a data-testid="admin-console-link" href={withProjectContext({ admin: 'standards' }, projectId)}>
+            <a data-testid="admin-console-link" href={withProjectContext({ admin: 'standards' }, currentProjectId)}>
               Standards
             </a>
-            <a data-testid="admin-users-link" href={withProjectContext({ admin: 'users' }, projectId)}>
+            <a data-testid="admin-users-link" href={withProjectContext({ admin: 'users' }, currentProjectId)}>
               Users
             </a>
-            <a data-testid="admin-deleted-diagrams-link" href={withProjectContext({ admin: 'deleted' }, projectId)}>
+            <a data-testid="admin-deleted-diagrams-link" href={withProjectContext({ admin: 'deleted' }, currentProjectId)}>
               Deleted Diagrams
             </a>
-            <a data-testid="admin-ai-personas-link" href={withProjectContext({ admin: 'ai-personas' }, projectId)}>
+            <a data-testid="admin-ai-personas-link" href={withProjectContext({ admin: 'ai-personas' }, currentProjectId)}>
               AI Personas
             </a>
           </nav>
@@ -438,7 +548,11 @@ export function App() {
       onSignOut={handleSignOut}
       projectPicker={
         projects !== null && projects.length > 0 ? (
-          <ProjectPicker projects={projects} currentProjectId={projectId} onSelect={requestProjectChange} />
+          <ProjectPicker
+            projects={projects}
+            currentProjectId={currentProjectId}
+            onSelect={(selected) => navigate({ screen: 'project', projectId: selected })}
+          />
         ) : null
       }
       projectsLink={
@@ -447,7 +561,7 @@ export function App() {
             type="button"
             className="btn btn--secondary btn--compact"
             data-testid="view-projects"
-            onClick={requestViewProjects}
+            onClick={() => navigate({ screen: 'projects' })}
           >
             Projects
           </button>
@@ -459,140 +573,58 @@ export function App() {
           behind them stays visible (FR-016). They are native <dialog> elements opened with
           showModal(), so they overlay everything regardless of where they sit in the tree. */}
       {pickingType && <NewDiagramDialog onCreate={createDiagram} onCancel={() => setPickingType(false)} />}
-      {importing && projectId && (
+      {importing && currentProjectId && (
         <ImportDialog
-          projectId={projectId}
+          projectId={currentProjectId}
           onImported={(imported) => {
             setImporting(false);
-            setDiagram(imported);
+            showDiagram(imported);
           }}
           onCancel={() => setImporting(false)}
         />
       )}
-      {importingTemplate && projectId && (
+      {importingTemplate && currentProjectId && (
         <ImportTemplateDialog
-          projectId={projectId}
+          projectId={currentProjectId}
           onImported={(imported) => {
             setImportingTemplate(false);
-            setDiagram(imported);
+            showDiagram(imported);
           }}
           onCancel={() => setImportingTemplate(false)}
         />
       )}
-      {creatingViaChat && projectId && (
+      {creatingViaChat && currentProjectId && (
         <CreateViaChatDialog
-          projectId={projectId}
+          projectId={currentProjectId}
           onCreated={(created, { openChat }) => {
             setCreatingViaChat(false);
             setOpenDiagramOnChat(openChat);
-            setDiagram(created);
+            showDiagram(created);
           }}
           onCancel={() => setCreatingViaChat(false)}
         />
       )}
-      {pendingProjectId && (
-        <Modal
-          role="alertdialog"
-          label="Unsaved changes"
-          title={null}
-          testId="project-switch-confirm"
-          onClose={() => setPendingProjectId(null)}
-          footer={
-            <>
-              <button
-                type="button"
-                className="btn btn--secondary"
-                data-testid="cancel-project-switch"
-                onClick={() => setPendingProjectId(null)}
-              >
-                Keep editing
-              </button>
-              <button
-                type="button"
-                className="btn btn--primary"
-                data-testid="confirm-project-switch"
-                onClick={() => {
-                  applyProjectChange(pendingProjectId);
-                  setPendingProjectId(null);
-                }}
-              >
-                Discard and switch
-              </button>
-            </>
-          }
-        >
-          <p>This diagram has unsaved changes. Switching project will discard them.</p>
-        </Modal>
-      )}
-      {confirmingHome && (
+      {/* canvas-t3b.2: the one unsaved-changes confirm, for every way out of the editor -- its
+          buttons, the header, and the browser's Back/Forward. */}
+      {pendingNav && (
         <Modal
           role="alertdialog"
           label="Unsaved changes"
           title={null}
           testId="home-nav-confirm"
-          onClose={() => setConfirmingHome(false)}
+          onClose={() => setPendingNav(null)}
           footer={
             <>
-              <button
-                type="button"
-                className="btn btn--secondary"
-                data-testid="cancel-home-nav"
-                onClick={() => setConfirmingHome(false)}
-              >
+              <button type="button" className="btn btn--secondary" data-testid="cancel-home-nav" onClick={() => setPendingNav(null)}>
                 Keep editing
               </button>
-              <button
-                type="button"
-                className="btn btn--primary"
-                data-testid="confirm-home-nav"
-                onClick={() => {
-                  setDiagram(null);
-                  setError(null);
-                  setConfirmingHome(false);
-                }}
-              >
+              <button type="button" className="btn btn--primary" data-testid="confirm-home-nav" onClick={confirmPendingNav}>
                 Discard and leave
               </button>
             </>
           }
         >
-          <p>This diagram has unsaved changes. Returning to Diagrams will discard them.</p>
-        </Modal>
-      )}
-      {confirmingViewProjects && (
-        <Modal
-          role="alertdialog"
-          label="Unsaved changes"
-          title={null}
-          testId="view-projects-confirm"
-          onClose={() => setConfirmingViewProjects(false)}
-          footer={
-            <>
-              <button
-                type="button"
-                className="btn btn--secondary"
-                data-testid="cancel-view-projects"
-                onClick={() => setConfirmingViewProjects(false)}
-              >
-                Keep editing
-              </button>
-              <button
-                type="button"
-                className="btn btn--primary"
-                data-testid="confirm-view-projects"
-                onClick={() => {
-                  setDiagram(null);
-                  setError(null);
-                  setViewingProjects(true);
-                  setConfirmingViewProjects(false);
-                }}
-              >
-                Discard and leave
-              </button>
-            </>
-          }
-        >
-          <p>This diagram has unsaved changes. Viewing Projects will discard them.</p>
+          <p>This diagram has unsaved changes. Leaving will discard them.</p>
         </Modal>
       )}
     </AppShell>

@@ -108,42 +108,30 @@ test('cancelling the delete confirmation leaves the project in place', async ({ 
   await expect(row).toBeVisible();
 });
 
-test('deleting the currently-active project falls back to a different remaining project instead of erroring', async ({
+test('deleting a project the user last opened keeps them on the Projects list without an error', async ({
   page,
 }) => {
+  // canvas-t3b.2: there is no "current project" to fall back from any more. Deleting happens on the
+  // Projects list, the user stays there, and a deleted last-opened hint is cleared.
   await signIn(page, ADMIN_EMAIL, ADMIN_PASSWORD);
-  const activeName = `Delete Active ${Date.now()}`;
-  const fallbackName = `Delete Fallback ${Date.now()}`;
-  const activeId = await createProject(page, activeName);
-  // A second fresh project guarantees there is somewhere to fall back to beyond whatever the
-  // accumulated seeded DB already contains.
-  await createProject(page, fallbackName);
+  const activeId = await createProject(page, `Delete Active ${Date.now()}`);
 
+  // Opening the project by address records it as the last-opened landing hint.
   await page.goto(`/?projectId=${activeId}`);
-  await expect(page.getByTestId('sign-out')).toBeVisible();
-  // The active project is reflected in the header before deletion.
-  await expect(page.getByTestId('project-picker')).toHaveValue(activeId);
+  await expect(page.getByTestId('new-diagram')).toBeVisible();
+  await expect.poll(() => page.evaluate(() => localStorage.getItem('canvas.lastProjectId'))).toBe(activeId);
 
   await page.getByTestId('view-projects').click();
   await page.getByTestId(`projects-page-delete-${activeId}`).click();
   await page.getByTestId('confirm-dialog-confirm').click();
 
   await expect(page.getByTestId(`projects-page-row-${activeId}`)).toHaveCount(0);
-  // No error surfaced, and the project picker (still rendered by AppShell above the Projects
-  // screen) now points at a different, real project rather than the deleted one or nothing.
   await expect(page.getByTestId('app-error')).toHaveCount(0);
   await expect(page.getByTestId('projects-page-delete-error')).toHaveCount(0);
-  const picker = page.getByTestId('project-picker');
-  await expect(picker).toBeVisible();
-  const currentValue = await picker.inputValue();
-  expect(currentValue).not.toBe(activeId);
-  expect(currentValue).not.toBe('');
-
-  // Leaving the Projects screen lands on an ordinary, working home screen for the fallback
-  // project — not an error state.
-  await page.getByTestId('close-projects-page').click();
-  await expect(page.getByTestId('new-diagram')).toBeVisible();
-  await expect(page.getByTestId('app-error')).toHaveCount(0);
+  // Still on the Projects list, and the hint no longer points at the deleted project.
+  await expect(page.getByTestId('projects-page-list')).toBeVisible();
+  await expect(page.getByTestId('new-diagram')).toHaveCount(0);
+  expect(await page.evaluate(() => localStorage.getItem('canvas.lastProjectId'))).toBeNull();
 });
 
 test('an admin sees a deleted project on the Deleted Projects screen and restoring it brings it back to the Projects screen', async ({

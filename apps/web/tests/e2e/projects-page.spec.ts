@@ -143,10 +143,10 @@ test('warns before discarding unsaved changes when navigating to Projects, and c
   await expect(page.locator('[data-testid^="node-"]')).toHaveCount(1);
 
   await page.getByTestId('view-projects').click();
-  await expect(page.getByTestId('view-projects-confirm')).toBeVisible();
+  await expect(page.getByTestId('home-nav-confirm')).toBeVisible();
 
-  await page.getByTestId('cancel-view-projects').click();
-  await expect(page.getByTestId('view-projects-confirm')).toHaveCount(0);
+  await page.getByTestId('cancel-home-nav').click();
+  await expect(page.getByTestId('home-nav-confirm')).toHaveCount(0);
   await expect(page.getByTestId('diagram-canvas')).toBeVisible();
   await expect(page.locator('[data-testid^="node-"]')).toHaveCount(1);
 });
@@ -161,15 +161,17 @@ test('confirming the discard from the unsaved-changes guard leaves the editor fo
   await expect(page.locator('[data-testid^="node-"]')).toHaveCount(1);
 
   await page.getByTestId('view-projects').click();
-  await expect(page.getByTestId('view-projects-confirm')).toBeVisible();
-  await page.getByTestId('confirm-view-projects').click();
+  await expect(page.getByTestId('home-nav-confirm')).toBeVisible();
+  await page.getByTestId('confirm-home-nav').click();
 
-  await expect(page.getByTestId('view-projects-confirm')).toHaveCount(0);
+  await expect(page.getByTestId('home-nav-confirm')).toHaveCount(0);
   await expect(page.getByTestId('diagram-canvas')).toHaveCount(0);
   await expect(page.getByTestId('projects-page-start-create')).toBeVisible();
 });
 
 test('the Back button returns to the home screen', async ({ page }) => {
+  // canvas-t3b.2: Back only renders when a last-opened project exists; opening one via its address
+  // records it as the landing hint.
   await signIn(page, `/?projectId=${PROJECT_ID}`);
 
   await page.getByTestId('view-projects').click();

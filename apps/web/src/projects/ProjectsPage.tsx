@@ -12,7 +12,8 @@ export interface ProjectsPageProps {
   /** canvas-3vq.2: switches to that project and returns to the diagram browser — this screen
    *  used to be a dead end with no way to actually go look at a project's diagrams. */
   onViewDiagrams: (projectId: string) => void;
-  onClose: () => void;
+  /** canvas-t3b.2: returns to the last project opened; omitted (no Back button) when there's none. */
+  onClose?: () => void;
 }
 
 /**
@@ -85,10 +86,12 @@ export function ProjectsPage({ projects, currentUser, onCreated, onRenamed, onDe
     <main className="page">
       <div className="cluster" style={{ justifyContent: 'space-between' }}>
         <h1 className="page__title">Projects</h1>
-        <button type="button" className="btn btn--secondary btn--compact" data-testid="close-projects-page" onClick={onClose}>
-          <Icon name="chevron-right" className="icon--flip" />
-          Back
-        </button>
+        {onClose && (
+          <button type="button" className="btn btn--secondary btn--compact" data-testid="close-projects-page" onClick={onClose}>
+            <Icon name="chevron-right" className="icon--flip" />
+            Back
+          </button>
+        )}
       </div>
 
       <section className="card">

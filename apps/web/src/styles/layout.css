@@ -167,6 +167,15 @@
   border-block-end: var(--border-width) solid var(--border-default);
 }
 
+/* canvas-t3b.2: the back button names the diagram's project; a long name is cut short (the full
+   name is in its title and accessible name). */
+.editor__back-label {
+  max-width: 20ch;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .editor__title {
   display: flex;
   align-items: center;
