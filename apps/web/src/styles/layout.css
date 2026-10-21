@@ -173,6 +173,7 @@
 
 .home__actions {
   display: flex;
+  flex-wrap: wrap;
   gap: var(--space-3);
   margin-block-end: var(--space-6);
 }
@@ -182,6 +183,40 @@
   min-height: 40px;
 }
 
+/* ---- Narrow screens (canvas-i08): the header and Browse screens fit a phone ---- */
+
+@media (max-width: 600px) {
+  .page {
+    padding: var(--space-6) var(--space-4); /* 16px side gutter */
+  }
+
+  .app-header {
+    gap: var(--space-2);
+    padding-inline: var(--space-3);
+  }
+
+  /* The signed-in email is the first thing to give up its room. */
+  .app-header .meta {
+    display: none;
+  }
+
+  /* Create actions stack, each full width. */
+  .home__actions .btn {
+    flex: 1 1 100%;
+    min-width: 0;
+  }
+
+  /* A row's actions drop onto their own line under the name, rather than squeezing it. */
+  .row {
+    flex-wrap: wrap;
+  }
+
+  .row__actions {
+    flex-basis: 100%;
+    flex-wrap: wrap;
+  }
+}
+
 /* ---- Diagram editor ---------------------------------------------------- */
 
 .editor {
@@ -189,6 +224,9 @@
   min-height: 0;
   display: flex;
   flex-direction: column;
+  /* Desktop-only (ui-design-spec §3.3, fixed-width rails): narrower windows scroll sideways
+     within the content area rather than collapsing the rails (canvas-i08 moved this off <body>). */
+  min-width: var(--app-min-w);
 }
 
 .editor__doc-bar {
@@ -617,6 +655,8 @@
   min-height: 0;
   display: flex;
   flex-direction: column;
+  /* Desktop-only like the editor (wide tables); scrolls sideways when narrower (canvas-i08). */
+  min-width: var(--app-min-w);
 }
 
 .admin-nav {
