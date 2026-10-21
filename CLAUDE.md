@@ -95,8 +95,10 @@ work — see `.specify/memory/constitution.md` Principle IV.
   page has a `nav > ol` breadcrumb and an `<h1>` with its name; focus moves to the new screen's
   `<h1>` after user navigations; `document.title` per screen. Header (t3b.4): Projects / Admin
   links + skip link — `ProjectPicker` and `project-context.ts` (`withProjectContext`) are gone
-  (t3b.6); the admin console's Back returns to the last Browse location in the tab
-  (sessionStorage). New specs: `browse-navigation`, `browse-screen`, `app-header`; first
+  (t3b.6). Follow-up `canvas-513`/`canvas-4pw`: the admin page is App state (leaving admin is
+  an in-app navigation, so the header's Projects link works there and Back/Forward cross admin
+  <-> Browse); the admin console's own Back link was removed; admin pages have an `<h1>` and a
+  "<page> – Admin – Canvas" tab title. New specs: `browse-navigation`, `browse-screen`, `app-header`; first
   `apps/web` unit tests (`tests/unit/navigation.test.ts`). Deferred: "recently opened" (`canvas-93n`).
 - `canvas-chq`: every standard is viewable and editable on `?admin=standards`. Published/retired
   versions previously showed metadata only; now any version opens read-only (one native

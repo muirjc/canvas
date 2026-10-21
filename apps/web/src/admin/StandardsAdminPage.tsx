@@ -123,7 +123,10 @@ export function StandardsAdminPage() {
 
   return (
     <div>
-      <h2>Standards</h2>
+      {/* canvas-4pw: the page's <h1>, focused after an in-app navigation lands here. */}
+      <h1 className="page__title" tabIndex={-1} data-browse-heading>
+        Standards
+      </h1>
       <div className="std-layout">
         <section className="std-types" aria-label="Diagram types">
           <div className="row">

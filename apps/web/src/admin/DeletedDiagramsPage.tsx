@@ -45,7 +45,10 @@ export function DeletedDiagramsPage() {
 
   return (
     <div>
-      <h2>Deleted Diagrams</h2>
+      {/* canvas-4pw: the page's <h1>, focused after an in-app navigation lands here. */}
+      <h1 className="page__title" tabIndex={-1} data-browse-heading>
+        Deleted Diagrams
+      </h1>
       <input
         data-testid="deleted-diagrams-search"
         aria-label="Search deleted diagrams by name, owner, or project"

@@ -3,11 +3,9 @@ import {
   isBareAddress,
   locationToSearch,
   parseLocation,
-  readLastBrowseHref,
   readLastProjectId,
   resolveLanding,
   sameLocation,
-  writeLastBrowse,
   writeLastProjectId,
 } from '../../src/app/navigation';
 
@@ -82,19 +80,5 @@ describe('last project hint', () => {
     expect(readLastProjectId()).toBe(P1);
     writeLastProjectId(null);
     expect(readLastProjectId()).toBeNull();
-  });
-});
-
-describe('last Browse location (canvas-t3b.4)', () => {
-  afterEach(() => window.sessionStorage.clear());
-
-  it('records the project list and projects, never the editor', () => {
-    expect(readLastBrowseHref()).toBeNull();
-    writeLastBrowse({ screen: 'project', projectId: P1 });
-    expect(readLastBrowseHref()).toBe(`/?projectId=${P1}`);
-    writeLastBrowse({ screen: 'diagram', diagramId: D1 });
-    expect(readLastBrowseHref()).toBe(`/?projectId=${P1}`);
-    writeLastBrowse({ screen: 'projects' });
-    expect(readLastBrowseHref()).toBe('/');
   });
 });

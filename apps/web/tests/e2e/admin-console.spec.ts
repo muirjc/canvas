@@ -78,16 +78,16 @@ test('the current admin destination is visually distinguishable', async ({ page 
   await expect(page.getByTestId('admin-nav-overview')).not.toHaveAttribute('aria-current', 'page');
 });
 
-test('an admin can get back to the diagrams without editing the URL', async ({ page }) => {
-  // canvas-t3b.4: back returns to the last Browse screen of this tab, so browse a project first.
+test('an admin can get back to the project list without editing the URL', async ({ page }) => {
+  // canvas-513: the admin Back link is gone; the header's Projects link leaves admin (in-app).
   await signIn(page, ADMIN_EMAIL, ADMIN_PASSWORD, `/?projectId=${PROJECT_ID}`);
   await expect(page.getByTestId('new-diagram')).toBeVisible();
   await page.getByTestId('nav-admin').click();
   await page.getByTestId('admin-nav-users').click();
+  await expect(page.getByTestId('admin-back-to-diagrams')).toHaveCount(0);
 
-  // FR-003: today this route does not exist at all.
-  await page.getByTestId('admin-back-to-diagrams').click();
-  await expect(page.getByTestId('new-diagram')).toBeVisible();
+  await page.getByTestId('nav-projects').click();
+  await expect(page.getByTestId('projects-page-list')).toBeVisible();
   await expect(page.getByTestId('admin-shell')).toHaveCount(0);
 });
 

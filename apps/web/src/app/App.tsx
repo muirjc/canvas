@@ -11,7 +11,6 @@ import {
   readLastProjectId,
   resolveLanding,
   sameLocation,
-  writeLastBrowse,
   writeLastProjectId,
   type Location,
 } from './navigation';
@@ -28,7 +27,7 @@ import { ImportTemplateDialog } from '../projects/ImportTemplateDialog';
 import { CreateViaChatDialog } from '../ai/CreateViaChatDialog';
 import { PersonaAdminPage } from '../ai/PersonaAdminPage';
 import { Icon } from '../ui/Icon';
-import { AdminShell } from '../ui/AdminShell';
+import { ADMIN_DESTINATIONS, AdminShell } from '../ui/AdminShell';
 import { Modal } from '../ui/Modal';
 import { AI_CHAT_DISABLED_MESSAGE, AI_MOCK_MODE_MESSAGE } from '../ai/ai-status-messages';
 
@@ -141,7 +140,16 @@ export function App() {
     };
   }, [user]);
 
-  const adminParam = new URLSearchParams(window.location.search).get('admin');
+  // canvas-513: the admin page being shown (?admin=...), as state rather than re-read from the
+  // address on each render. Entering admin is a full page load (a plain link); leaving it is an
+  // in-app navigation that clears this -- before, navigate() saw the admin address as "already on
+  // the project list" (no projectId), changed nothing, and the header's Projects link did nothing.
+  const [adminParam, setAdminParamState] = useState<string | null>(() => new URLSearchParams(window.location.search).get('admin'));
+  const adminParamRef = useRef(adminParam);
+  const setAdminParam = (value: string | null) => {
+    adminParamRef.current = value;
+    setAdminParamState(value);
+  };
 
   /** Shows a location without touching the address (the address is already right, or written by
    *  the caller). */
@@ -166,11 +174,14 @@ export function App() {
       setPendingNav({ to, viaHistory: false });
       return;
     }
+    // Leaving an admin page is always a navigation, even to the same Browse location (canvas-513).
+    const leavingAdmin = adminParamRef.current !== null;
     if (options.replace) window.history.replaceState(null, '', urlFor(to));
-    else if (!sameLocation(from, to)) {
+    else if (leavingAdmin || !sameLocation(from, to)) {
       window.history.pushState(null, '', urlFor(to));
       focusAfterNavigation.current = true;
     }
+    if (leavingAdmin) setAdminParam(null);
     setError(null);
     applyLocation(to);
   };
@@ -190,6 +201,8 @@ export function App() {
       }
       setError(null);
       focusAfterNavigation.current = true;
+      // Back/Forward may land on (or leave) an admin page's history entry (canvas-513).
+      setAdminParam(new URLSearchParams(window.location.search).get('admin'));
       applyLocation(to);
     };
     window.addEventListener('popstate', onPopState);
@@ -269,18 +282,19 @@ export function App() {
     location.screen === 'project' ? location.projectId : location.screen === 'diagram' ? (diagram?.projectId ?? null) : null;
   const currentProject = (projects ?? []).find((p) => p.id === currentProjectId) ?? null;
 
-  // canvas-t3b.4: remember the last Browse screen in this tab, for the admin console's back link.
-  useEffect(() => {
-    if (!adminParam) writeLastBrowse(location);
-  }, [location, adminParam]);
-
   // canvas-t3b.3: each screen names itself in the tab title -- the cheapest reliable cue for a
   // screen-reader user that the view changed (design: Accessibility and focus).
   useEffect(() => {
+    if (adminParam && user?.role === 'admin') {
+      // canvas-4pw: admin pages name themselves too.
+      const page = ADMIN_DESTINATIONS.find((d) => d.param === (adminParam === 'true' ? 'standards' : adminParam));
+      document.title = `${page?.label ?? 'Standards'} – Admin – Canvas`;
+      return;
+    }
     const name =
       location.screen === 'diagram' ? diagram?.name : location.screen === 'project' ? currentProject?.name : 'Projects';
     document.title = name ? `${name} – Canvas` : 'Canvas';
-  }, [location, diagram?.name, currentProject?.name]);
+  }, [location, diagram?.name, currentProject?.name, adminParam, user?.role]);
 
   // After a navigation the user made (a click, Back/Forward -- never the first load or a redirect),
   // move focus to the new screen's <h1>, so the screen reader announces where the user is instead
@@ -299,7 +313,7 @@ export function App() {
     focusHeading();
     // A further navigation mid-retry must not let this one's timer steal focus later.
     return () => window.clearTimeout(timer);
-  }, [location]);
+  }, [location, adminParam]);
 
   /** Opens a diagram the app already has (just created or imported) without fetching it again. */
   const showDiagram = (loaded: DiagramDto) => {
@@ -362,6 +376,7 @@ export function App() {
     setError(null);
     setProjects(null);
     setSharedLoaded(false);
+    setAdminParam(null);
     setPendingNav(null);
     // Signing back in starts from a bare address again, landing rules included.
     window.history.replaceState(null, '', window.location.pathname);
