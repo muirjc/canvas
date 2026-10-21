@@ -24,7 +24,7 @@ async function openNewDiagram(page: Page) {
 /**
  * Regression: once a diagram was open, there was no way back to the project browser short of
  * switching to a different project (a no-op if you picked the current one) or signing out —
- * "Diagrams" in the editor's doc-bar is the fix. Mirrors the project-switch unsaved-changes guard
+ * the back button in the editor's doc-bar is the fix (canvas-t3b.2: labelled with the project name, one shared leave-the-editor confirm). Mirrors the unsaved-changes guard
  * exactly (App.tsx's requestGoHome/requestProjectChange) rather than a separate, weaker check.
  */
 test('returns to the project browser immediately when there are no unsaved changes', async ({ page }) => {

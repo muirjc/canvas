@@ -23,11 +23,12 @@ function nextIconNodeId(): string {
 
 export interface DiagramEditorProps {
   diagram: DiagramDto;
-  /** Navigates back to the project browser (App owns the unsaved-changes guard for this, same
-   *  as project switching — see App.tsx's requestGoHome). Optional only so DiagramEditor stays
-   *  usable without a shell around it (there is currently none, but no prop should be load-bearing
-   *  for rendering at all). */
+  /** Navigates back out of the editor (App's navigate() owns the unsaved-changes guard).
+   *  Optional only so DiagramEditor stays usable without a shell around it. */
   onRequestClose?: () => void;
+  /** canvas-t3b.2: where the back button goes, as its label -- the diagram's project name, or
+   *  "Projects" (docs/browse-screen-design.md §7). */
+  backLabel?: string;
   /** canvas-ltm: which side-rail tab opens first -- 'chat' right after Create with AI when the AI
    *  asked follow-up questions, so that exchange is in view. Defaults to the DSL tab. */
   initialRailTab?: 'dsl' | 'chat';
@@ -55,7 +56,7 @@ function initialModelFromDsl(diagram: DiagramDto): DiagramModel {
 }
 
 export const DiagramEditor = forwardRef<DiagramEditorHandle, DiagramEditorProps>(function DiagramEditor(
-  { diagram: initialDiagram, onRequestClose, initialRailTab = 'dsl' },
+  { diagram: initialDiagram, onRequestClose, backLabel = 'Diagrams', initialRailTab = 'dsl' },
   ref,
 ) {
   const [diagram, setDiagram] = useState(initialDiagram);
@@ -193,10 +194,12 @@ export const DiagramEditor = forwardRef<DiagramEditorHandle, DiagramEditorProps>
             type="button"
             className="btn btn--secondary btn--compact"
             data-testid="back-to-diagrams"
+            aria-label={backLabel === 'Projects' ? 'Back to Projects' : `Back to project ${backLabel}`}
+            title={backLabel}
             onClick={onRequestClose}
           >
             <Icon name="chevron-right" className="icon--flip" />
-            Diagrams
+            <span className="editor__back-label">{backLabel}</span>
           </button>
         )}
         <span className="editor__title">

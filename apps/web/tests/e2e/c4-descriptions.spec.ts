@@ -66,13 +66,10 @@ test('C4 descriptions and technology survive a canvas edit, save and reload', as
   await page.getByTestId('save-diagram').click();
   await expect(page.getByTestId('save-status')).toHaveText('saved');
 
-  // Reload and reopen the saved diagram.
+  // Reload: the address carries ?diagramId= (canvas-t3b.2), so this reopens the saved diagram from
+  // the server.
   await page.reload();
   await expect(page.getByTestId('sign-out')).toBeVisible();
-  await page
-    .locator('li.row', { hasText: name })
-    .locator('[data-testid^="open-diagram-"]')
-    .click();
   await expect(page.getByTestId('diagram-canvas')).toBeVisible();
   await expect(page.getByTestId('node-api')).toBeVisible();
 

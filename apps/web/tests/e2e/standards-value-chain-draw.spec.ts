@@ -7,9 +7,7 @@ test.skip(!PROJECT_ID, 'E2E_PROJECT_ID env var not set — run `npm run seed` an
 /** Standards v2 DRAW channel, against the seeded Value Chain reference standard. */
 test('value chain: kind toolbar, live issues, kind styling, connector policy, selection, persistence', async ({ page }) => {
   await login(page);
-  const created = page.waitForResponse((r) => /\/projects\/[^/]+\/diagrams$/.test(r.url()) && r.request().method() === 'POST');
   await newDiagram(page, 'value-chain');
-  const diagramId = (await (await created).json()).diagram.id as string;
 
   // Kind toolbar replaces the free shape grid.
   await expect(page.getByTestId('kind-toolbar')).toBeVisible();
@@ -63,10 +61,9 @@ test('value chain: kind toolbar, live issues, kind styling, connector policy, se
   // Save + reload.
   await page.getByTestId('save-diagram').click();
   await expect(page.getByTestId('save-status')).toHaveText(/saved/i);
-  // A reload lands on the project browser (no diagram id in the URL), so reopen the diagram.
+  // canvas-t3b.2: the address carries ?diagramId=, so a reload reopens this diagram from the server.
   await page.reload();
   await expect(page.getByTestId('sign-out')).toBeVisible();
-  await page.getByTestId(`open-diagram-${diagramId}`).click();
   await expect(page.getByTestId('diagram-canvas')).toBeVisible();
   expect(await readDsl(page)).toContain(':::primary_activity');
   await page.getByTestId(`node-${primary}`).hover();

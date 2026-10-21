@@ -49,6 +49,8 @@ export interface SessionUser {
 export interface DiagramDto {
   id: string;
   name: string;
+  /** The project the diagram belongs to (canvas-t3b.2: the editor's back button goes there). */
+  projectId: string;
   /** canvas-hbk: a few lines of free text describing the diagram — null until an architect sets
    *  one. Distinct from Mermaid's inline `%%` comments inside the DSL body. */
   description: string | null;

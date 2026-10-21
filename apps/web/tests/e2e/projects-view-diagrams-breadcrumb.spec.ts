@@ -14,7 +14,7 @@ test.skip(!PROJECT_ID, 'E2E_PROJECT_ID env var not set — run `npm run seed` an
  * breadcrumb only ever renders while `ProjectBrowser` itself is showing (App.tsx renders
  * `ProjectBrowser` only when no diagram is open), so the unsaved-changes-guard case is exercised
  * through the header's own pre-existing "Projects" button (`view-projects`) instead of the
- * breadcrumb — the same `requestViewProjects`/`view-projects-confirm` guard the breadcrumb's
+ * breadcrumb — the same `requestViewProjects`/`home-nav-confirm` guard the breadcrumb's
  * `onBackToProjects` reuses, just reached via a path that is actually navigable while a diagram is
  * open. Every test creates its own project so rows/counts can't race against the seeded project's
  * accumulated test debris — same precedent as `project-rename-move.spec.ts` and
@@ -111,18 +111,18 @@ test.describe('View Diagrams + breadcrumb', () => {
 
     await page.getByTestId('view-projects').click();
 
-    const confirmDialog = page.getByTestId('view-projects-confirm');
+    const confirmDialog = page.getByTestId('home-nav-confirm');
     await expect(confirmDialog).toBeVisible();
 
     // Keep editing: dialog closes, diagram stays open, unsaved change survives.
-    await page.getByTestId('cancel-view-projects').click();
+    await page.getByTestId('cancel-home-nav').click();
     await expect(confirmDialog).not.toBeVisible();
     await expect(page.getByTestId('diagram-canvas')).toBeVisible();
 
     // Trigger again and this time discard — lands on the Projects screen.
     await page.getByTestId('view-projects').click();
     await expect(confirmDialog).toBeVisible();
-    await page.getByTestId('confirm-view-projects').click();
+    await page.getByTestId('confirm-home-nav').click();
 
     await expect(confirmDialog).not.toBeVisible();
     await expect(page.getByTestId('projects-page-list')).toBeVisible();

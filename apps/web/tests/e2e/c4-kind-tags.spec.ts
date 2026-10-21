@@ -78,7 +78,7 @@ test.afterAll(async ({ browser }) => {
 test('a kind sharing its role is tagged, survives reload, and can be re-picked', async ({ page }) => {
   await login(page);
   await setupType(page);
-  const diagramId = await newTypedDiagram(page);
+  await newTypedDiagram(page);
 
   await expect(page.getByTestId('add-kind-new_system')).toBeVisible();
   const nodeId = await addKind(page, 'new_system');
@@ -90,9 +90,9 @@ test('a kind sharing its role is tagged, survives reload, and can be re-picked',
   expect(source).toMatch(new RegExp(`System\\(${nodeId},[^\\n]*\\$tags="new_system"`));
   expect(source).toMatch(/#22c55e/i);
 
+  // canvas-t3b.2: the address carries ?diagramId=, so a reload reopens this diagram from the server.
   await page.reload();
   await expect(page.getByTestId('sign-out')).toBeVisible();
-  await page.getByTestId(`open-diagram-${diagramId}`).click();
   await expect(page.getByTestId('diagram-canvas')).toBeVisible();
   await expect(page.getByTestId(`node-${nodeId}`)).toBeVisible();
 

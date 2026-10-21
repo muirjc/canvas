@@ -64,7 +64,7 @@ test.afterAll(async ({ browser }) => {
 test('adding a kind via the toolbar persists canvas.kinds + fill, surviving reload', async ({ page }) => {
   await login(page);
   await setupType(page);
-  const diagramId = await newTypedDiagram(page);
+  await newTypedDiagram(page);
 
   await expect(page.getByTestId('kind-toolbar')).toBeVisible();
   await expect(page.getByTestId('add-kind-core_service')).toBeVisible();
@@ -77,9 +77,9 @@ test('adding a kind via the toolbar persists canvas.kinds + fill, surviving relo
   expect(source).toMatch(new RegExp(`kinds:[\\s\\S]*${nodeId}: third_party`));
   expect(source).toMatch(/#fde68a/i);
 
+  // canvas-t3b.2: the address carries ?diagramId=, so a reload reopens this diagram from the server.
   await page.reload();
   await expect(page.getByTestId('sign-out')).toBeVisible();
-  await page.getByTestId(`open-diagram-${diagramId}`).click();
   await expect(page.getByTestId('diagram-canvas')).toBeVisible();
   await expect(page.getByTestId(`node-${nodeId}`)).toBeVisible();
   expect(await readDsl(page)).toMatch(new RegExp(`${nodeId}: third_party`));
