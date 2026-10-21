@@ -65,7 +65,7 @@ test.describe('View Diagrams + breadcrumb', () => {
 
     const targetRow = page.getByTestId(`projects-page-row-${targetId}`);
     await expect(targetRow).toBeVisible();
-    await page.getByTestId(`projects-page-view-diagrams-${targetId}`).click();
+    await page.getByTestId(`projects-page-open-${targetId}`).click();
 
     // Back on the diagram browser, scoped to the target project.
     await expect(page.getByTestId('projects-page-list')).toHaveCount(0);

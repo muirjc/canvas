@@ -58,7 +58,9 @@ test('non-owner with only edit access gets a clear error on delete; dialog close
   await expect(projectBrowser).toBeVisible();
   const row = projectBrowser.locator('li.row', { hasText: diagramName });
   await expect(row).toBeVisible();
-  await row.getByRole('button', { name: 'Delete' }).click();
+  // canvas-t3b.3: row buttons are named "Open/Move/Delete diagram <name>", and this diagram's name
+  // contains "Delete" -- so match the button's own verb at the start.
+  await row.getByRole('button', { name: /^Delete diagram/ }).click();
 
   await expect(granteePage.getByTestId('confirm-dialog')).toBeVisible();
   await granteePage.getByTestId('confirm-dialog-confirm').click();

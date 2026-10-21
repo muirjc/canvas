@@ -14,9 +14,9 @@ export interface SharedDiagramsListProps {
  */
 export function SharedDiagramsList({ diagrams, onOpenDiagram }: SharedDiagramsListProps) {
   return (
-    <section className="card" data-testid="shared-diagrams">
-      <h2 className="section-label">Shared with you</h2>
-      <ul className="project-node__list">
+    <section className="stack" data-testid="shared-diagrams">
+      <h2 className="section-label">Shared with me</h2>
+      <ul className="card project-node__list">
         {diagrams.map((diagram) => (
           <li key={diagram.diagramId} className="row" data-testid={`shared-diagram-${diagram.diagramId}`}>
             <Icon name="diamond" />
@@ -26,12 +26,12 @@ export function SharedDiagramsList({ diagrams, onOpenDiagram }: SharedDiagramsLi
                 {/* Read-only text, deliberately not a link (feature 007's FR-013a, narrowed for
                     this one disclosure) — never the diagram's other diagrams, members, or a way
                     to browse it. */}
-                <span data-testid={`shared-diagram-project-${diagram.diagramId}`}>{diagram.projectName}</span>
+                {/* canvas-t3b.3: who shared it first, then the access, then where it lives. */}
+                Shared by <span data-testid={`shared-diagram-shared-by-${diagram.diagramId}`}>{diagram.sharedByName}</span>
                 {' · '}
                 <span data-testid={`shared-diagram-access-${diagram.diagramId}`}>{diagram.accessLevel}</span>
                 {' · '}
-                Shared by{' '}
-                <span data-testid={`shared-diagram-shared-by-${diagram.diagramId}`}>{diagram.sharedByName}</span>
+                <span data-testid={`shared-diagram-project-${diagram.diagramId}`}>{diagram.projectName}</span>
               </span>
             </span>
             <span className="row__actions">
@@ -39,6 +39,7 @@ export function SharedDiagramsList({ diagrams, onOpenDiagram }: SharedDiagramsLi
                 type="button"
                 className="btn btn--tertiary btn--compact"
                 data-testid={`open-shared-diagram-${diagram.diagramId}`}
+                aria-label={`Open diagram ${diagram.diagramName}`}
                 onClick={() => onOpenDiagram(diagram.diagramId)}
               >
                 Open

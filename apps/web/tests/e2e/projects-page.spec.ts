@@ -169,16 +169,17 @@ test('confirming the discard from the unsaved-changes guard leaves the editor fo
   await expect(page.getByTestId('projects-page-start-create')).toBeVisible();
 });
 
-test('the Back button returns to the home screen', async ({ page }) => {
-  // canvas-t3b.2: Back only renders when a last-opened project exists; opening one via its address
-  // records it as the landing hint.
+test("a project's name opens it, and the breadcrumb returns to the list", async ({ page }) => {
+  // canvas-t3b.3: the list is the Browse top level (no Back button); a project's name is a link to
+  // it, and the project's breadcrumb leads back up.
   await signIn(page, `/?projectId=${PROJECT_ID}`);
-
   await page.getByTestId('view-projects').click();
-  await expect(page.getByTestId('close-projects-page')).toBeVisible();
 
-  await page.getByTestId('close-projects-page').click();
-  await expect(page.getByTestId('projects-page-start-create')).toHaveCount(0);
+  await page.getByTestId(`projects-page-name-${PROJECT_ID}`).click();
+  await expect(page).toHaveURL(new RegExp(`projectId=${PROJECT_ID}`));
   await expect(page.getByTestId('new-diagram')).toBeVisible();
-  await expect(page.getByTestId('view-projects')).toBeVisible();
+
+  await page.getByTestId('project-browser-breadcrumb-back').click();
+  await expect(page.getByTestId('projects-page-start-create')).toBeVisible();
+  await expect(page.getByTestId('new-diagram')).toHaveCount(0);
 });

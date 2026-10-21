@@ -202,6 +202,11 @@ export const DiagramEditor = forwardRef<DiagramEditorHandle, DiagramEditorProps>
             <span className="editor__back-label">{backLabel}</span>
           </button>
         )}
+        {/* canvas-t3b.3: the editor's heading, for screen readers and for focus to land on after
+            opening a diagram (the visible name below is a rename button). */}
+        <h1 className="visually-hidden" tabIndex={-1} data-browse-heading>
+          {diagram.name}
+        </h1>
         <span className="editor__title">
           <Icon name="diamond" />
           {editingName ? (

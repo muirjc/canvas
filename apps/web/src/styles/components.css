@@ -254,6 +254,19 @@
 
 .spacer { flex: 1; }
 
+/* Present for screen readers, invisible on screen (canvas-t3b.3: the editor's <h1>). */
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
 .section-label {
   font-family: var(--font-mono); /* ADP-palette port: small caps-style labels get the mono "data voice" */
   font-size: var(--text-caption-size);

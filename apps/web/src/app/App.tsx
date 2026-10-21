@@ -59,6 +59,8 @@ export function App() {
   // A navigation waiting on the "leave without saving?" confirm; viaHistory = it came from Back/Forward.
   const [pendingNav, setPendingNav] = useState<{ to: Location; viaHistory: boolean } | null>(null);
   const skipGuardOnce = useRef(false);
+  // Set by user-made navigations so the next screen's heading takes focus (canvas-t3b.3).
+  const focusAfterNavigation = useRef(false);
   const [projects, setProjects] = useState<ProjectDto[] | null>(null);
   // Diagrams shared directly with this user, independent of project access (feature 008,
   // FR-001/FR-002). Fetched alongside — not gated on — the project list, since a user with zero
@@ -166,7 +168,10 @@ export function App() {
       return;
     }
     if (options.replace) window.history.replaceState(null, '', urlFor(to));
-    else if (!sameLocation(from, to)) window.history.pushState(null, '', urlFor(to));
+    else if (!sameLocation(from, to)) {
+      window.history.pushState(null, '', urlFor(to));
+      focusAfterNavigation.current = true;
+    }
     setError(null);
     applyLocation(to);
   };
@@ -185,6 +190,7 @@ export function App() {
         return;
       }
       setError(null);
+      focusAfterNavigation.current = true;
       applyLocation(to);
     };
     window.addEventListener('popstate', onPopState);
@@ -262,6 +268,34 @@ export function App() {
   /** The project in view: the one a project screen shows, or the open diagram's. */
   const currentProjectId =
     location.screen === 'project' ? location.projectId : location.screen === 'diagram' ? (diagram?.projectId ?? null) : null;
+  const currentProject = (projects ?? []).find((p) => p.id === currentProjectId) ?? null;
+
+  // canvas-t3b.3: each screen names itself in the tab title -- the cheapest reliable cue for a
+  // screen-reader user that the view changed (design: Accessibility and focus).
+  useEffect(() => {
+    const name =
+      location.screen === 'diagram' ? diagram?.name : location.screen === 'project' ? currentProject?.name : 'Projects';
+    document.title = name ? `${name} – Canvas` : 'Canvas';
+  }, [location, diagram?.name, currentProject?.name]);
+
+  // After a navigation the user made (a click, Back/Forward -- never the first load or a redirect),
+  // move focus to the new screen's <h1>, so the screen reader announces where the user is instead
+  // of focus falling to <body> with the button that was clicked. Retried briefly because a screen
+  // may render its heading a moment later.
+  useEffect(() => {
+    if (!focusAfterNavigation.current) return;
+    focusAfterNavigation.current = false;
+    let attempts = 0;
+    let timer: number | undefined;
+    const focusHeading = () => {
+      const heading = document.querySelector<HTMLElement>('[data-browse-heading]');
+      if (heading) heading.focus();
+      else if (attempts++ < 10) timer = window.setTimeout(focusHeading, 50);
+    };
+    focusHeading();
+    // A further navigation mid-retry must not let this one's timer steal focus later.
+    return () => window.clearTimeout(timer);
+  }, [location]);
 
   /** Opens a diagram the app already has (just created or imported) without fetching it again. */
   const showDiagram = (loaded: DiagramDto) => {
@@ -362,8 +396,6 @@ export function App() {
       </main>
     );
   } else if (location.screen === 'projects' && !hasNoProjects) {
-    const lastProjectId = readLastProjectId();
-    const resumable = lastProjectId && (projects ?? []).some((p) => p.id === lastProjectId) ? lastProjectId : null;
     content = (
       <>
         {error && (
@@ -386,9 +418,9 @@ export function App() {
             if (readLastProjectId() === deletedProjectId) writeLastProjectId(null);
           }}
           onViewDiagrams={(viewProjectId) => navigate({ screen: 'project', projectId: viewProjectId })}
-          // Until the Browse screen replaces this page (canvas-t3b.3), "close" returns to the last
-          // project opened, when there is one.
-          onClose={resumable ? () => navigate({ screen: 'project', projectId: resumable }) : undefined}
+          sharedDiagrams={sharedDiagrams}
+          onOpenDiagram={openDiagram}
+          projectHref={(id) => urlFor({ screen: 'project', projectId: id })}
         />
       </>
     );
@@ -411,12 +443,46 @@ export function App() {
   } else {
     content = (
       <main className="page">
-        <h1 className="page__title">Diagrams</h1>
+        {location.screen === 'project' ? (
+          <>
+            {/* canvas-t3b.3: where you are, and the way back up (design: project level). */}
+            <nav className="project-browser__breadcrumb" data-testid="project-browser-breadcrumb" aria-label="Breadcrumb">
+              <ol>
+                <li>
+                  <a
+                    href={urlFor({ screen: 'projects' })}
+                    data-testid="project-browser-breadcrumb-back"
+                    onClick={(event) => {
+                      if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+                      event.preventDefault();
+                      navigate({ screen: 'projects' });
+                    }}
+                  >
+                    Projects
+                  </a>
+                </li>
+                <li aria-current="page" data-testid="project-browser-breadcrumb-current">
+                  {currentProject?.name ?? 'Project'}
+                </li>
+              </ol>
+            </nav>
+            <h1 className="page__title" tabIndex={-1} data-browse-heading>
+              {currentProject?.name ?? 'Project'}
+            </h1>
+          </>
+        ) : (
+          // The top level for a user with no projects (design: zero-projects states).
+          <h1 className="page__title" tabIndex={-1} data-browse-heading>
+            Projects
+          </h1>
+        )}
 
-        {/* Rendered independent of hasNoProjects below — a user with zero projects still needs
-            to see this (feature 008, FR-002). Omitted entirely, not shown empty, when there is
-            nothing shared (FR-002's clarified behavior). */}
-        {sharedDiagrams.length > 0 && <SharedDiagramsList diagrams={sharedDiagrams} onOpenDiagram={openDiagram} />}
+        {/* The top level only: a user with zero projects still needs to see this (feature 008,
+            FR-002); omitted entirely, not shown empty, when nothing is shared. A user with
+            projects sees it on the project list (ProjectsPage). */}
+        {location.screen !== 'project' && sharedDiagrams.length > 0 && (
+          <SharedDiagramsList diagrams={sharedDiagrams} onOpenDiagram={openDiagram} />
+        )}
 
         {hasNoProjects && sharedDiagrams.length > 0 ? null : hasNoProjects ? (
           /* No projects: invite, never invent. Reachable two ways — an empty installation, and a
@@ -512,7 +578,6 @@ export function App() {
             rootProjectId={location.projectId}
             projects={projects ?? []}
             onOpenDiagram={openDiagram}
-            onBackToProjects={() => navigate({ screen: 'projects' })}
           />
         )}
         {user.role === 'admin' && (
