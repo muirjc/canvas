@@ -404,6 +404,10 @@ az storage blob upload \
   --account-name "$STORAGE_ACCOUNT" --container-name '$web' --name index.html \
   --file "$REPO_ROOT/apps/web/dist/index.html" --content-type "text/html" \
   --content-cache-control "no-cache" --auth-mode login --overwrite --output none
+# canvas-vnh: a saved copy left by pause.sh (a resume that didn't finish) is now stale -- remove it
+# so a later resume.sh can't put an older build back over this one.
+az storage blob delete --account-name "$STORAGE_ACCOUNT" --container-name '$web' --name index.live.html \
+  --auth-mode login --output none 2>/dev/null || true
 
 # Polls a Container Apps Job execution until it reaches a terminal state, failing the whole
 # deploy (set -e) if the job itself fails -- a clean build with a failed migration or an empty

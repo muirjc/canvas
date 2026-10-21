@@ -31,5 +31,26 @@ until [[ "$(az postgres flexible-server show --resource-group "$RESOURCE_GROUP" 
 done
 echo "  Postgres is Ready."
 
+# canvas-vnh: put the app's page back (pause.sh saved it as index.live.html), last, so the site
+# only comes back once the database it needs is up.
+STORAGE_ACCOUNT="$(az storage account list --resource-group "$RESOURCE_GROUP" --query "[0].name" -o tsv)"
+echo
+echo "== Bringing the web site back =="
+if [[ "$(az storage blob exists --account-name "$STORAGE_ACCOUNT" --container-name '$web' --name index.live.html \
+  --auth-mode login --query exists -o tsv)" == "true" ]]; then
+  live_copy="$(mktemp)"
+  az storage blob download --account-name "$STORAGE_ACCOUNT" --container-name '$web' --name index.live.html \
+    --file "$live_copy" --auth-mode login --no-progress --output none
+  az storage blob upload --account-name "$STORAGE_ACCOUNT" --container-name '$web' --name index.html \
+    --file "$live_copy" --content-type "text/html" --content-cache-control "no-cache" \
+    --auth-mode login --overwrite --no-progress --output none
+  rm -f "$live_copy"
+  az storage blob delete --account-name "$STORAGE_ACCOUNT" --container-name '$web' --name index.live.html \
+    --auth-mode login --output none
+  echo "  The app is back (index.html restored from index.live.html)."
+else
+  echo "  No paused page in place -- nothing to restore."
+fi
+
 echo
 echo "== Resumed. canvas-api will take a few seconds to warm up on its next request. =="
