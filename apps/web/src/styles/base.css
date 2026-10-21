@@ -279,7 +279,7 @@ dd {
   font-weight: var(--text-body-strong-weight);
 }
 
-/* Bare <nav> only — components with their own nav class (.admin-nav, .home__admin) win on
+/* Bare <nav> only — components with their own nav class (.admin-nav, .app-nav) win on
    specificity and keep their own layout. */
 nav {
   display: flex;

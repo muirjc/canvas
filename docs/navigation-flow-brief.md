@@ -1,6 +1,9 @@
 # Requirements Brief: Projects ↔ Diagrams Navigation Flow
 
-**Status**: Ready for `/speckit-specify` (one grouping at a time — see §6)
+**Status**: Implemented. Option A shipped as `canvas-3vq`; **Option B** — one drill-in Browse
+screen, no global "current project" — then shipped as epic `canvas-t3b` (2026-10-21), designed in
+[browse-screen-design.md](browse-screen-design.md). The file:line citations below describe the app
+as it was when this brief was written.
 **Created**: 2026-08-02
 **Source**: Design review of the Projects/Diagrams information architecture, requested directly
 (not derived from `docs/ui-review-brief.md`, which predates `canvas-228`'s `ProjectsPage` and
