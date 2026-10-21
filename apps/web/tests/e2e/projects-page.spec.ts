@@ -58,8 +58,8 @@ test('the Projects button is visible once signed in and lists the current projec
   await page.goto(`/?projectId=${projectId}`);
   await expect(page.getByTestId('sign-out')).toBeVisible();
 
-  await expect(page.getByTestId('view-projects')).toBeVisible();
-  await page.getByTestId('view-projects').click();
+  await expect(page.getByTestId('nav-projects')).toBeVisible();
+  await page.getByTestId('nav-projects').click();
 
   const row = page.getByTestId(`projects-page-row-${projectId}`);
   await expect(row).toBeVisible();
@@ -80,7 +80,7 @@ test('a brand-new project with zero diagrams is listed as "0 diagrams"', async (
 
   await page.goto(`/?projectId=${projectId}`);
   await expect(page.getByTestId('sign-out')).toBeVisible();
-  await page.getByTestId('view-projects').click();
+  await page.getByTestId('nav-projects').click();
 
   await expect(page.getByTestId(`projects-page-diagram-count-${projectId}`)).toHaveText('0 diagrams');
 });
@@ -90,7 +90,7 @@ test('creating a project from the Projects screen makes it the active project an
 }) => {
   await signIn(page, `/?projectId=${PROJECT_ID}`);
 
-  await page.getByTestId('view-projects').click();
+  await page.getByTestId('nav-projects').click();
   await expect(page.getByTestId('projects-page-start-create')).toBeVisible();
   await page.getByTestId('projects-page-start-create').click();
 
@@ -103,16 +103,15 @@ test('creating a project from the Projects screen makes it the active project an
   await expect(page.getByTestId('new-diagram')).toBeVisible();
 
   // The new project is now the active project...
-  await expect(page.getByTestId('project-name')).toHaveText(newName);
-  // ...and is selectable from the picker without a reload (mirrors createFirstProject's own
-  // local-state update, and the assertion style project-visibility.spec.ts uses for its own
-  // `project-picker-option` checks).
-  await expect(page.getByTestId('project-picker-option').filter({ hasText: newName })).toHaveCount(1);
+  await expect(page.getByTestId('project-browser-breadcrumb-current')).toHaveText(newName);
+  // ...and is listed on the project list without a reload (canvas-t3b.4: the header picker is gone).
+  await page.getByTestId('nav-projects').click();
+  await expect(page.getByTestId('projects-page-list').getByText(newName)).toHaveCount(1);
 });
 
 test('cancelling the create form discards the in-progress name without creating anything', async ({ page }) => {
   await signIn(page, `/?projectId=${PROJECT_ID}`);
-  await page.getByTestId('view-projects').click();
+  await page.getByTestId('nav-projects').click();
   await page.getByTestId('projects-page-start-create').click();
 
   const abandonedName = `Projects Page Abandoned ${Date.now()}`;
@@ -142,7 +141,7 @@ test('warns before discarding unsaved changes when navigating to Projects, and c
   await page.getByTestId('add-shape-rectangle').click();
   await expect(page.locator('[data-testid^="node-"]')).toHaveCount(1);
 
-  await page.getByTestId('view-projects').click();
+  await page.getByTestId('nav-projects').click();
   await expect(page.getByTestId('home-nav-confirm')).toBeVisible();
 
   await page.getByTestId('cancel-home-nav').click();
@@ -160,7 +159,7 @@ test('confirming the discard from the unsaved-changes guard leaves the editor fo
   await page.getByTestId('add-shape-rectangle').click();
   await expect(page.locator('[data-testid^="node-"]')).toHaveCount(1);
 
-  await page.getByTestId('view-projects').click();
+  await page.getByTestId('nav-projects').click();
   await expect(page.getByTestId('home-nav-confirm')).toBeVisible();
   await page.getByTestId('confirm-home-nav').click();
 
@@ -173,7 +172,7 @@ test("a project's name opens it, and the breadcrumb returns to the list", async 
   // canvas-t3b.3: the list is the Browse top level (no Back button); a project's name is a link to
   // it, and the project's breadcrumb leads back up.
   await signIn(page, `/?projectId=${PROJECT_ID}`);
-  await page.getByTestId('view-projects').click();
+  await page.getByTestId('nav-projects').click();
 
   await page.getByTestId(`projects-page-name-${PROJECT_ID}`).click();
   await expect(page).toHaveURL(new RegExp(`projectId=${PROJECT_ID}`));

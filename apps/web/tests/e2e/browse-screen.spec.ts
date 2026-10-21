@@ -47,7 +47,7 @@ async function headingFocused(page: Page): Promise<boolean> {
 /** Lands on the Projects top level regardless of landing-rule redirects. */
 async function gotoTopLevel(page: Page): Promise<void> {
   if (!(await page.getByTestId('projects-page-list').isVisible())) {
-    await page.getByTestId('view-projects').click();
+    await page.getByTestId('nav-projects').click();
   }
   await expect(page.getByRole('heading', { level: 1, name: 'Projects' })).toBeVisible();
 }

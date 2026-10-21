@@ -45,6 +45,51 @@
 
 .app-wordmark svg { color: var(--accent); }
 
+/* canvas-t3b.4: the header's sections, right after the wordmark. */
+.app-nav {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  margin-inline-end: auto;
+}
+
+.app-nav__link {
+  padding: var(--space-1) var(--space-2);
+  border-radius: var(--radius-md);
+  color: var(--text-secondary);
+}
+
+.app-nav__link:hover {
+  color: var(--text-primary);
+  text-decoration: none;
+  background: var(--surface-sunken, rgba(0, 0, 0, 0.04));
+}
+
+.app-nav__link[aria-current='page'] {
+  color: var(--text-primary);
+  font-weight: var(--text-body-strong-weight);
+}
+
+/* Off screen until focused: the first Tab stop, jumping past the header. */
+.skip-link {
+  position: absolute;
+  left: var(--space-2);
+  top: -100px;
+  z-index: 20;
+  padding: var(--space-2) var(--space-3);
+  background: var(--surface-raised);
+  border: var(--border-width) solid var(--border-default);
+  border-radius: var(--radius-md);
+}
+
+.skip-link:focus {
+  top: var(--space-2);
+}
+
+.app-content:focus {
+  outline: none;
+}
+
 .app-content {
   flex: 1;
   min-height: 0;

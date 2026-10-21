@@ -31,7 +31,9 @@ test('admin manages the persona library; a non-admin cannot reach the screen', a
   await page.getByTestId('login-submit').click();
   await expectSignedIn(page);
 
-  await page.getByTestId('admin-ai-personas-link').click();
+  // canvas-t3b.4: header Admin link, then the admin side nav (the project page's admin links are gone).
+  await page.getByTestId('nav-admin').click();
+  await page.getByTestId('admin-nav-ai-personas').click();
   await expect(page.getByTestId('persona-create-submit')).toBeVisible();
 
   // Turn AI chat on from the same screen (FR-020's admin toggle).
@@ -54,7 +56,9 @@ test('admin manages the persona library; a non-admin cannot reach the screen', a
   // Edit the persona's system prompt via the explicit Save action (canvas-ddx) — blur alone no
   // longer commits. A persisted change confirms via a reload (state comes straight from the API,
   // not React state alone).
-  await page.getByTestId('admin-ai-personas-link').click();
+  // canvas-t3b.4: header Admin link, then the admin side nav (the project page's admin links are gone).
+  await page.getByTestId('nav-admin').click();
+  await page.getByTestId('admin-nav-ai-personas').click();
   const row = page.locator('li', { has: page.locator('strong', { hasText: personaName }) });
   // Scoped to the tag AND the id-prefix: User Story 4 (010-ai-diagram-knowledge) added a second,
   // sibling <textarea> per row for reference-material entries (data-testid

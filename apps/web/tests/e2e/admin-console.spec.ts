@@ -79,7 +79,11 @@ test('the current admin destination is visually distinguishable', async ({ page 
 });
 
 test('an admin can get back to the diagrams without editing the URL', async ({ page }) => {
-  await signIn(page, ADMIN_EMAIL, ADMIN_PASSWORD, `/?projectId=${PROJECT_ID}&admin=users`);
+  // canvas-t3b.4: back returns to the last Browse screen of this tab, so browse a project first.
+  await signIn(page, ADMIN_EMAIL, ADMIN_PASSWORD, `/?projectId=${PROJECT_ID}`);
+  await expect(page.getByTestId('new-diagram')).toBeVisible();
+  await page.getByTestId('nav-admin').click();
+  await page.getByTestId('admin-nav-users').click();
 
   // FR-003: today this route does not exist at all.
   await page.getByTestId('admin-back-to-diagrams').click();

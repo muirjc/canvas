@@ -78,3 +78,28 @@ export function writeLastProjectId(projectId: string | null): void {
     // A landing hint is optional; losing it just means landing on the top level.
   }
 }
+
+const LAST_BROWSE_KEY = 'canvas.lastBrowseLocation';
+
+/**
+ * canvas-t3b.4: the last Browse screen (project list or a project) in this tab, as an address --
+ * where the admin console's back link returns (design §7). Per tab (sessionStorage), and guarded
+ * like the landing hint.
+ */
+export function readLastBrowseHref(): string | null {
+  try {
+    return window.sessionStorage.getItem(LAST_BROWSE_KEY);
+  } catch {
+    return null;
+  }
+}
+
+export function writeLastBrowse(location: Location): void {
+  if (location.screen === 'diagram') return; // the editor isn't a Browse screen
+  const search = locationToSearch(location);
+  try {
+    window.sessionStorage.setItem(LAST_BROWSE_KEY, search === '?' ? '/' : `/${search}`);
+  } catch {
+    // Optional: without it the admin console's back link goes to the project list.
+  }
+}
