@@ -1,7 +1,8 @@
 import { useState } from 'react';
-import { api, ApiError, type ProjectDto, type SessionUser } from '../app/api';
+import { api, ApiError, type ProjectDto, type SessionUser, type SharedDiagramDto } from '../app/api';
 import { ConfirmDialog } from '../canvas/ConfirmDialog';
 import { Icon } from '../ui/Icon';
+import { SharedDiagramsList } from './SharedDiagramsList';
 
 export interface ProjectsPageProps {
   projects: ProjectDto[];
@@ -9,20 +10,31 @@ export interface ProjectsPageProps {
   onCreated: (project: ProjectDto) => void;
   onRenamed: (projectId: string, name: string) => void;
   onDeleted: (projectId: string) => void;
-  /** canvas-3vq.2: switches to that project and returns to the diagram browser — this screen
-   *  used to be a dead end with no way to actually go look at a project's diagrams. */
+  /** Opens that project's diagrams (canvas-3vq.2; the drill-in of canvas-t3b.3's Browse screen). */
   onViewDiagrams: (projectId: string) => void;
-  /** canvas-t3b.2: returns to the last project opened; omitted (no Back button) when there's none. */
-  onClose?: () => void;
+  /** canvas-t3b.3: diagrams shared directly with the user, listed under the projects (design §6). */
+  sharedDiagrams: SharedDiagramDto[];
+  onOpenDiagram: (diagramId: string) => void;
+  /** The address of a project's screen, so its name is a real link (open in a new tab, copy). */
+  projectHref: (projectId: string) => string;
 }
 
 /**
- * canvas-228.1: the only way to create a project used to be App.tsx's zero-projects onboarding
- * flow (createFirstProject) — once a user had one, there was no way to create another. This
- * screen generalizes that (same createProject API), and gives every project a permanent,
- * navigable home for the rename and delete (canvas-228.3/canvas-228.2) actions.
+ * The Browse top level (canvas-t3b.3, docs/browse-screen-design.md): every project the user can
+ * see -- filter, create, rename, delete (canvas-228.1/.2/.3) -- each opening onto its diagrams, and
+ * below them the diagrams shared directly with the user.
  */
-export function ProjectsPage({ projects, currentUser, onCreated, onRenamed, onDeleted, onViewDiagrams, onClose }: ProjectsPageProps) {
+export function ProjectsPage({
+  projects,
+  currentUser,
+  onCreated,
+  onRenamed,
+  onDeleted,
+  onViewDiagrams,
+  sharedDiagrams,
+  onOpenDiagram,
+  projectHref,
+}: ProjectsPageProps) {
   const [creating, setCreating] = useState(false);
   const [name, setName] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -51,16 +63,22 @@ export function ProjectsPage({ projects, currentUser, onCreated, onRenamed, onDe
     }
   };
 
+  /** Leaves rename mode and puts focus back on that row's Rename button (canvas-t3b.3). */
+  const endRename = (projectId: string) => {
+    setRenamingId(null);
+    window.setTimeout(() => document.querySelector<HTMLElement>(`[data-testid="projects-page-rename-${projectId}"]`)?.focus(), 0);
+  };
+
   const commitRename = async (projectId: string, newName: string, previousName: string) => {
     if (!newName.trim() || newName === previousName) {
-      setRenamingId(null);
+      endRename(projectId);
       return;
     }
     setRenameError(null);
     try {
       const { project } = await api.renameProject(projectId, newName);
       onRenamed(projectId, project.name);
-      setRenamingId(null);
+      endRename(projectId);
     } catch (err) {
       setRenameError(err instanceof ApiError ? err.message : (err as Error).message);
     }
@@ -83,20 +101,35 @@ export function ProjectsPage({ projects, currentUser, onCreated, onRenamed, onDe
   const filteredProjects = normalizedFilter ? projects.filter((project) => project.name.toLowerCase().includes(normalizedFilter)) : projects;
 
   return (
-    <main className="page">
-      <div className="cluster" style={{ justifyContent: 'space-between' }}>
-        <h1 className="page__title">Projects</h1>
-        {onClose && (
-          <button type="button" className="btn btn--secondary btn--compact" data-testid="close-projects-page" onClick={onClose}>
-            <Icon name="chevron-right" className="icon--flip" />
-            Back
+    <main className="page stack">
+      {/* Focused after an in-app navigation lands here (design: Accessibility and focus). */}
+      <h1 className="page__title" tabIndex={-1} data-browse-heading>
+        Projects
+      </h1>
+
+      {/* Toolbar: filter first, then New Project (design: top level, keyboard order). The create
+          form opens in a card of its own. */}
+      <div className="cluster browse-toolbar">
+        {projects.length > 0 && (
+          <input
+            className="browse-toolbar__filter"
+            data-testid="projects-page-filter"
+            aria-label="Filter projects by name"
+            placeholder="Filter projects…"
+            value={filter}
+            onChange={(event) => setFilter(event.target.value)}
+          />
+        )}
+        {!creating && (
+          <button type="button" className="btn btn--primary" data-testid="projects-page-start-create" onClick={() => setCreating(true)}>
+            <Icon name="plus" />
+            New Project
           </button>
         )}
       </div>
-
-      <section className="card">
-        <div className="panel__body">
-          {creating ? (
+      {creating && (
+        <section className="card">
+          <div className="panel__body">
             <form
               onSubmit={(event) => {
                 event.preventDefault();
@@ -134,19 +167,14 @@ export function ProjectsPage({ projects, currentUser, onCreated, onRenamed, onDe
                 </button>
               </div>
             </form>
-          ) : (
-            <button type="button" className="btn btn--primary" data-testid="projects-page-start-create" onClick={() => setCreating(true)}>
-              <Icon name="plus" />
-              New Project
-            </button>
-          )}
-          {error && (
-            <p role="alert" data-testid="projects-page-error">
-              {error}
-            </p>
-          )}
-        </div>
-      </section>
+          </div>
+        </section>
+      )}
+      {error && (
+        <p role="alert" data-testid="projects-page-error">
+          {error}
+        </p>
+      )}
 
       {projects.length === 0 ? (
         <p className="state" data-testid="projects-page-empty">
@@ -154,15 +182,6 @@ export function ProjectsPage({ projects, currentUser, onCreated, onRenamed, onDe
         </p>
       ) : (
         <>
-          <div className="field">
-            <input
-              data-testid="projects-page-filter"
-              aria-label="Filter projects by name"
-              placeholder="Filter projects…"
-              value={filter}
-              onChange={(event) => setFilter(event.target.value)}
-            />
-          </div>
           {filteredProjects.length === 0 ? (
             <p className="state" data-testid="projects-page-filter-empty">
               No projects match &ldquo;{filter}&rdquo;.
@@ -186,12 +205,25 @@ export function ProjectsPage({ projects, currentUser, onCreated, onRenamed, onDe
                           onClick={(event) => event.stopPropagation()}
                           onKeyDown={(event) => {
                             if (event.key === 'Enter') void commitRename(project.id, (event.target as HTMLInputElement).value, project.name);
-                            if (event.key === 'Escape') setRenamingId(null);
+                            if (event.key === 'Escape') endRename(project.id);
                           }}
                           onBlur={(event) => void commitRename(project.id, event.target.value, project.name)}
                         />
                       ) : (
-                        <span className="row__title">{project.name}</span>
+                        // The name is a real link to the project as well as the Open button
+                        // (design: names shouldn't read as dead text); a plain click stays in-app.
+                        <a
+                          className="row__title"
+                          href={projectHref(project.id)}
+                          data-testid={`projects-page-name-${project.id}`}
+                          onClick={(event) => {
+                            if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+                            event.preventDefault();
+                            onViewDiagrams(project.id);
+                          }}
+                        >
+                          {project.name}
+                        </a>
                       )}
                       <span className="meta" data-testid={`projects-page-diagram-count-${project.id}`}>
                         {project.diagramCount} diagram{project.diagramCount === 1 ? '' : 's'}
@@ -202,10 +234,11 @@ export function ProjectsPage({ projects, currentUser, onCreated, onRenamed, onDe
                         <button
                           type="button"
                           className="btn btn--tertiary btn--compact"
-                          data-testid={`projects-page-view-diagrams-${project.id}`}
+                          data-testid={`projects-page-open-${project.id}`}
+                          aria-label={`Open project ${project.name}`}
                           onClick={() => onViewDiagrams(project.id)}
                         >
-                          View Diagrams
+                          Open
                         </button>
                         {canManage && (
                           <>
@@ -213,6 +246,7 @@ export function ProjectsPage({ projects, currentUser, onCreated, onRenamed, onDe
                               type="button"
                               className="btn btn--tertiary btn--compact"
                               data-testid={`projects-page-rename-${project.id}`}
+                              aria-label={`Rename project ${project.name}`}
                               onClick={() => setRenamingId(project.id)}
                             >
                               <Icon name="pencil" size={12} />
@@ -222,6 +256,7 @@ export function ProjectsPage({ projects, currentUser, onCreated, onRenamed, onDe
                               type="button"
                               className="btn btn--tertiary-danger btn--compact"
                               data-testid={`projects-page-delete-${project.id}`}
+                              aria-label={`Delete project ${project.name}`}
                               disabled={project.diagramCount > 0}
                               title={project.diagramCount > 0 ? 'Only a project with no diagrams can be deleted.' : undefined}
                               onClick={() => setPendingDelete({ id: project.id, name: project.name })}
@@ -241,6 +276,7 @@ export function ProjectsPage({ projects, currentUser, onCreated, onRenamed, onDe
         </>
 
       )}
+      {sharedDiagrams.length > 0 && <SharedDiagramsList diagrams={sharedDiagrams} onOpenDiagram={onOpenDiagram} />}
       {renameError && (
         <p role="alert" data-testid="projects-page-rename-error">
           {renameError}

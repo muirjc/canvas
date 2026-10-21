@@ -681,14 +681,41 @@
   flex: 1 1 240px;
 }
 
+/* ---- Browse top level toolbar (canvas-t3b.3): filter, then New Project ---- */
+
+.browse-toolbar {
+  flex-wrap: wrap;
+  /* the list below resets its own margin, so the gap lives here */
+  margin-block-end: var(--space-4);
+}
+
+.browse-toolbar__filter {
+  flex: 1 1 240px;
+}
+
 /* ---- Project browser breadcrumb (canvas-3vq.2) --------------------------- */
 
 .project-browser__breadcrumb {
+  margin-block-end: var(--space-2);
+  color: var(--text-secondary);
+  font-size: var(--text-small-size);
+}
+
+/* canvas-t3b.3: an ordered list (Projects › name), the last item the current page. */
+.project-browser__breadcrumb ol {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: var(--space-1);
-  margin-block-end: var(--space-3);
-  color: var(--text-secondary);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.project-browser__breadcrumb li + li::before {
+  content: '›' / ''; /* decorative: empty alternative text, so it isn't read aloud */
+  margin-inline-end: var(--space-1);
+  color: var(--text-tertiary);
 }
 
 /* ---- Standards admin (canvas-tfr) ----------------------------------------- */

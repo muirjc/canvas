@@ -11,14 +11,13 @@ export interface ProjectBrowserProps {
    *  doesn't need its own copy of App.tsx's already-loaded project list. */
   projects: ProjectDto[];
   onOpenDiagram: (diagramId: string) => void;
-  /** canvas-3vq.2: the breadcrumb's link back to the Projects screen — reuses App.tsx's existing
-   *  requestViewProjects, same unsaved-changes guard as the header's own "Projects" button. */
-  onBackToProjects: () => void;
 }
 
 interface DiagramActionsProps {
   diagramId: string;
   diagramName: string;
+  /** canvas-t3b.3: the diagram type's name, shown beside the diagram's (design: project level). */
+  typeName?: string;
   currentProjectId: string;
   onOpenDiagram: (id: string) => void;
   onRequestDelete: (diagramId: string, diagramName: string) => void;
@@ -27,18 +26,20 @@ interface DiagramActionsProps {
 
 /** One diagram row's Open/Move/Delete actions — shared by the recursive tree view and the flat
  *  search-results view (canvas-3vq.1) so the two can't drift apart on testids or behavior. */
-function DiagramRow({ diagramId, diagramName, currentProjectId, onOpenDiagram, onRequestDelete, onRequestMove }: DiagramActionsProps) {
+function DiagramRow({ diagramId, diagramName, typeName, currentProjectId, onOpenDiagram, onRequestDelete, onRequestMove }: DiagramActionsProps) {
   return (
     <li className="row">
       <Icon name="diamond" />
       <span className="row__main">
         <span className="row__title">{diagramName}</span>
+        {typeName && <span className="meta">{typeName}</span>}
       </span>
       <span className="row__actions">
         <button
           type="button"
           className="btn btn--tertiary btn--compact"
           data-testid={`open-diagram-${diagramId}`}
+          aria-label={`Open diagram ${diagramName}`}
           onClick={() => onOpenDiagram(diagramId)}
         >
           Open
@@ -47,6 +48,7 @@ function DiagramRow({ diagramId, diagramName, currentProjectId, onOpenDiagram, o
           type="button"
           className="btn btn--tertiary btn--compact"
           data-testid={`move-diagram-${diagramId}`}
+          aria-label={`Move diagram ${diagramName}`}
           onClick={() => onRequestMove(diagramId, diagramName, currentProjectId)}
         >
           Move
@@ -55,6 +57,7 @@ function DiagramRow({ diagramId, diagramName, currentProjectId, onOpenDiagram, o
           type="button"
           className="btn btn--tertiary-danger btn--compact"
           data-testid={`delete-diagram-${diagramId}`}
+          aria-label={`Delete diagram ${diagramName}`}
           onClick={() => onRequestDelete(diagramId, diagramName)}
         >
           Delete
@@ -66,6 +69,7 @@ function DiagramRow({ diagramId, diagramName, currentProjectId, onOpenDiagram, o
 
 interface TreeNodeProps {
   node: ProjectTreeNodeDto;
+  typeNameOf: (diagramTypeId: string) => string | undefined;
   onOpenDiagram: (id: string) => void;
   onRequestDelete: (diagramId: string, diagramName: string) => void;
   onRequestMove: (diagramId: string, diagramName: string, currentProjectId: string) => void;
@@ -75,7 +79,7 @@ function countDiagrams(node: ProjectTreeNodeDto): number {
   return node.diagrams.length + node.children.reduce((sum, child) => sum + countDiagrams(child), 0);
 }
 
-function TreeNode({ node, onOpenDiagram, onRequestDelete, onRequestMove }: TreeNodeProps) {
+function TreeNode({ node, typeNameOf, onOpenDiagram, onRequestDelete, onRequestMove }: TreeNodeProps) {
   const total = countDiagrams(node);
   return (
     <li className="project-node">
@@ -95,6 +99,7 @@ function TreeNode({ node, onOpenDiagram, onRequestDelete, onRequestMove }: TreeN
             key={diagram.id}
             diagramId={diagram.id}
             diagramName={diagram.name}
+            typeName={typeNameOf(diagram.diagramTypeId)}
             currentProjectId={node.id}
             onOpenDiagram={onOpenDiagram}
             onRequestDelete={onRequestDelete}
@@ -102,7 +107,14 @@ function TreeNode({ node, onOpenDiagram, onRequestDelete, onRequestMove }: TreeN
           />
         ))}
         {node.children.map((child) => (
-          <TreeNode key={child.id} node={child} onOpenDiagram={onOpenDiagram} onRequestDelete={onRequestDelete} onRequestMove={onRequestMove} />
+          <TreeNode
+            key={child.id}
+            node={child}
+            typeNameOf={typeNameOf}
+            onOpenDiagram={onOpenDiagram}
+            onRequestDelete={onRequestDelete}
+            onRequestMove={onRequestMove}
+          />
         ))}
       </ul>
     </li>
@@ -110,7 +122,7 @@ function TreeNode({ node, onOpenDiagram, onRequestDelete, onRequestMove }: TreeN
 }
 
 /** Project/folder browser (FR-016): browse a nested project hierarchy, open, or delete a diagram. */
-export function ProjectBrowser({ rootProjectId, projects, onOpenDiagram, onBackToProjects }: ProjectBrowserProps) {
+export function ProjectBrowser({ rootProjectId, projects, onOpenDiagram }: ProjectBrowserProps) {
   const [tree, setTree] = useState<ProjectTreeNodeDto | null>(null);
   const [status, setStatus] = useState<'loading' | 'ready' | 'error'>('loading');
   const [pendingDelete, setPendingDelete] = useState<{ id: string; name: string } | null>(null);
@@ -229,6 +241,7 @@ export function ProjectBrowser({ rootProjectId, projects, onOpenDiagram, onBackT
   }
 
   const isEmpty = countDiagrams(tree) === 0;
+  const typeNameOf = (diagramTypeId: string) => diagramTypes.find((type) => type.id === diagramTypeId)?.name;
   const requestDelete = (id: string, name: string) => setPendingDelete({ id, name });
   const requestMove = (id: string, name: string, projectId: string) => {
     setDestinationProjectId('');
@@ -238,20 +251,7 @@ export function ProjectBrowser({ rootProjectId, projects, onOpenDiagram, onBackT
 
   return (
     <div>
-      <nav className="project-browser__breadcrumb" data-testid="project-browser-breadcrumb" aria-label="Breadcrumb">
-        <button
-          type="button"
-          className="btn btn--tertiary btn--compact"
-          data-testid="project-browser-breadcrumb-back"
-          onClick={onBackToProjects}
-        >
-          <Icon name="chevron-right" className="icon--flip" />
-          Projects
-        </button>
-        <Icon name="chevron-right" size={12} />
-        <span data-testid="project-browser-breadcrumb-current">{tree.name}</span>
-      </nav>
-
+      {/* canvas-t3b.3: the breadcrumb now sits above the project's <h1>, in App.tsx. */}
       <div className="cluster project-browser__filters">
         <input
           data-testid="project-browser-search"
@@ -306,6 +306,7 @@ export function ProjectBrowser({ rootProjectId, projects, onOpenDiagram, onBackT
                   key={diagram.id}
                   diagramId={diagram.id}
                   diagramName={diagram.name}
+                  typeName={typeNameOf(diagram.diagramTypeId)}
                   currentProjectId={diagram.projectId}
                   onOpenDiagram={onOpenDiagram}
                   onRequestDelete={requestDelete}
@@ -318,7 +319,13 @@ export function ProjectBrowser({ rootProjectId, projects, onOpenDiagram, onBackT
       ) : (
         <>
           <ul className="card" data-testid="project-browser">
-            <TreeNode node={tree} onOpenDiagram={onOpenDiagram} onRequestDelete={requestDelete} onRequestMove={requestMove} />
+            <TreeNode
+              node={tree}
+              typeNameOf={typeNameOf}
+              onOpenDiagram={onOpenDiagram}
+              onRequestDelete={requestDelete}
+              onRequestMove={requestMove}
+            />
           </ul>
           {isEmpty && (
             <p className="state" data-testid="project-browser-empty">

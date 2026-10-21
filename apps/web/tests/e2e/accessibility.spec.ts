@@ -23,6 +23,10 @@ async function auditPage(page: import('@playwright/test').Page) {
 }
 
 test.describe('Accessibility (WCAG 2.1 AA)', () => {
+  // axe scans every element on the page; a developer database whose shared test project has
+  // accumulated a thousand-plus diagrams takes it past the 30s default (CI's fresh database doesn't).
+  test.describe.configure({ timeout: 90_000 });
+
   test('login page has no violations', async ({ page }) => {
     await page.goto('/');
     await auditPage(page);

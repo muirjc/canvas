@@ -25,7 +25,7 @@ async function signIn(page: Page, url: string) {
 async function openSeededProject(page: Page) {
   await expect(page.getByTestId('projects-page-list')).toBeVisible();
   await expect(page.getByTestId('new-diagram')).toHaveCount(0);
-  await page.getByTestId(`projects-page-view-diagrams-${PROJECT_ID}`).click();
+  await page.getByTestId(`projects-page-open-${PROJECT_ID}`).click();
   await expect(page.getByTestId('new-diagram')).toBeVisible();
 }
 
