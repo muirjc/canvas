@@ -4,38 +4,23 @@ import { Icon } from '../ui/Icon';
 export interface AppShellProps {
   user: SessionUser;
   onSignOut: () => void;
-  /**
-   * The project chooser (feature 007). It belongs in the shared header for the same reason
-   * sign-out does: every view needs it. Putting it only on the home screen would mean the user
-   * cannot tell which project they are in while editing (FR-008), and would make the
-   * unsaved-changes warning unreachable — you cannot switch project from a screen that has no
-   * switcher (FR-013d).
-   */
-  projectPicker?: React.ReactNode;
-  /** canvas-228.1: a "Projects" nav entry point, reachable from anywhere — same reasoning as
-   *  projectPicker above (a screen with no chrome of its own would make it unreachable while
-   *  editing a diagram). Optional only so AppShell stays usable before the project list has
-   *  loaded, mirroring projectPicker's own optionality. */
-  projectsLink?: React.ReactNode;
+  /** canvas-t3b.4: which header link is the current section ('browse' at both Browse levels). */
+  currentSection: 'browse' | 'admin' | null;
+  /** The project list's address, and the in-app way to get there (App's guarded navigate()). */
+  projectsHref: string;
+  onNavigateProjects: () => void;
   children: React.ReactNode;
 }
 
 /**
  * Persistent header wrapping every authenticated view (FR-001: sign-out must be visible and
- * always-reachable — this app has no other shared chrome, so without this wrapper sign-out
- * would need to be duplicated into each view and would be missed on some, as every view added
- * before this feature demonstrates).
+ * always-reachable). canvas-t3b.4 (docs/browse-screen-design.md §4): with no "current project"
+ * the header no longer needs to know one -- it's the same on every screen: the wordmark, the
+ * Projects and Admin sections, the user and Sign Out, plus a skip link past it all.
  */
-export function AppShell({ user, onSignOut, projectPicker, projectsLink, children }: AppShellProps) {
+export function AppShell({ user, onSignOut, currentSection, projectsHref, onNavigateProjects, children }: AppShellProps) {
   const handleSignOut = async () => {
     const result = await api.logout();
-    // canvas-252: an SSO session's sign-out isn't done yet -- the local session is already gone
-    // (the API call above destroyed it), but Keycloak's own SSO session cookie is still live
-    // until the browser actually visits its end_session_endpoint. A real top-level navigation
-    // (not another fetch) is required for that -- fetch() would silently follow the redirect
-    // chain in the background without the browser ever loading the page that clears the cookie.
-    // Keycloak redirects back to this app once done, landing on a fresh, fully-signed-out load,
-    // so onSignOut()'s React-state reset is unnecessary (and moot -- the page is navigating away).
     if (result?.logoutUrl) {
       window.location.href = result.logoutUrl;
       return;
@@ -45,21 +30,51 @@ export function AppShell({ user, onSignOut, projectPicker, projectsLink, childre
 
   return (
     <div className="app-shell">
+      <a className="skip-link" href="#main-content" data-testid="skip-to-main">
+        Skip to main content
+      </a>
       <header className="app-header">
         <span className="app-wordmark">
           <Icon name="diamond" />
           Canvas
         </span>
+        <nav className="app-nav" aria-label="Primary">
+          <a
+            className="app-nav__link"
+            href={projectsHref}
+            data-testid="nav-projects"
+            aria-current={currentSection === 'browse' ? 'page' : undefined}
+            onClick={(event) => {
+              // A plain click stays in-app (and through the unsaved-changes check); a modified
+              // click opens the project list in a new tab as an ordinary link would.
+              if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+              event.preventDefault();
+              onNavigateProjects();
+            }}
+          >
+            Projects
+          </a>
+          {user.role === 'admin' && (
+            <a
+              className="app-nav__link"
+              href="?admin=overview"
+              data-testid="nav-admin"
+              aria-current={currentSection === 'admin' ? 'page' : undefined}
+            >
+              Admin
+            </a>
+          )}
+        </nav>
         <span className="cluster">
-          {projectsLink}
-          {projectPicker}
           <span className="meta">{user.email}</span>
           <button type="button" className="btn btn--secondary btn--compact" data-testid="sign-out" onClick={handleSignOut}>
             Sign Out
           </button>
         </span>
       </header>
-      <div className="app-content">{children}</div>
+      <div className="app-content" id="main-content" tabIndex={-1}>
+        {children}
+      </div>
     </div>
   );
 }

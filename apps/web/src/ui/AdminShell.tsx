@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { withProjectContext } from '../app/project-context';
+import { readLastBrowseHref } from '../app/navigation';
 import { Icon } from './Icon';
 
 /** The six admin destinations, in the order they appear in the navigation. `param` is the
@@ -16,9 +16,6 @@ const DESTINATIONS = [
 export interface AdminShellProps {
   /** The `?admin=` value currently being viewed, used to mark the active destination. */
   activeParam: string;
-  /** Preserved on the "back to diagrams" link so the architect returns to the project they came
-   *  from rather than a project-less screen. */
-  projectId?: string | null;
   children: ReactNode;
 }
 
@@ -34,15 +31,17 @@ export interface AdminShellProps {
  * diagram editor's document-bar pattern and preserving horizontal width for the wide tables on
  * the Users, Standards, and Deleted Diagrams screens.
  */
-export function AdminShell({ activeParam, projectId, children }: AdminShellProps) {
-  const backHref = projectId ? `?projectId=${encodeURIComponent(projectId)}` : '?';
+export function AdminShell({ activeParam, children }: AdminShellProps) {
+  // canvas-t3b.4: back to wherever the user was browsing in this tab -- the project list or a
+  // project -- rather than a project carried through every admin link (design §7).
+  const backHref = readLastBrowseHref() ?? '/';
 
   return (
     <div className="admin">
       <nav className="admin-nav" aria-label="Admin sections">
         <a className="admin-nav__back" data-testid="admin-back-to-diagrams" href={backHref}>
           <Icon name="chevron-right" className="admin-nav__back-icon" />
-          Back to diagrams
+          Back
         </a>
         <span className="admin-nav__divider" aria-hidden="true" />
         <ul className="admin-nav__list">
@@ -53,9 +52,7 @@ export function AdminShell({ activeParam, projectId, children }: AdminShellProps
                 <a
                   className="admin-nav__link"
                   data-testid={`admin-nav-${destination.id}`}
-                  // One template renders all five destinations, so carrying the project through
-                  // here covers every admin-to-admin hop (feature 007, FR-005).
-                  href={withProjectContext({ admin: destination.param }, projectId ?? null)}
+                  href={`?admin=${destination.param}`}
                   // Exposes the current destination to assistive technology, not by colour alone.
                   aria-current={isActive ? 'page' : undefined}
                 >

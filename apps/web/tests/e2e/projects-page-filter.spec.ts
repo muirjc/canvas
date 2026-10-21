@@ -45,7 +45,7 @@ test.describe('projects page filter', () => {
     // first test.
     await page.goto(`/?projectId=${PROJECT_ID}`);
     await expect(page.getByTestId('sign-out')).toBeVisible();
-    await page.getByTestId('view-projects').click();
+    await page.getByTestId('nav-projects').click();
     await expect(page.getByTestId(`projects-page-row-${matchId}`)).toBeVisible();
     await expect(page.getByTestId(`projects-page-row-${distractorId}`)).toBeVisible();
 
@@ -61,7 +61,7 @@ test.describe('projects page filter', () => {
 
     await page.goto(`/?projectId=${PROJECT_ID}`);
     await expect(page.getByTestId('sign-out')).toBeVisible();
-    await page.getByTestId('view-projects').click();
+    await page.getByTestId('nav-projects').click();
     await expect(page.getByTestId('projects-page-list')).toBeVisible();
 
     await page.getByTestId('projects-page-filter').fill('no-such-project-zzz');
@@ -80,7 +80,7 @@ test.describe('projects page filter', () => {
 
     await page.goto(`/?projectId=${PROJECT_ID}`);
     await expect(page.getByTestId('sign-out')).toBeVisible();
-    await page.getByTestId('view-projects').click();
+    await page.getByTestId('nav-projects').click();
     await page.getByTestId('projects-page-filter').fill('Filter Clear Match');
     await expect(page.getByTestId(`projects-page-row-${distractorId}`)).toHaveCount(0);
 
@@ -104,7 +104,7 @@ test.describe('projects page filter', () => {
 
     await page.goto(`/?projectId=${PROJECT_ID}`);
     await expect(page.getByTestId('sign-out')).toBeVisible();
-    await page.getByTestId('view-projects').click();
+    await page.getByTestId('nav-projects').click();
     await page.getByTestId('projects-page-filter').fill('Filter Rename Source');
     await expect(page.getByTestId(`projects-page-row-${projectId}`)).toBeVisible();
     await expect(page.getByTestId(`projects-page-row-${distractorId}`)).toHaveCount(0);

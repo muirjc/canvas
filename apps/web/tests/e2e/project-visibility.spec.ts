@@ -43,8 +43,10 @@ test('a user is never offered, or told the name of, a project belonging to someo
 
   await signIn(architectPage, ARCHITECT_EMAIL, ARCHITECT_PASSWORD);
 
-  // Not in the chooser, and its name appears nowhere on the page.
-  await expect(architectPage.getByTestId('project-picker-option').filter({ hasText: secretName })).toHaveCount(0);
+  // canvas-t3b.4: the chooser is now the project list. Not in it, and its name appears nowhere on the page.
+  await architectPage.getByTestId('nav-projects').click();
+  await expect(architectPage.getByTestId('projects-page-list')).toBeVisible();
+  await expect(architectPage.getByTestId('projects-page-list')).not.toContainText(secretName);
   await expect(architectPage.locator('body')).not.toContainText(secretName);
 
   await adminContext.close();
@@ -54,8 +56,9 @@ test('a user is never offered, or told the name of, a project belonging to someo
 test('the project a user is working in is named on screen and survives without touching the address bar', async ({
   page,
 }) => {
-  await signIn(page, ADMIN_EMAIL, ADMIN_PASSWORD);
-  await expect(page.getByTestId('project-name')).toHaveCount(1);
+  await signIn(page, ADMIN_EMAIL, ADMIN_PASSWORD, `/?projectId=${PROJECT_ID}`);
+  // canvas-t3b.4: the project is named by the Browse screen's breadcrumb (the header picker is gone).
+  await expect(page.getByTestId('project-browser-breadcrumb-current')).toHaveCount(1);
 });
 
 test('switching project changes which diagrams are listed and where new ones are created', async ({ page }) => {
@@ -63,11 +66,10 @@ test('switching project changes which diagrams are listed and where new ones are
   const otherProjectName = `Switch Target ${Date.now()}`;
   const otherProjectId = await createProject(page, otherProjectName);
 
-  // Reload so the chooser picks up the new project.
+  // canvas-t3b.4: switching is via the project list (the header picker is gone).
   await page.goto(`/?projectId=${PROJECT_ID}`);
-  await expect(page.getByTestId('project-picker')).toBeVisible();
-
-  await page.getByTestId('project-picker').selectOption(otherProjectId);
+  await page.getByTestId('nav-projects').click();
+  await page.getByTestId(`projects-page-open-${otherProjectId}`).click();
 
   // The address follows the selection, so the link stays shareable (FR-011).
   await expect(page).toHaveURL(new RegExp(`projectId=${otherProjectId}`));
@@ -91,16 +93,21 @@ test('switching project pushes history so Back returns to the previous project',
   const a = await createProject(page, `Back Test A ${Date.now()}`);
   const b = await createProject(page, `Back Test B ${Date.now()}`);
 
+  // canvas-t3b.4: projects are opened via the project list; Back retraces list -> project steps.
   await page.goto(`/?projectId=${PROJECT_ID}`);
-  await expect(page.getByTestId('project-picker')).toBeVisible();
-  await page.getByTestId('project-picker').selectOption(a);
+  await page.getByTestId('nav-projects').click();
+  await page.getByTestId(`projects-page-open-${a}`).click();
   await expect(page).toHaveURL(new RegExp(`projectId=${a}`));
-  await page.getByTestId('project-picker').selectOption(b);
+  await page.getByTestId('nav-projects').click();
+  await page.getByTestId(`projects-page-open-${b}`).click();
   await expect(page).toHaveURL(new RegExp(`projectId=${b}`));
 
   await page.goBack();
+  await expect(page.getByTestId('projects-page-list')).toBeVisible();
+  await page.goBack();
   await expect(page).toHaveURL(new RegExp(`projectId=${a}`));
-  await expect(page.getByTestId('project-picker')).toHaveValue(a);
+  await page.goBack();
+  await expect(page.getByTestId('projects-page-list')).toBeVisible();
   await page.goBack();
   await expect(page).toHaveURL(new RegExp(`projectId=${PROJECT_ID}`));
 });
@@ -175,8 +182,8 @@ test('switching project with unsaved changes warns, and cancelling keeps the wor
   await page.getByTestId('add-shape-rectangle').click();
   await expect(page.locator('[data-testid^="node-"]')).toHaveCount(1);
 
-  // Switching from the header, without leaving the editor.
-  await page.getByTestId('project-picker').selectOption(otherProjectId);
+  // canvas-t3b.4: leaving for another project is now the header's Projects link, from the editor.
+  await page.getByTestId('nav-projects').click();
 
   // Warned, not silently discarded (FR-013d).
   await expect(page.getByTestId('home-nav-confirm')).toBeVisible();
@@ -204,33 +211,44 @@ test('confirming a project switch with unsaved changes does leave the editor', a
   await page.getByTestId('add-shape-rectangle').click();
   await expect(page.locator('[data-testid^="node-"]')).toHaveCount(1);
 
-  await page.getByTestId('project-picker').selectOption(otherProjectId);
+  // canvas-t3b.4: leave via the header's Projects link, then open the other project from the list.
+  await page.getByTestId('nav-projects').click();
   await expect(page.getByTestId('home-nav-confirm')).toBeVisible();
   await page.getByTestId('confirm-home-nav').click();
 
   await expect(page.getByTestId('diagram-canvas')).toHaveCount(0);
+  await expect(page.getByTestId('projects-page-list')).toBeVisible();
+  await page.getByTestId(`projects-page-open-${otherProjectId}`).click();
   await expect(page).toHaveURL(new RegExp(`projectId=${otherProjectId}`));
 });
 
 test('the project chooser is reachable and operable by keyboard alone', async ({ page }) => {
+  // canvas-t3b.4: the chooser is the project list. The seeded DB has hundreds of projects, so a
+  // fresh one is narrowed to with the list's own filter; the filter and Open button are reached by Tab.
   await signIn(page, ADMIN_EMAIL, ADMIN_PASSWORD);
-  await createProject(page, `Keyboard Reach ${Date.now()}`);
-  await page.goto(`/?projectId=${PROJECT_ID}`);
-  await expect(page.getByTestId('project-picker')).toBeVisible();
+  const name = `Keyboard Reach ${Date.now()}`;
+  const projectId = await createProject(page, name);
+  await page.goto('/');
+  await expect(page.getByTestId('projects-page-list')).toBeVisible();
 
-  // Walk the real tab order rather than calling .focus(), which would prove nothing about whether
-  // a keyboard user can actually get there.
-  let reached = false;
-  for (let i = 0; i < 20 && !reached; i += 1) {
-    await page.keyboard.press('Tab');
-    reached = await page.evaluate(
-      () => document.activeElement?.getAttribute('data-testid') === 'project-picker',
-    );
-  }
-  expect(reached).toBe(true);
+  const tabTo = async (testId: string) => {
+    // Walk the real tab order rather than calling .focus(), which proves nothing about reachability.
+    for (let i = 0; i < 40; i += 1) {
+      await page.keyboard.press('Tab');
+      const hit = await page.evaluate((id) => document.activeElement?.getAttribute('data-testid') === id, testId);
+      if (hit) return true;
+    }
+    return false;
+  };
 
-  // It has an accessible name, so it is not an unlabelled control (FR-018).
-  await expect(page.getByTestId('project-picker')).toHaveAccessibleName(/project/i);
+  expect(await tabTo('projects-page-filter')).toBe(true);
+  await page.keyboard.type(name);
+  await expect(page.getByTestId(`projects-page-open-${projectId}`)).toBeVisible();
+  expect(await tabTo(`projects-page-open-${projectId}`)).toBe(true);
+
+  await page.keyboard.press('Enter');
+  await expect(page).toHaveURL(new RegExp(`projectId=${projectId}`));
+  await expect(page.getByTestId('project-browser-breadcrumb-current')).toHaveText(name);
 });
 
 test('a user with access to no projects is invited to create one, not shown an error', async ({ browser }) => {

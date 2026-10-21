@@ -32,7 +32,9 @@ test('reference-material entries are scoped to their diagram family in chat, and
   await signIn(page, ADMIN_EMAIL, ADMIN_PASSWORD);
   await page.request.patch(`${API_BASE_URL}/admin/ai-settings`, { data: { chatEnabled: true } });
 
-  await page.getByTestId('admin-ai-personas-link').click();
+  // canvas-t3b.4: header Admin link, then the admin side nav (the project page's admin links are gone).
+  await page.getByTestId('nav-admin').click();
+  await page.getByTestId('admin-nav-ai-personas').click();
   await expect(page.getByTestId('persona-create-submit')).toBeVisible();
 
   const technicalRow = page.locator('li', { has: page.locator('strong', { hasText: 'Technical Architect' }) });

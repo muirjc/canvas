@@ -4,8 +4,6 @@ import { LoginForm } from './LoginForm';
 import { AppShell } from './AppShell';
 import { DiagramEditor, type DiagramEditorHandle } from './DiagramEditor';
 import { NewDiagramDialog } from './NewDiagramDialog';
-import { ProjectPicker } from './ProjectPicker';
-import { withProjectContext } from './project-context';
 import {
   isBareAddress,
   locationToSearch,
@@ -13,6 +11,7 @@ import {
   readLastProjectId,
   resolveLanding,
   sameLocation,
+  writeLastBrowse,
   writeLastProjectId,
   type Location,
 } from './navigation';
@@ -270,6 +269,11 @@ export function App() {
     location.screen === 'project' ? location.projectId : location.screen === 'diagram' ? (diagram?.projectId ?? null) : null;
   const currentProject = (projects ?? []).find((p) => p.id === currentProjectId) ?? null;
 
+  // canvas-t3b.4: remember the last Browse screen in this tab, for the admin console's back link.
+  useEffect(() => {
+    if (!adminParam) writeLastBrowse(location);
+  }, [location, adminParam]);
+
   // canvas-t3b.3: each screen names itself in the tab title -- the cheapest reliable cue for a
   // screen-reader user that the view changed (design: Accessibility and focus).
   useEffect(() => {
@@ -379,7 +383,7 @@ export function App() {
     // Wrapping here rather than inside each screen is what centres and navigates all five
     // without any of them being edited (research §10).
     content = (
-      <AdminShell activeParam={adminParam === 'true' ? 'standards' : adminParam} projectId={currentProjectId}>
+      <AdminShell activeParam={adminParam === 'true' ? 'standards' : adminParam}>
         {adminScreen}
       </AdminShell>
     );
@@ -580,29 +584,6 @@ export function App() {
             onOpenDiagram={openDiagram}
           />
         )}
-        {user.role === 'admin' && (
-          <nav className="home__admin" aria-label="Admin">
-            <span className="section-label">Admin</span>
-            {/* Built through withProjectContext so the project survives the hop. These links being
-                absolute query-string replacements is exactly how the context was lost — on the way
-                IN to the admin console, one hop before the back link that gets blamed for it. */}
-            <a data-testid="admin-overview-link" href={withProjectContext({ admin: 'overview' }, currentProjectId)}>
-              Overview
-            </a>
-            <a data-testid="admin-console-link" href={withProjectContext({ admin: 'standards' }, currentProjectId)}>
-              Standards
-            </a>
-            <a data-testid="admin-users-link" href={withProjectContext({ admin: 'users' }, currentProjectId)}>
-              Users
-            </a>
-            <a data-testid="admin-deleted-diagrams-link" href={withProjectContext({ admin: 'deleted' }, currentProjectId)}>
-              Deleted Diagrams
-            </a>
-            <a data-testid="admin-ai-personas-link" href={withProjectContext({ admin: 'ai-personas' }, currentProjectId)}>
-              AI Personas
-            </a>
-          </nav>
-        )}
       </main>
     );
   }
@@ -611,27 +592,10 @@ export function App() {
     <AppShell
       user={user}
       onSignOut={handleSignOut}
-      projectPicker={
-        projects !== null && projects.length > 0 ? (
-          <ProjectPicker
-            projects={projects}
-            currentProjectId={currentProjectId}
-            onSelect={(selected) => navigate({ screen: 'project', projectId: selected })}
-          />
-        ) : null
-      }
-      projectsLink={
-        projects !== null ? (
-          <button
-            type="button"
-            className="btn btn--secondary btn--compact"
-            data-testid="view-projects"
-            onClick={() => navigate({ screen: 'projects' })}
-          >
-            Projects
-          </button>
-        ) : null
-      }
+      // canvas-t3b.4: the header names its sections, no project (design §4).
+      currentSection={adminParam && user.role === 'admin' ? 'admin' : location.screen === 'diagram' ? null : 'browse'}
+      projectsHref={urlFor({ screen: 'projects' })}
+      onNavigateProjects={() => navigate({ screen: 'projects' })}
     >
       {content}
       {/* Dialogs render alongside the current screen rather than replacing it, so the context

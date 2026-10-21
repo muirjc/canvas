@@ -115,7 +115,7 @@ test('an ordinary small diagram does not produce scrollbars', async ({ page }) =
 test('the Projects screen still renders and scrolls correctly after the shared layout CSS change', async ({ page }) => {
   await signIn(page);
 
-  await page.getByTestId('view-projects').click();
+  await page.getByTestId('nav-projects').click();
   await expect(page.getByTestId('projects-page-list')).toBeVisible();
   await expect(page.locator('[data-testid^="projects-page-row-"]').first()).toBeInViewport();
 });

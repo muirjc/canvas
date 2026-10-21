@@ -58,7 +58,9 @@ test.describe('AI availability gating', () => {
 
   test('the admin AI Personas page reports the mock provider', async ({ page }) => {
     await signIn(page, ADMIN_EMAIL, ADMIN_PASSWORD);
-    await page.getByTestId('admin-ai-personas-link').click();
+    // canvas-t3b.4: header Admin link, then the admin side nav (the project page's admin links are gone).
+    await page.getByTestId('nav-admin').click();
+    await page.getByTestId('admin-nav-ai-personas').click();
     await expect(page.getByTestId('ai-provider-indicator')).toBeVisible();
     const text = (await page.getByTestId('ai-provider-indicator').textContent()) ?? '';
     expect(text.toLowerCase()).toContain('mock');
@@ -75,7 +77,9 @@ test.describe('AI availability gating', () => {
     const architectPage = await architectContext.newPage();
 
     await signIn(adminPage, ADMIN_EMAIL, ADMIN_PASSWORD);
-    await adminPage.getByTestId('admin-ai-personas-link').click();
+    // canvas-t3b.4: header Admin link, then the admin side nav (the project page's admin links are gone).
+    await adminPage.getByTestId('nav-admin').click();
+    await adminPage.getByTestId('admin-nav-ai-personas').click();
     await expect(adminPage.getByTestId('ai-chat-enabled-toggle')).toBeChecked();
 
     try {

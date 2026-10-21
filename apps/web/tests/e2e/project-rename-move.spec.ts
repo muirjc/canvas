@@ -50,7 +50,7 @@ test.describe('project rename', () => {
 
     await page.goto(`/?projectId=${projectId}`);
     await expect(page.getByTestId('sign-out')).toBeVisible();
-    await page.getByTestId('view-projects').click();
+    await page.getByTestId('nav-projects').click();
 
     const row = page.getByTestId(`projects-page-row-${projectId}`);
     await expect(row).toBeVisible();
@@ -74,7 +74,7 @@ test.describe('project rename', () => {
     // the rename actually persisted rather than only updating local state.
     await page.reload();
     await expect(page.getByTestId('sign-out')).toBeVisible();
-    await page.getByTestId('view-projects').click();
+    await page.getByTestId('nav-projects').click();
     await expect(page.getByTestId(`projects-page-row-${projectId}`)).toContainText(newName);
   });
 
@@ -84,7 +84,7 @@ test.describe('project rename', () => {
     const projectId = await createProject(page, originalName);
 
     await page.goto(`/?projectId=${projectId}`);
-    await page.getByTestId('view-projects').click();
+    await page.getByTestId('nav-projects').click();
     await page.getByTestId(`projects-page-rename-${projectId}`).click();
 
     const input = page.getByTestId(`projects-page-rename-input-${projectId}`);
@@ -109,7 +109,7 @@ test.describe('project rename', () => {
     const projectId = await createProject(page, originalName);
 
     await page.goto(`/?projectId=${projectId}`);
-    await page.getByTestId('view-projects').click();
+    await page.getByTestId('nav-projects').click();
     await page.getByTestId(`projects-page-rename-${projectId}`).click();
 
     const input = page.getByTestId(`projects-page-rename-input-${projectId}`);
@@ -132,7 +132,7 @@ test.describe('project rename', () => {
     // not own it and is not an admin (apps/api/src/seed/run.ts) — exactly the case
     // requireProjectOwnerOrAdmin rejects server-side, mirrored here client-side.
     await signIn(page, GRANTEE_EMAIL, GRANTEE_PASSWORD, `/?projectId=${PROJECT_ID}`);
-    await page.getByTestId('view-projects').click();
+    await page.getByTestId('nav-projects').click();
 
     const row = page.getByTestId(`projects-page-row-${PROJECT_ID}`);
     await expect(row).toBeVisible();

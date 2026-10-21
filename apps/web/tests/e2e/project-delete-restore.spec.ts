@@ -54,7 +54,7 @@ test('Delete is disabled with an explanatory title for a project with a diagram,
 
   await page.goto(`/?projectId=${emptyId}`);
   await expect(page.getByTestId('sign-out')).toBeVisible();
-  await page.getByTestId('view-projects').click();
+  await page.getByTestId('nav-projects').click();
 
   const emptyDelete = page.getByTestId(`projects-page-delete-${emptyId}`);
   await expect(emptyDelete).toBeVisible();
@@ -73,7 +73,7 @@ test('deleting an empty project via the confirm dialog removes it from the Proje
   const projectId = await createProject(page, name);
 
   await page.goto(`/?projectId=${PROJECT_ID}`);
-  await page.getByTestId('view-projects').click();
+  await page.getByTestId('nav-projects').click();
 
   const row = page.getByTestId(`projects-page-row-${projectId}`);
   await expect(row).toBeVisible();
@@ -95,7 +95,7 @@ test('cancelling the delete confirmation leaves the project in place', async ({ 
   const projectId = await createProject(page, name);
 
   await page.goto(`/?projectId=${PROJECT_ID}`);
-  await page.getByTestId('view-projects').click();
+  await page.getByTestId('nav-projects').click();
 
   const row = page.getByTestId(`projects-page-row-${projectId}`);
   await expect(row).toBeVisible();
@@ -121,7 +121,7 @@ test('deleting a project the user last opened keeps them on the Projects list wi
   await expect(page.getByTestId('new-diagram')).toBeVisible();
   await expect.poll(() => page.evaluate(() => localStorage.getItem('canvas.lastProjectId'))).toBe(activeId);
 
-  await page.getByTestId('view-projects').click();
+  await page.getByTestId('nav-projects').click();
   await page.getByTestId(`projects-page-delete-${activeId}`).click();
   await page.getByTestId('confirm-dialog-confirm').click();
 
@@ -142,7 +142,7 @@ test('an admin sees a deleted project on the Deleted Projects screen and restori
   const projectId = await createProject(page, name);
 
   await page.goto(`/?projectId=${PROJECT_ID}`);
-  await page.getByTestId('view-projects').click();
+  await page.getByTestId('nav-projects').click();
   await page.getByTestId(`projects-page-delete-${projectId}`).click();
   await page.getByTestId('confirm-dialog-confirm').click();
   await expect(page.getByTestId(`projects-page-row-${projectId}`)).toHaveCount(0);
@@ -158,7 +158,7 @@ test('an admin sees a deleted project on the Deleted Projects screen and restori
   await expect(deletedRow).toHaveCount(0);
 
   await page.goto(`/?projectId=${PROJECT_ID}`);
-  await page.getByTestId('view-projects').click();
+  await page.getByTestId('nav-projects').click();
   await expect(page.getByTestId(`projects-page-row-${projectId}`)).toBeVisible();
 });
 
