@@ -10,8 +10,8 @@ test.skip(!PROJECT_ID, 'E2E_PROJECT_ID env var not set — run `npm run seed` an
 
 /**
  * canvas-t3b.4 (docs/browse-screen-design.md §4, §7): the header names its sections (Projects,
- * and Admin for admins) instead of carrying a project picker, and the admin console's back link
- * returns to wherever the user was browsing.
+ * and Admin for admins) instead of carrying a project picker, and the header's Projects link leaves
+ * the admin console (canvas-513).
  */
 
 async function signIn(page: Page, email: string, password: string, url = '/') {
@@ -82,28 +82,54 @@ test('the retired header controls are gone', async ({ page }) => {
   await expect(page.getByTestId('view-projects')).toHaveCount(0);
 });
 
-test('the admin back link returns to the project you were browsing', async ({ page }) => {
-  await signIn(page, ADMIN_EMAIL, ADMIN_PASSWORD, `/?projectId=${PROJECT_ID}`);
-  await expect(page.getByTestId('project-browser')).toBeVisible();
+// canvas-513: replaces the admin Back link tests -- the header's Projects link now leaves admin.
+const ADMIN_PAGES = [
+  { param: 'overview', h1: 'Admin Overview', title: 'Overview – Admin – Canvas' },
+  { param: 'standards', h1: 'Standards', title: 'Standards – Admin – Canvas' },
+  { param: 'users', h1: 'Users', title: 'Users – Admin – Canvas' },
+  { param: 'deleted', h1: 'Deleted Diagrams', title: 'Deleted Diagrams – Admin – Canvas' },
+  { param: 'deleted-projects', h1: 'Deleted Projects', title: 'Deleted Projects – Admin – Canvas' },
+  { param: 'ai-personas', h1: 'AI Personas', title: 'AI Personas – Admin – Canvas' },
+  { param: 'true', h1: 'Standards', title: 'Standards – Admin – Canvas' },
+];
 
-  await page.getByTestId('nav-admin').click();
-  await expect(page.getByTestId('admin-shell')).toBeVisible();
-  await page.getByTestId('admin-back-to-diagrams').click();
+for (const param of ['overview', 'users']) {
+  test(`Projects from ?admin=${param} opens the project list in-app; Back and Forward walk the history`, async ({ page }) => {
+    await signIn(page, ADMIN_EMAIL, ADMIN_PASSWORD, `/?admin=${param}`);
+    await expect(page.getByTestId('admin-shell')).toBeVisible();
+    await expect(page.getByTestId('admin-back-to-diagrams')).toHaveCount(0);
+    // A full reload would reset this marker; an in-app navigation keeps it.
+    await page.evaluate(() => ((window as unknown as { __noReload: boolean }).__noReload = true));
 
-  await expect(page.getByTestId('project-browser')).toBeVisible();
-  expect(new URL(page.url()).searchParams.get('projectId')).toBe(PROJECT_ID);
-});
+    await page.getByTestId('nav-projects').click();
+    await expect(page.getByTestId('projects-page-list')).toBeVisible();
+    await expect(page.getByTestId('admin-shell')).toHaveCount(0);
+    expect(new URL(page.url()).pathname).toBe('/');
+    expect(new URL(page.url()).search).toBe('');
+    await expect(page.getByRole('heading', { level: 1, name: 'Projects' })).toBeFocused();
+    expect(await page.evaluate(() => (window as unknown as { __noReload?: boolean }).__noReload)).toBe(true);
 
-test('the admin back link returns to the project list when you came from the list', async ({ page }) => {
-  await signIn(page, ADMIN_EMAIL, ADMIN_PASSWORD, '/');
-  await expect(page.getByTestId('projects-page-list')).toBeVisible();
+    await page.goBack();
+    await expect(page).toHaveURL(new RegExp(`admin=${param}`));
+    await expect(page.getByTestId('admin-shell')).toBeVisible();
+    await expect(page.getByTestId('projects-page-list')).toHaveCount(0);
 
-  await page.getByTestId('nav-admin').click();
-  await expect(page.getByTestId('admin-shell')).toBeVisible();
-  await page.getByTestId('admin-back-to-diagrams').click();
+    await page.goForward();
+    await expect(page.getByTestId('projects-page-list')).toBeVisible();
+    await expect(page.getByTestId('admin-shell')).toHaveCount(0);
+  });
+}
 
-  await expect(page.getByTestId('projects-page-list')).toBeVisible();
-  expect(new URL(page.url()).searchParams.get('projectId')).toBeNull();
+test('every admin page has exactly one h1 and names itself in the tab title', async ({ page }) => {
+  // canvas-4pw
+  await signIn(page, ADMIN_EMAIL, ADMIN_PASSWORD, '/?admin=overview');
+  for (const { param, h1, title } of ADMIN_PAGES) {
+    await page.goto(`/?admin=${param}`);
+    await expect(page.getByTestId('admin-shell')).toBeVisible();
+    await expect(page.getByRole('heading', { level: 1 }), `h1 on ?admin=${param}`).toHaveCount(1);
+    await expect(page.getByRole('heading', { level: 1 })).toHaveText(h1);
+    await expect(page, `title on ?admin=${param}`).toHaveTitle(title);
+  }
 });
 
 test('Projects from an editor with unsaved changes asks before leaving', async ({ page }) => {

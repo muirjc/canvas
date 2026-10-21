@@ -15,7 +15,10 @@ export function UsersPage() {
 
   return (
     <div>
-      <h2>Users</h2>
+      {/* canvas-4pw: the page's <h1>, focused after an in-app navigation lands here. */}
+      <h1 className="page__title" tabIndex={-1} data-browse-heading>
+        Users
+      </h1>
       <table>
         <thead>
           <tr>

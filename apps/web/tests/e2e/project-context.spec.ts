@@ -62,15 +62,17 @@ test('the project context survives a round trip through the admin console', asyn
   // Enter the way the rest of the suite does — with a project — then navigate only by clicking.
   await signIn(page, `/?projectId=${PROJECT_ID}`);
 
-  // canvas-t3b.4: header Admin link then the side nav; the back link restores the browsed project.
+  // canvas-513: no admin Back link; the header's Projects link leaves admin for the project list,
+  // from where the project is opened again.
   await page.getByTestId('nav-admin').click();
   await page.getByTestId('admin-nav-users').click();
   await expect(page.getByTestId('admin-shell')).toBeVisible();
 
-  await page.getByTestId('admin-back-to-diagrams').click();
+  await page.getByTestId('nav-projects').click();
+  await expect(page.getByTestId('projects-page-list')).toBeVisible();
+  await expect(page.getByTestId('admin-shell')).toHaveCount(0);
+  await page.getByTestId(`projects-page-open-${PROJECT_ID}`).click();
   await expect(page.getByTestId('new-diagram')).toBeVisible();
-
-  // The admin nav links carry no projectId, so the back link has none left to restore.
   expect(new URL(page.url()).searchParams.get('projectId')).toBe(PROJECT_ID);
 
   await page.getByTestId('new-diagram').click();

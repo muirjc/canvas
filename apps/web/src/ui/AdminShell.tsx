@@ -1,10 +1,8 @@
 import type { ReactNode } from 'react';
-import { readLastBrowseHref } from '../app/navigation';
-import { Icon } from './Icon';
 
 /** The six admin destinations, in the order they appear in the navigation. `param` is the
  *  `?admin=` value that reaches each one (`?admin=true` is a legacy alias for `standards`). */
-const DESTINATIONS = [
+export const ADMIN_DESTINATIONS = [
   { id: 'overview', param: 'overview', label: 'Overview' },
   { id: 'standards', param: 'standards', label: 'Standards' },
   { id: 'users', param: 'users', label: 'Users' },
@@ -32,20 +30,13 @@ export interface AdminShellProps {
  * the Users, Standards, and Deleted Diagrams screens.
  */
 export function AdminShell({ activeParam, children }: AdminShellProps) {
-  // canvas-t3b.4: back to wherever the user was browsing in this tab -- the project list or a
-  // project -- rather than a project carried through every admin link (design §7).
-  const backHref = readLastBrowseHref() ?? '/';
-
+  // canvas-513: no Back link of its own -- the header's Projects link leaves the admin console,
+  // the same way on every screen (it duplicated that, with an invisible "last location" target).
   return (
     <div className="admin">
       <nav className="admin-nav" aria-label="Admin sections">
-        <a className="admin-nav__back" data-testid="admin-back-to-diagrams" href={backHref}>
-          <Icon name="chevron-right" className="admin-nav__back-icon" />
-          Back
-        </a>
-        <span className="admin-nav__divider" aria-hidden="true" />
         <ul className="admin-nav__list">
-          {DESTINATIONS.map((destination) => {
+          {ADMIN_DESTINATIONS.map((destination) => {
             const isActive = destination.param === activeParam;
             return (
               <li key={destination.id}>

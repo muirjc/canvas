@@ -243,7 +243,10 @@ export function PersonaAdminPage() {
 
   return (
     <div className="stack">
-      <h2>AI Personas</h2>
+      {/* canvas-4pw: the page's <h1>, focused after an in-app navigation lands here. */}
+      <h1 className="page__title" tabIndex={-1} data-browse-heading>
+        AI Personas
+      </h1>
 
       {/* canvas-23t.1: every section below reuses primitives already established elsewhere
           (SharedDiagramsList, ProjectBrowser, StandardsEditor) — .card for a bordered surface,

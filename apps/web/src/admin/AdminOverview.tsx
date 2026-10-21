@@ -16,7 +16,10 @@ export function AdminOverview() {
 
   return (
     <div>
-      <h2>Admin Overview</h2>
+      {/* canvas-4pw: the page's <h1>, focused after an in-app navigation lands here. */}
+      <h1 className="page__title" tabIndex={-1} data-browse-heading>
+        Admin Overview
+      </h1>
       <dl>
         <dt>Users</dt>
         <dd data-testid="overview-user-count">{overview.userCount}</dd>
