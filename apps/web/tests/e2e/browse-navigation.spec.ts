@@ -123,3 +123,115 @@ test('a bare address resumes the last project opened in this browser', async ({ 
   await expect(page).toHaveURL(new RegExp(`projectId=${projectId}`));
   await expect(page.getByTestId('project-browser-breadcrumb')).toContainText(name);
 });
+
+const WEB_ORIGIN = 'http://localhost:5173';
+const ARCHITECT_EMAIL = 'architect@example.com';
+const ARCHITECT_PASSWORD = 'architect-dev-password';
+
+/** Fulfils a cross-origin API GET with JSON (the web app sends credentials, so CORS must allow them). */
+async function stubApiGet(page: Page, path: string, body: unknown): Promise<void> {
+  await page.route(`${API_BASE_URL}${path}`, async (route) => {
+    if (route.request().method() !== 'GET') return route.fallback();
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      headers: { 'access-control-allow-origin': WEB_ORIGIN, 'access-control-allow-credentials': 'true' },
+      body: JSON.stringify(body),
+    });
+  });
+}
+
+const ONLY_PROJECT = {
+  id: PROJECT_ID,
+  name: 'Smoke Test',
+  parentProjectId: null,
+  createdAt: '2026-01-01T00:00:00.000Z',
+  diagramCount: 0,
+  ownerId: '00000000-0000-0000-0000-000000000001',
+};
+
+const FAKE_SHARED = {
+  diagramId: '00000000-0000-0000-0000-0000000000aa',
+  diagramName: 'Fake Shared',
+  diagramTypeId: 'flowchart',
+  projectName: 'Elsewhere',
+  accessLevel: 'view',
+  sharedByName: 'Someone',
+  sharedByEmail: 'someone@example.com',
+  sharedAt: '2026-01-01T00:00:00.000Z',
+};
+
+test('landing with exactly one project and nothing shared opens that project, and the list stays reachable', async ({ page }) => {
+  await stubApiGet(page, '/projects', { projects: [ONLY_PROJECT] });
+  await stubApiGet(page, '/shared-diagrams', { diagrams: [] });
+  await signIn(page);
+
+  await expect(page).toHaveURL(new RegExp(`projectId=${PROJECT_ID}`));
+  await expect(page.getByTestId('project-browser-breadcrumb-current')).toHaveText('Smoke Test');
+  await expect(page.getByRole('heading', { level: 1, name: 'Smoke Test' })).toBeVisible();
+
+  await page.getByTestId('nav-projects').click();
+  await expect(page.getByTestId('projects-page-list')).toBeVisible();
+  expect(new URL(page.url()).searchParams.get('projectId')).toBeNull();
+});
+
+test('landing with exactly one project but something shared stays on the Projects top level', async ({ page }) => {
+  await stubApiGet(page, '/projects', { projects: [ONLY_PROJECT] });
+  await stubApiGet(page, '/shared-diagrams', { diagrams: [FAKE_SHARED] });
+  await signIn(page);
+
+  await expect(page.getByTestId('projects-page-list')).toBeVisible();
+  await expect(page.getByTestId(`shared-diagram-${FAKE_SHARED.diagramId}`)).toBeVisible();
+  expect(new URL(page.url()).searchParams.get('projectId')).toBeNull();
+});
+
+test("the editor's back button reads \"Projects\" for a diagram shared from a project the user cannot see", async ({ browser }) => {
+  const adminContext = await browser.newContext();
+  const architectContext = await browser.newContext();
+  const adminPage = await adminContext.newPage();
+  const architectPage = await architectContext.newPage();
+
+  await signIn(adminPage);
+  const projectId = await createProject(adminPage, `Nav Hidden ${Date.now()}`);
+  const diagramId = await createDiagram(adminPage, projectId, 'Hidden Shared Diagram');
+  const lookup = await adminPage.request.get(`${API_BASE_URL}/users/lookup?email=${encodeURIComponent(ARCHITECT_EMAIL)}`);
+  const { user } = await lookup.json();
+  const share = await adminPage.request.post(`${API_BASE_URL}/diagrams/${diagramId}/shares`, {
+    data: { granteeUserId: user.id, accessLevel: 'view' },
+  });
+  expect(share.status()).toBe(201);
+  const grantId = (await share.json()).grant.id;
+  const smokeDiagramId = await createDiagram(adminPage, PROJECT_ID!, 'Nav Contrast Diagram');
+
+  try {
+    await architectPage.goto('/');
+    await architectPage.getByTestId('login-email').fill(ARCHITECT_EMAIL);
+    await architectPage.getByTestId('login-password').fill(ARCHITECT_PASSWORD);
+    await architectPage.getByTestId('login-submit').click();
+    await expect(architectPage.getByTestId('sign-out')).toBeVisible();
+
+    // The landing may resume a project; the shared list lives on the top level.
+    await architectPage.getByTestId('nav-projects').click();
+    await architectPage.getByTestId(`open-shared-diagram-${diagramId}`).click();
+    await expect(architectPage.getByTestId('diagram-canvas')).toBeVisible();
+
+    const back = architectPage.getByTestId('back-to-diagrams');
+    await expect(back).toHaveText('Projects');
+    await expect(back).toHaveAccessibleName('Back to Projects');
+    await back.click();
+    await expect(architectPage.getByTestId('projects-page-list')).toBeVisible();
+    const url = new URL(architectPage.url());
+    expect(url.searchParams.get('projectId')).toBeNull();
+    expect(url.searchParams.get('diagramId')).toBeNull();
+
+    // Contrast: a diagram in a project the architect can see is labelled with that project.
+    await architectPage.goto(`/?projectId=${PROJECT_ID}`);
+    await architectPage.getByTestId(`open-diagram-${smokeDiagramId}`).click();
+    await expect(architectPage.getByTestId('diagram-canvas')).toBeVisible();
+    await expect(architectPage.getByTestId('back-to-diagrams')).toHaveText('Smoke Test');
+  } finally {
+    await adminPage.request.delete(`${API_BASE_URL}/shares/${grantId}`);
+    await adminContext.close();
+    await architectContext.close();
+  }
+});
