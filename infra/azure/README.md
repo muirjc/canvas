@@ -151,9 +151,16 @@ az containerapp job start --name canvas-seed --resource-group canvas-rg
 ## Pause / resume (cheaper idle, keeps data)
 
 ```bash
-./pause.sh    # stops Postgres compute, drops canvas-api to scale-to-zero-eligible. Keeps all data.
-./resume.sh   # starts Postgres, restores scale, polls until Postgres is actually Ready.
+./pause.sh    # shows a "Canvas is paused" page, stops Postgres compute, drops canvas-api to
+              # scale-to-zero-eligible. Keeps all data.
+./resume.sh   # starts Postgres, restores scale, polls until Postgres is Ready, then puts the app back.
 ```
+
+While paused, the web site serves `paused.html` instead of the app (canvas-vnh): `pause.sh` saves
+the app's `index.html` in the `$web` container as `index.live.html` and uploads the paused page in
+its place; `resume.sh` copies it back. Deep links show the paused page too (the site's 404 document
+is `index.html`). Pausing twice keeps the saved app page, and `deploy.sh` (which can't run while
+paused) removes any stale saved copy after publishing a new build.
 
 Azure auto-restarts a stopped Postgres Flexible Server after 7 days if not resumed manually —
 `pause.sh` prints this reminder every time.
