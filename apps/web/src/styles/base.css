@@ -39,7 +39,9 @@ img, svg, video, canvas {
 /* ---- Document --------------------------------------------------------- */
 
 body {
-  min-width: var(--app-min-w);
+  /* canvas-i08: no page-wide minimum width any more -- the header, sign-in and Browse screens
+     fit a phone. The desktop-only floor (--app-min-w) now applies to the editor and the admin
+     console alone (layout.css), the screens ui-design-spec §3.3 accepts as desktop-only. */
   margin: 0;
   background: var(--surface-base);
   color: var(--text-primary);

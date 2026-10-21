@@ -38,7 +38,26 @@ test.describe('Accessibility (WCAG 2.1 AA)', () => {
     await page.getByTestId('login-password').fill(ADMIN_PASSWORD);
     await page.getByTestId('login-submit').click();
     await expectSignedIn(page);
-    await auditPage(page);
+
+    // canvas-i08: audit a small project of its own rather than the shared one, which grows by
+    // hundreds of diagrams per local suite run until axe can't finish within the timeout. The
+    // page's markup is the same with one diagram as with thousands.
+    const created = await page.request.post(`${API_BASE_URL}/projects`, { data: { name: `A11y Main Screen ${Date.now()}` } });
+    expect(created.status()).toBe(201);
+    const projectId = (await created.json()).project.id as string;
+    const diagram = await page.request.post(`${API_BASE_URL}/projects/${projectId}/diagrams`, {
+      data: { name: 'A11y diagram', diagramTypeId: 'flowchart' },
+    });
+    expect(diagram.status()).toBe(201);
+    const diagramId = (await diagram.json()).diagram.id as string;
+    try {
+      await page.goto(`/?projectId=${projectId}`);
+      await expect(page.getByTestId(`open-diagram-${diagramId}`)).toBeVisible();
+      await auditPage(page);
+    } finally {
+      await page.request.delete(`${API_BASE_URL}/diagrams/${diagramId}`);
+      await page.request.delete(`${API_BASE_URL}/projects/${projectId}`);
+    }
   });
 
   test('diagram editor toolbar has no violations', async ({ page }) => {
