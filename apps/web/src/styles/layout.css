@@ -712,6 +712,50 @@
   padding: var(--space-8) var(--space-6);
 }
 
+/* canvas-789: the admin overview's counts, as cards; a card with an admin page links to it. */
+.admin-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: var(--space-4);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.admin-stat {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  height: 100%;
+  padding: var(--space-4) var(--space-5);
+  color: var(--text-primary);
+}
+
+.admin-stat__value {
+  font-size: var(--text-display-size);
+  line-height: var(--text-display-lh);
+  font-weight: var(--text-display-weight);
+}
+
+.admin-stat__label {
+  font-size: var(--text-small-size);
+  color: var(--text-secondary);
+}
+
+.admin-stat--link {
+  text-decoration: none;
+  transition: border-color var(--transition-fast);
+}
+
+.admin-stat--link:hover {
+  border-color: var(--accent);
+  text-decoration: none;
+}
+
+.admin-stat--link .admin-stat__label {
+  color: var(--accent);
+}
+
 /* ---- Version history search --------------------------------------------- */
 
 .version-search {

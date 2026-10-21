@@ -100,27 +100,37 @@ test('adjacent links are visually separated, in the shell nav and inside a scree
   if (!first || !second) throw new Error('admin nav items have no bounding box');
   expect(second.x - (first.x + first.width), 'shell nav items are touching').toBeGreaterThan(4);
 
-  // FR-005 as actually reported: the Overview screen's OWN links rendered as one run-together
-  // string, "Manage StandardsManage Users". That screen is never edited, so only bare-element
-  // styling can separate them — which is exactly the regression worth guarding.
-  const inner = await page.getByTestId('overview-link-standards').boundingBox();
-  const innerNext = await page.getByTestId('overview-link-users').boundingBox();
-  if (!inner || !innerNext) throw new Error('overview links have no bounding box');
-  expect(
-    innerNext.x - (inner.x + inner.width),
-    'links inside the Overview screen are touching',
-  ).toBeGreaterThan(4);
+  // canvas-789: the Overview's own "Manage Standards"/"Manage Users" links (whose run-together
+  // rendering this test also used to guard, FR-005) duplicated this nav and are gone.
+  await expect(page.getByTestId('overview-link-standards')).toHaveCount(0);
+  await expect(page.getByTestId('overview-link-users')).toHaveCount(0);
 });
 
-test('a definition list on an unedited admin screen is readable, not a flat run of lines', async ({ page }) => {
+test("the Overview's counts are cards; those with an admin page open it", async ({ page }) => {
+  // canvas-789: replaces the bare <dl> of stats (and the duplicated "Manage ..." links).
   await signIn(page, ADMIN_EMAIL, ADMIN_PASSWORD, '/?admin=overview');
 
-  // FR-001: the Overview stats render as a bare <dl>. Term and value must sit on the same line
-  // rather than stacking into an undifferentiated column.
-  const term = await page.locator('dt').first().boundingBox();
-  const value = await page.getByTestId('overview-user-count').boundingBox();
-  if (!term || !value) throw new Error('definition list has no bounding box');
-  expect(value.x, 'value is not beside its term').toBeGreaterThan(term.x + term.width - 1);
+  const users = page.getByTestId('overview-card-users');
+  const standards = page.getByTestId('overview-card-standards');
+  await expect(users).toBeVisible();
+  // Each value sits inside its own card, and the cards don't touch.
+  const userCard = (await users.boundingBox())!;
+  const userValue = (await page.getByTestId('overview-user-count').boundingBox())!;
+  expect(userValue.x).toBeGreaterThanOrEqual(userCard.x);
+  expect(userValue.y + userValue.height).toBeLessThanOrEqual(userCard.y + userCard.height);
+  const standardsCard = (await standards.boundingBox())!;
+  expect(standardsCard.x - (userCard.x + userCard.width), 'stat cards are touching').toBeGreaterThan(4);
+  // Libraries have no admin page: shown, but not a link.
+  await expect(page.getByTestId('overview-library-count')).toBeVisible();
+  await expect(page.locator('a:has([data-testid="overview-library-count"])')).toHaveCount(0);
+
+  await users.click();
+  await expect(page).toHaveURL(/admin=users/);
+  await expect(page.getByRole('heading', { level: 1, name: 'Users' })).toBeVisible();
+  await page.goBack();
+  await page.getByTestId('overview-card-standards').click();
+  await expect(page).toHaveURL(/admin=standards/);
+  await expect(page.getByRole('heading', { level: 1, name: 'Standards' })).toBeVisible();
 });
 
 test('a non-admin still cannot reach any admin destination', async ({ page }) => {

@@ -2,8 +2,10 @@ import { useEffect, useState } from 'react';
 import { api, type AdminOverviewDto } from '../app/api';
 
 /**
- * Single admin-console landing view aggregating standards, libraries, and users (FR-023 —
- * "a single place to manage" — this is the entry point; the individual editors are one click away).
+ * Admin-console landing view (FR-023): the console's numbers at a glance. canvas-789: each count
+ * is a card that opens its page -- the "Manage Standards"/"Manage Users" links it used to end
+ * with duplicated the admin tab row directly above (and covered only two of its destinations).
+ * Icon/shape libraries have no admin page, so that card is plain.
  */
 export function AdminOverview() {
   const [overview, setOverview] = useState<AdminOverviewDto | null>(null);
@@ -20,24 +22,32 @@ export function AdminOverview() {
       <h1 className="page__title" tabIndex={-1} data-browse-heading>
         Admin Overview
       </h1>
-      <dl>
-        <dt>Users</dt>
-        <dd data-testid="overview-user-count">{overview.userCount}</dd>
-        <dt>Standards (published / total)</dt>
-        <dd data-testid="overview-standards-count">
-          {overview.publishedStandardsCount} / {overview.standardsCount}
-        </dd>
-        <dt>Icon/Shape Libraries</dt>
-        <dd data-testid="overview-library-count">{overview.libraryCount}</dd>
-      </dl>
-      <nav>
-        <a data-testid="overview-link-standards" href="?admin=standards">
-          Manage Standards
-        </a>
-        <a data-testid="overview-link-users" href="?admin=users">
-          Manage Users
-        </a>
-      </nav>
+      <ul className="admin-stats">
+        <li>
+          <a className="card admin-stat admin-stat--link" href="?admin=users" data-testid="overview-card-users">
+            <span className="admin-stat__value" data-testid="overview-user-count">
+              {overview.userCount}
+            </span>
+            <span className="admin-stat__label">{overview.userCount === 1 ? 'User' : 'Users'}</span>
+          </a>
+        </li>
+        <li>
+          <a className="card admin-stat admin-stat--link" href="?admin=standards" data-testid="overview-card-standards">
+            <span className="admin-stat__value" data-testid="overview-standards-count">
+              {overview.publishedStandardsCount} / {overview.standardsCount}
+            </span>
+            <span className="admin-stat__label">Standards published / total</span>
+          </a>
+        </li>
+        <li>
+          <div className="card admin-stat">
+            <span className="admin-stat__value" data-testid="overview-library-count">
+              {overview.libraryCount}
+            </span>
+            <span className="admin-stat__label">Icon/shape libraries</span>
+          </div>
+        </li>
+      </ul>
     </div>
   );
 }
