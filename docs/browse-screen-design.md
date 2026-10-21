@@ -1,6 +1,6 @@
 # Browse Screen Design (canvas-t3b, Option B)
 
-Status: **approved 2026-10-20** (canvas-t3b.1). Implementation follows in canvas-t3b.2–t3b.6.
+Status: **implemented** — approved 2026-10-20 (canvas-t3b.1), shipped in canvas-t3b.2–t3b.6 (PRs #200–#203 plus the t3b.6 cleanup).
 
 Option B from [navigation-flow-brief.md](navigation-flow-brief.md) §6 Q1: retire "current project"
 as global app state and replace today's two browsing screens — the Projects page and the

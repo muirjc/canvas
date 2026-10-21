@@ -1,6 +1,8 @@
 # Requirements Brief: Project Context
 
-**Status**: Ready for `/speckit-specify`
+**Status**: Implemented (feature 007), and since superseded: the Browse redesign (`canvas-t3b`,
+[browse-screen-design.md](browse-screen-design.md)) retired the "current project" and its header
+`ProjectPicker` in favour of a location read from the address.
 **Created**: 2026-07-29
 **Tracked as**: bead `canvas-xyl` (P1 bug) — full diagnostic history lives there
 **Evidence**: `apps/web/tests/e2e/project-context.spec.ts` — 3 tests, currently failing 0/3

@@ -83,6 +83,21 @@ tests are NON-NEGOTIABLE and must exist (and fail) before implementing any diagr
 work — see `.specify/memory/constitution.md` Principle IV.
 
 ## Recent Changes
+- `canvas-t3b` epic (Option B Browse redesign, design in `docs/browse-screen-design.md`): retired
+  "current project" as global app state. The address is the state — `/` = project list,
+  `?projectId=` = a project, `?diagramId=` = an open diagram (reload keeps it; diagrams are
+  linkable) — via `apps/web/src/app/navigation.ts` and one guarded `navigate()` in `App.tsx`
+  (t3b.2). Screen changes push history, so Back/Forward work; leaving a dirty editor any way,
+  browser Back included, shows the single `home-nav-confirm`; `beforeunload` covers tab close.
+  Landing on a bare address: the only project (nothing shared), else the last project opened in
+  this browser (localStorage), else the list. One Browse surface (t3b.3): `ProjectsPage` is the
+  top level (filter + New Project, project names are links, "Shared with me" below); a project's
+  page has a `nav > ol` breadcrumb and an `<h1>` with its name; focus moves to the new screen's
+  `<h1>` after user navigations; `document.title` per screen. Header (t3b.4): Projects / Admin
+  links + skip link — `ProjectPicker` and `project-context.ts` (`withProjectContext`) are gone
+  (t3b.6); the admin console's Back returns to the last Browse location in the tab
+  (sessionStorage). New specs: `browse-navigation`, `browse-screen`, `app-header`; first
+  `apps/web` unit tests (`tests/unit/navigation.test.ts`). Deferred: "recently opened" (`canvas-93n`).
 - `canvas-chq`: every standard is viewable and editable on `?admin=standards`. Published/retired
   versions previously showed metadata only; now any version opens read-only (one native
   `<fieldset disabled>`), and Edit on a published/retired version "revises" it — its rules seed a

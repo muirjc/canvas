@@ -69,6 +69,9 @@ function DiagramRow({ diagramId, diagramName, typeName, currentProjectId, onOpen
 
 interface TreeNodeProps {
   node: ProjectTreeNodeDto;
+  /** canvas-t3b.6: the project the page is about -- its name is already the page's <h1>, so its
+   *  own header row is left out (nested projects, should they ever exist, keep theirs). */
+  isRoot?: boolean;
   typeNameOf: (diagramTypeId: string) => string | undefined;
   onOpenDiagram: (id: string) => void;
   onRequestDelete: (diagramId: string, diagramName: string) => void;
@@ -79,20 +82,22 @@ function countDiagrams(node: ProjectTreeNodeDto): number {
   return node.diagrams.length + node.children.reduce((sum, child) => sum + countDiagrams(child), 0);
 }
 
-function TreeNode({ node, typeNameOf, onOpenDiagram, onRequestDelete, onRequestMove }: TreeNodeProps) {
+function TreeNode({ node, isRoot = false, typeNameOf, onOpenDiagram, onRequestDelete, onRequestMove }: TreeNodeProps) {
   const total = countDiagrams(node);
   return (
     <li className="project-node">
-      <div className="project-node__header">
-        <Icon name="chevron-down" />
-        <strong className="row__title" data-testid={`project-node-${node.id}`}>
-          {node.name}
-        </strong>
-        <span className="spacer" />
-        <span className="meta">
-          {total} diagram{total === 1 ? '' : 's'}
-        </span>
-      </div>
+      {!isRoot && (
+        <div className="project-node__header">
+          <Icon name="chevron-down" />
+          <strong className="row__title" data-testid={`project-node-${node.id}`}>
+            {node.name}
+          </strong>
+          <span className="spacer" />
+          <span className="meta">
+            {total} diagram{total === 1 ? '' : 's'}
+          </span>
+        </div>
+      )}
       <ul className="project-node__list">
         {node.diagrams.map((diagram) => (
           <DiagramRow
@@ -317,22 +322,24 @@ export function ProjectBrowser({ rootProjectId, projects, onOpenDiagram }: Proje
           )}
         </>
       ) : (
-        <>
+        isEmpty ? (
+          <div className="card" data-testid="project-browser">
+            <p className="state" data-testid="project-browser-empty">
+              No diagrams yet — create one to get started.
+            </p>
+          </div>
+        ) : (
           <ul className="card" data-testid="project-browser">
             <TreeNode
               node={tree}
+              isRoot
               typeNameOf={typeNameOf}
               onOpenDiagram={onOpenDiagram}
               onRequestDelete={requestDelete}
               onRequestMove={requestMove}
             />
           </ul>
-          {isEmpty && (
-            <p className="state" data-testid="project-browser-empty">
-              No diagrams yet — create one to get started.
-            </p>
-          )}
-        </>
+        )
       )}
       {pendingDelete && (
         <ConfirmDialog

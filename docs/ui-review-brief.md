@@ -1,6 +1,7 @@
 # Requirements Brief: Post-005 UI Consistency Review
 
-**Status**: Ready for `/speckit-specify` (one grouping at a time — see §5)
+**Status**: Historical. The header and project screens it reviews were since replaced by the Browse
+redesign (`canvas-t3b`, [browse-screen-design.md](browse-screen-design.md)).
 **Created**: 2026-07-31
 **Source**: Design-quality audit of everything shipped in `apps/web` since the 005 redesign
 (features 004, 006, 007, 008, 009, plus the standalone container/icon/edge/multiline/back-nav
