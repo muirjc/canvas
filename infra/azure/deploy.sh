@@ -5,7 +5,7 @@
 #
 # Usage: ENTRA_CLIENT_ID=<id> [ENTRA_TENANT_ID=<id>] [ENTRA_CLIENT_SECRET=<secret>] \
 #        [CANVAS_AI_PROVIDER=mock|anthropic|openai] [CANVAS_ANTHROPIC_API_KEY=<key>] \
-#        [CANVAS_OPENAI_API_KEY=<key>] [CANVAS_ALLOW_PUBLIC=1] \
+#        [CANVAS_OPENAI_API_KEY=<key>] [CANVAS_ALLOW_PUBLIC=1] [CANVAS_AUTH_MODE=entra|local] \
 #        ./deploy.sh [--what-if-only | --yes] [location]
 #
 # canvas-cng: the API ingress and the web Storage account only accept the networks listed in
@@ -26,6 +26,11 @@
 # cached afterward in infra/azure/.secrets/oidc-client-secret) come from the "canvas-azure" Entra
 # app registration -- see RUNBOOK.md's "Entra ID SSO" section for the one-time setup steps that
 # produce them. ENTRA_TENANT_ID defaults to the deploying subscription's own tenant.
+#
+# canvas-ez1.1: CANVAS_AUTH_MODE picks the sign-in model (cached in .secrets/auth-mode, default
+# entra). 'local' is option B of docs/ip-allowlist-security-plan.md: Canvas-managed email +
+# password accounts, no Entra app registration needed (ENTRA_CLIENT_ID/SECRET become optional).
+# Local mode always requires a non-empty IP allow-list -- CANVAS_ALLOW_PUBLIC=1 doesn't override it.
 #
 # All secret VALUES (Postgres admin password, the assembled DATABASE_URL, SESSION_SECRET,
 # ANTHROPIC_API_KEY/OPENAI_API_KEY) are written into Key Vault BEFORE the main deployment runs,
@@ -104,9 +109,25 @@ SESSION_SECRET="$(cat "$SESSION_SECRET_FILE")"
 # section has the one-time setup steps). ENTRA_CLIENT_SECRET, if set, is cached to this same file
 # exactly like the other secrets above so it only needs to be supplied once; if neither is present
 # this is a hard error, not a silently-generated-and-therefore-useless placeholder.
+# canvas-ez1.1: the sign-in model, cached like the AI provider below so a routine re-run without
+# CANVAS_AUTH_MODE never flips a live environment's sign-in model.
+AUTH_MODE_FILE="$SECRETS_DIR/auth-mode"
+if [[ -n "${CANVAS_AUTH_MODE:-}" ]]; then
+  printf '%s' "$CANVAS_AUTH_MODE" > "$AUTH_MODE_FILE"
+  chmod 600 "$AUTH_MODE_FILE"
+fi
+AUTH_MODE="$(cat "$AUTH_MODE_FILE" 2>/dev/null || echo entra)"
+case "$AUTH_MODE" in
+  entra|local) ;;
+  *) echo "ERROR: CANVAS_AUTH_MODE must be entra or local (got: $AUTH_MODE)." >&2; exit 1 ;;
+esac
+
 if [[ -n "${ENTRA_CLIENT_SECRET:-}" ]]; then
   printf '%s' "$ENTRA_CLIENT_SECRET" > "$OIDC_CLIENT_SECRET_FILE"
   chmod 600 "$OIDC_CLIENT_SECRET_FILE"
+elif [[ "$AUTH_MODE" == local ]]; then
+  # No Entra in local mode; the Key Vault secret still has to exist for the app's secret reference.
+  [[ -f "$OIDC_CLIENT_SECRET_FILE" ]] || { printf 'unset' > "$OIDC_CLIENT_SECRET_FILE"; chmod 600 "$OIDC_CLIENT_SECRET_FILE"; }
 elif [[ ! -f "$OIDC_CLIENT_SECRET_FILE" ]]; then
   echo "ERROR: no Entra client secret found." >&2
   echo "Set ENTRA_CLIENT_SECRET to the 'canvas-azure' app registration's client secret value" >&2
@@ -155,12 +176,14 @@ esac
 # default -- override only if the app registration lives in a different tenant.
 ENTRA_TENANT_ID="${ENTRA_TENANT_ID:-$(az account show --query tenantId -o tsv)}"
 
-if [[ -z "${ENTRA_CLIENT_ID:-}" ]]; then
+if [[ -z "${ENTRA_CLIENT_ID:-}" && "$AUTH_MODE" == entra ]]; then
   echo "ERROR: ENTRA_CLIENT_ID is required -- the 'canvas-azure' Entra app registration's" >&2
   echo "Application (client) ID. See RUNBOOK.md's 'Entra ID SSO' section for the one-time setup" >&2
   echo "steps that produce this value." >&2
   exit 1
 fi
+ENTRA_CLIENT_ID="${ENTRA_CLIENT_ID:-}"
+echo "== Sign-in: $AUTH_MODE =="
 
 DEPLOYER_PRINCIPAL_ID="$(az ad signed-in-user show --query id -o tsv)"
 
@@ -200,6 +223,12 @@ for number, raw in enumerate(open(sys.argv[1]), start=1):
 print(json.dumps(ranges))
 PY
 )"
+fi
+if [[ "$ALLOWED_IPS_JSON" == "[]" && "$AUTH_MODE" == local ]]; then
+  # Option B's passwords are the only per-user control, so the network list is mandatory.
+  echo "AUTH_MODE=local needs an IP allow-list (CANVAS_ALLOW_PUBLIC=1 doesn't apply):" >&2
+  echo "add one 'CIDR description' per line to $ALLOWED_IPS_FILE." >&2
+  exit 1
 fi
 if [[ "$ALLOWED_IPS_JSON" == "[]" && "${CANVAS_ALLOW_PUBLIC:-}" != "1" ]]; then
   echo "No IP allow-list: the API and the web app would be reachable from anywhere." >&2
@@ -345,7 +374,7 @@ az deployment sub what-if \
     deployerPrincipalId="$DEPLOYER_PRINCIPAL_ID" apiImageTag="$API_IMAGE_TAG" \
     webOrigin="$WEB_ORIGIN" grantAcrPull="$GRANT_ACR_PULL" \
     entraTenantId="$ENTRA_TENANT_ID" entraClientId="$ENTRA_CLIENT_ID" aiProvider="$AI_PROVIDER" \
-    allowedIpRanges="$ALLOWED_IPS_JSON"
+    allowedIpRanges="$ALLOWED_IPS_JSON" authMode="$AUTH_MODE"
 
 echo
 if [[ "$WHAT_IF_ONLY" == true ]]; then
@@ -371,7 +400,7 @@ az deployment sub create \
     deployerPrincipalId="$DEPLOYER_PRINCIPAL_ID" apiImageTag="$API_IMAGE_TAG" \
     webOrigin="$WEB_ORIGIN" grantAcrPull="$GRANT_ACR_PULL" \
     entraTenantId="$ENTRA_TENANT_ID" entraClientId="$ENTRA_CLIENT_ID" aiProvider="$AI_PROVIDER" \
-    allowedIpRanges="$ALLOWED_IPS_JSON" \
+    allowedIpRanges="$ALLOWED_IPS_JSON" authMode="$AUTH_MODE" \
   --output table
 
 STORAGE_ACCOUNT="$(az deployment sub show --name "canvas-foundation" --query "properties.outputs.storageAccountName.value" -o tsv)"
@@ -529,6 +558,12 @@ echo "NOT run automatically -- it creates a demo admin account with a published 
 echo "(apps/api/src/seed/run.ts), appropriate for a throwaway/demo environment, not unprompted"
 echo "on every deploy of something meant to hold real data."
 echo
+if [[ "$AUTH_MODE" == local ]]; then
+  echo "== Sign-in: local accounts (AUTH_MODE=local) =="
+  echo "No Entra app registration is used. People sign in with Canvas-managed email + password"
+  echo "accounts, only from the networks in $ALLOWED_IPS_FILE (RUNBOOK.md's 'Local accounts' section)."
+  exit 0
+fi
 echo "== Entra app registration -- action required =="
 echo "ALLOW_LOCAL_AUTH defaults to false for this deployment (apiapp.bicep) -- Entra ID sign-in is"
 echo "the only way in until you register this environment's real addresses on the 'canvas-azure'"

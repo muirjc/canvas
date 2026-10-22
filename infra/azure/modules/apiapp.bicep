@@ -40,6 +40,10 @@ param apiPort int = 3000
 @description('canvas-haz: this deployment authenticates via Microsoft Entra ID, so local email/password auth is no longer the only way to sign in -- defaults to false, requiring SSO + whatever Conditional Access/MFA policy the tenant enforces for this app. Kept as a param, not hardcoded, purely as an emergency break-glass switch (e.g. the Entra tenant itself is unreachable) -- flip it back to true only for that, never as a standing configuration, or MFA becomes silently bypassable.')
 param allowLocalAuth bool = false
 
+@description('canvas-ez1.1: AUTH_MODE -- "entra" (Entra ID sign-in) or "local" (Canvas-managed email + password accounts only; the OIDC_* values below are then ignored by the API). deploy.sh refuses "local" without an IP allow-list (docs/ip-allowlist-security-plan.md, option B).')
+@allowed(['entra', 'local'])
+param authMode string = 'entra'
+
 @description('canvas-cng: the IP allow-list, as [{ cidr, description }]. When non-empty, ingress only accepts these ranges -- once one Allow rule exists, Container Apps denies all other traffic. Entra sign-in still applies on top (docs/ip-allowlist-security-plan.md, option A). deploy.sh supplies it from infra/azure/.secrets/allowed-ips and refuses an empty list unless CANVAS_ALLOW_PUBLIC=1.')
 param allowedIpRanges array = []
 
@@ -126,6 +130,7 @@ resource apiApp 'Microsoft.App/containerApps@2025-01-01' = {
             // would silently evaluate to false with no error anywhere -- caught via `az
             // deployment sub what-if`'s actual rendered output, not by inspection alone.
             { name: 'ALLOW_LOCAL_AUTH', value: allowLocalAuth ? 'true' : 'false' }
+            { name: 'AUTH_MODE', value: authMode }
             // Split-origin deployment (frontend on Storage static website, API here) --
             // COOKIE_SAME_SITE=none requires COOKIE_SECURE=true, which config.ts already forces
             // automatically whenever SameSite=none is set, but both are passed explicitly for

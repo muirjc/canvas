@@ -179,7 +179,8 @@ export async function registerOidcRoutes(app: FastifyInstance, config: AppConfig
     '/auth/config',
     // canvas-lfc: no preHandler enforces auth -- deliberately public (see the comment above).
     { schema: { tags: ['Auth'], security: [] } },
-    async () => ({ oidcEnabled, localAuthEnabled: config.allowLocalAuth }),
+    // canvas-ez1.1: authMode too, so the sign-in page and operators can see which model is live.
+    async () => ({ authMode: config.authMode, oidcEnabled, localAuthEnabled: config.allowLocalAuth }),
   );
 
   if (!oidcEnabled) {

@@ -12,6 +12,7 @@ walkthroughs, see `specs/*/quickstart.md`. For the "what is this project" overvi
 | `DB_CLIENT` | no (default `postgres`) | `postgres` or `sqlite` — selects the Kysely dialect (`apps/api/src/db/client.ts`). See "Database engine" below. |
 | `DATABASE_URL` | **yes**, unless `NODE_ENV=test` | For `DB_CLIENT=postgres` (default): `postgres://canvas:canvas_dev_password@localhost:5433/canvas`. For `DB_CLIENT=sqlite`: a file path (e.g. `./data/canvas.db`) or `:memory:`. Falls back automatically when `NODE_ENV=test` (to `.../canvas_test` for Postgres, or an in-memory SQLite database for `TEST_DB_CLIENT=sqlite`) — see `apps/api/src/config.ts`. |
 | `SESSION_SECRET` | **yes**, unless `NODE_ENV=test` | ≥32 characters. Falls back to a fixed test string when `NODE_ENV=test`. |
+| `AUTH_MODE` | no (default `entra`) | `entra` or `local`. `local` serves only Canvas-managed email/password sign-in: local sign-in is forced on and the Entra routes are never registered, even if `OIDC_*` is set. See "Local accounts" below. |
 | `ALLOW_LOCAL_AUTH` | no (default `false`) | Set `true` for local dev/demo — enables email/password login without OIDC. |
 | `OIDC_ISSUER_URL` / `OIDC_CLIENT_ID` / `OIDC_CLIENT_SECRET` / `OIDC_REDIRECT_URI` | no | Leave blank locally; SSO routes are disabled when unset (logged at startup). See "Entra ID SSO" below to actually try it locally. |
 | `WEB_ORIGINS` | no (default `http://localhost:5173`) | Comma-separated list of origins allowed to make credentialed CORS requests. |
@@ -162,6 +163,18 @@ API's ingress (Container Apps access restrictions) and on the web app's Storage 
   **404 "The requested content does not exist" (`WebContentNotFound`)** — that's how a Storage
   static website answers a request its firewall refuses, not a missing deploy. (Verified
   2026-10-22 from a phone on another network.)
+
+## Local accounts (canvas-ez1, option B)
+
+An environment without an Entra tenant can run with `AUTH_MODE=local`: people sign in with
+email + password accounts Canvas manages (docs/ip-allowlist-security-plan.md, option B). In Azure,
+deploy with `CANVAS_AUTH_MODE=local ./deploy.sh` (cached in `infra/azure/.secrets/auth-mode`, so
+later runs keep it; `CANVAS_AUTH_MODE=entra` switches back). `ENTRA_CLIENT_ID`/`ENTRA_CLIENT_SECRET`
+aren't needed in local mode. Local mode **always requires the IP allow-list**: `deploy.sh` refuses
+to deploy it with an empty `allowed-ips`, and `CANVAS_ALLOW_PUBLIC=1` doesn't override that.
+
+User management, the first admin, lockout and MFA are still being built (canvas-ez1.2–.5). Until
+they land, don't switch a real environment to local mode.
 
 ## Entra ID SSO (canvas-haz)
 
