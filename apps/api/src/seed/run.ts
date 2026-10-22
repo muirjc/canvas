@@ -12,6 +12,11 @@ import { seedCatalog } from './catalog.js';
  * a clean environment build, unlike the demo account this function also creates.
  */
 async function seed(): Promise<void> {
+  // canvas-ez1.3: these accounts have published passwords -- in AUTH_MODE=local they'd be real,
+  // working sign-ins. A local-mode environment gets its first admin from bootstrap-admin.ts instead.
+  if (process.env.AUTH_MODE === 'local') {
+    throw new Error('The demo seed refuses to run with AUTH_MODE=local (its accounts have published passwords). Use bootstrap-admin instead.');
+  }
   await seedCatalog();
   const db = getDb();
 

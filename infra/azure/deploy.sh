@@ -31,6 +31,9 @@
 # entra). 'local' is option B of docs/ip-allowlist-security-plan.md: Canvas-managed email +
 # password accounts, no Entra app registration needed (ENTRA_CLIENT_ID/SECRET become optional).
 # Local mode always requires a non-empty IP allow-list -- CANVAS_ALLOW_PUBLIC=1 doesn't override it.
+# canvas-ez1.3: local mode also needs CANVAS_ADMIN_EMAIL on its first run (cached in
+# .secrets/admin-email): the first admin, created by the canvas-bootstrap-admin job with a one-time
+# password generated into .secrets/bootstrap-admin-password. No demo seed accounts exist there.
 #
 # All secret VALUES (Postgres admin password, the assembled DATABASE_URL, SESSION_SECRET,
 # ANTHROPIC_API_KEY/OPENAI_API_KEY) are written into Key Vault BEFORE the main deployment runs,
@@ -184,6 +187,28 @@ if [[ -z "${ENTRA_CLIENT_ID:-}" && "$AUTH_MODE" == entra ]]; then
 fi
 ENTRA_CLIENT_ID="${ENTRA_CLIENT_ID:-}"
 echo "== Sign-in: $AUTH_MODE =="
+
+# canvas-ez1.3: the first admin of a local-mode environment.
+ADMIN_EMAIL_FILE="$SECRETS_DIR/admin-email"
+BOOTSTRAP_PASSWORD_FILE="$SECRETS_DIR/bootstrap-admin-password"
+ADMIN_EMAIL=""
+if [[ "$AUTH_MODE" == local ]]; then
+  if [[ -n "${CANVAS_ADMIN_EMAIL:-}" ]]; then
+    printf '%s' "$CANVAS_ADMIN_EMAIL" > "$ADMIN_EMAIL_FILE"
+    chmod 600 "$ADMIN_EMAIL_FILE"
+  fi
+  ADMIN_EMAIL="$(cat "$ADMIN_EMAIL_FILE" 2>/dev/null || true)"
+  if [[ -z "$ADMIN_EMAIL" ]]; then
+    echo "ERROR: AUTH_MODE=local needs the first admin's email -- set CANVAS_ADMIN_EMAIL (cached to $ADMIN_EMAIL_FILE)." >&2
+    exit 1
+  fi
+  if [[ ! -f "$BOOTSTRAP_PASSWORD_FILE" ]]; then
+    # 20 alphanumerics (~119 bits); passes the password policy (apps/api/src/auth/password-policy.ts).
+    openssl rand -base64 48 | tr -dc 'A-Za-z0-9' | head -c 20 > "$BOOTSTRAP_PASSWORD_FILE"
+    chmod 600 "$BOOTSTRAP_PASSWORD_FILE"
+  fi
+  echo "  First admin: $ADMIN_EMAIL (one-time password in $BOOTSTRAP_PASSWORD_FILE)"
+fi
 
 DEPLOYER_PRINCIPAL_ID="$(az ad signed-in-user show --query id -o tsv)"
 
@@ -351,6 +376,9 @@ elif [[ -n "$EXISTING_KEY_VAULT" ]]; then
   # lands here for a provider that isn't in use.
   kv_set_tracked "anthropic-api-key" "${ANTHROPIC_KEY:-unset}"
   kv_set_tracked "openai-api-key" "${OPENAI_KEY:-unset}"
+  if [[ "$AUTH_MODE" == local ]]; then
+    kv_set_tracked "bootstrap-admin-password" "$(cat "$BOOTSTRAP_PASSWORD_FILE")"
+  fi
   echo "  Secrets up to date (AI_PROVIDER=$AI_PROVIDER)."
 else
   echo "== No existing Key Vault found -- skipping secret pre-seed (first-ever run) =="
@@ -374,7 +402,7 @@ az deployment sub what-if \
     deployerPrincipalId="$DEPLOYER_PRINCIPAL_ID" apiImageTag="$API_IMAGE_TAG" \
     webOrigin="$WEB_ORIGIN" grantAcrPull="$GRANT_ACR_PULL" \
     entraTenantId="$ENTRA_TENANT_ID" entraClientId="$ENTRA_CLIENT_ID" aiProvider="$AI_PROVIDER" \
-    allowedIpRanges="$ALLOWED_IPS_JSON" authMode="$AUTH_MODE"
+    allowedIpRanges="$ALLOWED_IPS_JSON" authMode="$AUTH_MODE" adminEmail="$ADMIN_EMAIL"
 
 echo
 if [[ "$WHAT_IF_ONLY" == true ]]; then
@@ -400,7 +428,7 @@ az deployment sub create \
     deployerPrincipalId="$DEPLOYER_PRINCIPAL_ID" apiImageTag="$API_IMAGE_TAG" \
     webOrigin="$WEB_ORIGIN" grantAcrPull="$GRANT_ACR_PULL" \
     entraTenantId="$ENTRA_TENANT_ID" entraClientId="$ENTRA_CLIENT_ID" aiProvider="$AI_PROVIDER" \
-    allowedIpRanges="$ALLOWED_IPS_JSON" authMode="$AUTH_MODE" \
+    allowedIpRanges="$ALLOWED_IPS_JSON" authMode="$AUTH_MODE" adminEmail="$ADMIN_EMAIL" \
   --output table
 
 STORAGE_ACCOUNT="$(az deployment sub show --name "canvas-foundation" --query "properties.outputs.storageAccountName.value" -o tsv)"
@@ -443,6 +471,7 @@ fi
 
 SEED_JOB="$(az deployment sub show --name "canvas-foundation" --query "properties.outputs.seedJobName.value" -o tsv)"
 CATALOG_SEED_JOB="$(az deployment sub show --name "canvas-foundation" --query "properties.outputs.catalogSeedJobName.value" -o tsv)"
+BOOTSTRAP_JOB="$(az deployment sub show --name "canvas-foundation" --query "properties.outputs.bootstrapAdminJobName.value" -o tsv)"
 
 # canvas-28j: force canvas-api and the jobs to refetch any KV secret this (or an earlier,
 # interrupted) run changed -- see PENDING_REFRESH_FILE above. Re-setting a secret with its same
@@ -459,8 +488,9 @@ refresh_kv_secret_refs() {
   echo "== Refreshing rotated Key Vault secret references: ${changed//$'\n'/ } =="
   identity_id="$(az identity show --resource-group "$RESOURCE_GROUP" --name canvas-identity --query id -o tsv)"
   kv_uri="$(az keyvault show --name "$KEY_VAULT_NAME" --query properties.vaultUri -o tsv)"
-  for target in "app:canvas-api" "job:$MIGRATION_JOB" "job:$SEED_JOB" "job:$CATALOG_SEED_JOB"; do
+  for target in "app:canvas-api" "job:$MIGRATION_JOB" "job:$SEED_JOB" "job:$CATALOG_SEED_JOB" "job:$BOOTSTRAP_JOB"; do
     kind="${target%%:*}"; name="${target#*:}"
+    [[ -n "$name" ]] || continue  # a job this auth mode doesn't deploy (canvas-ez1.3)
     local -a cmd=(az containerapp)
     [[ "$kind" == job ]] && cmd+=(job)
     args=()
@@ -544,12 +574,30 @@ echo "  Runs unconditionally, unlike canvas-seed below -- this is idempotent cat
 CATALOG_SEED_EXECUTION="$(az containerapp job start --name "$CATALOG_SEED_JOB" --resource-group "$RESOURCE_GROUP" --query name -o tsv)"
 wait_for_job_execution "$CATALOG_SEED_JOB" "$CATALOG_SEED_EXECUTION" "Catalog seed job"
 
+if [[ "$AUTH_MODE" == local ]]; then
+  echo
+  echo "== First admin (canvas-bootstrap-admin job) =="
+  echo "  Creates $ADMIN_EMAIL if it doesn't exist yet; an existing account is left unchanged."
+  BOOTSTRAP_EXECUTION="$(az containerapp job start --name "$BOOTSTRAP_JOB" --resource-group "$RESOURCE_GROUP" --query name -o tsv)"
+  wait_for_job_execution "$BOOTSTRAP_JOB" "$BOOTSTRAP_EXECUTION" "Bootstrap admin job"
+fi
+
 echo
 echo "== Done =="
 echo "  API:      https://${API_FQDN}"
 echo "  Frontend: ${REAL_WEB_ORIGIN}"
 echo "  Key Vault: $KEY_VAULT_NAME"
 echo
+if [[ "$AUTH_MODE" == local ]]; then
+  echo "== Sign-in: local accounts (AUTH_MODE=local) =="
+  echo "No Entra app registration is used. People sign in with Canvas-managed email + password"
+  echo "accounts, only from the networks in $ALLOWED_IPS_FILE (RUNBOOK.md's 'Local accounts' section)."
+  echo "First admin: $ADMIN_EMAIL -- sign in with the one-time password in"
+  echo "  $BOOTSTRAP_PASSWORD_FILE"
+  echo "and choose a new one; then add everyone else on Admin -> Users. (Once changed, that file no"
+  echo "longer signs anyone in. A lone admin who can't sign in: ./reset-admin.sh.)"
+  exit 0
+fi
 echo "The DiagramType catalog, bundled icon/shape libraries, and default AiPersonas are already"
 echo "seeded (canvas-seed-catalog, above) -- the environment is usable as-is. To additionally seed"
 echo "throwaway dev/demo content (one default project, one admin login) on top of that, run:"
@@ -558,12 +606,6 @@ echo "NOT run automatically -- it creates a demo admin account with a published 
 echo "(apps/api/src/seed/run.ts), appropriate for a throwaway/demo environment, not unprompted"
 echo "on every deploy of something meant to hold real data."
 echo
-if [[ "$AUTH_MODE" == local ]]; then
-  echo "== Sign-in: local accounts (AUTH_MODE=local) =="
-  echo "No Entra app registration is used. People sign in with Canvas-managed email + password"
-  echo "accounts, only from the networks in $ALLOWED_IPS_FILE (RUNBOOK.md's 'Local accounts' section)."
-  exit 0
-fi
 echo "== Entra app registration -- action required =="
 echo "ALLOW_LOCAL_AUTH defaults to false for this deployment (apiapp.bicep) -- Entra ID sign-in is"
 echo "the only way in until you register this environment's real addresses on the 'canvas-azure'"
