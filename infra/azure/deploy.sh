@@ -104,6 +104,15 @@ if [[ ! -f "$SESSION_SECRET_FILE" ]]; then
 fi
 SESSION_SECRET="$(cat "$SESSION_SECRET_FILE")"
 
+# canvas-ez1.5: the AES-256 key encrypting stored two-step-verification secrets. Generated once and
+# kept: replacing it makes every enrolled authenticator unreadable (each user would need Reset MFA).
+MFA_KEY_FILE="$SECRETS_DIR/mfa-encryption-key"
+if [[ ! -f "$MFA_KEY_FILE" ]]; then
+  openssl rand -base64 32 | tr -d '\n' > "$MFA_KEY_FILE"
+  chmod 600 "$MFA_KEY_FILE"
+fi
+MFA_ENCRYPTION_KEY="$(cat "$MFA_KEY_FILE")"
+
 # canvas-haz: unlike the self-hosted Keycloak this replaced (whose client secret this script could
 # freely generate itself, since it also owned reconciling that value into Keycloak's own running
 # config), Entra ID generates the "canvas-azure" app registration's client secret itself -- there
@@ -360,6 +369,7 @@ elif [[ -n "$EXISTING_KEY_VAULT" ]]; then
   echo "== Pre-seeding secrets into existing Key Vault ($EXISTING_KEY_VAULT) =="
   kv_set_tracked "postgres-admin-password" "$PG_ADMIN_PASSWORD"
   kv_set_tracked "session-secret" "$SESSION_SECRET"
+  kv_set_tracked "mfa-encryption-key" "$MFA_ENCRYPTION_KEY"
   kv_set_tracked "oidc-client-secret" "$OIDC_CLIENT_SECRET"
 
   # The connection string needs the server's real FQDN/DB name; both are fixed/known after this

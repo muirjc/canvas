@@ -46,6 +46,9 @@ export interface SessionUser {
   role: string;
   /** Signed in with a Canvas-managed password (as opposed to SSO). */
   localAccount?: boolean;
+  /** Signed in without two-step verification set up where it is required: set it up first. */
+  mustEnrollMfa?: boolean;
+  mfaEnabled?: boolean;
   /** Signed in with a one-time password: every route but /auth/* refuses until it is changed. */
   mustChangePassword?: boolean;
 }
@@ -210,6 +213,7 @@ export interface UserRecordDto {
   hasPassword?: boolean;
   /** Locked after too many failed sign-ins; an admin unlock or password reset clears it. */
   locked?: boolean;
+  mfaEnabled?: boolean;
 }
 
 export interface AuditEventDto {
@@ -291,7 +295,23 @@ export interface AiSettingsDto {
 export const api = {
   me: () => request<{ user: SessionUser }>('/auth/me'),
   login: (email: string, password: string) =>
-    request<{ user: SessionUser }>('/auth/local/login', { method: 'POST', body: JSON.stringify({ email, password }) }),
+    request<{ user?: SessionUser; mfaRequired?: boolean }>('/auth/local/login', {
+      method: 'POST',
+      body: JSON.stringify({ email, password }),
+    }),
+  verifyMfa: (code: string) =>
+    request<{ user: SessionUser; recoveryCodesRemaining?: number }>('/auth/mfa/verify', {
+      method: 'POST',
+      body: JSON.stringify({ code }),
+    }),
+  /** The secret and recovery codes these return are shown once and must never be stored. */
+  enrollMfa: () => request<{ secret: string; otpauthUri: string }>('/auth/mfa/enroll', { method: 'POST' }),
+  confirmMfaEnrollment: (code: string) =>
+    request<{ user: SessionUser; recoveryCodes: string[] }>('/auth/mfa/enroll/confirm', {
+      method: 'POST',
+      body: JSON.stringify({ code }),
+    }),
+  resetUserMfa: (id: string) => request<{ reset: boolean }>(`/admin/users/${id}/reset-mfa`, { method: 'POST' }),
   // canvas-252: a 204 (no body) means the local session was destroyed and there's nothing else
   // to do -- exactly the old behavior. A 200 with logoutUrl means this session came from SSO;
   // the caller (AppShell.tsx) must navigate the browser there (a real top-level page load, not
@@ -302,7 +322,7 @@ export const api = {
    *  LoginForm.tsx decide whether to show a "Sign in with SSO" link without it 404ing.
    *  canvas-cpa: localAuthEnabled likewise lets it decide whether to show the password fields at
    *  all, rather than a 404 surfacing as a bare "Not Found" only after submitting them. */
-  getAuthConfig: () => request<{ authMode: 'entra' | 'local'; oidcEnabled: boolean; localAuthEnabled: boolean }>('/auth/config'),
+  getAuthConfig: () => request<{ authMode: 'entra' | 'local'; mfaRequired?: boolean; oidcEnabled: boolean; localAuthEnabled: boolean }>('/auth/config'),
   createDiagram: (projectId: string, body: { name: string; diagramTypeId: string; initialDslContent?: string }) =>
     request<{ diagram: DiagramDto }>(`/projects/${projectId}/diagrams`, { method: 'POST', body: JSON.stringify(body) }),
   importDiagram: (projectId: string, body: { name: string; dslContent: string; diagramTypeHint?: string }) =>

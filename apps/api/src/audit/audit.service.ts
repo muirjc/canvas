@@ -17,7 +17,9 @@ export type AuditEvent =
   | 'password_change_failed'
   | 'password_reset'
   | 'user_created'
-  | 'user_updated';
+  | 'user_updated'
+  | 'mfa_enrolled'
+  | 'mfa_reset';
 
 export interface AuditEntry {
   event: AuditEvent;

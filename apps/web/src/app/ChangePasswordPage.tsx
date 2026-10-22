@@ -10,10 +10,12 @@ export interface ChangePasswordPageProps {
   /** Voluntary mode only: the way back after the success confirmation. */
   projectsHref?: string;
   onNavigateProjects?: () => void;
+  /** Extra sections rendered under the form (voluntary mode: two-step verification). */
+  children?: React.ReactNode;
 }
 
 /** Change-password screen, shared by the forced first-sign-in step and the voluntary header link. */
-export function ChangePasswordPage({ forced, onChanged, projectsHref, onNavigateProjects }: ChangePasswordPageProps) {
+export function ChangePasswordPage({ forced, onChanged, projectsHref, onNavigateProjects, children }: ChangePasswordPageProps) {
   const [current, setCurrent] = useState('');
   const [next, setNext] = useState('');
   const [confirm, setConfirm] = useState('');
@@ -153,6 +155,7 @@ export function ChangePasswordPage({ forced, onChanged, projectsHref, onNavigate
           </button>
         </form>
       )}
+      {children}
     </main>
   );
 }

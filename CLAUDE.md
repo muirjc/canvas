@@ -3,6 +3,9 @@
 Auto-generated from all feature plans. Last updated: 2026-10-02
 
 ## Active Technologies
+- `qrcode` (`1.5.4`, exact) added to `apps/web` (canvas-ez1.5, two-step verification) — renders
+  the authenticator-app set-up QR code client-side. Its only use; TOTP itself is implemented
+  in-house (`apps/api/src/auth/totp.ts`, RFC 6238 on `node:crypto`), no OTP library.
 - `jose` (`^6.2.2`) added to `apps/api` as a **test-only devDependency** (canvas-haz epic,
   Microsoft Entra ID migration) — resolves to the copy already transitively installed by
   `openid-client`, so nothing new is actually downloaded. Used solely by

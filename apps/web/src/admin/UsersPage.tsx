@@ -8,6 +8,7 @@ const ROLES = ['admin', 'architect', 'viewer'] as const;
 type Dialog =
   | { kind: 'add' }
   | { kind: 'reset'; user: UserRecordDto }
+  | { kind: 'reset-mfa'; user: UserRecordDto }
   // The one-time password lives only in this state, only while the panel is open (canvas-ez1.2).
   | { kind: 'password'; name: string; password: string };
 
@@ -55,6 +56,7 @@ export function UsersPage() {
             <th>Email</th>
             <th>Role</th>
             <th>Active</th>
+            {localAuthEnabled && <th>Two-step</th>}
             {localAuthEnabled && (
               <th>
                 <span className="visually-hidden">Actions</span>
@@ -102,6 +104,13 @@ export function UsersPage() {
               </td>
               {localAuthEnabled && (
                 <td>
+                  <span className={user.mfaEnabled ? 'badge badge--success' : 'badge'} data-testid={`user-mfa-${user.id}`}>
+                    {user.mfaEnabled ? 'On' : 'Off'}
+                  </span>
+                </td>
+              )}
+              {localAuthEnabled && (
+                <td>
                   <a
                     className="btn btn--secondary btn--compact"
                     data-testid={`view-activity-${user.id}`}
@@ -121,6 +130,19 @@ export function UsersPage() {
                       Unlock
                     </button>
                   )}{' '}
+                  {user.mfaEnabled && user.id !== currentUserId && (
+                    <>
+                      <button
+                        type="button"
+                        className="btn btn--secondary btn--compact"
+                        data-testid={`reset-mfa-${user.id}`}
+                        aria-label={`Reset two-step verification for ${user.name}`}
+                        onClick={() => setDialog({ kind: 'reset-mfa', user })}
+                      >
+                        Reset MFA
+                      </button>{' '}
+                    </>
+                  )}
                   {user.id !== currentUserId && (
                     <button
                       type="button"
@@ -153,6 +175,16 @@ export function UsersPage() {
           user={dialog.user}
           onClose={() => setDialog(null)}
           onReset={(password) => setDialog({ kind: 'password', name: dialog.user.name, password })}
+        />
+      )}
+      {dialog?.kind === 'reset-mfa' && (
+        <ResetMfaDialog
+          user={dialog.user}
+          onClose={() => setDialog(null)}
+          onReset={() => {
+            setDialog(null);
+            refresh();
+          }}
         />
       )}
       {dialog?.kind === 'password' && (
@@ -329,6 +361,52 @@ function OneTimePasswordDialog({ name, password, onClose }: { name: string; pass
           </span>
         </div>
       </div>
+    </Modal>
+  );
+}
+
+function ResetMfaDialog({ user, onClose, onReset }: { user: UserRecordDto; onClose: () => void; onReset: () => void }) {
+  const [error, setError] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+
+  const confirm = async () => {
+    setError(null);
+    setSubmitting(true);
+    try {
+      await api.resetUserMfa(user.id);
+      onReset();
+    } catch (err) {
+      setError((err as Error).message);
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <Modal
+      role="alertdialog"
+      label={`Reset two-step verification for ${user.name}`}
+      testId="reset-mfa-dialog"
+      onClose={onClose}
+      footer={
+        <>
+          <button type="button" className="btn btn--secondary" onClick={onClose}>
+            Cancel
+          </button>
+          <button type="button" className="btn btn--danger" data-testid="confirm-reset-mfa" disabled={submitting} onClick={confirm}>
+            Reset MFA
+          </button>
+        </>
+      }
+    >
+      <p>
+        This removes two-step verification for {user.name} and signs them out. They will have to set it up again the next
+        time they sign in.
+      </p>
+      {error && (
+        <p role="alert" className="field__error">
+          {error}
+        </p>
+      )}
     </Modal>
   );
 }

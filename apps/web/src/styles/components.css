@@ -459,3 +459,5 @@
   border-color: var(--accent);
   color: var(--accent);
 }
+
+.badge--success { background: var(--success-subtle, #e3f4ea); color: var(--success, #14612e); }

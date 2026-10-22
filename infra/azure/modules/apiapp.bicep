@@ -101,6 +101,12 @@ resource apiApp 'Microsoft.App/containerApps@2025-01-01' = {
           identity: identityId
         }
         {
+          // canvas-ez1.5: encrypts stored two-step-verification secrets (deploy.sh generates it).
+          name: 'mfa-encryption-key'
+          keyVaultUrl: '${keyVaultUri}secrets/mfa-encryption-key'
+          identity: identityId
+        }
+        {
           name: 'anthropic-api-key'
           keyVaultUrl: '${keyVaultUri}secrets/anthropic-api-key'
           identity: identityId
@@ -154,6 +160,7 @@ resource apiApp 'Microsoft.App/containerApps@2025-01-01' = {
             { name: 'OIDC_REDIRECT_URI', value: oidcRedirectUri }
             { name: 'DATABASE_URL', secretRef: 'database-url' }
             { name: 'SESSION_SECRET', secretRef: 'session-secret' }
+            { name: 'MFA_ENCRYPTION_KEY', secretRef: 'mfa-encryption-key' }
             { name: 'ANTHROPIC_API_KEY', secretRef: 'anthropic-api-key' }
             { name: 'OPENAI_API_KEY', secretRef: 'openai-api-key' }
           ]

@@ -12,6 +12,8 @@ walkthroughs, see `specs/*/quickstart.md`. For the "what is this project" overvi
 | `DB_CLIENT` | no (default `postgres`) | `postgres` or `sqlite` — selects the Kysely dialect (`apps/api/src/db/client.ts`). See "Database engine" below. |
 | `DATABASE_URL` | **yes**, unless `NODE_ENV=test` | For `DB_CLIENT=postgres` (default): `postgres://canvas:canvas_dev_password@localhost:5433/canvas`. For `DB_CLIENT=sqlite`: a file path (e.g. `./data/canvas.db`) or `:memory:`. Falls back automatically when `NODE_ENV=test` (to `.../canvas_test` for Postgres, or an in-memory SQLite database for `TEST_DB_CLIENT=sqlite`) — see `apps/api/src/config.ts`. |
 | `SESSION_SECRET` | **yes**, unless `NODE_ENV=test` | ≥32 characters. Falls back to a fixed test string when `NODE_ENV=test`. |
+| `MFA_REQUIRED` / `MFA_ENCRYPTION_KEY` | no | Two-step verification for Canvas-password accounts — see "Local accounts" below. |
+| `LOGIN_RATE_LIMIT` | no | Password sign-in attempts per client IP per minute (default 20 in local mode, off otherwise). |
 | `AUTH_MODE` | no (default `entra`) | `entra` or `local`. `local` serves only Canvas-managed email/password sign-in: local sign-in is forced on and the Entra routes are never registered, even if `OIDC_*` is set. See "Local accounts" below. |
 | `ALLOW_LOCAL_AUTH` | no (default `false`) | Set `true` for local dev/demo — enables email/password login without OIDC. |
 | `OIDC_ISSUER_URL` / `OIDC_CLIENT_ID` / `OIDC_CLIENT_SECRET` / `OIDC_REDIRECT_URI` | no | Leave blank locally; SSO routes are disabled when unset (logged at startup). See "Entra ID SSO" below to actually try it locally. |
@@ -213,8 +215,21 @@ npm run bootstrap-admin --workspace=@canvas/api`.
   password changes and resets, and admin changes to users — who, about whom, when, from which IP.
   Never a password. Rows are kept indefinitely for now.
 
-MFA is still being built (canvas-ez1.5). Until it lands, don't switch a real environment to local
-mode.
+**Two-step verification (MFA)** (canvas-ez1.5): required for every account in local mode
+(`MFA_REQUIRED`; default on in local mode, off otherwise — in dev anyone can turn it on from the
+header's account link). After choosing their password, each person scans a QR code with an
+authenticator app (Microsoft/Google Authenticator, 1Password, …), confirms one code, and is shown
+**10 single-use recovery codes once**. From then on sign-in is password, then a 6-digit code (or a
+recovery code). Wrong codes count toward the 3-attempt lockout, and a correct password alone doesn't
+reset that count. A code can't be reused.
+- **Lost phone / no recovery codes left:** an admin clicks **Reset MFA** on Admin → Users; the user
+  is signed out and sets it up again at their next sign-in. A lone admin: `reset-admin.sh` (it also
+  resets MFA). Recovery codes can't be regenerated yet — use Reset MFA.
+- **The encryption key:** authenticator secrets are stored AES-256-GCM encrypted with
+  `MFA_ENCRYPTION_KEY` (Key Vault `mfa-encryption-key`, generated once by `deploy.sh` into
+  `infra/azure/.secrets/mfa-encryption-key`). **Don't replace it** — every enrolled authenticator
+  becomes unreadable and each user would need Reset MFA. Required in production local mode; in
+  dev/test it's derived from `SESSION_SECRET`.
 
 ## Entra ID SSO (canvas-haz)
 
