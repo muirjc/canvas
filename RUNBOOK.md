@@ -286,6 +286,12 @@ variable`, that's why.
 
 - **Wipe and reseed the dev database**: `docker compose down -v && docker compose up -d`, then
   re-run `migrate` and `seed`.
+- **The e2e "Smoke Test" project** is cleared automatically before every local Playwright run
+  (canvas-fbv): the global setup runs `npm run e2e:reset --workspace=@canvas/api`, which
+  permanently deletes every diagram in that seeded project (live or soft-deleted, with their chats
+  and share grants), then re-seeds. Don't keep diagrams you care about in "Smoke Test". Skip it
+  with `E2E_KEEP_DATA=1` (e.g. to inspect what the previous run left); CI never runs it (fresh
+  database). Projects created by specs elsewhere are not touched.
 - **Re-run seed only** (idempotent — matches existing users/project by email/name instead of
   duplicating): `npm run seed --workspace=@canvas/api`.
 - **Rebuild `diagram-core` after any change to `packages/diagram-core/src`**: both `apps/api` and
