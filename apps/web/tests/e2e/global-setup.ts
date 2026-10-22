@@ -25,8 +25,6 @@ const REPO_ROOT = path.resolve(__dirname, '../../../..');
  * runs where nothing has set it yet.
  */
 export default function globalSetup(): void {
-  if (process.env.E2E_PROJECT_ID) return;
-
   // apps/api's scripts (dev/migrate/seed) never auto-load apps/api/.env — this repo has no
   // dotenv dependency at all, that file is reference/documentation only, and every invocation
   // needs these two explicitly. Falls back to this repo's own standard local dev values (used
@@ -37,6 +35,18 @@ export default function globalSetup(): void {
     DATABASE_URL: process.env.DATABASE_URL ?? 'postgres://canvas:canvas_dev_password@localhost:5433/canvas',
     SESSION_SECRET: process.env.SESSION_SECRET ?? 'change-me-to-a-random-string-of-at-least-32-characters',
   };
+
+  // canvas-fbv: each local run used to leave hundreds of diagrams in the shared "Smoke Test"
+  // project, slowing every spec that renders it. Clear them first (apps/api's e2e:reset) -- local
+  // runs only: CI starts from an empty database. E2E_KEEP_DATA=1 skips it, e.g. to inspect what
+  // a previous run left behind.
+  if (!process.env.CI && !process.env.E2E_KEEP_DATA) {
+    const reset = execSync('npm run e2e:reset --workspace=@canvas/api', { cwd: REPO_ROOT, encoding: 'utf-8', env });
+    const summary = reset.match(/e2e reset: .*/);
+    if (summary) console.log(summary[0]);
+  }
+
+  if (process.env.E2E_PROJECT_ID) return;
 
   const output = execSync('npm run seed --workspace=@canvas/api', {
     cwd: REPO_ROOT,

@@ -438,11 +438,17 @@ export interface PurgeResult {
  * call — a diagram row and its own dependents either all go or none do.
  */
 export async function purgeExpiredDiagrams(): Promise<PurgeResult> {
-  const ids = await findExpiredDiagramIds();
-  if (ids.length === 0) {
-    return { purgedDiagramIds: [] };
-  }
+  return { purgedDiagramIds: await purgeDiagrams(await findExpiredDiagramIds()) };
+}
 
+/**
+ * Physically deletes the given diagrams and their dependents in one transaction (shared by the
+ * retention purge above and, canvas-fbv, the local e2e reset): diagram_versions cascade on their
+ * own; chat history and share grants (a polymorphic subject_id with no FK) are deleted explicitly.
+ * Returns the ids it was given.
+ */
+export async function purgeDiagrams(ids: string[]): Promise<string[]> {
+  if (ids.length === 0) return [];
   const db = getDb();
   await db.transaction().execute(async (trx) => {
     await trx
@@ -453,6 +459,15 @@ export async function purgeExpiredDiagrams(): Promise<PurgeResult> {
     await trx.deleteFrom('share_grants').where('subject_type', '=', 'diagram').where('subject_id', 'in', ids).execute();
     await trx.deleteFrom('diagrams').where('id', 'in', ids).execute();
   });
+  return ids;
+}
 
-  return { purgedDiagramIds: ids };
+/**
+ * canvas-fbv: physically deletes every diagram in one project (live or soft-deleted) -- for the
+ * local e2e reset of the seeded "Smoke Test" fixture, never a user-facing action. The project
+ * itself and its project-level grants are left alone.
+ */
+export async function purgeProjectDiagrams(projectId: string): Promise<string[]> {
+  const rows = await getDb().selectFrom('diagrams').select('id').where('project_id', '=', projectId).execute();
+  return purgeDiagrams(rows.map((r) => r.id));
 }

@@ -3,7 +3,7 @@ import type { FastifyInstance } from 'fastify';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { buildTestApp, closeTestDb, resetDatabase, seedFlowchartDiagramType, seedProject, seedUser } from '../helpers/setup.js';
 import { getDb } from '../../src/db/client.js';
-import { findExpiredDiagramIds, purgeExpiredDiagrams } from '../../src/diagrams/diagram.service.js';
+import { findExpiredDiagramIds, purgeExpiredDiagrams, purgeProjectDiagrams } from '../../src/diagrams/diagram.service.js';
 
 /**
  * jmuir-yvh: soft-deleted diagrams past their retention window were excluded from queries and
@@ -170,5 +170,41 @@ describe('purgeExpiredDiagrams()', () => {
     expect(result.purgedDiagramIds.sort()).toEqual([expiredOne, expiredTwo].sort());
     const rows = await getDb().selectFrom('diagrams').select('id').orderBy('name').execute();
     expect(rows.map((r) => r.id).sort()).toEqual([stillActive, withinWindow].sort());
+  });
+
+  // canvas-fbv: the local e2e reset (src/seed/reset-e2e.ts) clears the seeded "Smoke Test"
+  // fixture's diagrams through this.
+  it('purgeProjectDiagrams removes every diagram in one project -- live or soft-deleted -- with its dependents, and nothing else', async () => {
+    const db = getDb();
+    const live = await createDiagram('Live Diagram');
+    const trashed = await createDiagram('Recently Deleted');
+    await softDeleteAndAge(trashed, 1);
+    const otherUserId = (await seedUser({ email: 'grantee@example.com', password: 'grantee-pass' })).id;
+    await db
+      .insertInto('share_grants')
+      .values({ id: randomUUID(), subject_type: 'diagram', subject_id: live, grantee_user_id: otherUserId, access_level: 'view', granted_by_user_id: ownerId })
+      .execute();
+    const chatId = randomUUID();
+    await db.insertInto('diagram_chats').values({ id: chatId, diagram_id: live }).execute();
+
+    const otherProjectId = (await seedProject('Other Project', ownerId)).id;
+    const otherResponse = await app.inject({
+      method: 'POST',
+      url: `/projects/${otherProjectId}/diagrams`,
+      headers: { cookie: ownerCookie },
+      payload: { name: 'Elsewhere', diagramTypeId: 'flowchart' },
+    });
+    const elsewhere = otherResponse.json().diagram.id as string;
+
+    const purged = await purgeProjectDiagrams(projectId);
+
+    expect(purged.sort()).toEqual([live, trashed].sort());
+    const remaining = await db.selectFrom('diagrams').select('id').execute();
+    expect(remaining.map((r) => r.id)).toEqual([elsewhere]);
+    expect(await db.selectFrom('share_grants').select('id').where('subject_id', '=', live).execute()).toHaveLength(0);
+    expect(await db.selectFrom('diagram_chats').select('id').where('id', '=', chatId).execute()).toHaveLength(0);
+    // The project itself stays.
+    expect(await db.selectFrom('projects').select('id').where('id', '=', projectId).execute()).toHaveLength(1);
+    expect(await purgeProjectDiagrams(projectId)).toEqual([]);
   });
 });

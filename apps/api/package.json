@@ -13,7 +13,8 @@
     "migrate": "tsx --env-file-if-exists=.env src/db/migrate.ts",
     "seed": "tsx --env-file-if-exists=.env src/seed/run.ts",
     "seed:catalog": "tsx --env-file-if-exists=.env src/seed/catalog.ts",
-    "purge": "tsx --env-file-if-exists=.env src/purge/run.ts"
+    "purge": "tsx --env-file-if-exists=.env src/purge/run.ts",
+    "e2e:reset": "tsx --env-file-if-exists=.env src/seed/reset-e2e.ts"
   },
   "dependencies": {
     "@ai-sdk/anthropic": "^4.0.21",
