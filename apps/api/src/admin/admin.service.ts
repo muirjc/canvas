@@ -13,16 +13,28 @@ export interface UserRecord {
   role: UserRole;
   personas: string[];
   active: boolean;
+  /** canvas-ez1.2: has a Canvas (local) password -- the Users page offers Reset password. */
+  hasPassword?: boolean;
 }
 
 export async function listUsers(): Promise<UserRecord[]> {
   const db = getDb();
-  const rows = await db.selectFrom('users').select(['id', 'name', 'email', 'role', 'active']).orderBy('name').execute();
+  const rows = await db
+    .selectFrom('users')
+    .leftJoin('local_credentials', 'local_credentials.user_id', 'users.id')
+    .select(['users.id', 'users.name', 'users.email', 'users.role', 'users.active', 'local_credentials.user_id as credential_user_id'])
+    .orderBy('users.name')
+    .execute();
   const personasByUser = await getUserPersonasBatch(
     db,
     rows.map((r) => r.id),
   );
-  return rows.map((r) => ({ ...r, active: fromDbBoolean(r.active), personas: personasByUser.get(r.id) ?? [] }));
+  return rows.map(({ credential_user_id, ...r }) => ({
+    ...r,
+    active: fromDbBoolean(r.active),
+    hasPassword: credential_user_id !== null,
+    personas: personasByUser.get(r.id) ?? [],
+  }));
 }
 
 export interface UpdateUserInput {
@@ -63,6 +75,10 @@ export async function updateUser(id: string, input: UpdateUserInput): Promise<Us
     }
     if (input.personas !== undefined) {
       await setUserPersonas(trx, id, input.personas);
+    }
+    if (input.active === false) {
+      // canvas-ez1.2: a deactivated user is signed out now, not when their session next expires.
+      await trx.deleteFrom('sessions').where('user_id', '=', id).execute();
     }
     return { ...row, active: fromDbBoolean(row.active), personas: await getUserPersonas(trx, id) };
   });

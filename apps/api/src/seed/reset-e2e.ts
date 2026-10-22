@@ -18,6 +18,7 @@ async function resetE2e(): Promise<void> {
     throw new Error('e2e:reset refuses to run with NODE_ENV=production.');
   }
   await runMigrations();
+  await removeE2eUsers();
   const project = await getDb().selectFrom('projects').select('id').where('name', '=', 'Smoke Test').executeTakeFirst();
   if (!project) {
     console.log('e2e reset: no "Smoke Test" project yet -- nothing to clear.');
@@ -25,6 +26,27 @@ async function resetE2e(): Promise<void> {
   }
   const purged = await purgeProjectDiagrams(project.id);
   console.log(`e2e reset: removed ${purged.length} diagram(s) from the "Smoke Test" project.`);
+}
+
+/** canvas-ez1.2: local-user-management.spec.ts creates an e2e-user-<timestamp> account per run. */
+async function removeE2eUsers(): Promise<void> {
+  const db = getDb();
+  const users = await db.selectFrom('users').select('id').where('email', 'like', 'e2e-user-%@example.com').execute();
+  let removed = 0;
+  for (const { id } of users) {
+    try {
+      await db.transaction().execute(async (trx) => {
+        await trx.deleteFrom('sessions').where('user_id', '=', id).execute();
+        await trx.deleteFrom('users_personas').where('user_id', '=', id).execute();
+        await trx.deleteFrom('local_credentials').where('user_id', '=', id).execute();
+        await trx.deleteFrom('users').where('id', '=', id).execute();
+      });
+      removed++;
+    } catch {
+      // Owns or is referenced by something (a project, a share): leave it.
+    }
+  }
+  if (users.length) console.log(`e2e reset: removed ${removed} of ${users.length} e2e user account(s).`);
 }
 
 resetE2e()

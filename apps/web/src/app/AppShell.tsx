@@ -5,7 +5,12 @@ export interface AppShellProps {
   user: SessionUser;
   onSignOut: () => void;
   /** canvas-t3b.4: which header link is the current section ('browse' at both Browse levels). */
-  currentSection: 'browse' | 'admin' | null;
+  currentSection: 'browse' | 'admin' | 'account' | null;
+  /** Change-password link (local accounts only), and the in-app way to open it. */
+  accountHref?: string;
+  onNavigateAccount?: () => void;
+  /** Forced password change: wordmark and Sign Out only, no navigation. */
+  minimal?: boolean;
   /** The project list's address, and the in-app way to get there (App's guarded navigate()). */
   projectsHref: string;
   onNavigateProjects: () => void;
@@ -18,7 +23,7 @@ export interface AppShellProps {
  * the header no longer needs to know one -- it's the same on every screen: the wordmark, the
  * Projects and Admin sections, the user and Sign Out, plus a skip link past it all.
  */
-export function AppShell({ user, onSignOut, currentSection, projectsHref, onNavigateProjects, children }: AppShellProps) {
+export function AppShell({ user, onSignOut, currentSection, projectsHref, onNavigateProjects, accountHref, onNavigateAccount, minimal = false, children }: AppShellProps) {
   const handleSignOut = async () => {
     const result = await api.logout();
     if (result?.logoutUrl) {
@@ -38,6 +43,9 @@ export function AppShell({ user, onSignOut, currentSection, projectsHref, onNavi
           <Icon name="diamond" />
           Canvas
         </span>
+        {minimal ? (
+          <span className="app-nav" />
+        ) : (
         <nav className="app-nav" aria-label="Primary">
           <a
             className="app-nav__link"
@@ -64,7 +72,23 @@ export function AppShell({ user, onSignOut, currentSection, projectsHref, onNavi
               Admin
             </a>
           )}
+          {user.localAccount && accountHref && (
+            <a
+              className="app-nav__link"
+              href={accountHref}
+              data-testid="nav-change-password"
+              aria-current={currentSection === 'account' ? 'page' : undefined}
+              onClick={(event) => {
+                if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+                event.preventDefault();
+                onNavigateAccount?.();
+              }}
+            >
+              <span className="app-nav__long">Change </span>password
+            </a>
+          )}
         </nav>
+        )}
         <span className="cluster">
           <span className="meta">{user.email}</span>
           <button type="button" className="btn btn--secondary btn--compact" data-testid="sign-out" onClick={handleSignOut}>

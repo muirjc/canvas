@@ -6,6 +6,10 @@ export interface SessionUser {
   name: string;
   role: UserRole;
   personas: string[];
+  /** canvas-ez1.2: signed in with a Canvas password (not SSO), so it can be changed. */
+  localAccount?: boolean;
+  /** canvas-ez1.2: signed in with a one-time password -- must change it before anything else. */
+  mustChangePassword?: boolean;
 }
 
 declare module '@fastify/session' {

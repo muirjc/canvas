@@ -13,3 +13,8 @@
 # present on every branch's own tip for its CI run to pick it up, not only the branch that
 # originally introduced the flagged commit.
 a3344adf564e06f453f06251797a446575e14d82:packages/diagram-core/tests/contract/sequence-notes-and-blocks.test.ts:generic-api-key:162
+
+# canvas-ez1.2: generic-api-key false positive -- a made-up password constant in the e2e spec
+# (local-user-management.spec.ts), confirmed via a local gitleaks run. The live lines now carry
+# gitleaks:allow; this entry covers the already-pushed commit.
+0785d1b3c0ca4c73472bcf732ed7b01615b43d26:apps/web/tests/e2e/local-user-management.spec.ts:generic-api-key:21

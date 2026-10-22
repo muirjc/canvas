@@ -44,6 +44,10 @@ export interface SessionUser {
   email: string;
   name: string;
   role: string;
+  /** Signed in with a Canvas-managed password (as opposed to SSO). */
+  localAccount?: boolean;
+  /** Signed in with a one-time password: every route but /auth/* refuses until it is changed. */
+  mustChangePassword?: boolean;
 }
 
 export interface DiagramDto {
@@ -202,6 +206,8 @@ export interface UserRecordDto {
   role: string;
   personas: string[];
   active: boolean;
+  /** Has a Canvas-managed password (a local account). */
+  hasPassword?: boolean;
 }
 
 export interface AdminOverviewDto {
@@ -284,7 +290,7 @@ export const api = {
    *  LoginForm.tsx decide whether to show a "Sign in with SSO" link without it 404ing.
    *  canvas-cpa: localAuthEnabled likewise lets it decide whether to show the password fields at
    *  all, rather than a 404 surfacing as a bare "Not Found" only after submitting them. */
-  getAuthConfig: () => request<{ oidcEnabled: boolean; localAuthEnabled: boolean }>('/auth/config'),
+  getAuthConfig: () => request<{ authMode: 'entra' | 'local'; oidcEnabled: boolean; localAuthEnabled: boolean }>('/auth/config'),
   createDiagram: (projectId: string, body: { name: string; diagramTypeId: string; initialDslContent?: string }) =>
     request<{ diagram: DiagramDto }>(`/projects/${projectId}/diagrams`, { method: 'POST', body: JSON.stringify(body) }),
   importDiagram: (projectId: string, body: { name: string; dslContent: string; diagramTypeHint?: string }) =>
@@ -414,6 +420,13 @@ export const api = {
   listAdminUsers: () => request<{ users: UserRecordDto[] }>('/admin/users'),
   updateAdminUser: (id: string, body: { role?: string; personas?: string[]; active?: boolean }) =>
     request<{ user: UserRecordDto }>(`/admin/users/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
+  /** Local auth only. The returned temporaryPassword is shown once and must not be stored. */
+  createUser: (body: { email: string; name: string; role: string }) =>
+    request<{ user: UserRecordDto; temporaryPassword: string }>('/admin/users', { method: 'POST', body: JSON.stringify(body) }),
+  resetUserPassword: (id: string) =>
+    request<{ temporaryPassword: string }>(`/admin/users/${id}/reset-password`, { method: 'POST' }),
+  changePassword: (currentPassword: string, newPassword: string) =>
+    request<{ user: SessionUser }>('/auth/password', { method: 'POST', body: JSON.stringify({ currentPassword, newPassword }) }),
   getAdminOverview: () => request<{ overview: AdminOverviewDto }>('/admin/overview'),
   deleteDiagram: (id: string) => request<void>(`/diagrams/${id}`, { method: 'DELETE' }),
   listDeletedDiagrams: (options: { limit?: number; q?: string } = {}) => {

@@ -247,6 +247,8 @@ export interface LocalCredentialsTable {
   user_id: string;
   password_hash: string;
   password_salt: string;
+  /** canvas-ez1.2: set by an admin-issued one-time password; cleared when the user changes it. */
+  must_change_password: Generated<boolean>;
 }
 
 export interface AiPersonasTable {
@@ -318,6 +320,8 @@ export interface SessionsTable {
   id: string;
   data: string;
   expires_at: ColumnType<number | string, number, number>;
+  /** canvas-ez1.2: the signed-in user, so their sessions can be ended (null before sign-in). */
+  user_id: string | null;
 }
 
 export interface DB {

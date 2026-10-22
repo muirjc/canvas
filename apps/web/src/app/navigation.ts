@@ -7,7 +7,9 @@
 export type Location =
   | { screen: 'projects' }
   | { screen: 'project'; projectId: string }
-  | { screen: 'diagram'; diagramId: string };
+  | { screen: 'diagram'; diagramId: string }
+  /** ?account=password: the signed-in user's own change-password screen. */
+  | { screen: 'account' };
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -22,19 +24,21 @@ export function parseLocation(search: string): Location {
   if (diagramId && UUID_PATTERN.test(diagramId)) return { screen: 'diagram', diagramId };
   const projectId = params.get('projectId');
   if (projectId && UUID_PATTERN.test(projectId)) return { screen: 'project', projectId };
+  if (params.get('account') === 'password') return { screen: 'account' };
   return { screen: 'projects' };
 }
 
 /** True when the address names nothing (no screen and no admin page): only then do landing rules apply. */
 export function isBareAddress(search: string): boolean {
   const params = new URLSearchParams(search);
-  return !params.get('diagramId') && !params.get('projectId') && !params.get('admin');
+  return !params.get('diagramId') && !params.get('projectId') && !params.get('admin') && !params.get('account');
 }
 
 /** The address for a location (path-relative query string; '?' for the top level). */
 export function locationToSearch(location: Location): string {
   if (location.screen === 'diagram') return `?diagramId=${encodeURIComponent(location.diagramId)}`;
   if (location.screen === 'project') return `?projectId=${encodeURIComponent(location.projectId)}`;
+  if (location.screen === 'account') return '?account=password';
   return '?';
 }
 
