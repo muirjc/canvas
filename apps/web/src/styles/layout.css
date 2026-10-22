@@ -781,6 +781,16 @@
   flex: 1 1 240px;
 }
 
+/* canvas-hmm: the project list's zero-projects card. */
+.card.empty-state {
+  padding: var(--space-6);
+  color: var(--text-secondary);
+}
+
+.card.empty-state p {
+  margin: 0;
+}
+
 /* ---- Browse top level toolbar (canvas-t3b.3): filter, then New Project ---- */
 
 .browse-toolbar {

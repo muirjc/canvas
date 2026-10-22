@@ -27,8 +27,9 @@ export interface DiagramEditorProps {
    *  Optional only so DiagramEditor stays usable without a shell around it. */
   onRequestClose?: () => void;
   /** canvas-t3b.2: where the back button goes, as its label -- the diagram's project name, or
-   *  "Projects" (docs/browse-screen-design.md §7). */
-  backLabel?: string;
+   *  "Projects" (docs/browse-screen-design.md §7). Required (canvas-hmm: the old "Diagrams"
+   *  default named a screen that no longer exists). */
+  backLabel: string;
   /** canvas-ltm: which side-rail tab opens first -- 'chat' right after Create with AI when the AI
    *  asked follow-up questions, so that exchange is in view. Defaults to the DSL tab. */
   initialRailTab?: 'dsl' | 'chat';
@@ -56,7 +57,7 @@ function initialModelFromDsl(diagram: DiagramDto): DiagramModel {
 }
 
 export const DiagramEditor = forwardRef<DiagramEditorHandle, DiagramEditorProps>(function DiagramEditor(
-  { diagram: initialDiagram, onRequestClose, backLabel = 'Diagrams', initialRailTab = 'dsl' },
+  { diagram: initialDiagram, onRequestClose, backLabel, initialRailTab = 'dsl' },
   ref,
 ) {
   const [diagram, setDiagram] = useState(initialDiagram);

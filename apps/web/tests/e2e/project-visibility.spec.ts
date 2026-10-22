@@ -267,10 +267,17 @@ test('a user with access to no projects is invited to create one, not shown an e
 
   await signIn(page, ADMIN_EMAIL, ADMIN_PASSWORD);
 
-  await expect(page.getByTestId('create-first-project')).toBeVisible();
+  // canvas-hmm: the zero-projects form is gone; the user lands on the Projects page instead.
+  await expect(page.getByTestId('projects-page-empty')).toBeVisible();
   await expect(page.getByTestId('app-error')).toHaveCount(0);
-  // Nothing is created on the user's behalf (FR-015).
-  await expect(page.getByTestId('start-create-project')).toBeVisible();
+  // Nothing is created on the user's behalf (FR-015) — the toolbar button offers it.
+  await expect(page.getByTestId('projects-page-start-create')).toBeVisible();
+
+  const name = `First Project ${Date.now()}`;
+  await page.getByTestId('projects-page-start-create').click();
+  await page.getByTestId('projects-page-new-name').fill(name);
+  await page.getByTestId('projects-page-confirm-create').click();
+  await expect(page.getByTestId('project-browser-breadcrumb-current')).toHaveText(name);
 
   await context.close();
 });

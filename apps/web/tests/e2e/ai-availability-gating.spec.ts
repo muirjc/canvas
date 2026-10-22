@@ -42,7 +42,10 @@ test.describe('AI availability gating', () => {
     await page.reload();
 
     await expect(page.getByTestId('create-via-ai-chat')).toBeEnabled();
+    // canvas-hmm: the mock-mode note moved from the project page into the Create with AI dialog.
+    await page.getByTestId('create-via-ai-chat').click();
     await expect(page.getByTestId('ai-mock-mode-note')).toBeVisible();
+    await page.getByTestId('ai-create-cancel').click();
     await expect(page.getByTestId('create-via-ai-disabled-note')).toHaveCount(0);
 
     await openAnyFlowchartDiagram(page);

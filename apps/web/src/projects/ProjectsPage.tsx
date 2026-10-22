@@ -177,9 +177,15 @@ export function ProjectsPage({
       )}
 
       {projects.length === 0 ? (
-        <p className="state" data-testid="projects-page-empty">
-          No projects yet — create one to get started.
-        </p>
+        // canvas-hmm: the zero-projects state lives here (App's separate "create first project"
+        // form is gone; the toolbar's New Project creates it). Invite, never invent (feature 007
+        // FR-014/015) -- but not for a user with diagrams shared with them, where "you have no
+        // projects" would sit above a list proving they have work (feature 008 FR-003).
+        sharedDiagrams.length > 0 ? null : (
+          <section className="card empty-state" data-testid="projects-page-empty">
+            <p>You don&rsquo;t have any projects yet. Create one with New Project to start drawing diagrams.</p>
+          </section>
+        )
       ) : (
         <>
           {filteredProjects.length === 0 ? (

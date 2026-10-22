@@ -51,6 +51,7 @@ function DiagramRow({ diagramId, diagramName, typeName, currentProjectId, onOpen
           aria-label={`Move diagram ${diagramName}`}
           onClick={() => onRequestMove(diagramId, diagramName, currentProjectId)}
         >
+          <Icon name="arrow-right" size={12} />
           Move
         </button>
         <button
@@ -60,6 +61,7 @@ function DiagramRow({ diagramId, diagramName, typeName, currentProjectId, onOpen
           aria-label={`Delete diagram ${diagramName}`}
           onClick={() => onRequestDelete(diagramId, diagramName)}
         >
+          <Icon name="trash" size={12} />
           Delete
         </button>
       </span>
