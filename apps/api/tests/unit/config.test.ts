@@ -228,3 +228,35 @@ describe('loadConfig() LOGIN_RATE_LIMIT (canvas-ez1.4)', () => {
     }
   });
 });
+
+describe('loadConfig() MFA (canvas-ez1.5)', () => {
+  const KEY = Buffer.alloc(32, 7).toString('base64');
+
+  it('MFA_REQUIRED defaults to true in local mode and false otherwise; explicit values win', () => {
+    expect(loadConfig({ NODE_ENV: 'test', AUTH_MODE: 'local' }).mfaRequired).toBe(true);
+    expect(loadConfig({ NODE_ENV: 'test' }).mfaRequired).toBe(false);
+    expect(loadConfig({ NODE_ENV: 'test', AUTH_MODE: 'local', MFA_REQUIRED: 'false' }).mfaRequired).toBe(false);
+    expect(loadConfig({ NODE_ENV: 'test', MFA_REQUIRED: 'true' }).mfaRequired).toBe(true);
+  });
+
+  it('uses MFA_ENCRYPTION_KEY when given', () => {
+    expect(loadConfig({ NODE_ENV: 'test', MFA_ENCRYPTION_KEY: KEY }).mfaEncryptionKey.equals(Buffer.alloc(32, 7))).toBe(true);
+  });
+
+  it('rejects a key that is not 32 bytes', () => {
+    expect(() => loadConfig({ NODE_ENV: 'test', MFA_ENCRYPTION_KEY: Buffer.alloc(16).toString('base64') })).toThrow(/MFA_ENCRYPTION_KEY/);
+  });
+
+  it('production with AUTH_MODE=local requires MFA_ENCRYPTION_KEY; entra production does not', () => {
+    const prod = { NODE_ENV: 'production', DATABASE_URL: 'postgres://real/db', SESSION_SECRET: 'real-secret-long-enough' }; // gitleaks:allow
+    expect(() => loadConfig({ ...prod, AUTH_MODE: 'local' })).toThrow(/MFA_ENCRYPTION_KEY is required/);
+    expect(loadConfig({ ...prod, AUTH_MODE: 'local', MFA_ENCRYPTION_KEY: KEY }).mfaEncryptionKey).toHaveLength(32);
+    expect(loadConfig({ ...prod, ALLOW_LOCAL_AUTH: 'true' }).mfaEncryptionKey).toHaveLength(32);
+  });
+
+  it('derives a stable 32-byte key outside production when none is set', () => {
+    const a = loadConfig({ NODE_ENV: 'test', AUTH_MODE: 'local' }).mfaEncryptionKey;
+    expect(a).toHaveLength(32);
+    expect(loadConfig({ NODE_ENV: 'test', AUTH_MODE: 'local' }).mfaEncryptionKey.equals(a)).toBe(true);
+  });
+});

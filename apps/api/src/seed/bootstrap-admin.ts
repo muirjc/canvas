@@ -4,6 +4,7 @@ import { runMigrations } from '../db/migrate.js';
 import { dbBoolean } from '../db/sql-helpers.js';
 import { checkPasswordPolicy } from '../auth/password-policy.js';
 import { recordAudit } from '../audit/audit.service.js';
+import { resetMfa } from '../auth/mfa.service.js';
 import { createLocalUser, normalizeEmail, setOneTimePassword } from '../admin/local-accounts.service.js';
 
 /**
@@ -40,8 +41,10 @@ export async function bootstrapAdmin(env: NodeJS.ProcessEnv): Promise<string> {
     if (!existing) throw new Error(`No account with the email ${email} -- nothing to reset.`);
     await db.updateTable('users').set({ role: 'admin', active: dbBoolean(true) }).where('id', '=', existing.id).execute();
     await setOneTimePassword(existing.id, password);
-    await recordAudit({ event: 'password_reset', targetUserId: existing.id, detail: { via: 'bootstrap-admin', unlocked: true } });
-    return `bootstrap-admin: ${email} is an active admin again with a new one-time password; signed out everywhere.`;
+    // canvas-ez1.5: a lost phone is one more way to be locked out -- set it up again on sign-in.
+    await resetMfa(existing.id);
+    await recordAudit({ event: 'password_reset', targetUserId: existing.id, detail: { via: 'bootstrap-admin', unlocked: true, mfaReset: true } });
+    return `bootstrap-admin: ${email} is an active, unlocked admin again with a new one-time password and no two-step verification (set up again at sign-in); signed out everywhere.`;
   }
 
   if (existing) return `bootstrap-admin: ${email} already exists -- left unchanged.`;

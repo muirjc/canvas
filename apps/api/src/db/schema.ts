@@ -254,6 +254,22 @@ export interface LocalCredentialsTable {
   locked_at: Timestamp | null;
 }
 
+/** canvas-ez1.5: two-step verification (auth/mfa.service.ts). */
+export interface UserMfaTable {
+  user_id: string;
+  secret_encrypted: string;
+  enabled_at: Timestamp | null;
+  /** BIGINT: node-postgres returns it as a string. */
+  last_used_step: ColumnType<number | string | null, number | null | undefined, number | null>;
+}
+
+export interface MfaRecoveryCodesTable {
+  id: string;
+  user_id: string;
+  code_hash: string;
+  used_at: Timestamp | null;
+}
+
 /** canvas-ez1.4: the audit log (audit/audit.service.ts). `detail` is JSON text. */
 export interface AuditEventsTable {
   id: string;
@@ -341,6 +357,8 @@ export interface SessionsTable {
 export interface DB {
   sessions: SessionsTable;
   audit_events: AuditEventsTable;
+  user_mfa: UserMfaTable;
+  mfa_recovery_codes: MfaRecoveryCodesTable;
   users: UsersTable;
   users_personas: UsersPersonasTable;
   projects: ProjectsTable;

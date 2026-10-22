@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react';
-import { api, type SessionUser } from './api';
+import { useEffect, useRef, useState } from 'react';
+import { api, ApiError, type SessionUser } from './api';
 import { Icon } from '../ui/Icon';
 import { loadWebConfig } from '../config';
 
@@ -33,14 +33,55 @@ export function LoginForm({ onSuccess }: LoginFormProps) {
       });
   }, []);
 
+  // Two-step verification: after a correct password the account may ask for a code.
+  const [step, setStep] = useState<'password' | 'code'>('password');
+  const [code, setCode] = useState('');
+  // A recovery code was used: hold the signed-in user until the "N remaining" notice is dismissed.
+  const [recovery, setRecovery] = useState<{ user: SessionUser; remaining: number } | null>(null);
+  const headingRef = useRef<HTMLHeadingElement>(null);
+
+  useEffect(() => {
+    if (step === 'code' || recovery) headingRef.current?.focus();
+  }, [step, recovery]);
+
+  const startOver = () => {
+    setStep('password');
+    setCode('');
+    setPassword('');
+    setError(null);
+  };
+
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
     setError(null);
     try {
-      const { user } = await api.login(email, password);
-      onSuccess(user);
+      const result = await api.login(email, password);
+      if (result.mfaRequired) {
+        setStep('code');
+        return;
+      }
+      if (result.user) onSuccess(result.user);
     } catch (err) {
       setError((err as Error).message);
+    }
+  };
+
+  const handleVerify = async (event: React.FormEvent) => {
+    event.preventDefault();
+    setError(null);
+    try {
+      const { user, recoveryCodesRemaining } = await api.verifyMfa(code.trim());
+      setCode('');
+      if (recoveryCodesRemaining !== undefined) setRecovery({ user, remaining: recoveryCodesRemaining });
+      else onSuccess(user);
+    } catch (err) {
+      setError((err as Error).message);
+      // Timed out or locked: the sign-in has to start again.
+      if (err instanceof ApiError && (err.status === 423 || (err.status === 401 && /start|expired|timed/i.test(err.message)))) {
+        setStep('password');
+        setPassword('');
+        setCode('');
+      }
     }
   };
 
@@ -48,6 +89,77 @@ export function LoginForm({ onSuccess }: LoginFormProps) {
   // server's redirect chain to Keycloak's own login page, then back to /auth/callback, which a
   // same-page API call can't do.
   const ssoLoginUrl = `${loadWebConfig().apiBaseUrl}/auth/login`;
+
+  if (recovery) {
+    return (
+      <div className="auth">
+        <div className="auth__card">
+          <span className="auth__brand">
+            <Icon name="diamond" />
+            Canvas
+          </span>
+          <h1 ref={headingRef} tabIndex={-1}>
+            Recovery code used
+          </h1>
+          <p role="status" data-testid="recovery-codes-remaining">
+            You have {recovery.remaining} recovery {recovery.remaining === 1 ? 'code' : 'codes'} left. When they run out, an
+            administrator must reset your two-step verification.
+          </p>
+          <button type="button" className="btn btn--primary auth__submit" data-testid="mfa-continue" onClick={() => onSuccess(recovery.user)}>
+            Continue
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  if (step === 'code') {
+    return (
+      <div className="auth">
+        <form className="auth__card" onSubmit={handleVerify}>
+          <span className="auth__brand">
+            <Icon name="diamond" />
+            Canvas
+          </span>
+          <h1 ref={headingRef} tabIndex={-1}>
+            Two-step verification
+          </h1>
+          <div className="field">
+            <label className="field__label" htmlFor="mfa-code">
+              Enter the 6-digit code from your authenticator app
+            </label>
+            <input
+              id="mfa-code"
+              data-testid="mfa-code"
+              value={code}
+              onChange={(e) => setCode(e.target.value)}
+              type="text"
+              autoComplete="one-time-code"
+              inputMode={/^[0-9\s]*$/.test(code) ? 'numeric' : 'text'}
+              autoCapitalize="none"
+              spellCheck={false}
+              aria-describedby="mfa-code-hint"
+              required
+            />
+            <span id="mfa-code-hint" className="meta">
+              Lost your phone? Enter a recovery code instead (like abcde-12345).
+            </span>
+          </div>
+          <button type="submit" className="btn btn--primary auth__submit" data-testid="mfa-submit">
+            Verify
+          </button>
+          <button type="button" className="btn btn--secondary auth__submit" data-testid="mfa-start-over" onClick={startOver}>
+            Start over
+          </button>
+          {error && (
+            <p role="alert" data-testid="login-error">
+              {error}
+            </p>
+          )}
+        </form>
+      </div>
+    );
+  }
 
   return (
     <div className="auth">

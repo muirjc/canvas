@@ -125,7 +125,7 @@ describe('bootstrap-admin', () => {
       await getDb().updateTable('users').set({ active: dbBoolean(false) }).where('email', '=', EMAIL).execute();
 
       const message = await bootstrapAdmin(env({ BOOTSTRAP_MODE: 'reset', BOOTSTRAP_ADMIN_PASSWORD: PW2 }));
-      expect(message).toMatch(/active admin again/);
+      expect(message).toMatch(/active, unlocked admin again/);
 
       const rows = await usersWithCredentials();
       expect(rows).toHaveLength(1);

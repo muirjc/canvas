@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { api, type AiSettingsDto, type DiagramDto, type ProjectDto, type SessionUser, type SharedDiagramDto } from './api';
 import { LoginForm } from './LoginForm';
 import { ChangePasswordPage } from './ChangePasswordPage';
+import { MfaSetup } from './MfaSetup';
 import { AppShell } from './AppShell';
 import { DiagramEditor, type DiagramEditorHandle } from './DiagramEditor';
 import { NewDiagramDialog } from './NewDiagramDialog';
@@ -310,7 +311,8 @@ export function App() {
   // A forced password change names itself too.
   useEffect(() => {
     if (user?.mustChangePassword) document.title = 'Change password – Canvas';
-  }, [user?.mustChangePassword]);
+    else if (user?.mustEnrollMfa) document.title = 'Two-step verification – Canvas';
+  }, [user?.mustChangePassword, user?.mustEnrollMfa]);
 
   // After a navigation the user made (a click, Back/Forward -- never the first load or a redirect),
   // move focus to the new screen's <h1>, so the screen reader announces where the user is instead
@@ -400,6 +402,15 @@ export function App() {
     );
   }
 
+  // After the password change: set up two-step verification before anything else.
+  if (user.mustEnrollMfa) {
+    return (
+      <AppShell user={user} onSignOut={handleSignOut} currentSection={null} projectsHref="" onNavigateProjects={() => {}} minimal>
+        <MfaSetup forced mfaEnabled={false} onDone={(updated) => setUser(updated)} />
+      </AppShell>
+    );
+  }
+
   let content: React.ReactNode;
   if (adminParam && user.role === 'admin') {
     let adminScreen: React.ReactNode;
@@ -424,7 +435,9 @@ export function App() {
         onChanged={(updated) => setUser(updated)}
         projectsHref={urlFor({ screen: 'projects' })}
         onNavigateProjects={() => navigate({ screen: 'projects' })}
-      />
+      >
+        <MfaSetup forced={false} mfaEnabled={!!user.mfaEnabled} onDone={(updated) => setUser(updated)} />
+      </ChangePasswordPage>
     );
   } else if (
     (location.screen === 'projects' && (projects === null || (landingPending.current && !sharedLoaded))) ||

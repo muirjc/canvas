@@ -17,6 +17,8 @@ export interface UserRecord {
   hasPassword?: boolean;
   /** canvas-ez1.4: locked after too many failed sign-ins -- the Users page offers Unlock. */
   locked?: boolean;
+  /** canvas-ez1.5: two-step verification is set up -- the Users page offers Reset MFA. */
+  mfaEnabled?: boolean;
 }
 
 export async function listUsers(): Promise<UserRecord[]> {
@@ -24,15 +26,17 @@ export async function listUsers(): Promise<UserRecord[]> {
   const rows = await db
     .selectFrom('users')
     .leftJoin('local_credentials', 'local_credentials.user_id', 'users.id')
-    .select(['users.id', 'users.name', 'users.email', 'users.role', 'users.active', 'local_credentials.user_id as credential_user_id', 'local_credentials.locked_at'])
+    .leftJoin('user_mfa', 'user_mfa.user_id', 'users.id')
+    .select(['users.id', 'users.name', 'users.email', 'users.role', 'users.active', 'local_credentials.user_id as credential_user_id', 'local_credentials.locked_at', 'user_mfa.enabled_at as mfa_enabled_at'])
     .orderBy('users.name')
     .execute();
   const personasByUser = await getUserPersonasBatch(
     db,
     rows.map((r) => r.id),
   );
-  return rows.map(({ credential_user_id, locked_at, ...r }) => ({
+  return rows.map(({ credential_user_id, locked_at, mfa_enabled_at, ...r }) => ({
     ...r,
+    mfaEnabled: mfa_enabled_at !== null,
     locked: locked_at !== null,
     active: fromDbBoolean(r.active),
     hasPassword: credential_user_id !== null,

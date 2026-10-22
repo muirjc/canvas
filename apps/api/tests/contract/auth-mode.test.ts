@@ -46,7 +46,7 @@ describe('AUTH_MODE', () => {
   it('local: /auth/config reports local sign-in only, and email + password sign-in works', async () => {
     const instance = await start({ AUTH_MODE: 'local', ...ENTRA });
     const config = await instance.inject({ method: 'GET', url: '/auth/config' });
-    expect(config.json()).toEqual({ authMode: 'local', oidcEnabled: false, localAuthEnabled: true });
+    expect(config.json()).toEqual({ authMode: 'local', oidcEnabled: false, localAuthEnabled: true, mfaRequired: true });
 
     const login = await instance.inject({
       method: 'POST',

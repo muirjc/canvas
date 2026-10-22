@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 export interface AppConfig {
   port: number;
   databaseUrl: string;
@@ -28,6 +29,12 @@ export interface AppConfig {
   /** canvas-ez1.4: password sign-in attempts allowed per client IP per minute (0 = no limit).
    *  LOGIN_RATE_LIMIT; defaults to 20 in local mode and off otherwise (dev/e2e sign in constantly). */
   loginRateLimitPerMinute: number;
+  /** canvas-ez1.5: every Canvas-password account must set up two-step verification (TOTP).
+   *  MFA_REQUIRED; defaults to true in local mode, false otherwise (dev/e2e opt in per account). */
+  mfaRequired: boolean;
+  /** canvas-ez1.5: 32-byte AES-256-GCM key encrypting stored TOTP secrets (MFA_ENCRYPTION_KEY,
+   *  base64). Required in production local mode; otherwise derived from the session secret. */
+  mfaEncryptionKey: Buffer;
   /** Origins allowed to make credentialed cross-origin requests (CORS). Reflecting all origins
    * with credentials enabled would let any website ride a signed-in user's session cookie. */
   webOrigins: string[];
@@ -167,6 +174,8 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
     authMode,
     allowLocalAuth: authMode === 'local' || env.ALLOW_LOCAL_AUTH === 'true',
     loginRateLimitPerMinute: parseLoginRateLimit(env.LOGIN_RATE_LIMIT, authMode),
+    mfaRequired: env.MFA_REQUIRED === undefined || env.MFA_REQUIRED === '' ? authMode === 'local' : env.MFA_REQUIRED === 'true',
+    mfaEncryptionKey: parseMfaEncryptionKey(env, authMode, isTest ? TEST_SESSION_SECRET : env.SESSION_SECRET),
     webOrigins: (env.WEB_ORIGINS ?? 'http://localhost:5173').split(',').map((origin) => origin.trim()),
     cookieSecure,
     cookieSameSite,
@@ -195,4 +204,17 @@ function parseLoginRateLimit(value: string | undefined, authMode: 'entra' | 'loc
     throw new Error(`LOGIN_RATE_LIMIT must be a whole number, 0 or more (got: ${value})`);
   }
   return limit;
+}
+
+function parseMfaEncryptionKey(env: NodeJS.ProcessEnv, authMode: 'entra' | 'local', sessionSecret: string | undefined): Buffer {
+  if (env.MFA_ENCRYPTION_KEY) {
+    const key = Buffer.from(env.MFA_ENCRYPTION_KEY, 'base64');
+    if (key.length !== 32) throw new Error('MFA_ENCRYPTION_KEY must be 32 bytes, base64-encoded (e.g. `openssl rand -base64 32`).');
+    return key;
+  }
+  if (authMode === 'local' && env.NODE_ENV === 'production') {
+    throw new Error('MFA_ENCRYPTION_KEY is required with AUTH_MODE=local in production.');
+  }
+  // Dev/test: a key derived from the session secret, so nothing extra has to be configured.
+  return createHash('sha256').update(`canvas-mfa-key:${sessionSecret ?? ''}`).digest();
 }

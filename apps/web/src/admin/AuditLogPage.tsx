@@ -8,14 +8,18 @@ const SIGN_IN_FAILURE_REASONS: Record<string, string> = {
   wrong_password: 'wrong password',
   locked: 'account locked',
   inactive: 'account inactive',
+  wrong_mfa_code: 'wrong verification code',
 };
 
 /** Plain-language text for an audit event. */
 export function describeEvent(event: AuditEventDto): string {
   const detail = event.detail ?? {};
   switch (event.event) {
-    case 'sign_in':
+    case 'sign_in': {
+      if (detail.method === 'password+authenticator') return 'Signed in (password and authenticator app)';
+      if (detail.method === 'password+recovery_code') return 'Signed in (password and recovery code)';
       return 'Signed in';
+    }
     case 'sign_in_failed': {
       const reason = SIGN_IN_FAILURE_REASONS[String(detail.reason)];
       return reason ? `Failed sign-in (${reason})` : 'Failed sign-in';
@@ -30,6 +34,10 @@ export function describeEvent(event: AuditEventDto): string {
       return 'Failed password change';
     case 'password_reset':
       return detail.via === 'bootstrap-admin' ? 'Password reset (bootstrap admin)' : 'Password reset';
+    case 'mfa_enrolled':
+      return 'Two-step verification set up';
+    case 'mfa_reset':
+      return 'Two-step verification reset';
     case 'user_created':
       return 'User created';
     case 'user_updated': {

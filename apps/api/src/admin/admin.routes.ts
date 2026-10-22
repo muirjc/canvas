@@ -1,8 +1,10 @@
 import type { FastifyInstance, FastifyReply } from 'fastify';
 import { requireRole } from '../auth/middleware.js';
+import { getDb } from '../db/client.js';
 import { getAdminOverview, listUsers, updateUser, UserNotFoundError, type UpdateUserInput } from './admin.service.js';
 import { createLocalUser, EmailInUseError, resetLocalPassword, unlockAccount, type CreateLocalUserInput } from './local-accounts.service.js';
 import { clientIp, listAuditEvents, recordAudit } from '../audit/audit.service.js';
+import { resetMfa } from '../auth/mfa.service.js';
 
 const VALID_ROLES = ['admin', 'architect', 'viewer'];
 
@@ -130,6 +132,30 @@ export async function registerAdminRoutes(app: FastifyInstance, options: { local
         } catch (error) {
           return handleError(error, reply);
         }
+      },
+    );
+
+    // canvas-ez1.5: a lost phone -- removes two-step verification and signs the user out; they set
+    // it up again at their next sign-in.
+    app.post<{ Params: { id: string } }>(
+      '/admin/users/:id/reset-mfa',
+      {
+        preHandler: requireRole('admin'),
+        schema: {
+          tags: ['Admin'],
+          security: [{ cookieAuth: [] }],
+          params: { type: 'object', required: ['id'], properties: { id: { type: 'string' } } },
+        },
+      },
+      async (request, reply) => {
+        if (request.params.id === request.session.user?.id) {
+          return reply.code(400).send({ error: "You can't reset your own two-step verification." });
+        }
+        const exists = await getDb().selectFrom('users').select('id').where('id', '=', request.params.id).executeTakeFirst();
+        if (!exists) return reply.code(404).send({ error: `No user with id ${request.params.id}` });
+        await resetMfa(request.params.id);
+        await recordAudit({ event: 'mfa_reset', actorUserId: request.session.user?.id, targetUserId: request.params.id, ip: clientIp(request) });
+        return reply.send({ reset: true });
       },
     );
 

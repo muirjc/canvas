@@ -53,12 +53,20 @@ export async function registerSession(app: FastifyInstance, config: AppConfig): 
   // until they do. The /auth/* routes stay reachable -- /auth/me tells the web app to show the
   // change-password screen.
   app.addHook('preHandler', async (request, reply) => {
-    if (!request.session.user?.mustChangePassword) return;
+    // canvas-ez1.5: the same for two-step verification that's required but not set up yet.
+    const user = request.session.user;
+    if (!user?.mustChangePassword && !user?.mustEnrollMfa) return;
     const route = request.routeOptions.url ?? '';
     if (route.startsWith('/auth/') || route === '/health') return;
+    if (user.mustChangePassword) {
+      return reply.code(403).send({
+        error: 'Change your one-time password before continuing.',
+        code: 'PASSWORD_CHANGE_REQUIRED',
+      });
+    }
     return reply.code(403).send({
-      error: 'Change your one-time password before continuing.',
-      code: 'PASSWORD_CHANGE_REQUIRED',
+      error: 'Set up two-step verification before continuing.',
+      code: 'MFA_ENROLLMENT_REQUIRED',
     });
   });
 }
