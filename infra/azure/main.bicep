@@ -54,6 +54,9 @@ param entraClientId string
 @allowed(['mock', 'anthropic', 'openai'])
 param aiProvider string = 'mock'
 
+@description('canvas-cng: IP allow-list ([{ cidr, description }]) for the API ingress and the web Storage account. Empty = public (deploy.sh only allows that with CANVAS_ALLOW_PUBLIC=1).')
+param allowedIpRanges array = []
+
 resource rg 'Microsoft.Resources/resourceGroups@2023-07-01' = {
   name: resourceGroupName
   location: location
@@ -114,6 +117,7 @@ module storage 'modules/storage.bicep' = {
   params: {
     location: location
     deployerPrincipalId: deployerPrincipalId
+    allowedIpRanges: allowedIpRanges
   }
 }
 
@@ -138,6 +142,7 @@ module apiApp 'modules/apiapp.bicep' = {
     entraClientId: entraClientId
     oidcRedirectUri: oidcRedirectUri
     aiProvider: aiProvider
+    allowedIpRanges: allowedIpRanges
   }
 }
 

@@ -21,10 +21,10 @@ One resource group (`canvas-rg` by default), from `main.bicep`:
 | Postgres Flexible Server | `modules/postgres.bicep` | Private/VNet-integrated, Burstable B1ms, 32GB, `pgcrypto` allow-listed. |
 | Key Vault + user-assigned managed identity | `modules/keyvault.bicep` | RBAC-authorized. Secret *values* are set by `deploy.sh`, never in the template. |
 | Container Apps environment | `modules/containerappsenv.bicep` | VNet-integrated, Log Analytics-backed. |
-| API container app | `modules/apiapp.bicep` | External ingress, scale-to-zero (`min=0/max=1`). |
+| API container app | `modules/apiapp.bicep` | External ingress **limited to the IP allow-list**, scale-to-zero (`min=0/max=1`). |
 | DB migration job | `modules/migrationjob.bicep` | Manual-trigger, one-shot, same image as the API app. |
 | Dev/demo seed job | `modules/seedjob.bicep` | Manual-trigger, **not run automatically** — creates a demo admin login. |
-| Storage account (frontend) | `modules/storage.bicep` | Static website hosting enabled by `deploy.sh` (no ARM resource for that setting). |
+| Storage account (frontend) | `modules/storage.bicep` | Static website hosting enabled by `deploy.sh` (no ARM resource for that setting). **Storage firewall limited to the IP allow-list.** |
 
 ### Entra ID SSO / MFA (canvas-haz)
 
@@ -94,6 +94,20 @@ Log for the full rationale.
 Prerequisite: the `canvas-azure` Entra app registration already exists (RUNBOOK.md's "Entra ID
 SSO" section has the one-time setup steps) — its tenant ID/client ID/client secret are needed
 below.
+
+Prerequisite: **the IP allow-list** (canvas-cng). Create `infra/azure/.secrets/allowed-ips`
+(gitignored) with one `CIDR description` per line — IPv4 only; write a single address as `/32`:
+
+```
+35.134.31.56/32   jmuir home
+```
+
+`deploy.sh` applies it to both the API's ingress and the web app's Storage account (the static
+website), so the whole app is reachable only from those networks — Entra sign-in still applies on
+top (`docs/ip-allowlist-security-plan.md`, option A). The machine running `deploy.sh` must be on the
+list (it uploads the web app to Storage; the script checks). If the file is missing but `canvas-api`
+exists, it's recreated from the live rules; with neither, the script refuses to deploy a public
+environment unless `CANVAS_ALLOW_PUBLIC=1`.
 
 ```bash
 az login
