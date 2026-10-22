@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { api, type AiSettingsDto, type DiagramDto, type ProjectDto, type SessionUser, type SharedDiagramDto } from './api';
 import { LoginForm } from './LoginForm';
+import { ChangePasswordPage } from './ChangePasswordPage';
 import { AppShell } from './AppShell';
 import { DiagramEditor, type DiagramEditorHandle } from './DiagramEditor';
 import { NewDiagramDialog } from './NewDiagramDialog';
@@ -290,9 +291,25 @@ export function App() {
       return;
     }
     const name =
-      location.screen === 'diagram' ? diagram?.name : location.screen === 'project' ? currentProject?.name : 'Projects';
+      location.screen === 'diagram'
+        ? diagram?.name
+        : location.screen === 'project'
+          ? currentProject?.name
+          : location.screen === 'account'
+            ? 'Change password'
+            : 'Projects';
     document.title = name ? `${name} – Canvas` : 'Canvas';
   }, [location, diagram?.name, currentProject?.name, adminParam, user?.role]);
+
+  // ?account=password only exists for Canvas-password accounts; for anyone else show the top level.
+  useEffect(() => {
+    if (user && !user.localAccount && location.screen === 'account') navigate({ screen: 'projects' }, { replace: true, force: true });
+  }, [user, location]);
+
+  // A forced password change names itself too.
+  useEffect(() => {
+    if (user?.mustChangePassword) document.title = 'Change password – Canvas';
+  }, [user?.mustChangePassword]);
 
   // After a navigation the user made (a click, Back/Forward -- never the first load or a redirect),
   // move focus to the new screen's <h1>, so the screen reader announces where the user is instead
@@ -372,6 +389,16 @@ export function App() {
   };
 
 
+  // Signed in with a one-time password: nothing else is reachable (the API refuses it too), so
+  // render only the change-password step in a minimal shell.
+  if (user.mustChangePassword) {
+    return (
+      <AppShell user={user} onSignOut={handleSignOut} currentSection={null} projectsHref="" onNavigateProjects={() => {}} minimal>
+        <ChangePasswordPage forced onChanged={(updated) => setUser(updated)} />
+      </AppShell>
+    );
+  }
+
   let content: React.ReactNode;
   if (adminParam && user.role === 'admin') {
     let adminScreen: React.ReactNode;
@@ -387,6 +414,15 @@ export function App() {
       <AdminShell activeParam={adminParam === 'true' ? 'standards' : adminParam}>
         {adminScreen}
       </AdminShell>
+    );
+  } else if (location.screen === 'account' && user.localAccount) {
+    content = (
+      <ChangePasswordPage
+        forced={false}
+        onChanged={(updated) => setUser(updated)}
+        projectsHref={urlFor({ screen: 'projects' })}
+        onNavigateProjects={() => navigate({ screen: 'projects' })}
+      />
     );
   } else if (
     (location.screen === 'projects' && (projects === null || (landingPending.current && !sharedLoaded))) ||
@@ -536,7 +572,17 @@ export function App() {
       user={user}
       onSignOut={handleSignOut}
       // canvas-t3b.4: the header names its sections, no project (design §4).
-      currentSection={adminParam && user.role === 'admin' ? 'admin' : location.screen === 'diagram' ? null : 'browse'}
+      currentSection={
+        adminParam && user.role === 'admin'
+          ? 'admin'
+          : location.screen === 'diagram'
+            ? null
+            : location.screen === 'account'
+              ? 'account'
+              : 'browse'
+      }
+      accountHref={urlFor({ screen: 'account' })}
+      onNavigateAccount={() => navigate({ screen: 'account' })}
       projectsHref={urlFor({ screen: 'projects' })}
       onNavigateProjects={() => navigate({ screen: 'projects' })}
     >

@@ -48,6 +48,19 @@ export async function registerSession(app: FastifyInstance, config: AppConfig): 
       await replaceSession(request);
     }
   });
+
+  // canvas-ez1.2: someone signed in with a one-time password can only change it (or sign out)
+  // until they do. The /auth/* routes stay reachable -- /auth/me tells the web app to show the
+  // change-password screen.
+  app.addHook('preHandler', async (request, reply) => {
+    if (!request.session.user?.mustChangePassword) return;
+    const route = request.routeOptions.url ?? '';
+    if (route.startsWith('/auth/') || route === '/health') return;
+    return reply.code(403).send({
+      error: 'Change your one-time password before continuing.',
+      code: 'PASSWORD_CHANGE_REQUIRED',
+    });
+  });
 }
 
 /**

@@ -97,7 +97,7 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
   await registerImportRoutes(app);
   await registerImportTemplateRoutes(app);
   await registerSharingRoutes(app);
-  await registerAdminRoutes(app);
+  await registerAdminRoutes(app, { localAccounts: config.allowLocalAuth });
   await registerUserLookupRoutes(app);
   await registerExportRoutes(app);
   await registerStandardRoutes(app);

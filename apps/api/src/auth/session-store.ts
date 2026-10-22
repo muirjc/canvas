@@ -46,10 +46,11 @@ export class DbSessionStore implements SessionStore {
     const expires = session.cookie?.expires;
     const expiresAt = expires ? new Date(expires).getTime() : Date.now() + this.idleMs;
     const data = JSON.stringify(session);
+    const userId = (session as { user?: { id?: string } }).user?.id ?? null;
     getDb()
       .insertInto('sessions')
-      .values({ id: sessionId, data, expires_at: expiresAt })
-      .onConflict((oc) => oc.column('id').doUpdateSet({ data, expires_at: expiresAt }))
+      .values({ id: sessionId, data, expires_at: expiresAt, user_id: userId })
+      .onConflict((oc) => oc.column('id').doUpdateSet({ data, expires_at: expiresAt, user_id: userId }))
       .execute()
       .then(() => this.pruneIfDue())
       .then(() => callback())
@@ -72,4 +73,15 @@ export class DbSessionStore implements SessionStore {
     this.lastPrune = now;
     await getDb().deleteFrom('sessions').where('expires_at', '<=', now).execute();
   }
+}
+
+/**
+ * canvas-ez1.2: ends every session belonging to `userId` -- after an admin resets their password
+ * or deactivates them -- except `keepSessionId` (a user changing their own password stays signed
+ * in on that device).
+ */
+export async function destroyUserSessions(userId: string, keepSessionId?: string): Promise<void> {
+  let query = getDb().deleteFrom('sessions').where('user_id', '=', userId);
+  if (keepSessionId) query = query.where('id', '!=', keepSessionId);
+  await query.execute();
 }

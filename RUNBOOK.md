@@ -173,8 +173,16 @@ later runs keep it; `CANVAS_AUTH_MODE=entra` switches back). `ENTRA_CLIENT_ID`/`
 aren't needed in local mode. Local mode **always requires the IP allow-list**: `deploy.sh` refuses
 to deploy it with an empty `allowed-ips`, and `CANVAS_ALLOW_PUBLIC=1` doesn't override that.
 
-User management, the first admin, lockout and MFA are still being built (canvas-ez1.2–.5). Until
-they land, don't switch a real environment to local mode.
+**Managing users** (canvas-ez1.2): on Admin → Users, **Add user** (email, name, role) and **Reset
+password** each show a generated one-time password **once** — copy it and hand it over; Canvas keeps
+only its hash. Signing in with it allows nothing but choosing a new password. A reset, or
+deactivating a user, signs that user out everywhere. Anyone with a Canvas password can change it
+from the header's **Change password** link. Passwords must be at least 12 characters, not a common
+password, and not contain the email name. These screens appear whenever local sign-in is on
+(`AUTH_MODE=local`, or `ALLOW_LOCAL_AUTH=true` in dev).
+
+The first admin, lockout and MFA are still being built (canvas-ez1.3–.5). Until they land, don't
+switch a real environment to local mode.
 
 ## Entra ID SSO (canvas-haz)
 
