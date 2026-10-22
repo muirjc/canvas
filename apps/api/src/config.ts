@@ -14,7 +14,16 @@ export interface AppConfig {
     clientSecret?: string;
     redirectUri?: string;
   };
-  /** Local email/password auth fallback (research.md §7) — disabled unless explicitly enabled. */
+  /**
+   * canvas-ez1.1: how people sign in. 'entra' (the default): Entra ID SSO when OIDC_* is set, plus
+   * the dev-only local fallback below when ALLOW_LOCAL_AUTH=true. 'local': Canvas-managed email +
+   * password accounts only -- local sign-in is forced on and the Entra routes are never registered,
+   * even if OIDC_* is set (docs/ip-allowlist-security-plan.md option B; meant to run inside the IP
+   * allow-list).
+   */
+  authMode: 'entra' | 'local';
+  /** Local email/password auth (research.md §7) — off unless ALLOW_LOCAL_AUTH=true in entra mode;
+   *  always on in local mode. */
   allowLocalAuth: boolean;
   /** Origins allowed to make credentialed cross-origin requests (CORS). Reflecting all origins
    * with credentials enabled would let any website ride a signed-in user's session cookie. */
@@ -127,7 +136,12 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
   const dbClientEnvVar = isTest ? env.TEST_DB_CLIENT : env.DB_CLIENT;
   const dbClient: AppConfig['dbClient'] = dbClientEnvVar === 'sqlite' ? 'sqlite' : 'postgres';
 
-  validateOidcIssuerUrl(env.OIDC_ISSUER_URL);
+  const authMode = env.AUTH_MODE ?? 'entra';
+  if (authMode !== 'entra' && authMode !== 'local') {
+    throw new Error(`AUTH_MODE must be "entra" or "local" (got: ${authMode})`);
+  }
+  // In local mode the Entra settings are ignored entirely -- including validating them.
+  if (authMode === 'entra') validateOidcIssuerUrl(env.OIDC_ISSUER_URL);
 
   return {
     port: Number(env.PORT ?? 3000),
@@ -138,13 +152,17 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
       : requireEnv(env, 'DATABASE_URL'),
     dbClient,
     sessionSecret: isTest ? TEST_SESSION_SECRET : requireEnv(env, 'SESSION_SECRET'),
-    oidc: {
-      issuerUrl: env.OIDC_ISSUER_URL,
-      clientId: env.OIDC_CLIENT_ID,
-      clientSecret: env.OIDC_CLIENT_SECRET,
-      redirectUri: env.OIDC_REDIRECT_URI,
-    },
-    allowLocalAuth: env.ALLOW_LOCAL_AUTH === 'true',
+    oidc:
+      authMode === 'local'
+        ? {}
+        : {
+            issuerUrl: env.OIDC_ISSUER_URL,
+            clientId: env.OIDC_CLIENT_ID,
+            clientSecret: env.OIDC_CLIENT_SECRET,
+            redirectUri: env.OIDC_REDIRECT_URI,
+          },
+    authMode,
+    allowLocalAuth: authMode === 'local' || env.ALLOW_LOCAL_AUTH === 'true',
     webOrigins: (env.WEB_ORIGINS ?? 'http://localhost:5173').split(',').map((origin) => origin.trim()),
     cookieSecure,
     cookieSameSite,

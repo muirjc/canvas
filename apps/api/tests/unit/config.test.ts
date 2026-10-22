@@ -176,3 +176,36 @@ describe('loadConfig() session lifetimes (canvas-4xo)', () => {
     expect(() => loadConfig({ NODE_ENV: 'test', SESSION_MAX_HOURS: 'soon' })).toThrow(/SESSION_MAX_HOURS/);
   });
 });
+
+describe('loadConfig() AUTH_MODE (canvas-ez1.1)', () => {
+  const ENTRA = {
+    OIDC_ISSUER_URL: 'https://login.microsoftonline.com/00000000-0000-0000-0000-000000000000/v2.0',
+    OIDC_CLIENT_ID: 'client',
+    OIDC_CLIENT_SECRET: 'secret',
+    OIDC_REDIRECT_URI: 'https://api.example.com/auth/callback',
+  };
+
+  it('defaults to entra, keeping the OIDC settings and the ALLOW_LOCAL_AUTH dev fallback', () => {
+    const config = loadConfig({ NODE_ENV: 'test', ...ENTRA });
+    expect(config.authMode).toBe('entra');
+    expect(config.oidc.clientId).toBe('client');
+    expect(config.allowLocalAuth).toBe(false);
+    expect(loadConfig({ NODE_ENV: 'test', ALLOW_LOCAL_AUTH: 'true' }).allowLocalAuth).toBe(true);
+  });
+
+  it('local forces local sign-in on and drops the Entra settings, even when they are set', () => {
+    const config = loadConfig({ NODE_ENV: 'test', AUTH_MODE: 'local', ...ENTRA, ALLOW_LOCAL_AUTH: 'false' });
+    expect(config.authMode).toBe('local');
+    expect(config.allowLocalAuth).toBe(true);
+    expect(config.oidc).toEqual({});
+  });
+
+  it('local ignores (does not validate) a malformed OIDC issuer', () => {
+    expect(() => loadConfig({ NODE_ENV: 'test', AUTH_MODE: 'local', OIDC_ISSUER_URL: 'not a url' })).not.toThrow();
+    expect(() => loadConfig({ NODE_ENV: 'test', OIDC_ISSUER_URL: 'not a url' })).toThrow();
+  });
+
+  it('rejects an unknown AUTH_MODE at startup', () => {
+    expect(() => loadConfig({ NODE_ENV: 'test', AUTH_MODE: 'keycloak' })).toThrow(/AUTH_MODE/);
+  });
+});

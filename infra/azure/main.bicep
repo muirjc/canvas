@@ -47,8 +47,12 @@ param grantAcrPull bool = true
 @description('canvas-haz: Entra ID tenant ID this app authenticates against. Defaults to the deploying subscription\'s own tenant -- override only if the app registration lives in a different tenant.')
 param entraTenantId string = tenant().tenantId
 
-@description('canvas-haz: the "canvas-azure" Entra app registration\'s Application (client) ID -- see RUNBOOK.md\'s "Entra ID SSO" section for the one-time setup steps that produce this value. No default: a missing client ID should fail the deployment loudly, not silently produce a broken OIDC_ISSUER_URL/OIDC_CLIENT_ID.')
-param entraClientId string
+@description('canvas-haz: the "canvas-azure" Entra app registration\'s Application (client) ID -- see RUNBOOK.md\'s "Entra ID SSO" section for the one-time setup steps that produce this value. Empty only with authMode "local" (canvas-ez1.1), where it is unused; deploy.sh requires it in entra mode.')
+param entraClientId string = ''
+
+@description('canvas-ez1.1: forwarded to modules/apiapp.bicep\'s AUTH_MODE -- "entra" (default) or "local".')
+@allowed(['entra', 'local'])
+param authMode string = 'entra'
 
 @description('canvas-brq: forwarded to modules/apiapp.bicep\'s AI_PROVIDER -- "mock" (default, no real API calls) or "anthropic"/"openai". deploy.sh sets this from AI_PROVIDER and refuses a real provider while its Key Vault API key is still the "unset" placeholder.')
 @allowed(['mock', 'anthropic', 'openai'])
@@ -143,6 +147,7 @@ module apiApp 'modules/apiapp.bicep' = {
     oidcRedirectUri: oidcRedirectUri
     aiProvider: aiProvider
     allowedIpRanges: allowedIpRanges
+    authMode: authMode
   }
 }
 
