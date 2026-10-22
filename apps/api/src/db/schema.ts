@@ -249,6 +249,20 @@ export interface LocalCredentialsTable {
   password_salt: string;
   /** canvas-ez1.2: set by an admin-issued one-time password; cleared when the user changes it. */
   must_change_password: Generated<boolean>;
+  /** canvas-ez1.4: consecutive failed sign-ins; the third locks the account (locked_at). */
+  failed_attempts: Generated<number>;
+  locked_at: Timestamp | null;
+}
+
+/** canvas-ez1.4: the audit log (audit/audit.service.ts). `detail` is JSON text. */
+export interface AuditEventsTable {
+  id: string;
+  occurred_at: GeneratedTimestamp;
+  event: string;
+  actor_user_id: string | null;
+  target_user_id: string | null;
+  ip: string | null;
+  detail: string | null;
 }
 
 export interface AiPersonasTable {
@@ -326,6 +340,7 @@ export interface SessionsTable {
 
 export interface DB {
   sessions: SessionsTable;
+  audit_events: AuditEventsTable;
   users: UsersTable;
   users_personas: UsersPersonasTable;
   projects: ProjectsTable;

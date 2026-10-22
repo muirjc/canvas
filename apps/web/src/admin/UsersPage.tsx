@@ -44,6 +44,10 @@ export function UsersPage() {
           </button>
         </div>
       )}
+      {localAuthEnabled && (
+        <p className="meta">Accounts lock after 3 failed sign-in attempts. Unlock them here; resetting a password also unlocks.</p>
+      )}
+      <div className="table-scroll">
       <table>
         <thead>
           <tr>
@@ -61,7 +65,17 @@ export function UsersPage() {
         <tbody>
           {users.map((user) => (
             <tr key={user.id} data-testid={`user-row-${user.id}`}>
-              <td>{user.name}</td>
+              <td>
+                {user.name}
+                {user.locked && (
+                  <>
+                    {' '}
+                    <span className="badge badge--warning" data-testid={`user-locked-${user.id}`}>
+                      Locked
+                    </span>
+                  </>
+                )}
+              </td>
               <td>{user.email}</td>
               <td>
                 <select
@@ -88,6 +102,25 @@ export function UsersPage() {
               </td>
               {localAuthEnabled && (
                 <td>
+                  <a
+                    className="btn btn--secondary btn--compact"
+                    data-testid={`view-activity-${user.id}`}
+                    href={`?admin=audit&userId=${encodeURIComponent(user.id)}`}
+                    aria-label={`View activity for ${user.name}`}
+                  >
+                    View activity
+                  </a>{' '}
+                  {user.locked && (
+                    <button
+                      type="button"
+                      className="btn btn--primary btn--compact"
+                      data-testid={`unlock-${user.id}`}
+                      aria-label={`Unlock ${user.name}`}
+                      onClick={() => api.unlockUser(user.id).then(refresh)}
+                    >
+                      Unlock
+                    </button>
+                  )}{' '}
                   {user.id !== currentUserId && (
                     <button
                       type="button"
@@ -105,6 +138,7 @@ export function UsersPage() {
           ))}
         </tbody>
       </table>
+      </div>
       {dialog?.kind === 'add' && (
         <AddUserDialog
           onClose={() => setDialog(null)}

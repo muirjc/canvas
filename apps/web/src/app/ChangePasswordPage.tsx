@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { api, type SessionUser } from './api';
+import { api, ApiError, type SessionUser } from './api';
 
 const MIN_LENGTH = 12;
 
@@ -20,6 +20,8 @@ export function ChangePasswordPage({ forced, onChanged, projectsHref, onNavigate
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [done, setDone] = useState(false);
+  // 423: a third wrong current password locked the account and ended the session.
+  const [locked, setLocked] = useState(false);
 
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -42,6 +44,12 @@ export function ChangePasswordPage({ forced, onChanged, projectsHref, onNavigate
       onChanged(user);
     } catch (err) {
       setError((err as Error).message);
+      if (err instanceof ApiError && err.status === 423) {
+        setCurrent('');
+        setNext('');
+        setConfirm('');
+        setLocked(true);
+      }
     } finally {
       setSubmitting(false);
     }
@@ -52,7 +60,17 @@ export function ChangePasswordPage({ forced, onChanged, projectsHref, onNavigate
       <h1 className="page__title" tabIndex={-1} data-browse-heading>
         Change password
       </h1>
-      {done && !forced ? (
+      {locked ? (
+        <div className="card stack">
+          <p role="alert" data-testid="change-password-error">
+            {error}
+          </p>
+          <p>You have been signed out.</p>
+          <a className="btn btn--primary" href={window.location.pathname} data-testid="change-password-sign-in-again">
+            Sign in again
+          </a>
+        </div>
+      ) : done && !forced ? (
         <div className="card stack">
           <p role="status" data-testid="change-password-success">
             Your password has been changed. Your other sessions were signed out.

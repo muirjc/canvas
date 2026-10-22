@@ -25,6 +25,9 @@ export interface AppConfig {
   /** Local email/password auth (research.md §7) — off unless ALLOW_LOCAL_AUTH=true in entra mode;
    *  always on in local mode. */
   allowLocalAuth: boolean;
+  /** canvas-ez1.4: password sign-in attempts allowed per client IP per minute (0 = no limit).
+   *  LOGIN_RATE_LIMIT; defaults to 20 in local mode and off otherwise (dev/e2e sign in constantly). */
+  loginRateLimitPerMinute: number;
   /** Origins allowed to make credentialed cross-origin requests (CORS). Reflecting all origins
    * with credentials enabled would let any website ride a signed-in user's session cookie. */
   webOrigins: string[];
@@ -163,6 +166,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
           },
     authMode,
     allowLocalAuth: authMode === 'local' || env.ALLOW_LOCAL_AUTH === 'true',
+    loginRateLimitPerMinute: parseLoginRateLimit(env.LOGIN_RATE_LIMIT, authMode),
     webOrigins: (env.WEB_ORIGINS ?? 'http://localhost:5173').split(',').map((origin) => origin.trim()),
     cookieSecure,
     cookieSameSite,
@@ -182,4 +186,13 @@ function positiveNumber(env: NodeJS.ProcessEnv, name: string, fallback: number):
     throw new Error(`${name} must be a positive number (got "${raw}").`);
   }
   return value;
+}
+
+function parseLoginRateLimit(value: string | undefined, authMode: 'entra' | 'local'): number {
+  if (value === undefined || value === '') return authMode === 'local' ? 20 : 0;
+  const limit = Number(value);
+  if (!Number.isInteger(limit) || limit < 0) {
+    throw new Error(`LOGIN_RATE_LIMIT must be a whole number, 0 or more (got: ${value})`);
+  }
+  return limit;
 }

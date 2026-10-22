@@ -15,6 +15,8 @@ export interface UserRecord {
   active: boolean;
   /** canvas-ez1.2: has a Canvas (local) password -- the Users page offers Reset password. */
   hasPassword?: boolean;
+  /** canvas-ez1.4: locked after too many failed sign-ins -- the Users page offers Unlock. */
+  locked?: boolean;
 }
 
 export async function listUsers(): Promise<UserRecord[]> {
@@ -22,15 +24,16 @@ export async function listUsers(): Promise<UserRecord[]> {
   const rows = await db
     .selectFrom('users')
     .leftJoin('local_credentials', 'local_credentials.user_id', 'users.id')
-    .select(['users.id', 'users.name', 'users.email', 'users.role', 'users.active', 'local_credentials.user_id as credential_user_id'])
+    .select(['users.id', 'users.name', 'users.email', 'users.role', 'users.active', 'local_credentials.user_id as credential_user_id', 'local_credentials.locked_at'])
     .orderBy('users.name')
     .execute();
   const personasByUser = await getUserPersonasBatch(
     db,
     rows.map((r) => r.id),
   );
-  return rows.map(({ credential_user_id, ...r }) => ({
+  return rows.map(({ credential_user_id, locked_at, ...r }) => ({
     ...r,
+    locked: locked_at !== null,
     active: fromDbBoolean(r.active),
     hasPassword: credential_user_id !== null,
     personas: personasByUser.get(r.id) ?? [],

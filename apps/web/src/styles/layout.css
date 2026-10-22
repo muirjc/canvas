@@ -900,3 +900,8 @@
   .app-nav__link { padding-inline: var(--space-1); }
   .app-nav__long { display: none; }
 }
+
+/* ---- Audit log / lock badge (canvas-ez1.4) ------------------------------ */
+
+.table-scroll { max-width: 100%; overflow-x: auto; margin-block-end: var(--space-4); }
+.table-scroll th, .table-scroll td { white-space: nowrap; }
