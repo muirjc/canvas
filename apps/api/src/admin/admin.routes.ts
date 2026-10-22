@@ -1,7 +1,8 @@
 import type { FastifyInstance, FastifyReply } from 'fastify';
 import { requireRole } from '../auth/middleware.js';
 import { getAdminOverview, listUsers, updateUser, UserNotFoundError, type UpdateUserInput } from './admin.service.js';
-import { createLocalUser, EmailInUseError, resetLocalPassword, type CreateLocalUserInput } from './local-accounts.service.js';
+import { createLocalUser, EmailInUseError, resetLocalPassword, unlockAccount, type CreateLocalUserInput } from './local-accounts.service.js';
+import { clientIp, listAuditEvents, recordAudit } from '../audit/audit.service.js';
 
 const VALID_ROLES = ['admin', 'architect', 'viewer'];
 
@@ -54,6 +55,13 @@ export async function registerAdminRoutes(app: FastifyInstance, options: { local
     async (request, reply) => {
       try {
         const user = await updateUser(request.params.id, request.body);
+        await recordAudit({
+          event: 'user_updated',
+          actorUserId: request.session.user?.id,
+          targetUserId: user.id,
+          ip: clientIp(request),
+          detail: { ...request.body },
+        });
         return reply.send({ user });
       } catch (error) {
         return handleError(error, reply);
@@ -85,7 +93,15 @@ export async function registerAdminRoutes(app: FastifyInstance, options: { local
       },
       async (request, reply) => {
         try {
-          return reply.code(201).send(await createLocalUser(request.body));
+          const created = await createLocalUser(request.body);
+          await recordAudit({
+            event: 'user_created',
+            actorUserId: request.session.user?.id,
+            targetUserId: created.user.id,
+            ip: clientIp(request),
+            detail: { role: created.user.role },
+          });
+          return reply.code(201).send(created);
         } catch (error) {
           return handleError(error, reply);
         }
@@ -108,13 +124,65 @@ export async function registerAdminRoutes(app: FastifyInstance, options: { local
           return reply.code(400).send({ error: 'Use Change password for your own account.' });
         }
         try {
-          return reply.send(await resetLocalPassword(request.params.id));
+          const result = await resetLocalPassword(request.params.id);
+          await recordAudit({ event: 'password_reset', actorUserId: request.session.user?.id, targetUserId: request.params.id, ip: clientIp(request) });
+          return reply.send(result);
+        } catch (error) {
+          return handleError(error, reply);
+        }
+      },
+    );
+
+    // canvas-ez1.4: the only way out of a lockout besides a password reset (no time-based unlock).
+    app.post<{ Params: { id: string } }>(
+      '/admin/users/:id/unlock',
+      {
+        preHandler: requireRole('admin'),
+        schema: {
+          tags: ['Admin'],
+          security: [{ cookieAuth: [] }],
+          params: { type: 'object', required: ['id'], properties: { id: { type: 'string' } } },
+        },
+      },
+      async (request, reply) => {
+        try {
+          const unlocked = await unlockAccount(request.params.id);
+          if (unlocked) {
+            await recordAudit({ event: 'account_unlocked', actorUserId: request.session.user?.id, targetUserId: request.params.id, ip: clientIp(request) });
+          }
+          return reply.send({ unlocked });
         } catch (error) {
           return handleError(error, reply);
         }
       },
     );
   }
+
+  // canvas-ez1.4: the audit log, newest first; `before` pages backwards, `userId` filters.
+  app.get<{ Querystring: { limit?: string; before?: string; userId?: string } }>(
+    '/admin/audit',
+    {
+      preHandler: requireRole('admin'),
+      schema: {
+        tags: ['Admin'],
+        security: [{ cookieAuth: [] }],
+        querystring: {
+          type: 'object',
+          properties: {
+            // A string pattern, not `type: 'integer'`: querystring values arrive as strings and app.ts
+            // disables AJV coercion, so an integer schema would reject every ?limit=.
+            limit: { type: 'string', pattern: '^([1-9]|[1-9][0-9]|1[0-9][0-9]|200)$' },
+            before: { type: 'string', format: 'date-time' },
+            userId: { type: 'string' },
+          },
+        },
+      },
+    },
+    async (request, reply) => {
+      const { limit, before, userId } = request.query;
+      return reply.send({ events: await listAuditEvents({ limit: limit ? Number(limit) : 50, before, userId }) });
+    },
+  );
 
   app.get(
     '/admin/overview',

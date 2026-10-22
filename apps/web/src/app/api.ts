@@ -208,6 +208,18 @@ export interface UserRecordDto {
   active: boolean;
   /** Has a Canvas-managed password (a local account). */
   hasPassword?: boolean;
+  /** Locked after too many failed sign-ins; an admin unlock or password reset clears it. */
+  locked?: boolean;
+}
+
+export interface AuditEventDto {
+  id: string;
+  occurredAt: string;
+  event: string;
+  actorEmail: string | null;
+  targetEmail: string | null;
+  ip: string | null;
+  detail: Record<string, unknown> | null;
 }
 
 export interface AdminOverviewDto {
@@ -425,6 +437,14 @@ export const api = {
     request<{ user: UserRecordDto; temporaryPassword: string }>('/admin/users', { method: 'POST', body: JSON.stringify(body) }),
   resetUserPassword: (id: string) =>
     request<{ temporaryPassword: string }>(`/admin/users/${id}/reset-password`, { method: 'POST' }),
+  unlockUser: (id: string) => request<{ unlocked: boolean }>(`/admin/users/${id}/unlock`, { method: 'POST' }),
+  getAuditEvents: (options: { limit?: number; before?: string; userId?: string } = {}) => {
+    const params = new URLSearchParams();
+    if (options.limit !== undefined) params.set('limit', String(options.limit));
+    if (options.before) params.set('before', options.before);
+    if (options.userId) params.set('userId', options.userId);
+    return request<{ events: AuditEventDto[] }>(`/admin/audit?${params.toString()}`);
+  },
   changePassword: (currentPassword: string, newPassword: string) =>
     request<{ user: SessionUser }>('/auth/password', { method: 'POST', body: JSON.stringify({ currentPassword, newPassword }) }),
   getAdminOverview: () => request<{ overview: AdminOverviewDto }>('/admin/overview'),

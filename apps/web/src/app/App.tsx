@@ -17,6 +17,7 @@ import {
 } from './navigation';
 import { StandardsAdminPage } from '../admin/StandardsAdminPage';
 import { UsersPage } from '../admin/UsersPage';
+import { AuditLogPage } from '../admin/AuditLogPage';
 import { AdminOverview } from '../admin/AdminOverview';
 import { DeletedDiagramsPage } from '../admin/DeletedDiagramsPage';
 import { DeletedProjectsPage } from '../admin/DeletedProjectsPage';
@@ -406,6 +407,7 @@ export function App() {
     else if (adminParam === 'overview') adminScreen = <AdminOverview />;
     else if (adminParam === 'deleted') adminScreen = <DeletedDiagramsPage />;
     else if (adminParam === 'deleted-projects') adminScreen = <DeletedProjectsPage />;
+    else if (adminParam === 'audit') adminScreen = <AuditLogPage />;
     else if (adminParam === 'ai-personas') adminScreen = <PersonaAdminPage />;
     else adminScreen = <StandardsAdminPage />;
     // Wrapping here rather than inside each screen is what centres and navigates all five

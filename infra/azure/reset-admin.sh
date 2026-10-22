@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # canvas-ez1.3: recovery for a local-mode environment (AUTH_MODE=local) whose only admin can't sign
-# in -- forgotten password, deactivated, demoted, or (once canvas-ez1.4 lands) locked out. Gives the
-# account a new one-time password and makes it an active admin again, signed out everywhere; the
+# in -- forgotten password, deactivated, demoted, or locked out (canvas-ez1.4). Gives the
+# account a new one-time password and makes it an active, unlocked admin again, signed out everywhere; the
 # admin then signs in with it and chooses a new password. Nothing else in the database changes.
 #
 # Usage: ./reset-admin.sh [email] [resource-group]

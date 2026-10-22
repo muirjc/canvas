@@ -90,7 +90,7 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
   await registerSessionInfoRoutes(app);
   await registerOidcRoutes(app, config);
   if (config.allowLocalAuth) {
-    await registerLocalAuthRoutes(app);
+    await registerLocalAuthRoutes(app, config);
   }
   await registerDiagramRoutes(app);
   await registerDiagramTypeRoutes(app);

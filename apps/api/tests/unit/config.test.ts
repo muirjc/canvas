@@ -209,3 +209,22 @@ describe('loadConfig() AUTH_MODE (canvas-ez1.1)', () => {
     expect(() => loadConfig({ NODE_ENV: 'test', AUTH_MODE: 'keycloak' })).toThrow(/AUTH_MODE/);
   });
 });
+
+describe('loadConfig() LOGIN_RATE_LIMIT (canvas-ez1.4)', () => {
+  it('defaults to 20 per minute in local mode and off otherwise', () => {
+    expect(loadConfig({ NODE_ENV: 'test', AUTH_MODE: 'local' }).loginRateLimitPerMinute).toBe(20);
+    expect(loadConfig({ NODE_ENV: 'test' }).loginRateLimitPerMinute).toBe(0);
+    expect(loadConfig({ NODE_ENV: 'test', LOGIN_RATE_LIMIT: '' }).loginRateLimitPerMinute).toBe(0);
+  });
+
+  it('parses an explicit value, including 0 to turn it off in local mode', () => {
+    expect(loadConfig({ NODE_ENV: 'test', LOGIN_RATE_LIMIT: '5' }).loginRateLimitPerMinute).toBe(5);
+    expect(loadConfig({ NODE_ENV: 'test', AUTH_MODE: 'local', LOGIN_RATE_LIMIT: '0' }).loginRateLimitPerMinute).toBe(0);
+  });
+
+  it('rejects a non-integer or negative value at startup', () => {
+    for (const bad of ['abc', '-1', '1.5']) {
+      expect(() => loadConfig({ NODE_ENV: 'test', LOGIN_RATE_LIMIT: bad }), bad).toThrow(/LOGIN_RATE_LIMIT/);
+    }
+  });
+});

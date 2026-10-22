@@ -3,6 +3,7 @@ import { closeDb, getDb } from '../db/client.js';
 import { runMigrations } from '../db/migrate.js';
 import { dbBoolean } from '../db/sql-helpers.js';
 import { checkPasswordPolicy } from '../auth/password-policy.js';
+import { recordAudit } from '../audit/audit.service.js';
 import { createLocalUser, normalizeEmail, setOneTimePassword } from '../admin/local-accounts.service.js';
 
 /**
@@ -39,11 +40,13 @@ export async function bootstrapAdmin(env: NodeJS.ProcessEnv): Promise<string> {
     if (!existing) throw new Error(`No account with the email ${email} -- nothing to reset.`);
     await db.updateTable('users').set({ role: 'admin', active: dbBoolean(true) }).where('id', '=', existing.id).execute();
     await setOneTimePassword(existing.id, password);
+    await recordAudit({ event: 'password_reset', targetUserId: existing.id, detail: { via: 'bootstrap-admin', unlocked: true } });
     return `bootstrap-admin: ${email} is an active admin again with a new one-time password; signed out everywhere.`;
   }
 
   if (existing) return `bootstrap-admin: ${email} already exists -- left unchanged.`;
-  await createLocalUser({ email, name: env.BOOTSTRAP_ADMIN_NAME ?? 'Administrator', role: 'admin' }, password);
+  const { user } = await createLocalUser({ email, name: env.BOOTSTRAP_ADMIN_NAME ?? 'Administrator', role: 'admin' }, password);
+  await recordAudit({ event: 'user_created', targetUserId: user.id, detail: { role: 'admin', via: 'bootstrap-admin' } });
   return `bootstrap-admin: created admin ${email}; the one-time password must be changed at first sign-in.`;
 }
 

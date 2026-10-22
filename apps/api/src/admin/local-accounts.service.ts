@@ -19,6 +19,43 @@ export class EmailInUseError extends Error {}
 export class PasswordPolicyError extends Error {}
 export class WrongPasswordError extends Error {}
 export class NoLocalPasswordError extends Error {}
+export class AccountLockedError extends Error {}
+
+/** canvas-ez1.4: this many consecutive failed attempts lock the account until an admin unlocks it. */
+export const MAX_FAILED_ATTEMPTS = 3;
+export const LOCKED_MESSAGE = 'This account is locked after too many failed sign-in attempts. Ask an admin to unlock it.';
+
+/** Counts a failed password attempt; returns true when this attempt locked the account. */
+export async function recordFailedAttempt(userId: string): Promise<boolean> {
+  const db = getDb();
+  const row = await db
+    .updateTable('local_credentials')
+    .set((eb) => ({ failed_attempts: eb('failed_attempts', '+', 1) }))
+    .where('user_id', '=', userId)
+    .returning(['failed_attempts', 'locked_at'])
+    .executeTakeFirst();
+  if (!row || row.locked_at || row.failed_attempts < MAX_FAILED_ATTEMPTS) return false;
+  await db.updateTable('local_credentials').set({ locked_at: new Date() }).where('user_id', '=', userId).execute();
+  await destroyUserSessions(userId);
+  return true;
+}
+
+export async function clearFailedAttempts(userId: string): Promise<void> {
+  await getDb().updateTable('local_credentials').set({ failed_attempts: 0 }).where('user_id', '=', userId).execute();
+}
+
+/** Admin unlock. Returns false when the account wasn't locked (or has no Canvas password). */
+export async function unlockAccount(userId: string): Promise<boolean> {
+  const user = await getDb().selectFrom('users').select('id').where('id', '=', userId).executeTakeFirst();
+  if (!user) throw new UserNotFoundError(`No user with id ${userId}`);
+  const result = await getDb()
+    .updateTable('local_credentials')
+    .set({ failed_attempts: 0, locked_at: null })
+    .where('user_id', '=', userId)
+    .where('locked_at', 'is not', null)
+    .executeTakeFirst();
+  return Number(result.numUpdatedRows) > 0;
+}
 
 export interface CreateLocalUserInput {
   email: string;
@@ -73,7 +110,8 @@ export async function setOneTimePassword(userId: string, password: string): Prom
   await db.transaction().execute(async (trx) => {
     const user = await trx.selectFrom('users').select('id').where('id', '=', userId).executeTakeFirst();
     if (!user) throw new UserNotFoundError(`No user with id ${userId}`);
-    const values = { password_hash: hash, password_salt: salt, must_change_password: dbBoolean(true) };
+    // A reset also unlocks (canvas-ez1.4): the new one-time password is the way back in.
+    const values = { password_hash: hash, password_salt: salt, must_change_password: dbBoolean(true), failed_attempts: 0, locked_at: null };
     await trx
       .insertInto('local_credentials')
       .values({ user_id: userId, ...values })
@@ -99,8 +137,11 @@ export async function changeOwnPassword(input: {
     .executeTakeFirst();
   if (!row) throw new NoLocalPasswordError('This account signs in with single sign-on and has no Canvas password.');
   if (!verifyPassword(input.currentPassword, row.password_hash, row.password_salt)) {
+    // Counts toward the lockout like a failed sign-in (someone at an unattended session).
+    if (await recordFailedAttempt(input.userId)) throw new AccountLockedError(LOCKED_MESSAGE);
     throw new WrongPasswordError('Your current password is incorrect.');
   }
+  await clearFailedAttempts(input.userId);
   if (input.newPassword === input.currentPassword) {
     throw new PasswordPolicyError('Choose a new password, different from the current one.');
   }

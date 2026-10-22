@@ -190,16 +190,31 @@ your own, then add everyone else on Admin → Users. Later deploys leave the acc
 only creates it if it's missing). Switching an *existing* environment to local mode keeps whatever
 accounts its database already has — check Admin → Users and deactivate any you don't want.
 
-**A lone admin who can't sign in** (forgot the password, deactivated or demoted themselves, or —
-once lockout lands — locked out): from a machine on the allow-list, with the environment resumed,
+**A lone admin who can't sign in** (forgot the password, deactivated or demoted themselves, or
+locked out): from a machine on the allow-list, with the environment resumed,
 run `infra/azure/reset-admin.sh` (optionally `reset-admin.sh <email>` for a different account). It
 writes a new one-time password to `infra/azure/.secrets/bootstrap-admin-password` (never printed),
-makes the account an active admin again and signs it out everywhere; sign in and choose a new
+makes the account an active, unlocked admin again and signs it out everywhere; sign in and choose a new
 password. Locally (dev): `BOOTSTRAP_MODE=reset BOOTSTRAP_ADMIN_EMAIL=... BOOTSTRAP_ADMIN_PASSWORD=...
 npm run bootstrap-admin --workspace=@canvas/api`.
 
-Lockout and MFA are still being built (canvas-ez1.4–.5). Until they land, don't switch a real
-environment to local mode.
+**Lockout, rate limiting and the audit log** (canvas-ez1.4):
+- **3 consecutive failed attempts lock the account** (a wrong current password on Change password
+  counts too). A locked account can't sign in with any password and is signed out everywhere. There
+  is **no time-based unlock**: an admin clicks **Unlock** on Admin → Users, or resets the password
+  (which also unlocks). A successful sign-in resets the count. Trade-off: anyone who knows an email
+  can lock that account with three wrong guesses — accepted inside the IP allow-list; an unlock is
+  one click.
+- **Per-IP limit:** 20 password sign-in attempts per minute per client address (`LOGIN_RATE_LIMIT`;
+  default 20 in local mode, off otherwise; `0` disables), then 429 for the rest of that minute. It
+  keys on the address Azure's ingress saw (the last `X-Forwarded-For` entry), which a client can't
+  spoof. Counted in memory, which is right for canvas-api's single replica.
+- **Audit log** (Admin → Audit log): sign-ins, failed sign-ins (with the reason), lockouts, unlocks,
+  password changes and resets, and admin changes to users — who, about whom, when, from which IP.
+  Never a password. Rows are kept indefinitely for now.
+
+MFA is still being built (canvas-ez1.5). Until it lands, don't switch a real environment to local
+mode.
 
 ## Entra ID SSO (canvas-haz)
 
