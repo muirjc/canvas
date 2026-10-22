@@ -65,7 +65,7 @@ test('a user with nothing shared and no project access still sees the ordinary i
   const guestPage = await guestContext.newPage();
 
   await signIn(guestPage, GUEST_EMAIL, GUEST_PASSWORD);
-  await expect(guestPage.getByTestId('create-first-project')).toBeVisible();
+  await expect(guestPage.getByTestId('projects-page-empty')).toBeVisible(); // canvas-hmm
   await expect(guestPage.getByTestId('shared-diagrams')).toHaveCount(0);
 
   await guestContext.close();
@@ -177,7 +177,7 @@ test('a user with a shared diagram and no projects no longer sees the false "no 
   try {
     await signIn(guestPage, GUEST_EMAIL, GUEST_PASSWORD);
     await expect(guestPage.getByTestId('shared-diagrams')).toBeVisible();
-    await expect(guestPage.getByTestId('create-first-project')).toHaveCount(0);
+    await expect(guestPage.getByTestId('projects-page-empty')).toHaveCount(0); // canvas-hmm
   } finally {
     await revokeGuestShare(adminPage, grantId);
     await adminContext.close();

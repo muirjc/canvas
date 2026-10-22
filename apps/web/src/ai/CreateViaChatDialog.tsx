@@ -8,6 +8,7 @@ import {
   type ToolCallOutcomeDto,
 } from '../app/api';
 import { Modal } from '../ui/Modal';
+import { AI_MOCK_MODE_MESSAGE } from './ai-status-messages';
 import { groupPersonasByCategory } from './persona-grouping';
 
 export interface CreateViaChatDialogProps {
@@ -17,6 +18,9 @@ export interface CreateViaChatDialogProps {
    *  unseen behind the DSL tab. */
   onCreated: (diagram: DiagramDto, options: { openChat: boolean }) => void;
   onCancel: () => void;
+  /** canvas-hmm: the AI provider is the test/mock one -- said here, where the user is about to ask
+   *  the AI for something, instead of on every project page. */
+  mockMode?: boolean;
 }
 
 interface TranscriptMessage {
@@ -49,7 +53,7 @@ function errorMessage(err: unknown): string {
  * API), so it continues in the editor's Chat tab. Cancelling before anything is drawn deletes the
  * empty diagram created to hold the conversation.
  */
-export function CreateViaChatDialog({ projectId, onCreated, onCancel }: CreateViaChatDialogProps) {
+export function CreateViaChatDialog({ projectId, onCreated, onCancel, mockMode = false }: CreateViaChatDialogProps) {
   const [personas, setPersonas] = useState<AiPersonaDto[]>([]);
   const [personaId, setPersonaId] = useState('');
   const [diagramTypes, setDiagramTypes] = useState<DiagramTypeDto[]>([]);
@@ -240,6 +244,11 @@ export function CreateViaChatDialog({ projectId, onCreated, onCancel }: CreateVi
         </>
       }
     >
+      {mockMode && (
+        <p className="meta" data-testid="ai-mock-mode-note">
+          {AI_MOCK_MODE_MESSAGE}
+        </p>
+      )}
       {!conversing ? (
         <>
           <div className="field">

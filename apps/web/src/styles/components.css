@@ -82,6 +82,15 @@
   cursor: not-allowed;
 }
 
+/* canvas-hmm: a disabled text-only button (e.g. Delete on a project that still has diagrams) at
+   45% opacity read as a faded smudge of red; plain grey at full opacity is readable yet clearly
+   unavailable (its title says why). */
+.btn--tertiary:disabled,
+.btn--tertiary-danger:disabled {
+  opacity: 1;
+  color: var(--text-tertiary);
+}
+
 /* Icon-only button: still needs an accessible name in markup (aria-label). */
 .btn--icon {
   min-width: 36px;

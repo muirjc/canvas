@@ -21,7 +21,6 @@ import { DeletedDiagramsPage } from '../admin/DeletedDiagramsPage';
 import { DeletedProjectsPage } from '../admin/DeletedProjectsPage';
 import { ProjectBrowser } from '../projects/ProjectBrowser';
 import { ProjectsPage } from '../projects/ProjectsPage';
-import { SharedDiagramsList } from '../projects/SharedDiagramsList';
 import { ImportDialog } from '../projects/ImportDialog';
 import { ImportTemplateDialog } from '../projects/ImportTemplateDialog';
 import { CreateViaChatDialog } from '../ai/CreateViaChatDialog';
@@ -29,7 +28,7 @@ import { PersonaAdminPage } from '../ai/PersonaAdminPage';
 import { Icon } from '../ui/Icon';
 import { ADMIN_DESTINATIONS, AdminShell } from '../ui/AdminShell';
 import { Modal } from '../ui/Modal';
-import { AI_CHAT_DISABLED_MESSAGE, AI_MOCK_MODE_MESSAGE } from '../ai/ai-status-messages';
+import { AI_CHAT_DISABLED_MESSAGE } from '../ai/ai-status-messages';
 
 export function App() {
   const [user, setUser] = useState<SessionUser | null>(null);
@@ -70,7 +69,6 @@ export function App() {
   // after the user has already typed a request. `null` while unknown — kept enabled during that
   // brief window rather than flashing disabled-then-enabled on every load.
   const [aiStatus, setAiStatus] = useState<AiSettingsDto | null>(null);
-  const [creatingProject, setCreatingProject] = useState(false);
   // canvas-eow: read synchronously at switch-time via ref, not mirrored into a parent useState —
   // see DiagramEditorHandle's doc comment for why the mirrored-state version was a genuine race.
   const diagramEditorRef = useRef<DiagramEditorHandle>(null);
@@ -352,17 +350,6 @@ export function App() {
 
   const openDiagram = (diagramId: string) => navigate({ screen: 'diagram', diagramId });
 
-  const createFirstProject = async (name: string) => {
-    try {
-      const { project } = await api.createProject({ name });
-      setProjects((current) => [...(current ?? []), project]);
-      setCreatingProject(false);
-      navigate({ screen: 'project', projectId: project.id });
-    } catch (err) {
-      setError((err as Error).message);
-    }
-  };
-
   if (!checkedSession) return <p>Loading…</p>;
   if (!user) return <LoginForm onSuccess={(loggedInUser) => setUser(loggedInUser)} />;
 
@@ -384,7 +371,6 @@ export function App() {
     applyLocation({ screen: 'projects' });
   };
 
-  const hasNoProjects = projects !== null && projects.length === 0;
 
   let content: React.ReactNode;
   if (adminParam && user.role === 'admin') {
@@ -414,7 +400,7 @@ export function App() {
         </p>
       </main>
     );
-  } else if (location.screen === 'projects' && !hasNoProjects) {
+  } else if (location.screen === 'projects') {
     content = (
       <>
         {error && (
@@ -462,84 +448,32 @@ export function App() {
   } else {
     content = (
       <main className="page">
-        {location.screen === 'project' ? (
-          <>
-            {/* canvas-t3b.3: where you are, and the way back up (design: project level). */}
-            <nav className="project-browser__breadcrumb" data-testid="project-browser-breadcrumb" aria-label="Breadcrumb">
-              <ol>
-                <li>
-                  <a
-                    href={urlFor({ screen: 'projects' })}
-                    data-testid="project-browser-breadcrumb-back"
-                    onClick={(event) => {
-                      if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
-                      event.preventDefault();
-                      navigate({ screen: 'projects' });
-                    }}
-                  >
-                    Projects
-                  </a>
-                </li>
-                <li aria-current="page" data-testid="project-browser-breadcrumb-current">
-                  {currentProject?.name ?? 'Project'}
-                </li>
-              </ol>
-            </nav>
-            <h1 className="page__title" tabIndex={-1} data-browse-heading>
-              {currentProject?.name ?? 'Project'}
-            </h1>
-          </>
-        ) : (
-          // The top level for a user with no projects (design: zero-projects states).
-          <h1 className="page__title" tabIndex={-1} data-browse-heading>
-            Projects
-          </h1>
-        )}
-
-        {/* The top level only: a user with zero projects still needs to see this (feature 008,
-            FR-002); omitted entirely, not shown empty, when nothing is shared. A user with
-            projects sees it on the project list (ProjectsPage). */}
-        {location.screen !== 'project' && sharedDiagrams.length > 0 && (
-          <SharedDiagramsList diagrams={sharedDiagrams} onOpenDiagram={openDiagram} />
-        )}
-
-        {hasNoProjects && sharedDiagrams.length > 0 ? null : hasNoProjects ? (
-          /* No projects: invite, never invent. Reachable two ways — an empty installation, and a
-             user who owns nothing and has been given nothing, which is newly possible now that
-             visibility is access-controlled (FR-014, FR-015). Suppressed entirely — not shown
-             alongside the shared list — for a user who has no projects but does have a diagram
-             shared with them (feature 008, FR-003): the invitation would otherwise misinform them
-             they have no work, immediately above a list proving otherwise. */
-          <section className="empty-state" data-testid="create-first-project">
-            <p>You do not have any projects yet. Create one to start drawing diagrams.</p>
-            {creatingProject ? (
-              <form
-                onSubmit={(event) => {
+        {/* canvas-t3b.3: where you are, and the way back up (design: project level). */}
+        <nav className="project-browser__breadcrumb" data-testid="project-browser-breadcrumb" aria-label="Breadcrumb">
+          <ol>
+            <li>
+              <a
+                href={urlFor({ screen: 'projects' })}
+                data-testid="project-browser-breadcrumb-back"
+                onClick={(event) => {
+                  if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
                   event.preventDefault();
-                  const input = new FormData(event.currentTarget).get('projectName');
-                  const name = String(input ?? '').trim();
-                  if (name) void createFirstProject(name);
+                  navigate({ screen: 'projects' });
                 }}
               >
-                <label htmlFor="new-project-name">Project name</label>{' '}
-                <input id="new-project-name" name="projectName" data-testid="new-project-name" required />{' '}
-                <button type="submit" className="btn btn--primary" data-testid="confirm-create-project">
-                  Create Project
-                </button>
-              </form>
-            ) : (
-              <button
-                type="button"
-                className="btn btn--primary"
-                data-testid="start-create-project"
-                onClick={() => setCreatingProject(true)}
-              >
-                <Icon name="plus" />
-                Create Project
-              </button>
-            )}
-          </section>
-        ) : (
+                Projects
+              </a>
+            </li>
+            <li aria-current="page" data-testid="project-browser-breadcrumb-current">
+              {currentProject?.name ?? 'Project'}
+            </li>
+          </ol>
+        </nav>
+        <h1 className="page__title" tabIndex={-1} data-browse-heading>
+          {currentProject?.name ?? 'Project'}
+        </h1>
+
+
           <div className="home__actions">
             <button type="button" className="btn btn--primary" data-testid="new-diagram" onClick={() => setPickingType(true)}>
               <Icon name="plus" />
@@ -579,13 +513,7 @@ export function App() {
                 {AI_CHAT_DISABLED_MESSAGE}
               </span>
             )}
-            {aiStatus?.provider === 'mock' && (
-              <span className="meta" data-testid="ai-mock-mode-note" title={AI_MOCK_MODE_MESSAGE}>
-                {AI_MOCK_MODE_MESSAGE}
-              </span>
-            )}
           </div>
-        )}
 
         {error && (
           <p role="alert" data-testid="app-error">
@@ -640,6 +568,7 @@ export function App() {
       {creatingViaChat && currentProjectId && (
         <CreateViaChatDialog
           projectId={currentProjectId}
+          mockMode={aiStatus?.provider === 'mock'}
           onCreated={(created, { openChat }) => {
             setCreatingViaChat(false);
             setOpenDiagramOnChat(openChat);
