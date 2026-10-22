@@ -39,7 +39,7 @@ export async function createLocalUser(input: CreateLocalUserInput): Promise<{ us
   const db = getDb();
   const user = await db.transaction().execute(async (trx) => {
     const existing = await trx.selectFrom('users').select('id').where('email', '=', email).executeTakeFirst();
-    if (existing) throw new EmailInUseError(`A user with the email ${email} already exists.`);
+    if (existing) throw new EmailInUseError('A user with that email already exists.');
     const id = randomUUID();
     await trx.insertInto('users').values({ id, email, name, role: input.role }).execute();
     await trx

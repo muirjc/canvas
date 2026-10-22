@@ -18,8 +18,8 @@ test.describe.configure({ mode: 'serial', timeout: 60_000 });
 const RUN = Date.now();
 const EMAIL = `e2e-user-${RUN}@example.com`;
 const NAME = `E2E User ${RUN}`;
-const PASSWORD_1 = 'Zebra-lantern-quartz-42';
-const PASSWORD_2 = 'Marble-harbour-violin-77';
+const PASSWORD_1 = 'Zebra-lantern-quartz-42'; // gitleaks:allow -- a made-up test password
+const PASSWORD_2 = 'Marble-harbour-violin-77'; // gitleaks:allow -- a made-up test password
 const OTP = /^[a-zA-Z2-9]{4}(-[a-zA-Z2-9]{4}){3}$/;
 
 let oneTimePassword = '';
