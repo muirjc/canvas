@@ -5,8 +5,15 @@
 #
 # Usage: ENTRA_CLIENT_ID=<id> [ENTRA_TENANT_ID=<id>] [ENTRA_CLIENT_SECRET=<secret>] \
 #        [CANVAS_AI_PROVIDER=mock|anthropic|openai] [CANVAS_ANTHROPIC_API_KEY=<key>] \
-#        [CANVAS_OPENAI_API_KEY=<key>] \
+#        [CANVAS_OPENAI_API_KEY=<key>] [CANVAS_ALLOW_PUBLIC=1] \
 #        ./deploy.sh [--what-if-only | --yes] [location]
+#
+# canvas-cng: the API ingress and the web Storage account only accept the networks listed in
+# infra/azure/.secrets/allowed-ips (gitignored): one "CIDR description..." per line, '#' comments
+# allowed -- Entra sign-in still applies on top (docs/ip-allowlist-security-plan.md, option A).
+# If the file is missing but canvas-api exists, it's recreated from the live rules; with neither,
+# the script refuses to deploy a public environment unless CANVAS_ALLOW_PUBLIC=1. The machine
+# running this script must itself be on the list (it uploads the web app to Storage).
 #
 # canvas-7zw: by default the script shows the what-if and asks before applying. Two flags make it
 # usable without a terminal to answer that prompt (e.g. Claude Code driven from a phone):
@@ -157,6 +164,63 @@ fi
 
 DEPLOYER_PRINCIPAL_ID="$(az ad signed-in-user show --query id -o tsv)"
 
+# canvas-cng: the IP allow-list for the API ingress and the web Storage account (see the header).
+ALLOWED_IPS_FILE="$SECRETS_DIR/allowed-ips"
+if [[ ! -f "$ALLOWED_IPS_FILE" ]] \
+   && az containerapp show -g "$RESOURCE_GROUP" -n canvas-api --query name -o tsv >/dev/null 2>&1; then
+  live_rules="$(az containerapp ingress access-restriction list -g "$RESOURCE_GROUP" -n canvas-api \
+    --query "[?action=='Allow'].[ipAddressRange, description]" -o tsv 2>/dev/null | sed 's/\t/  /' || true)"
+  if [[ -n "$live_rules" ]]; then
+    echo "  No $ALLOWED_IPS_FILE -- recreating it from canvas-api's live allow-list."
+    printf '%s\n' "$live_rules" > "$ALLOWED_IPS_FILE"
+    chmod 600 "$ALLOWED_IPS_FILE"
+  fi
+fi
+ALLOWED_IPS_JSON='[]'
+if [[ -f "$ALLOWED_IPS_FILE" ]]; then
+  # Validated here so a typo fails before anything deploys. IPv6 and /31 are rejected: the
+  # Storage firewall can't take them (single addresses are written as /32).
+  ALLOWED_IPS_JSON="$(python3 - "$ALLOWED_IPS_FILE" <<'PY'
+import ipaddress, json, sys
+ranges = []
+for number, raw in enumerate(open(sys.argv[1]), start=1):
+    line = raw.split("#", 1)[0].strip()
+    if not line:
+        continue
+    cidr, _, desc = line.partition(" ")
+    try:
+        network = ipaddress.ip_network(cidr, strict=False)
+    except ValueError as error:
+        sys.exit(f"allowed-ips line {number}: {error}")
+    if network.version != 4:
+        sys.exit(f"allowed-ips line {number}: {cidr} -- only IPv4 ranges are supported")
+    if network.prefixlen == 31:
+        sys.exit(f"allowed-ips line {number}: {cidr} -- write a /31 as two /32 lines (the Storage firewall rejects /31)")
+    ranges.append({"cidr": str(network), "description": desc.strip() or "allowed"})
+print(json.dumps(ranges))
+PY
+)"
+fi
+if [[ "$ALLOWED_IPS_JSON" == "[]" && "${CANVAS_ALLOW_PUBLIC:-}" != "1" ]]; then
+  echo "No IP allow-list: the API and the web app would be reachable from anywhere." >&2
+  echo "Add one 'CIDR description' per line to $ALLOWED_IPS_FILE," >&2
+  echo "or re-run with CANVAS_ALLOW_PUBLIC=1 to deploy it public on purpose." >&2
+  exit 1
+fi
+echo "== IP allow-list: $(python3 -c "import json,sys; print(', '.join(r['cidr'] for r in json.loads(sys.argv[1])) or 'NONE (public)')" "$ALLOWED_IPS_JSON") =="
+# This machine uploads the web app (and pause.sh/resume.sh swap pages) through the Storage data
+# plane, which the firewall would refuse -- so it has to be covered by the list itself.
+if [[ "$ALLOWED_IPS_JSON" != "[]" ]]; then
+  MY_IP="$(curl -s --max-time 10 https://api.ipify.org || true)"
+  if [[ -z "$MY_IP" ]]; then
+    echo "  WARNING: couldn't determine this machine's public IP to check it against the list."
+  elif ! python3 -c "import ipaddress,json,sys; ip=ipaddress.ip_address(sys.argv[1]); sys.exit(0 if any(ip in ipaddress.ip_network(r['cidr']) for r in json.loads(sys.argv[2])) else 1)" "$MY_IP" "$ALLOWED_IPS_JSON"; then
+    echo "This machine's public IP ($MY_IP) isn't in $ALLOWED_IPS_FILE -- the web app upload would be" >&2
+    echo "refused by the Storage firewall. Add it (e.g. \"$MY_IP/32  <who/where>\") and re-run." >&2
+    exit 1
+  fi
+fi
+
 API_IMAGE_TAG="$(cd "$REPO_ROOT" && git rev-parse --short HEAD)"
 if ! git -C "$REPO_ROOT" diff --quiet 2>/dev/null || ! git -C "$REPO_ROOT" diff --cached --quiet 2>/dev/null; then
   API_IMAGE_TAG="${API_IMAGE_TAG}-dirty-$(date +%s)"
@@ -280,7 +344,8 @@ az deployment sub what-if \
   --parameters location="$LOCATION" postgresAdminPassword="$PG_ADMIN_PASSWORD" \
     deployerPrincipalId="$DEPLOYER_PRINCIPAL_ID" apiImageTag="$API_IMAGE_TAG" \
     webOrigin="$WEB_ORIGIN" grantAcrPull="$GRANT_ACR_PULL" \
-    entraTenantId="$ENTRA_TENANT_ID" entraClientId="$ENTRA_CLIENT_ID" aiProvider="$AI_PROVIDER"
+    entraTenantId="$ENTRA_TENANT_ID" entraClientId="$ENTRA_CLIENT_ID" aiProvider="$AI_PROVIDER" \
+    allowedIpRanges="$ALLOWED_IPS_JSON"
 
 echo
 if [[ "$WHAT_IF_ONLY" == true ]]; then
@@ -306,6 +371,7 @@ az deployment sub create \
     deployerPrincipalId="$DEPLOYER_PRINCIPAL_ID" apiImageTag="$API_IMAGE_TAG" \
     webOrigin="$WEB_ORIGIN" grantAcrPull="$GRANT_ACR_PULL" \
     entraTenantId="$ENTRA_TENANT_ID" entraClientId="$ENTRA_CLIENT_ID" aiProvider="$AI_PROVIDER" \
+    allowedIpRanges="$ALLOWED_IPS_JSON" \
   --output table
 
 STORAGE_ACCOUNT="$(az deployment sub show --name "canvas-foundation" --query "properties.outputs.storageAccountName.value" -o tsv)"

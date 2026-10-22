@@ -22,6 +22,9 @@ param storageAccountName string = 'canvasweb${uniqueString(resourceGroup().id)}'
 @description('Object ID of the principal running the deployment -- granted Storage Blob Data Contributor so deploy.sh\'s `az storage blob service-properties update --auth-mode login` and `upload-batch` calls actually work without falling back to an access-key. Same "deployer gets write access, mirrors keyvault.bicep\'s deployerSecretsOfficer pattern" shape -- docs/azure-deployment.md\'s own older manual path documents hitting exactly this permission gap and falling back to --auth-mode key, which this closes properly instead of carrying forward.')
 param deployerPrincipalId string
 
+@description('canvas-cng: the same IP allow-list as the API ([{ cidr, description }]). When non-empty, the storage firewall denies everything else -- including the static website the web app is served from. Storage rejects /32 single-address CIDRs, so those become plain addresses.')
+param allowedIpRanges array = []
+
 var storageBlobDataContributorRoleId = subscriptionResourceId('Microsoft.Authorization/roleDefinitions', 'ba92f5b4-2d11-453d-a403-e96b0029c9fe')
 
 resource storageAccount 'Microsoft.Storage/storageAccounts@2025-01-01' = {
@@ -34,6 +37,14 @@ resource storageAccount 'Microsoft.Storage/storageAccounts@2025-01-01' = {
   properties: {
     allowBlobPublicAccess: true
     minimumTlsVersion: 'TLS1_2'
+    networkAcls: {
+      defaultAction: empty(allowedIpRanges) ? 'Allow' : 'Deny'
+      bypass: 'AzureServices'
+      ipRules: [for range in allowedIpRanges: {
+        value: endsWith(range.cidr, '/32') ? replace(range.cidr, '/32', '') : range.cidr
+        action: 'Allow'
+      }]
+    }
   }
 }
 

@@ -140,6 +140,29 @@ endpoint not yet schema-annotated, see its `apps/api/src/**/*.routes.ts` source 
 `ALLOW_LOCAL_AUTH`) so a real deployment doesn't expose its full route surface unintentionally —
 deliberately turn it on for that environment if you want it there too.
 
+## Azure IP allow-list (canvas-cng)
+
+The Azure environment only accepts the networks in `infra/azure/.secrets/allowed-ips` — on the
+API's ingress (Container Apps access restrictions) and on the web app's Storage account (firewall)
+— with Entra sign-in still required on top. See `infra/azure/README.md` for the file format.
+
+- **Add or change an address:** edit the file and run `deploy.sh` (preview with `--what-if-only`).
+- **Your IP changed and you're locked out** (both the site and `deploy.sh`'s upload check refuse):
+  the quick fix without a full deploy, from any machine signed in to Azure:
+  ```bash
+  NEW=203.0.113.7   # your new public IP (curl https://api.ipify.org)
+  az containerapp ingress access-restriction set -g canvas-rg -n canvas-api \
+    --rule-name home-new --ip-address "$NEW/32" --action Allow --description "home (new)"
+  az storage account network-rule add -g canvas-rg --account-name <canvasweb...> --ip-address "$NEW"
+  ```
+  Then put the new address in `allowed-ips` so the next deploy keeps it (a deploy replaces the
+  live rules with the file's list).
+- **Checking it:** from an allowed network the site and API answer normally. From anywhere else
+  the API returns **403** "RBAC: access denied" (Container Apps ingress), and the web app returns
+  **404 "The requested content does not exist" (`WebContentNotFound`)** — that's how a Storage
+  static website answers a request its firewall refuses, not a missing deploy. (Verified
+  2026-10-22 from a phone on another network.)
+
 ## Entra ID SSO (canvas-haz)
 
 Unlike the self-hosted Keycloak this replaced, there's no local-container IdP to `docker compose

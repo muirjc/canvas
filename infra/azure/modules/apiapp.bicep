@@ -40,6 +40,9 @@ param apiPort int = 3000
 @description('canvas-haz: this deployment authenticates via Microsoft Entra ID, so local email/password auth is no longer the only way to sign in -- defaults to false, requiring SSO + whatever Conditional Access/MFA policy the tenant enforces for this app. Kept as a param, not hardcoded, purely as an emergency break-glass switch (e.g. the Entra tenant itself is unreachable) -- flip it back to true only for that, never as a standing configuration, or MFA becomes silently bypassable.')
 param allowLocalAuth bool = false
 
+@description('canvas-cng: the IP allow-list, as [{ cidr, description }]. When non-empty, ingress only accepts these ranges -- once one Allow rule exists, Container Apps denies all other traffic. Entra sign-in still applies on top (docs/ip-allowlist-security-plan.md, option A). deploy.sh supplies it from infra/azure/.secrets/allowed-ips and refuses an empty list unless CANVAS_ALLOW_PUBLIC=1.')
+param allowedIpRanges array = []
+
 @description('AI_PROVIDER value -- "mock" keeps AI chat on the deterministic fake NLU (no real API calls, no cost) until a real key is provided via Key Vault; switch to anthropic/openai once ANTHROPIC_API_KEY/OPENAI_API_KEY are set as real Key Vault secret values.')
 param aiProvider string = 'mock'
 
@@ -69,6 +72,12 @@ resource apiApp 'Microsoft.App/containerApps@2025-01-01' = {
         external: true
         targetPort: apiPort
         transport: 'auto'
+        ipSecurityRestrictions: [for (range, i) in allowedIpRanges: {
+          name: 'allowed-ip-${i + 1}'
+          description: range.description
+          ipAddressRange: range.cidr
+          action: 'Allow'
+        }]
       }
       registries: [
         {
