@@ -54,6 +54,9 @@ param entraClientId string = ''
 @allowed(['entra', 'local'])
 param authMode string = 'entra'
 
+@description('canvas-ez1.3: the first admin\'s email in local mode (bootstrap-admin job). Unused in entra mode.')
+param adminEmail string = ''
+
 @description('canvas-brq: forwarded to modules/apiapp.bicep\'s AI_PROVIDER -- "mock" (default, no real API calls) or "anthropic"/"openai". deploy.sh sets this from AI_PROVIDER and refuses a real provider while its Key Vault API key is still the "unset" placeholder.')
 @allowed(['mock', 'anthropic', 'openai'])
 param aiProvider string = 'mock'
@@ -164,7 +167,8 @@ module migrationJob 'modules/migrationjob.bicep' = {
   }
 }
 
-module seedJob 'modules/seedjob.bicep' = {
+// canvas-ez1.3: the demo seed (published passwords) doesn't exist in a local-mode environment.
+module seedJob 'modules/seedjob.bicep' = if (authMode != 'local') {
   name: 'seedJobDeploy'
   scope: rg
   params: {
@@ -174,6 +178,20 @@ module seedJob 'modules/seedjob.bicep' = {
     acrLoginServer: acr.outputs.loginServer
     apiImageTag: apiImageTag
     keyVaultUri: keyVault.outputs.keyVaultUri
+  }
+}
+
+module bootstrapAdminJob 'modules/bootstrapadminjob.bicep' = if (authMode == 'local') {
+  name: 'bootstrapAdminJobDeploy'
+  scope: rg
+  params: {
+    location: location
+    environmentId: containerAppsEnv.outputs.environmentId
+    identityId: keyVault.outputs.identityId
+    acrLoginServer: acr.outputs.loginServer
+    apiImageTag: apiImageTag
+    keyVaultUri: keyVault.outputs.keyVaultUri
+    adminEmail: adminEmail
   }
 }
 
@@ -206,5 +224,6 @@ output storageAccountName string = storage.outputs.storageAccountName
 output apiFqdn string = apiApp.outputs.fqdn
 output oidcRedirectUri string = oidcRedirectUri
 output migrationJobName string = migrationJob.outputs.jobName
-output seedJobName string = seedJob.outputs.jobName
+output seedJobName string = authMode == 'local' ? '' : seedJob!.outputs.jobName
+output bootstrapAdminJobName string = authMode == 'local' ? bootstrapAdminJob!.outputs.jobName : ''
 output catalogSeedJobName string = catalogSeedJob.outputs.jobName

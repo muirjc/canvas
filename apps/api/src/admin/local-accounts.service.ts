@@ -31,10 +31,13 @@ export function normalizeEmail(email: string): string {
   return email.trim().toLowerCase();
 }
 
-export async function createLocalUser(input: CreateLocalUserInput): Promise<{ user: UserRecord; temporaryPassword: string }> {
+/** `temporaryPassword` defaults to a generated one; bootstrap-admin passes the operator's. */
+export async function createLocalUser(
+  input: CreateLocalUserInput,
+  temporaryPassword: string = generateOneTimePassword(),
+): Promise<{ user: UserRecord; temporaryPassword: string }> {
   const email = normalizeEmail(input.email);
   const name = input.name.trim() || email;
-  const temporaryPassword = generateOneTimePassword();
   const { hash, salt } = hashPassword(temporaryPassword);
   const db = getDb();
   const user = await db.transaction().execute(async (trx) => {
@@ -55,7 +58,17 @@ export async function createLocalUser(input: CreateLocalUserInput): Promise<{ us
 /** Issues a new one-time password and signs the user out everywhere. */
 export async function resetLocalPassword(userId: string): Promise<{ temporaryPassword: string }> {
   const temporaryPassword = generateOneTimePassword();
-  const { hash, salt } = hashPassword(temporaryPassword);
+  await setOneTimePassword(userId, temporaryPassword);
+  return { temporaryPassword };
+}
+
+/**
+ * Makes `password` the user's one-time password (must be changed at next sign-in), creating their
+ * Canvas credentials if they had none, and signs them out everywhere. Used by an admin's reset and
+ * by the bootstrap-admin recovery (seed/bootstrap-admin.ts).
+ */
+export async function setOneTimePassword(userId: string, password: string): Promise<void> {
+  const { hash, salt } = hashPassword(password);
   const db = getDb();
   await db.transaction().execute(async (trx) => {
     const user = await trx.selectFrom('users').select('id').where('id', '=', userId).executeTakeFirst();
@@ -68,7 +81,6 @@ export async function resetLocalPassword(userId: string): Promise<{ temporaryPas
       .execute();
   });
   await destroyUserSessions(userId);
-  return { temporaryPassword };
 }
 
 /** A signed-in user changing their own password. Other sessions of theirs are ended. */
