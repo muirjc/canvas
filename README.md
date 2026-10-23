@@ -110,6 +110,11 @@ Two sign-in models:
 
 ## Documentation
 
+- **[User guide](docs/user-guide/README.md)**: for everyone using Canvas (signing in, projects,
+  creating and editing diagrams, AI chat, sharing, export).
+- **[Admin guide](docs/admin-guide/README.md)**: for admins (users, standards, diagram types, AI and
+  its cost, the audit log, recovery). Screenshots are regenerated with
+  `npm run docs:screenshots --workspace=@canvas/web` against a local app with demo data.
 - **[docs/business-requirements.md](docs/business-requirements.md)** — the business rationale,
   objectives, and requirements (the *why*).
 - **[docs/solution-architecture-document.md](docs/solution-architecture-document.md)** — the

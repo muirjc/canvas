@@ -79,6 +79,13 @@ packages/diagram-core/src/{model,dsl,standards,libraries}    # shared parser/ser
 
 npm run test --workspace=@canvas/diagram-core && npm run test --workspace=@canvas/api && npm run test --workspace=@canvas/web
 
+## User and admin guides
+
+`docs/user-guide/` and `docs/admin-guide/` (canvas-unk) describe what people see. A change to
+user-visible behaviour updates the matching page in the same PR; re-run
+`npm run docs:screenshots --workspace=@canvas/web` (local app on AI_PROVIDER=mock, demo data only)
+when a pictured screen changes.
+
 ## Code Style
 
 TypeScript, standard conventions. `diagram-core` round-trip and standards-validation contract

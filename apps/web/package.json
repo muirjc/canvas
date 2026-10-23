@@ -10,7 +10,8 @@
     "preview": "vite preview",
     "test": "vitest run",
     "test:watch": "vitest",
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test",
+    "docs:screenshots": "playwright test --config=playwright.docs.config.ts"
   },
   "dependencies": {
     "@canvas/diagram-core": "*",
