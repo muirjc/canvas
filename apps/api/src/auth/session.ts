@@ -134,6 +134,20 @@ export async function registerSessionInfoRoutes(app: FastifyInstance): Promise<v
     },
   );
 
+  // canvas-ao2: did this request arrive with a session? The web app asks right after a sign-in
+  // succeeds: 'none' then means the browser dropped the session cookie -- the app and the API are
+  // on different sites, so private windows and Safari (every iOS browser) block it as third-party
+  // -- and the sign-in page can say so instead of failing at the next step. Reads only; never
+  // creates a session.
+  app.get(
+    '/auth/session-check',
+    { schema: { tags: ['Auth'], security: [] } },
+    async (request, reply) => {
+      const state = request.session.user ? 'signed-in' : request.session.mfaPending ? 'pending-mfa' : 'none';
+      return reply.send({ session: state });
+    },
+  );
+
   app.get(
     '/auth/me',
     // canvas-lfc: no preHandler enforces auth -- unauthenticated gets a 401 *body* from the

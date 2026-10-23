@@ -176,7 +176,7 @@ describe('OIDC callback against a real openid-client validation pipeline (canvas
 
     const response = await callback(cookie, state);
     expect(response.statusCode).toBe(302);
-    expect(response.headers.location).toBe(WEB_ORIGIN);
+    expect(response.headers.location).toBe(`${WEB_ORIGIN}/?signin=sso`); // canvas-ao2 marker
     const session = signedInCookie(response);
 
     // canvas-4xo: no session fixation -- the pre-login session id is replaced, and dead.

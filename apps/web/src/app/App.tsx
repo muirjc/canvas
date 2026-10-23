@@ -78,11 +78,24 @@ export function App() {
   // see DiagramEditorHandle's doc comment for why the mirrored-state version was a genuine race.
   const diagramEditorRef = useRef<DiagramEditorHandle>(null);
 
+  // canvas-ao2: Entra sign-in returns with ?signin=sso. Landing signed out after it means the
+  // browser dropped the session cookie -- the sign-in page says so. The marker is removed at once.
+  const [ssoCookieBlocked, setSsoCookieBlocked] = useState(false);
   useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const cameFromSso = params.get('signin') === 'sso';
+    if (cameFromSso) {
+      params.delete('signin');
+      const search = params.toString();
+      window.history.replaceState(window.history.state, '', `${window.location.pathname}${search ? `?${search}` : ''}${window.location.hash}`);
+    }
     api
       .me()
       .then(({ user }) => setUser(user))
-      .catch(() => setUser(null))
+      .catch(() => {
+        setUser(null);
+        if (cameFromSso) setSsoCookieBlocked(true);
+      })
       .finally(() => setCheckedSession(true));
   }, []);
 
@@ -380,7 +393,7 @@ export function App() {
   const openDiagram = (diagramId: string) => navigate({ screen: 'diagram', diagramId });
 
   if (!checkedSession) return <p>Loading…</p>;
-  if (!user) return <LoginForm onSuccess={(loggedInUser) => setUser(loggedInUser)} />;
+  if (!user) return <LoginForm ssoCookieBlocked={ssoCookieBlocked} onSuccess={(loggedInUser) => setUser(loggedInUser)} />;
 
   const handleSignOut = () => {
     setUser(null);

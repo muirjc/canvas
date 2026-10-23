@@ -972,3 +972,16 @@
   resize: vertical;
   font-family: var(--font-mono, ui-monospace, monospace);
 }
+
+/* canvas-ao2: the browser blocked the sign-in cookie. */
+.auth__notice {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  border: var(--border-width) solid var(--border-default);
+  border-left: 4px solid var(--warning);
+  border-radius: var(--radius-md);
+  background: var(--surface-sunken);
+}
+.auth__notice p { margin: 0; }
