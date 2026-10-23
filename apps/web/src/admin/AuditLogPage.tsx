@@ -5,6 +5,9 @@ const PAGE_SIZE = 50;
 
 const SIGN_IN_FAILURE_REASONS: Record<string, string> = {
   unknown_email: 'unknown email',
+  // A display label for the audit reason code, not a credential (Bearer reads `*password: '...'`
+  // as a hard-coded secret).
+  // bearer:disable javascript_lang_hardcoded_secret
   wrong_password: 'wrong password',
   locked: 'account locked',
   inactive: 'account inactive',
