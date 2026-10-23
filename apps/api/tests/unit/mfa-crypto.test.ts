@@ -36,4 +36,11 @@ describe('mfa-crypto', () => {
     expect(() => decryptSecret('v2:a:b:c', key)).toThrow(/format/);
     expect(() => decryptSecret('garbage', key)).toThrow(/format/);
   });
+
+  it('refuses a truncated authentication tag (canvas-ez1.6, Semgrep gcm-no-tag-length)', () => {
+    const key = Buffer.alloc(32, 7);
+    const [version, iv, tag, ciphertext] = encryptSecret('JBSWY3DPEHPK3PXP', key).split(':');
+    const truncated = Buffer.from(tag, 'base64').subarray(0, 4).toString('base64');
+    expect(() => decryptSecret([version, iv, truncated, ciphertext].join(':'), key)).toThrow();
+  });
 });

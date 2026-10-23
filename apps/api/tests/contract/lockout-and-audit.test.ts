@@ -141,10 +141,16 @@ describe('Lockout and audit (canvas-ez1.4)', () => {
       expect(users.find((u) => u.email === 'victim@example.com')?.locked).toBe(false);
     });
 
-    it('an inactive user with the correct password gets 401 and does not count toward lockout', async () => {
+    it('an inactive user with the correct password is told the account is deactivated (403), and it does not count toward lockout', async () => {
       const id = await idOf('victim@example.com');
       await app.inject({ method: 'PATCH', url: `/admin/users/${id}`, payload: { active: false }, headers: { cookie: adminCookie } });
-      for (let i = 0; i < 5; i++) expect((await login('victim@example.com', PW)).res.statusCode).toBe(401);
+      for (let i = 0; i < 5; i++) {
+        const { res } = await login('victim@example.com', PW);
+        expect(res.statusCode).toBe(403);
+        expect(res.json().error).toMatch(/deactivated/);
+      }
+      // A wrong password on a deactivated account still gets the generic answer.
+      expect((await login('victim@example.com', 'Not-the-password-123')).res.statusCode).toBe(401); // gitleaks:allow -- made-up test password
       const users = (await get('/admin/users', adminCookie)).json().users as { email: string; locked: boolean }[];
       expect(users.find((u) => u.email === 'victim@example.com')?.locked).toBe(false);
       await app.inject({ method: 'PATCH', url: `/admin/users/${id}`, payload: { active: true }, headers: { cookie: adminCookie } });

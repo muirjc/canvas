@@ -84,15 +84,22 @@ export function App() {
       .finally(() => setCheckedSession(true));
   }, []);
 
+  // canvas-ez1.6: nothing loads while a forced step (one-time password change, MFA set-up) is
+  // showing -- the API refuses it then, and that refusal used to stay on screen after the step
+  // (found in the live check). The effects below re-run once the step clears (`user` changes).
+  const signedInFully = Boolean(user && !user.mustChangePassword && !user.mustEnrollMfa);
+
   // The projects this user can see. Which one (if any) they're in comes from the address
   // (location), checked against this list below.
   useEffect(() => {
-    if (!user) return;
+    if (!signedInFully) return;
     let cancelled = false;
     api
       .listProjects()
       .then(({ projects: available }) => {
-        if (!cancelled) setProjects(available);
+        if (cancelled) return;
+        setProjects(available);
+        setError(null);
       })
       .catch((err) => {
         if (!cancelled) setError((err as Error).message);
@@ -100,12 +107,12 @@ export function App() {
     return () => {
       cancelled = true;
     };
-  }, [user]);
+  }, [user, signedInFully]);
 
   // Diagrams shared directly with this user (feature 008, FR-001). Independent of the project
   // list above — it must populate even for a user with zero project access.
   useEffect(() => {
-    if (!user) return;
+    if (!signedInFully) return;
     let cancelled = false;
     api
       .listSharedDiagrams()
@@ -121,11 +128,11 @@ export function App() {
     return () => {
       cancelled = true;
     };
-  }, [user]);
+  }, [user, signedInFully]);
 
   // canvas-wuc: whether AI chat is admin-enabled, and which provider is actually configured.
   useEffect(() => {
-    if (!user) return;
+    if (!signedInFully) return;
     let cancelled = false;
     api
       .getAiStatus()
@@ -139,7 +146,7 @@ export function App() {
     return () => {
       cancelled = true;
     };
-  }, [user]);
+  }, [user, signedInFully]);
 
   // canvas-513: the admin page being shown (?admin=...), as state rather than re-read from the
   // address on each render. Entering admin is a full page load (a plain link); leaving it is an

@@ -98,8 +98,15 @@ manual walkthrough of each feature.
 
 **[infra/azure/README.md](infra/azure/README.md)** has a reproducible Bicep IaC deployment to
 Azure — resource group, private VNet-integrated Postgres, Key Vault-backed secrets, a Container App
-for the API (authenticating against Microsoft Entra ID), and a Storage static site for the
-frontend, plus pause/resume/destroy lifecycle scripts for cost control.
+for the API, and a Storage static site for the frontend, plus pause/resume/destroy lifecycle
+scripts for cost control. An IP allow-list restricts both to your networks.
+
+Two sign-in models:
+- **Microsoft Entra ID** (default) — `ENTRA_CLIENT_ID=<app id> ./deploy.sh`.
+- **Canvas-managed accounts** (no Entra tenant needed) — email + password plus an authenticator app
+  (TOTP) for everyone, account lockout and an audit log:
+  `CANVAS_AUTH_MODE=local CANVAS_ADMIN_EMAIL=<you> ./deploy.sh`. See
+  [RUNBOOK.md → Local accounts](RUNBOOK.md#local-accounts-canvas-ez1-option-b).
 
 ## Documentation
 

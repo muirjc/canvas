@@ -306,7 +306,7 @@ describe('Local user management (canvas-ez1.2)', () => {
       expect(res.statusCode).toBe(200);
 
       expect((await get('/projects', target.cookie)).statusCode).toBe(401);
-      expect((await login('leaver@example.com', 'orig-secret-phrase-2')).res.statusCode).toBe(401);
+      expect((await login('leaver@example.com', 'orig-secret-phrase-2')).res.statusCode).toBe(403); // deactivated (canvas-ez1.6)
     });
 
     it('a role change does not end the sessions', async () => {

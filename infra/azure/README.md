@@ -129,6 +129,19 @@ ENTRA_CLIENT_ID=<id> ./deploy.sh --yes            # apply without prompting, onc
                                                   # has been reviewed
 ```
 
+**Canvas-managed accounts instead of Entra** (canvas-ez1, `AUTH_MODE=local`): no app registration
+needed; the allow-list becomes mandatory (`CANVAS_ALLOW_PUBLIC=1` doesn't override it), and the
+first admin is created for you with a one-time password in `.secrets/bootstrap-admin-password`:
+
+```bash
+CANVAS_AUTH_MODE=local CANVAS_ADMIN_EMAIL=<you> ./deploy.sh --what-if-only
+CANVAS_AUTH_MODE=local CANVAS_ADMIN_EMAIL=<you> ./deploy.sh --yes
+```
+
+Both values are cached in `.secrets/`, so later runs are just `./deploy.sh` (no `ENTRA_CLIENT_ID`).
+Setting it up, managing people, a locked-out lone admin (`./reset-admin.sh`), rotating the MFA key
+and switching back: [RUNBOOK.md → Local accounts](../../RUNBOOK.md#local-accounts-canvas-ez1-option-b).
+
 This is a **two-pass bootstrap** on a genuine from-scratch environment, same shape ADP's own
 `deploy.sh` documents: Key Vault doesn't exist yet on run 1, so secret *values* can't be
 pre-seeded into it, so the API container app module (which references those secrets by name at
@@ -193,13 +206,16 @@ permission rules, so add these by hand once (`.claude/settings.local.json` at th
       "Bash(./resume.sh*)",
       "Bash(./pause.sh*)",
       "Bash(ENTRA_CLIENT_ID=* ./deploy.sh --what-if-only*)",
-      "Bash(ENTRA_CLIENT_ID=* ./deploy.sh --yes*)"
+      "Bash(ENTRA_CLIENT_ID=* ./deploy.sh --yes*)",
+      "Bash(./deploy.sh --what-if-only*)",
+      "Bash(./deploy.sh --yes*)"
     ]
   }
 }
 ```
 
-Then a deploy is: resume, `--what-if-only` (Claude shows you the plan), your approval in chat,
+(The last two cover a local-mode environment, whose deploys need no `ENTRA_CLIENT_ID`.) Then a
+deploy is: resume, `--what-if-only` (Claude shows you the plan), your approval in chat,
 `--yes`, pause. `deploy.sh` runs `npm ci` locally, which stops a running local API dev server.
 
 ## Full teardown (destroys ALL data)
