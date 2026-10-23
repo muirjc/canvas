@@ -1,0 +1,32 @@
+# Canvas admin guide
+
+For people with the **admin** role. Admins see **Admin** in the top bar. It opens the admin console,
+where the tabs along the top are its pages. Everything in the [user guide](../user-guide/README.md)
+applies to you too.
+
+![The admin overview](../images/admin-overview.png)
+
+| Page | What it's for | Guide |
+|---|---|---|
+| **Overview** | Counts of users, standards and icon libraries; the cards open their pages | — |
+| **Users** | Add people, roles, passwords, unlock, two-step verification, deactivate, delete | [Managing people](people.md) |
+| **Standards** | The rules diagrams are checked against, and the diagram types themselves | [Standards and diagram types](standards-and-diagram-types.md) |
+| **AI Personas** | The AI assistants, their prompts and reference material; turning AI chat on or off | [AI](ai.md) |
+| **AI usage** | Tokens (and estimated cost) by user; model prices | [AI](ai.md) |
+| **Audit log** | Who signed in, failed, was locked, changed what | [Audit log and recovery](audit-and-recovery.md) |
+| **Deleted Diagrams / Deleted Projects** | Restoring deleted work within 30 days | [Audit log and recovery](audit-and-recovery.md) |
+
+Running Canvas itself (deploying, pausing, the IP allow-list, emergency access) is covered in
+[Operations](operations.md).
+
+## How people sign in
+
+Canvas runs in one of two sign-in modes, chosen when it's deployed:
+- **Microsoft Entra ID.** People sign in with their Microsoft work account. Their role comes from the
+  Canvas app's roles in Entra, and two-step verification is your organisation's Entra policy.
+  Accounts appear in Canvas on first sign-in.
+- **Canvas accounts.** You create every account in Canvas. People sign in with email and password
+  plus an authenticator code. In this mode the site is only reachable from your organisation's
+  approved networks.
+
+Some Users-page actions (passwords, unlock, two-step verification) only exist with Canvas accounts.
