@@ -9,6 +9,7 @@ type Dialog =
   | { kind: 'add' }
   | { kind: 'reset'; user: UserRecordDto }
   | { kind: 'reset-mfa'; user: UserRecordDto }
+  | { kind: 'delete'; user: UserRecordDto }
   // The one-time password lives only in this state, only while the panel is open (canvas-ez1.2).
   | { kind: 'password'; name: string; password: string };
 
@@ -19,9 +20,14 @@ export function UsersPage() {
   const [localAuthEnabled, setLocalAuthEnabled] = useState(false);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [dialog, setDialog] = useState<Dialog | null>(null);
+  const [authMode, setAuthMode] = useState<'entra' | 'local'>('local');
+  const [status, setStatus] = useState<string | null>(null);
 
   useEffect(() => {
-    api.getAuthConfig().then((config) => setLocalAuthEnabled(config.localAuthEnabled)).catch(() => setLocalAuthEnabled(false));
+    api.getAuthConfig().then((config) => {
+      setLocalAuthEnabled(config.localAuthEnabled);
+      setAuthMode(config.authMode);
+    }).catch(() => setLocalAuthEnabled(false));
     api.me().then(({ user }) => setCurrentUserId(user.id)).catch(() => setCurrentUserId(null));
   }, []);
 
@@ -48,6 +54,11 @@ export function UsersPage() {
       {localAuthEnabled && (
         <p className="meta">Accounts lock after 3 failed sign-in attempts. Unlock them here; resetting a password also unlocks.</p>
       )}
+      {status && (
+        <p role="status" data-testid="delete-user-status">
+          {status}
+        </p>
+      )}
       <div className="table-scroll">
       <table>
         <thead>
@@ -62,6 +73,9 @@ export function UsersPage() {
                 <span className="visually-hidden">Actions</span>
               </th>
             )}
+            <th>
+              <span className="visually-hidden">Delete</span>
+            </th>
           </tr>
         </thead>
         <tbody>
@@ -156,6 +170,19 @@ export function UsersPage() {
                   )}
                 </td>
               )}
+              <td>
+                {user.id !== currentUserId && (
+                  <button
+                    type="button"
+                    className="btn btn--danger btn--compact"
+                    data-testid={`delete-user-${user.id}`}
+                    aria-label={`Delete ${user.name}`}
+                    onClick={() => setDialog({ kind: 'delete', user })}
+                  >
+                    Delete
+                  </button>
+                )}
+              </td>
             </tr>
           ))}
         </tbody>
@@ -183,6 +210,19 @@ export function UsersPage() {
           onClose={() => setDialog(null)}
           onReset={() => {
             setDialog(null);
+            refresh();
+          }}
+        />
+      )}
+      {dialog?.kind === 'delete' && (
+        <DeleteUserDialog
+          user={dialog.user}
+          others={users.filter((u) => u.id !== dialog.user.id && u.active)}
+          entra={authMode === 'entra'}
+          onClose={() => setDialog(null)}
+          onDeleted={(message) => {
+            setDialog(null);
+            setStatus(message);
             refresh();
           }}
         />
@@ -407,6 +447,119 @@ function ResetMfaDialog({ user, onClose, onReset }: { user: UserRecordDto; onClo
           {error}
         </p>
       )}
+    </Modal>
+  );
+}
+
+function DeleteUserDialog({
+  user,
+  others,
+  entra,
+  onClose,
+  onDeleted,
+}: {
+  user: UserRecordDto;
+  others: UserRecordDto[];
+  entra: boolean;
+  onClose: () => void;
+  onDeleted: (message: string) => void;
+}) {
+  const [impact, setImpact] = useState<{ ownedProjects: number; ownedDiagrams: number; sharesReceived: number; isLastActiveAdmin: boolean } | null>(null);
+  const [transferTo, setTransferTo] = useState('');
+  const [error, setError] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+
+  useEffect(() => {
+    api
+      .getUserDeletionImpact(user.id)
+      .then(setImpact)
+      .catch((err) => setError((err as Error).message));
+  }, [user.id]);
+
+  const ownsSomething = !!impact && (impact.ownedProjects > 0 || impact.ownedDiagrams > 0);
+  const blocked = !impact || impact.isLastActiveAdmin || (ownsSomething && !transferTo);
+  const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? '' : 's'}`;
+
+  const confirm = async () => {
+    setError(null);
+    setSubmitting(true);
+    try {
+      const result = await api.deleteUser(user.id, ownsSomething ? transferTo : undefined);
+      const target = others.find((u) => u.id === transferTo);
+      onDeleted(
+        `Deleted ${user.name}` +
+          (target ? `; transferred ${plural(result.transferredProjects, 'project')} and ${plural(result.transferredDiagrams, 'diagram')} to ${target.name}.` : '.'),
+      );
+    } catch (err) {
+      setError((err as Error).message);
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <Modal
+      role="alertdialog"
+      label={`Delete ${user.name}`}
+      testId="delete-user-dialog"
+      onClose={onClose}
+      footer={
+        <>
+          <button type="button" className="btn btn--secondary" onClick={onClose}>
+            Cancel
+          </button>
+          <button type="button" className="btn btn--danger" data-testid="confirm-delete-user" disabled={blocked || submitting} onClick={confirm}>
+            Delete user
+          </button>
+        </>
+      }
+    >
+      <div className="stack">
+        {!impact && !error && <p>Checking what this affects…</p>}
+        {impact?.isLastActiveAdmin && (
+          <p role="alert" data-testid="delete-user-last-admin">
+            {user.name} is the last active administrator and can't be deleted. Make someone else an administrator first.
+          </p>
+        )}
+        {impact && !impact.isLastActiveAdmin && (
+          <>
+            <p>
+              {user.name} owns {plural(impact.ownedProjects, 'project')} and {plural(impact.ownedDiagrams, 'diagram')}, and has{' '}
+              {plural(impact.sharesReceived, 'share')} that will be removed.
+            </p>
+            {ownsSomething && (
+              <div className="field">
+                <label className="field__label" htmlFor="delete-user-transfer">
+                  Transfer their projects and diagrams to
+                </label>
+                <select id="delete-user-transfer" data-testid="delete-user-transfer" required value={transferTo} onChange={(e) => setTransferTo(e.target.value)}>
+                  <option value="">Choose a user…</option>
+                  {others.map((u) => (
+                    <option key={u.id} value={u.id}>
+                      {u.name} ({u.email})
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+            <p>
+              Their password, two-step verification, personas and sessions are removed and they are signed out immediately. Their
+              history stays and shows as "Deleted user". Their email can then be used by a new account. This can't be undone.
+            </p>
+            {entra && (
+              <p className="meta">
+                In Entra ID, anyone who still has the app role is re-created as a new user the next time they sign in. Remove their
+                role in Entra too.
+              </p>
+            )}
+            <p className="meta">To keep the account but stop it signing in, untick Active instead; that can be undone.</p>
+          </>
+        )}
+        {error && (
+          <p role="alert" className="field__error" data-testid="delete-user-error">
+            {error}
+          </p>
+        )}
+      </div>
     </Modal>
   );
 }

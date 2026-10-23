@@ -41,6 +41,8 @@ export function describeEvent(event: AuditEventDto): string {
       return 'Two-step verification set up';
     case 'mfa_reset':
       return 'Two-step verification reset';
+    case 'user_deleted':
+      return 'User deleted';
     case 'user_created':
       return 'User created';
     case 'user_updated': {
@@ -50,6 +52,22 @@ export function describeEvent(event: AuditEventDto): string {
     default:
       return event.event;
   }
+}
+
+/** Who an event was about. A deleted user's target is a placeholder, so show the recorded email. */
+function aboutText(event: AuditEventDto): string {
+  const detail = event.detail ?? {};
+  const email = typeof detail.email === 'string' ? detail.email : null;
+  if (event.event === 'user_deleted') {
+    const name = typeof detail.name === 'string' ? detail.name : null;
+    const who = email ? (name ? `${name} (${email})` : email) : 'Deleted user';
+    const recipient = typeof detail.transferredToEmail === 'string' ? ` to ${detail.transferredToEmail}` : '';
+    const transferred = detail.transferredTo
+      ? `; ${plural(Number(detail.projects ?? 0), 'project')} and ${plural(Number(detail.diagrams ?? 0), 'diagram')} transferred${recipient}`
+      : '';
+    return `${who}${transferred}`;
+  }
+  return event.targetEmail ?? email ?? '—';
 }
 
 /** Admin-only, newest-first record of sign-in and account-management events (canvas-ez1.4). */
@@ -116,7 +134,7 @@ export function AuditLogPage() {
                   </td>
                   <td>{describeEvent(event)}</td>
                   <td>{event.actorEmail ?? '—'}</td>
-                  <td>{event.targetEmail ?? (typeof event.detail?.email === 'string' ? event.detail.email : '—')}</td>
+                  <td>{aboutText(event)}</td>
                   <td className="mono">{event.ip ?? '—'}</td>
                 </tr>
               ))}
@@ -137,4 +155,8 @@ export function AuditLogPage() {
       )}
     </div>
   );
+}
+
+function plural(n: number, word: string): string {
+  return `${n} ${word}${n === 1 ? '' : 's'}`;
 }

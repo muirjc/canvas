@@ -537,6 +537,15 @@ export const api = {
     request<AiUsageDetailDto & { from: string; to: string }>(
       `/admin/ai-usage/users/${id}?${new URLSearchParams(range).toString()}`,
     ),
+  getUserDeletionImpact: (id: string) =>
+    request<{ ownedProjects: number; ownedDiagrams: number; sharesReceived: number; isLastActiveAdmin: boolean }>(
+      `/admin/users/${id}/deletion-impact`,
+    ),
+  deleteUser: (id: string, transferToUserId?: string) =>
+    request<{ deleted: true; transferredProjects: number; transferredDiagrams: number }>(`/admin/users/${id}`, {
+      method: 'DELETE',
+      body: JSON.stringify(transferToUserId ? { transferToUserId } : {}),
+    }),
   changePassword: (currentPassword: string, newPassword: string) =>
     request<{ user: SessionUser }>('/auth/password', { method: 'POST', body: JSON.stringify({ currentPassword, newPassword }) }),
   getAdminOverview: () => request<{ overview: AdminOverviewDto }>('/admin/overview'),

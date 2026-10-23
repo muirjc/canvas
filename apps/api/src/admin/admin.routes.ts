@@ -5,6 +5,7 @@ import { getAdminOverview, listUsers, updateUser, UserNotFoundError, type Update
 import { createLocalUser, EmailInUseError, resetLocalPassword, unlockAccount, type CreateLocalUserInput } from './local-accounts.service.js';
 import { clientIp, listAuditEvents, recordAudit } from '../audit/audit.service.js';
 import { resetMfa } from '../auth/mfa.service.js';
+import { CannotDeleteUserError, deleteUser, deletionImpact } from './user-deletion.service.js';
 
 const VALID_ROLES = ['admin', 'architect', 'viewer'];
 
@@ -13,6 +14,9 @@ function handleError(error: unknown, reply: FastifyReply): FastifyReply {
     return reply.code(404).send({ error: error.message });
   }
   if (error instanceof EmailInUseError) {
+    return reply.code(409).send({ error: error.message });
+  }
+  if (error instanceof CannotDeleteUserError) {
     return reply.code(409).send({ error: error.message });
   }
   throw error;
@@ -151,7 +155,12 @@ export async function registerAdminRoutes(app: FastifyInstance, options: { local
         if (request.params.id === request.session.user?.id) {
           return reply.code(400).send({ error: "You can't reset your own two-step verification." });
         }
-        const exists = await getDb().selectFrom('users').select('id').where('id', '=', request.params.id).executeTakeFirst();
+        const exists = await getDb()
+          .selectFrom('users')
+          .select('id')
+          .where('id', '=', request.params.id)
+          .where('deleted_at', 'is', null)
+          .executeTakeFirst();
         if (!exists) return reply.code(404).send({ error: `No user with id ${request.params.id}` });
         await resetMfa(request.params.id);
         await recordAudit({ event: 'mfa_reset', actorUserId: request.session.user?.id, targetUserId: request.params.id, ip: clientIp(request) });
@@ -207,6 +216,54 @@ export async function registerAdminRoutes(app: FastifyInstance, options: { local
     async (request, reply) => {
       const { limit, before, userId } = request.query;
       return reply.send({ events: await listAuditEvents({ limit: limit ? Number(limit) : 50, before, userId }) });
+    },
+  );
+
+  // canvas-0se: what deleting a user would transfer/remove, for the confirmation dialog.
+  app.get<{ Params: { id: string } }>(
+    '/admin/users/:id/deletion-impact',
+    {
+      preHandler: requireRole('admin'),
+      schema: {
+        tags: ['Admin'],
+        security: [{ cookieAuth: [] }],
+        params: { type: 'object', required: ['id'], properties: { id: { type: 'string' } } },
+      },
+    },
+    async (request, reply) => {
+      try {
+        return reply.send(await deletionImpact(request.params.id));
+      } catch (error) {
+        return handleError(error, reply);
+      }
+    },
+  );
+
+  // canvas-0se: delete a user (both auth modes). Their projects/diagrams go to transferToUserId
+  // (required when they own any); see user-deletion.service.ts for what stays and what goes.
+  app.delete<{ Params: { id: string }; Body: { transferToUserId?: string } | undefined }>(
+    '/admin/users/:id',
+    {
+      preHandler: requireRole('admin'),
+      schema: {
+        tags: ['Admin'],
+        security: [{ cookieAuth: [] }],
+        params: { type: 'object', required: ['id'], properties: { id: { type: 'string' } } },
+        body: { type: ['object', 'null'], properties: { transferToUserId: { type: 'string', minLength: 1 } } },
+      },
+    },
+    async (request, reply) => {
+      try {
+        const result = await deleteUser({
+          userId: request.params.id,
+          actorUserId: request.session.user!.id,
+          transferToUserId: request.body?.transferToUserId,
+          ip: clientIp(request),
+        });
+        return reply.send({ deleted: true, ...result });
+      } catch (error) {
+        return handleError(error, reply);
+      }
     },
   );
 
