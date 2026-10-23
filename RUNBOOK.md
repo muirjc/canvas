@@ -496,8 +496,13 @@ at least 14 days old (`cooldown`).
 
 ## Branch protection
 
-`main` requires: the 3 CI checks above to pass, the PR branch to be up to date with `main`
-("strict" status checks), and blocks force-pushes/deletion. No approving-review requirement is
+`main` (ruleset `main-protection`) requires these checks to pass: `lint-and-build`,
+`unit-tests (postgres)`, `unit-tests (sqlite)`, `e2e-tests`, `secret-scan`, `sast-bearer` and
+`sast-semgrep` — the last two added 2026-10-23, after #214–#216 merged with failing SAST jobs
+(auto-merge only waits for *required* checks). It also requires the PR branch to be up to date with
+`main` ("strict" status checks), and blocks force-pushes/deletion. A SAST false positive therefore
+has to be suppressed in the code with its reason (`// bearer:disable <rule>`, `// nosemgrep:
+<rule>`); dismissing the GitHub alert alone doesn't make the job pass. No approving-review requirement is
 configured (solo-maintainer setup) — see the repo's Rulesets settings to change this later if
 collaborators join.
 
