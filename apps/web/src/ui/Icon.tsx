@@ -35,13 +35,16 @@ export type IconName =
   | 'rows'
   | 'tag'
   | 'circle'
-  | 'link';
+  | 'link'
+  | 'expand';
 
 /** Path data only — the wrapper supplies sizing, colour, and ARIA. `diamond` and `check` are
  *  filled; the rest are 1.5px strokes on a 16-unit grid. */
 const PATHS: Record<IconName, { d: string; filled?: boolean }[]> = {
   diamond: [{ d: 'M8 1.5 14.5 8 8 14.5 1.5 8Z', filled: true }],
   plus: [{ d: 'M8 3.5v9M3.5 8h9' }],
+  // canvas-cyq: open a text box in a large editor.
+  expand: [{ d: 'M9.5 2.5h4v4M13.5 2.5 9 7M6.5 13.5h-4v-4M2.5 13.5 7 9' }],
   download: [{ d: 'M8 2.5v7.5M4.5 7 8 10.5 11.5 7M2.5 13h11' }],
   sparkle: [{ d: 'M8 2l1.6 3.9L13.5 7.5 9.6 9.1 8 13l-1.6-3.9L2.5 7.5l3.9-1.6Z' }],
   upload: [{ d: 'M8 10.5V3M4.5 6.5 8 3l3.5 3.5M2.5 13h11' }],

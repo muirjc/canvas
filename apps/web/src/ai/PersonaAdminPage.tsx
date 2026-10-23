@@ -9,6 +9,7 @@ import {
 } from '../app/api';
 import { groupPersonasByCategory } from './persona-grouping';
 import { ConfirmDialog } from '../canvas/ConfirmDialog';
+import { ExpandableTextField } from '../ui/ExpandableTextField';
 
 const CATEGORIES = ['Business', 'Enterprise', 'Solution', 'Technical'] as const;
 
@@ -325,15 +326,19 @@ export function PersonaAdminPage() {
                     </span>
                   </div>
                   <div className="panel__body">
-                    <textarea
-                      data-testid={`persona-prompt-${persona.id}`}
+                    <ExpandableTextField
+                      testId={`persona-prompt-${persona.id}`}
+                      label={`System prompt for ${persona.name}`}
+                      keepOpen={isPromptDirty(persona)}
+                      onSave={() => handlePromptSave(persona)}
+                      saveDisabled={!isPromptDirty(persona)}
+                      saving={savingId === persona.id}
                       aria-label={`System prompt for ${persona.name}`}
                       value={promptValue(persona)}
                       onChange={(e) => {
                         setDrafts((prev) => ({ ...prev, [persona.id]: e.target.value }));
                         setSavedId((current) => (current === persona.id ? null : current));
                       }}
-                      rows={3}
                       style={{ width: '100%' }}
                     />
                     <div className="row">
@@ -377,12 +382,16 @@ export function PersonaAdminPage() {
                             <label className="field__label" htmlFor={`reference-material-content-${entry.id}`}>
                               Content
                             </label>
-                            <textarea
+                            <ExpandableTextField
                               id={`reference-material-content-${entry.id}`}
-                              data-testid={`reference-material-content-${entry.id}`}
+                              testId={`reference-material-content-${entry.id}`}
+                              label={`Reference material for ${persona.name}`}
+                              keepOpen={isEntryDirty(entry)}
+                              onSave={() => handleEntrySave(persona.id, entry)}
+                              saveDisabled={!isEntryDirty(entry)}
+                              saving={entrySavingId === entry.id}
                               value={entryContent(entry)}
                               onChange={(e) => setEntryDraft(entry, { content: e.target.value })}
-                              rows={3}
                               style={{ width: '100%' }}
                             />
                           </div>
@@ -442,12 +451,13 @@ export function PersonaAdminPage() {
                       <label className="field__label" htmlFor={`reference-material-create-content-${persona.id}`}>
                         Add reference material
                       </label>
-                      <textarea
+                      <ExpandableTextField
                         id={`reference-material-create-content-${persona.id}`}
-                        data-testid={`reference-material-create-content-${persona.id}`}
+                        testId={`reference-material-create-content-${persona.id}`}
+                        label={`New reference material for ${persona.name}`}
+                        keepOpen={newEntryDraft(persona.id).content !== ''}
                         value={newEntryDraft(persona.id).content}
                         onChange={(e) => setNewEntryDraft(persona.id, { content: e.target.value })}
-                        rows={3}
                         style={{ width: '100%' }}
                       />
                     </div>
@@ -524,12 +534,14 @@ export function PersonaAdminPage() {
             <label className="field__label" htmlFor="persona-create-prompt">
               System Prompt
             </label>
-            <textarea
+            <ExpandableTextField
               id="persona-create-prompt"
-              data-testid="persona-create-prompt"
+              testId="persona-create-prompt"
+              label="New persona system prompt"
+              collapsedRows={4}
+              keepOpen={systemPrompt !== ''}
               value={systemPrompt}
               onChange={(e) => setSystemPrompt(e.target.value)}
-              rows={4}
             />
           </div>
           <button
