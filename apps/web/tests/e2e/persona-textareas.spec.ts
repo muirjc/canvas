@@ -155,6 +155,7 @@ test('the editor shows the same text, edits the page draft, saves, and Done and 
 
 test('reference material: add, then edit and Save in the editor', async () => {
   await openPersonas();
+  await page.getByTestId(`reference-material-start-create-${personaId}`).click();
   await page.getByTestId(`reference-material-create-content-${personaId}`).fill('First reference note.');
   await page.getByTestId(`reference-material-create-submit-${personaId}`).click();
   const content = row().locator('textarea[data-testid^="reference-material-content-"]:not([data-testid$="-editor-text"])');
