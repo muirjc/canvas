@@ -46,7 +46,7 @@ export async function clearFailedAttempts(userId: string): Promise<void> {
 
 /** Admin unlock. Returns false when the account wasn't locked (or has no Canvas password). */
 export async function unlockAccount(userId: string): Promise<boolean> {
-  const user = await getDb().selectFrom('users').select('id').where('id', '=', userId).executeTakeFirst();
+  const user = await getDb().selectFrom('users').select('id').where('id', '=', userId).where('deleted_at', 'is', null).executeTakeFirst();
   if (!user) throw new UserNotFoundError(`No user with id ${userId}`);
   const result = await getDb()
     .updateTable('local_credentials')
@@ -108,7 +108,7 @@ export async function setOneTimePassword(userId: string, password: string): Prom
   const { hash, salt } = hashPassword(password);
   const db = getDb();
   await db.transaction().execute(async (trx) => {
-    const user = await trx.selectFrom('users').select('id').where('id', '=', userId).executeTakeFirst();
+    const user = await trx.selectFrom('users').select('id').where('id', '=', userId).where('deleted_at', 'is', null).executeTakeFirst();
     if (!user) throw new UserNotFoundError(`No user with id ${userId}`);
     // A reset also unlocks (canvas-ez1.4): the new one-time password is the way back in.
     const values = { password_hash: hash, password_salt: salt, must_change_password: dbBoolean(true), failed_attempts: 0, locked_at: null };

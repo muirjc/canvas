@@ -83,6 +83,8 @@ export interface UsersTable {
   role: 'admin' | 'architect' | 'viewer';
   active: Generated<boolean>;
   created_at: GeneratedTimestamp;
+  /** canvas-0se: deleted by an admin -- an anonymised placeholder kept for history. */
+  deleted_at: Timestamp | null;
 }
 
 /** Join table replacing `users.personas TEXT[]` (canvas-jtm.3). No surrogate id — the composite

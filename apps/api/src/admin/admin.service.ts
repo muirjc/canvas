@@ -28,6 +28,7 @@ export async function listUsers(): Promise<UserRecord[]> {
     .selectFrom('users')
     .leftJoin('local_credentials', 'local_credentials.user_id', 'users.id')
     .leftJoin('user_mfa', 'user_mfa.user_id', 'users.id')
+    .where('users.deleted_at', 'is', null)
     .select(['users.id', 'users.name', 'users.email', 'users.role', 'users.active', 'local_credentials.user_id as credential_user_id', 'local_credentials.locked_at', 'user_mfa.enabled_at as mfa_enabled_at'])
     .orderBy('users.name')
     .execute();
@@ -73,10 +74,16 @@ export async function updateUser(id: string, input: UpdateUserInput): Promise<Us
         .updateTable('users')
         .set({ role: input.role ?? undefined, active: input.active === undefined ? undefined : dbBoolean(input.active) })
         .where('id', '=', id)
+        .where('deleted_at', 'is', null)
         .returning(['id', 'name', 'email', 'role', 'active'])
         .executeTakeFirst();
     } else {
-      row = await trx.selectFrom('users').select(['id', 'name', 'email', 'role', 'active']).where('id', '=', id).executeTakeFirst();
+      row = await trx
+        .selectFrom('users')
+        .select(['id', 'name', 'email', 'role', 'active'])
+        .where('id', '=', id)
+        .where('deleted_at', 'is', null)
+        .executeTakeFirst();
     }
     if (!row) {
       throw new UserNotFoundError(`No user with id ${id}`);
@@ -103,7 +110,7 @@ export interface AdminOverview {
 export async function getAdminOverview(): Promise<AdminOverview> {
   const db = getDb();
   const [userRow, standardRow, libraryRow] = await Promise.all([
-    db.selectFrom('users').select(sql<string>`COUNT(*)`.as('count')).executeTakeFirstOrThrow(),
+    db.selectFrom('users').select(sql<string>`COUNT(*)`.as('count')).where('deleted_at', 'is', null).executeTakeFirstOrThrow(),
     db
       .selectFrom('standards')
       .select([
