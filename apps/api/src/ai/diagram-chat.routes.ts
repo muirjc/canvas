@@ -74,6 +74,7 @@ export async function registerDiagramChatRoutes(
           diagramTypeId: diagram.diagramTypeId,
           personaId,
           mode,
+          userId: request.session.user?.id,
           model: options.languageModel,
         });
         return reply.send(result);

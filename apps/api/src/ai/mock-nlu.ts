@@ -103,8 +103,25 @@ const COLOR_WORDS: Record<string, string> = {
   grey: '#7f8c8d',
 };
 
+/**
+ * canvas-9af: a real provider reports token usage on every call; the mock reports an estimate (about
+ * 4 characters per token, the usual rule of thumb), so AI usage tracking has deterministic,
+ * non-zero numbers to record in tests and e2e.
+ */
+function withEstimatedUsage(options: LanguageModelV4CallOptions, result: LanguageModelV4GenerateResult): LanguageModelV4GenerateResult {
+  const input = Math.ceil(JSON.stringify(options.prompt).length / 4);
+  const output = Math.ceil(JSON.stringify(result.content).length / 4);
+  return {
+    ...result,
+    usage: {
+      inputTokens: { total: input, noCache: input, cacheRead: 0, cacheWrite: 0 },
+      outputTokens: { total: output, text: output, reasoning: 0 },
+    },
+  };
+}
+
 export function createMockLanguageModel() {
-  return new MockLanguageModelV4({
+  const model = new MockLanguageModelV4({
     doGenerate: async (options: LanguageModelV4CallOptions) => {
       // A tool result already came back this turn — finish with a short confirmation instead of
       // calling another tool, keeping each user message to exactly one tool call.
@@ -279,4 +296,7 @@ export function createMockLanguageModel() {
       return noToolCallResult("I'm not sure how to help with that.");
     },
   });
+  const respond = model.doGenerate.bind(model);
+  model.doGenerate = async (options) => withEstimatedUsage(options, await respond(options));
+  return model;
 }

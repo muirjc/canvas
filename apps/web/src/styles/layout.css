@@ -922,3 +922,19 @@
   border-radius: var(--radius-md);
   user-select: all;
 }
+
+/* ---- AI usage (canvas-9af) ---------------------------------------------- */
+
+.num { text-align: end; font-variant-numeric: tabular-nums; }
+/* Row headers read as ordinary cells, not as the tinted caption-style column headers (the link inside one failed contrast on the sunken background). */
+.table-scroll th[scope='row'] { font-weight: normal; text-align: start; background: transparent; text-transform: none; letter-spacing: normal; font-size: inherit; line-height: inherit; color: var(--text-primary); }
+.sort-button, .link-button {
+  background: none;
+  border: 0;
+  padding: 0;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+}
+.sort-button { font-weight: inherit; }
+.link-button { color: var(--accent); text-decoration: underline; }

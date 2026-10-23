@@ -254,6 +254,23 @@ export interface LocalCredentialsTable {
   locked_at: Timestamp | null;
 }
 
+/** canvas-9af: AI token usage, one row per chat turn (ai/ai-usage.service.ts). */
+export interface AiUsageTable {
+  id: string;
+  occurred_at: GeneratedTimestamp;
+  user_id: string | null;
+  diagram_id: string | null;
+  provider: string;
+  model_id: string;
+  mode: string;
+  steps: number;
+  input_tokens: number;
+  output_tokens: number;
+  cache_read_tokens: Generated<number>;
+  cache_write_tokens: Generated<number>;
+  succeeded: boolean;
+}
+
 /** canvas-ez1.5: two-step verification (auth/mfa.service.ts). */
 export interface UserMfaTable {
   user_id: string;
@@ -358,6 +375,7 @@ export interface DB {
   sessions: SessionsTable;
   audit_events: AuditEventsTable;
   user_mfa: UserMfaTable;
+  ai_usage: AiUsageTable;
   mfa_recovery_codes: MfaRecoveryCodesTable;
   users: UsersTable;
   users_personas: UsersPersonasTable;

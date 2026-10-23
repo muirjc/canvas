@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { generateText, stepCountIs, type LanguageModel } from 'ai';
+import { recordAiUsage } from './ai-usage.service.js';
 import { getDslFamily, isParseSuccess, validate, type DiagramModel, type StandardRules } from '@canvas/diagram-core';
 import { getActiveStandard } from '../standards/standard.service.js';
 import { buildStandardPrompt } from './standard-prompt.js';
@@ -161,6 +162,8 @@ export interface SendChatMessageInput {
   /** canvas-s3o: 'plan' = Create with AI's planning phase (no drawing tools); default 'build'. */
   mode?: ChatMode;
   personaId?: string;
+  /** canvas-9af: who the turn is for -- its token usage is recorded against them. */
+  userId?: string;
   /** Test injection point (research.md §8) — production callers omit this and the configured
    * provider (apps/api/src/ai/provider.ts) is used. */
   model?: LanguageModel;
@@ -206,19 +209,54 @@ export async function sendChatMessage(input: SendChatMessageInput): Promise<Send
   const mode: ChatMode = input.mode ?? 'build';
   const system = await buildSystemPrompt(chat.personaId, persona?.systemPrompt, input.dslFamily, model, rules, mode);
 
-  const result = await generateText({
-    model: input.model ?? getLanguageModel(),
-    system,
-    messages: [
-      ...history.map((m) => ({ role: m.role, content: m.content }) as const),
-      { role: 'user' as const, content: input.message },
-    ],
-    // canvas-s3o: a planning turn can only talk -- no tools, one step.
-    tools: mode === 'plan' ? {} : tools,
-    // canvas-tfr: a few extra steps under a standard so the model can fix the newViolations its
-    // own edits introduced within the same turn.
-    stopWhen: stepCountIs(mode === 'plan' ? 1 : rules ? 8 : 5),
-  });
+  // canvas-9af: every step's tokens are added up as it ends, so a turn that fails partway still
+  // records what it spent.
+  const languageModel = input.model ?? getLanguageModel();
+  const usage = { steps: 0, inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, cacheWriteTokens: 0, provider: '', modelId: '' };
+  const recordTurn = (succeeded: boolean) =>
+    recordAiUsage({
+      userId: input.userId ?? null,
+      diagramId: input.diagramId,
+      provider: usage.provider || modelDescriptor(languageModel).provider,
+      modelId: usage.modelId || modelDescriptor(languageModel).modelId,
+      mode,
+      steps: usage.steps,
+      inputTokens: usage.inputTokens,
+      outputTokens: usage.outputTokens,
+      cacheReadTokens: usage.cacheReadTokens,
+      cacheWriteTokens: usage.cacheWriteTokens,
+      succeeded,
+    });
+
+  let result: Awaited<ReturnType<typeof generateText>>;
+  try {
+    result = await generateText({
+      model: languageModel,
+      system,
+      messages: [
+        ...history.map((m) => ({ role: m.role, content: m.content }) as const),
+        { role: 'user' as const, content: input.message },
+      ],
+      // canvas-s3o: a planning turn can only talk -- no tools, one step.
+      tools: mode === 'plan' ? {} : tools,
+      // canvas-tfr: a few extra steps under a standard so the model can fix the newViolations its
+      // own edits introduced within the same turn.
+      stopWhen: stepCountIs(mode === 'plan' ? 1 : rules ? 8 : 5),
+      onStepEnd: (step) => {
+        usage.steps += 1;
+        usage.inputTokens += step.usage.inputTokens ?? 0;
+        usage.outputTokens += step.usage.outputTokens ?? 0;
+        usage.cacheReadTokens += step.usage.inputTokenDetails?.cacheReadTokens ?? 0;
+        usage.cacheWriteTokens += step.usage.inputTokenDetails?.cacheWriteTokens ?? 0;
+        usage.provider = step.model.provider;
+        usage.modelId = step.model.modelId;
+      },
+    });
+  } catch (error) {
+    if (usage.steps > 0) await recordTurn(false);
+    throw error;
+  }
+  await recordTurn(true);
 
   const updatedDslContent = family.serialize(model);
 
@@ -240,4 +278,10 @@ export async function sendChatMessage(input: SendChatMessageInput): Promise<Send
     .execute();
 
   return { assistantMessage: result.text, updatedDslContent, toolCalls };
+}
+
+/** canvas-9af: provider/model of a model given as an object (always, here) or a gateway id string. */
+function modelDescriptor(model: LanguageModel): { provider: string; modelId: string } {
+  if (typeof model === 'string') return { provider: 'gateway', modelId: model };
+  return { provider: model.provider, modelId: model.modelId };
 }
