@@ -117,7 +117,7 @@ describe('GET /ai-settings (any authenticated user)', () => {
   it('succeeds for a plain (non-admin) authenticated user, returning chatEnabled and provider', async () => {
     const response = await app.inject({ method: 'GET', url: '/ai-settings', headers: { cookie: architectCookie } });
     expect(response.statusCode).toBe(200);
-    expect(response.json()).toEqual({ chatEnabled: false, provider: 'unconfigured' });
+    expect(response.json()).toEqual({ chatEnabled: false, showUsageToUsers: true, provider: 'unconfigured' });
   });
 
   it('requires authentication', async () => {

@@ -1,7 +1,8 @@
 import type { FastifyInstance, FastifyReply } from 'fastify';
 import type { LanguageModel } from 'ai';
 import { requireDiagramAccess } from '../auth/access-control.middleware.js';
-import { getAiSettings } from './ai-settings.service.js';
+import { canSeeUsage, getAiSettings } from './ai-settings.service.js';
+import { diagramUsageTotal } from './ai-usage.service.js';
 import { DslParseError, getChatMessages, sendChatMessage } from './diagram-chat.service.js';
 import { getDiagram } from '../diagrams/diagram.service.js';
 
@@ -77,6 +78,8 @@ export async function registerDiagramChatRoutes(
           userId: request.session.user?.id,
           model: options.languageModel,
         });
+        // canvas-4k9: token counts only for users allowed to see them (setting; admins always).
+        if (!(await canSeeUsage(request.session.user?.role))) delete result.usage;
         return reply.send(result);
       } catch (error) {
         return handleError(error, reply);
@@ -88,7 +91,9 @@ export async function registerDiagramChatRoutes(
     '/diagrams/:id/chat/messages',
     { preHandler: requireDiagramAccess('edit'), schema: { tags: ['AI'], security: [{ cookieAuth: [] }] } },
     async (request, reply) => {
-      return reply.send({ messages: await getChatMessages(request.params.id) });
+      const withUsage = await canSeeUsage(request.session.user?.role);
+      const messages = await getChatMessages(request.params.id, { withUsage });
+      return reply.send(withUsage ? { messages, usageTotal: await diagramUsageTotal(request.params.id) } : { messages });
     },
   );
 }

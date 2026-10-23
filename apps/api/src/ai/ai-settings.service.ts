@@ -5,6 +5,8 @@ export type AiProviderKind = 'anthropic' | 'openai' | 'mock' | 'unconfigured';
 
 export interface AiSettings {
   chatEnabled: boolean;
+  /** canvas-4k9: show token counts in the chat panel to non-admins (admins always see them). */
+  showUsageToUsers: boolean;
   provider: AiProviderKind;
 }
 
@@ -30,22 +32,37 @@ export function resolveAiProviderKind(env: NodeJS.ProcessEnv = process.env): AiP
  * addition to which provider is configured (research.md §5). */
 export async function getAiSettings(): Promise<AiSettings> {
   const db = getDb();
-  const row = await db.selectFrom('ai_settings').select('chat_enabled').executeTakeFirstOrThrow();
-  return { chatEnabled: fromDbBoolean(row.chat_enabled), provider: resolveAiProviderKind() };
+  const row = await db.selectFrom('ai_settings').select(['chat_enabled', 'show_usage_to_users']).executeTakeFirstOrThrow();
+  return {
+    chatEnabled: fromDbBoolean(row.chat_enabled),
+    showUsageToUsers: fromDbBoolean(row.show_usage_to_users),
+    provider: resolveAiProviderKind(),
+  };
 }
 
 /** `provider` is read-only/derived from the environment, not stored — only `chatEnabled` is ever
  *  written. Deliberately a separate, narrower input type from `AiSettings` rather than reusing it
  *  with an ignored field, so a caller can't be misled into thinking they can set the provider. */
 export interface SetAiSettingsInput {
-  chatEnabled: boolean;
+  chatEnabled?: boolean;
+  showUsageToUsers?: boolean;
 }
 
 export async function setAiSettings(input: SetAiSettingsInput): Promise<AiSettings> {
   const db = getDb();
   await db
     .updateTable('ai_settings')
-    .set({ chat_enabled: dbBoolean(input.chatEnabled), updated_at: currentTimestamp() })
+    .set({
+      chat_enabled: input.chatEnabled === undefined ? undefined : dbBoolean(input.chatEnabled),
+      show_usage_to_users: input.showUsageToUsers === undefined ? undefined : dbBoolean(input.showUsageToUsers),
+      updated_at: currentTimestamp(),
+    })
     .execute();
   return getAiSettings();
+}
+
+/** canvas-4k9: whether this user may see token counts (admins always may). */
+export async function canSeeUsage(role: string | undefined): Promise<boolean> {
+  if (role === 'admin') return true;
+  return (await getAiSettings()).showUsageToUsers;
 }

@@ -217,6 +217,9 @@ export interface UserRecordDto {
 }
 
 export interface AiUsageTotals {
+  /** Estimated USD cost (admin-only); excludes `unpricedTokens`. */
+  estimatedCost: number;
+  unpricedTokens: number;
   requests: number;
   failedRequests: number;
   inputTokens: number;
@@ -235,7 +238,7 @@ export interface AiUsageUserDto extends AiUsageTotals {
 
 export interface AiUsageDetailDto {
   byDay: Array<AiUsageTotals & { day: string }>;
-  byModel: Array<AiUsageTotals & { provider: string; modelId: string }>;
+  byModel: Array<AiUsageTotals & { provider: string; modelId: string; priced: boolean }>;
 }
 
 export interface AuditEventDto {
@@ -290,24 +293,63 @@ export interface ToolCallOutcomeDto {
   reason?: string;
 }
 
+/** Present only when the signed-in user may see token counts. */
+export interface ChatUsageDto {
+  inputTokens: number;
+  outputTokens: number;
+  totalTokens: number;
+}
+
+export interface ChatUsageTotalDto extends ChatUsageDto {
+  requests: number;
+}
+
 export interface ChatMessageDto {
   id: string;
   role: 'user' | 'assistant';
   content: string;
   toolCalls: ToolCallOutcomeDto[] | null;
   createdAt: string;
+  usage?: ChatUsageDto;
 }
 
 export interface SendChatMessageResultDto {
   assistantMessage: string;
   updatedDslContent: string;
   toolCalls: ToolCallOutcomeDto[];
+  assistantMessageId?: string;
+  usage?: ChatUsageDto;
 }
+
+export interface AiPriceDto {
+  provider: string;
+  modelId: string;
+  inputPerMillion: number;
+  outputPerMillion: number;
+  cacheReadPerMillion: number;
+  cacheWritePerMillion: number;
+  updatedAt: string;
+}
+
+export interface AiPriceInput {
+  provider: string;
+  modelId: string;
+  inputPerMillion: number;
+  outputPerMillion: number;
+  cacheReadPerMillion?: number;
+  cacheWritePerMillion?: number;
+}
+
+export type MyAiUsageDto =
+  | { visible: false }
+  | { visible: true; from: string; to: string; requests: number; inputTokens: number; outputTokens: number; totalTokens: number };
 
 export type AiProviderKind = 'anthropic' | 'openai' | 'mock' | 'unconfigured';
 
 export interface AiSettingsDto {
   chatEnabled: boolean;
+  /** Whether non-admins see token counts (admins always do). */
+  showUsageToUsers: boolean;
   /** canvas-wuc: which provider AI_PROVIDER currently resolves to, for display only — lets the AI
    *  entry points (Create with AI, Chat panel) warn when a deployment is unexpectedly running the
    *  'mock' fake-NLU provider instead of a real one. */
@@ -537,12 +579,18 @@ export const api = {
   /** canvas-s3o: `mode: 'plan'` = Create with AI's planning phase (the AI can talk but not draw). */
   sendChatMessage: (diagramId: string, body: { message: string; currentDslContent: string; personaId?: string; mode?: 'plan' | 'build' }) =>
     request<SendChatMessageResultDto>(`/diagrams/${diagramId}/chat/messages`, { method: 'POST', body: JSON.stringify(body) }),
-  getChatMessages: (diagramId: string) => request<{ messages: ChatMessageDto[] }>(`/diagrams/${diagramId}/chat/messages`),
+  getChatMessages: (diagramId: string) => request<{ messages: ChatMessageDto[]; usageTotal?: ChatUsageTotalDto }>(`/diagrams/${diagramId}/chat/messages`),
   getAiSettings: () => request<AiSettingsDto>('/admin/ai-settings'),
-  setAiSettings: (body: { chatEnabled: boolean }) =>
+  setAiSettings: (body: { chatEnabled?: boolean; showUsageToUsers?: boolean }) =>
     request<AiSettingsDto>('/admin/ai-settings', { method: 'PATCH', body: JSON.stringify(body) }),
   /** canvas-wuc: any authenticated user, not just admins — read-only, mirrors listAiPersonas vs
    *  listAllAiPersonas' split. Used to gate the AI entry points (Create with AI, Chat panel)
    *  client-side before the user can even start typing, rather than only after a 503. */
+  getMyAiUsage: () => request<MyAiUsageDto>('/me/ai-usage'),
+  listAiPrices: () => request<{ prices: AiPriceDto[]; unpricedModels: Array<{ provider: string; modelId: string }> }>('/admin/ai-prices'),
+  saveAiPrice: (body: AiPriceInput) =>
+    request<{ prices: AiPriceDto[] }>('/admin/ai-prices', { method: 'PUT', body: JSON.stringify(body) }),
+  deleteAiPrice: (provider: string, modelId: string) =>
+    request<{ prices: AiPriceDto[] }>(`/admin/ai-prices?${new URLSearchParams({ provider, modelId }).toString()}`, { method: 'DELETE' }),
   getAiStatus: () => request<AiSettingsDto>('/ai-settings'),
 };

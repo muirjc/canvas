@@ -237,6 +237,10 @@ export function PersonaAdminPage() {
     setSettings(await api.setAiSettings({ chatEnabled }));
   };
 
+  const handleToggleUsage = async (showUsageToUsers: boolean) => {
+    setSettings(await api.setAiSettings({ showUsageToUsers }));
+  };
+
   const visiblePersonas = showArchived ? personas : personas.filter((p) => p.status !== 'archived');
   const archivedCount = personas.length - personas.filter((p) => p.status !== 'archived').length;
   const groups = groupPersonasByCategory(visiblePersonas);
@@ -262,6 +266,16 @@ export function PersonaAdminPage() {
           />
           Enable AI Chat
         </label>
+        <label className="row">
+          <input
+            type="checkbox"
+            data-testid="ai-show-usage-toggle"
+            checked={settings?.showUsageToUsers ?? false}
+            onChange={(e) => handleToggleUsage(e.target.checked)}
+          />
+          Show token counts to users
+        </label>
+        <p className="meta">Admins always see token counts.</p>
         {settings && (
           <p className="meta" data-testid="ai-provider-indicator">
             Provider: {PROVIDER_LABEL[settings.provider]}

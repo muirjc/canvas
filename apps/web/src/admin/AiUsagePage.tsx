@@ -1,8 +1,10 @@
 import { useEffect, useMemo, useState } from 'react';
+import { AiPrices } from './AiPrices';
+import { formatCost } from '../ai/usage-format';
 import { api, type AiUsageDetailDto, type AiUsageTotals, type AiUsageUserDto } from '../app/api';
 
 type Period = '7d' | '30d' | 'month' | 'custom';
-type SortKey = 'name' | 'requests' | 'inputTokens' | 'outputTokens' | 'totalTokens' | 'lastUsedAt';
+type SortKey = 'name' | 'estimatedCost' | 'requests' | 'inputTokens' | 'outputTokens' | 'totalTokens' | 'lastUsedAt';
 
 const number = new Intl.NumberFormat();
 const dateTime = new Intl.DateTimeFormat(undefined, { dateStyle: 'medium', timeStyle: 'short' });
@@ -39,6 +41,8 @@ export function AiUsagePage() {
   const [sort, setSort] = useState<{ key: SortKey; dir: 'asc' | 'desc' }>({ key: 'totalTokens', dir: 'desc' });
   const [selected, setSelected] = useState<AiUsageUserDto | null>(null);
   const [range, setRange] = useState<{ from: string; to: string } | null>(null);
+  // Bumped when a price changes, so costs are recomputed by the API.
+  const [reloadKey, setReloadKey] = useState(0);
 
   const invalidCustom = period === 'custom' && !rangeFor(period, customFrom, customTo);
 
@@ -61,7 +65,7 @@ export function AiUsagePage() {
     return () => {
       cancelled = true;
     };
-  }, [period, customFrom, customTo]);
+  }, [period, customFrom, customTo, reloadKey]);
 
   const sorted = useMemo(() => {
     const value = (u: AiUsageUserDto): string | number => {
@@ -133,12 +137,27 @@ export function AiUsagePage() {
       {error && <p role="alert">{error}</p>}
       <p className="meta">Numbers come from the provider's reported usage for each chat turn. With the mock provider they are estimates.</p>
 
+      {totals && totals.unpricedTokens > 0 && (
+        <p className="meta" data-testid="ai-usage-unpriced-note">
+          {number.format(totals.unpricedTokens)} tokens have no price set and are not in the cost.{' '}
+          <a href="#ai-prices">Set prices</a>
+        </p>
+      )}
+
       {totals && (
         <ul className="admin-stats" aria-label="Totals for the period">
           <StatCard testId="ai-usage-total-tokens" label="Total tokens" value={totals.totalTokens} />
           <StatCard testId="ai-usage-total-input" label="Input tokens" value={totals.inputTokens} />
           <StatCard testId="ai-usage-total-output" label="Output tokens" value={totals.outputTokens} />
           <StatCard testId="ai-usage-total-requests" label="Requests" value={totals.requests} />
+          <li>
+            <div className="card admin-stat">
+              <span className="admin-stat__value" data-testid="ai-usage-total-cost">
+                {formatCost(totals.estimatedCost)}
+              </span>
+              <span className="admin-stat__label">Estimated cost</span>
+            </div>
+          </li>
           {totals.failedRequests > 0 && <StatCard testId="ai-usage-total-failed" label="Failed requests" value={totals.failedRequests} />}
         </ul>
       )}
@@ -159,6 +178,7 @@ export function AiUsagePage() {
                   {header('inputTokens', 'Input')}
                   {header('outputTokens', 'Output')}
                   {header('totalTokens', 'Total')}
+                  {header('estimatedCost', 'Est. cost')}
                   {showCache && (
                     <th scope="col" className="num">
                       Cache read / write
@@ -184,6 +204,10 @@ export function AiUsagePage() {
                     <td className="num">{number.format(u.inputTokens)}</td>
                     <td className="num">{number.format(u.outputTokens)}</td>
                     <td className="num">{number.format(u.totalTokens)}</td>
+                    <td className="num">
+                      {formatCost(u.estimatedCost)}
+                      {u.unpricedTokens > 0 && <span className="meta"> *</span>}
+                    </td>
                     {showCache && (
                       <td className="num">
                         {number.format(u.cacheReadTokens)} / {number.format(u.cacheWriteTokens)}
@@ -197,6 +221,8 @@ export function AiUsagePage() {
           </div>
         )
       )}
+      {users.length > 0 && <p className="meta">Costs are estimates from the prices below. A * means some tokens have no price set and are not included.</p>}
+      <AiPrices onChanged={() => setReloadKey((k) => k + 1)} />
     </div>
   );
 }
@@ -228,12 +254,16 @@ function UsageDetail({ user, range, onBack }: { user: AiUsageUserDto; range: { f
 
   const showCache = !!detail && [...detail.byDay, ...detail.byModel].some((r) => r.cacheReadTokens > 0 || r.cacheWriteTokens > 0);
 
-  const cells = (r: AiUsageTotals) => (
+  const cells = (r: AiUsageTotals & { priced?: boolean }) => (
     <>
       <td className="num">{number.format(r.requests)}</td>
       <td className="num">{number.format(r.inputTokens)}</td>
       <td className="num">{number.format(r.outputTokens)}</td>
       <td className="num">{number.format(r.totalTokens)}</td>
+      <td className="num">
+        {'priced' in r && r.priced === false ? <span className="meta">no price set</span> : formatCost(r.estimatedCost)}
+        {!('priced' in r) && r.unpricedTokens > 0 && <span className="meta"> *</span>}
+      </td>
       {showCache && (
         <td className="num">
           {number.format(r.cacheReadTokens)} / {number.format(r.cacheWriteTokens)}
@@ -248,6 +278,7 @@ function UsageDetail({ user, range, onBack }: { user: AiUsageUserDto; range: { f
       <th scope="col" className="num">Input</th>
       <th scope="col" className="num">Output</th>
       <th scope="col" className="num">Total</th>
+      <th scope="col" className="num">Est. cost</th>
       {showCache && (
         <th scope="col" className="num">
           Cache read / write
@@ -270,6 +301,7 @@ function UsageDetail({ user, range, onBack }: { user: AiUsageUserDto; range: { f
       {!detail && !error && <p>Loading…</p>}
       {detail && (
         <div className="stack">
+          <p className="meta">Costs are estimates. A * means some tokens have no price set and are not included.</p>
           <div className="table-scroll" tabIndex={0} role="region" aria-label="AI usage by day">
             <table data-testid="ai-usage-by-day">
               <caption className="visually-hidden">AI usage by day (UTC)</caption>

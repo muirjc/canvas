@@ -3,10 +3,13 @@ import {
   api,
   ApiError,
   type AiPersonaDto,
+  type ChatUsageDto,
+  type ChatUsageTotalDto,
   type DiagramDto,
   type DiagramTypeDto,
   type ToolCallOutcomeDto,
 } from '../app/api';
+import { ChatUsageLine, ChatUsageTotal, addUsage } from './ChatUsage';
 import { Modal } from '../ui/Modal';
 import { AI_MOCK_MODE_MESSAGE } from './ai-status-messages';
 import { groupPersonasByCategory } from './persona-grouping';
@@ -26,6 +29,8 @@ export interface CreateViaChatDialogProps {
 interface TranscriptMessage {
   role: 'user' | 'assistant';
   content: string;
+  id?: string;
+  usage?: ChatUsageDto;
 }
 
 /** canvas-s3o: sent by "Create diagram" -- the one turn in the dialog that may draw. */
@@ -65,6 +70,7 @@ export function CreateViaChatDialog({ projectId, onCreated, onCancel, mockMode =
   const [diagram, setDiagram] = useState<DiagramDto | null>(null);
   const [dslContent, setDslContent] = useState('');
   const [transcript, setTranscript] = useState<TranscriptMessage[]>([]);
+  const [usageTotal, setUsageTotal] = useState<ChatUsageTotalDto | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   // The last message that failed to send, so Retry can resend it.
@@ -142,6 +148,7 @@ export function CreateViaChatDialog({ projectId, onCreated, onCancel, mockMode =
         mode,
       });
       setDslContent(result.updatedDslContent);
+      setUsageTotal((total) => addUsage(total, result.usage));
       setPendingMessage(null);
       if (drewSomething(result.toolCalls)) {
         setDrawnDsl(result.updatedDslContent);
@@ -150,7 +157,7 @@ export function CreateViaChatDialog({ projectId, onCreated, onCancel, mockMode =
         await finish(target, result.updatedDslContent, transcript.length > 0 || Boolean(result.assistantMessage?.trim()));
         return;
       }
-      setTranscript((t) => [...t, { role: 'assistant', content: result.assistantMessage || 'Could you tell me more?' }]);
+      setTranscript((t) => [...t, { role: 'assistant', content: result.assistantMessage || 'Could you tell me more?', id: result.assistantMessageId, usage: result.usage }]);
       setAnswer('');
     } catch (err) {
       // Drop the optimistic user message if it never got an answer, so Retry doesn't duplicate it.
@@ -323,6 +330,7 @@ export function CreateViaChatDialog({ projectId, onCreated, onCancel, mockMode =
               <li key={i} className={`chat-bubble chat-bubble--${m.role}`} data-testid={`create-chat-${m.role}`}>
                 <span className="section-label">{m.role === 'user' ? 'You' : 'AI'}</span>
                 <span>{m.content}</span>
+                {m.role === 'assistant' && m.id && <ChatUsageLine messageId={m.id} usage={m.usage} />}
               </li>
             ))}
             {busy && (
@@ -336,6 +344,7 @@ export function CreateViaChatDialog({ projectId, onCreated, onCancel, mockMode =
               </li>
             )}
           </ul>
+          <ChatUsageTotal total={usageTotal} />
           <div className="field">
             <label className="field__label" htmlFor="ai-create-answer">
               Your answer

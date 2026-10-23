@@ -51,13 +51,14 @@ async function resetDatabaseSqlite(): Promise<void> {
   await db.deleteFrom('sessions').execute();
   await db.deleteFrom('audit_events').execute();
   await db.deleteFrom('ai_usage').execute();
+  await db.deleteFrom('ai_model_prices').execute();
   await db.deleteFrom('local_credentials').execute();
   await db.deleteFrom('users_personas').execute();
   await db.deleteFrom('projects').execute();
   await db.deleteFrom('users').execute();
   // ai_settings is a singleton row (CHECK (id = 1) constraint) seeded by the migration, not
   // recreated by app code — reset its value instead of deleting so the row keeps existing.
-  await db.updateTable('ai_settings').set({ chat_enabled: dbBoolean(false) }).execute();
+  await db.updateTable('ai_settings').set({ chat_enabled: dbBoolean(false), show_usage_to_users: dbBoolean(true) }).execute();
 }
 
 async function resetDatabasePostgres(): Promise<void> {
@@ -81,12 +82,12 @@ async function resetDatabasePostgres(): Promise<void> {
     `TRUNCATE TABLE
        chat_messages, diagram_chats, ai_personas,
        share_grants, diagram_versions, diagrams, templates, standards, icons, icon_libraries,
-       projects, diagram_types, local_credentials, users, sessions, audit_events, ai_usage
+       projects, diagram_types, local_credentials, users, sessions, audit_events, ai_usage, ai_model_prices
      RESTART IDENTITY CASCADE`,
   );
   // ai_settings is a singleton row (CHECK (id) constraint) seeded by the migration, not
   // recreated by app code — reset its value instead of truncating so the row keeps existing.
-  await pool.query('UPDATE ai_settings SET chat_enabled = false');
+  await pool.query('UPDATE ai_settings SET chat_enabled = false, show_usage_to_users = true');
 }
 
 export async function resetDatabase(): Promise<void> {

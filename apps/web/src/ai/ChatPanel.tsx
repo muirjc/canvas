@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
-import { api, ApiError, type AiPersonaDto, type AiSettingsDto, type ChatMessageDto, type ToolCallOutcomeDto } from '../app/api';
+import { api, ApiError, type AiPersonaDto, type AiSettingsDto, type ChatMessageDto, type ChatUsageDto, type ChatUsageTotalDto, type ToolCallOutcomeDto } from '../app/api';
 import { Icon } from '../ui/Icon';
 import { groupPersonasByCategory } from './persona-grouping';
+import { ChatUsageLine, ChatUsageTotal, addUsage } from './ChatUsage';
 import { AI_CHAT_DISABLED_MESSAGE, AI_MOCK_MODE_MESSAGE } from './ai-status-messages';
 
 export interface ChatPanelProps {
@@ -13,6 +14,8 @@ export interface ChatPanelProps {
 interface LocalMessage {
   role: 'user' | 'assistant';
   content: string;
+  id?: string;
+  usage?: ChatUsageDto;
 }
 
 /** The tool wrappers themselves supply a human-readable `reason` for anything that couldn't be
@@ -36,6 +39,7 @@ export function ChatPanel({ diagramId, currentDslContent, onDiagramUpdated }: Ch
   const [input, setInput] = useState('');
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [usageTotal, setUsageTotal] = useState<ChatUsageTotalDto | null>(null);
   // canvas-wuc: checked client-side before the user can even start typing, not just surfaced as a
   // 503 after a send attempt. `null` while unknown — the composer stays enabled during that brief
   // window rather than flashing disabled-then-enabled on every panel open.
@@ -60,12 +64,16 @@ export function ChatPanel({ diagramId, currentDslContent, onDiagramUpdated }: Ch
   useEffect(() => {
     setMessages([]);
     setHistoryLoaded(false);
+    setUsageTotal(null);
     setPersonaId('');
     api
       .getChatMessages(diagramId)
-      .then(({ messages: history }: { messages: ChatMessageDto[] }) => {
+      .then(({ messages: history, usageTotal: total }: { messages: ChatMessageDto[]; usageTotal?: ChatUsageTotalDto }) => {
+        setUsageTotal(total ?? null);
         setMessages(
           history.map((m) => ({
+            id: m.id,
+            usage: m.usage,
             role: m.role,
             content: m.role === 'assistant' ? formatAssistantContent(m.content, m.toolCalls) : m.content,
           })),
@@ -92,7 +100,8 @@ export function ChatPanel({ diagramId, currentDslContent, onDiagramUpdated }: Ch
       // would just be a second copy of the same fact.
       const result = await api.sendChatMessage(diagramId, { message, currentDslContent, personaId: personaId || undefined });
       const content = formatAssistantContent(result.assistantMessage, result.toolCalls);
-      setMessages((prev) => [...prev, { role: 'assistant', content }]);
+      setMessages((prev) => [...prev, { role: 'assistant', content, id: result.assistantMessageId, usage: result.usage }]);
+      setUsageTotal((total) => addUsage(total, result.usage));
       onDiagramUpdated(result.updatedDslContent);
     } catch (err) {
       setError(err instanceof ApiError ? err.message : (err as Error).message);
@@ -120,6 +129,7 @@ export function ChatPanel({ diagramId, currentDslContent, onDiagramUpdated }: Ch
           <li key={i} className={`chat-bubble chat-bubble--${m.role}`} data-testid={`chat-message-${m.role}`}>
             <span className="section-label">{m.role === 'user' ? 'You' : 'AI'}</span>
             <span>{m.content}</span>
+            {m.role === 'assistant' && m.id && <ChatUsageLine messageId={m.id} usage={m.usage} />}
           </li>
         ))}
         {sending && (
@@ -133,6 +143,7 @@ export function ChatPanel({ diagramId, currentDslContent, onDiagramUpdated }: Ch
           </li>
         )}
       </ul>
+      <ChatUsageTotal total={usageTotal} />
       {chatDisabled && (
         <p className="state" data-testid="chat-disabled-notice">
           <Icon name="warning" className="state__icon" />

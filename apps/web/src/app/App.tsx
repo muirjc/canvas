@@ -3,6 +3,7 @@ import { api, type AiSettingsDto, type DiagramDto, type ProjectDto, type Session
 import { LoginForm } from './LoginForm';
 import { ChangePasswordPage } from './ChangePasswordPage';
 import { MfaSetup } from './MfaSetup';
+import { MyAiUsage } from '../ai/MyAiUsage';
 import { AppShell } from './AppShell';
 import { DiagramEditor, type DiagramEditorHandle } from './DiagramEditor';
 import { NewDiagramDialog } from './NewDiagramDialog';
@@ -445,6 +446,7 @@ export function App() {
         projectsHref={urlFor({ screen: 'projects' })}
         onNavigateProjects={() => navigate({ screen: 'projects' })}
       >
+        <MyAiUsage />
         <MfaSetup forced={false} mfaEnabled={!!user.mfaEnabled} onDone={(updated) => setUser(updated)} />
       </ChangePasswordPage>
     );
