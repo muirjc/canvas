@@ -40,7 +40,9 @@ test('reference-material entries are scoped to their diagram family in chat, and
   const technicalRow = page.locator('li', { has: page.locator('strong', { hasText: 'Technical Architect' }) });
   const personaId = await technicalRow.getAttribute('data-testid').then((v) => v!.replace('persona-row-', ''));
 
-  // Add a reference-material entry scoped ONLY to the erd family, with distinctive content.
+  // Add a reference-material entry scoped ONLY to the erd family, with distinctive content. The add
+  // form is collapsed until "Add reference material" is clicked (canvas-ne8).
+  await technicalRow.getByTestId(`reference-material-start-create-${personaId}`).click();
   await technicalRow.getByTestId(`reference-material-create-content-${personaId}`).fill(
     `Reference fact for testing: ${marker} — always mention the "orders" entity's audit trail.`,
   );

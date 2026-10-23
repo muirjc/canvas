@@ -10,6 +10,7 @@ import {
 import { groupPersonasByCategory } from './persona-grouping';
 import { ConfirmDialog } from '../canvas/ConfirmDialog';
 import { ExpandableTextField } from '../ui/ExpandableTextField';
+import { Icon } from '../ui/Icon';
 
 const CATEGORIES = ['Business', 'Enterprise', 'Solution', 'Technical'] as const;
 
@@ -161,6 +162,19 @@ export function PersonaAdminPage() {
     }
   };
 
+  // canvas-ne8: the add form is closed until asked for. Always open, its diagram-type checkboxes
+  // sat under the system prompt and read like a persona setting with no Save (ticks were lost).
+  const [addingEntryFor, setAddingEntryFor] = useState<Record<string, boolean>>({});
+  const closeNewEntry = (personaId: string) => {
+    setAddingEntryFor((prev) => ({ ...prev, [personaId]: false }));
+    setNewEntryDrafts((prev) => {
+      const next = { ...prev };
+      delete next[personaId];
+      return next;
+    });
+    setCreateEntryError((current) => (current?.personaId === personaId ? null : current));
+  };
+
   const newEntryDraft = (personaId: string): ReferenceMaterialDraft =>
     newEntryDrafts[personaId] ?? { content: '', diagramFamilies: [] };
 
@@ -183,11 +197,7 @@ export function PersonaAdminPage() {
         content: draft.content,
         diagramFamilies: draft.diagramFamilies,
       });
-      setNewEntryDrafts((prev) => {
-        const next = { ...prev };
-        delete next[personaId];
-        return next;
-      });
+      closeNewEntry(personaId);
       refreshReferenceMaterial(personaId);
     } catch (err) {
       setCreateEntryError({
@@ -447,45 +457,76 @@ export function PersonaAdminPage() {
                       ))}
                     </ul>
 
-                    <div className="field">
-                      <label className="field__label" htmlFor={`reference-material-create-content-${persona.id}`}>
-                        Add reference material
-                      </label>
-                      <ExpandableTextField
-                        id={`reference-material-create-content-${persona.id}`}
-                        testId={`reference-material-create-content-${persona.id}`}
-                        label={`New reference material for ${persona.name}`}
-                        keepOpen={newEntryDraft(persona.id).content !== ''}
-                        value={newEntryDraft(persona.id).content}
-                        onChange={(e) => setNewEntryDraft(persona.id, { content: e.target.value })}
-                        style={{ width: '100%' }}
-                      />
-                    </div>
-                    <fieldset>
-                      <legend className="field__label">Applies to diagram types (none = all)</legend>
-                      {DIAGRAM_FAMILIES.map((family) => (
-                        <label key={family} className="row">
-                          <input
-                            type="checkbox"
-                            data-testid={`reference-material-create-family-${persona.id}-${family}`}
-                            checked={newEntryDraft(persona.id).diagramFamilies.includes(family)}
-                            onChange={(e) => toggleNewEntryFamily(persona.id, family, e.target.checked)}
-                          />
-                          {family}
-                        </label>
-                      ))}
-                    </fieldset>
-                    <div className="row">
-                      <button
-                        type="button"
-                        className="btn btn--primary btn--compact"
-                        data-testid={`reference-material-create-submit-${persona.id}`}
-                        disabled={!newEntryDraft(persona.id).content.trim()}
-                        onClick={() => handleCreateEntry(persona.id)}
+                    {!addingEntryFor[persona.id] ? (
+                      <div className="row">
+                        <button
+                          type="button"
+                          className="btn btn--secondary btn--compact"
+                          data-testid={`reference-material-start-create-${persona.id}`}
+                          onClick={() => setAddingEntryFor((prev) => ({ ...prev, [persona.id]: true }))}
+                        >
+                          <Icon name="plus" />
+                          Add reference material
+                        </button>
+                      </div>
+                    ) : (
+                      <section
+                        className="card stack"
+                        aria-labelledby={`reference-material-create-heading-${persona.id}`}
+                        data-testid={`reference-material-create-${persona.id}`}
                       >
-                        Add Reference Material
-                      </button>
-                    </div>
+                        <h5 className="section-label" id={`reference-material-create-heading-${persona.id}`}>
+                          New reference material
+                        </h5>
+                        <div className="field">
+                          <label className="field__label" htmlFor={`reference-material-create-content-${persona.id}`}>
+                            Content
+                          </label>
+                          <ExpandableTextField
+                            id={`reference-material-create-content-${persona.id}`}
+                            testId={`reference-material-create-content-${persona.id}`}
+                            label={`New reference material for ${persona.name}`}
+                            keepOpen={newEntryDraft(persona.id).content !== ''}
+                            value={newEntryDraft(persona.id).content}
+                            onChange={(e) => setNewEntryDraft(persona.id, { content: e.target.value })}
+                            style={{ width: '100%' }}
+                          />
+                        </div>
+                        <fieldset>
+                          <legend className="field__label">Applies to diagram types (none = all)</legend>
+                          {DIAGRAM_FAMILIES.map((family) => (
+                            <label key={family} className="row">
+                              <input
+                                type="checkbox"
+                                data-testid={`reference-material-create-family-${persona.id}-${family}`}
+                                checked={newEntryDraft(persona.id).diagramFamilies.includes(family)}
+                                onChange={(e) => toggleNewEntryFamily(persona.id, family, e.target.checked)}
+                              />
+                              {family}
+                            </label>
+                          ))}
+                        </fieldset>
+                        <div className="row">
+                          <button
+                            type="button"
+                            className="btn btn--primary btn--compact"
+                            data-testid={`reference-material-create-submit-${persona.id}`}
+                            disabled={!newEntryDraft(persona.id).content.trim()}
+                            onClick={() => handleCreateEntry(persona.id)}
+                          >
+                            Add
+                          </button>
+                          <button
+                            type="button"
+                            className="btn btn--secondary btn--compact"
+                            data-testid={`reference-material-create-cancel-${persona.id}`}
+                            onClick={() => closeNewEntry(persona.id)}
+                          >
+                            Cancel
+                          </button>
+                        </div>
+                      </section>
+                    )}
                     {createEntryError?.personaId === persona.id && (
                       <p role="alert" data-testid={`reference-material-create-error-${persona.id}`}>
                         {createEntryError.message}
