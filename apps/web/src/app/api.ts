@@ -216,6 +216,28 @@ export interface UserRecordDto {
   mfaEnabled?: boolean;
 }
 
+export interface AiUsageTotals {
+  requests: number;
+  failedRequests: number;
+  inputTokens: number;
+  outputTokens: number;
+  cacheReadTokens: number;
+  cacheWriteTokens: number;
+  totalTokens: number;
+}
+
+export interface AiUsageUserDto extends AiUsageTotals {
+  userId: string | null;
+  email: string | null;
+  name: string | null;
+  lastUsedAt: string | null;
+}
+
+export interface AiUsageDetailDto {
+  byDay: Array<AiUsageTotals & { day: string }>;
+  byModel: Array<AiUsageTotals & { provider: string; modelId: string }>;
+}
+
 export interface AuditEventDto {
   id: string;
   occurredAt: string;
@@ -465,6 +487,14 @@ export const api = {
     if (options.userId) params.set('userId', options.userId);
     return request<{ events: AuditEventDto[] }>(`/admin/audit?${params.toString()}`);
   },
+  getAiUsage: (range: { from: string; to: string }) =>
+    request<{ from: string; to: string; users: AiUsageUserDto[]; totals: AiUsageTotals }>(
+      `/admin/ai-usage?${new URLSearchParams(range).toString()}`,
+    ),
+  getAiUsageForUser: (id: string, range: { from: string; to: string }) =>
+    request<AiUsageDetailDto & { from: string; to: string }>(
+      `/admin/ai-usage/users/${id}?${new URLSearchParams(range).toString()}`,
+    ),
   changePassword: (currentPassword: string, newPassword: string) =>
     request<{ user: SessionUser }>('/auth/password', { method: 'POST', body: JSON.stringify({ currentPassword, newPassword }) }),
   getAdminOverview: () => request<{ overview: AdminOverviewDto }>('/admin/overview'),

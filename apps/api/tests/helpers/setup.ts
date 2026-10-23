@@ -50,6 +50,7 @@ async function resetDatabaseSqlite(): Promise<void> {
   await db.deleteFrom('diagram_types').execute();
   await db.deleteFrom('sessions').execute();
   await db.deleteFrom('audit_events').execute();
+  await db.deleteFrom('ai_usage').execute();
   await db.deleteFrom('local_credentials').execute();
   await db.deleteFrom('users_personas').execute();
   await db.deleteFrom('projects').execute();
@@ -80,7 +81,7 @@ async function resetDatabasePostgres(): Promise<void> {
     `TRUNCATE TABLE
        chat_messages, diagram_chats, ai_personas,
        share_grants, diagram_versions, diagrams, templates, standards, icons, icon_libraries,
-       projects, diagram_types, local_credentials, users, sessions, audit_events
+       projects, diagram_types, local_credentials, users, sessions, audit_events, ai_usage
      RESTART IDENTITY CASCADE`,
   );
   // ai_settings is a singleton row (CHECK (id) constraint) seeded by the migration, not
