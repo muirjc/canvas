@@ -196,6 +196,13 @@ describe('MFA (canvas-ez1.5)', () => {
       expect((await call(app, 'GET', '/projects', undefined, cookie)).statusCode).toBe(401);
     });
 
+    // canvas-ao2: the pending (password done, code not yet) session counts as a session that arrived.
+    it('/auth/session-check reports pending-mfa between the two steps', async () => {
+      await enrol(app, 'ann@example.com');
+      const pending = await passwordStep(app, 'ann@example.com');
+      expect((await call(app, 'GET', '/auth/session-check', undefined, pending)).json()).toEqual({ session: 'pending-mfa' });
+    });
+
     it('a current code completes sign-in', async () => {
       const { secret } = await enrol(app, 'ann@example.com');
       const pending = await passwordStep(app, 'ann@example.com');

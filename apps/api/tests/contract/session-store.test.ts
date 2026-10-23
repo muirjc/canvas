@@ -177,6 +177,19 @@ describe('sessions: database store, expiry, no anonymous sessions (canvas-4xo)',
     expect(ids).toHaveLength(1);
   });
 
+  // canvas-ao2: the web app asks this right after signing in, to detect a blocked session cookie.
+  it('/auth/session-check reports none / signed-in and never creates a session', async () => {
+    const instance = await start();
+    const anonymous = await instance.inject({ method: 'GET', url: '/auth/session-check' });
+    expect(anonymous.json()).toEqual({ session: 'none' });
+    expect(sessionCookie(anonymous)).toBeUndefined();
+    expect(await sessionRows()).toHaveLength(0);
+    const cookie = await login(instance);
+    expect((await instance.inject({ method: 'GET', url: '/auth/session-check', headers: { cookie } })).json()).toEqual({ session: 'signed-in' });
+    // A sign-in whose cookie the browser dropped: the next request carries none.
+    expect((await instance.inject({ method: 'GET', url: '/auth/session-check' })).json()).toEqual({ session: 'none' });
+  });
+
   // canvas-bj7: sessions are saved at the end of every response (rolling). A request still in flight
   // when the session was ended used to re-create the deleted row on its way out -- sign-out (and
   // an admin's reset/deactivation) didn't stick. Reproduced deterministically: a route that waits.

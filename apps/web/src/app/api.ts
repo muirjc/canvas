@@ -358,6 +358,9 @@ export interface AiSettingsDto {
 
 export const api = {
   me: () => request<{ user: SessionUser }>('/auth/me'),
+  /** canvas-ao2: whether this request carried a session -- 'none' right after a sign-in means the
+   *  browser blocked the session cookie. */
+  sessionCheck: () => request<{ session: 'signed-in' | 'pending-mfa' | 'none' }>('/auth/session-check'),
   login: (email: string, password: string) =>
     request<{ user?: SessionUser; mfaRequired?: boolean }>('/auth/local/login', {
       method: 'POST',

@@ -5,9 +5,32 @@ import { loadWebConfig } from '../config';
 
 export interface LoginFormProps {
   onSuccess: (user: SessionUser) => void;
+  /** canvas-ao2: an Entra sign-in came back (?signin=sso) but no session arrived. */
+  ssoCookieBlocked?: boolean;
 }
 
-export function LoginForm({ onSuccess }: LoginFormProps) {
+/**
+ * canvas-ao2: the web app and the API are on different sites, so the session cookie is a
+ * third-party cookie -- private/incognito windows and Safari (every iPhone browser) block it.
+ * Sign-in then "succeeds" and the very next step fails. Say what's happening instead.
+ */
+function CookieBlockedNotice() {
+  return (
+    <div role="alert" className="auth__notice" data-testid="login-cookie-blocked">
+      <p>
+        <strong>Your browser blocked Canvas&rsquo;s sign-in cookie,</strong> so you can&rsquo;t stay signed in.
+      </p>
+      <p>
+        This happens in private or incognito windows, and in Safari (including every browser on an iPhone or iPad).
+        Use a normal window in Chrome, Edge or Firefox, or allow third-party cookies for this site, then sign in
+        again.
+      </p>
+    </div>
+  );
+}
+
+export function LoginForm({ onSuccess, ssoCookieBlocked = false }: LoginFormProps) {
+  const [cookieBlocked, setCookieBlocked] = useState(ssoCookieBlocked);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -56,6 +79,14 @@ export function LoginForm({ onSuccess }: LoginFormProps) {
     setError(null);
     try {
       const result = await api.login(email, password);
+      // canvas-ao2: the password was right -- but did the session cookie stick?
+      const { session } = await api.sessionCheck().catch(() => ({ session: 'signed-in' as const }));
+      if (session === 'none') {
+        setCookieBlocked(true);
+        setPassword('');
+        return;
+      }
+      setCookieBlocked(false);
       if (result.mfaRequired) {
         setStep('code');
         return;
@@ -151,6 +182,7 @@ export function LoginForm({ onSuccess }: LoginFormProps) {
           <button type="button" className="btn btn--secondary auth__submit" data-testid="mfa-start-over" onClick={startOver}>
             Start over
           </button>
+          {cookieBlocked && <CookieBlockedNotice />}
           {error && (
             <p role="alert" data-testid="login-error">
               {error}
@@ -205,6 +237,7 @@ export function LoginForm({ onSuccess }: LoginFormProps) {
             <button type="submit" className="btn btn--primary auth__submit" data-testid="login-submit">
               Sign in
             </button>
+            {cookieBlocked && <CookieBlockedNotice />}
             {error && (
               <p role="alert" data-testid="login-error">
                 {error}

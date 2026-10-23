@@ -324,7 +324,9 @@ export async function registerOidcRoutes(app: FastifyInstance, config: AppConfig
         // caught before this bead because nothing had exercised a full OIDC round-trip against a
         // real IdP. config.webOrigins is the same list CORS already trusts for credentialed
         // requests from this app's own frontend -- reusing it here rather than a separate env var.
-        return reply.redirect(config.webOrigins[0]);
+        // canvas-ao2: the marker lets the web app tell "signed in, but the browser dropped the
+        // session cookie" (it lands signed out) from a plain visit.
+        return reply.redirect(`${config.webOrigins[0]}/?signin=sso`);
       } catch (error) {
         if (error instanceof InactiveUserError) {
           return reply.code(403).send({ error: 'This account has been deactivated.' });
