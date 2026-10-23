@@ -114,6 +114,12 @@ function describeModel(model: DiagramModel, rules?: StandardRules): string {
   return summary;
 }
 
+/** canvas-rfv: replies show in a narrow chat panel, which lists the edits made separately. */
+export const REPLY_STYLE =
+  'Your replies appear in a narrow chat panel. Keep them short: a sentence or two, or a brief list. ' +
+  "Don't restate the whole diagram or list every edit you made -- the panel shows the changes separately. " +
+  'Use plain Markdown only (bold, lists, inline code); no tables or headings unless asked.';
+
 /** 010-ai-diagram-knowledge, T008/T031 (research.md §2, contracts/api-ai-chat-contract.md):
  * composition order (each appended section under its own `##` heading, canvas-7wx) is persona's
  * own system prompt (or the default) → that family's
@@ -145,6 +151,7 @@ async function buildSystemPrompt(
     const referenceMaterial = await listReferenceMaterialForFamily(personaId, dslFamily);
     if (referenceMaterial.length > 0) section('Reference material', referenceMaterial.map((entry) => entry.content).join('\n\n'));
   }
+  section('Reply style', REPLY_STYLE);
   section('Current diagram', describeModel(model, rules));
   if (mode === 'plan') section('Create with AI — planning', PLANNING_INSTRUCTIONS);
   return parts.join('\n\n');

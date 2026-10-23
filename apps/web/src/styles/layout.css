@@ -572,6 +572,24 @@
 .chat-bubble--user { align-self: flex-end; background: var(--accent-subtle); }
 .chat-bubble--assistant { align-self: flex-start; background: var(--surface-sunken); }
 
+/* canvas-rfv: readable replies -- formatted Markdown, kept line breaks, wrapped long words. */
+.chat-bubble { overflow-wrap: anywhere; min-width: 0; }
+.chat-bubble__text { white-space: pre-wrap; }
+.chat-markdown { display: flex; flex-direction: column; gap: var(--space-2); line-height: 1.5; }
+.chat-markdown > * { margin: 0; }
+.chat-markdown ul,
+.chat-markdown ol { padding-left: var(--space-5, 1.25rem); list-style: revert; display: flex; flex-direction: column; gap: var(--space-1); }
+.chat-markdown__heading { margin-top: var(--space-1); }
+.chat-markdown blockquote { padding-left: var(--space-2); border-left: 3px solid var(--border-default, currentColor); color: var(--text-secondary); }
+.chat-markdown code { font-family: var(--font-mono); font-size: 0.95em; padding: 0 0.25em; border-radius: var(--radius-sm, 3px); background: var(--surface-raised); }
+.chat-markdown pre { overflow-x: auto; padding: var(--space-2); border-radius: var(--radius-sm, 3px); background: var(--surface-raised); }
+.chat-markdown pre code { padding: 0; background: none; white-space: pre; }
+/* --accent is 4.48:1 on the assistant bubble's sunken background (needs 4.5); the darker step clears it. */
+.chat-markdown a { color: var(--accent-hover); text-decoration: underline; }
+.chat-edits { display: flex; flex-direction: column; gap: var(--space-1); padding-top: var(--space-1); border-top: 1px solid var(--border-subtle, var(--border-control)); color: var(--text-secondary); }
+.chat-edits > * { margin: 0; }
+.chat-edits__failed { padding-left: var(--space-4, 1rem); list-style: revert; }
+
 .chat-composer { flex-direction: column; align-items: stretch; gap: var(--space-2); }
 .chat-composer__input { width: 100%; resize: none; }
 .chat-composer .btn { align-self: flex-end; }

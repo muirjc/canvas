@@ -3,6 +3,7 @@ import type { FastifyInstance } from 'fastify';
 import { MockLanguageModelV4 } from 'ai/test';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { buildApp } from '../../src/app.js';
+import { REPLY_STYLE } from '../../src/ai/diagram-chat.service.js';
 import { loadConfig } from '../../src/config.js';
 import { runMigrations } from '../../src/db/migrate.js';
 import { getDb } from '../../src/db/client.js';
@@ -585,6 +586,7 @@ describe('Persona reference material composed into the chat system prompt (010-a
     const expectedSystem = [
       personaSystemPrompt,
       `## Diagram type\n\n${primerSummary}`,
+      `## Reply style\n\n${REPLY_STYLE}`,
       '## Current diagram\n\nCurrent shapes:\n(none yet)\n\nCurrent connectors:\n(none yet)',
     ].join('\n\n');
     expect(system).toEqual(expectedSystem);
