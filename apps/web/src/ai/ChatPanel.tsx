@@ -3,6 +3,7 @@ import { api, ApiError, type AiPersonaDto, type AiSettingsDto, type ChatMessageD
 import { Icon } from '../ui/Icon';
 import { groupPersonasByCategory } from './persona-grouping';
 import { ChatUsageLine, ChatUsageTotal, addUsage } from './ChatUsage';
+import { ChatReply } from './ChatReply';
 import { AI_CHAT_DISABLED_MESSAGE, AI_MOCK_MODE_MESSAGE } from './ai-status-messages';
 
 export interface ChatPanelProps {
@@ -16,15 +17,8 @@ interface LocalMessage {
   content: string;
   id?: string;
   usage?: ChatUsageDto;
-}
-
-/** The tool wrappers themselves supply a human-readable `reason` for anything that couldn't be
- * applied (diagram-tools.ts) — surface those directly rather than depending on the model's own
- * generated text to mention it (FR-014). Used for both a live response and loaded history, so
- * past "not found" notices still render the same way after a reload. */
-function formatAssistantContent(text: string, toolCalls: ToolCallOutcomeDto[] | null): string {
-  const notes = (toolCalls ?? []).filter((tc) => !tc.applied && tc.reason).map((tc) => tc.reason as string);
-  return [text, ...notes].filter(Boolean).join(' ');
+  /** canvas-rfv: an assistant reply's edits, shown apart from its text (ChatReply). */
+  toolCalls?: ToolCallOutcomeDto[] | null;
 }
 
 /** Persistent per-diagram chat panel (User Story 2, FR-011; history load-on-open is User Story
@@ -61,7 +55,12 @@ export function ChatPanel({ diagramId, currentDslContent, onDiagramUpdated }: Ch
 
   const chatDisabled = aiStatus?.chatEnabled === false;
 
+  // canvas-eaj / canvas-rfv: sending is held until this load finishes (see handleSend). Sending
+  // before it landed let the history response race the reply: arriving after it, the history
+  // replaced the panel (the new reply vanished); fetched just after the server stored the turn,
+  // it already held the reply and the send appended it again -- two assistant replies.
   useEffect(() => {
+    let cancelled = false;
     setMessages([]);
     setHistoryLoaded(false);
     setUsageTotal(null);
@@ -69,13 +68,15 @@ export function ChatPanel({ diagramId, currentDslContent, onDiagramUpdated }: Ch
     api
       .getChatMessages(diagramId)
       .then(({ messages: history, usageTotal: total }: { messages: ChatMessageDto[]; usageTotal?: ChatUsageTotalDto }) => {
+        if (cancelled) return; // a different diagram is open now
         setUsageTotal(total ?? null);
         setMessages(
           history.map((m) => ({
             id: m.id,
             usage: m.usage,
             role: m.role,
-            content: m.role === 'assistant' ? formatAssistantContent(m.content, m.toolCalls) : m.content,
+            content: m.content,
+            toolCalls: m.toolCalls,
           })),
         );
       })
@@ -83,12 +84,17 @@ export function ChatPanel({ diagramId, currentDslContent, onDiagramUpdated }: Ch
         // A diagram that's never been chatted with (imported/hand-created) has no history —
         // the panel simply starts empty, not an error state.
       })
-      .finally(() => setHistoryLoaded(true));
+      .finally(() => {
+        if (!cancelled) setHistoryLoaded(true);
+      });
+    return () => {
+      cancelled = true;
+    };
   }, [diagramId]);
 
   const handleSend = async () => {
     const message = input.trim();
-    if (!message || chatDisabled) return;
+    if (!message || chatDisabled || !historyLoaded) return;
     setError(null);
     setSending(true);
     setMessages((prev) => [...prev, { role: 'user', content: message }]);
@@ -99,8 +105,10 @@ export function ChatPanel({ diagramId, currentDslContent, onDiagramUpdated }: Ch
       // exists rather than erroring, and tracking "is this the first message" client-side too
       // would just be a second copy of the same fact.
       const result = await api.sendChatMessage(diagramId, { message, currentDslContent, personaId: personaId || undefined });
-      const content = formatAssistantContent(result.assistantMessage, result.toolCalls);
-      setMessages((prev) => [...prev, { role: 'assistant', content, id: result.assistantMessageId, usage: result.usage }]);
+      setMessages((prev) => [
+        ...prev,
+        { role: 'assistant', content: result.assistantMessage, toolCalls: result.toolCalls, id: result.assistantMessageId, usage: result.usage },
+      ]);
       setUsageTotal((total) => addUsage(total, result.usage));
       onDiagramUpdated(result.updatedDslContent);
     } catch (err) {
@@ -116,7 +124,7 @@ export function ChatPanel({ diagramId, currentDslContent, onDiagramUpdated }: Ch
   const showPersonaPicker = historyLoaded && messages.length === 0 && personas.length > 0;
 
   return (
-    <div className="panel" data-testid="chat-panel">
+    <div className="panel" data-testid="chat-panel" data-history-loaded={historyLoaded ? 'true' : 'false'}>
       <ul className="panel__body chat-messages" data-testid="chat-messages">
         {messages.length === 0 && !sending && (
           <li className="state" data-testid="chat-empty">
@@ -128,7 +136,7 @@ export function ChatPanel({ diagramId, currentDslContent, onDiagramUpdated }: Ch
         {messages.map((m, i) => (
           <li key={i} className={`chat-bubble chat-bubble--${m.role}`} data-testid={`chat-message-${m.role}`}>
             <span className="section-label">{m.role === 'user' ? 'You' : 'AI'}</span>
-            <span>{m.content}</span>
+            {m.role === 'assistant' ? <ChatReply text={m.content} toolCalls={m.toolCalls} /> : <span className="chat-bubble__text">{m.content}</span>}
             {m.role === 'assistant' && m.id && <ChatUsageLine messageId={m.id} usage={m.usage} />}
           </li>
         ))}
@@ -196,7 +204,7 @@ export function ChatPanel({ diagramId, currentDslContent, onDiagramUpdated }: Ch
           type="button"
           className="btn btn--primary btn--compact"
           data-testid="chat-send"
-          disabled={!input.trim() || sending || chatDisabled}
+          disabled={!input.trim() || sending || chatDisabled || !historyLoaded}
           onClick={handleSend}
         >
           <Icon name="send" />

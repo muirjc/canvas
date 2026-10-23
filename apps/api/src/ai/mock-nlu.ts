@@ -120,6 +120,20 @@ function withEstimatedUsage(options: LanguageModelV4CallOptions, result: Languag
   };
 }
 
+const FORMATTED_SUMMARY = [
+  'Here is a **summary** of the diagram:',
+  '',
+  '- First point',
+  '- Second point with `inline code`',
+  '',
+  '```',
+  'flowchart TD',
+  '  A --> B',
+  '```',
+  '',
+  'See <b>this</b> and [the docs](https://example.com/docs).',
+].join('\n');
+
 export function createMockLanguageModel() {
   const model = new MockLanguageModelV4({
     doGenerate: async (options: LanguageModelV4CallOptions) => {
@@ -140,6 +154,11 @@ export function createMockLanguageModel() {
       // family and not another. Echoing it back verbatim as the assistant's reply, behind an
       // unambiguous fixed phrase, is a test-only introspection hook — not a real capability a
       // real provider would need or have.
+      // canvas-rfv: a reply in Markdown, so e2e can check the chat panel formats it.
+      if (/^show a formatted summary$/i.test(text.trim())) {
+        return noToolCallResult(FORMATTED_SUMMARY);
+      }
+
       if (/^what do you know about this diagram\??$/i.test(text.trim())) {
         return noToolCallResult(system);
       }

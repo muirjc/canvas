@@ -9,6 +9,7 @@ import {
   type DiagramTypeDto,
   type ToolCallOutcomeDto,
 } from '../app/api';
+import { ChatReply } from './ChatReply';
 import { ChatUsageLine, ChatUsageTotal, addUsage } from './ChatUsage';
 import { Modal } from '../ui/Modal';
 import { AI_MOCK_MODE_MESSAGE } from './ai-status-messages';
@@ -329,7 +330,7 @@ export function CreateViaChatDialog({ projectId, onCreated, onCancel, mockMode =
             {transcript.map((m, i) => (
               <li key={i} className={`chat-bubble chat-bubble--${m.role}`} data-testid={`create-chat-${m.role}`}>
                 <span className="section-label">{m.role === 'user' ? 'You' : 'AI'}</span>
-                <span>{m.content}</span>
+                {m.role === 'assistant' ? <ChatReply text={m.content} /> : <span className="chat-bubble__text">{m.content}</span>}
                 {m.role === 'assistant' && m.id && <ChatUsageLine messageId={m.id} usage={m.usage} />}
               </li>
             ))}
