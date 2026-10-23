@@ -1,6 +1,7 @@
 import type { FastifyInstance } from 'fastify';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
-import { DbSessionStore } from '../../src/auth/session-store.js';
+import { DbSessionStore, destroyUserSessions } from '../../src/auth/session-store.js';
+import { dbBoolean } from '../../src/db/sql-helpers.js';
 import { buildApp } from '../../src/app.js';
 import { loadConfig, type AppConfig } from '../../src/config.js';
 import { getDb } from '../../src/db/client.js';
@@ -42,7 +43,11 @@ describe('sessions: database store, expiry, no anonymous sessions (canvas-4xo)',
   }
 
   const me = (instance: FastifyInstance, cookie: string) => instance.inject({ method: 'GET', url: '/auth/me', headers: { cookie } });
-  const sessionRows = () => getDb().selectFrom('sessions').select(['id', 'data', 'expires_at']).execute();
+  // canvas-bj7: an ended session is kept as a revoked (scrubbed) row until it expires, so "the
+  // sessions" here means the live ones.
+  const sessionRows = () =>
+    getDb().selectFrom('sessions').select(['id', 'data', 'expires_at']).where('revoked', '=', dbBoolean(false)).execute();
+  const revokedRows = () => getDb().selectFrom('sessions').select(['id', 'data']).where('revoked', '=', dbBoolean(true)).execute();
 
   beforeAll(async () => {
     await runMigrations();
@@ -133,12 +138,16 @@ describe('sessions: database store, expiry, no anonymous sessions (canvas-4xo)',
     expect((await me(instance, first)).statusCode).toBe(401);
   });
 
-  it('logout removes the session row', async () => {
+  it('logout ends the session: no live row, a scrubbed revoked one (canvas-bj7)', async () => {
     const instance = await start();
     const cookie = await login(instance);
     const response = await instance.inject({ method: 'POST', url: '/auth/logout', headers: { cookie } });
     expect(response.statusCode).toBeLessThan(400);
     expect(await sessionRows()).toHaveLength(0);
+    const revoked = await revokedRows();
+    expect(revoked).toHaveLength(1);
+    expect(revoked[0].data).toBe('{}');
+    expect((await me(instance, cookie)).statusCode).toBe(401);
   });
 
   // canvas-4xo: async route handlers called reply.send() without returning reply, so Fastify sent
@@ -166,5 +175,65 @@ describe('sessions: database store, expiry, no anonymous sessions (canvas-4xo)',
     const ids = (await sessionRows()).map((r) => r.id);
     expect(ids).not.toContain('stale-session');
     expect(ids).toHaveLength(1);
+  });
+
+  // canvas-bj7: sessions are saved at the end of every response (rolling). A request still in flight
+  // when the session was ended used to re-create the deleted row on its way out -- sign-out (and
+  // an admin's reset/deactivation) didn't stick. Reproduced deterministically: a route that waits.
+  describe('an in-flight request cannot bring an ended session back (canvas-bj7)', () => {
+    async function startWithSlowRoute() {
+      const instance = await buildApp({ config: { ...loadConfig(), allowLocalAuth: true }, logger: false });
+      let release!: () => void;
+      const gate = new Promise<void>((resolve) => (release = resolve));
+      let entered!: () => void;
+      const inHandler = new Promise<void>((resolve) => (entered = resolve));
+      instance.get('/test/slow', async (request) => {
+        entered();
+        await gate;
+        return { user: request.session.user?.id ?? null };
+      });
+      app = instance;
+      return { instance, release, inHandler };
+    }
+
+    it('sign-out stays signed out', async () => {
+      const { instance, release, inHandler } = await startWithSlowRoute();
+      const cookie = await login(instance);
+      const slow = instance.inject({ method: 'GET', url: '/test/slow', headers: { cookie } });
+      await inHandler;
+      expect((await instance.inject({ method: 'POST', url: '/auth/logout', headers: { cookie } })).statusCode).toBeLessThan(400);
+      release();
+      const late = await slow;
+      expect(late.json().user).not.toBeNull(); // it started signed in...
+      expect(await sessionRows()).toHaveLength(0); // ...but its save didn't resurrect the session
+      expect((await me(instance, cookie)).statusCode).toBe(401);
+      // Not even with the cookie the late response sent back.
+      const lateCookie = sessionCookie(late);
+      if (lateCookie) expect((await me(instance, lateCookie)).statusCode).toBe(401);
+    });
+
+    it("an admin ending a user's sessions (reset, deactivate, lockout) sticks", async () => {
+      const { instance, release, inHandler } = await startWithSlowRoute();
+      const cookie = await login(instance);
+      const userId = (await me(instance, cookie)).json().user.id as string;
+      const slow = instance.inject({ method: 'GET', url: '/test/slow', headers: { cookie } });
+      await inHandler;
+      await destroyUserSessions(userId);
+      release();
+      await slow;
+      expect(await sessionRows()).toHaveLength(0);
+      expect((await me(instance, cookie)).statusCode).toBe(401);
+    });
+
+    it('the store never writes over a revoked session', async () => {
+      const store = new DbSessionStore(60_000);
+      const call = <T,>(fn: (cb: (err?: unknown, value?: T) => void) => void) =>
+        new Promise<T | undefined>((resolve, reject) => fn((err, value) => (err ? reject(err) : resolve(value))));
+      const session = { cookie: { expires: new Date(Date.now() + 60_000) }, user: { id: 'u1' } } as never;
+      await call((cb) => store.set('s1', session, cb));
+      await call((cb) => store.destroy('s1', cb));
+      await call((cb) => store.set('s1', session, cb));
+      expect(await call((cb) => store.get('s1', cb as never))).toBeNull();
+    });
   });
 });
