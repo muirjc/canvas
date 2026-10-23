@@ -19,7 +19,9 @@ export type AuditEvent =
   | 'user_created'
   | 'user_updated'
   | 'mfa_enrolled'
-  | 'mfa_reset';
+  | 'mfa_reset'
+  | 'ai_price_set'
+  | 'ai_price_removed';
 
 export interface AuditEntry {
   event: AuditEvent;

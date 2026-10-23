@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { generateText, stepCountIs, type LanguageModel } from 'ai';
-import { recordAiUsage } from './ai-usage.service.js';
+import { recordAiUsage, usageForMessages, type TokenCounts } from './ai-usage.service.js';
 import { getDslFamily, isParseSuccess, validate, type DiagramModel, type StandardRules } from '@canvas/diagram-core';
 import { getActiveStandard } from '../standards/standard.service.js';
 import { buildStandardPrompt } from './standard-prompt.js';
@@ -19,6 +19,8 @@ export interface ChatMessageRecord {
   content: string;
   toolCalls: ToolCallOutcome[] | null;
   createdAt: string;
+  /** canvas-4k9: an assistant reply's tokens (when recorded and the user may see them). */
+  usage?: TokenCounts;
 }
 
 /**
@@ -61,7 +63,7 @@ async function getOrCreateDiagramChat(
 
 /** FR-015/Story 4: full conversation history for a diagram, oldest first. Empty array (not an
  * error) for a diagram with no chat activity yet. */
-export async function getChatMessages(diagramId: string): Promise<ChatMessageRecord[]> {
+export async function getChatMessages(diagramId: string, options: { withUsage?: boolean } = {}): Promise<ChatMessageRecord[]> {
   const db = getDb();
   const chat = await db
     .selectFrom('diagram_chats')
@@ -76,11 +78,13 @@ export async function getChatMessages(diagramId: string): Promise<ChatMessageRec
     .where('diagram_chat_id', '=', chat.id)
     .orderBy('created_at')
     .execute();
+  const usage = options.withUsage ? await usageForMessages(rows.filter((r) => r.role === 'assistant').map((r) => r.id)) : new Map();
   return rows.map((r) => ({
     id: r.id,
     role: r.role,
     content: r.content,
     toolCalls: r.tool_calls as ToolCallOutcome[] | null,
+    ...(usage.has(r.id) ? { usage: usage.get(r.id) } : {}),
     // Matches every other hand-written row-to-record mapper in this codebase: node-postgres
     // returns a native Date for TIMESTAMPTZ (see db/schema.ts's module doc) but this interface's
     // field has always been declared `string` — an existing, pre-this-phase convention, not
@@ -171,6 +175,10 @@ export interface SendChatMessageInput {
 
 export interface SendChatMessageResult {
   assistantMessage: string;
+  /** canvas-4k9: the stored reply's id (its token usage is linked to it). */
+  assistantMessageId: string;
+  /** canvas-4k9: the turn's tokens. The route drops it when the user may not see usage. */
+  usage?: TokenCounts;
   updatedDslContent: string;
   toolCalls: ToolCallOutcome[];
 }
@@ -213,8 +221,9 @@ export async function sendChatMessage(input: SendChatMessageInput): Promise<Send
   // records what it spent.
   const languageModel = input.model ?? getLanguageModel();
   const usage = { steps: 0, inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, cacheWriteTokens: 0, provider: '', modelId: '' };
-  const recordTurn = (succeeded: boolean) =>
+  const recordTurn = (succeeded: boolean, chatMessageId?: string) =>
     recordAiUsage({
+      chatMessageId,
       userId: input.userId ?? null,
       diagramId: input.diagramId,
       provider: usage.provider || modelDescriptor(languageModel).provider,
@@ -256,11 +265,10 @@ export async function sendChatMessage(input: SendChatMessageInput): Promise<Send
     if (usage.steps > 0) await recordTurn(false);
     throw error;
   }
-  await recordTurn(true);
-
   const updatedDslContent = family.serialize(model);
 
   const db = getDb();
+  const assistantMessageId = randomUUID();
   await db
     .insertInto('chat_messages')
     .values({ id: randomUUID(), diagram_chat_id: chat.id, role: 'user', content: input.message })
@@ -268,7 +276,7 @@ export async function sendChatMessage(input: SendChatMessageInput): Promise<Send
   await db
     .insertInto('chat_messages')
     .values({
-      id: randomUUID(),
+      id: assistantMessageId,
       diagram_chat_id: chat.id,
       role: 'assistant',
       content: result.text,
@@ -276,8 +284,16 @@ export async function sendChatMessage(input: SendChatMessageInput): Promise<Send
       tool_calls: JSON.stringify(toolCalls),
     })
     .execute();
+  // canvas-4k9: linked to the reply, so the chat panel can show each reply's tokens.
+  await recordTurn(true, assistantMessageId);
 
-  return { assistantMessage: result.text, updatedDslContent, toolCalls };
+  return {
+    assistantMessage: result.text,
+    assistantMessageId,
+    updatedDslContent,
+    toolCalls,
+    usage: { inputTokens: usage.inputTokens, outputTokens: usage.outputTokens, totalTokens: usage.inputTokens + usage.outputTokens },
+  };
 }
 
 /** canvas-9af: provider/model of a model given as an object (always, here) or a gateway id string. */

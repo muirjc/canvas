@@ -27,7 +27,7 @@ export async function registerAiSettingsRoutes(app: FastifyInstance): Promise<vo
     },
   );
 
-  app.patch<{ Body: { chatEnabled: boolean } }>(
+  app.patch<{ Body: { chatEnabled?: boolean; showUsageToUsers?: boolean } }>(
     '/admin/ai-settings',
     {
       preHandler: requireRole('admin'),
@@ -35,11 +35,16 @@ export async function registerAiSettingsRoutes(app: FastifyInstance): Promise<vo
       schema: {
         tags: ['AI'],
         security: [{ cookieAuth: [] }],
-        body: { type: 'object', required: ['chatEnabled'], properties: { chatEnabled: { type: 'boolean' } } },
+        body: {
+          type: 'object',
+          minProperties: 1,
+          properties: { chatEnabled: { type: 'boolean' }, showUsageToUsers: { type: 'boolean' } },
+          additionalProperties: false,
+        },
       },
     },
     async (request, reply) => {
-      return reply.send(await setAiSettings({ chatEnabled: request.body.chatEnabled }));
+      return reply.send(await setAiSettings(request.body));
     },
   );
 }

@@ -269,6 +269,8 @@ export interface AiUsageTable {
   cache_read_tokens: Generated<number>;
   cache_write_tokens: Generated<number>;
   succeeded: boolean;
+  /** canvas-4k9: the assistant reply this turn produced (null for a failed turn). */
+  chat_message_id: string | null;
 }
 
 /** canvas-ez1.5: two-step verification (auth/mfa.service.ts). */
@@ -334,6 +336,19 @@ export interface ChatMessagesTable {
 export interface AiSettingsTable {
   id: true;
   chat_enabled: Generated<boolean>;
+  /** canvas-4k9: token counts in the chat panel for non-admins (admins always see them). */
+  show_usage_to_users: Generated<boolean>;
+  updated_at: GeneratedTimestamp;
+}
+
+/** canvas-zs0: price per million tokens, per provider + model (ai/ai-prices.service.ts). */
+export interface AiModelPricesTable {
+  provider: string;
+  model_id: string;
+  input_per_million: number;
+  output_per_million: number;
+  cache_read_per_million: Generated<number>;
+  cache_write_per_million: Generated<number>;
   updated_at: GeneratedTimestamp;
 }
 
@@ -376,6 +391,7 @@ export interface DB {
   audit_events: AuditEventsTable;
   user_mfa: UserMfaTable;
   ai_usage: AiUsageTable;
+  ai_model_prices: AiModelPricesTable;
   mfa_recovery_codes: MfaRecoveryCodesTable;
   users: UsersTable;
   users_personas: UsersPersonasTable;
