@@ -943,3 +943,14 @@
 
 .chat-usage { display: block; margin-block-start: var(--space-1); }
 .chat-usage-total { padding-inline: var(--space-3); margin: 0; }
+
+/* canvas-cyq: a text box with an Expand button (persona prompts, reference material). */
+.expandable-field { display: flex; flex-direction: column; gap: var(--space-1); }
+.expandable-field__expand { align-self: flex-end; }
+.expandable-field__editor {
+  display: block;
+  width: 100%;
+  height: min(65vh, 40rem);
+  resize: vertical;
+  font-family: var(--font-mono, ui-monospace, monospace);
+}

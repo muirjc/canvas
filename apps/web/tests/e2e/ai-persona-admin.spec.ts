@@ -64,7 +64,7 @@ test('admin manages the persona library; a non-admin cannot reach the screen', a
   // sibling <textarea> per row for reference-material entries (data-testid
   // `reference-material-create-content-<personaId>`), so a bare `row.locator('textarea')` is no
   // longer unique -- this must keep targeting only the persona's own system-prompt textarea.
-  const rowPrompt = row.locator('textarea[data-testid^="persona-prompt-"]');
+  const rowPrompt = row.locator('textarea[data-testid^="persona-prompt-"]:not([data-testid$="-editor-text"])');
   const rowSave = row.locator('[data-testid^="persona-prompt-save-"]');
   await expect(rowSave).toBeDisabled();
   await rowPrompt.fill('Updated E2E system prompt.');
