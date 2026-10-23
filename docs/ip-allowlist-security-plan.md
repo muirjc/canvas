@@ -1,6 +1,11 @@
 # Plan: an IP allow-list security model (like ADP)
 
-Status: **draft for a decision** (2026-10-22). Nothing is built yet.
+Status: **built** (2026-10-22). Option A shipped first (canvas-cng, PR #211: API ingress + Storage
+firewall allow-list, live-verified). Option B followed as the canvas-ez1 epic (PRs #212–#216):
+`AUTH_MODE=local`, admin-managed accounts, a bootstrapped first admin, lockout + rate limiting +
+an audit log, and TOTP MFA for everyone — beyond this plan's phase 2, which predates the MFA
+decision. How to operate it: RUNBOOK.md → "Local accounts". The rest of this document is the
+original plan, kept as the decision record.
 
 ## What "like ADP" means
 

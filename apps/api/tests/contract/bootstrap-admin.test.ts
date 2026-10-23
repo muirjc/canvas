@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import type { FastifyInstance } from 'fastify';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { bootstrapAdmin } from '../../src/seed/bootstrap-admin.js';
@@ -101,6 +102,21 @@ describe('bootstrap-admin', () => {
     it('rejects an invalid BOOTSTRAP_MODE', async () => {
       await expect(bootstrapAdmin(env({ BOOTSTRAP_MODE: 'destroy' }))).rejects.toThrow(/BOOTSTRAP_MODE must be create or reset/);
       expect(await usersWithCredentials()).toHaveLength(0);
+    });
+
+    it('gives an existing account with no Canvas password (from Entra mode) the one-time password and the admin role', async () => {
+      // An Entra-created user: a users row, no local_credentials.
+      await getDb().insertInto('users').values({ id: randomUUID(), email: EMAIL, name: 'From Entra', role: 'viewer' }).execute();
+      const message = await bootstrapAdmin(env());
+      expect(message).toMatch(/without a Canvas password/);
+      expect(message).not.toContain(PW1);
+      const rows = await usersWithCredentials();
+      expect(rows).toHaveLength(1);
+      expect(rows[0].role).toBe('admin');
+      expect(fromDbBoolean(rows[0].must as boolean)).toBe(true);
+      const { res } = await login(EMAIL, PW1);
+      expect(res.statusCode).toBe(200);
+      expect(res.json().user.mustChangePassword).toBe(true);
     });
   });
 

@@ -168,68 +168,103 @@ API's ingress (Container Apps access restrictions) and on the web app's Storage 
 
 ## Local accounts (canvas-ez1, option B)
 
-An environment without an Entra tenant can run with `AUTH_MODE=local`: people sign in with
-email + password accounts Canvas manages (docs/ip-allowlist-security-plan.md, option B). In Azure,
-deploy with `CANVAS_AUTH_MODE=local CANVAS_ADMIN_EMAIL=<you> ./deploy.sh` (both cached in
-`infra/azure/.secrets/`, so later runs keep them; `CANVAS_AUTH_MODE=entra` switches back). `ENTRA_CLIENT_ID`/`ENTRA_CLIENT_SECRET`
-aren't needed in local mode. Local mode **always requires the IP allow-list**: `deploy.sh` refuses
-to deploy it with an empty `allowed-ips`, and `CANVAS_ALLOW_PUBLIC=1` doesn't override that.
+Canvas can run with accounts it manages itself (`AUTH_MODE=local`) instead of Microsoft Entra ID.
+Background and the threat model: `docs/ip-allowlist-security-plan.md` (option B).
 
-**Managing users** (canvas-ez1.2): on Admin → Users, **Add user** (email, name, role) and **Reset
-password** each show a generated one-time password **once** — copy it and hand it over; Canvas keeps
-only its hash. Signing in with it allows nothing but choosing a new password. A reset, or
-deactivating a user, signs that user out everywhere. Anyone with a Canvas password can change it
-from the header's **Change password** link. Passwords must be at least 12 characters, not a common
-password, and not contain the email name. These screens appear whenever local sign-in is on
-(`AUTH_MODE=local`, or `ALLOW_LOCAL_AUTH=true` in dev).
+### Choosing a mode
 
-**The first admin** (canvas-ez1.3): a local-mode environment has **no** seeded accounts — the demo
-seed (`admin@example.com` etc., published passwords) isn't deployed there and refuses to run with
-`AUTH_MODE=local`. Instead `deploy.sh` generates a password into
-`infra/azure/.secrets/bootstrap-admin-password` and runs the `canvas-bootstrap-admin` job, which
-creates `CANVAS_ADMIN_EMAIL` as an admin with that as a one-time password. Sign in with it, choose
-your own, then add everyone else on Admin → Users. Later deploys leave the account alone (the job
-only creates it if it's missing). Switching an *existing* environment to local mode keeps whatever
-accounts its database already has — check Admin → Users and deactivate any you don't want.
+| | `entra` (default) | `local` |
+|---|---|---|
+| Who keeps the accounts | Your Entra tenant (app roles admin/architect/viewer) | Canvas (Admin → Users) |
+| Sign-in | Entra, with its own MFA/Conditional Access | Email + password, then an authenticator code |
+| Needs | An app registration (`ENTRA_CLIENT_ID`/`SECRET`) | Nothing external; the IP allow-list is **mandatory** |
+| First admin | Whoever has the admin app role | Created by `deploy.sh` from `CANVAS_ADMIN_EMAIL` |
+| Use it when | You have an Entra tenant | You don't, or want Canvas self-contained |
 
-**A lone admin who can't sign in** (forgot the password, deactivated or demoted themselves, or
-locked out): from a machine on the allow-list, with the environment resumed,
-run `infra/azure/reset-admin.sh` (optionally `reset-admin.sh <email>` for a different account). It
-writes a new one-time password to `infra/azure/.secrets/bootstrap-admin-password` (never printed),
-makes the account an active, unlocked admin again and signs it out everywhere; sign in and choose a new
-password. Locally (dev): `BOOTSTRAP_MODE=reset BOOTSTRAP_ADMIN_EMAIL=... BOOTSTRAP_ADMIN_PASSWORD=...
-npm run bootstrap-admin --workspace=@canvas/api`.
+Local mode is defence in depth: only allow-listed networks reach the site, and every person needs a
+password **and** their phone. The mode is cached in `infra/azure/.secrets/auth-mode`, so a routine
+`deploy.sh` never flips it.
 
-**Lockout, rate limiting and the audit log** (canvas-ez1.4):
-- **3 consecutive failed attempts lock the account** (a wrong current password on Change password
-  counts too). A locked account can't sign in with any password and is signed out everywhere. There
-  is **no time-based unlock**: an admin clicks **Unlock** on Admin → Users, or resets the password
-  (which also unlocks). A successful sign-in resets the count. Trade-off: anyone who knows an email
-  can lock that account with three wrong guesses — accepted inside the IP allow-list; an unlock is
-  one click.
-- **Per-IP limit:** 20 password sign-in attempts per minute per client address (`LOGIN_RATE_LIMIT`;
-  default 20 in local mode, off otherwise; `0` disables), then 429 for the rest of that minute. It
-  keys on the address Azure's ingress saw (the last `X-Forwarded-For` entry), which a client can't
-  spoof. Counted in memory, which is right for canvas-api's single replica.
-- **Audit log** (Admin → Audit log): sign-ins, failed sign-ins (with the reason), lockouts, unlocks,
-  password changes and resets, and admin changes to users — who, about whom, when, from which IP.
-  Never a password. Rows are kept indefinitely for now.
+### Setting up a local-mode environment
 
-**Two-step verification (MFA)** (canvas-ez1.5): required for every account in local mode
-(`MFA_REQUIRED`; default on in local mode, off otherwise — in dev anyone can turn it on from the
-header's account link). After choosing their password, each person scans a QR code with an
-authenticator app (Microsoft/Google Authenticator, 1Password, …), confirms one code, and is shown
-**10 single-use recovery codes once**. From then on sign-in is password, then a 6-digit code (or a
-recovery code). Wrong codes count toward the 3-attempt lockout, and a correct password alone doesn't
-reset that count. A code can't be reused.
-- **Lost phone / no recovery codes left:** an admin clicks **Reset MFA** on Admin → Users; the user
-  is signed out and sets it up again at their next sign-in. A lone admin: `reset-admin.sh` (it also
-  resets MFA). Recovery codes can't be regenerated yet — use Reset MFA.
-- **The encryption key:** authenticator secrets are stored AES-256-GCM encrypted with
-  `MFA_ENCRYPTION_KEY` (Key Vault `mfa-encryption-key`, generated once by `deploy.sh` into
-  `infra/azure/.secrets/mfa-encryption-key`). **Don't replace it** — every enrolled authenticator
-  becomes unreadable and each user would need Reset MFA. Required in production local mode; in
-  dev/test it's derived from `SESSION_SECRET`.
+1. Put your networks in `infra/azure/.secrets/allowed-ips` ("Azure IP allow-list" above) — `deploy.sh`
+   refuses local mode without them, even with `CANVAS_ALLOW_PUBLIC=1`.
+2. `CANVAS_AUTH_MODE=local CANVAS_ADMIN_EMAIL=<you> ./deploy.sh --what-if-only`, review, then the same
+   with `--yes`. `ENTRA_CLIENT_ID`/`ENTRA_CLIENT_SECRET` aren't needed. `deploy.sh` generates, into
+   `infra/azure/.secrets/` (gitignored) and Key Vault:
+   - `bootstrap-admin-password` — your one-time password;
+   - `mfa-encryption-key` — encrypts stored authenticator secrets (see "Rotating the MFA key").
+3. It runs the `canvas-bootstrap-admin` job, which creates you as an admin. No other accounts exist:
+   the demo seed (`admin@example.com`, published passwords) isn't deployed in local mode and refuses
+   to run there.
+4. Open the site, sign in with `cat infra/azure/.secrets/bootstrap-admin-password`, choose your own
+   password, then set up two-step verification (scan the QR code, confirm a code, **save the 10
+   recovery codes** somewhere safe). After that the file no longer signs anyone in.
+5. Add everyone else on Admin → Users.
+
+Later deploys keep everything: the job only creates the admin if it's missing, and never touches
+an account that already has a Canvas password. Switching an **existing** environment to local mode
+keeps its database's accounts. If `CANVAS_ADMIN_EMAIL` is one of them (you signed in with Entra
+before), the job gives it the one-time password and the admin role. Other Entra-created users have
+no Canvas password, so they can't sign in until an admin resets one; deactivate any you don't want.
+`deploy.sh` also removes a leftover `canvas-seed` demo job, if one exists, in local mode.
+
+### Managing people
+
+- **Add someone:** Admin → Users → **Add user** (email, name, role). The one-time password is shown
+  **once** — copy it and hand it over (Canvas stores only its hash). At first sign-in they choose a
+  password, then set up two-step verification. Passwords: at least 12 characters, not a common
+  password, not containing their email name.
+- **Forgotten password:** **Reset password** — a new one-time password, shown once; they're signed
+  out everywhere. A reset also unlocks the account.
+- **Locked account** (3 wrong passwords or codes in a row; a wrong current password on Change
+  password counts too): **Unlock**, or **Reset password**. There is no automatic unlock. Anyone who
+  knows an email can lock that account with three wrong guesses — accepted inside the allow-list.
+- **Lost phone / used all recovery codes:** **Reset MFA** — they're signed out and set it up again
+  at their next sign-in. (Recovery codes can't be regenerated yet; Reset MFA is the way.)
+- **Someone leaves:** untick **Active** — they're signed out immediately.
+- **What happened?** Admin → Audit log, or **View activity** on a user: sign-ins, failed sign-ins
+  with the reason, lockouts, unlocks, password changes/resets, MFA set-ups/resets and every admin
+  change — who, about whom, when, from which IP. Never a password or code. Kept indefinitely.
+- **Your own password:** the header's **Change password** link.
+
+### A lone admin who can't sign in
+
+Forgotten password, lost phone, locked, deactivated or demoted — and no other admin to help: from a
+machine on the allow-list, with the environment resumed, run `infra/azure/reset-admin.sh` (or
+`reset-admin.sh <email>` for another account). It writes a new one-time password to
+`infra/azure/.secrets/bootstrap-admin-password` (never printed) and makes the account an active,
+unlocked admin with two-step verification reset, signed out everywhere. Then sign in and set up
+again (step 4 above). Locally (dev): `BOOTSTRAP_MODE=reset BOOTSTRAP_ADMIN_EMAIL=...
+BOOTSTRAP_ADMIN_PASSWORD=... npm run bootstrap-admin --workspace=@canvas/api`.
+
+### Rotating the MFA key
+
+`MFA_ENCRYPTION_KEY` (Key Vault `mfa-encryption-key`, `infra/azure/.secrets/mfa-encryption-key`)
+encrypts every stored authenticator secret, and there's no re-encryption tool: **replacing it makes
+every enrolled authenticator unreadable** (sign-in fails at the code step for everyone). Don't
+rotate it routinely. If it has leaked — the attacker would also need the database to use it:
+1. Generate a new one: `openssl rand -base64 32 | tr -d '\n' > infra/azure/.secrets/mfa-encryption-key`.
+2. `./deploy.sh --yes` (it writes Key Vault and restarts the API with the new value).
+3. Run `./reset-admin.sh` for yourself, sign in and set up MFA again.
+4. **Reset MFA** for every other user on Admin → Users; each sets it up again at next sign-in.
+
+### Switching back to Entra
+
+`CANVAS_AUTH_MODE=entra ENTRA_CLIENT_ID=<id> ./deploy.sh` (the Entra client secret is still cached).
+Local-mode accounts, MFA enrolments and the audit log stay in the database, unused; the
+bootstrap-admin job is no longer deployed in Entra mode (an incremental deploy leaves the existing
+job resource in place — harmless; `az containerapp job delete --name canvas-bootstrap-admin
+--resource-group canvas-rg` removes it). Entra users sign in again as before.
+
+### Reference
+
+| Setting | Default | |
+|---|---|---|
+| `AUTH_MODE` | `entra` | `local` = Canvas accounts only; forces local sign-in on and ignores `OIDC_*`. |
+| `MFA_REQUIRED` | on in local mode | Off elsewhere; dev accounts can opt in from the account screen. |
+| `MFA_ENCRYPTION_KEY` | derived from `SESSION_SECRET` (dev) | Base64, 32 bytes; required in production local mode. |
+| `LOGIN_RATE_LIMIT` | 20 in local mode, else off | Password sign-ins per client IP per minute; keyed on the last `X-Forwarded-For` entry (unspoofable behind Azure's ingress); in memory (single replica). |
 
 ## Entra ID SSO (canvas-haz)
 

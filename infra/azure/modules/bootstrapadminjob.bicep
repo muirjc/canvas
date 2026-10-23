@@ -81,7 +81,8 @@ resource catalogSeedJob 'Microsoft.App/jobs@2025-01-01' = {
             { name: 'DATABASE_URL', secretRef: 'database-url' }
             // runMigrations() -> loadConfig() requires it, as in migrationjob.bicep.
             { name: 'SESSION_SECRET', secretRef: 'session-secret' }
-            { name: 'AUTH_MODE', value: 'local' }
+            // No AUTH_MODE here: with AUTH_MODE=local in production, loadConfig() demands
+            // MFA_ENCRYPTION_KEY, which this job doesn't use (found on the first live deploy).
             { name: 'BOOTSTRAP_ADMIN_EMAIL', value: adminEmail }
             { name: 'BOOTSTRAP_ADMIN_PASSWORD', secretRef: 'bootstrap-admin-password' }
             // 'create' leaves an existing account alone; reset-admin.sh flips this to 'reset' for

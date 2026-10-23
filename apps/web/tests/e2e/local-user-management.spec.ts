@@ -121,6 +121,9 @@ test('first sign-in forces a password change; errors surface; a valid change lan
   await forcedChange(userPage, oneTimePassword, PASSWORD_1);
   await expect(userPage.getByTestId('change-password-page')).toHaveCount(0);
   await expect(userPage.getByTestId('nav-projects')).toBeVisible();
+  // canvas-ez1.6: the app loaded nothing while the forced step showed, so no refusal is left on screen.
+  await expect(userPage.getByTestId('app-error')).toHaveCount(0);
+  await expect(userPage.getByTestId('projects-page-list').or(userPage.getByTestId('project-browser'))).toBeVisible();
   await expect(userPage.getByTestId('nav-admin')).toHaveCount(0);
 });
 

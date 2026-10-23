@@ -15,8 +15,9 @@ import { createLocalUser, normalizeEmail, setOneTimePassword } from '../admin/lo
  * script through Key Vault. Never logs the password.
  *
  * BOOTSTRAP_MODE=create (default): creates BOOTSTRAP_ADMIN_EMAIL as an admin whose password is a
- *   one-time password (changed at first sign-in) -- unless that account already exists, in which
- *   case nothing changes, so every deploy can run it without undoing the admin's own password.
+ *   one-time password (changed at first sign-in). An existing account with a Canvas password is
+ *   left unchanged, so every deploy can run it without undoing the admin's own password; one
+ *   without (from Entra mode) is given the one-time password and the admin role.
  * BOOTSTRAP_MODE=reset: recovery for a lone admin who can't sign in (infra/azure/reset-admin.sh):
  *   makes the account an active admin again with BOOTSTRAP_ADMIN_PASSWORD as a new one-time
  *   password, and signs it out everywhere.
@@ -47,7 +48,17 @@ export async function bootstrapAdmin(env: NodeJS.ProcessEnv): Promise<string> {
     return `bootstrap-admin: ${email} is an active, unlocked admin again with a new one-time password and no two-step verification (set up again at sign-in); signed out everywhere.`;
   }
 
-  if (existing) return `bootstrap-admin: ${email} already exists -- left unchanged.`;
+  if (existing) {
+    // An account from Entra mode (switching an environment to local) has no Canvas password, so
+    // "leave it alone" would leave the designated admin unable to sign in (found on the first live
+    // switch). Give it the one-time password and the admin role; one with a password is untouched.
+    const credentials = await db.selectFrom('local_credentials').select('user_id').where('user_id', '=', existing.id).executeTakeFirst();
+    if (credentials) return `bootstrap-admin: ${email} already exists -- left unchanged.`;
+    await db.updateTable('users').set({ role: 'admin', active: dbBoolean(true) }).where('id', '=', existing.id).execute();
+    await setOneTimePassword(existing.id, password);
+    await recordAudit({ event: 'password_reset', targetUserId: existing.id, detail: { via: 'bootstrap-admin', reason: 'no_canvas_password' } });
+    return `bootstrap-admin: ${email} existed without a Canvas password (an Entra account) -- now an admin with the one-time password.`;
+  }
   const { user } = await createLocalUser({ email, name: env.BOOTSTRAP_ADMIN_NAME ?? 'Administrator', role: 'admin' }, password);
   await recordAudit({ event: 'user_created', targetUserId: user.id, detail: { role: 'admin', via: 'bootstrap-admin' } });
   return `bootstrap-admin: created admin ${email}; the one-time password must be changed at first sign-in.`;

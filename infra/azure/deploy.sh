@@ -585,6 +585,15 @@ CATALOG_SEED_EXECUTION="$(az containerapp job start --name "$CATALOG_SEED_JOB" -
 wait_for_job_execution "$CATALOG_SEED_JOB" "$CATALOG_SEED_EXECUTION" "Catalog seed job"
 
 if [[ "$AUTH_MODE" == local ]]; then
+  # The demo seed job isn't deployed in local mode, but an environment switched from entra keeps
+  # the old one (incremental deploys never delete) -- and it would create the published-password
+  # demo accounts if anyone started it. Remove it.
+  if az containerapp job show --name canvas-seed --resource-group "$RESOURCE_GROUP" --query name -o tsv >/dev/null 2>&1; then
+    echo
+    echo "== Removing the leftover canvas-seed demo job (published-password accounts; not for local mode) =="
+    az containerapp job delete --name canvas-seed --resource-group "$RESOURCE_GROUP" --yes --output none
+  fi
+
   echo
   echo "== First admin (canvas-bootstrap-admin job) =="
   echo "  Creates $ADMIN_EMAIL if it doesn't exist yet; an existing account is left unchanged."

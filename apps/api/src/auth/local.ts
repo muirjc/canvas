@@ -32,6 +32,8 @@ import {
 } from './mfa.service.js';
 import { otpauthUri } from './totp.js';
 
+export const DEACTIVATED_MESSAGE = 'This account has been deactivated. Ask an admin to reactivate it.';
+
 /** canvas-ez1.5: how long the second sign-in step may take after the password. */
 const MFA_PENDING_MS = 5 * 60 * 1000;
 
@@ -130,7 +132,9 @@ export async function registerLocalAuthRoutes(
       }
       if (!row.active) {
         await recordAudit({ event: 'sign_in_failed', targetUserId: row.id, ip, detail: { reason: 'inactive' } });
-        return reply.code(401).send({ error: 'Invalid email or password' });
+        // Only reached with the right password, so saying why reveals nothing to a guesser -- and a
+        // generic "invalid" left a deactivated person retrying forever (canvas-ez1.6 live check).
+        return reply.code(403).send({ error: DEACTIVATED_MESSAGE });
       }
       // canvas-ez1.5: with two-step verification set up, the password alone signs no one in. The
       // failed-attempt count isn't reset yet either -- otherwise someone who knows the password
