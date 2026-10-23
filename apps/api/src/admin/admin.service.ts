@@ -3,6 +3,7 @@ import { getDb } from '../db/client.js';
 import { getUserPersonas, getUserPersonasBatch, setUserPersonas } from '../db/array-columns.js';
 import { dbBoolean, fromDbBoolean } from '../db/sql-helpers.js';
 import type { UserRole } from '../auth/types.js';
+import { revokeSessions } from '../auth/session-store.js';
 
 export class UserNotFoundError extends Error {}
 
@@ -85,7 +86,7 @@ export async function updateUser(id: string, input: UpdateUserInput): Promise<Us
     }
     if (input.active === false) {
       // canvas-ez1.2: a deactivated user is signed out now, not when their session next expires.
-      await trx.deleteFrom('sessions').where('user_id', '=', id).execute();
+      await revokeSessions({ userId: id }, trx);
     }
     return { ...row, active: fromDbBoolean(row.active), personas: await getUserPersonas(trx, id) };
   });

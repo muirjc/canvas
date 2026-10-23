@@ -384,6 +384,8 @@ export interface SessionsTable {
   expires_at: ColumnType<number | string, number, number>;
   /** canvas-ez1.2: the signed-in user, so their sessions can be ended (null before sign-in). */
   user_id: string | null;
+  /** canvas-bj7: ended (sign-out, admin action). Never written over; reads as no session. */
+  revoked: Generated<boolean>;
 }
 
 export interface DB {

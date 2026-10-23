@@ -1,5 +1,8 @@
 import type { SessionStore } from '@fastify/session';
+import type { Kysely } from 'kysely';
 import { getDb } from '../db/client.js';
+import type { DB } from '../db/schema.js';
+import { dbBoolean, fromDbBoolean } from '../db/sql-helpers.js';
 
 /**
  * canvas-4xo: a database-backed @fastify/session store. The library's default MemoryStore lost
@@ -26,11 +29,12 @@ export class DbSessionStore implements SessionStore {
     const now = Date.now();
     const db = getDb();
     db.selectFrom('sessions')
-      .select(['data', 'expires_at'])
+      .select(['data', 'expires_at', 'revoked'])
       .where('id', '=', sessionId)
       .executeTakeFirst()
       .then(async (row) => {
-        if (!row) return null;
+        // canvas-bj7: a revoked session stays ended, whatever cookie still points at it.
+        if (!row || fromDbBoolean(row.revoked)) return null;
         if (Number(row.expires_at) <= now) {
           // Expired: remove it now rather than waiting for the next prune.
           await db.deleteFrom('sessions').where('id', '=', sessionId).execute();
@@ -50,18 +54,21 @@ export class DbSessionStore implements SessionStore {
     getDb()
       .insertInto('sessions')
       .values({ id: sessionId, data, expires_at: expiresAt, user_id: userId })
-      .onConflict((oc) => oc.column('id').doUpdateSet({ data, expires_at: expiresAt, user_id: userId }))
+      // canvas-bj7: never over a revoked row. A request that was in flight when this session was
+      // ended (sign-out, an admin action) saves it again at the end of its response; that save
+      // must not bring the session back.
+      .onConflict((oc) =>
+        oc.column('id').doUpdateSet({ data, expires_at: expiresAt, user_id: userId }).where('sessions.revoked', '=', dbBoolean(false)),
+      )
       .execute()
       .then(() => this.pruneIfDue())
       .then(() => callback())
       .catch((error: unknown) => callback(error));
   }
 
+  /** canvas-bj7: revokes rather than deletes -- see set(). The row (scrubbed) goes at its expiry. */
   destroy(sessionId: string, callback: Callback): void {
-    getDb()
-      .deleteFrom('sessions')
-      .where('id', '=', sessionId)
-      .execute()
+    revokeSessions({ id: sessionId })
       .then(() => callback())
       .catch((error: unknown) => callback(error));
   }
@@ -81,7 +88,21 @@ export class DbSessionStore implements SessionStore {
  * in on that device).
  */
 export async function destroyUserSessions(userId: string, keepSessionId?: string): Promise<void> {
-  let query = getDb().deleteFrom('sessions').where('user_id', '=', userId);
-  if (keepSessionId) query = query.where('id', '!=', keepSessionId);
+  await revokeSessions({ userId, exceptId: keepSessionId });
+}
+
+/**
+ * canvas-bj7: ends the matching sessions for good: marked revoked (so a late save can't re-create
+ * them -- DbSessionStore.set) and their contents scrubbed. Pruned at expiry like any other row.
+ */
+export async function revokeSessions(
+  filter: { id?: string; userId?: string; exceptId?: string },
+  db: Kysely<DB> = getDb(),
+): Promise<void> {
+  if (!filter.id && !filter.userId) throw new Error('revokeSessions needs an id or a userId');
+  let query = db.updateTable('sessions').set({ revoked: dbBoolean(true), data: '{}' });
+  if (filter.id) query = query.where('id', '=', filter.id);
+  if (filter.userId) query = query.where('user_id', '=', filter.userId);
+  if (filter.exceptId) query = query.where('id', '!=', filter.exceptId);
   await query.execute();
 }
