@@ -49,9 +49,32 @@ export function describeEvent(event: AuditEventDto): string {
       const fields = Object.keys(detail);
       return fields.length ? `User updated (${fields.join(', ')})` : 'User updated';
     }
+    case 'github_link_set': {
+      const where = githubWhere(detail);
+      return where ? `Linked a project to GitHub (${where})` : 'Linked a project to GitHub';
+    }
+    case 'github_link_removed': {
+      const where = githubWhere(detail);
+      return where ? `Removed a project's GitHub link (${where})` : "Removed a project's GitHub link";
+    }
+    case 'diagram_submitted': {
+      const repo = typeof detail.repo === 'string' ? detail.repo : null;
+      const pr = detail.pullRequest !== undefined && detail.pullRequest !== null ? ` PR #${String(detail.pullRequest)}` : '';
+      const version = detail.versionSequence !== undefined ? `, version ${String(detail.versionSequence)}` : '';
+      const verb = detail.update ? 'Pushed an update to' : 'Submitted a diagram for approval in';
+      return `${verb}${repo ? ` ${repo}` : ' GitHub'}${pr}${version}`;
+    }
     default:
       return event.event;
   }
+}
+
+function githubWhere(detail: Record<string, unknown>): string {
+  const repo = typeof detail.repo === 'string' ? detail.repo : '';
+  const folder = typeof detail.folder === 'string' ? detail.folder : '';
+  const branch = typeof detail.baseBranch === 'string' ? detail.baseBranch : '';
+  const path = [repo, folder].filter(Boolean).join('/');
+  return branch && path ? `${path} on ${branch}` : path;
 }
 
 /** Who an event was about. A deleted user's target is a placeholder, so show the recorded email. */

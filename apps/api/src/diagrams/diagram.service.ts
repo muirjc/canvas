@@ -79,7 +79,7 @@ function parseOrThrow(dslFamilyId: string, dslContent: string): DiagramModel {
  * Soft-flag only (FR-024): the caller never blocks a save/export on the result, it's purely
  * informational for the UI.
  */
-async function computeValidation(diagramTypeId: string, model: DiagramModel): Promise<{
+export async function computeValidation(diagramTypeId: string, model: DiagramModel): Promise<{
   violations: Violation[];
   standardVersion: number | null;
 }> {

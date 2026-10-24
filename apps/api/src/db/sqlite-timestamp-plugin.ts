@@ -32,6 +32,15 @@ const TIMESTAMP_COLUMN_NAMES = new Set([
   'edited_at',
   'resolved_at',
   'last_read_at',
+  // canvas-3s5.1
+  'last_checked_at',
+  'first_submitted_at',
+  'last_submitted_at',
+  'submitting_since',
+  'last_synced_at',
+  'merged_at',
+  'closed_at',
+  'pushed_at',
   // sharing.service.ts selects 'sg.created_at as shared_at'.
   'shared_at',
 ]);

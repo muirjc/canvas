@@ -22,7 +22,11 @@ export type AuditEvent =
   | 'mfa_reset'
   | 'ai_price_set'
   | 'ai_price_removed'
-  | 'user_deleted';
+  | 'user_deleted'
+  // canvas-3s5.1: GitHub approval
+  | 'github_link_set'
+  | 'github_link_removed'
+  | 'diagram_submitted';
 
 export interface AuditEntry {
   event: AuditEvent;

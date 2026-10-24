@@ -12,6 +12,7 @@ import { Palette } from '../palette/Palette';
 import { VersionHistory } from '../projects/VersionHistory';
 import { ShareDialog } from '../projects/ShareDialog';
 import { api, ApiError, type DiagramDto, type IconDto } from './api';
+import { SubmitForApproval } from './SubmitForApproval';
 import { Icon } from '../ui/Icon';
 import { RailTabs } from '../ui/RailTabs';
 import { Modal } from '../ui/Modal';
@@ -271,6 +272,7 @@ export const DiagramEditor = forwardRef<DiagramEditorHandle, DiagramEditorProps>
           Save
         </button>
         <ExportMenu diagramId={diagram.id} diagramName={diagram.name} hasUnsavedChanges={hasUnsavedChanges} />
+        <SubmitForApproval diagramId={diagram.id} hasUnsavedChanges={hasUnsavedChanges} refreshToken={versionRefreshToken} />
         <button
           type="button"
           className="btn btn--secondary btn--compact"

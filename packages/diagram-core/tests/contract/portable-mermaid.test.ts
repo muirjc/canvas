@@ -71,3 +71,39 @@ describe('toPortableMermaid', () => {
     expect(toPortableMermaid(broken)).toBe(broken);
   });
 });
+
+// canvas-3s5.1: the reviewer-facing .mmd in a GitHub pull request carries no Canvas front matter
+// (GitHub and other tools ignore or choke on the canvas: block); Mermaid's own keys stay.
+describe('toPortableMermaid(dsl, { stripFrontMatter: true })', () => {
+  it('drops the canvas: front matter but keeps the colours as style lines', () => {
+    const out = toPortableMermaid(savedDsl(), { stripFrontMatter: true });
+    expect(out).not.toMatch(/^---/);
+    expect(out).not.toContain('canvas:');
+    expect(out).toContain('style ');
+    expect(out.trimStart().startsWith('flowchart') || out.trimStart().startsWith('graph')).toBe(true);
+  });
+
+  it("keeps Mermaid's own front-matter keys (title, config) and removes only canvas:", () => {
+    const dsl = ['---', 'title: Order flow', 'config:', '  theme: neutral', 'canvas:', '  positions:', '    A: { x: 10, y: 20 }', '---', 'flowchart TD', '  A[Start] --> B[End]', ''].join('\n');
+    const out = toPortableMermaid(dsl, { stripFrontMatter: true });
+    expect(out.startsWith('---\n')).toBe(true);
+    expect(out).toContain('title: Order flow');
+    expect(out).toContain('theme: neutral');
+    expect(out).not.toContain('canvas:');
+    expect(out).not.toContain('positions');
+    expect(out).toContain('flowchart TD');
+  });
+
+  it('strips front matter for non-flowchart families too', () => {
+    const dsl = ['---', 'canvas:', '  positions:', '    a: { x: 1, y: 2 }', '---', 'erDiagram', '  CUSTOMER ||--o{ ORDER : places', ''].join('\n');
+    const out = toPortableMermaid(dsl, { stripFrontMatter: true });
+    expect(out).not.toContain('canvas:');
+    expect(out.trimStart().startsWith('erDiagram')).toBe(true);
+  });
+
+  it('leaves text without front matter as it was, and the default call keeps the front matter', () => {
+    const plain = 'flowchart TD\n  A --> B\n';
+    expect(toPortableMermaid(plain, { stripFrontMatter: true })).toBe(plain);
+    expect(toPortableMermaid(savedDsl())).toContain('canvas:');
+  });
+});

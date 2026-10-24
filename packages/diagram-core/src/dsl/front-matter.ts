@@ -26,7 +26,7 @@ export interface SplitDocument {
   body: string;
 }
 
-const FRONT_MATTER_PATTERN = /^---\r?\n([\s\S]*?)\r?\n---\r?\n?/;
+export const FRONT_MATTER_PATTERN = /^---\r?\n([\s\S]*?)\r?\n---\r?\n?/;
 
 export function splitFrontMatter(dsl: string): SplitDocument {
   const match = dsl.match(FRONT_MATTER_PATTERN);

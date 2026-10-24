@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 
-/** The eight admin destinations, in the order they appear in the navigation. `param` is the
+/** The nine admin destinations, in the order they appear in the navigation. `param` is the
  *  `?admin=` value that reaches each one (`?admin=true` is a legacy alias for `standards`). */
 export const ADMIN_DESTINATIONS = [
   { id: 'overview', param: 'overview', label: 'Overview' },
@@ -10,6 +10,7 @@ export const ADMIN_DESTINATIONS = [
   { id: 'deleted-projects', param: 'deleted-projects', label: 'Deleted Projects' },
   { id: 'ai-personas', param: 'ai-personas', label: 'AI Personas' },
   { id: 'ai-usage', param: 'ai-usage', label: 'AI usage' },
+  { id: 'github', param: 'github', label: 'GitHub' },
   { id: 'audit', param: 'audit', label: 'Audit log' },
 ] as const;
 

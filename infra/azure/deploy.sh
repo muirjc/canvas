@@ -6,6 +6,7 @@
 # Usage: ENTRA_CLIENT_ID=<id> [ENTRA_TENANT_ID=<id>] [ENTRA_CLIENT_SECRET=<secret>] \
 #        [CANVAS_AI_PROVIDER=mock|anthropic|openai] [CANVAS_ANTHROPIC_API_KEY=<key>] \
 #        [CANVAS_OPENAI_API_KEY=<key>] [CANVAS_ALLOW_PUBLIC=1] [CANVAS_AUTH_MODE=entra|local] \
+#        [CANVAS_GITHUB_APP_ID=<id> CANVAS_GITHUB_APP_PRIVATE_KEY_FILE=<path to .pem>] \
 #        ./deploy.sh [--what-if-only | --yes] [location]
 #
 # canvas-cng: the API ingress and the web Storage account only accept the networks listed in
@@ -183,6 +184,29 @@ case "$AI_PROVIDER" in
   openai) [[ -n "$OPENAI_KEY" ]] || { echo "ERROR: AI_PROVIDER=openai but no OpenAI key -- set CANVAS_OPENAI_API_KEY (cached to $OPENAI_KEY_FILE)." >&2; exit 1; } ;;
   *) echo "ERROR: AI_PROVIDER must be mock, anthropic or openai (got: $AI_PROVIDER)." >&2; exit 1 ;;
 esac
+
+# canvas-3s5.1: the GitHub App diagrams are submitted for approval with (docs/admin-guide/github.md).
+# Optional: without both values the integration stays off. Cached in .secrets/ like the AI keys, so
+# they only have to be supplied once; the private key is stored base64-encoded (one line).
+GITHUB_APP_ID_FILE="$SECRETS_DIR/github-app-id"
+GITHUB_KEY_FILE="$SECRETS_DIR/github-app-private-key"
+if [[ -n "${CANVAS_GITHUB_APP_ID:-}" ]]; then
+  [[ "$CANVAS_GITHUB_APP_ID" =~ ^[0-9]+$ ]] || { echo "ERROR: CANVAS_GITHUB_APP_ID must be the App's numeric id (got: $CANVAS_GITHUB_APP_ID)." >&2; exit 1; }
+  printf '%s' "$CANVAS_GITHUB_APP_ID" > "$GITHUB_APP_ID_FILE"
+  chmod 600 "$GITHUB_APP_ID_FILE"
+fi
+if [[ -n "${CANVAS_GITHUB_APP_PRIVATE_KEY_FILE:-}" ]]; then
+  grep -q -- '-----BEGIN .*PRIVATE KEY-----' "$CANVAS_GITHUB_APP_PRIVATE_KEY_FILE" 2>/dev/null \
+    || { echo "ERROR: $CANVAS_GITHUB_APP_PRIVATE_KEY_FILE is not a PEM private key (download one from the GitHub App's settings)." >&2; exit 1; }
+  base64 < "$CANVAS_GITHUB_APP_PRIVATE_KEY_FILE" | tr -d '\n' > "$GITHUB_KEY_FILE"
+  chmod 600 "$GITHUB_KEY_FILE"
+fi
+GITHUB_APP_ID="$(cat "$GITHUB_APP_ID_FILE" 2>/dev/null || echo unset)"
+GITHUB_KEY="$(cat "$GITHUB_KEY_FILE" 2>/dev/null || true)"
+if [[ "$GITHUB_APP_ID" != unset && -z "$GITHUB_KEY" ]]; then
+  echo "ERROR: a GitHub App id is set but no private key -- set CANVAS_GITHUB_APP_PRIVATE_KEY_FILE (cached to $GITHUB_KEY_FILE)." >&2
+  exit 1
+fi
 
 # Defaults to the deploying subscription's own tenant, matching main.bicep's own entraTenantId
 # default -- override only if the app registration lives in a different tenant.
@@ -386,10 +410,11 @@ elif [[ -n "$EXISTING_KEY_VAULT" ]]; then
   # lands here for a provider that isn't in use.
   kv_set_tracked "anthropic-api-key" "${ANTHROPIC_KEY:-unset}"
   kv_set_tracked "openai-api-key" "${OPENAI_KEY:-unset}"
+  kv_set_tracked "github-app-private-key" "${GITHUB_KEY:-unset}"
   if [[ "$AUTH_MODE" == local ]]; then
     kv_set_tracked "bootstrap-admin-password" "$(cat "$BOOTSTRAP_PASSWORD_FILE")"
   fi
-  echo "  Secrets up to date (AI_PROVIDER=$AI_PROVIDER)."
+  echo "  Secrets up to date (AI_PROVIDER=$AI_PROVIDER, GitHub App: $([[ "$GITHUB_APP_ID" == unset ]] && echo off || echo "$GITHUB_APP_ID"))."
 else
   echo "== No existing Key Vault found -- skipping secret pre-seed (first-ever run) =="
 fi
@@ -412,7 +437,8 @@ az deployment sub what-if \
     deployerPrincipalId="$DEPLOYER_PRINCIPAL_ID" apiImageTag="$API_IMAGE_TAG" \
     webOrigin="$WEB_ORIGIN" grantAcrPull="$GRANT_ACR_PULL" \
     entraTenantId="$ENTRA_TENANT_ID" entraClientId="$ENTRA_CLIENT_ID" aiProvider="$AI_PROVIDER" \
-    allowedIpRanges="$ALLOWED_IPS_JSON" authMode="$AUTH_MODE" adminEmail="$ADMIN_EMAIL"
+    allowedIpRanges="$ALLOWED_IPS_JSON" authMode="$AUTH_MODE" adminEmail="$ADMIN_EMAIL" \
+    githubAppId="$GITHUB_APP_ID"
 
 echo
 if [[ "$WHAT_IF_ONLY" == true ]]; then
@@ -439,6 +465,7 @@ az deployment sub create \
     webOrigin="$WEB_ORIGIN" grantAcrPull="$GRANT_ACR_PULL" \
     entraTenantId="$ENTRA_TENANT_ID" entraClientId="$ENTRA_CLIENT_ID" aiProvider="$AI_PROVIDER" \
     allowedIpRanges="$ALLOWED_IPS_JSON" authMode="$AUTH_MODE" adminEmail="$ADMIN_EMAIL" \
+    githubAppId="$GITHUB_APP_ID" \
   --output table
 
 STORAGE_ACCOUNT="$(az deployment sub show --name "canvas-foundation" --query "properties.outputs.storageAccountName.value" -o tsv)"

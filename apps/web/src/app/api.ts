@@ -8,6 +8,8 @@ export class ApiError extends Error {
     message: string,
     public readonly status: number,
     public readonly details?: unknown,
+    /** Machine-readable reason some routes add alongside `error` (e.g. GitHub submit: `must_fix`). */
+    public readonly code?: string,
   ) {
     super(message);
   }
@@ -28,7 +30,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   });
   if (!response.ok) {
     const body = await response.json().catch(() => ({}));
-    throw new ApiError(body.error ?? `Request to ${path} failed with status ${response.status}`, response.status, body.details);
+    throw new ApiError(body.error ?? `Request to ${path} failed with status ${response.status}`, response.status, body.details ?? body.violations, body.code);
   }
   // A 204 (or otherwise empty body) has nothing for .json() to parse — e.g. POST /auth/logout
   // and DELETE /shares/:id. Calling .json() on an empty body throws, so callers awaiting these
@@ -261,6 +263,83 @@ export interface CommentThreadDto extends CommentDto {
   anchor: { type: 'node' | 'edge'; id: string } | null;
   resolved: { at: string; by: string } | null;
   replies: CommentDto[];
+}
+
+export interface GitHubInstallationDto {
+  id: number;
+  account: string;
+  repositorySelection: string;
+  permissions: Record<string, string>;
+}
+export interface GitHubStatusDto {
+  enabled: boolean;
+  appId?: number | string;
+  apiUrl?: string;
+  installations: GitHubInstallationDto[];
+  error?: string;
+}
+export interface GitHubRepositoryDto {
+  id: number;
+  owner: string;
+  name: string;
+  fullName: string;
+  defaultBranch: string;
+  private: boolean;
+  installationId: number;
+}
+export interface GitHubLinkDto {
+  id: string;
+  projectId: string;
+  projectName: string;
+  repoId: number;
+  repoFullName: string;
+  installationId: number;
+  baseBranch: string;
+  folder: string;
+  createdAt: string;
+  updatedAt: string;
+  lastCheckedAt: string | null;
+  lastCheckError: string | null;
+}
+export interface GitHubTestResultDto {
+  ok: boolean;
+  checks: { id: string; label: string; ok: boolean; detail?: string }[];
+}
+export interface SubmissionDto {
+  id: string;
+  state: 'open' | 'merged' | 'closed';
+  prNumber: number;
+  prUrl: string;
+  repoFullName: string;
+  baseBranch: string;
+  branch: string;
+  path: string;
+  submittedVersionSequence: number;
+  submittedBy: string | null;
+  firstSubmittedAt: string;
+  lastSubmittedAt: string;
+  reviewState: string | null;
+  checksState: string | null;
+  mergedAt: string | null;
+  mergedBy: string | null;
+  closedAt: string | null;
+}
+export interface SubmissionStatusDto {
+  enabled: boolean;
+  link: { repoFullName: string; folder: string; baseBranch: string } | null;
+  current: SubmissionDto | null;
+  changesSinceSubmitting: boolean;
+  canSubmit: {
+    allowed: boolean;
+    reason: null | 'github_disabled' | 'not_linked' | 'no_edit_access' | 'must_fix';
+    mustFixCount: number;
+    warningCount: number;
+  };
+}
+export interface SubmitResultDto {
+  outcome: 'created' | 'updated' | 'upToDate';
+  submission: SubmissionDto;
+  warnings: Violation[];
 }
 
 export interface AuditEventDto {
@@ -641,4 +720,14 @@ export const api = {
   deleteAiPrice: (provider: string, modelId: string) =>
     request<{ prices: AiPriceDto[] }>(`/admin/ai-prices?${new URLSearchParams({ provider, modelId }).toString()}`, { method: 'DELETE' }),
   getAiStatus: () => request<AiSettingsDto>('/ai-settings'),
+  getGitHubStatus: () => request<GitHubStatusDto>('/admin/github/status'),
+  listGitHubRepositories: () => request<{ repositories: GitHubRepositoryDto[] }>('/admin/github/repositories'),
+  listGitHubLinks: () => request<{ links: GitHubLinkDto[] }>('/admin/github/links'),
+  testGitHubLink: (projectId: string) =>
+    request<GitHubTestResultDto>(`/admin/github/links/${projectId}/test`, { method: 'POST' }),
+  setGitHubLink: (projectId: string, body: { repoId: number; folder: string; baseBranch?: string }) =>
+    request<{ link: GitHubLinkDto }>(`/projects/${projectId}/github-link`, { method: 'PUT', body: JSON.stringify(body) }),
+  removeGitHubLink: (projectId: string) => request<void>(`/projects/${projectId}/github-link`, { method: 'DELETE' }),
+  getSubmissionStatus: (diagramId: string) => request<SubmissionStatusDto>(`/diagrams/${diagramId}/submission`),
+  submitDiagram: (diagramId: string) => request<SubmitResultDto>(`/diagrams/${diagramId}/submissions`, { method: 'POST' }),
 };
