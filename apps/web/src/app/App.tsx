@@ -629,7 +629,7 @@ export function App() {
       {/* Dialogs render alongside the current screen rather than replacing it, so the context
           behind them stays visible (FR-016). They are native <dialog> elements opened with
           showModal(), so they overlay everything regardless of where they sit in the tree. */}
-      {pickingType && <NewDiagramDialog onCreate={createDiagram} onCancel={() => setPickingType(false)} />}
+      {pickingType && <NewDiagramDialog userPersonas={user.personas} onCreate={createDiagram} onCancel={() => setPickingType(false)} />}
       {importing && currentProjectId && (
         <ImportDialog
           projectId={currentProjectId}
@@ -642,6 +642,7 @@ export function App() {
       )}
       {importingTemplate && currentProjectId && (
         <ImportTemplateDialog
+          userPersonas={user.personas}
           projectId={currentProjectId}
           onImported={(imported) => {
             setImportingTemplate(false);

@@ -1,5 +1,6 @@
 import type { FastifyInstance, FastifyReply } from 'fastify';
 import { requireRole } from '../auth/middleware.js';
+import { PERSONAS } from '../seed/diagram-types.seed.js';
 import { getDb } from '../db/client.js';
 import { getAdminOverview, listUsers, updateUser, UserNotFoundError, type UpdateUserInput } from './admin.service.js';
 import { createLocalUser, EmailInUseError, resetLocalPassword, unlockAccount, type CreateLocalUserInput } from './local-accounts.service.js';
@@ -8,6 +9,8 @@ import { resetMfa } from '../auth/mfa.service.js';
 import { CannotDeleteUserError, deleteUser, deletionImpact } from './user-deletion.service.js';
 
 const VALID_ROLES = ['admin', 'architect', 'viewer'];
+// canvas-2sk: a user's personas decide which diagram types they're offered first -- only the four.
+const PERSONAS_SCHEMA = { type: 'array', items: { type: 'string', enum: [...PERSONAS] }, uniqueItems: true, maxItems: 4 } as const;
 
 function handleError(error: unknown, reply: FastifyReply): FastifyReply {
   if (error instanceof UserNotFoundError) {
@@ -52,7 +55,7 @@ export async function registerAdminRoutes(app: FastifyInstance, options: { local
           type: 'object',
           properties: {
             role: { type: 'string', enum: VALID_ROLES },
-            personas: { type: 'array', items: { type: 'string' } },
+            personas: PERSONAS_SCHEMA,
             active: { type: 'boolean' },
           },
         },
@@ -92,7 +95,7 @@ export async function registerAdminRoutes(app: FastifyInstance, options: { local
               email: { type: 'string', pattern: '^\\s*[^@\\s]+@[^@\\s]+\\.[^@\\s]+\\s*$', maxLength: 320 },
               name: { type: 'string', maxLength: 200 },
               role: { type: 'string', enum: VALID_ROLES },
-              personas: { type: 'array', items: { type: 'string' } },
+              personas: PERSONAS_SCHEMA,
             },
           },
         },

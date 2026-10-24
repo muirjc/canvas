@@ -44,6 +44,8 @@ export interface SessionUser {
   email: string;
   name: string;
   role: string;
+  /** Business / Enterprise / Solution / Technical: which diagram types this user is offered first. */
+  personas?: string[];
   /** Signed in with a Canvas-managed password (as opposed to SSO). */
   localAccount?: boolean;
   /** Signed in without two-step verification set up where it is required: set it up first. */
@@ -520,7 +522,7 @@ export const api = {
   updateAdminUser: (id: string, body: { role?: string; personas?: string[]; active?: boolean }) =>
     request<{ user: UserRecordDto }>(`/admin/users/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
   /** Local auth only. The returned temporaryPassword is shown once and must not be stored. */
-  createUser: (body: { email: string; name: string; role: string }) =>
+  createUser: (body: { email: string; name: string; role: string; personas?: string[] }) =>
     request<{ user: UserRecordDto; temporaryPassword: string }>('/admin/users', { method: 'POST', body: JSON.stringify(body) }),
   resetUserPassword: (id: string) =>
     request<{ temporaryPassword: string }>(`/admin/users/${id}/reset-password`, { method: 'POST' }),

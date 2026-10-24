@@ -5,6 +5,7 @@ import { buildApp } from '../../src/app.js';
 import { loadConfig } from '../../src/config.js';
 import { runMigrations } from '../../src/db/migrate.js';
 import { getDb } from '../../src/db/client.js';
+import { setUserPersonas } from '../../src/db/array-columns.js';
 import { closeTestDb, resetDatabase } from '../helpers/setup.js';
 import { SESSION_COOKIE_NAME } from '../../src/auth/session.js';
 
@@ -244,6 +245,25 @@ describe('OIDC callback against a real openid-client validation pipeline (canvas
     const db = getDb();
     const rows = await db.selectFrom('users').select('email').where('email', '=', 'jane.doe@contoso.com').execute();
     expect(rows).toHaveLength(1); // re-synced the existing row, did not create a second account
+  });
+
+  it('keeps admin-assigned personas across a second login (only the role is synced from the IdP) -- canvas-2sk', async () => {
+    const first = await startLogin();
+    setTokenEndpointResponse(await signIdToken(realPrivateKey, baseClaims({ nonce: first.nonce, roles: ['admin'] })));
+    await callback(first.cookie, first.state);
+
+    const db = getDb();
+    const { id } = await db.selectFrom('users').select('id').where('email', '=', 'jane.doe@contoso.com').executeTakeFirstOrThrow();
+    await setUserPersonas(db, id, ['Business', 'Solution']);
+
+    const second = await startLogin();
+    setTokenEndpointResponse(await signIdToken(realPrivateKey, baseClaims({ nonce: second.nonce, roles: ['viewer'] })));
+    const session = signedInCookie(await callback(second.cookie, second.state));
+
+    const me = await app.inject({ method: 'GET', url: '/auth/me', headers: { cookie: session } });
+    expect(me.json().user).toMatchObject({ role: 'viewer', personas: ['Business', 'Solution'] });
+    const rows = await db.selectFrom('users_personas').selectAll().where('user_id', '=', id).execute();
+    expect(rows).toHaveLength(2);
   });
 
   it('rejects an inactive user with 403 and does not establish a session', async () => {

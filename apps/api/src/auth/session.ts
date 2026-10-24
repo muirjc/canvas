@@ -3,6 +3,8 @@ import session from '@fastify/session';
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import type { AppConfig } from '../config.js';
 import { DbSessionStore } from './session-store.js';
+import { getDb } from '../db/client.js';
+import { getUserPersonas } from '../db/array-columns.js';
 
 /**
  * canvas-4xo: sessions used to run on every @fastify/session default -- the in-memory store (lost
@@ -158,6 +160,12 @@ export async function registerSessionInfoRoutes(app: FastifyInstance): Promise<v
     async (request, reply) => {
       if (!request.session.user) {
         return reply.code(401).send({ error: 'Not authenticated' });
+      }
+      // canvas-2sk: personas are captured at sign-in; re-read them here (the web app calls this on
+      // every load), so an admin's change applies on the user's next reload, not next sign-in.
+      const personas = await getUserPersonas(getDb(), request.session.user.id);
+      if (personas.join('|') !== (request.session.user.personas ?? []).join('|')) {
+        request.session.user = { ...request.session.user, personas };
       }
       return reply.send({ user: request.session.user });
     },
