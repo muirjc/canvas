@@ -248,9 +248,10 @@ function parseGitHubConfig(env: NodeJS.ProcessEnv): GitHubAppConfig | undefined 
   } catch {
     throw new Error('GITHUB_APP_PRIVATE_KEY is not a valid private key (PEM, or base64 of the PEM).');
   }
-  const apiUrl = (env.GITHUB_API_URL ?? 'https://api.github.com').trim().replace(/\/+$/, '');
+  // Not GITHUB_API_URL: GitHub Actions sets that on every runner and won't let a workflow override it.
+  const apiUrl = (env.GITHUB_APP_API_URL ?? 'https://api.github.com').trim().replace(/\/+$/, '');
   const url = new URL(apiUrl);
   const local = url.hostname === 'localhost' || url.hostname === '127.0.0.1';
-  if (url.protocol !== 'https:' && !local) throw new Error(`GITHUB_API_URL must use https (got: ${apiUrl})`);
+  if (url.protocol !== 'https:' && !local) throw new Error(`GITHUB_APP_API_URL must use https (got: ${apiUrl})`);
   return { appId, privateKey, apiUrl };
 }

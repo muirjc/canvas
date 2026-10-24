@@ -137,7 +137,7 @@ jobs:
             if curl -sf http://127.0.0.1:3999/_fake/pulls > /dev/null; then
               {
                 echo "GITHUB_APP_ID=12345"
-                echo "GITHUB_API_URL=http://127.0.0.1:3999"
+                echo "GITHUB_APP_API_URL=http://127.0.0.1:3999"
                 echo "GITHUB_APP_PRIVATE_KEY=$(cat /tmp/fake-github.key)"
               } >> "$GITHUB_ENV"
               exit 0

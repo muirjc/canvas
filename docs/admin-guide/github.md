@@ -59,7 +59,7 @@ For any other way of running Canvas, set these environment variables on the API:
 |---|---|
 | `GITHUB_APP_ID` | The App ID |
 | `GITHUB_APP_PRIVATE_KEY` | The `.pem` file's contents, or the contents base64-encoded on one line |
-| `GITHUB_API_URL` | Optional. Defaults to `https://api.github.com` |
+| `GITHUB_APP_API_URL` | Optional. Defaults to `https://api.github.com` |
 | `CANVAS_PUBLIC_URL` | Optional. The web address used for links back to Canvas. Defaults to the first `WEB_ORIGINS` entry |
 
 If the variables are missing, or set to `unset`, the integration is off and nobody sees it.

@@ -31,7 +31,7 @@ describe('GitHub configuration', () => {
 
   it('defaults the API to api.github.com and trims a trailing slash', () => {
     expect(load({ GITHUB_APP_ID: '1', GITHUB_APP_PRIVATE_KEY: pkcs8 }).github!.apiUrl).toBe('https://api.github.com');
-    expect(load({ GITHUB_APP_ID: '1', GITHUB_APP_PRIVATE_KEY: pkcs8, GITHUB_API_URL: 'https://ghe.example.com/api/v3/' }).github!.apiUrl).toBe('https://ghe.example.com/api/v3');
+    expect(load({ GITHUB_APP_ID: '1', GITHUB_APP_PRIVATE_KEY: pkcs8, GITHUB_APP_API_URL: 'https://ghe.example.com/api/v3/' }).github!.apiUrl).toBe('https://ghe.example.com/api/v3');
   });
 
   it('throws at startup for a bad key or a non-numeric app id', () => {
@@ -47,12 +47,12 @@ describe('GitHub configuration', () => {
 
   it('rejects a non-https API URL except for localhost and 127.0.0.1', () => {
     const base = { GITHUB_APP_ID: '1', GITHUB_APP_PRIVATE_KEY: pkcs8 };
-    expect(() => load({ ...base, GITHUB_API_URL: 'http://api.github.com' })).toThrow(/https/);
-    expect(() => load({ ...base, GITHUB_API_URL: 'http://github.example.com' })).toThrow(/https/);
-    expect(() => load({ ...base, GITHUB_API_URL: 'http://localhost.evil.com' })).toThrow(/https/);
-    expect(() => load({ ...base, GITHUB_API_URL: 'not a url' })).toThrow();
-    expect(load({ ...base, GITHUB_API_URL: 'http://localhost:4010' }).github!.apiUrl).toBe('http://localhost:4010');
-    expect(load({ ...base, GITHUB_API_URL: 'http://127.0.0.1:4010/' }).github!.apiUrl).toBe('http://127.0.0.1:4010');
+    expect(() => load({ ...base, GITHUB_APP_API_URL: 'http://api.github.com' })).toThrow(/https/);
+    expect(() => load({ ...base, GITHUB_APP_API_URL: 'http://github.example.com' })).toThrow(/https/);
+    expect(() => load({ ...base, GITHUB_APP_API_URL: 'http://localhost.evil.com' })).toThrow(/https/);
+    expect(() => load({ ...base, GITHUB_APP_API_URL: 'not a url' })).toThrow();
+    expect(load({ ...base, GITHUB_APP_API_URL: 'http://localhost:4010' }).github!.apiUrl).toBe('http://localhost:4010');
+    expect(load({ ...base, GITHUB_APP_API_URL: 'http://127.0.0.1:4010/' }).github!.apiUrl).toBe('http://127.0.0.1:4010');
   });
 });
 

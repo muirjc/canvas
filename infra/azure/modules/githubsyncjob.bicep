@@ -26,7 +26,7 @@ param keyVaultUri string
 @description('GITHUB_APP_ID.')
 param githubAppId string
 
-@description('GITHUB_API_URL.')
+@description('GITHUB_APP_API_URL.')
 param githubApiUrl string
 
 @description('How often to sync (cron, UTC).')
@@ -89,7 +89,7 @@ resource syncJob 'Microsoft.App/jobs@2025-01-01' = {
             { name: 'SESSION_SECRET', secretRef: 'session-secret' }
             { name: 'GITHUB_APP_ID', value: githubAppId }
             { name: 'GITHUB_APP_PRIVATE_KEY', secretRef: 'github-app-private-key' }
-            { name: 'GITHUB_API_URL', value: githubApiUrl }
+            { name: 'GITHUB_APP_API_URL', value: githubApiUrl }
           ]
           resources: {
             cpu: json('0.25')

@@ -10,7 +10,7 @@ import { FakeGitHub, type FakeCheckRun, type FakeReview } from './fake-github.js
  * Env: FAKE_GITHUB_PORT (default 3999), FAKE_GITHUB_KEY_FILE (or the first argument; default
  * ./fake-github.key) -- where the App's private key is written, base64 of the PEM on one line, ready
  * to be the API's GITHUB_APP_PRIVATE_KEY. Start the API with GITHUB_APP_ID=12345,
- * GITHUB_APP_PRIVATE_KEY=$(cat <keyFile>), GITHUB_API_URL=http://127.0.0.1:<port>.
+ * GITHUB_APP_PRIVATE_KEY=$(cat <keyFile>), GITHUB_APP_API_URL=http://127.0.0.1:<port>.
  *
  * Seeds one installation (account canvas-e2e) with one repository, canvas-e2e/architecture (default
  * branch main). Test control, all under /_fake/ (never part of GitHub's API):

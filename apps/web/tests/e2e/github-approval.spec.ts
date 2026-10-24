@@ -5,7 +5,7 @@ import { expectSignedIn } from './auth-helpers';
  * canvas-3s5.1 + canvas-3s5.2: the GitHub approval flow, end to end -- the real web app and real API
  * against the fake GitHub run as its own process (apps/api/tests/helpers/fake-github-server.ts).
  *
- * Needs the API started with GITHUB_APP_ID / GITHUB_APP_PRIVATE_KEY / GITHUB_API_URL pointing at that
+ * Needs the API started with GITHUB_APP_ID / GITHUB_APP_PRIVATE_KEY / GITHUB_APP_API_URL pointing at that
  * fake (CI does; locally see the header of that helper). Skips, with the reason, when GitHub is off or the API is
  * pointed at something other than the fake -- this spec must never drive a real GitHub.
  *
@@ -106,7 +106,7 @@ test.beforeAll(async ({ browser }) => {
   }
   const body = await status.json();
   if (!body.enabled) {
-    skipReason = 'GitHub is not configured on the API (set GITHUB_APP_ID / GITHUB_APP_PRIVATE_KEY / GITHUB_API_URL pointing at the fake GitHub)';
+    skipReason = 'GitHub is not configured on the API (set GITHUB_APP_ID / GITHUB_APP_PRIVATE_KEY / GITHUB_APP_API_URL pointing at the fake GitHub)';
     return;
   }
   if (body.apiUrl !== FAKE) {
