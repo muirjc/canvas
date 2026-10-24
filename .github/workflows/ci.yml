@@ -159,6 +159,11 @@ jobs:
       - name: Run Playwright E2E tests
         working-directory: apps/web
         run: npx playwright test
+      - name: Show API and fake GitHub logs
+        if: failure()
+        run: |
+          echo "--- API (last 200 lines) ---"; tail -n 200 /tmp/api.log || true
+          echo "--- fake GitHub ---"; tail -n 100 /tmp/fake-github.log || true
       - name: Upload Playwright report
         if: failure()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2

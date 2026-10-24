@@ -94,9 +94,11 @@ test('a colour chosen in the picker alone is added, saved and still there after 
   await page.reload();
   await expect(page.getByTestId('standard-new')).toBeVisible();
   await page.getByTestId(`standards-type-${typeId}`).click();
-  const row = page.locator('[data-testid^="standard-row-"]').first();
+  // The row for the standard this test published -- not just the first row, whose order isn't
+  // guaranteed when the type has other versions.
+  const row = page.getByTestId(`standard-row-${standardId}`);
   await expect(row).toContainText('Published');
-  await row.locator('[data-testid^="standard-edit-"]').click();
+  await row.getByTestId(`standard-edit-${standardId}`).click();
   await expect(page.getByTestId('kind-fill-0-chip-0')).toContainText('#aabbcc');
   await expect(page.getByTestId('kind-stroke-0-chip-0')).toContainText('#112233');
 });

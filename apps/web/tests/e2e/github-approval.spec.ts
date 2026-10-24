@@ -100,7 +100,11 @@ test.beforeAll(async ({ browser }) => {
   await expectSignedIn(page);
 
   const status = await page.request.get(`${API}/admin/github/status`);
-  const body = status.ok() ? await status.json() : { enabled: false };
+  if (!status.ok()) {
+    skipReason = `GET /admin/github/status returned ${status.status()}: ${await status.text()}`;
+    return;
+  }
+  const body = await status.json();
   if (!body.enabled) {
     skipReason = 'GitHub is not configured on the API (set GITHUB_APP_ID / GITHUB_APP_PRIVATE_KEY / GITHUB_API_URL pointing at the fake GitHub)';
     return;
@@ -111,8 +115,8 @@ test.beforeAll(async ({ browser }) => {
   }
   try {
     await fakeGet('/_fake/pulls');
-  } catch {
-    skipReason = `the fake GitHub is not reachable at ${FAKE}`;
+  } catch (error) {
+    skipReason = `the fake GitHub is not reachable at ${FAKE} (${error instanceof Error ? error.message : String(error)})`;
     return;
   }
 
@@ -127,6 +131,8 @@ test.afterAll(async () => {
 });
 
 test.beforeEach(() => {
+  // CI starts the fake and points the API at it, so a skip there would silently hide this coverage.
+  if (process.env.CI && skipReason) throw new Error(`The GitHub approval spec can't run in CI: ${skipReason}`);
   test.skip(skipReason !== null, skipReason ?? '');
 });
 

@@ -17,6 +17,8 @@ async function run(): Promise<void> {
     return;
   }
   const counts = await syncOpenSubmissions(new GitHubClient(config.github));
+  // Counts only.
+  // bearer:disable javascript_lang_logger_leak
   console.log(
     `Synced pull requests: ${counts.open} still open, ${counts.merged} merged (approved), ${counts.closed} closed (rejected), ${counts.error} failed.`,
   );
@@ -26,6 +28,8 @@ async function run(): Promise<void> {
 run()
   .then(() => closeDb())
   .catch((error) => {
+    // The job's own failure, for its log; GitHub client errors never carry tokens.
+    // bearer:disable javascript_lang_logger_leak
     console.error(error);
     process.exitCode = 1;
     return closeDb();
