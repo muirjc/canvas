@@ -23,6 +23,7 @@ import { registerPersonaReferenceMaterialRoutes } from './ai/persona-reference-m
 import { registerDiagramChatRoutes } from './ai/diagram-chat.routes.js';
 import { registerAiUsageRoutes } from './ai/ai-usage.routes.js';
 import { registerCommentRoutes } from './comments/comment.routes.js';
+import { registerGitHubRoutes } from './github/github.routes.js';
 import { drainBackgroundTasks } from './background/tasks.js';
 
 export interface BuildAppOptions {
@@ -31,6 +32,8 @@ export interface BuildAppOptions {
   /** Test injection point (research.md §8) — overrides the AI provider the chat endpoint uses,
    * bypassing apps/api/src/ai/provider.ts's env-based resolution. Production never sets this. */
   languageModel?: LanguageModel;
+  /** canvas-3s5.1: test injection point for calls to GitHub (defaults to global fetch). */
+  githubFetch?: typeof fetch;
 }
 
 export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyInstance> {
@@ -111,6 +114,7 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
   await registerDiagramChatRoutes(app, { languageModel: options.languageModel });
   await registerAiUsageRoutes(app);
   await registerCommentRoutes(app);
+  await registerGitHubRoutes(app, config, options.githubFetch);
 
   // canvas-lfc: tags/security only in this pass (request/response body schemas tracked
   // separately) -- security: [] is explicit, not merely omitted, so /docs shows this was

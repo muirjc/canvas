@@ -1,4 +1,4 @@
-import { createHash } from 'node:crypto';
+import { createHash, createPrivateKey, type KeyObject } from 'node:crypto';
 export interface AppConfig {
   port: number;
   databaseUrl: string;
@@ -35,6 +35,12 @@ export interface AppConfig {
   /** canvas-ez1.5: 32-byte AES-256-GCM key encrypting stored TOTP secrets (MFA_ENCRYPTION_KEY,
    *  base64). Required in production local mode; otherwise derived from the session secret. */
   mfaEncryptionKey: Buffer;
+  /** canvas-3s5.1: the GitHub App Canvas submits diagrams with; undefined = the integration is off
+   *  (GITHUB_APP_ID and GITHUB_APP_PRIVATE_KEY both needed; 'unset' counts as missing). */
+  github?: GitHubAppConfig;
+  /** canvas-3s5.1: the web app's public address, for links back to Canvas (CANVAS_PUBLIC_URL;
+   *  defaults to the first WEB_ORIGINS entry). */
+  publicUrl: string;
   /** Origins allowed to make credentialed cross-origin requests (CORS). Reflecting all origins
    * with credentials enabled would let any website ride a signed-in user's session cookie. */
   webOrigins: string[];
@@ -176,6 +182,8 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
     loginRateLimitPerMinute: parseLoginRateLimit(env.LOGIN_RATE_LIMIT, authMode),
     mfaRequired: env.MFA_REQUIRED === undefined || env.MFA_REQUIRED === '' ? authMode === 'local' : env.MFA_REQUIRED === 'true',
     mfaEncryptionKey: parseMfaEncryptionKey(env, authMode, isTest ? TEST_SESSION_SECRET : env.SESSION_SECRET),
+    github: parseGitHubConfig(env),
+    publicUrl: (env.CANVAS_PUBLIC_URL ?? (env.WEB_ORIGINS ?? 'http://localhost:5173').split(',')[0]).trim().replace(/\/+$/, ''),
     webOrigins: (env.WEB_ORIGINS ?? 'http://localhost:5173').split(',').map((origin) => origin.trim()),
     cookieSecure,
     cookieSameSite,
@@ -217,4 +225,32 @@ function parseMfaEncryptionKey(env: NodeJS.ProcessEnv, authMode: 'entra' | 'loca
   }
   // Dev/test: a key derived from the session secret, so nothing extra has to be configured.
   return createHash('sha256').update(`canvas-mfa-key:${sessionSecret ?? ''}`).digest();
+}
+
+export interface GitHubAppConfig {
+  appId: string;
+  privateKey: KeyObject;
+  /** REST API base, e.g. https://api.github.com (configurable for tests / later GitHub Enterprise). */
+  apiUrl: string;
+}
+
+/** canvas-3s5.1: GitHub App settings. A bad private key fails startup here, not at first use. */
+function parseGitHubConfig(env: NodeJS.ProcessEnv): GitHubAppConfig | undefined {
+  const appId = env.GITHUB_APP_ID?.trim();
+  const rawKey = env.GITHUB_APP_PRIVATE_KEY?.trim();
+  if (!appId || appId === 'unset' || !rawKey || rawKey === 'unset') return undefined;
+  if (!/^\d+$/.test(appId)) throw new Error(`GITHUB_APP_ID must be the App's numeric id (got: ${appId})`);
+  // The PEM as downloaded from GitHub, or base64 of it (easier to keep in Key Vault).
+  const pem = rawKey.includes('-----BEGIN') ? rawKey.replace(/\\n/g, '\n') : Buffer.from(rawKey, 'base64').toString('utf8');
+  let privateKey: KeyObject;
+  try {
+    privateKey = createPrivateKey(pem);
+  } catch {
+    throw new Error('GITHUB_APP_PRIVATE_KEY is not a valid private key (PEM, or base64 of the PEM).');
+  }
+  const apiUrl = (env.GITHUB_API_URL ?? 'https://api.github.com').trim().replace(/\/+$/, '');
+  const url = new URL(apiUrl);
+  const local = url.hostname === 'localhost' || url.hostname === '127.0.0.1';
+  if (url.protocol !== 'https:' && !local) throw new Error(`GITHUB_API_URL must use https (got: ${apiUrl})`);
+  return { appId, privateKey, apiUrl };
 }

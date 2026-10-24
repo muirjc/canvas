@@ -64,6 +64,12 @@ param aiProvider string = 'mock'
 @description('canvas-cng: IP allow-list ([{ cidr, description }]) for the API ingress and the web Storage account. Empty = public (deploy.sh only allows that with CANVAS_ALLOW_PUBLIC=1).')
 param allowedIpRanges array = []
 
+@description('canvas-3s5.1: the GitHub App diagrams are submitted for approval with (docs/admin-guide/github.md). "unset" = the integration is off. Its private key is the Key Vault secret github-app-private-key (deploy.sh).')
+param githubAppId string = 'unset'
+
+@description('canvas-3s5.1: GitHub REST API base URL (github.com by default).')
+param githubApiUrl string = 'https://api.github.com'
+
 resource rg 'Microsoft.Resources/resourceGroups@2023-07-01' = {
   name: resourceGroupName
   location: location
@@ -151,6 +157,8 @@ module apiApp 'modules/apiapp.bicep' = {
     aiProvider: aiProvider
     allowedIpRanges: allowedIpRanges
     authMode: authMode
+    githubAppId: githubAppId
+    githubApiUrl: githubApiUrl
   }
 }
 

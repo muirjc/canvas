@@ -15,6 +15,7 @@ applies to you too.
 | **AI usage** | Tokens (and estimated cost) by user; model prices | [AI](ai.md) |
 | **Audit log** | Who signed in, failed, was locked, changed what | [Audit log and recovery](audit-and-recovery.md) |
 | **Deleted Diagrams / Deleted Projects** | Restoring deleted work within 30 days | [Audit log and recovery](audit-and-recovery.md) |
+| **GitHub** | Linking projects to GitHub repositories for diagram approval | [GitHub approval](github.md) |
 
 Running Canvas itself (deploying, pausing, the IP allow-list, emergency access) is covered in
 [Operations](operations.md).

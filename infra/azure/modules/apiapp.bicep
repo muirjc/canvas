@@ -59,6 +59,12 @@ param entraClientId string
 @description('This app\'s own OIDC callback URL: https://<this-api-fqdn>/auth/callback -- computed in main.bicep from this app\'s own predictable Container Apps FQDN (not knowable from within its own resource definition, hence computed one level up).')
 param oidcRedirectUri string
 
+@description('canvas-3s5.1: GITHUB_APP_ID -- the GitHub App diagrams are submitted for approval with; "unset" = off. The private key is the github-app-private-key Key Vault secret ("unset" until deploy.sh is given one).')
+param githubAppId string = 'unset'
+
+@description('canvas-3s5.1: GITHUB_API_URL.')
+param githubApiUrl string = 'https://api.github.com'
+
 resource apiApp 'Microsoft.App/containerApps@2025-01-01' = {
   name: 'canvas-api'
   location: location
@@ -117,6 +123,12 @@ resource apiApp 'Microsoft.App/containerApps@2025-01-01' = {
           identity: identityId
         }
         {
+          // canvas-3s5.1: base64 of the GitHub App's PEM private key, or "unset".
+          name: 'github-app-private-key'
+          keyVaultUrl: '${keyVaultUri}secrets/github-app-private-key'
+          identity: identityId
+        }
+        {
           name: 'oidc-client-secret'
           keyVaultUrl: '${keyVaultUri}secrets/oidc-client-secret'
           identity: identityId
@@ -163,6 +175,11 @@ resource apiApp 'Microsoft.App/containerApps@2025-01-01' = {
             { name: 'MFA_ENCRYPTION_KEY', secretRef: 'mfa-encryption-key' }
             { name: 'ANTHROPIC_API_KEY', secretRef: 'anthropic-api-key' }
             { name: 'OPENAI_API_KEY', secretRef: 'openai-api-key' }
+            { name: 'GITHUB_APP_ID', value: githubAppId }
+            { name: 'GITHUB_APP_PRIVATE_KEY', secretRef: 'github-app-private-key' }
+            { name: 'GITHUB_API_URL', value: githubApiUrl }
+            // Links in pull requests point back at the web app.
+            { name: 'CANVAS_PUBLIC_URL', value: webOrigin }
           ]
           resources: {
             cpu: json('0.5')

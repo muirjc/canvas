@@ -93,6 +93,20 @@ tests are NON-NEGOTIABLE and must exist (and fail) before implementing any diagr
 work — see `.specify/memory/constitution.md` Principle IV.
 
 ## Recent Changes
+- `canvas-3s5.1` (Phase 1 of the `canvas-3s5` GitHub approval epic, design in
+  `docs/github-approval-design.md`): an admin links a project to a GitHub repository + folder
+  (`?admin=github`); anyone with edit access submits a saved diagram as a pull request (Must fix
+  issues block; warnings listed in the PR). Merged = approved, closed = rejected. A GitHub App on
+  github.com, plain-`fetch` client (`apps/api/src/github/`, no octokit): App JWT via `node:crypto`,
+  installation tokens narrowed to the one repository. Each PR commits README (SVG first), portable
+  `.mmd` (`toPortableMermaid(..., { stripFrontMatter: true })`), lossless `.canvas.mmd`, SVG,
+  `canvas.json`, and `.canvas/standards/<type>/v<n>.json`; resubmitting pushes a commit to the same
+  open PR (never force-push; unchanged tree = "up to date"). One open PR per diagram (partial unique
+  index, also the submit lock). Config `GITHUB_APP_ID`/`GITHUB_APP_PRIVATE_KEY` (missing/`unset` =
+  off, UI hidden); deploy.sh `CANVAS_GITHUB_APP_ID`/`CANVAS_GITHUB_APP_PRIVATE_KEY_FILE`, KV secret
+  `github-app-private-key`. Migrations Postgres `0026`, SQLite `0014`. Tests run against a real
+  `node:http` fake GitHub (`tests/helpers/fake-github.ts`). Status sync (merged/closed detection
+  without resubmitting), the CI validator and the live check are Phases 2-4.
 - `canvas-t3b` epic (Option B Browse redesign, design in `docs/browse-screen-design.md`): retired
   "current project" as global app state. The address is the state — `/` = project list,
   `?projectId=` = a project, `?diagramId=` = an open diagram (reload keeps it; diagrams are

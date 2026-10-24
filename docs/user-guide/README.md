@@ -15,6 +15,7 @@ This guide is for everyone who uses Canvas. If you look after Canvas for your or
 | [The editor](editor.md) | Shapes, connectors, containers, the Mermaid text, issues, history |
 | [AI chat](ai-chat.md) | Editing a diagram by describing the change |
 | [Sharing and exporting](sharing-and-exporting.md) | Giving others access; Mermaid, SVG and PNG files |
+| [Submitting for approval](submitting-for-approval.md) | Sending a diagram to GitHub as a pull request |
 | [Your account](your-account.md) | Changing your password, two-step verification, your AI usage |
 
 **What you can do depends on your role.** Your admin gives you one of three:

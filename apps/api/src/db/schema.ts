@@ -256,6 +256,70 @@ export interface LocalCredentialsTable {
   locked_at: Timestamp | null;
 }
 
+/** canvas-3s5.1: a project linked to a GitHub repository + folder (github/github-link.service.ts). */
+export interface GithubLinksTable {
+  id: string;
+  project_id: string;
+  /** BIGINT: node-postgres returns these as strings. */
+  repo_id: ColumnType<number | string, number, number>;
+  repo_owner: string;
+  repo_name: string;
+  installation_id: ColumnType<number | string, number, number>;
+  base_branch: string;
+  folder: string;
+  created_by_user_id: string | null;
+  created_at: GeneratedTimestamp;
+  updated_at: GeneratedTimestamp;
+  last_checked_at: Timestamp | null;
+  last_check_error: string | null;
+}
+
+/** canvas-3s5.1: one pull request Canvas opened for a diagram (github/submission.service.ts). */
+export interface DiagramSubmissionsTable {
+  id: string;
+  diagram_id: string;
+  github_link_id: string | null;
+  repo_id: ColumnType<number | string, number, number>;
+  repo_owner: string;
+  repo_name: string;
+  installation_id: ColumnType<number | string, number, number>;
+  base_branch: string;
+  path: string;
+  branch: string;
+  pr_number: number | null;
+  pr_url: string | null;
+  state: 'open' | 'merged' | 'closed';
+  submitted_version_sequence: number | null;
+  submitted_fingerprint: string | null;
+  last_pushed_commit_sha: string | null;
+  head_sha: string | null;
+  submitted_by_user_id: string | null;
+  first_submitted_at: Timestamp;
+  last_submitted_at: Timestamp;
+  submitting_since: Timestamp | null;
+  review_state: Generated<string>;
+  checks_state: Generated<string>;
+  /** JSON text (check runs, reviewers). */
+  status_detail: string | null;
+  last_synced_at: Timestamp | null;
+  last_sync_error: string | null;
+  merged_at: Timestamp | null;
+  merged_by_login: string | null;
+  merge_commit_sha: string | null;
+  merged_head_matches: boolean | null;
+  closed_at: Timestamp | null;
+}
+
+export interface DiagramSubmissionPushesTable {
+  id: string;
+  submission_id: string;
+  version_sequence: number;
+  commit_sha: string;
+  pushed_by_user_id: string | null;
+  pushed_at: Timestamp;
+  warning_count: Generated<number>;
+}
+
 /** canvas-bw4: diagram comments (comments/comment.service.ts). */
 export interface DiagramCommentsTable {
   id: string;
@@ -418,6 +482,9 @@ export interface DB {
   user_mfa: UserMfaTable;
   ai_usage: AiUsageTable;
   diagram_comments: DiagramCommentsTable;
+  github_links: GithubLinksTable;
+  diagram_submissions: DiagramSubmissionsTable;
+  diagram_submission_pushes: DiagramSubmissionPushesTable;
   diagram_comment_reads: DiagramCommentReadsTable;
   ai_model_prices: AiModelPricesTable;
   mfa_recovery_codes: MfaRecoveryCodesTable;
