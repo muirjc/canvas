@@ -457,6 +457,10 @@ export async function purgeDiagrams(ids: string[]): Promise<string[]> {
       .execute();
     await trx.deleteFrom('diagram_chats').where('diagram_id', 'in', ids).execute();
     await trx.deleteFrom('share_grants').where('subject_type', '=', 'diagram').where('subject_id', 'in', ids).execute();
+    // canvas-bw4: comments (replies before their thread roots) and read markers.
+    await trx.deleteFrom('diagram_comment_reads').where('diagram_id', 'in', ids).execute();
+    await trx.deleteFrom('diagram_comments').where('diagram_id', 'in', ids).where('thread_root_id', 'is not', null).execute();
+    await trx.deleteFrom('diagram_comments').where('diagram_id', 'in', ids).execute();
     await trx.deleteFrom('diagrams').where('id', 'in', ids).execute();
   });
   return ids;

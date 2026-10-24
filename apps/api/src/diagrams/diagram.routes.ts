@@ -2,7 +2,7 @@ import type { FastifyInstance, FastifyReply } from 'fastify';
 import { requireAuth, requireRole } from '../auth/middleware.js';
 import { requireDiagramAccess, requireDiagramOwnerOrAdmin, requireProjectAccess } from '../auth/access-control.middleware.js';
 import { projectExists, resolveProjectAccess } from '../projects/project.access.js';
-import { accessAtLeast } from '../sharing/sharing.service.js';
+import { accessAtLeast, resolveDiagramAccess } from '../sharing/sharing.service.js';
 import {
   createDiagram,
   deleteDiagram,
@@ -102,7 +102,9 @@ export async function registerDiagramRoutes(app: FastifyInstance): Promise<void>
     async (request, reply) => {
       try {
         const diagram = await getDiagram(request.params.id);
-        return reply.send({ diagram });
+        // canvas-bw4: the caller's own access, so the editor knows whether they may comment/edit.
+        const accessLevel = await resolveDiagramAccess(request.session.user!.id, request.params.id);
+        return reply.send({ diagram: { ...diagram, accessLevel } });
       } catch (error) {
         return handleServiceError(error, reply);
       }

@@ -7,7 +7,7 @@ Click **Share** in the editor, enter a colleague's email address and choose thei
 | Level | They can |
 |---|---|
 | **View** | Open and read the diagram |
-| **Comment** | For now, the same as View: Canvas doesn't have comments yet |
+| **Comment** | Read the diagram and add comments (see [Comments](editor.md#comments)) |
 | **Edit** | Change it (and use its AI chat) |
 
 ![Sharing a diagram](../images/share-dialog.png)

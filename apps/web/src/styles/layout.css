@@ -985,3 +985,9 @@
   background: var(--surface-sunken);
 }
 .auth__notice p { margin: 0; }
+
+/* ---- Comments (canvas-bw4) ---------------------------------------------- */
+
+.comment-replies { margin-inline-start: var(--space-4); padding-inline-start: var(--space-3); border-inline-start: 2px solid var(--border-default); margin-block: var(--space-2); }
+.comment-thread--resolved { opacity: 0.75; }
+.comment-thread--highlight { outline: 2px solid var(--accent); }

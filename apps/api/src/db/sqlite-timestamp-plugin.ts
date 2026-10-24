@@ -28,6 +28,10 @@ const TIMESTAMP_COLUMN_NAMES = new Set([
   // canvas-ez1.5
   'enabled_at',
   'used_at',
+  // canvas-bw4
+  'edited_at',
+  'resolved_at',
+  'last_read_at',
   // sharing.service.ts selects 'sg.created_at as shared_at'.
   'shared_at',
 ]);
