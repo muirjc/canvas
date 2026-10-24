@@ -2,7 +2,7 @@ import type { FastifyInstance, FastifyReply } from 'fastify';
 import { requireRole } from '../auth/middleware.js';
 import { PERSONAS } from '../seed/diagram-types.seed.js';
 import { getDb } from '../db/client.js';
-import { getAdminOverview, listUsers, updateUser, UserNotFoundError, type UpdateUserInput } from './admin.service.js';
+import { getAdminOverview, LastAdminError, listUsers, updateUser, UserNotFoundError, type UpdateUserInput } from './admin.service.js';
 import { createLocalUser, EmailInUseError, resetLocalPassword, unlockAccount, type CreateLocalUserInput } from './local-accounts.service.js';
 import { clientIp, listAuditEvents, recordAudit } from '../audit/audit.service.js';
 import { resetMfa } from '../auth/mfa.service.js';
@@ -17,6 +17,9 @@ function handleError(error: unknown, reply: FastifyReply): FastifyReply {
     return reply.code(404).send({ error: error.message });
   }
   if (error instanceof EmailInUseError) {
+    return reply.code(409).send({ error: error.message });
+  }
+  if (error instanceof LastAdminError) {
     return reply.code(409).send({ error: error.message });
   }
   if (error instanceof CannotDeleteUserError) {

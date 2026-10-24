@@ -309,10 +309,13 @@ describe('Local user management (canvas-ez1.2)', () => {
       expect((await login('leaver@example.com', 'orig-secret-phrase-2')).res.statusCode).toBe(403); // deactivated (canvas-ez1.6)
     });
 
-    it('a role change does not end the sessions', async () => {
+    // canvas-18c: the session holds the role from sign-in, so a role change ends it (was: kept).
+    it('a role change ends their sessions; re-saving the same role does not', async () => {
       const target = await activatedUser('stayer@example.com', 'orig-secret-phrase-3');
+      await app.inject({ method: 'PATCH', url: `/admin/users/${target.id}`, payload: { role: 'architect' }, headers: { cookie: adminCookie } });
+      expect((await get('/auth/me', target.cookie)).statusCode).toBe(200); // unchanged role
       await app.inject({ method: 'PATCH', url: `/admin/users/${target.id}`, payload: { role: 'viewer' }, headers: { cookie: adminCookie } });
-      expect((await get('/auth/me', target.cookie)).statusCode).toBe(200);
+      expect((await get('/auth/me', target.cookie)).statusCode).toBe(401);
     });
 
     it('GET /admin/users reports hasPassword per user', async () => {
