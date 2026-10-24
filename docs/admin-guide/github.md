@@ -78,7 +78,26 @@ repository, but each one needs its own folder, and one project's folder can't si
 
 **Test** checks that the link still works: the App is installed, the repository is reachable, the
 branch exists, and the permissions are granted. Run it after changing the App or the repository.
-Removing a link stops new submissions. Pull requests that are already open stay open.
+A link that stops working while pull requests are open, for example because the App was removed from the repository, shows
+**Needs attention** on the GitHub page.
+
+Removing a link stops new submissions. Pull requests that are already open stay open, and Canvas
+keeps tracking them; the page shows how many there are. A diagram moved to a different project
+while its pull request is open can't be submitted again until that pull request is merged, closed
+or withdrawn.
+
+## Keeping status up to date
+
+GitHub can't send Canvas notifications, because Canvas only accepts traffic from your approved
+networks. Canvas checks GitHub instead:
+- every minute or so for a diagram that's open in the editor with a pull request in review;
+- every 15 minutes for all open pull requests, run by the `canvas-github-sync` job in Azure. The
+  job is created when a GitHub App is configured. `pause.sh` stops its schedule and `resume.sh`
+  restores it.
+
+To run the check by hand, start the job with
+`az containerapp job start --name canvas-github-sync --resource-group canvas-rg`, or run
+`npm run github-sync --workspace=@canvas/api` anywhere the API's settings are available.
 
 ## What a pull request contains
 

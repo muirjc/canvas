@@ -53,4 +53,11 @@ else
 fi
 
 echo
+# canvas-3s5.2: pause.sh moved the GitHub sync job's schedule to once a year.
+if az containerapp job show --name canvas-github-sync --resource-group "$RESOURCE_GROUP" --output none 2>/dev/null; then
+  echo "== Restoring the GitHub sync job's schedule (every 15 minutes) =="
+  az containerapp job update --name canvas-github-sync --resource-group "$RESOURCE_GROUP" \
+    --cron-expression "*/15 * * * *" --output none
+fi
+
 echo "== Resumed. canvas-api will take a few seconds to warm up on its next request. =="

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { SubmissionDto, SubmissionStatusDto } from '../../src/app/api';
-import { deriveChip, deriveSubmitButton, isSubmitVisible, previewPath } from '../../src/app/submission-state';
+import { deriveBadge, deriveChip, deriveSubmitButton, isApprovalTabVisible, isSubmitVisible, previewPath, relativeTime, shouldPoll } from '../../src/app/submission-state';
 
 const pr = (over: Partial<SubmissionDto> = {}): SubmissionDto => ({
   id: 's1', state: 'open', prNumber: 7, prUrl: 'https://github.com/o/r/pull/7', repoFullName: 'o/r', baseBranch: 'main',
@@ -48,5 +48,60 @@ describe('visibility and preview', () => {
   it('previews the path', () => {
     expect(previewPath('/architecture/diagrams/')).toBe('architecture/diagrams/<diagram-name>/README.md');
     expect(previewPath('')).toBe('<folder>/<diagram-name>/README.md');
+  });
+});
+
+describe('phase 2 chip', () => {
+  it('summarises review and check state', () => {
+    expect(deriveChip(status({ current: pr({ checksState: 'failure' }) })).label).toBe('In review · PR #7 · checks failing');
+    expect(deriveChip(status({ current: pr({ reviewState: 'changes_requested', checksState: 'success' }) })).label).toBe(
+      'In review · PR #7 · changes requested · checks passing',
+    );
+    expect(deriveChip(status({ current: pr({ reviewState: 'approved', checksState: 'success' }) })).label).toBe(
+      'In review · PR #7 · approved, not merged',
+    );
+  });
+  it('shows withdrawn ahead of closed', () => {
+    expect(deriveChip(status({ current: pr({ state: 'closed', withdrawnAt: '2026-01-01' }) })).kind).toBe('withdrawn');
+  });
+});
+
+describe('deriveBadge', () => {
+  const b = { state: 'open' as const, prNumber: 1, prUrl: null, reviewState: null, checksState: null, submittedVersionSequence: 4, changesSinceSubmitting: false, withdrawn: false };
+  it('maps each state', () => {
+    expect(deriveBadge(b).label).toBe('In review');
+    expect(deriveBadge({ ...b, changesSinceSubmitting: true }).label).toBe('Changes since submitting');
+    expect(deriveBadge({ ...b, state: 'merged' }).label).toBe('Approved v4');
+    expect(deriveBadge({ ...b, state: 'closed' }).label).toBe('Rejected');
+    expect(deriveBadge({ ...b, state: 'closed', withdrawn: true }).label).toBe('Withdrawn');
+  });
+});
+
+describe('polling and tab visibility', () => {
+  it('polls only while open', () => {
+    expect(shouldPoll(status({ current: pr() }))).toBe(true);
+    expect(shouldPoll(status({ current: pr({ state: 'merged' }) }))).toBe(false);
+    expect(shouldPoll(status({ current: pr({ withdrawnAt: 'x' }) }))).toBe(false);
+    expect(shouldPoll(status())).toBe(false);
+    expect(shouldPoll(null)).toBe(false);
+  });
+  it('shows the Approval tab when linked or with history', () => {
+    expect(isApprovalTabVisible(null)).toBe(false);
+    expect(isApprovalTabVisible(status())).toBe(true);
+    expect(isApprovalTabVisible(status({ enabled: false }))).toBe(false);
+    expect(isApprovalTabVisible(status({ link: null }))).toBe(false);
+    expect(isApprovalTabVisible(status({ link: null, current: pr() }))).toBe(true);
+    expect(isApprovalTabVisible(status({ link: null }), true)).toBe(true);
+  });
+});
+
+describe('relativeTime', () => {
+  const now = Date.parse('2026-01-01T12:00:00Z');
+  it('formats', () => {
+    expect(relativeTime(null, now)).toBe('never');
+    expect(relativeTime('2026-01-01T11:59:40Z', now)).toBe('just now');
+    expect(relativeTime('2026-01-01T11:55:00Z', now)).toBe('5 min ago');
+    expect(relativeTime('2026-01-01T09:00:00Z', now)).toBe('3 h ago');
+    expect(relativeTime('2025-12-30T12:00:00Z', now)).toBe('2 days ago');
   });
 });

@@ -300,6 +300,7 @@ export interface GitHubLinkDto {
   updatedAt: string;
   lastCheckedAt: string | null;
   lastCheckError: string | null;
+  openSubmissionCount?: number;
 }
 export interface GitHubTestResultDto {
   ok: boolean;
@@ -323,11 +324,45 @@ export interface SubmissionDto {
   mergedAt: string | null;
   mergedBy: string | null;
   closedAt: string | null;
+  /** canvas-3s5.2 fields; optional so Phase 1 shaped fixtures stay valid. */
+  mergedHeadMatches?: boolean | null;
+  withdrawnAt?: string | null;
+  withdrawnBy?: string | null;
+  statusDetail?: SubmissionStatusDetailDto | null;
+  lastSyncedAt?: string | null;
+  lastSyncError?: string | null;
+}
+export interface SubmissionStatusDetailDto {
+  checks: { name: string; state: string; url: string | null }[];
+  reviews: { login: string; state: string }[];
+  requestedReviewers: string[];
+}
+export interface SubmissionPushDto {
+  versionSequence: number;
+  commitSha: string;
+  pushedBy: string | null;
+  pushedAt: string;
+  warningCount: number;
+}
+export interface SubmissionHistoryItemDto extends SubmissionDto {
+  pushes: SubmissionPushDto[];
+}
+export interface SubmissionBadgeDto {
+  state: 'open' | 'merged' | 'closed';
+  prNumber: number | null;
+  prUrl: string | null;
+  reviewState: string | null;
+  checksState: string | null;
+  submittedVersionSequence: number | null;
+  changesSinceSubmitting: boolean;
+  withdrawn: boolean;
 }
 export interface SubmissionStatusDto {
   enabled: boolean;
   link: { repoFullName: string; folder: string; baseBranch: string } | null;
   current: SubmissionDto | null;
+  approved?: SubmissionDto | null;
+  canWithdraw?: boolean;
   changesSinceSubmitting: boolean;
   canSubmit: {
     allowed: boolean;
@@ -729,5 +764,10 @@ export const api = {
     request<{ link: GitHubLinkDto }>(`/projects/${projectId}/github-link`, { method: 'PUT', body: JSON.stringify(body) }),
   removeGitHubLink: (projectId: string) => request<void>(`/projects/${projectId}/github-link`, { method: 'DELETE' }),
   getSubmissionStatus: (diagramId: string) => request<SubmissionStatusDto>(`/diagrams/${diagramId}/submission`),
+  refreshSubmission: (diagramId: string) => request<SubmissionStatusDto>(`/diagrams/${diagramId}/submission/refresh`, { method: 'POST' }),
+  withdrawSubmission: (diagramId: string) => request<SubmissionStatusDto>(`/diagrams/${diagramId}/submission/withdraw`, { method: 'POST' }),
+  listSubmissions: (diagramId: string) => request<{ submissions: SubmissionHistoryItemDto[] }>(`/diagrams/${diagramId}/submissions`),
+  getSubmissionBadges: (projectId: string) =>
+    request<{ statuses: Record<string, SubmissionBadgeDto> }>(`/projects/${projectId}/submission-statuses`),
   submitDiagram: (diagramId: string) => request<SubmitResultDto>(`/diagrams/${diagramId}/submissions`, { method: 'POST' }),
 };

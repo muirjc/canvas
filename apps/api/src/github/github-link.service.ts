@@ -83,9 +83,19 @@ export async function getLinkForProject(projectId: string): Promise<GitHubLink |
   return row ? toLink(row) : null;
 }
 
-export async function listLinks(): Promise<GitHubLink[]> {
+/** Every link, with how many of its pull requests are still open (canvas-3s5.2: removing a link
+ *  leaves them open; Canvas keeps syncing them from the details copied onto each submission). */
+export async function listLinks(): Promise<(GitHubLink & { openSubmissionCount: number })[]> {
   const rows = await linkQuery().where('p.deleted_at', 'is', null).orderBy('p.name').execute();
-  return rows.map(toLink);
+  const counts = await getDb()
+    .selectFrom('diagram_submissions')
+    .select(['github_link_id', (eb) => eb.fn.countAll<number>().as('n')])
+    .where('state', '=', 'open')
+    .where('pr_number', 'is not', null)
+    .groupBy('github_link_id')
+    .execute();
+  const byLink = new Map(counts.map((c) => [c.github_link_id, Number(c.n)]));
+  return rows.map((row) => ({ ...toLink(row), openSubmissionCount: byLink.get(row.id) ?? 0 }));
 }
 
 /** Every repository the App can reach, across its installations. */
@@ -162,6 +172,8 @@ export interface LinkCheck {
 export async function testLink(client: GitHubClient, projectId: string): Promise<{ ok: boolean; checks: LinkCheck[] }> {
   const link = await getLinkForProject(projectId);
   if (!link) throw new GitHubLinkNotFoundError('This project is not linked to GitHub.');
+  // An admin testing has often just changed the App's permissions or repositories.
+  client.forgetTokens();
   const checks: LinkCheck[] = [];
   const fail = (id: LinkCheck['id'], label: string, error: unknown) =>
     checks.push({ id, label, ok: false, detail: error instanceof Error ? error.message : String(error) });

@@ -125,6 +125,26 @@ jobs:
           OUTPUT=$(npm run seed 2>&1 | tee /dev/stderr)
           PROJECT_ID=$(echo "$OUTPUT" | grep "Project id:" | awk '{print $NF}')
           echo "E2E_PROJECT_ID=$PROJECT_ID" >> "$GITHUB_ENV"
+      # canvas-3s5: the GitHub approval spec (github-approval.spec.ts) drives the real API against
+      # the in-memory fake GitHub as its own process. The fake writes its generated App key
+      # (base64 of the PEM, one line) to a file; the API then gets the App settings below, so its
+      # GitHub feature is on for the whole run (other specs are unaffected either way).
+      - name: Start fake GitHub
+        working-directory: apps/api
+        run: |
+          FAKE_GITHUB_PORT=3999 nohup npx tsx tests/helpers/fake-github-server.ts /tmp/fake-github.key > /tmp/fake-github.log 2>&1 &
+          for i in $(seq 1 30); do
+            if curl -sf http://127.0.0.1:3999/_fake/pulls > /dev/null; then
+              {
+                echo "GITHUB_APP_ID=12345"
+                echo "GITHUB_API_URL=http://127.0.0.1:3999"
+                echo "GITHUB_APP_PRIVATE_KEY=$(cat /tmp/fake-github.key)"
+              } >> "$GITHUB_ENV"
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "fake GitHub did not become healthy in time"; cat /tmp/fake-github.log; exit 1
       - name: Start API server
         working-directory: apps/api
         run: |

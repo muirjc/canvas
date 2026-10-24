@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useState } from 'react';
-import { api, ApiError, type DiagramSummaryDto, type DiagramTypeDto, type ProjectDto, type ProjectTreeNodeDto } from '../app/api';
+import { api, ApiError, type SubmissionBadgeDto, type DiagramSummaryDto, type DiagramTypeDto, type ProjectDto, type ProjectTreeNodeDto } from '../app/api';
 import { ConfirmDialog } from '../canvas/ConfirmDialog';
 import { Modal } from '../ui/Modal';
 import { Icon } from '../ui/Icon';
+import { deriveBadge } from '../app/submission-state';
 
 export interface ProjectBrowserProps {
   rootProjectId: string;
@@ -19,14 +20,26 @@ interface DiagramActionsProps {
   /** canvas-t3b.3: the diagram type's name, shown beside the diagram's (design: project level). */
   typeName?: string;
   currentProjectId: string;
+  /** canvas-3s5.2: the diagram's approval badge, when it has been submitted. */
+  badge?: SubmissionBadgeDto;
   onOpenDiagram: (id: string) => void;
   onRequestDelete: (diagramId: string, diagramName: string) => void;
   onRequestMove: (diagramId: string, diagramName: string, currentProjectId: string) => void;
 }
 
+function SubmissionBadge({ badge }: { badge: SubmissionBadgeDto }) {
+  const { kind, label } = deriveBadge(badge);
+  const text = badge.prNumber ? `${label} · PR #${badge.prNumber}` : label;
+  return (
+    <span className={`badge diagram-badge diagram-badge--${kind}`} data-testid="submission-badge" data-state={kind} title={text}>
+      {label}
+    </span>
+  );
+}
+
 /** One diagram row's Open/Move/Delete actions — shared by the recursive tree view and the flat
  *  search-results view (canvas-3vq.1) so the two can't drift apart on testids or behavior. */
-function DiagramRow({ diagramId, diagramName, typeName, currentProjectId, onOpenDiagram, onRequestDelete, onRequestMove }: DiagramActionsProps) {
+function DiagramRow({ diagramId, diagramName, typeName, currentProjectId, badge, onOpenDiagram, onRequestDelete, onRequestMove }: DiagramActionsProps) {
   return (
     <li className="row">
       <Icon name="diamond" />
@@ -34,6 +47,7 @@ function DiagramRow({ diagramId, diagramName, typeName, currentProjectId, onOpen
         <span className="row__title">{diagramName}</span>
         {typeName && <span className="meta">{typeName}</span>}
       </span>
+      {badge && <SubmissionBadge badge={badge} />}
       <span className="row__actions">
         <button
           type="button"
@@ -75,6 +89,7 @@ interface TreeNodeProps {
    *  own header row is left out (nested projects, should they ever exist, keep theirs). */
   isRoot?: boolean;
   typeNameOf: (diagramTypeId: string) => string | undefined;
+  badges: Record<string, SubmissionBadgeDto>;
   onOpenDiagram: (id: string) => void;
   onRequestDelete: (diagramId: string, diagramName: string) => void;
   onRequestMove: (diagramId: string, diagramName: string, currentProjectId: string) => void;
@@ -84,7 +99,7 @@ function countDiagrams(node: ProjectTreeNodeDto): number {
   return node.diagrams.length + node.children.reduce((sum, child) => sum + countDiagrams(child), 0);
 }
 
-function TreeNode({ node, isRoot = false, typeNameOf, onOpenDiagram, onRequestDelete, onRequestMove }: TreeNodeProps) {
+function TreeNode({ node, isRoot = false, typeNameOf, badges, onOpenDiagram, onRequestDelete, onRequestMove }: TreeNodeProps) {
   const total = countDiagrams(node);
   return (
     <li className="project-node">
@@ -108,6 +123,7 @@ function TreeNode({ node, isRoot = false, typeNameOf, onOpenDiagram, onRequestDe
             diagramName={diagram.name}
             typeName={typeNameOf(diagram.diagramTypeId)}
             currentProjectId={node.id}
+            badge={badges[diagram.id]}
             onOpenDiagram={onOpenDiagram}
             onRequestDelete={onRequestDelete}
             onRequestMove={onRequestMove}
@@ -118,6 +134,7 @@ function TreeNode({ node, isRoot = false, typeNameOf, onOpenDiagram, onRequestDe
             key={child.id}
             node={child}
             typeNameOf={typeNameOf}
+            badges={badges}
             onOpenDiagram={onOpenDiagram}
             onRequestDelete={onRequestDelete}
             onRequestMove={onRequestMove}
@@ -155,6 +172,19 @@ export function ProjectBrowser({ rootProjectId, projects, onOpenDiagram }: Proje
   const [diagramTypes, setDiagramTypes] = useState<DiagramTypeDto[]>([]);
   const [searchResults, setSearchResults] = useState<DiagramSummaryDto[]>([]);
   const [searchStatus, setSearchStatus] = useState<'idle' | 'loading' | 'ready' | 'error'>('idle');
+
+  // canvas-3s5.2: one request per project page load; empty (or a failure) means no badges at all.
+  const [badges, setBadges] = useState<Record<string, SubmissionBadgeDto>>({});
+  useEffect(() => {
+    let cancelled = false;
+    api
+      .getSubmissionBadges(rootProjectId)
+      .then(({ statuses }) => !cancelled && setBadges(statuses ?? {}))
+      .catch(() => !cancelled && setBadges({}));
+    return () => {
+      cancelled = true;
+    };
+  }, [rootProjectId]);
 
   const isFiltering = query.trim() !== '' || typeFilter !== '';
 
@@ -315,6 +345,7 @@ export function ProjectBrowser({ rootProjectId, projects, onOpenDiagram }: Proje
                   diagramName={diagram.name}
                   typeName={typeNameOf(diagram.diagramTypeId)}
                   currentProjectId={diagram.projectId}
+                  badge={badges[diagram.id]}
                   onOpenDiagram={onOpenDiagram}
                   onRequestDelete={requestDelete}
                   onRequestMove={requestMove}
@@ -336,6 +367,7 @@ export function ProjectBrowser({ rootProjectId, projects, onOpenDiagram }: Proje
               node={tree}
               isRoot
               typeNameOf={typeNameOf}
+              badges={badges}
               onOpenDiagram={onOpenDiagram}
               onRequestDelete={requestDelete}
               onRequestMove={requestMove}

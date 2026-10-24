@@ -93,6 +93,17 @@ tests are NON-NEGOTIABLE and must exist (and fail) before implementing any diagr
 work — see `.specify/memory/constitution.md` Principle IV.
 
 ## Recent Changes
+- `canvas-3s5.2` (Phase 2, GitHub approval): status sync (`apps/api/src/github/status-sync.service.ts`)
+  -- merged = approved (version, merged-by, `merged_head_matches` flags edits made on GitHub),
+  closed = rejected, open = latest review per reviewer + check runs/commit statuses (no Checks
+  permission -> `unavailable`). Polling, not webhooks: editor refresh (30s throttle per PR) + the
+  `canvas-github-sync` Container Apps Job every 15 min (`npm run github-sync`; only deployed with a
+  GitHub App; pause.sh/resume.sh move its cron since the CLI can't suspend a scheduled job).
+  Withdraw closes the PR with a comment (Postgres `0027`, SQLite `0015`). Approval rail tab,
+  richer chip, project-page badges. A 404 from a cached token counts as lost access ("Needs
+  attention" on the link). E2E `github-approval.spec.ts` runs against the fake as a standalone
+  process (`tests/helpers/fake-github-server.ts`, started by CI's e2e job; skips when the API isn't
+  pointed at the fake).
 - `canvas-3s5.1` (Phase 1 of the `canvas-3s5` GitHub approval epic, design in
   `docs/github-approval-design.md`): an admin links a project to a GitHub repository + folder
   (`?admin=github`); anyone with edit access submits a saved diagram as a pull request (Must fix

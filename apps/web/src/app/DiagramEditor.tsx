@@ -13,6 +13,9 @@ import { VersionHistory } from '../projects/VersionHistory';
 import { ShareDialog } from '../projects/ShareDialog';
 import { api, ApiError, type DiagramDto, type IconDto } from './api';
 import { SubmitForApproval } from './SubmitForApproval';
+import { ApprovalPanel } from './ApprovalPanel';
+import { useSubmission } from './useSubmission';
+import { isApprovalTabVisible } from './submission-state';
 import { Icon } from '../ui/Icon';
 import { RailTabs } from '../ui/RailTabs';
 import { Modal } from '../ui/Modal';
@@ -87,6 +90,7 @@ export const DiagramEditor = forwardRef<DiagramEditorHandle, DiagramEditorProps>
     if (t.anchor && !t.resolved) commentPins[t.anchor.id] = (commentPins[t.anchor.id] ?? 0) + 1;
   }
   const [versionRefreshToken, setVersionRefreshToken] = useState(0);
+  const submission = useSubmission(diagram.id, versionRefreshToken);
   const [sharing, setSharing] = useState(false);
   // canvas-8x1: click-to-edit, mirroring ProjectsPage.tsx's own rename pattern for a project row —
   // same commit-on-Enter/blur, cancel-on-Escape shape, just scoped to this one diagram's title.
@@ -272,7 +276,7 @@ export const DiagramEditor = forwardRef<DiagramEditorHandle, DiagramEditorProps>
           Save
         </button>
         <ExportMenu diagramId={diagram.id} diagramName={diagram.name} hasUnsavedChanges={hasUnsavedChanges} />
-        <SubmitForApproval diagramId={diagram.id} hasUnsavedChanges={hasUnsavedChanges} refreshToken={versionRefreshToken} />
+        <SubmitForApproval diagramId={diagram.id} hasUnsavedChanges={hasUnsavedChanges} submission={submission} />
         <button
           type="button"
           className="btn btn--secondary btn--compact"
@@ -386,6 +390,15 @@ export const DiagramEditor = forwardRef<DiagramEditorHandle, DiagramEditorProps>
                   />
                 ),
               },
+              ...(isApprovalTabVisible(submission.status)
+                ? [
+                    {
+                      id: 'approval',
+                      label: 'Approval',
+                      render: () => <ApprovalPanel diagramId={diagram.id} submission={submission} refreshToken={versionRefreshToken} />,
+                    },
+                  ]
+                : []),
               {
                 id: 'history',
                 label: 'History',

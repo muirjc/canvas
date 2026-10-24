@@ -44,6 +44,26 @@ export interface FakePull {
   mergedBy: string | null;
   mergeCommitSha: string | null;
   closedAt: string | null;
+  reviews: FakeReview[];
+  requestedReviewers: string[];
+  requestedTeams: string[];
+  comments: string[];
+}
+
+export interface FakeReview {
+  login: string;
+  state: 'APPROVED' | 'CHANGES_REQUESTED' | 'COMMENTED' | 'DISMISSED' | 'PENDING';
+}
+
+export interface FakeCheckRun {
+  name: string;
+  status: 'queued' | 'in_progress' | 'completed';
+  conclusion: string | null;
+}
+
+export interface FakeCommitStatus {
+  context: string;
+  state: 'error' | 'failure' | 'pending' | 'success';
 }
 
 export interface FakeRepo {
@@ -58,6 +78,9 @@ export interface FakeRepo {
   trees: Map<string, Map<string, string>>;
   pulls: Map<number, FakePull>;
   nextPull: number;
+  /** commit sha -> check runs / commit statuses reported on it */
+  checkRuns: Map<string, FakeCheckRun[]>;
+  statuses: Map<string, FakeCommitStatus[]>;
 }
 
 export interface RecordedRequest {
@@ -112,6 +135,12 @@ export class FakeGitHub {
   latencyMs = 0;
   /** When set, every request answers with this status (e.g. 500, 429). */
   failWith: { status: number; headers?: Record<string, string> } | null = null;
+  /**
+   * Answers requests under `/_fake/` (test control, not part of GitHub's API) before any auth or
+   * recording. Only the standalone runner sets it; return a JSON-able value, or throw HttpError-like
+   * `{ status, message }` via `controlError`.
+   */
+  control?: (method: string, url: URL, body: unknown) => unknown | Promise<unknown>;
 
   constructor() {
     const pair = generateKeyPairSync('rsa', { modulusLength: 2048 });
@@ -119,9 +148,10 @@ export class FakeGitHub {
     this.publicKey = pair.publicKey;
   }
 
-  async start(): Promise<this> {
+  /** Listens on a random port, or `port` when given (the standalone runner used by the e2e suite). */
+  async start(port = 0): Promise<this> {
     this.server = createServer((req, res) => void this.handle(req, res));
-    await new Promise<void>((resolve) => this.server.listen(0, '127.0.0.1', resolve));
+    await new Promise<void>((resolve) => this.server.listen(port, '127.0.0.1', resolve));
     this.url = `http://127.0.0.1:${(this.server.address() as AddressInfo).port}`;
     return this;
   }
@@ -163,6 +193,8 @@ export class FakeGitHub {
       trees: new Map(),
       pulls: new Map(),
       nextPull: 1,
+      checkRuns: new Map(),
+      statuses: new Map(),
     };
     const files = new Map(Object.entries(options.files ?? { 'README.md': '# repo\n' }));
     const tree = treeSha(files);
@@ -251,6 +283,35 @@ export class FakeGitHub {
     return commit.sha;
   }
 
+  addReview(repo: FakeRepo, number: number, login: string, state: FakeReview['state']): void {
+    this.pull(repo, number).reviews.push({ login, state });
+  }
+
+  requestReviewer(repo: FakeRepo, number: number, login: string): void {
+    this.pull(repo, number).requestedReviewers.push(login);
+  }
+
+  requestTeam(repo: FakeRepo, number: number, slug: string): void {
+    this.pull(repo, number).requestedTeams.push(slug);
+  }
+
+  setCheckRuns(repo: FakeRepo, sha: string, runs: FakeCheckRun[]): void {
+    repo.checkRuns.set(sha, runs);
+  }
+
+  setStatuses(repo: FakeRepo, sha: string, statuses: FakeCommitStatus[]): void {
+    repo.statuses.set(sha, statuses);
+  }
+
+  /** Lets the installation read checks and commit statuses (not granted by default). */
+  grantChecks(installationId: number): void {
+    const granted = { checks: 'read', statuses: 'read' };
+    Object.assign(this.installations.get(installationId)!.permissions, granted);
+    // Canvas caches installation tokens (and an unnarrowed one is minted when a project is linked),
+    // so apply it to tokens already issued, as if the permission had been there when they were minted.
+    for (const issued of this.tokens.values()) if (issued.installationId === installationId) Object.assign(issued.permissions, granted);
+  }
+
   deleteBranch(repo: FakeRepo, branch: string): void {
     repo.branches.delete(branch);
   }
@@ -287,6 +348,15 @@ export class FakeGitHub {
       body = raw ? JSON.parse(raw) : undefined;
     } catch {
       body = undefined;
+    }
+    if (this.control && url.pathname.startsWith('/_fake/')) {
+      try {
+        const out = await this.control(method, url, body);
+        res.writeHead(200, { 'content-type': 'application/json' }).end(JSON.stringify(out ?? {}));
+      } catch (error) {
+        res.writeHead(400, { 'content-type': 'application/json' }).end(JSON.stringify({ message: error instanceof Error ? error.message : String(error) }));
+      }
+      return;
     }
     const record: RecordedRequest = { method, path: url.pathname, auth: 'none', body };
     this.requests.push(record);
@@ -364,6 +434,8 @@ export class FakeGitHub {
       merged_by: pull.mergedBy ? { login: pull.mergedBy } : null,
       merge_commit_sha: pull.mergeCommitSha,
       closed_at: pull.closedAt,
+      requested_reviewers: pull.requestedReviewers.map((login) => ({ login })),
+      requested_teams: pull.requestedTeams.map((slug) => ({ slug })),
       head: { sha: repo.branches.get(pull.head) ?? '', ref: pull.head },
       base: { ref: pull.base },
     };
@@ -498,9 +570,34 @@ export class FakeGitHub {
       const base = String(b.base);
       if (!repo.branches.has(head) || !repo.branches.has(base)) throw new HttpError(422, 'Validation Failed: head or base branch does not exist');
       if ([...repo.pulls.values()].some((p) => p.state === 'open' && p.head === head && p.base === base)) throw new HttpError(422, 'A pull request already exists');
-      const pull: FakePull = { number: repo.nextPull++, title: String(b.title), body: String(b.body ?? ''), head, base, state: 'open', merged: false, mergedAt: null, mergedBy: null, mergeCommitSha: null, closedAt: null };
+      const pull: FakePull = { number: repo.nextPull++, title: String(b.title), body: String(b.body ?? ''), head, base, state: 'open', merged: false, mergedAt: null, mergedBy: null, mergeCommitSha: null, closedAt: null, reviews: [], requestedReviewers: [], requestedTeams: [], comments: [] };
       repo.pulls.set(pull.number, pull);
       return this.rawPull(repo, pull);
+    }
+    if (method === 'GET' && (r = rest.match(/^pulls\/(\d+)\/reviews$/))) {
+      this.need(token, 'pull_requests', 'read');
+      const pull = repo.pulls.get(Number(r[1]));
+      if (!pull) throw new HttpError(404, 'Not Found');
+      const perPage = Number(url.searchParams.get('per_page') ?? 30);
+      const page = Number(url.searchParams.get('page') ?? 1);
+      return pull.reviews.slice((page - 1) * perPage, page * perPage).map((rv) => ({ user: { login: rv.login }, state: rv.state, submitted_at: new Date().toISOString() }));
+    }
+    if (method === 'POST' && (r = rest.match(/^issues\/(\d+)\/comments$/))) {
+      this.need(token, 'pull_requests', 'write');
+      const pull = repo.pulls.get(Number(r[1]));
+      if (!pull) throw new HttpError(404, 'Not Found');
+      pull.comments.push(String(b.body));
+      return { id: pull.comments.length, body: b.body };
+    }
+    if (method === 'GET' && (r = rest.match(/^commits\/([0-9a-f]+)\/check-runs$/))) {
+      this.need(token, 'checks', 'read');
+      const runs = repo.checkRuns.get(r[1]) ?? [];
+      return { total_count: runs.length, check_runs: runs.map((run) => ({ ...run, html_url: `https://github.test/run/${run.name}` })) };
+    }
+    if (method === 'GET' && (r = rest.match(/^commits\/([0-9a-f]+)\/status$/))) {
+      this.need(token, 'statuses', 'read');
+      const statuses = repo.statuses.get(r[1]) ?? [];
+      return { state: 'pending', statuses: statuses.map((st) => ({ ...st, target_url: `https://github.test/status/${st.context}` })) };
     }
     if ((r = rest.match(/^pulls\/(\d+)$/))) {
       const pull = repo.pulls.get(Number(r[1]));

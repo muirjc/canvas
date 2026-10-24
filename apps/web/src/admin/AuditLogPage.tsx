@@ -64,6 +64,24 @@ export function describeEvent(event: AuditEventDto): string {
       const verb = detail.update ? 'Pushed an update to' : 'Submitted a diagram for approval in';
       return `${verb}${repo ? ` ${repo}` : ' GitHub'}${pr}${version}`;
     }
+    case 'diagram_submission_merged': {
+      const repo = typeof detail.repo === 'string' ? ` in ${detail.repo}` : '';
+      const pr = detail.pullRequest !== undefined && detail.pullRequest !== null ? ` PR #${String(detail.pullRequest)}` : '';
+      const version = detail.versionSequence !== undefined && detail.versionSequence !== null ? `, version ${String(detail.versionSequence)}` : '';
+      const by = typeof detail.mergedBy === 'string' ? ` by ${detail.mergedBy}` : '';
+      const differs = detail.headMatches === false ? ' (merged with changes made on GitHub)' : '';
+      return `Approved on GitHub: merged${repo}${pr}${version}${by}${differs}`;
+    }
+    case 'diagram_submission_closed': {
+      const repo = typeof detail.repo === 'string' ? ` in ${detail.repo}` : '';
+      const pr = detail.pullRequest !== undefined && detail.pullRequest !== null ? ` PR #${String(detail.pullRequest)}` : '';
+      return `Submission rejected: pull request closed without merging${repo}${pr}`;
+    }
+    case 'diagram_submission_withdrawn': {
+      const repo = typeof detail.repo === 'string' ? ` in ${detail.repo}` : '';
+      const pr = detail.pullRequest !== undefined && detail.pullRequest !== null ? ` PR #${String(detail.pullRequest)}` : '';
+      return `Withdrew a submission${repo}${pr}`;
+    }
     default:
       return event.event;
   }

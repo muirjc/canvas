@@ -65,6 +65,22 @@ export interface SubmissionView {
   mergedAt: string | null;
   mergedBy: string | null;
   closedAt: string | null;
+  /** canvas-3s5.2: false when GitHub merged something other than what Canvas last pushed. */
+  mergedHeadMatches: boolean | null;
+  withdrawnAt: string | null;
+  withdrawnBy: string | null;
+  /** canvas-3s5.2: checks, reviewers' latest decisions and outstanding review requests. */
+  statusDetail: { checks: { name: string; state: string; url: string | null }[]; reviews: { login: string; state: string }[]; requestedReviewers: string[] } | null;
+  lastSyncedAt: string | null;
+  lastSyncError: string | null;
+}
+
+export interface SubmissionPush {
+  versionSequence: number;
+  commitSha: string;
+  pushedBy: string | null;
+  pushedAt: string;
+  warningCount: number;
 }
 
 export interface SubmitResult {
@@ -82,8 +98,9 @@ function submissionQuery() {
   return getDb()
     .selectFrom('diagram_submissions as s')
     .leftJoin('users as u', 'u.id', 's.submitted_by_user_id')
+    .leftJoin('users as w', 'w.id', 's.withdrawn_by_user_id')
     .selectAll('s')
-    .select('u.name as submitted_by_name');
+    .select(['u.name as submitted_by_name', 'w.name as withdrawn_by_name']);
 }
 type SubmissionRow = Awaited<ReturnType<ReturnType<typeof submissionQuery>['executeTakeFirstOrThrow']>>;
 
@@ -107,7 +124,106 @@ function toView(row: SubmissionRow): SubmissionView {
     mergedAt: ts(row.merged_at),
     mergedBy: row.merged_by_login,
     closedAt: ts(row.closed_at),
+    mergedHeadMatches: row.merged_head_matches === null ? null : Boolean(row.merged_head_matches),
+    withdrawnAt: ts(row.withdrawn_at),
+    withdrawnBy: row.withdrawn_by_name,
+    statusDetail: parseDetail(row.status_detail),
+    lastSyncedAt: ts(row.last_synced_at),
+    lastSyncError: row.last_sync_error,
   };
+}
+
+function parseDetail(text: string | null): SubmissionView['statusDetail'] {
+  if (!text) return null;
+  try {
+    return JSON.parse(text) as SubmissionView['statusDetail'];
+  } catch {
+    return null;
+  }
+}
+
+/** The most recent approved (merged) submission, if any. */
+export async function getApprovedSubmission(diagramId: string): Promise<SubmissionView | null> {
+  const row = await submissionQuery().where('s.diagram_id', '=', diagramId).where('s.state', '=', 'merged').orderBy('s.merged_at', 'desc').executeTakeFirst();
+  return row ? toView(row) : null;
+}
+
+/** Every pull request opened for the diagram, newest first, each with its pushes (newest first). */
+export async function listSubmissionHistory(diagramId: string): Promise<(SubmissionView & { pushes: SubmissionPush[] })[]> {
+  const rows = await submissionQuery().where('s.diagram_id', '=', diagramId).where('s.pr_number', 'is not', null).orderBy('s.first_submitted_at', 'desc').execute();
+  if (rows.length === 0) return [];
+  const pushes = await getDb()
+    .selectFrom('diagram_submission_pushes as p')
+    .leftJoin('users as u', 'u.id', 'p.pushed_by_user_id')
+    .select(['p.submission_id', 'p.version_sequence', 'p.commit_sha', 'p.pushed_at', 'p.warning_count', 'u.name as pushed_by'])
+    .where(
+      'p.submission_id',
+      'in',
+      rows.map((r) => r.id),
+    )
+    .orderBy('p.pushed_at', 'desc')
+    .execute();
+  return rows.map((row) => ({
+    ...toView(row),
+    pushes: pushes
+      .filter((p) => p.submission_id === row.id)
+      .map((p) => ({ versionSequence: p.version_sequence, commitSha: p.commit_sha, pushedBy: p.pushed_by, pushedAt: p.pushed_at as unknown as string, warningCount: p.warning_count })),
+  }));
+}
+
+export interface DiagramSubmissionBadge {
+  state: 'open' | 'merged' | 'closed';
+  prNumber: number | null;
+  prUrl: string | null;
+  reviewState: string;
+  checksState: string;
+  submittedVersionSequence: number | null;
+  changesSinceSubmitting: boolean;
+  withdrawn: boolean;
+}
+
+/** Each submitted diagram's latest submission in a project, for the project page's badges. */
+export async function projectSubmissionBadges(projectId: string): Promise<Record<string, DiagramSubmissionBadge>> {
+  const rows = await getDb()
+    .selectFrom('diagram_submissions as s')
+    .innerJoin('diagrams as d', 'd.id', 's.diagram_id')
+    .innerJoin('diagram_versions as v', 'v.id', 'd.current_version_id')
+    .select([
+      's.diagram_id',
+      's.state',
+      's.pr_number',
+      's.pr_url',
+      's.review_state',
+      's.checks_state',
+      's.submitted_version_sequence',
+      's.submitted_fingerprint',
+      's.withdrawn_at',
+      's.last_submitted_at',
+      'd.name',
+      'd.description',
+      'v.dsl_content',
+    ])
+    .where('d.project_id', '=', projectId)
+    .where('d.deleted_at', 'is', null)
+    .where('s.pr_number', 'is not', null)
+    .orderBy('s.last_submitted_at', 'asc')
+    .execute();
+  const badges: Record<string, DiagramSubmissionBadge> = {};
+  // Ascending, so the latest submission per diagram wins -- except an open one always does.
+  for (const r of rows) {
+    if (badges[r.diagram_id]?.state === 'open') continue;
+    badges[r.diagram_id] = {
+      state: r.state,
+      prNumber: r.pr_number,
+      prUrl: r.pr_url,
+      reviewState: r.review_state,
+      checksState: r.checks_state,
+      submittedVersionSequence: r.submitted_version_sequence,
+      changesSinceSubmitting: r.submitted_fingerprint !== submissionFingerprint(r.dsl_content, r.name, r.description),
+      withdrawn: r.withdrawn_at !== null,
+    };
+  }
+  return badges;
 }
 
 async function getSubmissionView(id: string): Promise<SubmissionView> {
@@ -219,28 +335,57 @@ async function releaseLock(id: string, provisional: boolean): Promise<void> {
   await db.updateTable('diagram_submissions').set({ submitting_since: null }).where('id', '=', id).execute();
 }
 
-/** Records what GitHub says about a pull request Canvas thought was open (merged/closed elsewhere). */
-async function recordPullState(submissionId: string, pull: PullRequestSummary, submittedSha: string | null): Promise<void> {
+/**
+ * Records what GitHub says about a pull request Canvas thought was open. Merged = approved (and
+ * whether GitHub merged exactly what Canvas last pushed); closed unmerged = rejected. Both are
+ * audited; returns the new state.
+ */
+export async function recordPullState(
+  submissionId: string,
+  pull: PullRequestSummary,
+  submittedSha: string | null,
+  extra: { withdrawnBy?: string } = {},
+): Promise<'open' | 'merged' | 'closed'> {
+  const db = getDb();
   if (pull.state === 'open') {
-    await getDb().updateTable('diagram_submissions').set({ head_sha: pull.headSha, last_synced_at: new Date(), last_sync_error: null }).where('id', '=', submissionId).execute();
-    return;
+    await db.updateTable('diagram_submissions').set({ head_sha: pull.headSha, last_synced_at: new Date(), last_sync_error: null }).where('id', '=', submissionId).execute();
+    return 'open';
   }
-  await getDb()
+  const state = pull.merged ? 'merged' : 'closed';
+  const now = new Date();
+  const changed = await db
     .updateTable('diagram_submissions')
     .set({
-      state: pull.merged ? 'merged' : 'closed',
+      state,
       head_sha: pull.headSha,
       merged_at: pull.mergedAt ? new Date(pull.mergedAt) : null,
       merged_by_login: pull.mergedBy,
       merge_commit_sha: pull.merged ? pull.mergeCommitSha : null,
       merged_head_matches: pull.merged ? pull.headSha === submittedSha : null,
-      closed_at: pull.closedAt ? new Date(pull.closedAt) : new Date(),
+      closed_at: pull.closedAt ? new Date(pull.closedAt) : now,
+      ...(extra.withdrawnBy ? { withdrawn_at: now, withdrawn_by_user_id: extra.withdrawnBy } : {}),
       submitting_since: null,
-      last_synced_at: new Date(),
+      last_synced_at: now,
       last_sync_error: null,
     })
     .where('id', '=', submissionId)
-    .execute();
+    .where('state', '=', 'open')
+    .executeTakeFirst();
+  if (Number(changed.numUpdatedRows) > 0) {
+    const row = await db.selectFrom('diagram_submissions').select(['diagram_id', 'repo_owner', 'repo_name', 'submitted_version_sequence']).where('id', '=', submissionId).executeTakeFirstOrThrow();
+    await recordAudit({
+      event: extra.withdrawnBy ? 'diagram_submission_withdrawn' : pull.merged ? 'diagram_submission_merged' : 'diagram_submission_closed',
+      actorUserId: extra.withdrawnBy ?? null,
+      detail: {
+        diagramId: row.diagram_id,
+        repo: `${row.repo_owner}/${row.repo_name}`,
+        pullRequest: pull.number,
+        versionSequence: row.submitted_version_sequence,
+        ...(pull.merged ? { mergedBy: pull.mergedBy, headMatches: pull.headSha === submittedSha } : {}),
+      },
+    });
+  }
+  return state;
 }
 
 export async function submitDiagram(client: GitHubClient, diagramId: string, submitter: Submitter, canvasPublicUrl: string): Promise<SubmitResult> {
