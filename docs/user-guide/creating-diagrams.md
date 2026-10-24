@@ -14,6 +14,10 @@ shapes, connectors and rules apply. Types include:
 - **Others:** Sequence, Entity-Relationship (ERD), UML Class, and Network, Deployment and Cloud
   Infrastructure diagrams.
 
+The list starts with the types for your personas (Business, Enterprise, Solution or Technical), which
+your admin sets. Tick **Show all diagram types** to see the rest; Canvas remembers your choice on
+this browser. If you have no personas, you see every type.
+
 Your admin may hide some types, or add your organisation's own.
 
 ## Import Diagram

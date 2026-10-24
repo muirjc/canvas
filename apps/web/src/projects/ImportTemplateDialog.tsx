@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { templateCompilers } from '@canvas/diagram-core';
+import { useDiagramTypeFilter } from '../app/diagram-type-filter';
 import { api, ApiError, type DiagramDto, type DiagramTypeDto } from '../app/api';
 import { UnsupportedElementNotice } from '../canvas/UnsupportedElementNotice';
 import { Modal } from '../ui/Modal';
@@ -8,6 +9,7 @@ import { TEMPLATE_DOCS } from './template-docs';
 export interface ImportTemplateDialogProps {
   projectId: string;
   persona?: string;
+  userPersonas?: string[];
   onImported: (diagram: DiagramDto) => void;
   onCancel: () => void;
 }
@@ -15,9 +17,12 @@ export interface ImportTemplateDialogProps {
 /** Paste/upload a Markdown template to compile it into a new diagram (mirrors ImportDialog's
  *  raw-DSL import, but the source is a template document and the diagram type must be one with a
  *  registered template compiler — see `@canvas/diagram-core`'s `templateCompilers`). */
-export function ImportTemplateDialog({ projectId, persona, onImported, onCancel }: ImportTemplateDialogProps) {
+export function ImportTemplateDialog({ projectId, persona, userPersonas, onImported, onCancel }: ImportTemplateDialogProps) {
   const [types, setTypes] = useState<DiagramTypeDto[]>([]);
-  const [selected, setSelected] = useState<string | null>(null);
+  const [chosen, setSelected] = useState<string | null>(null);
+  const filter = useDiagramTypeFilter(types, userPersonas);
+  // A choice hidden by the persona filter (e.g. "Show all" unticked after choosing) counts as none.
+  const selected = chosen && filter.visible.some((t) => t.id === chosen) ? chosen : null;
   const [name, setName] = useState('Imported Diagram');
   const [templateContent, setTemplateContent] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -81,8 +86,9 @@ export function ImportTemplateDialog({ projectId, persona, onImported, onCancel 
           onChange={(e) => setName(e.target.value)}
         />
       </div>
+      {filter.control}
       <ul className="choice-list">
-        {types.map((type) => (
+        {filter.visible.map((type) => (
           <li key={type.id}>
             <label>
               <input

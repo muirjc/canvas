@@ -14,7 +14,10 @@ Each person has a **role**:
 Change the role in the person's row.
 
 People also have **personas** (Business, Enterprise, Solution, Technical), which decide which diagram
-types they're offered. The Users page doesn't edit them yet.
+types they're offered first. Choose them when you add someone, or click **Edit** next to a person's
+personas on the Users page. They work the same with Entra sign-in, where only the role comes from
+Entra. Someone with no personas sees every diagram type. A change applies the next time they load
+Canvas.
 
 With Entra sign-in, the role comes from the person's app role in Entra each time they sign in.
 Change it there.

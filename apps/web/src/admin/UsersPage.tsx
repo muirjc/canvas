@@ -4,12 +4,14 @@ import { Icon } from '../ui/Icon';
 import { Modal } from '../ui/Modal';
 
 const ROLES = ['admin', 'architect', 'viewer'] as const;
+const PERSONAS = ['Business', 'Enterprise', 'Solution', 'Technical'] as const;
 
 type Dialog =
   | { kind: 'add' }
   | { kind: 'reset'; user: UserRecordDto }
   | { kind: 'reset-mfa'; user: UserRecordDto }
   | { kind: 'delete'; user: UserRecordDto }
+  | { kind: 'personas'; user: UserRecordDto }
   // The one-time password lives only in this state, only while the panel is open (canvas-ez1.2).
   | { kind: 'password'; name: string; password: string };
 
@@ -66,6 +68,7 @@ export function UsersPage() {
             <th>Name</th>
             <th>Email</th>
             <th>Role</th>
+            <th>Personas</th>
             <th>Active</th>
             {localAuthEnabled && <th>Two-step</th>}
             {localAuthEnabled && (
@@ -93,6 +96,18 @@ export function UsersPage() {
                 )}
               </td>
               <td>{user.email}</td>
+              <td>
+                <span data-testid={`user-personas-${user.id}`}>{user.personas.length ? user.personas.join(', ') : 'None'}</span>{' '}
+                <button
+                  type="button"
+                  className="btn btn--secondary btn--compact"
+                  data-testid={`edit-personas-${user.id}`}
+                  aria-label={`Edit personas for ${user.name}`}
+                  onClick={() => setDialog({ kind: 'personas', user })}
+                >
+                  Edit
+                </button>
+              </td>
               <td>
                 <select
                   data-testid={`user-role-${user.id}`}
@@ -214,6 +229,16 @@ export function UsersPage() {
           }}
         />
       )}
+      {dialog?.kind === 'personas' && (
+        <EditPersonasDialog
+          user={dialog.user}
+          onClose={() => setDialog(null)}
+          onSaved={() => {
+            setDialog(null);
+            refresh();
+          }}
+        />
+      )}
       {dialog?.kind === 'delete' && (
         <DeleteUserDialog
           user={dialog.user}
@@ -238,6 +263,7 @@ function AddUserDialog({ onClose, onCreated }: { onClose: () => void; onCreated:
   const [email, setEmail] = useState('');
   const [name, setName] = useState('');
   const [role, setRole] = useState<(typeof ROLES)[number]>('viewer');
+  const [personas, setPersonas] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
@@ -246,7 +272,7 @@ function AddUserDialog({ onClose, onCreated }: { onClose: () => void; onCreated:
     setError(null);
     setSubmitting(true);
     try {
-      const { user, temporaryPassword } = await api.createUser({ email: email.trim(), name: name.trim(), role });
+      const { user, temporaryPassword } = await api.createUser({ email: email.trim(), name: name.trim(), role, personas });
       onCreated(user, temporaryPassword);
     } catch (err) {
       setError((err as Error).message);
@@ -295,6 +321,7 @@ function AddUserDialog({ onClose, onCreated }: { onClose: () => void; onCreated:
             ))}
           </select>
         </div>
+        <PersonaCheckboxes value={personas} onChange={setPersonas} idPrefix="add-user-persona" />
         {error && (
           <p role="alert" className="field__error" data-testid="add-user-error">
             {error}
@@ -560,6 +587,70 @@ function DeleteUserDialog({
           </p>
         )}
       </div>
+    </Modal>
+  );
+}
+
+function PersonaCheckboxes({ value, onChange, idPrefix }: { value: string[]; onChange: (next: string[]) => void; idPrefix: string }) {
+  return (
+    <fieldset className="field">
+      <legend className="field__label">Personas</legend>
+      {PERSONAS.map((name) => (
+        <label key={name} className="cluster" htmlFor={`${idPrefix}-${name}`}>
+          <input
+            id={`${idPrefix}-${name}`}
+            data-testid={`${idPrefix}-${name}`}
+            type="checkbox"
+            checked={value.includes(name)}
+            onChange={(e) => onChange(e.target.checked ? [...value, name] : value.filter((p) => p !== name))}
+          />
+          {name}
+        </label>
+      ))}
+      <span className="meta">Personas decide which diagram types someone sees first when they create a diagram. A change applies the next time they load Canvas.</span>
+    </fieldset>
+  );
+}
+
+function EditPersonasDialog({ user, onClose, onSaved }: { user: UserRecordDto; onClose: () => void; onSaved: () => void }) {
+  const [personas, setPersonas] = useState<string[]>(user.personas);
+  const [error, setError] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+
+  const save = async () => {
+    setError(null);
+    setSubmitting(true);
+    try {
+      await api.updateAdminUser(user.id, { personas });
+      onSaved();
+    } catch (err) {
+      setError((err as Error).message);
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <Modal
+      label={`Personas for ${user.name}`}
+      testId="edit-personas-dialog"
+      onClose={onClose}
+      footer={
+        <>
+          <button type="button" className="btn btn--secondary" onClick={onClose}>
+            Cancel
+          </button>
+          <button type="button" className="btn btn--primary" data-testid="save-personas" disabled={submitting} onClick={save}>
+            Save
+          </button>
+        </>
+      }
+    >
+      <PersonaCheckboxes value={personas} onChange={setPersonas} idPrefix="persona" />
+      {error && (
+        <p role="alert" className="field__error">
+          {error}
+        </p>
+      )}
     </Modal>
   );
 }
