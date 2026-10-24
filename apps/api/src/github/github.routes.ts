@@ -22,7 +22,10 @@ import {
 } from './github-link.service.js';
 import {
   checkSubmittable,
+  getApprovedSubmission,
   getLatestSubmission,
+  listSubmissionHistory,
+  projectSubmissionBadges,
   submitDiagram,
   SubmissionBlockedError,
   SubmissionConflictError,
@@ -31,6 +34,7 @@ import {
   SubmissionNotLinkedError,
 } from './submission.service.js';
 import { submissionFingerprint } from './submission-files.js';
+import { refreshDiagramSubmission, SubmissionNotOpenError, withdrawSubmission } from './status-sync.service.js';
 
 /**
  * canvas-3s5.1: GitHub approval. Admins link projects to repositories; anyone with edit access to
@@ -46,6 +50,7 @@ function handleError(error: unknown, reply: FastifyReply, request: FastifyReques
   if (error instanceof SubmissionBlockedError) return reply.code(422).send({ error: error.message, code: 'must_fix', violations: error.violations });
   if (error instanceof SubmissionInProgressError) return reply.code(409).send({ error: error.message, code: 'in_progress' });
   if (error instanceof SubmissionLinkChangedError) return reply.code(409).send({ error: error.message, code: 'link_changed' });
+  if (error instanceof SubmissionNotOpenError) return reply.code(409).send({ error: error.message, code: 'not_open' });
   if (error instanceof SubmissionConflictError) return reply.code(409).send({ error: error.message, code: 'conflict' });
   if (error instanceof GitHubRateLimitError) return reply.code(503).send({ error: error.message, code: 'github_rate_limited' });
   if (error instanceof GitHubAccessError) return reply.code(502).send({ error: error.message, code: 'github_access' });
@@ -180,35 +185,96 @@ export async function registerGitHubRoutes(app: FastifyInstance, config: AppConf
     },
   );
 
+  /** What the editor shows: where submitting goes, the latest pull request, the approved version. */
+  async function submissionStatus(diagramId: string, userId: string) {
+    const diagram = await getDiagram(diagramId);
+    const link = client ? await getLinkForProject(diagram.projectId) : null;
+    const latest = await getLatestSubmission(diagram.id);
+    const approved = await getApprovedSubmission(diagram.id);
+    const level = await resolveDiagramAccess(userId, diagram.id);
+    const { blocking, warnings } = await checkSubmittable(diagram.diagramTypeId, diagram.dslFamily, diagram.dslContent);
+    const fingerprint = submissionFingerprint(diagram.dslContent, diagram.name, diagram.description);
+
+    let reason: string | null = null;
+    if (!client) reason = 'github_disabled';
+    else if (!link) reason = 'not_linked';
+    else if (!accessAtLeast(level, 'edit')) reason = 'no_edit_access';
+    else if (blocking.length > 0) reason = 'must_fix';
+
+    const { fingerprint: submittedFingerprint, ...current } = latest ?? { fingerprint: null };
+    return {
+      enabled: Boolean(client),
+      link: link ? { repoFullName: link.repoFullName, folder: link.folder, baseBranch: link.baseBranch } : null,
+      current: latest ? current : null,
+      approved,
+      changesSinceSubmitting: latest ? submittedFingerprint !== fingerprint : false,
+      canSubmit: { allowed: reason === null, reason, mustFixCount: blocking.length, warningCount: warnings.length },
+      canWithdraw: Boolean(client) && latest?.state === 'open' && accessAtLeast(level, 'edit'),
+    };
+  }
+
   app.get<{ Params: { id: string } }>(
     '/diagrams/:id/submission',
     { preHandler: requireDiagramAccess('view'), schema: schema({ params: projectParams }) },
     async (request, reply) => {
       try {
-        const diagram = await getDiagram(request.params.id);
-        const link = client ? await getLinkForProject(diagram.projectId) : null;
-        const latest = await getLatestSubmission(diagram.id);
-        const level = await resolveDiagramAccess(request.session.user!.id, diagram.id);
-        const { blocking, warnings } = await checkSubmittable(diagram.diagramTypeId, diagram.dslFamily, diagram.dslContent);
-        const fingerprint = submissionFingerprint(diagram.dslContent, diagram.name, diagram.description);
-
-        let reason: string | null = null;
-        if (!client) reason = 'github_disabled';
-        else if (!link) reason = 'not_linked';
-        else if (!accessAtLeast(level, 'edit')) reason = 'no_edit_access';
-        else if (blocking.length > 0) reason = 'must_fix';
-
-        const { fingerprint: submittedFingerprint, ...current } = latest ?? { fingerprint: null };
-        return reply.send({
-          enabled: Boolean(client),
-          link: link ? { repoFullName: link.repoFullName, folder: link.folder, baseBranch: link.baseBranch } : null,
-          current: latest ? current : null,
-          changesSinceSubmitting: latest ? submittedFingerprint !== fingerprint : false,
-          canSubmit: { allowed: reason === null, reason, mustFixCount: blocking.length, warningCount: warnings.length },
-        });
+        return reply.send(await submissionStatus(request.params.id, request.session.user!.id));
       } catch (error) {
         return handleError(error, reply, request);
       }
+    },
+  );
+
+  // canvas-3s5.2: ask GitHub now (throttled per pull request), then answer like GET.
+  app.post<{ Params: { id: string } }>(
+    '/diagrams/:id/submission/refresh',
+    { preHandler: requireDiagramAccess('view'), schema: schema({ params: projectParams }) },
+    async (request, reply) => {
+      try {
+        await getDiagram(request.params.id);
+        if (client) await refreshDiagramSubmission(client, request.params.id);
+        return reply.send(await submissionStatus(request.params.id, request.session.user!.id));
+      } catch (error) {
+        return handleError(error, reply, request);
+      }
+    },
+  );
+
+  app.post<{ Params: { id: string } }>(
+    '/diagrams/:id/submission/withdraw',
+    { preHandler: requireDiagramAccess('edit'), schema: schema({ params: projectParams, description: "Closes the diagram's open pull request." }) },
+    async (request, reply) => {
+      try {
+        await getDiagram(request.params.id);
+        const user = request.session.user!;
+        await withdrawSubmission(requireClient(), request.params.id, { id: user.id, name: user.name });
+        return reply.send(await submissionStatus(request.params.id, user.id));
+      } catch (error) {
+        return handleError(error, reply, request);
+      }
+    },
+  );
+
+  app.get<{ Params: { id: string } }>(
+    '/diagrams/:id/submissions',
+    { preHandler: requireDiagramAccess('view'), schema: schema({ params: projectParams }) },
+    async (request, reply) => {
+      try {
+        await getDiagram(request.params.id);
+        return reply.send({ submissions: await listSubmissionHistory(request.params.id) });
+      } catch (error) {
+        return handleError(error, reply, request);
+      }
+    },
+  );
+
+  // Badges on a project's diagram list.
+  app.get<{ Params: { id: string } }>(
+    '/projects/:id/submission-statuses',
+    { preHandler: [requireAuth, requireProjectAccess('view', 'id')], schema: schema({ params: projectParams }) },
+    async (request, reply) => {
+      if (!(await projectExists(request.params.id))) return reply.code(404).send({ error: 'Project not found' });
+      return reply.send({ statuses: await projectSubmissionBadges(request.params.id) });
     },
   );
 }

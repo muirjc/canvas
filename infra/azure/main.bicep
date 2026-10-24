@@ -216,6 +216,22 @@ module catalogSeedJob 'modules/catalogseedjob.bicep' = {
   }
 }
 
+// canvas-3s5.2: only when a GitHub App is configured.
+module githubSyncJob 'modules/githubsyncjob.bicep' = if (githubAppId != 'unset') {
+  name: 'githubSyncJobDeploy'
+  scope: rg
+  params: {
+    location: location
+    environmentId: containerAppsEnv.outputs.environmentId
+    identityId: keyVault.outputs.identityId
+    acrLoginServer: acr.outputs.loginServer
+    apiImageTag: apiImageTag
+    keyVaultUri: keyVault.outputs.keyVaultUri
+    githubAppId: githubAppId
+    githubApiUrl: githubApiUrl
+  }
+}
+
 output resourceGroupName string = rg.name
 output acrName string = acr.outputs.acrName
 output acrLoginServer string = acr.outputs.loginServer
@@ -235,3 +251,4 @@ output migrationJobName string = migrationJob.outputs.jobName
 output seedJobName string = authMode == 'local' ? '' : seedJob!.outputs.jobName
 output bootstrapAdminJobName string = authMode == 'local' ? bootstrapAdminJob!.outputs.jobName : ''
 output catalogSeedJobName string = catalogSeedJob.outputs.jobName
+output githubSyncJobName string = githubAppId != 'unset' ? githubSyncJob!.outputs.jobName : ''

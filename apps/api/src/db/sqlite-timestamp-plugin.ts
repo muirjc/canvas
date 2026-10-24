@@ -40,6 +40,7 @@ const TIMESTAMP_COLUMN_NAMES = new Set([
   'last_synced_at',
   'merged_at',
   'closed_at',
+  'withdrawn_at',
   'pushed_at',
   // sharing.service.ts selects 'sg.created_at as shared_at'.
   'shared_at',

@@ -50,6 +50,19 @@ export interface PullRequestSummary {
   mergedBy: string | null;
   mergeCommitSha: string | null;
   closedAt: string | null;
+  /** Logins (and team slugs) still asked to review. */
+  requestedReviewers: string[];
+}
+export interface ReviewSummary {
+  login: string;
+  state: 'APPROVED' | 'CHANGES_REQUESTED' | 'COMMENTED' | 'DISMISSED' | 'PENDING';
+  submittedAt: string | null;
+}
+export interface CheckSummary {
+  name: string;
+  /** success | failure | pending | neutral | skipped */
+  state: string;
+  url: string | null;
 }
 export interface TreeEntry {
   path: string;
@@ -91,6 +104,8 @@ interface RawPull {
   merge_commit_sha: string | null;
   closed_at: string | null;
   head: { sha: string };
+  requested_reviewers?: { login: string }[];
+  requested_teams?: { slug: string }[];
 }
 const toPull = (p: RawPull): PullRequestSummary => ({
   number: p.number,
@@ -102,7 +117,16 @@ const toPull = (p: RawPull): PullRequestSummary => ({
   mergedBy: p.merged_by?.login ?? null,
   mergeCommitSha: p.merge_commit_sha,
   closedAt: p.closed_at,
+  requestedReviewers: [...(p.requested_reviewers ?? []).map((r) => r.login), ...(p.requested_teams ?? []).map((t) => `team:${t.slug}`)],
 });
+
+const FAILED_CONCLUSIONS = new Set(['failure', 'timed_out', 'cancelled', 'action_required', 'startup_failure', 'stale']);
+function checkRunState(run: { status: string; conclusion: string | null }): string {
+  if (run.status !== 'completed') return 'pending';
+  if (run.conclusion && FAILED_CONCLUSIONS.has(run.conclusion)) return 'failure';
+  if (run.conclusion === 'success') return 'success';
+  return run.conclusion ?? 'neutral';
+}
 
 export class GitHubClient {
   private readonly tokens = new Map<string, { token: string; expiresAt: number }>();
@@ -188,6 +212,12 @@ export class GitHubClient {
 
   private asApp<T>(method: string, path: string, body?: unknown): Promise<T> {
     return this.request<T>(method, path, `Bearer ${this.appJwt()}`, body);
+  }
+
+  /** Drops cached installation tokens, so the next call picks up permission changes at once
+   *  (a token keeps the permissions it was issued with for its whole hour). */
+  forgetTokens(): void {
+    this.tokens.clear();
   }
 
   /** A token for one installation, optionally narrowed to some repositories and permissions. */
@@ -316,5 +346,42 @@ export class GitHubClient {
 
   async getPullRequest(token: string, repo: { owner: string; name: string }, number: number): Promise<PullRequestSummary> {
     return toPull(await this.asInstallation<RawPull>(token, 'GET', `${this.repoPath(repo)}/pulls/${number}`));
+  }
+
+  /** Every review on a pull request, oldest first. */
+  async listReviews(token: string, repo: { owner: string; name: string }, number: number): Promise<ReviewSummary[]> {
+    const reviews: ReviewSummary[] = [];
+    for (let page = 1; page <= 5; page++) {
+      const raw = await this.asInstallation<{ user: { login: string } | null; state: ReviewSummary['state']; submitted_at?: string | null }[]>(
+        token,
+        'GET',
+        `${this.repoPath(repo)}/pulls/${number}/reviews?per_page=100&page=${page}`,
+      );
+      reviews.push(...raw.map((r) => ({ login: r.user?.login ?? 'ghost', state: r.state, submittedAt: r.submitted_at ?? null })));
+      if (raw.length < 100) break;
+    }
+    return reviews;
+  }
+
+  /** Check runs (GitHub Actions, apps) and commit statuses (older CI integrations) on a commit. */
+  async listChecks(token: string, repo: { owner: string; name: string }, sha: string): Promise<CheckSummary[]> {
+    const runs = await this.asInstallation<{ check_runs: { name: string; status: string; conclusion: string | null; html_url: string | null }[] }>(
+      token,
+      'GET',
+      `${this.repoPath(repo)}/commits/${sha}/check-runs?per_page=100`,
+    );
+    const status = await this.asInstallation<{ statuses: { context: string; state: string; target_url: string | null }[] }>(
+      token,
+      'GET',
+      `${this.repoPath(repo)}/commits/${sha}/status`,
+    );
+    return [
+      ...runs.check_runs.map((r) => ({ name: r.name, state: checkRunState(r), url: r.html_url })),
+      ...status.statuses.map((st) => ({ name: st.context, state: st.state === 'error' ? 'failure' : st.state, url: st.target_url })),
+    ];
+  }
+
+  async addPullRequestComment(token: string, repo: { owner: string; name: string }, number: number, body: string): Promise<void> {
+    await this.asInstallation(token, 'POST', `${this.repoPath(repo)}/issues/${number}/comments`, { body });
   }
 }

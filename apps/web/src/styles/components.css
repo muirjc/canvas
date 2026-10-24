@@ -478,3 +478,16 @@
 .submission-chip--changed { background: var(--warning-surface); color: #3d2400; }
 .submission-chip--approved { color: var(--success); }
 .submission-chip--rejected { color: var(--danger); }
+.submission-chip--withdrawn { text-decoration: line-through; }
+.submission-chip--in-review { color: var(--text-primary); }
+.approval__facts { display: grid; grid-template-columns: auto 1fr; gap: var(--space-1) var(--space-3); margin: 0; }
+.approval__facts dd { margin: 0; overflow-wrap: anywhere; }
+.approval__checks { list-style: none; padding: 0; margin: 0; }
+.approval-state { display: inline-flex; vertical-align: middle; }
+.approval-state--ok { color: var(--success); }
+.approval-state--bad { color: var(--danger); }
+.approval-state--wait { color: var(--text-secondary); }
+.diagram-badge { margin-left: var(--space-2); }
+.diagram-badge--approved { color: var(--success); }
+.diagram-badge--rejected { color: var(--danger); }
+.diagram-badge--changed { background: var(--warning-surface); color: #3d2400; }

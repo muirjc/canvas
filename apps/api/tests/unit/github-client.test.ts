@@ -214,6 +214,7 @@ describe('GitHubClient requests and errors', () => {
       mergedBy: 'rev',
       mergeCommitSha: 'mc',
       closedAt: raw.closed_at,
+      requestedReviewers: [],
     });
   });
 
@@ -270,5 +271,89 @@ describe('GitHubClient requests and errors', () => {
     expect(repos).toHaveLength(102);
     expect(calls.filter((c) => c.url.includes('/installation/repositories'))).toHaveLength(2);
     expect(repos[0]).toEqual({ id: 1, owner: 'o', name: 'r1', fullName: 'o/r1', defaultBranch: 'main', private: true });
+  });
+});
+
+describe('GitHubClient sync calls (canvas-3s5.2)', () => {
+  const repo = { owner: 'acme', name: 'arch' };
+  const run = (name: string, status: string, conclusion: string | null) => ({ name, status, conclusion, html_url: `https://ci/${name}` });
+
+  async function checksFor(runs: ReturnType<typeof run>[], statuses: { context: string; state: string; target_url: string | null }[] = []) {
+    const { client, calls } = harness((call) => (call.url.includes('/check-runs') ? json(200, { check_runs: runs }) : json(200, { statuses })));
+    return { checks: await client.listChecks('t', repo, 'abc123'), calls };
+  }
+
+  it('listChecks asks for check runs and the combined status of the commit, and merges them', async () => {
+    const { checks, calls } = await checksFor([run('build', 'completed', 'success')], [{ context: 'legacy', state: 'success', target_url: null }]);
+    expect(calls.map((c) => c.url)).toEqual([
+      'https://github.test/repos/acme/arch/commits/abc123/check-runs?per_page=100',
+      'https://github.test/repos/acme/arch/commits/abc123/status',
+    ]);
+    expect(checks).toEqual([
+      { name: 'build', state: 'success', url: 'https://ci/build' },
+      { name: 'legacy', state: 'success', url: null },
+    ]);
+  });
+
+  it('check run conclusions: failures, running, and the not-failures', async () => {
+    const { checks } = await checksFor([
+      run('a', 'completed', 'failure'),
+      run('b', 'completed', 'timed_out'),
+      run('c', 'completed', 'cancelled'),
+      run('d', 'completed', 'action_required'),
+      run('e', 'in_progress', null),
+      run('f', 'queued', null),
+      run('g', 'completed', 'skipped'),
+      run('h', 'completed', 'neutral'),
+      run('i', 'completed', 'success'),
+    ]);
+    expect(Object.fromEntries(checks.map((c) => [c.name, c.state]))).toEqual({
+      a: 'failure', b: 'failure', c: 'failure', d: 'failure', e: 'pending', f: 'pending', g: 'skipped', h: 'neutral', i: 'success',
+    });
+  });
+
+  it('a commit status in error is a failure; pending and failure keep their meaning', async () => {
+    const { checks } = await checksFor([], [
+      { context: 'x', state: 'error', target_url: 'https://ci/x' },
+      { context: 'y', state: 'failure', target_url: null },
+      { context: 'z', state: 'pending', target_url: null },
+    ]);
+    expect(checks.map((c) => [c.name, c.state])).toEqual([['x', 'failure'], ['y', 'failure'], ['z', 'pending']]);
+  });
+
+  it('listChecks surfaces a 403 as a GitHubApiError carrying the status (the sync treats it as "unavailable")', async () => {
+    const { client } = harness(() => json(403, { message: 'Resource not accessible by integration' }));
+    const error = await client.listChecks('t', repo, 'abc').catch((e) => e);
+    expect(error).toBeInstanceOf(GitHubApiError);
+    expect(error.status).toBe(403);
+  });
+
+  it('getPullRequest reads requested reviewers and teams', async () => {
+    const raw = {
+      number: 4, html_url: 'u', state: 'open', merged_at: null, merge_commit_sha: null, closed_at: null, head: { sha: 's' },
+      requested_reviewers: [{ login: 'ann' }], requested_teams: [{ slug: 'arch' }],
+    };
+    const { client } = harness(() => json(200, raw));
+    expect((await client.getPullRequest('t', repo, 4)).requestedReviewers).toEqual(['ann', 'team:arch']);
+  });
+
+  it('listReviews pages by 100, maps a deleted user to ghost, and stops on a short page', async () => {
+    const page = (n: number) => Array.from({ length: n }, (_, i) => ({ user: i === 0 ? null : { login: `u${i}` }, state: 'COMMENTED', submitted_at: '2026-01-01T00:00:00Z' }));
+    const { client, calls } = harness((call) => json(200, new URL(call.url).searchParams.get('page') === '1' ? page(100) : page(3)));
+    const reviews = await client.listReviews('t', repo, 7);
+    expect(reviews).toHaveLength(103);
+    expect(reviews[0].login).toBe('ghost');
+    expect(calls.map((c) => c.url)).toEqual([
+      'https://github.test/repos/acme/arch/pulls/7/reviews?per_page=100&page=1',
+      'https://github.test/repos/acme/arch/pulls/7/reviews?per_page=100&page=2',
+    ]);
+  });
+
+  it('addPullRequestComment posts to the issues endpoint; closing patches state closed', async () => {
+    const { client, calls } = harness(() => json(200, { number: 7, html_url: 'u', state: 'closed', merged_at: null, merge_commit_sha: null, closed_at: 'x', head: { sha: 's' } }));
+    await client.addPullRequestComment('t', repo, 7, 'hello');
+    await client.updatePullRequest('t', repo, 7, { state: 'closed' });
+    expect(calls[0]).toMatchObject({ method: 'POST', url: 'https://github.test/repos/acme/arch/issues/7/comments', body: { body: 'hello' } });
+    expect(calls[1]).toMatchObject({ method: 'PATCH', url: 'https://github.test/repos/acme/arch/pulls/7', body: { state: 'closed' } });
   });
 });

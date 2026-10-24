@@ -152,6 +152,7 @@ export function GitHubAdminPage() {
                   <th scope="col">Repository</th>
                   <th scope="col">Branch</th>
                   <th scope="col">Folder</th>
+                  <th scope="col">Open PRs</th>
                   <th scope="col">Last checked</th>
                   <th scope="col">Actions</th>
                 </tr>
@@ -165,6 +166,7 @@ export function GitHubAdminPage() {
                       <td>{link.repoFullName}</td>
                       <td className="mono">{link.baseBranch}</td>
                       <td className="mono">{link.folder}</td>
+                      <td data-testid={`github-link-open-prs-${link.projectId}`}>{link.openSubmissionCount ?? 0}</td>
                       <td>
                         {link.lastCheckError ? (
                           <span className="field__error" data-testid={`github-link-problem-${link.projectId}`}>
@@ -277,6 +279,13 @@ export function GitHubAdminPage() {
             Remove the link between <strong>{removing.projectName}</strong> and {removing.repoFullName}? Diagrams in this project can no
             longer be submitted. Pull requests already opened are not affected.
           </p>
+          {(removing.openSubmissionCount ?? 0) > 0 && (
+            <p data-testid="github-remove-open-prs">
+              {removing.openSubmissionCount} open pull request{removing.openSubmissionCount === 1 ? '' : 's'} stay
+              {removing.openSubmissionCount === 1 ? 's' : ''} open on GitHub, and Canvas keeps tracking{' '}
+              {removing.openSubmissionCount === 1 ? 'it' : 'them'}.
+            </p>
+          )}
           {removeError && (
             <p role="alert" className="field__error" data-testid="github-remove-error">
               {removeError}

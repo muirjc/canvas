@@ -1,4 +1,4 @@
-import type { SubmissionStatusDto } from './api';
+import type { SubmissionBadgeDto, SubmissionStatusDto } from './api';
 
 /** What the doc bar shows for a diagram's approval state (canvas-3s5.1; Phase 2 enriches it). */
 export type SubmissionChip =
@@ -6,11 +6,24 @@ export type SubmissionChip =
   | { kind: 'in-review'; label: string; prNumber: number; prUrl: string }
   | { kind: 'changed'; label: string; prNumber: number; prUrl: string }
   | { kind: 'approved'; label: string; prUrl: string }
-  | { kind: 'rejected'; label: string; prUrl: string };
+  | { kind: 'rejected'; label: string; prUrl: string }
+  | { kind: 'withdrawn'; label: string; prUrl: string };
+
+/** Compact review/check phrases for an open pull request ("changes requested", "checks failing"). */
+export function reviewChecksPhrases(reviewState: string | null | undefined, checksState: string | null | undefined): string[] {
+  const parts: string[] = [];
+  if (reviewState === 'changes_requested') parts.push('changes requested');
+  else if (reviewState === 'approved') parts.push('approved, not merged');
+  if (checksState === 'failure') parts.push('checks failing');
+  else if (checksState === 'pending') parts.push('checks running');
+  else if (checksState === 'success' && reviewState !== 'approved') parts.push('checks passing');
+  return parts;
+}
 
 export function deriveChip(status: SubmissionStatusDto): SubmissionChip {
   const current = status.current;
   if (!current) return { kind: 'not-submitted', label: 'Not submitted' };
+  if (current.withdrawnAt) return { kind: 'withdrawn', label: 'Withdrawn', prUrl: current.prUrl };
   if (current.state === 'merged') {
     return { kind: 'approved', label: `Approved (version ${current.submittedVersionSequence})`, prUrl: current.prUrl };
   }
@@ -18,7 +31,39 @@ export function deriveChip(status: SubmissionStatusDto): SubmissionChip {
   if (status.changesSinceSubmitting) {
     return { kind: 'changed', label: 'Changes since submitting', prNumber: current.prNumber, prUrl: current.prUrl };
   }
-  return { kind: 'in-review', label: `In review · PR #${current.prNumber}`, prNumber: current.prNumber, prUrl: current.prUrl };
+  const label = ['In review', `PR #${current.prNumber}`, ...reviewChecksPhrases(current.reviewState, current.checksState)].join(' · ');
+  return { kind: 'in-review', label, prNumber: current.prNumber, prUrl: current.prUrl };
+}
+
+/** The project page's per-diagram badge, from GET /projects/:id/submission-statuses. */
+export function deriveBadge(b: SubmissionBadgeDto): { kind: SubmissionChip['kind']; label: string } {
+  if (b.withdrawn) return { kind: 'withdrawn', label: 'Withdrawn' };
+  if (b.state === 'merged') return { kind: 'approved', label: `Approved v${b.submittedVersionSequence ?? '?'}` };
+  if (b.state === 'closed') return { kind: 'rejected', label: 'Rejected' };
+  if (b.changesSinceSubmitting) return { kind: 'changed', label: 'Changes since submitting' };
+  return { kind: 'in-review', label: 'In review' };
+}
+
+/** Polling runs only while a pull request is open (and the tab is visible; checked by the hook). */
+export function shouldPoll(status: SubmissionStatusDto | null): boolean {
+  return Boolean(status && status.enabled && status.link && status.current?.state === 'open' && !status.current.withdrawnAt);
+}
+
+/** The Approval tab shows only when GitHub is on and the project is linked or the diagram has history. */
+export function isApprovalTabVisible(status: SubmissionStatusDto | null, hasHistory = false): boolean {
+  return Boolean(status && status.enabled && (status.link || status.current || status.approved || hasHistory));
+}
+
+export function relativeTime(iso: string | null | undefined, now: number = Date.now()): string {
+  if (!iso) return 'never';
+  const seconds = Math.max(0, Math.round((now - new Date(iso).getTime()) / 1000));
+  if (seconds < 60) return 'just now';
+  const minutes = Math.floor(seconds / 60);
+  if (minutes < 60) return `${minutes} min ago`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours} h ago`;
+  const days = Math.floor(hours / 24);
+  return `${days} day${days === 1 ? '' : 's'} ago`;
 }
 
 /** The button is hidden unless GitHub is on and the diagram's project is linked. */

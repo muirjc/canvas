@@ -26,7 +26,10 @@ export type AuditEvent =
   // canvas-3s5.1: GitHub approval
   | 'github_link_set'
   | 'github_link_removed'
-  | 'diagram_submitted';
+  | 'diagram_submitted'
+  | 'diagram_submission_merged'
+  | 'diagram_submission_closed'
+  | 'diagram_submission_withdrawn';
 
 export interface AuditEntry {
   event: AuditEvent;

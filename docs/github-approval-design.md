@@ -40,7 +40,7 @@ Slug from the name at first submission (kebab, ≤60, `-<id8>` on collision); re
 - `diagram_submission_pushes`: push history.
 
 ### Server (`apps/api/src/github/`)
-- `github-config.ts` (+ `config.ts`): `GITHUB_APP_ID`, `GITHUB_APP_PRIVATE_KEY` (PEM or base64; `'unset'` = disabled), `GITHUB_API_URL` (default api.github.com), `CANVAS_PUBLIC_URL` (deep links; default first WEB_ORIGINS).
+- `github-config.ts` (+ `config.ts`): `GITHUB_APP_ID`, `GITHUB_APP_PRIVATE_KEY` (PEM or base64; `'unset'` = disabled), `GITHUB_APP_API_URL` (default api.github.com), `CANVAS_PUBLIC_URL` (deep links; default first WEB_ORIGINS).
 - `github-app-auth.ts`: App JWT via `node:crypto` (RS256), installation-token cache, tokens scoped to the one repo + minimal permissions. **No octokit** — plain `fetch` client.
 - `github-client.ts`: typed errors (API, rate-limit, access-lost), 15s timeout, one GET retry, never log tokens; Git Data API (blobs/trees/commits/refs) + Pulls/Reviews/Check-runs/Status.
 - `folder-path.ts`: strict folder/slug validation (no `..`, `.git*`, `.github`, `.canvas`, control chars); every generated path re-validated.

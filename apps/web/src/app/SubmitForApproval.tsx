@@ -1,6 +1,7 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useState } from 'react';
 import type { Violation } from '@canvas/diagram-core';
-import { api, ApiError, type SubmissionStatusDto, type SubmitResultDto } from './api';
+import { api, ApiError, type SubmitResultDto } from './api';
+import type { UseSubmission } from './useSubmission';
 import { deriveChip, deriveSubmitButton, isSubmitVisible } from './submission-state';
 import { Icon } from '../ui/Icon';
 import { Modal } from '../ui/Modal';
@@ -8,35 +9,22 @@ import { Modal } from '../ui/Modal';
 export interface SubmitForApprovalProps {
   diagramId: string;
   hasUnsavedChanges: boolean;
-  /** Changes after each save, so "changes since submitting" is re-read from the server. */
-  refreshToken: number;
+  /** Shared with the Approval tab (see useSubmission), which also owns polling. */
+  submission: UseSubmission;
 }
 
 /**
  * canvas-3s5.1: the doc bar's "Submit for approval" button and status chip. Renders nothing at
  * all unless GitHub is enabled and the diagram's project is linked, so non-GitHub users see no
- * change. Phase 2 adds polling; for now status is fetched on load, after a save and after submit.
+ * change. Phase 2: status and polling live in useSubmission.
  */
-export function SubmitForApproval({ diagramId, hasUnsavedChanges, refreshToken }: SubmitForApprovalProps) {
-  const [status, setStatus] = useState<SubmissionStatusDto | null>(null);
+export function SubmitForApproval({ diagramId, hasUnsavedChanges, submission }: SubmitForApprovalProps) {
+  const { status, reload: refresh } = submission;
   const [confirming, setConfirming] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [mustFix, setMustFix] = useState<Violation[]>([]);
   const [result, setResult] = useState<SubmitResultDto | null>(null);
-
-  const refresh = useCallback(async () => {
-    try {
-      setStatus(await api.getSubmissionStatus(diagramId));
-    } catch {
-      // Status is advisory; a failed read just leaves the button hidden.
-      setStatus(null);
-    }
-  }, [diagramId]);
-
-  useEffect(() => {
-    void refresh();
-  }, [refresh, refreshToken]);
 
   if (!isSubmitVisible(status)) return null;
   const button = deriveSubmitButton(status, hasUnsavedChanges);

@@ -408,6 +408,29 @@ Env vars don't survive across separate shell invocations unless exported in the 
 placed in `apps/api/.env` — if the API fails immediately with `Missing required environment
 variable`, that's why.
 
+## GitHub approval (canvas-3s5)
+
+Setup for admins is in `docs/admin-guide/github.md`; the design is in `docs/github-approval-design.md`.
+
+- **Local:** set `GITHUB_APP_ID` and `GITHUB_APP_PRIVATE_KEY` (the PEM, or base64 of it) in
+  `apps/api/.env`. Use a test App installed on a sandbox repository only. Without them the feature is
+  off and hidden.
+- **Azure:** `CANVAS_GITHUB_APP_ID=<id> CANVAS_GITHUB_APP_PRIVATE_KEY_FILE=<pem> ./deploy.sh` once;
+  both are cached in `infra/azure/.secrets/`. The key goes to Key Vault as `github-app-private-key`.
+- **Rotating the key:** generate a new private key in the App's settings, re-run deploy.sh with
+  `CANVAS_GITHUB_APP_PRIVATE_KEY_FILE` pointing at it (the secret-refresh step restarts canvas-api
+  and updates the sync job), then delete the old key in GitHub.
+- **Status sync:** the `canvas-github-sync` job runs `node apps/api/dist/github/sync-run.js` every
+  15 minutes (only deployed when an App id is set). Run it now with
+  `az containerapp job start --name canvas-github-sync --resource-group canvas-rg`; locally,
+  `npm run github-sync --workspace=@canvas/api`. pause.sh moves its schedule to once a year and
+  resume.sh restores it.
+- **Troubleshooting:** a submission's `last_sync_error` and a link's `last_check_error`
+  (`diagram_submissions`, `github_links`) hold GitHub's last error; "Needs attention" on the admin
+  page means the App lost access (uninstalled, or the repository removed from the installation).
+  Use the admin page's **Test** to see which permission or resource is missing.
+- **Tests** run against `apps/api/tests/helpers/fake-github.ts`; no real GitHub is contacted.
+
 ## Resetting state
 
 - **Wipe and reseed the dev database**: `docker compose down -v && docker compose up -d`, then

@@ -308,6 +308,9 @@ export interface DiagramSubmissionsTable {
   merge_commit_sha: string | null;
   merged_head_matches: boolean | null;
   closed_at: Timestamp | null;
+  /** canvas-3s5.2: withdrawn from Canvas (vs rejected on GitHub). */
+  withdrawn_at: Timestamp | null;
+  withdrawn_by_user_id: string | null;
 }
 
 export interface DiagramSubmissionPushesTable {

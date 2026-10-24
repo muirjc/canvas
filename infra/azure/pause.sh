@@ -60,6 +60,14 @@ echo "  Set to min=0/max=1. Actual replica count drops to 0 after the environmen
 echo "  period (~5 min) once traffic stops -- not instant. Confirm with:"
 echo "    az containerapp replica list --name canvas-api --resource-group $RESOURCE_GROUP"
 
+# canvas-3s5.2: the GitHub sync job would fail every 15 minutes against a stopped database. The CLI
+# can't suspend a scheduled job, so move it to once a year; resume.sh (and deploy.sh) restore it.
+if az containerapp job show --name canvas-github-sync --resource-group "$RESOURCE_GROUP" --output none 2>/dev/null; then
+  echo "== Pausing the GitHub sync job (schedule moved to once a year) =="
+  az containerapp job update --name canvas-github-sync --resource-group "$RESOURCE_GROUP" \
+    --cron-expression "0 0 1 1 *" --output none
+fi
+
 echo "== Stopping canvas-postgres (compute only -- storage/data retained) =="
 az postgres flexible-server stop --resource-group "$RESOURCE_GROUP" --name canvas-postgres --output none
 echo "  Postgres stop requested."

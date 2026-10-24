@@ -62,7 +62,7 @@ param oidcRedirectUri string
 @description('canvas-3s5.1: GITHUB_APP_ID -- the GitHub App diagrams are submitted for approval with; "unset" = off. The private key is the github-app-private-key Key Vault secret ("unset" until deploy.sh is given one).')
 param githubAppId string = 'unset'
 
-@description('canvas-3s5.1: GITHUB_API_URL.')
+@description('canvas-3s5.1: GITHUB_APP_API_URL.')
 param githubApiUrl string = 'https://api.github.com'
 
 resource apiApp 'Microsoft.App/containerApps@2025-01-01' = {
@@ -177,7 +177,7 @@ resource apiApp 'Microsoft.App/containerApps@2025-01-01' = {
             { name: 'OPENAI_API_KEY', secretRef: 'openai-api-key' }
             { name: 'GITHUB_APP_ID', value: githubAppId }
             { name: 'GITHUB_APP_PRIVATE_KEY', secretRef: 'github-app-private-key' }
-            { name: 'GITHUB_API_URL', value: githubApiUrl }
+            { name: 'GITHUB_APP_API_URL', value: githubApiUrl }
             // Links in pull requests point back at the web app.
             { name: 'CANVAS_PUBLIC_URL', value: webOrigin }
           ]

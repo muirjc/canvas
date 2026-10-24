@@ -509,6 +509,7 @@ fi
 SEED_JOB="$(az deployment sub show --name "canvas-foundation" --query "properties.outputs.seedJobName.value" -o tsv)"
 CATALOG_SEED_JOB="$(az deployment sub show --name "canvas-foundation" --query "properties.outputs.catalogSeedJobName.value" -o tsv)"
 BOOTSTRAP_JOB="$(az deployment sub show --name "canvas-foundation" --query "properties.outputs.bootstrapAdminJobName.value" -o tsv)"
+GITHUB_SYNC_JOB="$(az deployment sub show --name "canvas-foundation" --query "properties.outputs.githubSyncJobName.value" -o tsv 2>/dev/null || true)"
 
 # canvas-28j: force canvas-api and the jobs to refetch any KV secret this (or an earlier,
 # interrupted) run changed -- see PENDING_REFRESH_FILE above. Re-setting a secret with its same
@@ -525,7 +526,7 @@ refresh_kv_secret_refs() {
   echo "== Refreshing rotated Key Vault secret references: ${changed//$'\n'/ } =="
   identity_id="$(az identity show --resource-group "$RESOURCE_GROUP" --name canvas-identity --query id -o tsv)"
   kv_uri="$(az keyvault show --name "$KEY_VAULT_NAME" --query properties.vaultUri -o tsv)"
-  for target in "app:canvas-api" "job:$MIGRATION_JOB" "job:$SEED_JOB" "job:$CATALOG_SEED_JOB" "job:$BOOTSTRAP_JOB"; do
+  for target in "app:canvas-api" "job:$MIGRATION_JOB" "job:$SEED_JOB" "job:$CATALOG_SEED_JOB" "job:$BOOTSTRAP_JOB" "job:$GITHUB_SYNC_JOB"; do
     kind="${target%%:*}"; name="${target#*:}"
     [[ -n "$name" ]] || continue  # a job this auth mode doesn't deploy (canvas-ez1.3)
     local -a cmd=(az containerapp)
