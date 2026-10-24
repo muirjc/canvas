@@ -11,7 +11,9 @@ Each person has a **role**:
 - **Architect:** creates and edits diagrams.
 - **Admin:** everything, plus this console.
 
-Change the role in the person's row.
+Change the role in the person's row. A role change **signs that person out**, so the new role
+applies straight away. Canvas won't let you demote or deactivate the **last active admin**, so
+someone can always reach this console.
 
 People also have **personas** (Business, Enterprise, Solution, Technical), which decide which diagram
 types they're offered first. Choose them when you add someone, or click **Edit** next to a person's

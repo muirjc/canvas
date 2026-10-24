@@ -6,6 +6,8 @@ import type { UserRole } from '../auth/types.js';
 import { revokeSessions } from '../auth/session-store.js';
 
 export class UserNotFoundError extends Error {}
+/** canvas-18c: the change would leave no active admin (nobody could reach the admin console). */
+export class LastAdminError extends Error {}
 
 export interface UserRecord {
   id: string;
@@ -68,6 +70,29 @@ export async function updateUser(id: string, input: UpdateUserInput): Promise<Us
     // 'where'"), confirmed live via a personas-only PATCH (no role/active) during canvas-jtm.3's
     // own manual verification. Skip the `users` row update entirely rather than ever calling
     // `.set({})` — a personas-only input then updates only `users_personas` below.
+    const before = await trx
+      .selectFrom('users')
+      .select(['role', 'active'])
+      .where('id', '=', id)
+      .where('deleted_at', 'is', null)
+      .executeTakeFirst();
+    if (!before) throw new UserNotFoundError(`No user with id ${id}`);
+    const wasActiveAdmin = before.role === 'admin' && fromDbBoolean(before.active);
+    const staysActiveAdmin = (input.role ?? before.role) === 'admin' && (input.active ?? fromDbBoolean(before.active));
+    if (wasActiveAdmin && !staysActiveAdmin) {
+      const others = await trx
+        .selectFrom('users')
+        .select(sql<string>`COUNT(*)`.as('count'))
+        .where('role', '=', 'admin')
+        .where('active', '=', dbBoolean(true))
+        .where('deleted_at', 'is', null)
+        .where('id', '!=', id)
+        .executeTakeFirstOrThrow();
+      if (Number(others.count) === 0) {
+        throw new LastAdminError('This is the only active admin -- make someone else an admin first.');
+      }
+    }
+
     let row: { id: string; name: string; email: string; role: UserRole; active: boolean } | undefined;
     if (input.role !== undefined || input.active !== undefined) {
       row = await trx
@@ -91,8 +116,10 @@ export async function updateUser(id: string, input: UpdateUserInput): Promise<Us
     if (input.personas !== undefined) {
       await setUserPersonas(trx, id, input.personas);
     }
-    if (input.active === false) {
-      // canvas-ez1.2: a deactivated user is signed out now, not when their session next expires.
+    // canvas-ez1.2: a deactivated user is signed out now, not when their session next expires.
+    // canvas-18c: so is anyone whose role changes -- the session holds the role from sign-in, and
+    // access checks read it there, so a demoted admin kept admin rights until they signed in again.
+    if (input.active === false || (input.role !== undefined && input.role !== before.role)) {
       await revokeSessions({ userId: id }, trx);
     }
     return { ...row, active: fromDbBoolean(row.active), personas: await getUserPersonas(trx, id) };

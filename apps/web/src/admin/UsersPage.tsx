@@ -37,6 +37,24 @@ export function UsersPage() {
     api.listAdminUsers().then(({ users }) => setUsers(users));
   };
 
+  // canvas-18c: role/active changes can be refused (the last active admin), and a role change
+  // signs that user out everywhere -- for your own account, reload so you land on sign-in.
+  const [updateError, setUpdateError] = useState<string | null>(null);
+  const update = async (userId: string, body: { role?: string; active?: boolean }) => {
+    setUpdateError(null);
+    try {
+      await api.updateAdminUser(userId, body);
+      if (userId === currentUserId && body.role !== undefined) {
+        window.location.reload();
+        return;
+      }
+      refresh();
+    } catch (err) {
+      setUpdateError((err as Error).message);
+      refresh();
+    }
+  };
+
   useEffect(refresh, []);
 
   return (
@@ -55,6 +73,12 @@ export function UsersPage() {
       )}
       {localAuthEnabled && (
         <p className="meta">Accounts lock after 3 failed sign-in attempts. Unlock them here; resetting a password also unlocks.</p>
+      )}
+      <p className="meta">Changing someone&rsquo;s role signs them out, so the new role applies straight away.</p>
+      {updateError && (
+        <p role="alert" data-testid="user-update-error">
+          {updateError}
+        </p>
       )}
       {status && (
         <p role="status" data-testid="delete-user-status">
@@ -113,7 +137,7 @@ export function UsersPage() {
                   data-testid={`user-role-${user.id}`}
                   aria-label={`Role for ${user.name}`}
                   value={user.role}
-                  onChange={(e) => api.updateAdminUser(user.id, { role: e.target.value }).then(refresh)}
+                  onChange={(e) => void update(user.id, { role: e.target.value })}
                 >
                   {ROLES.map((role) => (
                     <option key={role} value={role}>
@@ -128,7 +152,7 @@ export function UsersPage() {
                   aria-label={`${user.name} is active`}
                   type="checkbox"
                   checked={user.active}
-                  onChange={(e) => api.updateAdminUser(user.id, { active: e.target.checked }).then(refresh)}
+                  onChange={(e) => void update(user.id, { active: e.target.checked })}
                 />
               </td>
               {localAuthEnabled && (
