@@ -22,6 +22,7 @@ import { registerPersonaRoutes } from './ai/persona.routes.js';
 import { registerPersonaReferenceMaterialRoutes } from './ai/persona-reference-material.routes.js';
 import { registerDiagramChatRoutes } from './ai/diagram-chat.routes.js';
 import { registerAiUsageRoutes } from './ai/ai-usage.routes.js';
+import { registerCommentRoutes } from './comments/comment.routes.js';
 import { drainBackgroundTasks } from './background/tasks.js';
 
 export interface BuildAppOptions {
@@ -109,6 +110,7 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
   await registerPersonaReferenceMaterialRoutes(app);
   await registerDiagramChatRoutes(app, { languageModel: options.languageModel });
   await registerAiUsageRoutes(app);
+  await registerCommentRoutes(app);
 
   // canvas-lfc: tags/security only in this pass (request/response body schemas tracked
   // separately) -- security: [] is explicit, not merely omitted, so /docs shows this was

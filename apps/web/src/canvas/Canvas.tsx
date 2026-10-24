@@ -267,6 +267,11 @@ export interface CanvasProps {
   /** canvas-tfr: select (and scroll to) an element -- e.g. clicking an issue in the Issues tab.
    *  `nonce` makes re-requesting the same element re-trigger. */
   focusRequest?: { id: string; nonce: number };
+  /** canvas-bw4: told when exactly one node or connector is selected (else null). */
+  onSelectionChange?: (selection: { type: 'node' | 'edge'; id: string } | null) => void;
+  /** canvas-bw4: element id -> open comment threads, drawn as a speech-bubble pin. */
+  commentPins?: Record<string, number>;
+  onCommentPinClick?: (anchorId: string) => void;
 }
 
 const SEVERITY_DOT_COLOR: Record<Severity, string> = { error: '#c81e1e', warning: '#d97706', info: '#64748b' };
@@ -1152,7 +1157,7 @@ function descendantContainerIds(model: DiagramModel, containerId: string): Set<s
  * labels via direct manipulation. Renders the same DiagramModel that packages/diagram-core
  * parses/serializes, so every edit here is reflected in the Mermaid DSL by useDslSync.
  */
-export function Canvas({ model: modelProp, onChange, dslFamily, toolbarContainer, standardRules, violations, focusRequest }: CanvasProps) {
+export function Canvas({ model: modelProp, onChange, dslFamily, toolbarContainer, standardRules, violations, focusRequest, onSelectionChange, commentPins, onCommentPinClick }: CanvasProps) {
   // canvas-hzf: a C4 element's type line ("[Software System]") is derived from its role; refresh it
   // here so a kind picked in the editor shows at once, not only after the next reload/parse.
   const model = useMemo(() => (dslFamily === 'c4' ? withC4TypeLabels(modelProp) : modelProp), [modelProp, dslFamily]);
@@ -1262,6 +1267,16 @@ export function Canvas({ model: modelProp, onChange, dslFamily, toolbarContainer
   // selectedContainerId's own pattern rather than folding into selectedIds (which would need
   // groupSelected/its button to start distinguishing node ids from edge ids within the same Set).
   const [selectedEdgeId, setSelectedEdgeId] = useState<string | null>(null);
+  // canvas-bw4: report a single node/connector selection to the editor (for pinning comments).
+  const onSelectionChangeRef = useRef(onSelectionChange);
+  onSelectionChangeRef.current = onSelectionChange;
+  const singleNodeId = selectedIds.size === 1 && !selectedEdgeId && !selectedContainerId ? [...selectedIds][0] : null;
+  const singleEdgeId = selectedIds.size === 0 && !selectedContainerId ? selectedEdgeId : null;
+  useEffect(() => {
+    onSelectionChangeRef.current?.(
+      singleNodeId ? { type: 'node', id: singleNodeId } : singleEdgeId ? { type: 'edge', id: singleEdgeId } : null,
+    );
+  }, [singleNodeId, singleEdgeId]);
   // canvas-tfr: an Issues-tab click selects the offending element and scrolls it into view.
   useEffect(() => {
     if (!focusRequest) return;
@@ -3910,6 +3925,57 @@ export function Canvas({ model: modelProp, onChange, dslFamily, toolbarContainer
                   onClose={() => setEditingLinkNodeId(null)}
                 />
               )}
+            </g>
+          );
+        })}
+
+        {/* canvas-bw4: comment pins -- a speech-bubble badge per element with open threads. */}
+        {Object.entries(commentPins ?? {}).map(([anchorId, count]) => {
+          let cx: number;
+          let cy: number;
+          const pinNode = model.nodes.find((n) => n.id === anchorId);
+          const pinEdge = pinNode ? undefined : model.edges.find((e) => e.id === anchorId);
+          if (pinNode) {
+            const size = nodeSize(pinNode);
+            cx = pinNode.position.x + size.width;
+            cy = pinNode.position.y;
+          } else if (pinEdge) {
+            const a = model.nodes.find((n) => n.id === pinEdge.sourceId);
+            const b = model.nodes.find((n) => n.id === pinEdge.targetId);
+            if (!a || !b) return null;
+            const sa = nodeSize(a);
+            const sb = nodeSize(b);
+            cx = (a.position.x + sa.width / 2 + b.position.x + sb.width / 2) / 2;
+            cy = (a.position.y + sa.height / 2 + b.position.y + sb.height / 2) / 2;
+          } else {
+            return null;
+          }
+          return (
+            <g
+              key={anchorId}
+              data-testid={`comment-pin-${anchorId}`}
+              role="button"
+              tabIndex={0}
+              aria-label={`${count} open ${count === 1 ? 'comment' : 'comments'} on this element`}
+              style={{ cursor: 'pointer' }}
+              onPointerDown={(e) => e.stopPropagation()}
+              onClick={() => onCommentPinClick?.(anchorId)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault();
+                  onCommentPinClick?.(anchorId);
+                }
+              }}
+            >
+              <path
+                d={`M${cx - 11} ${cy - 20} h22 a4 4 0 0 1 4 4 v10 a4 4 0 0 1 -4 4 h-12 l-6 6 v-6 h-4 a4 4 0 0 1 -4 -4 v-10 a4 4 0 0 1 4 -4 z`}
+                fill="#2563eb"
+                stroke="#ffffff"
+                strokeWidth={1.5}
+              />
+              <text x={cx} y={cy - 9} textAnchor="middle" fontSize={11} fontWeight={700} fill="#ffffff" pointerEvents="none">
+                {count}
+              </text>
             </g>
           );
         })}

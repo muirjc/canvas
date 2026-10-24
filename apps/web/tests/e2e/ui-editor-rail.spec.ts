@@ -82,7 +82,8 @@ test('the rail tabs are a real tablist and are keyboard navigable', async ({ pag
 
   const tablist = page.getByRole('tablist');
   await expect(tablist).toBeVisible();
-  await expect(page.getByRole('tab')).toHaveCount(4);
+  // DSL, Chat, Comments (canvas-bw4), Issues, History.
+  await expect(page.getByRole('tab')).toHaveCount(5);
 
   // Arrow-key navigation between tabs, per the WAI-ARIA tabs pattern.
   await page.getByTestId('rail-tab-dsl').focus();

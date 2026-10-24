@@ -256,6 +256,28 @@ export interface LocalCredentialsTable {
   locked_at: Timestamp | null;
 }
 
+/** canvas-bw4: diagram comments (comments/comment.service.ts). */
+export interface DiagramCommentsTable {
+  id: string;
+  diagram_id: string;
+  thread_root_id: string | null;
+  author_id: string;
+  body: string;
+  anchor_type: 'node' | 'edge' | null;
+  anchor_id: string | null;
+  created_at: GeneratedTimestamp;
+  edited_at: Timestamp | null;
+  deleted_at: Timestamp | null;
+  resolved_at: Timestamp | null;
+  resolved_by_user_id: string | null;
+}
+
+export interface DiagramCommentReadsTable {
+  user_id: string;
+  diagram_id: string;
+  last_read_at: Timestamp;
+}
+
 /** canvas-9af: AI token usage, one row per chat turn (ai/ai-usage.service.ts). */
 export interface AiUsageTable {
   id: string;
@@ -395,6 +417,8 @@ export interface DB {
   audit_events: AuditEventsTable;
   user_mfa: UserMfaTable;
   ai_usage: AiUsageTable;
+  diagram_comments: DiagramCommentsTable;
+  diagram_comment_reads: DiagramCommentReadsTable;
   ai_model_prices: AiModelPricesTable;
   mfa_recovery_codes: MfaRecoveryCodesTable;
   users: UsersTable;

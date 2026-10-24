@@ -72,6 +72,10 @@ export interface DiagramDto {
   /** canvas-hbk: resolved owner name (not a raw UUID) and creation/last-modified timestamps —
    *  already stored server-side, previously never sent to the client. */
   ownerName: string;
+  /** Lets the comments panel show "delete" on others' comments to the owner. */
+  ownerId?: string;
+  /** The caller's own access level (view | comment | edit; admins and owners resolve to edit). */
+  accessLevel?: AccessLevel;
   createdAt: string;
   updatedAt: string;
 }
@@ -241,6 +245,22 @@ export interface AiUsageUserDto extends AiUsageTotals {
 export interface AiUsageDetailDto {
   byDay: Array<AiUsageTotals & { day: string }>;
   byModel: Array<AiUsageTotals & { provider: string; modelId: string; priced: boolean }>;
+}
+
+export interface CommentDto {
+  id: string;
+  threadRootId: string | null;
+  author: { id: string; name: string };
+  body: string;
+  createdAt: string;
+  editedAt: string | null;
+  deleted: boolean;
+}
+
+export interface CommentThreadDto extends CommentDto {
+  anchor: { type: 'node' | 'edge'; id: string } | null;
+  resolved: { at: string; by: string } | null;
+  replies: CommentDto[];
 }
 
 export interface AuditEventDto {
@@ -551,6 +571,20 @@ export const api = {
       method: 'DELETE',
       body: JSON.stringify(transferToUserId ? { transferToUserId } : {}),
     }),
+  listComments: (diagramId: string) =>
+    request<{ threads: CommentThreadDto[]; unread: number }>(`/diagrams/${diagramId}/comments`),
+  getUnreadComments: (diagramId: string) => request<{ unread: number }>(`/diagrams/${diagramId}/comments/unread`),
+  markCommentsRead: (diagramId: string) => request<void>(`/diagrams/${diagramId}/comments/read`, { method: 'POST' }),
+  addComment: (diagramId: string, body: { body: string; threadRootId?: string; anchor?: { type: 'node' | 'edge'; id: string } }) =>
+    request<{ id: string; threads: CommentThreadDto[] }>(`/diagrams/${diagramId}/comments`, { method: 'POST', body: JSON.stringify(body) }),
+  editComment: (diagramId: string, commentId: string, body: string) =>
+    request<{ threads: CommentThreadDto[] }>(`/diagrams/${diagramId}/comments/${commentId}`, { method: 'PATCH', body: JSON.stringify({ body }) }),
+  deleteComment: (diagramId: string, commentId: string) =>
+    request<{ threads: CommentThreadDto[] }>(`/diagrams/${diagramId}/comments/${commentId}`, { method: 'DELETE' }),
+  resolveComment: (diagramId: string, commentId: string) =>
+    request<{ threads: CommentThreadDto[] }>(`/diagrams/${diagramId}/comments/${commentId}/resolve`, { method: 'POST' }),
+  reopenComment: (diagramId: string, commentId: string) =>
+    request<{ threads: CommentThreadDto[] }>(`/diagrams/${diagramId}/comments/${commentId}/reopen`, { method: 'POST' }),
   changePassword: (currentPassword: string, newPassword: string) =>
     request<{ user: SessionUser }>('/auth/password', { method: 'POST', body: JSON.stringify({ currentPassword, newPassword }) }),
   getAdminOverview: () => request<{ overview: AdminOverviewDto }>('/admin/overview'),

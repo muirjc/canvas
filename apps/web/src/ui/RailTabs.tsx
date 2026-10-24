@@ -1,4 +1,4 @@
-import { useRef, useState, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 
 export interface RailTab {
   id: string;
@@ -15,6 +15,10 @@ export interface RailTabsProps {
    *  last-used tab, which would make the editor's initial state non-deterministic. */
   initialTabId: string;
   'aria-label': string;
+  /** Open a tab from outside (e.g. a canvas comment pin). `nonce` re-triggers the same tab. */
+  activeRequest?: { id: string; nonce: number };
+  /** Called whenever a tab becomes the active one, by user or by `activeRequest`. */
+  onActivate?: (id: string) => void;
 }
 
 /**
@@ -29,7 +33,7 @@ export interface RailTabsProps {
  *     would refetch on every return and — worse — discard an unsent chat draft and the chat
  *     scroll position.
  */
-export function RailTabs({ tabs, initialTabId, 'aria-label': ariaLabel }: RailTabsProps) {
+export function RailTabs({ tabs, initialTabId, 'aria-label': ariaLabel, activeRequest, onActivate }: RailTabsProps) {
   const [activeId, setActiveId] = useState(initialTabId);
   // Panels selected at least once. A Set in a ref-backed state value: order is irrelevant and we
   // only ever add, so identity churn does not matter.
@@ -39,7 +43,14 @@ export function RailTabs({ tabs, initialTabId, 'aria-label': ariaLabel }: RailTa
   const activate = (id: string) => {
     setActiveId(id);
     setMounted((prev) => (prev.has(id) ? prev : new Set(prev).add(id)));
+    onActivate?.(id);
   };
+
+  const requestNonce = activeRequest?.nonce;
+  useEffect(() => {
+    if (activeRequest) activate(activeRequest.id);
+    // Only a new request (nonce) should switch tabs.
+  }, [requestNonce]);
 
   const handleKeyDown = (event: React.KeyboardEvent, index: number) => {
     const delta = event.key === 'ArrowRight' ? 1 : event.key === 'ArrowLeft' ? -1 : 0;

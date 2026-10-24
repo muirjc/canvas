@@ -50,6 +50,27 @@ fix.
 
 ![The Issues tab](../images/editor-issues.png)
 
+## Comments
+
+The **Comments** tab is where people talk about a diagram without changing it. Anyone who can view a
+diagram can read its comments. To add one you need **Comment** or **Edit** access.
+
+- **Add a comment:** type in the box at the bottom and click **Comment** (or press Ctrl+Enter, or
+  Cmd+Enter on a Mac).
+- **Pin it to a shape:** select one shape or connector on the canvas first, then tick **Pin to the
+  selected shape**. A small speech bubble with a count appears on that shape. Click the bubble to
+  jump to its comments. If the shape is later deleted, the comment stays and says it was on a shape
+  that was removed.
+- **Reply** to keep a conversation in one thread.
+- **Resolve** a thread when it's dealt with. It disappears from the list and loses its bubble; tick
+  **Show resolved** to see it, and **Reopen** to bring it back.
+- **Edit or delete:** you can edit and delete your own comments. The diagram's owner and admins can
+  delete anyone's. A deleted comment leaves "Comment deleted" so replies still make sense.
+
+A number on the Comments tab shows how many comments are new since you last opened it. Canvas
+doesn't send emails about comments. Comments are saved straight away, separately from the diagram,
+so you don't need to click Save.
+
 ## The History tab: versions
 
 Each save makes a **version**. The History tab lists the last five, with their dates, and you can

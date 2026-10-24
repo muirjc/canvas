@@ -5,6 +5,8 @@ import { DslPanel } from '../canvas/DslPanel';
 import { ExportMenu } from '../canvas/ExportMenu';
 import { ViolationsPanel } from '../canvas/ViolationsPanel';
 import { useDslSync } from '../canvas/useDslSync';
+import { CommentsPanel } from '../comments/CommentsPanel';
+import { useComments } from '../comments/useComments';
 import { ChatPanel } from '../ai/ChatPanel';
 import { Palette } from '../palette/Palette';
 import { VersionHistory } from '../projects/VersionHistory';
@@ -33,6 +35,8 @@ export interface DiagramEditorProps {
   /** canvas-ltm: which side-rail tab opens first -- 'chat' right after Create with AI when the AI
    *  asked follow-up questions, so that exchange is in view. Defaults to the DSL tab. */
   initialRailTab?: 'dsl' | 'chat';
+  /** The signed-in user, for comment edit/delete permissions. */
+  currentUser: { id: string; role: string };
 }
 
 /**
@@ -57,7 +61,7 @@ function initialModelFromDsl(diagram: DiagramDto): DiagramModel {
 }
 
 export const DiagramEditor = forwardRef<DiagramEditorHandle, DiagramEditorProps>(function DiagramEditor(
-  { diagram: initialDiagram, onRequestClose, backLabel, initialRailTab = 'dsl' },
+  { diagram: initialDiagram, onRequestClose, backLabel, initialRailTab = 'dsl', currentUser },
   ref,
 ) {
   const [diagram, setDiagram] = useState(initialDiagram);
@@ -71,6 +75,16 @@ export const DiagramEditor = forwardRef<DiagramEditorHandle, DiagramEditorProps>
   const [standardRefreshKey, setStandardRefreshKey] = useState(0);
   const standard = useActiveStandard(diagram.diagramTypeId, standardRefreshKey);
   const [focusRequest, setFocusRequest] = useState<{ id: string; nonce: number } | undefined>(undefined);
+  // canvas-bw4: comments live outside the DSL; threads load up front so pins and the badge work.
+  const [commentsTabActive, setCommentsTabActive] = useState(false);
+  const comments = useComments(diagram.id, { tabActive: commentsTabActive });
+  const [selection, setSelection] = useState<{ type: 'node' | 'edge'; id: string } | null>(null);
+  const [commentsTabRequest, setCommentsTabRequest] = useState<{ id: string; nonce: number } | undefined>(undefined);
+  const [pinHighlight, setPinHighlight] = useState<{ anchorId: string; nonce: number } | undefined>(undefined);
+  const commentPins: Record<string, number> = {};
+  for (const t of comments.threads) {
+    if (t.anchor && !t.resolved) commentPins[t.anchor.id] = (commentPins[t.anchor.id] ?? 0) + 1;
+  }
   const [versionRefreshToken, setVersionRefreshToken] = useState(0);
   const [sharing, setSharing] = useState(false);
   // canvas-8x1: click-to-edit, mirroring ProjectsPage.tsx's own rename pattern for a project row —
@@ -297,6 +311,12 @@ export const DiagramEditor = forwardRef<DiagramEditorHandle, DiagramEditorProps>
             standardRules={standard?.rules}
             violations={liveViolations}
             focusRequest={focusRequest}
+            onSelectionChange={setSelection}
+            commentPins={commentPins}
+            onCommentPinClick={(anchorId) => {
+              setCommentsTabRequest((prev) => ({ id: 'comments', nonce: (prev?.nonce ?? 0) + 1 }));
+              setPinHighlight((prev) => ({ anchorId, nonce: (prev?.nonce ?? 0) + 1 }));
+            }}
           />
         </div>
 
@@ -304,6 +324,11 @@ export const DiagramEditor = forwardRef<DiagramEditorHandle, DiagramEditorProps>
           <RailTabs
             aria-label="Diagram panels"
             initialTabId={initialRailTab}
+            activeRequest={commentsTabRequest}
+            onActivate={(id) => {
+              setCommentsTabActive(id === 'comments');
+              if (id === 'comments') comments.markRead();
+            }}
             tabs={[
               {
                 id: 'dsl',
@@ -317,6 +342,30 @@ export const DiagramEditor = forwardRef<DiagramEditorHandle, DiagramEditorProps>
                 label: 'Chat',
                 render: () => (
                   <ChatPanel diagramId={diagram.id} currentDslContent={dsl} onDiagramUpdated={applyDsl} />
+                ),
+              },
+              {
+                id: 'comments',
+                label: 'Comments',
+                badge:
+                  comments.unread > 0 ? (
+                    <span className="badge badge--warning" data-testid="comments-unread" aria-label={`${comments.unread} unread comments`}>
+                      {comments.unread}
+                    </span>
+                  ) : undefined,
+                render: () => (
+                  <CommentsPanel
+                    diagramId={diagram.id}
+                    threads={comments.threads}
+                    onThreadsChange={comments.setThreads}
+                    currentUser={currentUser}
+                    ownerId={diagram.ownerId}
+                    accessLevel={diagram.accessLevel ?? 'edit'}
+                    model={model}
+                    selection={selection}
+                    highlightRequest={pinHighlight}
+                    loadError={comments.loadError}
+                  />
                 ),
               },
               {

@@ -513,6 +513,7 @@ export function App() {
       <DiagramEditor
         diagram={diagram}
         ref={diagramEditorRef}
+        currentUser={user}
         backLabel={diagramProject ? diagramProject.name : 'Projects'}
         onRequestClose={() =>
           navigate(diagramProject ? { screen: 'project', projectId: diagramProject.id } : { screen: 'projects' })

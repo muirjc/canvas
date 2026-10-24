@@ -62,6 +62,9 @@ test('shares a diagram at view access (edit blocked), then upgrades to edit (all
   await ownerPage.getByTestId('share-access-level').selectOption('edit');
   await ownerPage.getByTestId('share-email').fill(GRANTEE_EMAIL);
   await ownerPage.getByTestId('confirm-share').click();
+  // Wait for the upgrade to be stored before the grantee retries -- clicking Save straight away
+  // raced the share request on a slow CI runner (PR #230) and got the old "view" answer.
+  await expect(ownerPage.getByTestId('share-grants')).toContainText('edit');
 
   // Grantee retries the save — now allowed.
   await granteePage.getByTestId('save-diagram').click();
