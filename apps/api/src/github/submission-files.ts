@@ -13,6 +13,7 @@ import { assertSafeRepoPath } from './folder-path.js';
  *   <path>/<slug>.canvas.mmd  Canvas's own source, byte for byte
  *   <path>/canvas.json        manifest the CI validator reads
  *   .canvas/standards/<type>/v<version>.json   the standard it was checked against
+ *   .canvas/validator.mjs     the validator the repository's CI runs (canvas-3s5.3)
  */
 export interface SubmissionStandard {
   id: string;
@@ -38,6 +39,8 @@ export interface SubmissionInput {
   path: string;
   slug: string;
   canvasUrl: string;
+  /** canvas-3s5.3: the CI validator bundle, committed as .canvas/validator.mjs (absent when not built). */
+  validator?: string | null;
 }
 
 export interface RepoFile {
@@ -150,6 +153,7 @@ export function buildSubmissionFiles(input: SubmissionInput): RepoFile[] {
       content: `${JSON.stringify({ id, diagramTypeId: input.diagramTypeId, version, name, description, rules }, null, 2)}\n`,
     });
   }
+  if (input.validator) files.push({ path: assertSafeRepoPath('.canvas/validator.mjs'), content: input.validator });
   return files;
 }
 

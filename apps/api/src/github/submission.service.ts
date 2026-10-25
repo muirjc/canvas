@@ -8,6 +8,7 @@ import { recordAudit } from '../audit/audit.service.js';
 import { GitHubApiError, SUBMIT_PERMISSIONS, type GitHubClient, type PullRequestSummary } from './github-client.js';
 import { getLinkForProject, type GitHubLink } from './github-link.service.js';
 import { slugify } from './folder-path.js';
+import { validatorBundle } from './validator-bundle.js';
 import {
   buildCommitMessage,
   buildPrBody,
@@ -453,6 +454,7 @@ export async function submitDiagram(client: GitHubClient, diagramId: string, sub
       path: submission.path,
       slug: submission.path.slice(submission.path.lastIndexOf('/') + 1),
       canvasUrl,
+      validator: validatorBundle(),
     };
     const files = buildSubmissionFiles(input);
     const target = { owner: submission.repo_owner, name: submission.repo_name };

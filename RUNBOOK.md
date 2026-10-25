@@ -430,6 +430,16 @@ Setup for admins is in `docs/admin-guide/github.md`; the design is in `docs/gith
   page means the App lost access (uninstalled, or the repository removed from the installation).
   Use the admin page's **Test** to see which permission or resource is missing.
 - **Tests** run against `apps/api/tests/helpers/fake-github.ts`; no real GitHub is contacted.
+- **CI validator** (canvas-3s5.3): `packages/validator-cli`, bundled by esbuild into one file,
+  `dist/validator.mjs` (`npm run build --workspace=@canvas/validator-cli`; the Dockerfile builds it
+  into the image). Each submission commits it to `.canvas/validator.mjs`; unchanged content is a
+  no-op in Git, so repositories only see a diff when the validator changes. It imports
+  diagram-core's *source* modules (not the package entry) to keep the icon libraries out. The API
+  finds it at `CANVAS_VALIDATOR_DIR` or `packages/validator-cli/dist/`; when it's missing,
+  submissions skip the file and the admin page says so. The example workflow
+  (`packages/validator-cli/examples/canvas-diagrams.yml`) is served at
+  `GET /admin/github/workflow-example`. Bump `packages/validator-cli/package.json`'s version when the
+  validator's behaviour changes.
 
 ## Resetting state
 
