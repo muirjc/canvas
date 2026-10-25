@@ -48,6 +48,10 @@ export interface FakePull {
   requestedReviewers: string[];
   requestedTeams: string[];
   comments: string[];
+  /** Who opened it (default: the App's bot account). */
+  author?: string;
+  /** owner/name of the head branch's repository (default: this repository; set for a fork). */
+  headRepo?: string;
 }
 
 export interface FakeReview {
@@ -436,7 +440,8 @@ export class FakeGitHub {
       closed_at: pull.closedAt,
       requested_reviewers: pull.requestedReviewers.map((login) => ({ login })),
       requested_teams: pull.requestedTeams.map((slug) => ({ slug })),
-      head: { sha: repo.branches.get(pull.head) ?? '', ref: pull.head },
+      user: { login: pull.author ?? 'canvas-test[bot]' },
+      head: { sha: repo.branches.get(pull.head) ?? '', ref: pull.head, repo: { full_name: pull.headRepo ?? `${repo.owner}/${repo.name}` } },
       base: { ref: pull.base },
     };
   }
@@ -564,6 +569,18 @@ export class FakeGitHub {
       return { ref: `refs/heads/${branch}`, object: { sha: b.sha } };
     }
 
+    if (method === 'GET' && rest === 'pulls') {
+      // canvas-3s5.5: listing open pull requests (state + base filters, newest first, paged).
+      this.need(token, 'pull_requests', 'read');
+      const state = url.searchParams.get('state') ?? 'open';
+      const base = url.searchParams.get('base');
+      const perPage = Number(url.searchParams.get('per_page') ?? 30);
+      const page = Number(url.searchParams.get('page') ?? 1);
+      const matching = [...repo.pulls.values()]
+        .filter((p) => (state === 'all' || p.state === state) && (!base || p.base === base))
+        .sort((a, b) => b.number - a.number);
+      return matching.slice((page - 1) * perPage, page * perPage).map((p) => this.rawPull(repo, p));
+    }
     if (method === 'POST' && rest === 'pulls') {
       this.need(token, 'pull_requests', 'write');
       const head = String(b.head);
