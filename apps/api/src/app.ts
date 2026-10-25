@@ -34,6 +34,8 @@ export interface BuildAppOptions {
   languageModel?: LanguageModel;
   /** canvas-3s5.1: test injection point for calls to GitHub (defaults to global fetch). */
   githubFetch?: typeof fetch;
+  /** canvas-tj1: test injection point for the AI provider's list-models call. */
+  aiFetch?: typeof fetch;
 }
 
 export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyInstance> {
@@ -108,7 +110,7 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
   await registerStandardRoutes(app);
   await registerLibraryRoutes(app);
   await registerProjectRoutes(app);
-  await registerAiSettingsRoutes(app);
+  await registerAiSettingsRoutes(app, { aiFetch: options.aiFetch });
   await registerPersonaRoutes(app);
   await registerPersonaReferenceMaterialRoutes(app);
   await registerDiagramChatRoutes(app, { languageModel: options.languageModel });

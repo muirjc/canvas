@@ -22,6 +22,7 @@ export type AuditEvent =
   | 'mfa_reset'
   | 'ai_price_set'
   | 'ai_price_removed'
+  | 'ai_model_set'
   | 'user_deleted'
   // canvas-3s5.1: GitHub approval
   | 'github_link_set'

@@ -492,6 +492,25 @@ export interface AiSettingsDto {
    *  entry points (Create with AI, Chat panel) warn when a deployment is unexpectedly running the
    *  'mock' fake-NLU provider instead of a real one. */
   provider: AiProviderKind;
+  /** canvas-tj1: the admin's chosen model; null = use the provider default. */
+  modelId: string | null;
+  defaultModelId: string | null;
+  /** The model chats actually use (choice, else default). */
+  effectiveModelId: string | null;
+}
+
+export interface AiModelDto {
+  id: string;
+  name: string;
+  createdAt: string | null;
+}
+
+export interface AiModelsDto {
+  provider: AiProviderKind;
+  models: AiModelDto[];
+  modelId: string | null;
+  defaultModelId: string | null;
+  error?: string;
 }
 
 export const api = {
@@ -745,7 +764,7 @@ export const api = {
     request<SendChatMessageResultDto>(`/diagrams/${diagramId}/chat/messages`, { method: 'POST', body: JSON.stringify(body) }),
   getChatMessages: (diagramId: string) => request<{ messages: ChatMessageDto[]; usageTotal?: ChatUsageTotalDto }>(`/diagrams/${diagramId}/chat/messages`),
   getAiSettings: () => request<AiSettingsDto>('/admin/ai-settings'),
-  setAiSettings: (body: { chatEnabled?: boolean; showUsageToUsers?: boolean }) =>
+  setAiSettings: (body: { chatEnabled?: boolean; showUsageToUsers?: boolean; modelId?: string | null }) =>
     request<AiSettingsDto>('/admin/ai-settings', { method: 'PATCH', body: JSON.stringify(body) }),
   /** canvas-wuc: any authenticated user, not just admins — read-only, mirrors listAiPersonas vs
    *  listAllAiPersonas' split. Used to gate the AI entry points (Create with AI, Chat panel)
@@ -756,6 +775,7 @@ export const api = {
     request<{ prices: AiPriceDto[] }>('/admin/ai-prices', { method: 'PUT', body: JSON.stringify(body) }),
   deleteAiPrice: (provider: string, modelId: string) =>
     request<{ prices: AiPriceDto[] }>(`/admin/ai-prices?${new URLSearchParams({ provider, modelId }).toString()}`, { method: 'DELETE' }),
+  listAiModels: () => request<AiModelsDto>('/admin/ai-models'),
   getAiStatus: () => request<AiSettingsDto>('/ai-settings'),
   getGitHubStatus: () => request<GitHubStatusDto>('/admin/github/status'),
   /** Fetches the example workflow with the session cookie; returns the file text. */

@@ -4,7 +4,7 @@ import type { LanguageModel } from 'ai';
 
 export class UnconfiguredAiProviderError extends Error {}
 
-const DEFAULT_MODEL_ID: Record<'anthropic' | 'openai', string> = {
+export const DEFAULT_MODEL_ID: Record<'anthropic' | 'openai', string> = {
   anthropic: 'claude-sonnet-5',
   openai: 'gpt-4o',
 };
@@ -15,9 +15,10 @@ const DEFAULT_MODEL_ID: Record<'anthropic' | 'openai', string> = {
  * hand-constructed `MockLanguageModelV4` (from `ai/test`) directly to the service functions that
  * would otherwise call this, via dependency injection (research.md §8).
  */
-export function getLanguageModel(env: NodeJS.ProcessEnv = process.env): LanguageModel {
+export function getLanguageModel(env: NodeJS.ProcessEnv = process.env, chosenModelId?: string | null): LanguageModel {
   const providerName = env.AI_PROVIDER;
-  const modelId = env.AI_MODEL;
+  // canvas-tj1: the admin's choice (Admin -> AI Personas) wins over AI_MODEL.
+  const modelId = chosenModelId || env.AI_MODEL;
 
   if (providerName === 'anthropic') {
     const apiKey = env.ANTHROPIC_API_KEY;
@@ -38,4 +39,11 @@ export function getLanguageModel(env: NodeJS.ProcessEnv = process.env): Language
   throw new UnconfiguredAiProviderError(
     `AI_PROVIDER must be set to "anthropic" or "openai" (got: ${providerName ?? 'unset'})`,
   );
+}
+
+/** canvas-tj1: the model a chat uses when the admin hasn't chosen one. */
+export function defaultModelId(env: NodeJS.ProcessEnv = process.env): string | null {
+  if (env.AI_PROVIDER === 'anthropic' || env.AI_PROVIDER === 'openai') return env.AI_MODEL || DEFAULT_MODEL_ID[env.AI_PROVIDER];
+  if (env.AI_PROVIDER === 'mock') return 'mock';
+  return null;
 }

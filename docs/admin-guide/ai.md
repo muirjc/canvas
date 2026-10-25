@@ -7,6 +7,19 @@ On **Admin → AI Personas**:
 - **Show token counts to users** controls whether people who aren't admins see token counts in the
   chat panel and on their account page. Admins always see them.
 
+## Choosing the AI model
+
+Also on **Admin → AI Personas**, **Model** lists the models your AI provider currently offers,
+newest first. Canvas asks the provider for the list. Choose one and it's used for every chat and
+Create with AI from then on; **Default** goes back to the model Canvas was deployed with. The page
+shows which model chats use.
+
+- If the provider stops offering the chosen model, the page warns you. Chats fail until you choose
+  another model.
+- If the chosen model has no price under **Model prices**, its cost isn't estimated on the AI usage
+  page. Add one there.
+- Changing the model is recorded in the audit log.
+
 ## Personas
 
 A **persona** is an AI assistant set up for one kind of work. Each has:

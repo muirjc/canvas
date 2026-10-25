@@ -429,6 +429,8 @@ export interface AiSettingsTable {
   chat_enabled: Generated<boolean>;
   /** canvas-4k9: token counts in the chat panel for non-admins (admins always see them). */
   show_usage_to_users: Generated<boolean>;
+  /** canvas-tj1: the admin's chosen model; null = AI_MODEL / the provider's built-in default. */
+  model_id: string | null;
   updated_at: GeneratedTimestamp;
 }
 
