@@ -1,0 +1,259 @@
+# Background notes, not requirements: an example gathered while planning GitHub approval
+# (canvas-3s5). Canvas's own example workflow is packages/validator-cli/examples/canvas-diagrams.yml;
+# see docs/github-approval-design.md. Kept as .txt so it isn't mistaken for (or scanned as) a live
+# workflow: its actions are on version tags, not pinned SHAs.
+#
+# .github/workflows/architecture-ci.yml
+#
+# CI for an architecture-as-code repo (TypeScript, pnpm workspaces).
+# Assumes these package.json scripts exist at the repo root:
+#   lint, typecheck, test, check:status-transitions, generate:views,
+#   check:views, depcruise, docs:build
+#
+# Branch protection on `main` should require ONLY the "Architecture gate"
+# job below, so jobs can be added or renamed without touching repo settings.
+
+name: Architecture CI
+
+on:
+  pull_request:
+    branches: [main]
+  merge_group:            # required if you use GitHub's merge queue
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+# Don't use `paths:` filters on this workflow. A required check that is
+# skipped by a path filter never reports, and the PR sits blocked forever.
+
+concurrency:
+  group: architecture-ci-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+
+env:
+  NODE_VERSION: "22"
+
+jobs:
+  # ---------------------------------------------------------------------------
+  # 1. Static checks + the semantic graph tests (schemas, IDs, links, coverage)
+  # ---------------------------------------------------------------------------
+  validate:
+    name: Lint, types, graph tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4        # version read from package.json "packageManager"
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Lint and format check
+        run: pnpm lint
+
+      - name: Type check (model references resolve at compile time)
+        run: pnpm typecheck
+
+      - name: Zod schema + graph integrity tests (Vitest)
+        run: pnpm test --reporter=default --reporter=junit --outputFile.junit=test-results.xml
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results
+          path: test-results.xml
+          if-no-files-found: ignore
+
+  # ---------------------------------------------------------------------------
+  # 2. Status-transition rules need the base branch to diff against
+  #    (e.g. an `accepted` ADR may not change body text or go back to `proposed`)
+  # ---------------------------------------------------------------------------
+  status-transitions:
+    name: ADR / spec status transitions
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0                  # need full history for the base diff
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Compare artifact states against base
+        run: pnpm check:status-transitions --base "origin/${{ github.base_ref }}"
+
+  # ---------------------------------------------------------------------------
+  # 3. Generate views from the model, confirm they parse and render
+  # ---------------------------------------------------------------------------
+  diagrams:
+    name: Generate and render diagrams
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Generate views from the typed model
+        run: pnpm generate:views
+
+      - name: Render check (fails if any diagram does not parse)
+        run: pnpm check:views              # wraps mmdc / D2 / Structurizr CLI
+
+      - name: Upload rendered diagrams for reviewers
+        uses: actions/upload-artifact@v4
+        with:
+          name: rendered-views
+          path: build/views/
+          if-no-files-found: error
+          retention-days: 14
+
+  # ---------------------------------------------------------------------------
+  # 4. Code-to-design conformance (layer and dependency rules)
+  # ---------------------------------------------------------------------------
+  fitness:
+    name: Architecture fitness functions
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: dependency-cruiser (rules derived from the model)
+        run: pnpm depcruise
+
+  # ---------------------------------------------------------------------------
+  # 5. Breaking API contract changes vs base
+  # ---------------------------------------------------------------------------
+  api-contract:
+    name: API breaking-change check
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Extract base version of the OpenAPI spec
+        run: |
+          mkdir -p /tmp/base
+          if git cat-file -e "origin/${{ github.base_ref }}:specs/api/openapi.yaml" 2>/dev/null; then
+            git show "origin/${{ github.base_ref }}:specs/api/openapi.yaml" > /tmp/base/openapi.yaml
+            echo "HAS_BASE=true" >> "$GITHUB_ENV"
+          else
+            echo "No base spec found; skipping."
+          fi
+
+      - name: oasdiff breaking changes
+        if: env.HAS_BASE == 'true'
+        run: |
+          docker run --rm \
+            -v /tmp/base:/base:ro \
+            -v "$PWD/specs/api:/head:ro" \
+            tufin/oasdiff breaking /base/openapi.yaml /head/openapi.yaml --fail-on ERR
+
+  # ---------------------------------------------------------------------------
+  # 6. Docs site build (preview artifact on PRs, deploy only from main)
+  # ---------------------------------------------------------------------------
+  docs-build:
+    name: Build docs site
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Build site (VitePress / Docusaurus / Starlight)
+        run: pnpm docs:build
+
+      - name: Upload preview artifact
+        if: github.event_name == 'pull_request'
+        uses: actions/upload-artifact@v4
+        with:
+          name: docs-preview
+          path: docs/.vitepress/dist       # adjust to your generator's output dir
+          retention-days: 7
+
+      - name: Package site for GitHub Pages
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: docs/.vitepress/dist
+
+  # ---------------------------------------------------------------------------
+  # Single required status check. Branch protection and the merge queue
+  # point at this job only.
+  # ---------------------------------------------------------------------------
+  gate:
+    name: Architecture gate
+    if: always()
+    needs: [validate, status-transitions, diagrams, fitness, api-contract, docs-build]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Fail if any upstream job failed or was cancelled
+        run: |
+          if [[ "${{ contains(needs.*.result, 'failure') }}" == "true" ||
+                "${{ contains(needs.*.result, 'cancelled') }}" == "true" ]]; then
+            echo "One or more required jobs did not succeed."
+            exit 1
+          fi
+          echo "All architecture checks passed (skipped jobs are expected on some events)."
+
+  # ---------------------------------------------------------------------------
+  # Publish accepted state only: runs on pushes to main, after the gate passes
+  # ---------------------------------------------------------------------------
+  publish-docs:
+    name: Publish docs
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: [gate]
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
