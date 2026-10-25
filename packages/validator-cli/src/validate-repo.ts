@@ -1,4 +1,4 @@
-import { createHash } from 'node:crypto';
+import { createHash, timingSafeEqual } from 'node:crypto';
 import { existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { dirname, join, relative, resolve, sep } from 'node:path';
 import { emptyStandardRules, findElementLine, getDslFamily, renderToSvg, validate, type StandardRules, type Violation } from './diagram-core.js';
@@ -66,6 +66,13 @@ const SKIP_DIRS = new Set(['node_modules', '.git']);
 const SEVERITY_LEVEL: Record<string, Level> = { error: 'error', warning: 'warning', info: 'notice' };
 const SEVERITY_TITLE: Record<string, string> = { error: 'Must fix', warning: 'Warning', info: 'Info' };
 
+/** Not a secret, but a constant-time comparison costs nothing here. */
+function sameHash(a: string, b: string): boolean {
+  const left = Buffer.from(a);
+  const right = Buffer.from(b);
+  return left.length === right.length && timingSafeEqual(left, right);
+}
+
 function toPosix(path: string): string {
   return path.split(sep).join('/');
 }
@@ -128,7 +135,7 @@ function checkDiagram(root: string, manifestPath: string, renderDir: string | un
   }
   const sourceRel = toPosix(relative(root, sourcePath));
   const dsl = readFileSync(sourcePath, 'utf8');
-  if (manifest.sourceSha256 && createHash('sha256').update(dsl, 'utf8').digest('hex') !== manifest.sourceSha256) {
+  if (manifest.sourceSha256 && !sameHash(createHash('sha256').update(dsl, 'utf8').digest('hex'), manifest.sourceSha256)) {
     add({
       level: 'warning',
       file: sourceRel,

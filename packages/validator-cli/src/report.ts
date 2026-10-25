@@ -42,7 +42,10 @@ export function formatGitHub(report: ValidationReport): string {
   return `${lines.join('\n')}\n`;
 }
 
+/** A markdown table cell for the step summary (GitHub sanitises its HTML too); `<` is escaped only so
+ *  a finding mentioning a tag reads as text. */
 function cell(text: string): string {
+  // bearer:disable javascript_lang_manual_html_sanitization
   return text.replace(/\|/g, '\\|').replace(/[\r\n]+/g, ' ').replace(/</g, '&lt;');
 }
 

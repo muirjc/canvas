@@ -29,4 +29,6 @@ await build({
   logLevel: 'warning',
 });
 copyFileSync('examples/canvas-diagrams.yml', 'dist/canvas-diagrams.yml');
+// The bundle's size only.
+// bearer:disable javascript_lang_logger_leak
 console.log(`dist/validator.mjs ${(statSync('dist/validator.mjs').size / 1024).toFixed(0)} KB`);
