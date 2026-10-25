@@ -1,10 +1,10 @@
 # Design: submitting Canvas diagrams to GitHub for approval
 
-Status: **approved** (2026-10-24). Epic canvas-3s5; phases canvas-3s5.1–.4. Background ideas (not requirements): `docs/github_ci.md`, `docs/github_ci.yml`, `docs/github_for _stoarge.md`.
+Status: **approved** (2026-10-24). Epic canvas-3s5; phases canvas-3s5.1–.4. Background ideas (not requirements): `docs/github_ci.md`, `docs/github_ci.yml`, `docs/github_for_storage.md`.
 
 
 ## Context
-Architects want an approved, version-controlled record of their diagrams outside Canvas: a diagram is sent to a GitHub repository as a **pull request**, the repo's CI/CD checks it, reviewers approve it in GitHub, and **merging = approved**. Canvas stays the editing tool; GitHub is the approval gate and the long-term record. The user's `docs/github_ci.md`, `docs/github_ci.yml` and `docs/github_for _stoarge.md` are background ideas (architecture-as-code repo, single "gate" check, branch protection, CODEOWNERS), not requirements.
+Architects want an approved, version-controlled record of their diagrams outside Canvas: a diagram is sent to a GitHub repository as a **pull request**, the repo's CI/CD checks it, reviewers approve it in GitHub, and **merging = approved**. Canvas stays the editing tool; GitHub is the approval gate and the long-term record. The user's `docs/github_ci.md`, `docs/github_ci.yml` and `docs/github_for_storage.md` are background ideas (architecture-as-code repo, single "gate" check, branch protection, CODEOWNERS), not requirements.
 
 **Decisions made with the user**
 - One-way Canvas → GitHub; Canvas is the source of truth.
