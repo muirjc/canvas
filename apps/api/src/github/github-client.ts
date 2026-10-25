@@ -53,6 +53,17 @@ export interface PullRequestSummary {
   /** Logins (and team slugs) still asked to review. */
   requestedReviewers: string[];
 }
+/** An open pull request as listed by GitHub (canvas-3s5.5: finding one Canvas opened but didn't record). */
+export interface OpenPullRequest {
+  number: number;
+  url: string;
+  headRef: string;
+  headSha: string;
+  /** owner/name of the repository the head branch is in (differs for a fork). */
+  headRepo: string | null;
+  body: string;
+  author: string;
+}
 export interface ReviewSummary {
   login: string;
   state: 'APPROVED' | 'CHANGES_REQUESTED' | 'COMMENTED' | 'DISMISSED' | 'PENDING';
@@ -383,5 +394,28 @@ export class GitHubClient {
 
   async addPullRequestComment(token: string, repo: { owner: string; name: string }, number: number, body: string): Promise<void> {
     await this.asInstallation(token, 'POST', `${this.repoPath(repo)}/issues/${number}/comments`, { body });
+  }
+
+  /** Open pull requests into `base` (up to 500, newest first). */
+  async listOpenPullRequests(token: string, repo: { owner: string; name: string }, base: string): Promise<OpenPullRequest[]> {
+    const pulls: OpenPullRequest[] = [];
+    for (let page = 1; page <= 5; page++) {
+      const raw = await this.asInstallation<
+        { number: number; html_url: string; body: string | null; user: { login: string } | null; head: { ref: string; sha: string; repo: { full_name: string } | null } }[]
+      >(token, 'GET', `${this.repoPath(repo)}/pulls?state=open&base=${encodeURIComponent(base)}&per_page=100&page=${page}`);
+      pulls.push(
+        ...raw.map((p) => ({
+          number: p.number,
+          url: p.html_url,
+          headRef: p.head.ref,
+          headSha: p.head.sha,
+          headRepo: p.head.repo?.full_name ?? null,
+          body: p.body ?? '',
+          author: p.user?.login ?? '',
+        })),
+      );
+      if (raw.length < 100) break;
+    }
+    return pulls;
   }
 }

@@ -5,7 +5,7 @@ import { computeValidation, getDiagram } from '../diagrams/diagram.service.js';
 import { exportSvg } from '../export/export.service.js';
 import { getActiveStandard } from '../standards/standard.service.js';
 import { recordAudit } from '../audit/audit.service.js';
-import { GitHubApiError, SUBMIT_PERMISSIONS, type GitHubClient, type PullRequestSummary } from './github-client.js';
+import { GitHubApiError, SUBMIT_PERMISSIONS, type GitHubClient, type OpenPullRequest, type PullRequestSummary } from './github-client.js';
 import { getLinkForProject, type GitHubLink } from './github-link.service.js';
 import { slugify } from './folder-path.js';
 import { validatorBundle } from './validator-bundle.js';
@@ -389,6 +389,42 @@ export async function recordPullState(
   return state;
 }
 
+/**
+ * An open pull request this Canvas opened for the diagram that no submission row records: opened
+ * by a bot (the App), from a canvas/<id8>- branch in the same repository, carrying the diagram's
+ * marker in its description, and not a pull request Canvas already knows about.
+ */
+async function findUnrecordedPull(
+  client: GitHubClient,
+  token: string,
+  submission: { repo_owner: string; repo_name: string; repo_id: number | string; base_branch: string },
+  diagramId: string,
+): Promise<OpenPullRequest | null> {
+  const repo = { owner: submission.repo_owner, name: submission.repo_name };
+  const prefix = `canvas/${diagramId.replace(/-/g, '').slice(0, 8)}-`;
+  const marker = `<!-- canvas:diagram=${diagramId} -->`;
+  const known = new Set(
+    (
+      await getDb()
+        .selectFrom('diagram_submissions')
+        .select('pr_number')
+        .where('repo_id', '=', Number(submission.repo_id))
+        .where('pr_number', 'is not', null)
+        .execute()
+    ).map((r) => r.pr_number),
+  );
+  const candidates = (await client.listOpenPullRequests(token, repo, submission.base_branch)).filter(
+    (p) =>
+      p.author.endsWith('[bot]') &&
+      p.headRef.startsWith(prefix) &&
+      p.headRepo?.toLowerCase() === `${repo.owner}/${repo.name}`.toLowerCase() &&
+      p.body.includes(marker) &&
+      !known.has(p.number),
+  );
+  // Newest first from GitHub; if somehow there are several, adopt the newest.
+  return candidates[0] ?? null;
+}
+
 export async function submitDiagram(client: GitHubClient, diagramId: string, submitter: Submitter, canvasPublicUrl: string): Promise<SubmitResult> {
   const diagram = await getDiagram(diagramId);
   const link = await getLinkForProject(diagram.projectId);
@@ -435,7 +471,16 @@ export async function submitDiagram(client: GitHubClient, diagramId: string, sub
   }));
 
   try {
-    const submission = await db.selectFrom('diagram_submissions').selectAll().where('id', '=', lock.id).executeTakeFirstOrThrow();
+    let submission = await db.selectFrom('diagram_submissions').selectAll().where('id', '=', lock.id).executeTakeFirstOrThrow();
+    // canvas-3s5.5: a pull request Canvas opened but failed to record (the request died after
+    // GitHub created it) is adopted rather than duplicated.
+    if (submission.pr_number === null) {
+      const orphan = await findUnrecordedPull(client, token, submission, diagramId);
+      if (orphan) {
+        await db.updateTable('diagram_submissions').set({ pr_number: orphan.number, pr_url: orphan.url, branch: orphan.headRef }).where('id', '=', lock.id).execute();
+        submission = await db.selectFrom('diagram_submissions').selectAll().where('id', '=', lock.id).executeTakeFirstOrThrow();
+      }
+    }
     const versionSequence = await currentVersionSequence(diagramId);
     const standard = await getActiveStandard(diagram.diagramTypeId);
     const canvasUrl = `${canvasPublicUrl}/?diagramId=${encodeURIComponent(diagramId)}`;

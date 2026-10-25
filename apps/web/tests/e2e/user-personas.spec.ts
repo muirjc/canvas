@@ -138,6 +138,8 @@ test('Import from Template filters the same way', async () => {
   await reloadUser();
   await user.getByTestId('import-template-button').click();
   await expect(user.getByTestId('confirm-import-template')).toBeVisible();
+  // The types load after the dialog opens: wait for them before reading the list once.
+  await expect(user.locator('[data-testid^="template-type-"]').first()).toBeVisible();
   const shownFiltered = await user.locator('[data-testid^="template-type-"]').evaluateAll((els) => els.map((e) => e.getAttribute('data-testid')!.replace('template-type-', '')));
   expect(shownFiltered.length).toBeGreaterThan(0);
   const byId = Object.fromEntries(templateTypes.map((t) => [t.id, t.personas]));

@@ -7,9 +7,11 @@ import { deleteModelPrice, listModelPrices, modelsWithoutPrice, setModelPrice, t
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
-/** `from`/`to` as ISO date-times; `to` defaults to now, `from` to 30 days before `to`. */
+/** `from`/`to` as ISO date-times; `to` defaults to now, `from` to 30 days before `to`. The period
+ *  is from <= t < to, so the default end is just after now: a turn recorded in this same
+ *  millisecond still counts (a fast SQLite run sometimes left it out). */
 function period(query: { from?: string; to?: string }): { from: Date; to: Date } {
-  const to = query.to ? new Date(query.to) : new Date();
+  const to = query.to ? new Date(query.to) : new Date(Date.now() + 1);
   const from = query.from ? new Date(query.from) : new Date(to.getTime() - 30 * DAY_MS);
   return { from, to };
 }

@@ -616,6 +616,84 @@ describe('Submitting diagrams to GitHub (canvas-3s5.1)', () => {
     });
   });
 
+  describe('a pull request Canvas opened but did not record (canvas-3s5.5)', () => {
+    /** The request died after GitHub created the pull request: Canvas has no row for it. */
+    async function forgetSubmissions(diagramId: string) {
+      const rows = await submissionRows(diagramId);
+      await getDb().deleteFrom('diagram_submission_pushes').where('submission_id', 'in', rows.map((r) => r.id)).execute();
+      await getDb().deleteFrom('diagram_submissions').where('diagram_id', '=', diagramId).execute();
+    }
+    const openPulls = () => [...repo.pulls.values()].filter((p) => p.state === 'open');
+
+    it('adopts it: the next submit pushes to that pull request instead of opening a second one', async () => {
+      await linkProject();
+      const diagramId = await createDiagram();
+      const first = await submit(diagramId);
+      expect(first.statusCode, first.body).toBe(201);
+      const prNumber = first.json().submission.prNumber as number;
+      const branch = first.json().submission.branch as string;
+      const headBefore = repo.branches.get(branch)!;
+      await forgetSubmissions(diagramId);
+
+      await save(diagramId, DSL_V2);
+      const again = await submit(diagramId);
+      expect(again.statusCode, again.body).toBe(200);
+      expect(again.json().outcome).toBe('updated');
+      expect(again.json().submission).toMatchObject({ prNumber, branch, state: 'open' });
+      expect(openPulls()).toHaveLength(1);
+      expect(repo.commits.get(repo.branches.get(branch)!)!.parents).toEqual([headBefore]);
+      const rows = await submissionRows(diagramId);
+      expect(rows).toHaveLength(1);
+      expect(rows[0]).toMatchObject({ pr_number: prNumber, branch, state: 'open', submitting_since: null });
+    });
+
+    it('with nothing changed, it is adopted and reported up to date', async () => {
+      await linkProject();
+      const diagramId = await createDiagram();
+      const prNumber = (await submit(diagramId)).json().submission.prNumber as number;
+      await forgetSubmissions(diagramId);
+
+      const again = await submit(diagramId);
+      expect(again.statusCode, again.body).toBe(200);
+      expect(again.json().outcome).toBe('upToDate');
+      expect(again.json().submission.prNumber).toBe(prNumber);
+      expect(openPulls()).toHaveLength(1);
+    });
+
+    it("doesn't adopt a matching pull request opened by a person, or one from a fork", async () => {
+      await linkProject();
+      const diagramId = await createDiagram();
+      const prNumber = (await submit(diagramId)).json().submission.prNumber as number;
+      await forgetSubmissions(diagramId);
+      repo.pulls.get(prNumber)!.author = 'mallory';
+
+      const again = await submit(diagramId);
+      expect(again.statusCode, again.body).toBe(201);
+      expect(again.json().submission.prNumber).not.toBe(prNumber);
+
+      await forgetSubmissions(diagramId);
+      for (const p of openPulls()) {
+        p.author = undefined;
+        p.headRepo = 'mallory/architecture';
+      }
+      const third = await submit(diagramId);
+      expect(third.statusCode, third.body).toBe(201);
+      expect(openPulls()).toHaveLength(3);
+    });
+
+    it("doesn't adopt another diagram's pull request", async () => {
+      await linkProject();
+      const other = await createDiagram('Billing Flow');
+      const otherPr = (await submit(other)).json().submission.prNumber as number;
+      const diagramId = await createDiagram();
+
+      const res = await submit(diagramId);
+      expect(res.statusCode, res.body).toBe(201);
+      expect(res.json().submission.prNumber).not.toBe(otherPr);
+      expect((await submissionRows(other))[0].pr_number).toBe(otherPr);
+    });
+  });
+
   describe('GitHub failures', () => {
     it('GitHub being down is a 502, leaves no provisional submission, and the next submit works', async () => {
       await linkProject();
