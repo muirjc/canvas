@@ -10,6 +10,7 @@ import { listReferenceMaterialForFamily } from './persona-reference-material.ser
 import { createDiagramTools, type ToolCallOutcome } from './diagram-tools.js';
 import { getDiagramTypePrimer } from './diagram-type-primers.js';
 import { getLanguageModel } from './provider.js';
+import { chosenModelId } from './ai-settings.service.js';
 
 export class DslParseError extends Error {}
 
@@ -226,7 +227,7 @@ export async function sendChatMessage(input: SendChatMessageInput): Promise<Send
 
   // canvas-9af: every step's tokens are added up as it ends, so a turn that fails partway still
   // records what it spent.
-  const languageModel = input.model ?? getLanguageModel();
+  const languageModel = input.model ?? getLanguageModel(process.env, await chosenModelId());
   const usage = { steps: 0, inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, cacheWriteTokens: 0, provider: '', modelId: '' };
   const recordTurn = (succeeded: boolean, chatMessageId?: string) =>
     recordAiUsage({

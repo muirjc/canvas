@@ -64,7 +64,7 @@ async function resetDatabaseSqlite(): Promise<void> {
   await db.deleteFrom('users').execute();
   // ai_settings is a singleton row (CHECK (id = 1) constraint) seeded by the migration, not
   // recreated by app code — reset its value instead of deleting so the row keeps existing.
-  await db.updateTable('ai_settings').set({ chat_enabled: dbBoolean(false), show_usage_to_users: dbBoolean(true) }).execute();
+  await db.updateTable('ai_settings').set({ chat_enabled: dbBoolean(false), show_usage_to_users: dbBoolean(true), model_id: null }).execute();
 }
 
 async function resetDatabasePostgres(): Promise<void> {
@@ -94,7 +94,7 @@ async function resetDatabasePostgres(): Promise<void> {
   );
   // ai_settings is a singleton row (CHECK (id) constraint) seeded by the migration, not
   // recreated by app code — reset its value instead of truncating so the row keeps existing.
-  await pool.query('UPDATE ai_settings SET chat_enabled = false, show_usage_to_users = true');
+  await pool.query('UPDATE ai_settings SET chat_enabled = false, show_usage_to_users = true, model_id = NULL');
 }
 
 export async function resetDatabase(): Promise<void> {

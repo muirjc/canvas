@@ -82,6 +82,12 @@ export function describeEvent(event: AuditEventDto): string {
       const pr = detail.pullRequest !== undefined && detail.pullRequest !== null ? ` PR #${String(detail.pullRequest)}` : '';
       return `Withdrew a submission${repo}${pr}`;
     }
+    case 'ai_model_set': {
+      const to = typeof detail.to === 'string' ? detail.to : 'unknown';
+      const from = typeof detail.from === 'string' ? ` (was ${detail.from})` : '';
+      const how = detail.chosen === null || detail.chosen === undefined ? ' (provider default)' : '';
+      return `AI model set to ${to}${how}${from}`;
+    }
     default:
       return event.event;
   }

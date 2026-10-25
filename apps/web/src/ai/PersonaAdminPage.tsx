@@ -3,6 +3,8 @@ import {
   api,
   ApiError,
   type AiPersonaDto,
+  type AiModelsDto,
+  type AiPriceDto,
   type AiProviderKind,
   type AiSettingsDto,
   type PersonaReferenceMaterialDto,
@@ -41,6 +43,13 @@ export function PersonaAdminPage() {
   const [category, setCategory] = useState<string>(CATEGORIES[0]);
   const [systemPrompt, setSystemPrompt] = useState('');
   const [error, setError] = useState<string | null>(null);
+  // canvas-tj1: the provider's model list, the price table (to warn on an unpriced model), and the
+  // save state of the Model select.
+  const [models, setModels] = useState<AiModelsDto | null>(null);
+  const [prices, setPrices] = useState<AiPriceDto[] | null>(null);
+  const [modelSaving, setModelSaving] = useState(false);
+  const [modelSaved, setModelSaved] = useState(false);
+  const [modelError, setModelError] = useState<string | null>(null);
   // canvas-rbu: hidden by default -- the bead's own complaint is archived entries cluttering the
   // screen as the library grows, so the reduce-clutter direction is the more useful default. A
   // persona's status is still shown via the existing persona-status-<id> badge when this is on.
@@ -88,6 +97,8 @@ export function PersonaAdminPage() {
   useEffect(() => {
     refresh();
     api.getAiSettings().then(setSettings);
+    api.listAiModels().then(setModels, (err) => setModels({ provider: 'unconfigured', models: [], modelId: null, defaultModelId: null, error: (err as Error).message }));
+    api.listAiPrices().then(({ prices }) => setPrices(prices), () => setPrices(null));
   }, []);
 
   // Lazily fetches each persona's reference material the first time it appears in the list --
@@ -262,6 +273,33 @@ export function PersonaAdminPage() {
   const handleToggleChat = (chatEnabled: boolean) => updateSettings({ chatEnabled });
   const handleToggleUsage = (showUsageToUsers: boolean) => updateSettings({ showUsageToUsers });
 
+  const handleModelChange = async (value: string) => {
+    setModelSaving(true);
+    setModelSaved(false);
+    setModelError(null);
+    try {
+      const next = await api.setAiSettings({ modelId: value === '' ? null : value });
+      setSettings(next);
+      setModels((current) => (current ? { ...current, modelId: next.modelId, defaultModelId: next.defaultModelId } : current));
+      setModelSaved(true);
+    } catch (err) {
+      setModelError(err instanceof ApiError ? err.message : (err as Error).message);
+    } finally {
+      setModelSaving(false);
+    }
+  };
+
+  const modelProvider = settings?.provider;
+  const modelPickable = modelProvider === 'anthropic' || modelProvider === 'openai';
+  const chosenModelId = settings?.modelId ?? null;
+  const modelOptions = models?.models ?? [];
+  const chosenUnavailable =
+    modelPickable && !!models && !models.error && chosenModelId !== null && !modelOptions.some((m) => m.id === chosenModelId);
+  const effectiveModelId = settings?.effectiveModelId ?? null;
+  const unpriced =
+    modelPickable && prices !== null && effectiveModelId !== null &&
+    !prices.some((p) => p.provider === modelProvider && p.modelId === effectiveModelId);
+
   const visiblePersonas = showArchived ? personas : personas.filter((p) => p.status !== 'archived');
   const archivedCount = personas.length - personas.filter((p) => p.status !== 'archived').length;
   const groups = groupPersonasByCategory(visiblePersonas);
@@ -308,6 +346,62 @@ export function PersonaAdminPage() {
           <p className="meta" data-testid="ai-provider-indicator">
             Provider: {PROVIDER_LABEL[settings.provider]}
           </p>
+        )}
+        {settings && (
+          <div className="field">
+            <label className="field__label" htmlFor="ai-model-select">
+              Model
+            </label>
+            <select
+              id="ai-model-select"
+              data-testid="ai-model-select"
+              value={chosenModelId ?? ''}
+              disabled={!modelPickable || !models || modelSaving}
+              onChange={(e) => handleModelChange(e.target.value)}
+            >
+              <option value="">Default ({settings.defaultModelId ?? 'none'})</option>
+              {chosenModelId !== null && !modelOptions.some((m) => m.id === chosenModelId) && (
+                <option value={chosenModelId}>{chosenModelId}</option>
+              )}
+              {modelOptions.map((m) => (
+                <option key={m.id} value={m.id}>
+                  {m.name} ({m.id})
+                </option>
+              ))}
+            </select>
+            {modelProvider === 'mock' && <p className="meta">Mock provider — no model to choose</p>}
+            {modelProvider === 'unconfigured' && <p className="meta">No AI provider is configured — no model to choose</p>}
+            {models?.error && modelPickable && (
+              <p role="alert" data-testid="ai-model-list-error">
+                Couldn't load the provider's models: {models.error}
+              </p>
+            )}
+            {modelSaving && <p className="meta">Saving…</p>}
+            {modelSaved && !modelSaving && (
+              <p className="meta" role="status" data-testid="ai-model-saved">
+                Saved
+              </p>
+            )}
+            {modelError && (
+              <p role="alert" data-testid="ai-model-error">
+                {modelError}
+              </p>
+            )}
+            {chosenUnavailable && (
+              <p role="alert" data-testid="ai-model-unavailable-warning">
+                {chosenModelId} is no longer offered by the provider — chats will fail until you choose another.
+              </p>
+            )}
+            {unpriced && (
+              <p role="status" data-testid="ai-model-unpriced-warning">
+                {effectiveModelId} has no price set — costs won't be estimated on the{' '}
+                <a href="?admin=ai-usage">AI usage page</a>.
+              </p>
+            )}
+            <p className="meta" data-testid="ai-model-effective">
+              Chats use: {effectiveModelId ?? 'none'}
+            </p>
+          </div>
         )}
         {archivedCount > 0 && (
           <label className="row">

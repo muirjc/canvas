@@ -1,5 +1,6 @@
 import { getDb } from '../db/client.js';
 import { currentTimestamp, dbBoolean, fromDbBoolean } from '../db/sql-helpers.js';
+import { defaultModelId } from './provider.js';
 
 export type AiProviderKind = 'anthropic' | 'openai' | 'mock' | 'unconfigured';
 
@@ -8,6 +9,12 @@ export interface AiSettings {
   /** canvas-4k9: show token counts in the chat panel to non-admins (admins always see them). */
   showUsageToUsers: boolean;
   provider: AiProviderKind;
+  /** canvas-tj1: the model the admin chose (null = the default). */
+  modelId: string | null;
+  /** The model used when none is chosen (AI_MODEL, else the provider's built-in default). */
+  defaultModelId: string | null;
+  /** What chats actually use. */
+  effectiveModelId: string | null;
 }
 
 /**
@@ -32,11 +39,18 @@ export function resolveAiProviderKind(env: NodeJS.ProcessEnv = process.env): AiP
  * addition to which provider is configured (research.md §5). */
 export async function getAiSettings(): Promise<AiSettings> {
   const db = getDb();
-  const row = await db.selectFrom('ai_settings').select(['chat_enabled', 'show_usage_to_users']).executeTakeFirstOrThrow();
+  const row = await db.selectFrom('ai_settings').select(['chat_enabled', 'show_usage_to_users', 'model_id']).executeTakeFirstOrThrow();
+  const provider = resolveAiProviderKind();
+  const fallback = defaultModelId();
+  // The mock has one model whatever is stored.
+  const chosen = provider === 'mock' ? null : row.model_id;
   return {
     chatEnabled: fromDbBoolean(row.chat_enabled),
     showUsageToUsers: fromDbBoolean(row.show_usage_to_users),
-    provider: resolveAiProviderKind(),
+    provider,
+    modelId: chosen,
+    defaultModelId: fallback,
+    effectiveModelId: chosen ?? fallback,
   };
 }
 
@@ -46,6 +60,8 @@ export async function getAiSettings(): Promise<AiSettings> {
 export interface SetAiSettingsInput {
   chatEnabled?: boolean;
   showUsageToUsers?: boolean;
+  /** canvas-tj1: null = back to the default. Validated against the provider's list by the route. */
+  modelId?: string | null;
 }
 
 export async function setAiSettings(input: SetAiSettingsInput): Promise<AiSettings> {
@@ -55,6 +71,7 @@ export async function setAiSettings(input: SetAiSettingsInput): Promise<AiSettin
     .set({
       chat_enabled: input.chatEnabled === undefined ? undefined : dbBoolean(input.chatEnabled),
       show_usage_to_users: input.showUsageToUsers === undefined ? undefined : dbBoolean(input.showUsageToUsers),
+      model_id: input.modelId,
       updated_at: currentTimestamp(),
     })
     .execute();
@@ -65,4 +82,10 @@ export async function setAiSettings(input: SetAiSettingsInput): Promise<AiSettin
 export async function canSeeUsage(role: string | undefined): Promise<boolean> {
   if (role === 'admin') return true;
   return (await getAiSettings()).showUsageToUsers;
+}
+
+/** canvas-tj1: the admin's chosen model, for building the chat's language model. */
+export async function chosenModelId(): Promise<string | null> {
+  const row = await getDb().selectFrom('ai_settings').select('model_id').executeTakeFirst();
+  return row?.model_id ?? null;
 }
