@@ -277,6 +277,8 @@ export interface GitHubStatusDto {
   apiUrl?: string;
   installations: GitHubInstallationDto[];
   error?: string;
+  /** canvas-3s5.3: whether this Canvas build bundles the validator committed with submissions. */
+  validatorAvailable?: boolean;
 }
 export interface GitHubRepositoryDto {
   id: number;
@@ -756,6 +758,16 @@ export const api = {
     request<{ prices: AiPriceDto[] }>(`/admin/ai-prices?${new URLSearchParams({ provider, modelId }).toString()}`, { method: 'DELETE' }),
   getAiStatus: () => request<AiSettingsDto>('/ai-settings'),
   getGitHubStatus: () => request<GitHubStatusDto>('/admin/github/status'),
+  /** Fetches the example workflow with the session cookie; returns the file text. */
+  downloadGitHubWorkflowExample: async (): Promise<string> => {
+    const path = '/admin/github/workflow-example';
+    const response = await fetch(`${apiBaseUrl}${path}`, { credentials: 'include' });
+    if (!response.ok) {
+      const body = await response.json().catch(() => ({}));
+      throw new ApiError(body.error ?? `Request to ${path} failed with status ${response.status}`, response.status);
+    }
+    return response.text();
+  },
   listGitHubRepositories: () => request<{ repositories: GitHubRepositoryDto[] }>('/admin/github/repositories'),
   listGitHubLinks: () => request<{ links: GitHubLinkDto[] }>('/admin/github/links'),
   testGitHubLink: (projectId: string) =>

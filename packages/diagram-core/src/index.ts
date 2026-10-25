@@ -23,6 +23,7 @@ export * from './dsl/uml.js';
 export * from './standards/schema.js';
 export * from './standards/validator.js';
 export * from './standards/kinds.js';
+export * from './standards/locate.js';
 export * from './standards/definition-check.js';
 export * from './render/svg-renderer.js';
 export * from './render/sequence-layout.js';

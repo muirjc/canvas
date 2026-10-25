@@ -36,11 +36,13 @@ RUN apt-get update && apt-get install -y --no-install-recommends python3 make g+
 # when a dependency actually changed, not on every source edit).
 COPY package.json package-lock.json tsconfig.base.json ./
 COPY packages/diagram-core/package.json packages/diagram-core/package.json
+COPY packages/validator-cli/package.json packages/validator-cli/package.json
 COPY apps/api/package.json apps/api/package.json
 COPY apps/web/package.json apps/web/package.json
 RUN npm ci
 
 COPY packages/diagram-core packages/diagram-core
+COPY packages/validator-cli packages/validator-cli
 COPY apps/api apps/api
 # apps/web is NOT built or copied into this image (canvas-ycu keeps the existing split-origin
 # topology: the frontend deploys separately to Storage static website hosting, matching
@@ -48,6 +50,9 @@ COPY apps/api apps/api
 # infra/azure/README.md for the full reasoning). A root `npm run build` would try to build every
 # workspace including web, so build diagram-core and api explicitly instead of `--workspaces`.
 RUN npm run build --workspace=@canvas/diagram-core && npm run build --workspace=@canvas/api
+# canvas-3s5.3: the CI validator bundle (dist/validator.mjs + the example workflow), which the API
+# commits to repositories with each GitHub submission.
+RUN npm run build --workspace=@canvas/validator-cli
 
 # The runtime image still needs node_modules (this Dockerfile does not prune devDependencies,
 # see the top-of-file note) and the migrations/ directory (read by dist/db/migrate.js at a path
@@ -62,6 +67,7 @@ COPY --from=build /app/packages/diagram-core/package.json packages/diagram-core/
 COPY --from=build /app/apps/api/dist apps/api/dist
 COPY --from=build /app/apps/api/package.json apps/api/package.json
 COPY --from=build /app/apps/api/migrations apps/api/migrations
+COPY --from=build /app/packages/validator-cli/dist packages/validator-cli/dist
 # jmuir-dtu.29: a locally generated AWS icon library (vendor-icons/aws-icons.json), if the deploying
 # machine has one -- the catalog seed loads it in place of the placeholder AWS icons. The folder
 # always exists (its README is committed), so this COPY never fails when the file is absent.

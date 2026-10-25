@@ -93,6 +93,16 @@ tests are NON-NEGOTIABLE and must exist (and fail) before implementing any diagr
 work — see `.specify/memory/constitution.md` Principle IV.
 
 ## Recent Changes
+- `canvas-3s5.3` (Phase 3, GitHub approval): new private workspace `packages/validator-cli` -- the
+  validator a repository's CI runs (`node .canvas/validator.mjs --format github --render-dir
+  rendered`): finds `canvas.json` manifests, parses each `.canvas.mmd`, validates against the
+  committed standard JSON, GitHub annotations with line numbers (`findElementLine`, moved from
+  apps/web to diagram-core) + step summary, renders SVGs, exits 1 on syntax errors / Must fix.
+  esbuild bundles it to one ~210 KB file from diagram-core's SOURCE modules (the package entry
+  would drag in 650 KB of Azure icons via the template compilers). Canvas commits it with every
+  submission (identical content = no Git change); Dockerfile builds it, CI typechecks/builds/tests
+  it. Example workflow (validate + "Architecture gate", pinned SHAs, no `paths:`) downloadable
+  from Admin -> GitHub.
 - `canvas-3s5.2` (Phase 2, GitHub approval): status sync (`apps/api/src/github/status-sync.service.ts`)
   -- merged = approved (version, merged-by, `merged_head_matches` flags edits made on GitHub),
   closed = rejected, open = latest review per reviewer + check runs/commit statuses (no Checks

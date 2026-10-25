@@ -108,18 +108,53 @@ To run the check by hand, start the job with
 <folder>/<diagram-name>/<diagram-name>.canvas.mmd  Canvas's own copy (positions, styles), exact
 <folder>/<diagram-name>/canvas.json        a manifest for CI checks
 .canvas/standards/<type>/v<n>.json         the standard the diagram was checked against
+.canvas/validator.mjs                      the validator the repository's CI runs
 ```
 
 Commits are made by the App, with a `Co-authored-by:` line naming the Canvas user who submitted.
 A diagram keeps the folder it was first submitted to, even if it's renamed later. Canvas never
 deletes or moves files in the repository.
 
+## Checking diagrams in the repository's CI
+
+With each submission, Canvas commits a small validator to `.canvas/validator.mjs` in the
+repository. It is one file with no dependencies, and Canvas updates it whenever Canvas is updated.
+A GitHub Actions workflow runs it on every pull request. For each diagram the validator:
+- parses Canvas's copy of the diagram;
+- checks it against the standard Canvas committed alongside it;
+- marks problems on the pull request's files;
+- attaches the rendered diagrams to the run for reviewers.
+
+The check fails when a diagram has a syntax error or a Must fix issue. Warnings are shown but don't
+fail it. Canvas already refuses to submit a diagram with Must fix issues, so a failing check usually
+means someone edited the files in GitHub.
+
+To set it up:
+1. On **Admin → GitHub**, choose **Download example workflow**.
+2. Commit the file to the repository as `.github/workflows/canvas-diagrams.yml`. Canvas never writes
+   workflows itself.
+3. In the branch protection for the target branch, require the **Architecture gate** check. The
+   workflow ends with this single check, so jobs can be added to it later without changing the
+   protection rule.
+
+Don't add `paths:` filters to the workflow. A required check that a path filter skips never reports,
+and the pull request then waits forever.
+
+You can also run the validator yourself in a clone of the repository:
+`node .canvas/validator.mjs` checks every diagram, and `node .canvas/validator.mjs --help` lists the
+options. It needs Node.js 20 or later.
+
 ## Recommended repository settings
 
 - **Branch protection** on the target branch: require a pull request, at least one approval, and
-  your CI check.
-- **CODEOWNERS:** make the architecture reviewers owners of the diagram folder and of `.canvas/`.
-- Ask people not to edit these files in GitHub. Changes made there are not copied back to Canvas, and
-  the next submission overwrites them.
+  the **Architecture gate** check.
+- **CODEOWNERS:** make the architecture reviewers owners of the diagram folder and of `.canvas/`, so
+  a change to a diagram, a standard or the validator needs their approval. For example:
 
-A ready-made CI workflow that validates diagrams is planned for a later release.
+  ```
+  /architecture/diagrams/  @your-org/architecture-reviewers
+  /.canvas/                @your-org/architecture-reviewers
+  ```
+- Ask people not to edit these files in GitHub. Changes made there are not copied back to Canvas, and
+  the next submission overwrites them. The validator warns when a diagram's source no longer matches
+  what Canvas submitted.

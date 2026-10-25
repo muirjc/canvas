@@ -26,6 +26,8 @@ export function GitHubAdminPage() {
   const [removeError, setRemoveError] = useState<string | null>(null);
   const [tests, setTests] = useState<Record<string, GitHubTestResultDto | { error: string } | 'running'>>({});
 
+  const [workflowError, setWorkflowError] = useState<string | null>(null);
+
   const load = useCallback(async () => {
     setLoadError(null);
     try {
@@ -61,6 +63,23 @@ export function GitHubAdminPage() {
       await load();
     } catch (err) {
       setRemoveError(errorText(err));
+    }
+  };
+
+  const downloadWorkflow = async () => {
+    setWorkflowError(null);
+    try {
+      const text = await api.downloadGitHubWorkflowExample();
+      const url = URL.createObjectURL(new Blob([text], { type: 'text/yaml' }));
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'canvas-diagrams.yml';
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      setWorkflowError(errorText(err));
     }
   };
 
@@ -119,6 +138,36 @@ export function GitHubAdminPage() {
               </ul>
             )}
           </div>
+        )}
+      </section>
+
+      <section className="card stack" aria-labelledby="github-checks-heading" data-testid="github-checks-section">
+        <h2 id="github-checks-heading" className="section-label">
+          Repository checks
+        </h2>
+        <p>
+          Canvas commits a validator to <code className="mono">.canvas/validator.mjs</code> with each submission. Add the example
+          workflow to the repository as <code className="mono">.github/workflows/canvas-diagrams.yml</code> and require its
+          &quot;Architecture gate&quot; check in branch protection. Pull requests then fail when a diagram has syntax errors or Must
+          fix issues.
+        </p>
+        <p className="meta">
+          Full steps are in <code className="mono">docs/admin-guide/github.md</code>.
+        </p>
+        {status?.enabled && status.validatorAvailable === false && (
+          <p role="alert" className="field__error" data-testid="github-validator-missing">
+            The validator is not part of this Canvas build, so submissions will not include it.
+          </p>
+        )}
+        <div className="row">
+          <button type="button" className="btn btn--secondary btn--compact" data-testid="github-workflow-download" onClick={() => void downloadWorkflow()}>
+            Download example workflow
+          </button>
+        </div>
+        {workflowError && (
+          <p role="alert" className="field__error" data-testid="github-workflow-error">
+            {workflowError}
+          </p>
         )}
       </section>
 

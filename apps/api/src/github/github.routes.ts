@@ -34,6 +34,7 @@ import {
   SubmissionNotLinkedError,
 } from './submission.service.js';
 import { submissionFingerprint } from './submission-files.js';
+import { exampleWorkflow, validatorBundle } from './validator-bundle.js';
 import { refreshDiagramSubmission, SubmissionNotOpenError, withdrawSubmission } from './status-sync.service.js';
 
 /**
@@ -77,11 +78,11 @@ export async function registerGitHubRoutes(app: FastifyInstance, config: AppConf
     if (!client) return reply.send({ enabled: false, installations: [] });
     try {
       const installations = await client.listInstallations();
-      return reply.send({ enabled: true, appId: client.appId, apiUrl: client.apiUrl, installations });
+      return reply.send({ enabled: true, appId: client.appId, apiUrl: client.apiUrl, installations, validatorAvailable: validatorBundle() !== null });
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       request.log.warn({ message }, 'GitHub status check failed');
-      return reply.send({ enabled: true, appId: client.appId, apiUrl: client.apiUrl, installations: [], error: message });
+      return reply.send({ enabled: true, appId: client.appId, apiUrl: client.apiUrl, installations: [], error: message, validatorAvailable: validatorBundle() !== null });
     }
   });
 
@@ -91,6 +92,16 @@ export async function registerGitHubRoutes(app: FastifyInstance, config: AppConf
     } catch (error) {
       return handleError(error, reply, request);
     }
+  });
+
+  // canvas-3s5.3: the example workflow that runs the committed validator in the repository's CI.
+  app.get('/admin/github/workflow-example', { preHandler: admin, schema: schema() }, async (_request, reply) => {
+    const workflow = exampleWorkflow();
+    if (!workflow) return reply.code(404).send({ error: 'The example workflow is not available (packages/validator-cli has not been built).' });
+    return reply
+      .header('content-type', 'text/yaml; charset=utf-8')
+      .header('content-disposition', 'attachment; filename="canvas-diagrams.yml"')
+      .send(workflow);
   });
 
   app.get('/admin/github/links', { preHandler: admin, schema: schema() }, async (_request, reply) => reply.send({ links: await listLinks() }));

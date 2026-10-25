@@ -1,0 +1,73 @@
+# Canvas diagrams -- checks the diagrams Canvas submits to this repository for approval.
+#
+# Save as .github/workflows/canvas-diagrams.yml. Canvas commits its validator to
+# .canvas/validator.mjs with each submission, so this workflow needs nothing installed beyond
+# Node.js. It parses every diagram (each folder with a canvas.json), checks it against the
+# standard Canvas committed with it, annotates the pull request with findings, and fails on a
+# syntax error or a Must fix finding. Rendered SVGs are attached to the run for reviewers.
+#
+# Branch protection on the target branch should require only the "Architecture gate" check, so
+# jobs can be added or renamed later without touching repository settings. Don't add `paths:`
+# filters: a required check that a path filter skips never reports, and the pull request waits
+# forever.
+
+name: Canvas diagrams
+
+on:
+  pull_request:
+  merge_group:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: canvas-diagrams-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    name: Validate Canvas diagrams
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: '22'
+
+      - name: Validate diagrams
+        run: |
+          if [ ! -f .canvas/validator.mjs ]; then
+            echo "No Canvas diagrams yet (.canvas/validator.mjs is added by the first submission)."
+            exit 0
+          fi
+          node .canvas/validator.mjs --format github --render-dir rendered
+
+      - name: Upload rendered diagrams
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: rendered-diagrams
+          path: rendered/
+          if-no-files-found: ignore
+          retention-days: 14
+
+  # The single required check: passes only if every job above passed (or was skipped).
+  gate:
+    name: Architecture gate
+    if: always()
+    needs: [validate]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Fail if any job failed or was cancelled
+        run: |
+          if [[ "${{ contains(needs.*.result, 'failure') }}" == "true" ||
+                "${{ contains(needs.*.result, 'cancelled') }}" == "true" ]]; then
+            echo "One or more checks did not pass."
+            exit 1
+          fi
+          echo "All Canvas diagram checks passed."

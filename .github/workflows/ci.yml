@@ -27,6 +27,9 @@ jobs:
       - run: npm run build --workspace=@canvas/diagram-core
       - run: npm run build --workspace=@canvas/api
       - run: npm run build --workspace=@canvas/web
+      # canvas-3s5.3: the CI validator Canvas commits to GitHub repositories (one bundled file).
+      - run: npm run typecheck --workspace=@canvas/validator-cli
+      - run: npm run build --workspace=@canvas/validator-cli
 
   unit-tests:
     runs-on: ubuntu-latest
@@ -71,6 +74,10 @@ jobs:
       - name: diagram-core contract/unit tests
         if: matrix.db-client == 'postgres'
         run: npm run test --workspace=@canvas/diagram-core
+      # canvas-3s5.3: no database either; its tests build and run the real bundle.
+      - name: validator-cli tests
+        if: matrix.db-client == 'postgres'
+        run: npm run test --workspace=@canvas/validator-cli
       - name: api contract tests
         # NODE_ENV=test makes the api fall back to the canvas_test DB / a fixed dev session
         # secret (see apps/api/src/config.ts) — no DATABASE_URL/SESSION_SECRET needed here.
