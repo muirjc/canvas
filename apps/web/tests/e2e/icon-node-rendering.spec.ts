@@ -106,7 +106,7 @@ test('preserves the icon node\'s shape and artwork through save and reload', asy
   await expectRealIconArtwork(page);
 
   await page.getByTestId('save-diagram').click();
-  await expect(page.getByTestId('save-status')).toHaveText('saved');
+  await expect(page.getByTestId('save-status')).toHaveAttribute('data-state', 'saved');
 
   await page.goto(`/?projectId=${PROJECT_ID}`);
   await expect(page.getByTestId('project-browser')).toBeVisible();
@@ -134,7 +134,7 @@ test('exports the icon node with the same real artwork', async ({ page }) => {
   // Export reads the server's last-saved DSL, not live in-memory canvas state — must save first
   // (same requirement create-export.spec.ts's own export test already follows).
   await page.getByTestId('save-diagram').click();
-  await expect(page.getByTestId('save-status')).toHaveText('saved');
+  await expect(page.getByTestId('save-status')).toHaveAttribute('data-state', 'saved');
 
   await page.getByTestId('export-menu-trigger').click();
   const [download] = await Promise.all([page.waitForEvent('download'), page.getByTestId('export-svg').click()]);

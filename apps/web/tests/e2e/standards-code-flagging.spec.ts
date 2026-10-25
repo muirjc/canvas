@@ -26,5 +26,5 @@ test('value chain DSL: an unknown kind class is flagged by line before Apply, an
   await page.getByTestId('apply-dsl').click();
   await expect(page.locator('[data-testid^="node-"]')).toHaveCount(2);
   await page.getByTestId('save-diagram').click();
-  await expect(page.getByTestId('save-status')).toHaveText(/saved/i);
+  await expect(page.getByTestId('save-status')).toHaveAttribute('data-state', 'saved');
 });

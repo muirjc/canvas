@@ -64,7 +64,7 @@ test('C4 descriptions and technology survive a canvas edit, save and reload', as
   for (const line of EXPECTED_LINES) await expect.poll(async () => dslPanel.inputValue()).toContain(line);
 
   await page.getByTestId('save-diagram').click();
-  await expect(page.getByTestId('save-status')).toHaveText('saved');
+  await expect(page.getByTestId('save-status')).toHaveAttribute('data-state', 'saved');
 
   // Reload: the address carries ?diagramId= (canvas-t3b.2), so this reopens the saved diagram from
   // the server.
@@ -150,7 +150,7 @@ test('C4 SVG export includes technology and description', async ({ page }) => {
   expect(name).toBeTruthy();
 
   await page.getByTestId('save-diagram').click();
-  await expect(page.getByTestId('save-status')).toHaveText('saved');
+  await expect(page.getByTestId('save-status')).toHaveAttribute('data-state', 'saved');
 
   await page.getByTestId('export-menu-trigger').click();
   const [download] = await Promise.all([page.waitForEvent('download'), page.getByTestId('export-svg').click()]);

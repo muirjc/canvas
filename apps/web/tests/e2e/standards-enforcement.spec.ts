@@ -24,7 +24,7 @@ test('admin publishes a standard; a violating diagram is soft-flagged, not block
   await page.getByTestId('add-shape-circle').click();
   await page.getByTestId('save-diagram').click();
 
-  await expect(page.getByTestId('save-status')).toHaveText('saved');
+  await expect(page.getByTestId('save-status')).toHaveAttribute('data-state', 'saved');
   // Violations are one panel of the editor's secondary rail (feature 005). Navigation only.
   await page.getByTestId('rail-tab-issues').click();
   await expect(page.getByTestId('violations-panel')).toBeVisible();
@@ -77,7 +77,7 @@ test('admin standards editor governs the nine new shapes, including a mandatory-
   // No hexagon added — the mandatory-shape rule should flag its absence.
   await page.getByTestId('add-shape-rectangle').click();
   await page.getByTestId('save-diagram').click();
-  await expect(page.getByTestId('save-status')).toHaveText('saved');
+  await expect(page.getByTestId('save-status')).toHaveAttribute('data-state', 'saved');
 
   await page.getByTestId('rail-tab-issues').click();
   await expect(page.getByTestId('violations-panel')).toBeVisible();

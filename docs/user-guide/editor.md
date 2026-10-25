@@ -7,8 +7,8 @@ Opening a diagram shows it on the **canvas** in the middle:
 
 ![The editor](../images/editor.png)
 
-**Save often.** The editor shows when you have unsaved changes. If you try to leave with unsaved
-changes, it asks first.
+**Save often.** Next to **Save**, the editor shows **Unsaved changes**, **Saving…**, **Saved** or
+**Couldn't save**. If you try to leave with unsaved changes, it asks first.
 
 ## Drawing
 
@@ -81,4 +81,5 @@ search them. **Restore** brings an earlier version back as the current diagram.
 ## Name and description
 
 Click the diagram's name at the top to rename it. Its description, owner and creation date are
-under **Diagram details**.
+under **Diagram details** (the ⓘ button beside the name). Choose **Close** or press Escape to
+leave it; a description you haven't saved yet is still there when you reopen it.

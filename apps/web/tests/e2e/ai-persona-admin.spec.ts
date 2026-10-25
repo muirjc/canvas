@@ -37,7 +37,15 @@ test('admin manages the persona library; a non-admin cannot reach the screen', a
   await expect(page.getByTestId('persona-create-submit')).toBeVisible();
 
   // Turn AI chat on from the same screen (FR-020's admin toggle).
-  await page.getByTestId('ai-chat-enabled-toggle').check();
+  // canvas-yh6: wait for the save, not just the checkbox (which now changes at once). Already on
+  // in most runs, in which case there's nothing to save.
+  const chatToggle = page.getByTestId('ai-chat-enabled-toggle');
+  await expect(chatToggle).toBeEnabled();
+  if (!(await chatToggle.isChecked())) {
+    const saved = page.waitForResponse((r) => r.url().endsWith('/admin/ai-settings') && r.request().method() !== 'GET' && r.ok());
+    await chatToggle.check();
+    await saved;
+  }
 
   // Create a persona under "Enterprise" and confirm it's listed, grouped under that category.
   await page.getByTestId('persona-create-name').fill(personaName);

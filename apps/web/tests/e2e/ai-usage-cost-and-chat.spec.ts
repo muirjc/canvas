@@ -187,8 +187,10 @@ test('turning the setting off hides counts from the architect but not from the a
   await admin.goto('/?admin=ai-personas');
   const toggle = admin.getByTestId('ai-show-usage-toggle');
   await expect(toggle).toBeChecked();
-  await toggle.click(); // controlled by the server round trip, so not uncheck()
-  await expect(toggle).not.toBeChecked();
+  // canvas-yh6: the checkbox changes at once; wait for the save itself before reloading.
+  const saved = admin.waitForResponse((r) => r.url().endsWith('/admin/ai-settings') && r.request().method() !== 'GET' && r.ok());
+  await toggle.uncheck();
+  await saved;
   // Persisted: the toggle reflects the server after a reload.
   await admin.reload();
   await expect(admin.getByTestId('ai-show-usage-toggle')).not.toBeChecked();
@@ -212,8 +214,9 @@ test('turning the setting off hides counts from the architect but not from the a
 
   // Restore (the afterAll does too, in case an assertion above failed).
   await admin.goto('/?admin=ai-personas');
-  await admin.getByTestId('ai-show-usage-toggle').click();
-  await expect(admin.getByTestId('ai-show-usage-toggle')).toBeChecked();
+  const restored = admin.waitForResponse((r) => r.url().endsWith('/admin/ai-settings') && r.request().method() !== 'GET' && r.ok());
+  await admin.getByTestId('ai-show-usage-toggle').check();
+  await restored;
   await architect.goto('/?account=password');
   await expect(architect.getByTestId('my-ai-usage')).toBeVisible();
 });

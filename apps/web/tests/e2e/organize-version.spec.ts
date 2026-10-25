@@ -32,13 +32,13 @@ test('save into a project, edit, and restore a prior version', async ({ page }) 
   // v2: one rectangle, save.
   await page.getByTestId('add-shape-rectangle').click();
   await page.getByTestId('save-diagram').click();
-  await expect(page.getByTestId('save-status')).toHaveText('saved');
+  await expect(page.getByTestId('save-status')).toHaveAttribute('data-state', 'saved');
   await expect(page.getByTestId('version-2')).toBeVisible();
 
   // v3: add a circle too, save again.
   await page.getByTestId('add-shape-circle').click();
   await page.getByTestId('save-diagram').click();
-  await expect(page.getByTestId('save-status')).toHaveText('saved');
+  await expect(page.getByTestId('save-status')).toHaveAttribute('data-state', 'saved');
   await expect(page.getByTestId('version-3')).toBeVisible();
 
   await expect(page.locator('[data-testid^="node-"]')).toHaveCount(2);

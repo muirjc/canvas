@@ -191,7 +191,7 @@ test('submit, update, review, merge: the diagram ends up approved', async () => 
   await page.getByTestId('apply-dsl').click();
   await expect(page.getByTestId('node-c')).toBeVisible();
   await page.getByTestId('save-diagram').click();
-  await expect(page.getByTestId('save-status')).toHaveText('saved');
+  await expect(page.getByTestId('save-status')).toHaveAttribute('data-state', 'saved');
   await expect(page.getByTestId('submission-chip')).toHaveAttribute('data-state', 'changed');
   await expect(page.getByTestId('submission-chip')).toHaveText('Changes since submitting');
   await expect(page.getByTestId('submission-submit')).toHaveText(`Push update to PR #${prNumber}`);

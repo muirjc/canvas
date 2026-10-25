@@ -60,7 +60,7 @@ test('value chain: kind toolbar, live issues, kind styling, connector policy, se
 
   // Save + reload.
   await page.getByTestId('save-diagram').click();
-  await expect(page.getByTestId('save-status')).toHaveText(/saved/i);
+  await expect(page.getByTestId('save-status')).toHaveAttribute('data-state', 'saved');
   // canvas-t3b.2: the address carries ?diagramId=, so a reload reopens this diagram from the server.
   await page.reload();
   await expect(page.getByTestId('sign-out')).toBeVisible();

@@ -103,7 +103,7 @@ test('the outstanding violation count is visible without opening the violations 
   // Lowercase deliberately: five existing spec files assert this element's text exactly, so the
   // redesign keeps the word as-is and adds the status dot alongside it rather than restyling
   // the text (SC-003).
-  await expect(page.getByTestId('save-status')).toHaveText('saved');
+  await expect(page.getByTestId('save-status')).toHaveAttribute('data-state', 'saved');
 
   // FR-013: the count is on the tab itself, while DSL is still the active panel.
   await expect(page.getByTestId('rail-tab-dsl')).toHaveAttribute('aria-selected', 'true');

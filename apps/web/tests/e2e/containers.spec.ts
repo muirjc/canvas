@@ -96,7 +96,7 @@ test('renames a container and the name survives save and reopen', async ({ page 
 
   // FR-014: survives a round trip through storage.
   await page.getByTestId('save-diagram').click();
-  await expect(page.getByTestId('save-status')).toHaveText('saved');
+  await expect(page.getByTestId('save-status')).toHaveAttribute('data-state', 'saved');
   await page.goto(`/?projectId=${PROJECT_ID}`);
   await page.locator('[data-testid^="open-diagram-"]').first().click();
   await expect(page.getByTestId('diagram-canvas')).toBeVisible();

@@ -203,8 +203,12 @@ export const DiagramEditor = forwardRef<DiagramEditorHandle, DiagramEditorProps>
     }
   };
 
-  const statusModifier =
-    saveStatus === 'saved' ? 'saved' : saveStatus === 'error' ? 'error' : saveStatus === 'saving' ? 'dirty' : '';
+  // canvas-08d: plain words, not the raw request state ('idle' showed up beside Save). Whether
+  // there's anything to save comes from hasUnsavedChanges; a failed save stays visible until the
+  // next attempt. The raw state stays available to tests as data-state.
+  const saveLabel =
+    saveStatus === 'saving' ? 'Saving…' : saveStatus === 'error' ? "Couldn't save" : hasUnsavedChanges ? 'Unsaved changes' : 'Saved';
+  const statusModifier = saveStatus === 'error' ? 'error' : saveStatus === 'saving' || hasUnsavedChanges ? 'dirty' : 'saved';
 
   return (
     <div className="editor">
@@ -265,12 +269,13 @@ export const DiagramEditor = forwardRef<DiagramEditorHandle, DiagramEditorProps>
           <Icon name="info" />
         </button>
         <span className="spacer" />
-        {/* The dot sits BESIDE `save-status`, never inside it: five existing spec files assert
-            that element's text exactly (`toHaveText('saved')`), and SC-003 forbids changing an
-            existing assertion. The dot reinforces the word, it never replaces it (FR-006). */}
-        <span className={`status ${statusModifier ? `status--${statusModifier}` : ''}`}>
+        {/* The dot reinforces the words, it never replaces them (FR-006). Specs wait on
+            data-state (idle | saving | saved | error), not on the wording. */}
+        <span className={`status status--${statusModifier}`} aria-live="polite">
           <span className="status__dot" aria-hidden="true" />
-          <span data-testid="save-status">{saveStatus}</span>
+          <span data-testid="save-status" data-state={saveStatus} role={saveStatus === 'error' ? 'alert' : undefined}>
+            {saveLabel}
+          </span>
         </span>
         <button type="button" className="btn btn--primary btn--compact" data-testid="save-diagram" onClick={handleSave}>
           Save
@@ -418,7 +423,18 @@ export const DiagramEditor = forwardRef<DiagramEditorHandle, DiagramEditorProps>
       {sharing && <ShareDialog diagramId={diagram.id} onClose={() => setSharing(false)} />}
 
       {showDetails && (
-        <Modal label="Diagram details" testId="diagram-details" onClose={() => setShowDetails(false)}>
+        <Modal
+          label="Diagram details"
+          testId="diagram-details"
+          onClose={() => setShowDetails(false)}
+          footer={
+            // canvas-96h: the dialog had no visible way out (only Escape). An unsaved description
+            // draft is kept for when it's reopened, so closing never loses typing.
+            <button type="button" className="btn btn--secondary" data-testid="diagram-details-close" onClick={() => setShowDetails(false)}>
+              Close
+            </button>
+          }
+        >
           <dl>
             <dt>Owner</dt>
             <dd data-testid="diagram-details-owner">{diagram.ownerName}</dd>

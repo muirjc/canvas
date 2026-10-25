@@ -86,14 +86,10 @@ test.describe('AI availability gating', () => {
     await expect(adminPage.getByTestId('ai-chat-enabled-toggle')).toBeChecked();
 
     try {
-      // Not a plain `.uncheck()`: this is a controlled checkbox bound to state that only updates
-      // after `handleToggleChat`'s API round-trip resolves (PersonaAdminPage.tsx), so the DOM
-      // briefly reverts to its old value right after the click — the same single-shot-read-races-
-      // state-update timing trap `style-affordance.spec.ts` hit (canvas-mup). `expect.poll`-style
-      // retrying via `toBeChecked()`'s own polling assertion, not a one-shot state check, is what
-      // survives that.
-      await adminPage.getByTestId('ai-chat-enabled-toggle').click();
-      await expect(adminPage.getByTestId('ai-chat-enabled-toggle')).not.toBeChecked();
+      // canvas-yh6: the checkbox changes at once; wait for the save before relying on it.
+      const saved = adminPage.waitForResponse((r) => r.url().endsWith('/admin/ai-settings') && r.request().method() !== 'GET' && r.ok());
+      await adminPage.getByTestId('ai-chat-enabled-toggle').uncheck();
+      await saved;
 
       // As an ordinary (non-admin) user: the button and chat panel are both disabled.
       await signIn(architectPage, ARCHITECT_EMAIL, ARCHITECT_PASSWORD);

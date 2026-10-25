@@ -94,7 +94,7 @@ test('preserves every additional shape and orientation through save and reload',
   await importAdditionalShapes(page, diagramName);
 
   await page.getByTestId('save-diagram').click();
-  await expect(page.getByTestId('save-status')).toHaveText('saved');
+  await expect(page.getByTestId('save-status')).toHaveAttribute('data-state', 'saved');
 
   // Leave the editor and come back through the project browser — a real reload, not in-memory state.
   await page.goto(`/?projectId=${PROJECT_ID}`);
