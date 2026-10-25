@@ -1,6 +1,7 @@
 # Background notes, not requirements: an example gathered while planning GitHub approval
 # (canvas-3s5). Canvas's own example workflow is packages/validator-cli/examples/canvas-diagrams.yml;
-# see docs/github-approval-design.md.
+# see docs/github-approval-design.md. Kept as .txt so it isn't mistaken for (or scanned as) a live
+# workflow: its actions are on version tags, not pinned SHAs.
 #
 # .github/workflows/architecture-ci.yml
 #

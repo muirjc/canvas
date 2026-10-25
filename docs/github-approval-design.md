@@ -1,10 +1,10 @@
 # Design: submitting Canvas diagrams to GitHub for approval
 
-Status: **approved** (2026-10-24). Epic canvas-3s5; phases canvas-3s5.1–.4. Background ideas (not requirements): `docs/github_ci.md`, `docs/github_ci.yml`, `docs/github_for_storage.md`.
+Status: **approved** (2026-10-24). Epic canvas-3s5; phases canvas-3s5.1–.4. Background ideas (not requirements): `docs/github_ci.md`, `docs/github_ci.yml.txt`, `docs/github_for_storage.md`.
 
 
 ## Context
-Architects want an approved, version-controlled record of their diagrams outside Canvas: a diagram is sent to a GitHub repository as a **pull request**, the repo's CI/CD checks it, reviewers approve it in GitHub, and **merging = approved**. Canvas stays the editing tool; GitHub is the approval gate and the long-term record. The user's `docs/github_ci.md`, `docs/github_ci.yml` and `docs/github_for_storage.md` are background ideas (architecture-as-code repo, single "gate" check, branch protection, CODEOWNERS), not requirements.
+Architects want an approved, version-controlled record of their diagrams outside Canvas: a diagram is sent to a GitHub repository as a **pull request**, the repo's CI/CD checks it, reviewers approve it in GitHub, and **merging = approved**. Canvas stays the editing tool; GitHub is the approval gate and the long-term record. The user's `docs/github_ci.md`, `docs/github_ci.yml.txt` and `docs/github_for_storage.md` are background ideas (architecture-as-code repo, single "gate" check, branch protection, CODEOWNERS), not requirements.
 
 **Decisions made with the user**
 - One-way Canvas → GitHub; Canvas is the source of truth.
@@ -60,7 +60,7 @@ Users: `GET /projects/:id/github-link`, `POST /diagrams/:id/submissions` (edit),
 - Project page badges; `useSubmission` polls every 60s while a PR is open and the tab is visible.
 
 ### Validator CLI + workflow (Phase 3)
-`packages/diagram-core-cli` (private) → esbuild single-file `validator.mjs` (no deps; keep icon libraries out), shipped in the API image and **committed by Canvas to `.canvas/validator.mjs`** when it changes (no npm publish needed). `node .canvas/validator.mjs --format github --render-dir rendered`: finds `canvas.json` manifests, parses `.canvas.mmd`, validates against the referenced standard, GitHub annotations + step summary, renders SVGs, exits 1 on parse errors/Must-fix. Example workflow (`examples/canvas-diagrams.yml`, from `docs/github_ci.yml`'s pattern: validate job + "Architecture gate", no `paths:`, pinned SHAs). Canvas never commits workflows. Advise CODEOWNERS on the folder + `.canvas/`.
+`packages/diagram-core-cli` (private) → esbuild single-file `validator.mjs` (no deps; keep icon libraries out), shipped in the API image and **committed by Canvas to `.canvas/validator.mjs`** when it changes (no npm publish needed). `node .canvas/validator.mjs --format github --render-dir rendered`: finds `canvas.json` manifests, parses `.canvas.mmd`, validates against the referenced standard, GitHub annotations + step summary, renders SVGs, exits 1 on parse errors/Must-fix. Example workflow (`examples/canvas-diagrams.yml`, from `docs/github_ci.yml.txt`'s pattern: validate job + "Architecture gate", no `paths:`, pinned SHAs). Canvas never commits workflows. Advise CODEOWNERS on the folder + `.canvas/`.
 
 ### Infra
 `apiapp.bicep`: `githubAppId`, `githubApiUrl` params; KV secret `github-app-private-key`; env vars. New `modules/githubsyncjob.bicep` (Schedule `*/15 * * * *`, modelled on `seedjob.bicep`), conditional on `githubAppId`. `deploy.sh`: `CANVAS_GITHUB_APP_ID`, `CANVAS_GITHUB_APP_PRIVATE_KEY_FILE` cached in `.secrets/` (key base64), KV write + reference refresh. `pause.sh`/`resume.sh` suspend/resume the job. App permissions: Contents RW, Pull requests RW, Checks R, Commit statuses R, Metadata R; webhook off; selected repos.

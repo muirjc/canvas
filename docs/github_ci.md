@@ -1,4 +1,4 @@
-> **Background notes, not requirements.** Ideas gathered while planning GitHub approval (canvas-3s5). What was built is described in [github-approval-design.md](github-approval-design.md) and [admin-guide/github.md](admin-guide/github.md).
+> **Background notes, not requirements.** The workflow this describes is in [github_ci.yml.txt](github_ci.yml.txt). Ideas gathered while planning GitHub approval (canvas-3s5). What was built is described in [github-approval-design.md](github-approval-design.md) and [admin-guide/github.md](admin-guide/github.md).
 
 I'll write the workflow as a file you can drop into `.github/workflows/`.
 
