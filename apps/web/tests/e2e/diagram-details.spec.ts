@@ -166,3 +166,43 @@ test('Escape closes the dialog but keeps the in-progress unsaved draft — it is
   const getResponse = await page.request.get(`${API_BASE_URL}/diagrams/${diagramId}`);
   expect((await getResponse.json()).diagram.description).toBeNull();
 });
+
+test('canvas-96h: the details dialog has a Close button, and an unsaved description draft survives closing', async ({ page }) => {
+  await signIn(page, OWNER_EMAIL, OWNER_PASSWORD);
+  const diagramId = await createDiagram(page, PROJECT_ID!, `Details Close ${Date.now()}`);
+  await openDiagram(page, PROJECT_ID!, diagramId);
+
+  await page.getByTestId('open-diagram-details').click();
+  const dialog = page.getByTestId('diagram-details');
+  await expect(dialog).toBeVisible();
+  await dialog.getByTestId('diagram-description-input').fill('Half-written');
+
+  await dialog.getByTestId('diagram-details-close').click();
+  await expect(page.getByTestId('diagram-details')).toHaveCount(0);
+  // Focus goes back to the control that opened it.
+  await expect(page.getByTestId('open-diagram-details')).toBeFocused();
+
+  await page.getByTestId('open-diagram-details').click();
+  await expect(page.getByTestId('diagram-description-input')).toHaveValue('Half-written');
+  await expect(page.getByTestId('diagram-description-status')).toHaveText('Unsaved changes');
+});
+
+test('canvas-08d: the save status reads in plain words, never the raw request state', async ({ page }) => {
+  await signIn(page, OWNER_EMAIL, OWNER_PASSWORD);
+  const diagramId = await createDiagram(page, PROJECT_ID!, `Save Words ${Date.now()}`);
+  await openDiagram(page, PROJECT_ID!, diagramId);
+
+  const status = page.getByTestId('save-status');
+  await expect(status).toHaveText('Saved');
+  await expect(status).toHaveAttribute('data-state', 'idle');
+  await expect(page.getByTestId('doc-bar')).not.toContainText('idle');
+
+  await page.getByTestId('rail-tab-dsl').click();
+  await page.getByTestId('dsl-panel').fill('flowchart TD\n  A[Start] --> B[Next]\n');
+  await page.getByTestId('apply-dsl').click();
+  await expect(status).toHaveText('Unsaved changes');
+
+  await page.getByTestId('save-diagram').click();
+  await expect(status).toHaveAttribute('data-state', 'saved');
+  await expect(status).toHaveText('Saved');
+});

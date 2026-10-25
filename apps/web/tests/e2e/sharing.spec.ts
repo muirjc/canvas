@@ -32,7 +32,7 @@ test('shares a diagram at view access (edit blocked), then upgrades to edit (all
   await expect(ownerPage.getByTestId('diagram-canvas')).toBeVisible();
   await ownerPage.getByTestId('add-shape-rectangle').click();
   await ownerPage.getByTestId('save-diagram').click();
-  await expect(ownerPage.getByTestId('save-status')).toHaveText('saved');
+  await expect(ownerPage.getByTestId('save-status')).toHaveAttribute('data-state', 'saved');
 
   await ownerPage.getByTestId('open-share-dialog').click();
   await ownerPage.getByTestId('share-email').fill(GRANTEE_EMAIL);
@@ -56,7 +56,7 @@ test('shares a diagram at view access (edit blocked), then upgrades to edit (all
 
   await granteePage.getByTestId('add-shape-circle').click();
   await granteePage.getByTestId('save-diagram').click();
-  await expect(granteePage.getByTestId('save-status')).toHaveText('error');
+  await expect(granteePage.getByTestId('save-status')).toHaveAttribute('data-state', 'error');
 
   // Owner upgrades the grant to "edit".
   await ownerPage.getByTestId('share-access-level').selectOption('edit');
@@ -68,7 +68,7 @@ test('shares a diagram at view access (edit blocked), then upgrades to edit (all
 
   // Grantee retries the save — now allowed.
   await granteePage.getByTestId('save-diagram').click();
-  await expect(granteePage.getByTestId('save-status')).toHaveText('saved');
+  await expect(granteePage.getByTestId('save-status')).toHaveAttribute('data-state', 'saved');
 
   await ownerContext.close();
   await granteeContext.close();

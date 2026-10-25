@@ -171,7 +171,7 @@ test('Auto Layout + Save persists the new direction and positions server-side', 
   const clientB = positionOf(clientDsl, 'B');
 
   await page.getByTestId('save-diagram').click();
-  await expect(page.getByTestId('save-status')).toHaveText('saved');
+  await expect(page.getByTestId('save-status')).toHaveAttribute('data-state', 'saved');
 
   // A fresh server-side GET, not page.reload() — reload does not deep-link back into an open
   // diagram in this app (a pre-existing, unrelated navigation quirk, confirmed during manual

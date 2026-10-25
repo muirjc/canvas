@@ -84,7 +84,7 @@ test('a kind sharing its role is tagged, survives reload, and can be re-picked',
   const nodeId = await addKind(page, 'new_system');
 
   await page.getByTestId('save-diagram').click();
-  await expect(page.getByTestId('save-status')).toHaveText(/saved/i);
+  await expect(page.getByTestId('save-status')).toHaveAttribute('data-state', 'saved');
 
   const source = await readDsl(page);
   expect(source).toMatch(new RegExp(`System\\(${nodeId},[^\\n]*\\$tags="new_system"`));

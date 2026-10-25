@@ -36,6 +36,7 @@ const PROVIDER_LABEL: Record<AiProviderKind, string> = {
 export function PersonaAdminPage() {
   const [personas, setPersonas] = useState<AiPersonaDto[]>([]);
   const [settings, setSettings] = useState<AiSettingsDto | null>(null);
+  const [settingsError, setSettingsError] = useState<string | null>(null);
   const [name, setName] = useState('');
   const [category, setCategory] = useState<string>(CATEGORIES[0]);
   const [systemPrompt, setSystemPrompt] = useState('');
@@ -244,13 +245,22 @@ export function PersonaAdminPage() {
     }
   };
 
-  const handleToggleChat = async (chatEnabled: boolean) => {
-    setSettings(await api.setAiSettings({ chatEnabled }));
+  // canvas-yh6: the checkbox changes as soon as it's clicked (it used to wait for the server's
+  // reply, so a click seemed to do nothing for a moment); a failed save puts it back and says why.
+  const updateSettings = async (patch: Partial<Pick<AiSettingsDto, 'chatEnabled' | 'showUsageToUsers'>>) => {
+    if (!settings) return;
+    const previous = settings;
+    setSettings({ ...settings, ...patch });
+    setSettingsError(null);
+    try {
+      setSettings(await api.setAiSettings(patch));
+    } catch (err) {
+      setSettings(previous);
+      setSettingsError(err instanceof ApiError ? err.message : (err as Error).message);
+    }
   };
-
-  const handleToggleUsage = async (showUsageToUsers: boolean) => {
-    setSettings(await api.setAiSettings({ showUsageToUsers }));
-  };
+  const handleToggleChat = (chatEnabled: boolean) => updateSettings({ chatEnabled });
+  const handleToggleUsage = (showUsageToUsers: boolean) => updateSettings({ showUsageToUsers });
 
   const visiblePersonas = showArchived ? personas : personas.filter((p) => p.status !== 'archived');
   const archivedCount = personas.length - personas.filter((p) => p.status !== 'archived').length;
@@ -273,6 +283,7 @@ export function PersonaAdminPage() {
             type="checkbox"
             data-testid="ai-chat-enabled-toggle"
             checked={settings?.chatEnabled ?? false}
+            disabled={!settings}
             onChange={(e) => handleToggleChat(e.target.checked)}
           />
           Enable AI Chat
@@ -282,11 +293,17 @@ export function PersonaAdminPage() {
             type="checkbox"
             data-testid="ai-show-usage-toggle"
             checked={settings?.showUsageToUsers ?? false}
+            disabled={!settings}
             onChange={(e) => handleToggleUsage(e.target.checked)}
           />
           Show token counts to users
         </label>
         <p className="meta">Admins always see token counts.</p>
+        {settingsError && (
+          <p role="alert" data-testid="ai-settings-error">
+            {settingsError}
+          </p>
+        )}
         {settings && (
           <p className="meta" data-testid="ai-provider-indicator">
             Provider: {PROVIDER_LABEL[settings.provider]}

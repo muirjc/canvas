@@ -204,7 +204,7 @@ test('removing the pinned shape leaves the thread reading "On a shape that was r
   await admin.getByTestId('confirm-dialog-confirm').click();
   await expect(admin.getByTestId('node-a')).toHaveCount(0);
   await admin.getByTestId('save-diagram').click();
-  await expect(admin.getByTestId('save-status')).toHaveText(/saved|idle/i);
+  await expect(admin.getByTestId('save-status')).toHaveAttribute('data-state', /saved|idle/);
   await openComments(admin);
   await expect(thread(admin, PINNED)).toContainText('On a shape that was removed');
   await expect(admin.getByTestId('comment-pin-a')).toHaveCount(0);

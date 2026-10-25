@@ -69,7 +69,7 @@ test('preserves the edge style through save and reload', async ({ page }) => {
   await importLinkStyleDiagram(page, diagramName);
 
   await page.getByTestId('save-diagram').click();
-  await expect(page.getByTestId('save-status')).toHaveText('saved');
+  await expect(page.getByTestId('save-status')).toHaveAttribute('data-state', 'saved');
 
   await page.goto(`/?projectId=${PROJECT_ID}`);
   await expect(page.getByTestId('project-browser')).toBeVisible();

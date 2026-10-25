@@ -71,7 +71,7 @@ test('adding a kind via the toolbar persists canvas.kinds + fill, surviving relo
   const nodeId = await addKind(page, 'third_party');
 
   await page.getByTestId('save-diagram').click();
-  await expect(page.getByTestId('save-status')).toHaveText(/saved/i);
+  await expect(page.getByTestId('save-status')).toHaveAttribute('data-state', 'saved');
 
   const source = await readDsl(page);
   expect(source).toMatch(new RegExp(`kinds:[\\s\\S]*${nodeId}: third_party`));

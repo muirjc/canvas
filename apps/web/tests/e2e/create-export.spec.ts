@@ -42,7 +42,7 @@ test('create, edit, and export a diagram', async ({ page }) => {
 
   // Save, then Acceptance Scenario 3: export in all three formats.
   await page.getByTestId('save-diagram').click();
-  await expect(page.getByTestId('save-status')).toHaveText('saved');
+  await expect(page.getByTestId('save-status')).toHaveAttribute('data-state', 'saved');
 
   await page.getByTestId('export-menu-trigger').click();
   const [mermaidDownload] = await Promise.all([

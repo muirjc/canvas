@@ -21,7 +21,7 @@ async function diagramWithManyVersions(page: Page, saves: number) {
   for (let i = 0; i < saves; i += 1) {
     await page.getByTestId('add-shape-rectangle').click();
     await page.getByTestId('save-diagram').click();
-    await expect(page.getByTestId('save-status')).toHaveText('saved');
+    await expect(page.getByTestId('save-status')).toHaveAttribute('data-state', 'saved');
   }
   await page.getByTestId('rail-tab-history').click();
 }

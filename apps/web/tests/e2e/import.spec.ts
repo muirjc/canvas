@@ -29,7 +29,7 @@ test('imports a pasted Mermaid diagram and it becomes fully editable', async ({ 
   // Edit and re-export like a native diagram (US1's round-trip guarantees apply equally).
   await page.getByTestId('add-shape-circle').click();
   await page.getByTestId('save-diagram').click();
-  await expect(page.getByTestId('save-status')).toHaveText('saved');
+  await expect(page.getByTestId('save-status')).toHaveAttribute('data-state', 'saved');
 
   await page.getByTestId('export-menu-trigger').click();
   const [download] = await Promise.all([page.waitForEvent('download'), page.getByTestId('export-svg').click()]);

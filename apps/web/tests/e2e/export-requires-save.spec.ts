@@ -67,7 +67,7 @@ test('export is disabled with unsaved changes and a warning shown; re-enabled an
 
   // Save — export re-enables and the warning disappears.
   await page.getByTestId('save-diagram').click();
-  await expect(page.getByTestId('save-status')).toHaveText('saved');
+  await expect(page.getByTestId('save-status')).toHaveAttribute('data-state', 'saved');
 
   await expect(warning).not.toBeVisible();
   await expect(trigger).toBeEnabled();
