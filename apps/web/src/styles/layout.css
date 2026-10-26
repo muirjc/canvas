@@ -594,6 +594,13 @@
 .chat-composer__input { width: 100%; resize: none; }
 .chat-composer .btn { align-self: flex-end; }
 
+/* canvas-eac: the comment composer stacks like the chat one -- box, pin option + hint, button --
+   instead of squeezing into the footer's row (which pushed the box under the canvas). */
+.comment-composer { flex-direction: column; align-items: stretch; gap: var(--space-2); }
+.comment-composer textarea { width: 100%; resize: vertical; }
+.comment-composer .btn { align-self: flex-end; }
+.comment-composer > p { margin: 0; }
+
 .chat-error {
   margin: 0;
   padding: var(--space-2) var(--space-4) var(--space-3);
