@@ -269,7 +269,8 @@ describe('AI cost and chat usage (canvas-zs0, canvas-4k9)', () => {
       const get = (await call('GET', `/diagrams/${diagramId}/chat/messages`, architectCookie)).json();
       expect(get.usageTotal).toBeUndefined();
       expect(get.messages.every((m: { usage?: unknown }) => m.usage === undefined)).toBe(true);
-      expect(JSON.stringify(get)).not.toContain('120');
+      // No usage fields anywhere in the body. (Not a search for "120": a random id or timestamp can contain it.)
+      expect(JSON.stringify(get)).not.toMatch(/"(usage|usageTotal|inputTokens|outputTokens|totalTokens)"/);
 
       const adminGet = (await call('GET', `/diagrams/${diagramId}/chat/messages`, adminCookie)).json();
       expect(adminGet.usageTotal).toMatchObject({ requests: 1, totalTokens: 150 });
