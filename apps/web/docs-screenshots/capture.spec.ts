@@ -334,3 +334,17 @@ test('github approval', async () => {
   await admin.waitForLoadState('networkidle');
   await shot(admin, 'editor-approval.png');
 });
+
+// canvas-3dq: the Libraries admin page.
+test('libraries', async () => {
+  await admin.goto('/?admin=libraries');
+  await expect(admin.getByTestId('libraries-table')).toBeVisible();
+  // Only the built-in libraries, not whatever test runs left behind.
+  await admin.evaluate(() => {
+    document.querySelectorAll('[data-testid^="library-row-"]').forEach((tr) => {
+      if (!tr.querySelector('[data-testid^="library-origin-"]')?.textContent?.includes('Built-in')) tr.remove();
+    });
+  });
+  await admin.waitForLoadState('networkidle');
+  await shot(admin, 'admin-libraries.png');
+});

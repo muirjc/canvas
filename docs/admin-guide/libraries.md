@@ -4,6 +4,8 @@ Libraries are the icon sets people pick from in a diagram's palette: the Azure a
 the C4 notation shapes, and any set of your own. The **Libraries** page (**Admin → Libraries**, or the
 Libraries card on the Overview) lists them all and lets you add your own.
 
+![The Libraries page](../images/admin-libraries.png)
+
 ## Built-in and custom
 
 Every library is marked **Built-in** or **Custom**.
