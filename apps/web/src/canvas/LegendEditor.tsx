@@ -58,7 +58,11 @@ export function LegendEditor({ model, dslFamily, standardRules, onChange, onClos
   const setSample = (index: number, sample: LegendSample) => setExtra(index, { sample });
 
   const addEntry = () => {
-    const id = `e${Math.random().toString(36).slice(2, 8)}`;
+    // The next unused e<n>: unique within this legend, which is all an id needs to be.
+    const taken = new Set(extras.map((e) => e.id));
+    let n = extras.length + 1;
+    while (taken.has(`e${n}`)) n++;
+    const id = `e${n}`;
     const shape: NodeShape = shapes[0]?.shape ?? 'rectangle';
     update({ extra: [...extras, { id, label: 'New entry', sample: { kind: 'shape', shape } }] });
   };
