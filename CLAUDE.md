@@ -93,6 +93,17 @@ tests are NON-NEGOTIABLE and must exist (and fail) before implementing any diagr
 work — see `.specify/memory/constitution.md` Principle IV.
 
 ## Recent Changes
+- `canvas-3dq` (Admin -> Libraries, two PRs): icon/shape libraries are `builtin` (catalog seed;
+  retire/restore only) or `custom` (admin-imported; fully editable); libraries and icons can be
+  retired -- hidden from palettes and icon search, still resolved for rendering, never undone by
+  the seed re-ingesting (Postgres `0029`, SQLite `0017`). Import from SVG files via diagram-core's
+  `prepareUploadedSvg` (strict element/attribute allowlist; `<style>`, entities, >200 KB refused;
+  ids prefixed per icon; the file's viewBox fitted into the 48x48 icon space, never stretched) or
+  from a manifest (`sanitizeIconMarkupStrict`; built-in ids reserved). Delete only when unused
+  (409 lists the diagrams). Palette assignment per library marks built-in diagram types
+  `admin_edited`. API under `/admin/libraries`; audit `icon_library_changed`. The legacy
+  `POST /libraries` still loads libraries as built-in (seed/tests). E2E uses its own custom diagram
+  type for palette checks so it never marks a built-in type edited.
 - `canvas-3s5.3` (Phase 3, GitHub approval): new private workspace `packages/validator-cli` -- the
   validator a repository's CI runs (`node .canvas/validator.mjs --format github --render-dir
   rendered`): finds `canvas.json` manifests, parses each `.canvas.mmd`, validates against the
