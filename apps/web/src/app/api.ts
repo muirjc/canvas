@@ -293,6 +293,12 @@ export interface AiUsageDetailDto {
   byModel: Array<AiUsageTotals & { provider: string; modelId: string; priced: boolean }>;
 }
 
+/** What a comment thread is pinned to (canvas-eac: groups/boundaries too). */
+export interface CommentAnchor {
+  type: 'node' | 'edge' | 'container';
+  id: string;
+}
+
 export interface CommentDto {
   id: string;
   threadRootId: string | null;
@@ -304,7 +310,7 @@ export interface CommentDto {
 }
 
 export interface CommentThreadDto extends CommentDto {
-  anchor: { type: 'node' | 'edge'; id: string } | null;
+  anchor: CommentAnchor | null;
   resolved: { at: string; by: string } | null;
   replies: CommentDto[];
 }
@@ -757,7 +763,7 @@ export const api = {
     request<{ threads: CommentThreadDto[]; unread: number }>(`/diagrams/${diagramId}/comments`),
   getUnreadComments: (diagramId: string) => request<{ unread: number }>(`/diagrams/${diagramId}/comments/unread`),
   markCommentsRead: (diagramId: string) => request<void>(`/diagrams/${diagramId}/comments/read`, { method: 'POST' }),
-  addComment: (diagramId: string, body: { body: string; threadRootId?: string; anchor?: { type: 'node' | 'edge'; id: string } }) =>
+  addComment: (diagramId: string, body: { body: string; threadRootId?: string; anchor?: CommentAnchor }) =>
     request<{ id: string; threads: CommentThreadDto[] }>(`/diagrams/${diagramId}/comments`, { method: 'POST', body: JSON.stringify(body) }),
   editComment: (diagramId: string, commentId: string, body: string) =>
     request<{ threads: CommentThreadDto[] }>(`/diagrams/${diagramId}/comments/${commentId}`, { method: 'PATCH', body: JSON.stringify({ body }) }),

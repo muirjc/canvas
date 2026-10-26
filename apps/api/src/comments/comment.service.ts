@@ -26,7 +26,7 @@ export interface CommentRecord {
 }
 
 export interface ThreadRecord extends CommentRecord {
-  anchor: { type: 'node' | 'edge'; id: string } | null;
+  anchor: { type: 'node' | 'edge' | 'container'; id: string } | null;
   resolved: { at: string; by: string | null } | null;
   replies: CommentRecord[];
 }
@@ -91,7 +91,7 @@ export async function addComment(input: {
   authorId: string;
   body: string;
   threadRootId?: string;
-  anchor?: { type: 'node' | 'edge'; id: string };
+  anchor?: { type: 'node' | 'edge' | 'container'; id: string };
 }): Promise<string> {
   const db = getDb();
   const body = cleanBody(input.body);

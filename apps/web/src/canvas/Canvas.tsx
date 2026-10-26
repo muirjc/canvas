@@ -96,7 +96,7 @@ import { SwatchPicker } from './SwatchPicker';
 import { ConfirmDialog } from './ConfirmDialog';
 import { LegendBox } from './LegendBox';
 import { LegendEditor } from './LegendEditor';
-import { api } from '../app/api';
+import { api, type CommentAnchor } from '../app/api';
 import { Icon } from '../ui/Icon';
 
 /** Compact glyphs for the shape grid — each button still carries an aria-label and title, so the
@@ -272,7 +272,7 @@ export interface CanvasProps {
    *  `nonce` makes re-requesting the same element re-trigger. */
   focusRequest?: { id: string; nonce: number };
   /** canvas-bw4: told when exactly one node or connector is selected (else null). */
-  onSelectionChange?: (selection: { type: 'node' | 'edge'; id: string } | null) => void;
+  onSelectionChange?: (selection: CommentAnchor | null) => void;
   /** canvas-bw4: element id -> open comment threads, drawn as a speech-bubble pin. */
   commentPins?: Record<string, number>;
   onCommentPinClick?: (anchorId: string) => void;
@@ -1271,16 +1271,24 @@ export function Canvas({ model: modelProp, onChange, dslFamily, toolbarContainer
   // selectedContainerId's own pattern rather than folding into selectedIds (which would need
   // groupSelected/its button to start distinguishing node ids from edge ids within the same Set).
   const [selectedEdgeId, setSelectedEdgeId] = useState<string | null>(null);
-  // canvas-bw4: report a single node/connector selection to the editor (for pinning comments).
+  // canvas-bw4: report a single node/connector selection to the editor (for pinning comments);
+  // canvas-eac: a single container (group/boundary) too.
   const onSelectionChangeRef = useRef(onSelectionChange);
   onSelectionChangeRef.current = onSelectionChange;
   const singleNodeId = selectedIds.size === 1 && !selectedEdgeId && !selectedContainerId ? [...selectedIds][0] : null;
   const singleEdgeId = selectedIds.size === 0 && !selectedContainerId ? selectedEdgeId : null;
+  const singleContainerId = selectedIds.size === 0 && !selectedEdgeId ? selectedContainerId : null;
   useEffect(() => {
     onSelectionChangeRef.current?.(
-      singleNodeId ? { type: 'node', id: singleNodeId } : singleEdgeId ? { type: 'edge', id: singleEdgeId } : null,
+      singleNodeId
+        ? { type: 'node', id: singleNodeId }
+        : singleEdgeId
+          ? { type: 'edge', id: singleEdgeId }
+          : singleContainerId
+            ? { type: 'container', id: singleContainerId }
+            : null,
     );
-  }, [singleNodeId, singleEdgeId]);
+  }, [singleNodeId, singleEdgeId, singleContainerId]);
   // canvas-tfr: an Issues-tab click selects the offending element and scrolls it into view.
   useEffect(() => {
     if (!focusRequest) return;
@@ -4004,6 +4012,7 @@ export function Canvas({ model: modelProp, onChange, dslFamily, toolbarContainer
           let cy: number;
           const pinNode = model.nodes.find((n) => n.id === anchorId);
           const pinEdge = pinNode ? undefined : model.edges.find((e) => e.id === anchorId);
+          const pinContainer = pinNode || pinEdge ? undefined : model.containers.find((c) => c.id === anchorId);
           if (pinNode) {
             const size = nodeSize(pinNode);
             cx = pinNode.position.x + size.width;
@@ -4016,6 +4025,10 @@ export function Canvas({ model: modelProp, onChange, dslFamily, toolbarContainer
             const sb = nodeSize(b);
             cx = (a.position.x + sa.width / 2 + b.position.x + sb.width / 2) / 2;
             cy = (a.position.y + sa.height / 2 + b.position.y + sb.height / 2) / 2;
+          } else if (pinContainer) {
+            // canvas-eac: the container's top-right corner, like a shape's.
+            cx = pinContainer.position.x + (pinContainer.size ?? { width: 300, height: 200 }).width;
+            cy = pinContainer.position.y;
           } else {
             return null;
           }

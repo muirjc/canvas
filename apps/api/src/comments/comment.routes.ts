@@ -73,7 +73,7 @@ export async function registerCommentRoutes(app: FastifyInstance): Promise<void>
     },
   );
 
-  app.post<{ Params: { id: string }; Body: { body: string; threadRootId?: string; anchor?: { type: 'node' | 'edge'; id: string } } }>(
+  app.post<{ Params: { id: string }; Body: { body: string; threadRootId?: string; anchor?: { type: 'node' | 'edge' | 'container'; id: string } } }>(
     '/diagrams/:id/comments',
     {
       preHandler: requireDiagramAccess('comment'),
@@ -88,7 +88,7 @@ export async function registerCommentRoutes(app: FastifyInstance): Promise<void>
             anchor: {
               type: 'object',
               required: ['type', 'id'],
-              properties: { type: { type: 'string', enum: ['node', 'edge'] }, id: { type: 'string', minLength: 1, maxLength: 200 } },
+              properties: { type: { type: 'string', enum: ['node', 'edge', 'container'] }, id: { type: 'string', minLength: 1, maxLength: 200 } },
             },
           },
         },

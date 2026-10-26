@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import type { DiagramModel } from '@canvas/diagram-core';
-import { api, ApiError, type AccessLevel, type CommentDto, type CommentThreadDto } from '../app/api';
+import { api, ApiError, type AccessLevel, type CommentAnchor, type CommentDto, type CommentThreadDto } from '../app/api';
 import { ConfirmDialog } from '../canvas/ConfirmDialog';
 
 export interface CommentsPanelProps {
@@ -15,7 +15,7 @@ export interface CommentsPanelProps {
   /** The current canvas model, to name pinned elements. */
   model: DiagramModel;
   /** Exactly one node/connector selected on the canvas, if any. */
-  selection: { type: 'node' | 'edge'; id: string } | null;
+  selection: CommentAnchor | null;
   /** A canvas pin was clicked: show and highlight that element's first open thread. */
   highlightRequest?: { anchorId: string; nonce: number };
   /** Server error from loading, shown above the list. */
@@ -126,14 +126,18 @@ export function CommentsPanel({ diagramId, threads, onThreadsChange, currentUser
   };
 
   const labelFor = (id: string): string | undefined =>
-    model.nodes.find((n) => n.id === id)?.label ?? model.edges.find((e) => e.id === id)?.label ?? undefined;
+    model.nodes.find((n) => n.id === id)?.label ??
+    model.edges.find((e) => e.id === id)?.label ??
+    model.containers.find((c) => c.id === id)?.label ??
+    undefined;
+  const exists = (id: string) => model.nodes.some((n) => n.id === id) || model.edges.some((e) => e.id === id) || model.containers.some((c) => c.id === id);
+  const kindName = (anchor: CommentAnchor) => (anchor.type === 'edge' ? 'connector' : anchor.type === 'container' ? 'group' : 'shape');
+  const anchorName = (anchor: CommentAnchor) => labelFor(anchor.id) || `a ${kindName(anchor)}`;
 
   const pinLabel = (t: CommentThreadDto) => {
     if (!t.anchor) return null;
-    const exists = model.nodes.some((n) => n.id === t.anchor!.id) || model.edges.some((e) => e.id === t.anchor!.id);
-    if (!exists) return 'On a shape that was removed';
-    const name = labelFor(t.anchor.id);
-    return `On: ${name || (t.anchor.type === 'edge' ? 'a connector' : 'a shape')}`;
+    if (!exists(t.anchor.id)) return `On a ${kindName(t.anchor)} that was removed`;
+    return `On: ${anchorName(t.anchor)}`;
   };
 
   const canEditOrDelete = (c: CommentDto) => !c.deleted && c.author.id === currentUser.id;
@@ -311,9 +315,23 @@ export function CommentsPanel({ diagramId, threads, onThreadsChange, currentUser
           />
         </div>
         <label className="cluster" htmlFor="comment-pin-selected">
-          <input id="comment-pin-selected" data-testid="comment-pin-selected" type="checkbox" checked={pin} disabled={!canPin} onChange={(e) => setPin(e.target.checked)} />
-          Pin to the selected shape
+          <input
+            id="comment-pin-selected"
+            data-testid="comment-pin-selected"
+            type="checkbox"
+            checked={pin}
+            disabled={!canPin}
+            aria-describedby={canPin ? undefined : 'comment-pin-hint'}
+            onChange={(e) => setPin(e.target.checked)}
+          />
+          {selection ? `Pin to ${anchorName(selection)}` : 'Pin to the selected element'}
         </label>
+        {/* canvas-eac: say why the pin is off -- a disabled checkbox alone read as broken. */}
+        {!canPin && (
+          <p id="comment-pin-hint" className="meta" data-testid="comment-pin-hint">
+            To pin this comment, select one shape, connector or group on the canvas.
+          </p>
+        )}
         {error && (
           <p role="alert" className="field__error" data-testid="comments-error">
             {error}

@@ -76,10 +76,11 @@ diagram can read its comments. To add one you need **Comment** or **Edit** acces
 
 - **Add a comment:** type in the box at the bottom and click **Comment** (or press Ctrl+Enter, or
   Cmd+Enter on a Mac).
-- **Pin it to a shape:** select one shape or connector on the canvas first, then tick **Pin to the
-  selected shape**. A small speech bubble with a count appears on that shape. Click the bubble to
-  jump to its comments. If the shape is later deleted, the comment stays and says it was on a shape
-  that was removed.
+- **Pin it to a shape:** select one shape, connector or group (a box around other shapes, such as a
+  subgraph or boundary) on the canvas, then tick **Pin to** followed by its name. Until exactly one is
+  selected, the option is off and the panel says what to select. A small speech bubble with a count
+  appears on that element. Click the bubble to jump to its comments. If the element is later
+  deleted, the comment stays and says it was on a shape (or connector, or group) that was removed.
 - **Reply** to keep a conversation in one thread.
 - **Resolve** a thread when it's dealt with. It disappears from the list and loses its bubble; tick
   **Show resolved** to see it, and **Reopen** to bring it back.
