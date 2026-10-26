@@ -599,6 +599,27 @@ function KindCard({ index: i, kind, isC4, familyShapes, onLabel, onPatch, onRemo
         <input id={`kind-desc-${i}`} data-testid={`kind-desc-${i}`} value={kind.description ?? ''} onChange={(e) => onPatch({ description: e.target.value })} />
       </div>
 
+      {/* canvas-mwu: which C4 elements this kind is -- its own group, away from the rules below, so
+          the role dropdown isn't mistaken for (or changed instead of) "Must be connected". */}
+      {isC4 && (
+        <fieldset className="cluster std-fieldset" data-testid={`kind-match-${i}`}>
+          <legend className="field__label">Applies to C4 elements</legend>
+          <label className="cluster cluster--tight" htmlFor={`kind-role-${i}`}>
+            Role
+            <select id={`kind-role-${i}`} data-testid={`kind-role-${i}`} value={kind.match?.role ?? 'system'} onChange={(e) => onPatch({ match: { ...kind.match, role: e.target.value } })}>
+              {C4_ELEMENT_ROLES.map((role) => (
+                <option key={role} value={role}>{role}</option>
+              ))}
+            </select>
+          </label>
+          <label className="cluster cluster--tight">
+            <input type="checkbox" data-testid={`kind-external-${i}`} checked={Boolean(kind.match?.external)} onChange={(e) => onPatch({ match: { role: kind.match?.role ?? 'system', external: e.target.checked } })} />
+            External (the <span className="mono">_Ext</span> variants)
+          </label>
+        </fieldset>
+      )}
+      {isC4 && <FieldErrors path={`${at}.match`} />}
+
       <fieldset className="cluster cluster--tight std-fieldset">
         <legend className="field__label">Shapes (none = any; first is the default)</legend>
         {familyShapes.map((shape) => {
@@ -636,28 +657,12 @@ function KindCard({ index: i, kind, isC4, familyShapes, onLabel, onPatch, onRemo
       />
       <FieldErrors path={`${at}.approvedStrokes`} />
 
+      <label className="cluster cluster--tight">
+        <input type="checkbox" data-testid={`kind-connected-${i}`} checked={Boolean(kind.requireConnection)} onChange={(e) => onPatch({ requireConnection: e.target.checked })} />
+        Must be connected
+      </label>
+
       <div className="cluster">
-        <label className="cluster cluster--tight">
-          <input type="checkbox" data-testid={`kind-connected-${i}`} checked={Boolean(kind.requireConnection)} onChange={(e) => onPatch({ requireConnection: e.target.checked })} />
-          Must be connected
-        </label>
-        {isC4 && (
-          <>
-            <label className="cluster cluster--tight" htmlFor={`kind-role-${i}`}>
-              C4 role
-              <select id={`kind-role-${i}`} data-testid={`kind-role-${i}`} value={kind.match?.role ?? 'system'} onChange={(e) => onPatch({ match: { ...kind.match, role: e.target.value } })}>
-                {C4_ELEMENT_ROLES.map((role) => (
-                  <option key={role} value={role}>{role}</option>
-                ))}
-              </select>
-            </label>
-            <label className="cluster cluster--tight">
-              <input type="checkbox" data-testid={`kind-external-${i}`} checked={Boolean(kind.match?.external)} onChange={(e) => onPatch({ match: { role: kind.match?.role ?? 'system', external: e.target.checked } })} />
-              External
-            </label>
-            <FieldErrors path={`${at}.match`} />
-          </>
-        )}
         <span className="spacer" />
         <button type="button" className="btn btn--tertiary-danger btn--compact" data-testid={`kind-remove-${i}`} onClick={onRemove}>
           Remove kind
