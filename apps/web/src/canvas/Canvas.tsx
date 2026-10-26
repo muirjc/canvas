@@ -41,6 +41,8 @@ import {
   clipToAnchorSide,
   architectureEndpointBox,
   computeBounds,
+  computeLegendEntries,
+  legendLayout,
   computeSequenceLayout,
   SELF_MESSAGE_LOOP_WIDTH,
   containerHeaderLayout,
@@ -92,6 +94,8 @@ import {
 import { getAddableShapes, nodeSize, renderNodeShape, SELECTION_STROKE } from './shapes';
 import { SwatchPicker } from './SwatchPicker';
 import { ConfirmDialog } from './ConfirmDialog';
+import { LegendBox } from './LegendBox';
+import { LegendEditor } from './LegendEditor';
 import { api } from '../app/api';
 import { Icon } from '../ui/Icon';
 
@@ -1325,6 +1329,7 @@ export function Canvas({ model: modelProp, onChange, dslFamily, toolbarContainer
     { kind: 'node' | 'container'; id: string; offsetX: number; offsetY: number }
     | { kind: 'resize'; id: string; originX: number; originY: number }
     | { kind: 'marquee'; startX: number; startY: number; additive: boolean }
+    | { kind: 'legend'; offsetX: number; offsetY: number }
     | null
   >(null);
   const svgRef = useRef<SVGSVGElement>(null);
@@ -1674,6 +1679,19 @@ export function Canvas({ model: modelProp, onChange, dslFamily, toolbarContainer
     };
   };
 
+  // canvas-ltk: the legend box drags like a container but carries nothing with it. It is not a
+  // selectable element, so Delete never removes it (the toolbar toggle does).
+  const handleLegendPointerDown = (event: React.PointerEvent) => {
+    event.stopPropagation();
+    if (connectMode || !legend) return;
+    setSelectedContainerId(null);
+    setSelectedIds(new Set());
+    setSelectedEdgeId(null);
+    setSelectedMessageIds(new Set());
+    const point = toClientPoint(event);
+    dragState.current = { kind: 'legend', offsetX: point.x - legend.x, offsetY: point.y - legend.y };
+  };
+
   const handleResizePointerDown = (container: DiagramContainer) => (event: React.PointerEvent) => {
     event.stopPropagation();
     dragState.current = {
@@ -1695,6 +1713,14 @@ export function Canvas({ model: modelProp, onChange, dslFamily, toolbarContainer
         y: Math.min(drag.startY, point.y),
         width: Math.abs(point.x - drag.startX),
         height: Math.abs(point.y - drag.startY),
+      });
+      return;
+    }
+
+    if (drag.kind === 'legend') {
+      onChange({
+        ...model,
+        legend: { ...(model.legend ?? { visible: true }), position: { x: Math.max(0, point.x - drag.offsetX), y: Math.max(0, point.y - drag.offsetY) } },
       });
       return;
     }
@@ -2454,6 +2480,14 @@ export function Canvas({ model: modelProp, onChange, dslFamily, toolbarContainer
   // "Shapes" section is hidden rather than shown with nothing in its grid.
   const addableShapes = getAddableShapes(dslFamily);
 
+  // canvas-ltk: the legend. Entries and geometry come from diagram-core, shared with the export.
+  const legendSupported = dslFamily !== 'sequence' && model.diagramTypeId !== 'sequence';
+  const legendVisible = legendSupported && Boolean(model.legend?.visible);
+  const legendEntries = legendVisible ? computeLegendEntries(model, standardRules) : [];
+  const legend = legendVisible ? legendLayout(model, legendEntries, computeBounds(model)) : null;
+  const [editingLegend, setEditingLegend] = useState(false);
+  const toggleLegend = () => onChange({ ...model, legend: { ...(model.legend ?? {}), visible: !legendVisible } });
+
   const toolbar = (
     <div role="toolbar" aria-label="Diagram tools">
       {kindsActive && (
@@ -2970,6 +3004,31 @@ export function Canvas({ model: modelProp, onChange, dslFamily, toolbarContainer
               </button>
             </>
           )}
+          {legendSupported && (
+            <>
+              <button
+                type="button"
+                className="btn btn--secondary"
+                data-testid="legend-toggle"
+                aria-pressed={legendVisible}
+                onClick={toggleLegend}
+              >
+                <Icon name="rows" />
+                Legend
+              </button>
+              {legendVisible && (
+                <button type="button" className="btn btn--secondary" data-testid="legend-edit" onClick={() => setEditingLegend(true)}>
+                  <Icon name="pencil" />
+                  Edit legend
+                </button>
+              )}
+              {legendVisible && !legend && (
+                <p className="canvas-notice" data-testid="legend-empty-note">
+                  The legend is empty. Use Edit legend to add entries.
+                </p>
+              )}
+            </>
+          )}
           {/* canvas-esn: flowchart-family only (v1) — the same dslFamily scoping already used for
               getAddableShapes above. Not a mode like Connect: one click rearranges the whole
               diagram in the picked direction and the picker stays visible so it can be changed and
@@ -3004,7 +3063,7 @@ export function Canvas({ model: modelProp, onChange, dslFamily, toolbarContainer
   // canvas-0s3: whichever is larger of the visible container and actual content — never smaller
   // than the container (so the drawable area always fills the visible viewport, matching what the
   // dot-grid background already implies is drawable) and grows past it for content that needs more.
-  const contentBounds = computeBounds(model);
+  const contentBounds = computeBounds(model, legendEntries);
   const canvasWidth = Math.max(containerSize.width, contentBounds.width);
   const canvasHeight = Math.max(containerSize.height, contentBounds.height);
   // canvas-7vs.7: built once per render, not per edge, for architectureEndpointBox's {group}
@@ -3019,6 +3078,16 @@ export function Canvas({ model: modelProp, onChange, dslFamily, toolbarContainer
   return (
     <div className="canvas-root" tabIndex={0} onKeyDown={handleKeyDown} data-testid="canvas-root">
       {toolbarContainer ? createPortal(toolbar, toolbarContainer) : toolbar}
+
+      {editingLegend && legendVisible && (
+        <LegendEditor
+          model={model}
+          dslFamily={dslFamily}
+          {...(standardRules ? { standardRules } : {})}
+          onChange={onChange}
+          onClose={() => setEditingLegend(false)}
+        />
+      )}
 
       {showDeleteConfirm && (
         <ConfirmDialog
@@ -3982,6 +4051,15 @@ export function Canvas({ model: modelProp, onChange, dslFamily, toolbarContainer
 
         {/* canvas-558: live marquee-select rectangle, drawn on top of everything else and
             non-interactive so it never itself becomes a hit-test target mid-drag. */}
+        {legend && (
+          <LegendBox
+            layout={legend}
+            diagramTypeId={model.diagramTypeId}
+            onPointerDown={handleLegendPointerDown}
+            onDoubleClick={() => setEditingLegend(true)}
+          />
+        )}
+
         {marqueeRect && (
           <rect
             data-testid="selection-marquee"
