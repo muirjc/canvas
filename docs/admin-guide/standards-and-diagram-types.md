@@ -13,6 +13,11 @@ you can set:
 - **which shapes** it may use;
 - **approved colours** (fill and outline swatches). People pick from these instead of any colour;
 - **how many** a diagram must or may have (minimum and maximum);
+- whether each one **must be connected** to something;
+- for C4 types, **which C4 elements it applies to**: under *Applies to C4 elements*, the role
+  (person, system, container or component) and whether it's the **External** (`_Ext`) variant. Give
+  every kind a different combination: if two kinds match the same elements, the first one in the
+  list claims them all;
 - **connector rules**: which kinds may connect to which, and whether a connection needs a label.
 
 Each rule has a **severity**: *Must fix*, *Warning* or *Info*. Standards never block anyone. They
