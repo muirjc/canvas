@@ -16,6 +16,9 @@ They must already have a Canvas account. The diagram then appears under **Shared
 project list. People who can see a project can see all its diagrams; sharing is for giving someone
 one diagram without the whole project.
 
+You need **edit** access to share a diagram or remove someone's access; the **Share** button only
+appears for people who have it. Anyone with view access can see who else has access.
+
 ## Exporting
 
 **Export** in the editor downloads the diagram as:
