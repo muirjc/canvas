@@ -128,7 +128,8 @@ export async function refreshDiagramSubmission(client: GitHubClient, diagramId: 
   return { synced: true };
 }
 
-/** The scheduled job: every open submission not synced within `minAgeMs`, oldest first. */
+/** The scheduled job: every open submission not synced within `minAgeMs`, oldest first. The
+ *  cutoff is inclusive, so 0 means every open submission, even one synced this millisecond. */
 export async function syncOpenSubmissions(client: GitHubClient, minAgeMs = 60_000): Promise<Record<SyncOutcome, number>> {
   const cutoff = new Date(Date.now() - minAgeMs);
   const rows = await getDb()
@@ -136,7 +137,7 @@ export async function syncOpenSubmissions(client: GitHubClient, minAgeMs = 60_00
     .select('id')
     .where('state', '=', 'open')
     .where('pr_number', 'is not', null)
-    .where((eb) => eb.or([eb('last_synced_at', 'is', null), eb('last_synced_at', '<', cutoff)]))
+    .where((eb) => eb.or([eb('last_synced_at', 'is', null), eb('last_synced_at', '<=', cutoff)]))
     .orderBy('last_synced_at')
     .execute();
   const counts: Record<SyncOutcome, number> = { open: 0, merged: 0, closed: 0, error: 0, skipped: 0, rateLimited: 0 };
