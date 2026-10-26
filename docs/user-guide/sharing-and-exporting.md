@@ -2,7 +2,9 @@
 
 ## Sharing a diagram
 
-Click **Share** in the editor, enter a colleague's email address and choose their access:
+Click **Share** in the editor and start typing a colleague's name or email address. A list of
+matching people appears: use the Up and Down arrow keys and Enter (or click) to pick one, and
+press Escape to close the list. Then choose their access and click **Share**:
 
 | Level | They can |
 |---|---|
@@ -12,7 +14,13 @@ Click **Share** in the editor, enter a colleague's email address and choose thei
 
 ![Sharing a diagram](../images/share-dialog.png)
 
-They must already have a Canvas account. The diagram then appears under **Shared with me** on their
+People who already have access are shown in the list as "has view access" (or comment/edit)
+and can't be picked again; to change someone's level, revoke their access and share again. You
+appear as "(you)". The list below the form shows each person who has access, with their name and email.
+
+If the person you want isn't listed, type their full email address and press **Share** without
+picking: Canvas looks up that exact address. They must already have a Canvas account (with
+single sign-on, that means they have signed in at least once). The diagram then appears under **Shared with me** on their
 project list. People who can see a project can see all its diagrams; sharing is for giving someone
 one diagram without the whole project.
 

@@ -234,6 +234,9 @@ export interface ShareGrantDto {
   subjectType: 'diagram' | 'project';
   subjectId: string;
   granteeUserId: string;
+  /** Null when the grantee no longer exists. */
+  granteeName?: string | null;
+  granteeEmail?: string | null;
   accessLevel: AccessLevel;
   grantedByUserId: string;
   createdAt: string;
@@ -705,6 +708,9 @@ export const api = {
     request<{ diagram: DiagramDto }>(`/diagrams/${diagramId}/versions/${versionId}/restore`, { method: 'POST' }),
   lookupUserByEmail: (email: string) =>
     request<{ user: { id: string; name: string; email: string } | null }>(`/users/lookup?email=${encodeURIComponent(email)}`),
+  /** Active users whose name or email contains `q` (max 20) — the share picker (canvas-cyt). */
+  searchUsers: (q: string) =>
+    request<{ users: { id: string; name: string; email: string }[] }>(`/users/search?q=${encodeURIComponent(q)}`),
   createDiagramShare: (diagramId: string, granteeUserId: string, accessLevel: AccessLevel) =>
     request<{ grant: ShareGrantDto }>(`/diagrams/${diagramId}/shares`, {
       method: 'POST',

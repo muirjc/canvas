@@ -82,15 +82,22 @@ export async function createShareGrant(input: CreateShareGrantInput): Promise<Sh
   return toRecord(row);
 }
 
-export async function listShareGrants(subjectType: SubjectType, subjectId: string): Promise<ShareGrantRecord[]> {
+/** canvas-cyt: with the grantee's name and email, so the share dialog can show who, not an id. */
+export async function listShareGrants(
+  subjectType: SubjectType,
+  subjectId: string,
+): Promise<(ShareGrantRecord & { granteeName: string | null; granteeEmail: string | null })[]> {
   const db = getDb();
   const rows = await db
     .selectFrom('share_grants')
-    .selectAll()
+    .leftJoin('users', 'users.id', 'share_grants.grantee_user_id')
+    .selectAll('share_grants')
+    .select(['users.name as grantee_name', 'users.email as grantee_email'])
     .where('subject_type', '=', subjectType)
     .where('subject_id', '=', subjectId)
+    .orderBy('share_grants.created_at')
     .execute();
-  return rows.map(toRecord);
+  return rows.map((row) => ({ ...toRecord(row), granteeName: row.grantee_name, granteeEmail: row.grantee_email }));
 }
 
 export async function revokeShareGrant(id: string): Promise<void> {
