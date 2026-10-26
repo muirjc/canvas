@@ -282,15 +282,18 @@ export const DiagramEditor = forwardRef<DiagramEditorHandle, DiagramEditorProps>
         </button>
         <ExportMenu diagramId={diagram.id} diagramName={diagram.name} hasUnsavedChanges={hasUnsavedChanges} />
         <SubmitForApproval diagramId={diagram.id} hasUnsavedChanges={hasUnsavedChanges} submission={submission} />
-        <button
-          type="button"
-          className="btn btn--secondary btn--compact"
-          data-testid="open-share-dialog"
-          onClick={() => setSharing(true)}
-        >
-          <Icon name="share" />
-          Share
-        </button>
+        {/* canvas-i5y: sharing needs edit access (the API refuses it otherwise). */}
+        {(diagram.accessLevel ?? 'edit') === 'edit' && (
+          <button
+            type="button"
+            className="btn btn--secondary btn--compact"
+            data-testid="open-share-dialog"
+            onClick={() => setSharing(true)}
+          >
+            <Icon name="share" />
+            Share
+          </button>
+        )}
       </div>
 
       {renameError && (
