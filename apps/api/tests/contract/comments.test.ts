@@ -18,7 +18,7 @@ interface Comment {
   deleted: boolean;
 }
 interface Thread extends Comment {
-  anchor: { type: 'node' | 'edge'; id: string } | null;
+  anchor: { type: 'node' | 'edge' | 'container'; id: string } | null;
   resolved: { at: string; by: string | null } | null;
   replies: Comment[];
 }
@@ -98,6 +98,16 @@ describe('Diagram comments (canvas-bw4)', () => {
       expect(list.find((t) => t.id === onEdge)!.anchor).toEqual({ type: 'edge', id: 'e1' });
       const stored = await getDb().selectFrom('diagram_comments').select(['anchor_type', 'anchor_id']).where('id', '=', reply).executeTakeFirstOrThrow();
       expect(stored).toEqual({ anchor_type: null, anchor_id: null });
+    });
+
+    it('pins a thread to a container (subgraph / boundary / group) (canvas-eac)', async () => {
+      const onContainer = await post('owner', 'About a group', { anchor: { type: 'container', id: 'c1' } });
+      expect((await threads()).find((t) => t.id === onContainer)!.anchor).toEqual({ type: 'container', id: 'c1' });
+    });
+
+    it('rejects an anchor type outside node/edge/container with 400 (canvas-eac)', async () => {
+      expect((await call('POST', base(), 'owner', { body: 'x', anchor: { type: 'bogus', id: 'n1' } })).statusCode).toBe(400);
+      expect(await threads()).toHaveLength(0);
     });
 
     it('rejects an invalid anchor type with 400', async () => {

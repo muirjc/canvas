@@ -11,7 +11,7 @@ import { ChatPanel } from '../ai/ChatPanel';
 import { Palette } from '../palette/Palette';
 import { VersionHistory } from '../projects/VersionHistory';
 import { ShareDialog } from '../projects/ShareDialog';
-import { api, ApiError, type DiagramDto, type IconDto } from './api';
+import { api, ApiError, type CommentAnchor, type DiagramDto, type IconDto } from './api';
 import { SubmitForApproval } from './SubmitForApproval';
 import { ApprovalPanel } from './ApprovalPanel';
 import { useSubmission } from './useSubmission';
@@ -82,7 +82,7 @@ export const DiagramEditor = forwardRef<DiagramEditorHandle, DiagramEditorProps>
   // canvas-bw4: comments live outside the DSL; threads load up front so pins and the badge work.
   const [commentsTabActive, setCommentsTabActive] = useState(false);
   const comments = useComments(diagram.id, { tabActive: commentsTabActive });
-  const [selection, setSelection] = useState<{ type: 'node' | 'edge'; id: string } | null>(null);
+  const [selection, setSelection] = useState<CommentAnchor | null>(null);
   const [commentsTabRequest, setCommentsTabRequest] = useState<{ id: string; nonce: number } | undefined>(undefined);
   const [pinHighlight, setPinHighlight] = useState<{ anchorId: string; nonce: number } | undefined>(undefined);
   const commentPins: Record<string, number> = {};

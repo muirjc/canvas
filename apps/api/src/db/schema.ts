@@ -336,7 +336,7 @@ export interface DiagramCommentsTable {
   thread_root_id: string | null;
   author_id: string;
   body: string;
-  anchor_type: 'node' | 'edge' | null;
+  anchor_type: 'node' | 'edge' | 'container' | null;
   anchor_id: string | null;
   created_at: GeneratedTimestamp;
   edited_at: Timestamp | null;
