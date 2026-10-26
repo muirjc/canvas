@@ -21,7 +21,11 @@ const ALLOWED = new Set(
 const TAG = /<(\/?)([A-Za-z][\w:.-]*)((?:\s+[^\s=>/]+(?:\s*=\s*(?:"[^"]*"|'[^']*'|[^\s>]+))?)*)\s*(\/?)>/g;
 const ATTR = /([^\s=>/]+)(?:\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>]+)))?/g;
 
+// This module IS the sanitizer: an element/attribute allowlist with its own escaping (contract
+// tests in tests/contract/svg-import.test.ts), deliberately without a DOM library so it runs the
+// same in the browser and on the server.
 function escapeAttr(value: string): string {
+  // bearer:disable javascript_lang_manual_html_sanitization
   return value.replace(/"/g, '&quot;').replace(/</g, '&lt;');
 }
 
@@ -92,6 +96,8 @@ export function sanitizeIconMarkupStrict(markup: string, idPrefix: string): stri
   for (const m of body.matchAll(TAG)) {
     const text = body.slice(last, m.index);
     last = m.index! + m[0].length;
+    // Text between tags; see escapeAttr's note.
+    // bearer:disable javascript_lang_manual_html_sanitization
     if (skipping.length === 0) out += text.replace(/</g, '&lt;');
     const [, closing, name, attrs, selfClosing] = m;
     const lower = name.toLowerCase();
@@ -108,6 +114,8 @@ export function sanitizeIconMarkupStrict(markup: string, idPrefix: string): stri
     }
     out += closing ? `</${name}>` : `<${name}${cleanAttributes(attrs, prefix)}${selfClosing ? '/' : ''}>`;
   }
+  // Trailing text; see escapeAttr's note.
+  // bearer:disable javascript_lang_manual_html_sanitization
   if (skipping.length === 0) out += body.slice(last).replace(/</g, '&lt;');
   return out;
 }
