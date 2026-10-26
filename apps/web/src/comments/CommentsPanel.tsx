@@ -298,7 +298,7 @@ export function CommentsPanel({ diagramId, threads, onThreadsChange, currentUser
           You can read comments but not add them.
         </p>
       ) : (
-      <div className="panel__footer">
+      <div className="panel__footer comment-composer">
         <div className="field">
           <label className="field__label" htmlFor="comment-new">
             Add a comment
