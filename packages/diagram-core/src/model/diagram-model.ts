@@ -321,6 +321,33 @@ export interface DiagramContainer {
 /** Mermaid flowchart layout direction (top-down, left-right, etc.), part of the DSL's own grammar. */
 export type FlowchartDirection = 'TD' | 'LR' | 'TB' | 'RL' | 'BT';
 
+/** canvas-ltk: what a legend row shows beside its label. */
+export type LegendSample =
+  | { kind: 'shape'; shape: NodeShape; fill?: string; stroke?: string }
+  | { kind: 'line'; lineStyle?: NonNullable<DiagramEdge['lineStyle']>; arrow?: NonNullable<DiagramEdge['arrow']>; stroke?: string };
+
+/** canvas-ltk: an entry the author added (automatic entries come from the standard). */
+export interface LegendEntrySpec {
+  id: string;
+  label: string;
+  sample: LegendSample;
+}
+
+/** canvas-ltk: the diagram's legend, kept in the Canvas front-matter (`canvas.legend`); not used
+ *  by sequence diagrams. Automatic entries (one per element kind / connector rule the diagram
+ *  uses) are computed from the standard; this holds only the author's choices. */
+export interface DiagramLegend {
+  visible: boolean;
+  /** Top-left corner; absent = beside the diagram's content. */
+  position?: Position;
+  title?: string;
+  /** Automatic entry keys (`kind:<id>`, `connector:<id>`) the author hid. */
+  hidden?: string[];
+  /** Renamed automatic entries, by key. */
+  labels?: Record<string, string>;
+  extra?: LegendEntrySpec[];
+}
+
 export interface DiagramModel {
   diagramTypeId: string;
   /** A real, cross-family Mermaid top-level statement (`title <text>`, right after the diagram's
@@ -341,6 +368,8 @@ export interface DiagramModel {
   nodes: DiagramNode[];
   edges: DiagramEdge[];
   containers: DiagramContainer[];
+  /** canvas-ltk: the diagram's legend (every family except sequence). */
+  legend?: DiagramLegend;
   /** jmuir-dtu.4: sequence diagrams only — an `autonumber` statement turns on automatic message
    *  numbering, with optional custom start/step values; `autonumber off` turns it back off. Real
    *  Mermaid allows toggling this at multiple points through a diagram to reset numbering

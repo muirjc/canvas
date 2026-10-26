@@ -1,6 +1,7 @@
 import { Resvg } from '@resvg/resvg-js';
 import { getDslFamily, renderToSvg, toPortableMermaid, type DiagramModel, type IconResolver } from '@canvas/diagram-core';
 import { resolveIconAssets } from '../libraries/library.service.js';
+import { getActiveStandard } from '../standards/standard.service.js';
 
 export class UnrenderableDiagramError extends Error {}
 
@@ -35,10 +36,12 @@ async function buildIconResolver(model: DiagramModel): Promise<IconResolver | un
   return (icon) => assets.get(`${icon.libraryId}@${icon.libraryVersion}@${icon.iconId}`);
 }
 
-export async function exportSvg(dslFamilyId: string, dslContent: string): Promise<string> {
+/** `diagramTypeId` (canvas-ltk): its active standard supplies a visible legend's automatic entries. */
+export async function exportSvg(dslFamilyId: string, dslContent: string, diagramTypeId?: string): Promise<string> {
   const model = parseOrThrow(dslFamilyId, dslContent);
   const resolveIcon = await buildIconResolver(model);
-  return renderToSvg(model, resolveIcon);
+  const standard = model.legend?.visible && diagramTypeId ? await getActiveStandard(diagramTypeId) : null;
+  return renderToSvg(model, resolveIcon, { standardRules: standard?.rules });
 }
 
 /**
@@ -46,8 +49,8 @@ export async function exportSvg(dslFamilyId: string, dslContent: string): Promis
  * output is deterministic and independent of any particular browser/OS/font environment
  * (research.md §4).
  */
-export async function exportPng(dslFamilyId: string, dslContent: string): Promise<Buffer> {
-  const svg = await exportSvg(dslFamilyId, dslContent);
+export async function exportPng(dslFamilyId: string, dslContent: string, diagramTypeId?: string): Promise<Buffer> {
+  const svg = await exportSvg(dslFamilyId, dslContent, diagramTypeId);
   const resvg = new Resvg(svg, { font: { loadSystemFonts: false } });
   const rendered = resvg.render();
   return rendered.asPng();

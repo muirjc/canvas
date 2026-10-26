@@ -27,6 +27,7 @@ export * from './standards/kinds.js';
 export * from './standards/locate.js';
 export * from './standards/definition-check.js';
 export * from './render/svg-renderer.js';
+export * from './render/legend.js';
 export * from './render/sequence-layout.js';
 export * from './template/types.js';
 export * from './template/markdown-table.js';

@@ -1,5 +1,5 @@
 import { createEmptyDiagramModel, type ClassMember, type DiagramContainer, type DiagramModel, type DiagramNode, type NodeStyle } from '../model/diagram-model.js';
-import { splitFrontMatter, joinFrontMatter, stripTrailingComment, type CanvasFrontMatter } from './front-matter.js';
+import { splitFrontMatter, joinFrontMatter, stripTrailingComment, type CanvasFrontMatter, readLegend, withLegend } from './front-matter.js';
 import type { FlowchartDirection } from '../model/diagram-model.js';
 import type { ParseError, ParseResult } from './types.js';
 import { computeContainmentLayout } from '../model/containment-layout.js';
@@ -560,6 +560,7 @@ export function parseUml(dsl: string): ParseResult {
   model.accTitle = accTitle;
   model.accDescr = accDescr;
   model.mermaidConfigDirective = mermaidConfigDirective;
+  model.legend = readLegend(frontMatter);
   return { model };
 }
 
@@ -658,5 +659,5 @@ export function serializeUml(model: DiagramModel): string {
     }
   }
 
-  return joinFrontMatter(frontMatter, `${lines.join('\n')}\n`);
+  return joinFrontMatter(withLegend(frontMatter, model), `${lines.join('\n')}\n`);
 }

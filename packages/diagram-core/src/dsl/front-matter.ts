@@ -1,5 +1,5 @@
 import { parse as parseYaml, stringify as stringifyYaml } from 'yaml';
-import type { NodeStyle } from '../model/diagram-model.js';
+import type { DiagramLegend, DiagramModel, LegendEntrySpec, NodeStyle } from '../model/diagram-model.js';
 import { AWS_ICONS_VERSION, LEGACY_AWS_PLACEHOLDER_VERSION } from '../libraries/aws-icons.js';
 
 /**
@@ -18,6 +18,8 @@ export interface CanvasFrontMatter {
     /** jmuir-dtu.28: element kind per node id, for families whose Mermaid grammar can't carry one
      *  (architecture-beta). */
     kinds?: Record<string, string>;
+    /** canvas-ltk: the diagram's legend (validated by readLegend). */
+    legend?: unknown;
   };
 }
 
@@ -76,4 +78,54 @@ export function joinFrontMatter(frontMatter: CanvasFrontMatter, body: string): s
     return body;
   }
   return `---\n${stringifyYaml(frontMatter).trimEnd()}\n---\n${body}`;
+}
+
+const isRecord = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v);
+const str = (v: unknown, max = 200): string | undefined => (typeof v === 'string' && v.trim() !== '' ? v.slice(0, max) : undefined);
+
+/** canvas-ltk: the legend from front-matter, validated; anything malformed is dropped (never a parse error). */
+export function readLegend(frontMatter: CanvasFrontMatter): DiagramLegend | undefined {
+  const raw = frontMatter.canvas?.legend;
+  if (!isRecord(raw)) return undefined;
+  const legend: DiagramLegend = { visible: raw.visible !== false };
+  if (isRecord(raw.position) && Number.isFinite(Number(raw.position.x)) && Number.isFinite(Number(raw.position.y))) {
+    legend.position = { x: Number(raw.position.x), y: Number(raw.position.y) };
+  }
+  const title = str(raw.title);
+  if (title) legend.title = title;
+  if (Array.isArray(raw.hidden)) {
+    const hidden = raw.hidden.filter((h): h is string => typeof h === 'string');
+    if (hidden.length) legend.hidden = hidden;
+  }
+  if (isRecord(raw.labels)) {
+    const labels = Object.fromEntries(Object.entries(raw.labels).flatMap(([k, v]) => (str(v) ? [[k, str(v)!]] : [])));
+    if (Object.keys(labels).length) legend.labels = labels;
+  }
+  if (Array.isArray(raw.extra)) {
+    const extra = raw.extra.flatMap((e): LegendEntrySpec[] => {
+      if (!isRecord(e) || !str(e.id) || !str(e.label) || !isRecord(e.sample)) return [];
+      const s = e.sample;
+      if (s.kind === 'shape' && str(s.shape)) {
+        return [{ id: str(e.id)!, label: str(e.label)!, sample: { kind: 'shape', shape: str(s.shape) as never, ...(str(s.fill) ? { fill: str(s.fill) } : {}), ...(str(s.stroke) ? { stroke: str(s.stroke) } : {}) } }];
+      }
+      if (s.kind === 'line') {
+        return [
+          {
+            id: str(e.id)!,
+            label: str(e.label)!,
+            sample: { kind: 'line', ...(str(s.lineStyle) ? { lineStyle: str(s.lineStyle) as never } : {}), ...(str(s.arrow) ? { arrow: str(s.arrow) as never } : {}), ...(str(s.stroke) ? { stroke: str(s.stroke) } : {}) },
+          },
+        ];
+      }
+      return [];
+    });
+    if (extra.length) legend.extra = extra;
+  }
+  return legend;
+}
+
+/** canvas-ltk: adds the model's legend to a serializer's front-matter (when it has one). */
+export function withLegend(frontMatter: CanvasFrontMatter, model: Pick<DiagramModel, 'legend'>): CanvasFrontMatter {
+  if (!model.legend) return frontMatter;
+  return { ...frontMatter, canvas: { ...(frontMatter.canvas ?? {}), legend: model.legend } };
 }
