@@ -256,11 +256,17 @@ jobs:
     permissions:
       contents: read
       security-events: write
+    env:
+      # canvas-hq7: the Bearer CLI release both steps install. Without it the action downloads
+      # whatever is newest on every run -- a failed "latest" lookup broke the job (#246), and a new
+      # release can silently change which rules fire. Upgrade by changing this, deliberately.
+      BEARER_VERSION: 2.1.2
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Bearer scan (all severities, for the Security tab)
         uses: bearer/bearer-action@828eeb928ce2f4a7ca5ed57fb8b59508cb8c79bc # v2
         with:
+          version: ${{ env.BEARER_VERSION }}
           skip-path: node_modules,dist,playwright-report,test-results
           format: sarif
           output: bearer.sarif
@@ -273,5 +279,6 @@ jobs:
       - name: Fail on critical findings
         uses: bearer/bearer-action@828eeb928ce2f4a7ca5ed57fb8b59508cb8c79bc # v2
         with:
+          version: ${{ env.BEARER_VERSION }}
           skip-path: node_modules,dist,playwright-report,test-results
           severity: critical
