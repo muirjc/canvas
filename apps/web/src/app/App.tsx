@@ -22,6 +22,7 @@ import { UsersPage } from '../admin/UsersPage';
 import { AuditLogPage } from '../admin/AuditLogPage';
 import { AiUsagePage } from '../admin/AiUsagePage';
 import { GitHubAdminPage } from '../admin/GitHubAdminPage';
+import { LibrariesAdminPage } from '../admin/LibrariesAdminPage';
 import { AdminOverview } from '../admin/AdminOverview';
 import { DeletedDiagramsPage } from '../admin/DeletedDiagramsPage';
 import { DeletedProjectsPage } from '../admin/DeletedProjectsPage';
@@ -443,6 +444,7 @@ export function App() {
     else if (adminParam === 'deleted-projects') adminScreen = <DeletedProjectsPage />;
     else if (adminParam === 'ai-usage') adminScreen = <AiUsagePage />;
     else if (adminParam === 'audit') adminScreen = <AuditLogPage />;
+    else if (adminParam === 'libraries') adminScreen = <LibrariesAdminPage />;
     else if (adminParam === 'github') adminScreen = <GitHubAdminPage />;
     else if (adminParam === 'ai-personas') adminScreen = <PersonaAdminPage />;
     else adminScreen = <StandardsAdminPage />;

@@ -991,3 +991,75 @@
 .comment-replies { margin-inline-start: var(--space-4); padding-inline-start: var(--space-3); border-inline-start: 2px solid var(--border-default); margin-block: var(--space-2); }
 .comment-thread--resolved { opacity: 0.75; }
 .comment-thread--highlight { outline: 2px solid var(--accent); }
+
+/* ---- Admin -> Libraries (canvas-3dq) ------------------------------------ */
+
+.library-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: var(--space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.library-tile {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-1);
+  padding: var(--space-3);
+}
+
+.library-tile__art,
+.library-draft__art {
+  flex: none;
+  width: 48px;
+  height: 48px;
+  padding: var(--space-1);
+  border: var(--border-width) solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  background: var(--surface-base);
+}
+
+.library-tile__name { overflow-wrap: anywhere; }
+
+.library-draft-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: var(--space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.library-draft {
+  display: flex;
+  gap: var(--space-3);
+  align-items: flex-start;
+  padding: var(--space-3);
+}
+
+.library-draft__fields { display: flex; flex-direction: column; flex: 1; min-width: 0; gap: var(--space-1); }
+.library-draft__fields > * + * { margin-block-start: 0; }
+
+/* .row is the project-tree row (16px side padding, hover tint); here it only lines buttons up. */
+.library-page .row { padding-inline: 0; min-height: 0; }
+.library-page .row:hover { background: none; }
+
+/* .card has no padding of its own; the detail page's two form cards need it. */
+.library-section { padding: var(--space-4); }
+
+/* The table-scroll rule keeps cells on one line, which pushed the Actions column off-screen once a
+   library was offered in many diagram types or had a long name/id: let these two cells wrap. */
+.table-scroll td.library-cell--wrap { white-space: normal; overflow-wrap: anywhere; }
+.library-offered { min-width: 14rem; max-width: 26rem; }
+
+.library-draft__art--error {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--danger);
+  background: var(--danger-subtle);
+  font-weight: 700;
+}
