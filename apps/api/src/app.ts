@@ -16,6 +16,7 @@ import { registerUserLookupRoutes } from './admin/user-lookup.routes.js';
 import { registerExportRoutes } from './export/export.routes.js';
 import { registerStandardRoutes } from './standards/standard.routes.js';
 import { registerLibraryRoutes } from './libraries/library.routes.js';
+import { registerLibraryAdminRoutes } from './libraries/library-admin.routes.js';
 import { registerProjectRoutes } from './projects/project.routes.js';
 import { registerAiSettingsRoutes } from './ai/ai-settings.routes.js';
 import { registerPersonaRoutes } from './ai/persona.routes.js';
@@ -109,6 +110,7 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
   await registerExportRoutes(app);
   await registerStandardRoutes(app);
   await registerLibraryRoutes(app);
+  await registerLibraryAdminRoutes(app);
   await registerProjectRoutes(app);
   await registerAiSettingsRoutes(app, { aiFetch: options.aiFetch });
   await registerPersonaRoutes(app);
