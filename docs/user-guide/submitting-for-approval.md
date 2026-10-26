@@ -41,6 +41,8 @@ about once a minute while the diagram is open, and every 15 minutes otherwise.
 | Rejected | The pull request was closed without merging |
 | Withdrawn | Someone withdrew the submission from Canvas |
 
+![The Approval tab](../images/editor-approval.png)
+
 The **Approval** tab in the editor's side panel has the details:
 - The open pull request, with its reviewers' decisions and the repository's checks. Each one links
   to GitHub.

@@ -430,6 +430,28 @@ Setup for admins is in `docs/admin-guide/github.md`; the design is in `docs/gith
   page means the App lost access (uninstalled, or the repository removed from the installation).
   Use the admin page's **Test** to see which permission or resource is missing.
 - **Tests** run against `apps/api/tests/helpers/fake-github.ts`; no real GitHub is contacted.
+- **Rate limits** (canvas-3s5.4): reads send If-None-Match with the last ETag (a 304 doesn't count
+  against GitHub's limit). After a rate-limit answer (429, or 403 with no requests remaining or the
+  secondary-limit message) the client sends nothing until GitHub's `retry-after` /
+  `x-ratelimit-reset` time (60 s if neither), and the sync job stops its batch; the rest are picked
+  up on the next run. The submission's `last_sync_error` says when Canvas will try again.
+- **Live checklist** (first run 2026-10-25 against `muirjc/arch_as_code`, App `canvasdiagramapp`,
+  all passed). Repeat after changing the App, its permissions or the GitHub code:
+  1. Admin → GitHub shows the App connected and the installation; **Test** on a link passes all
+     five checks.
+  2. Submit a diagram: a PR opens, authored by `<app>[bot]`, commit trailer
+     `Co-authored-by: <name> <email>`, with README / SVG / `.mmd` / `.canvas.mmd` / `canvas.json` /
+     `.canvas/standards/...` / `.canvas/validator.mjs`.
+  3. `node .canvas/validator.mjs` on a clone of the PR branch passes; the repository's
+     *Canvas diagrams* workflow passes (Validate + Architecture gate) with findings annotated.
+  4. Edit + **Push update to PR #n**: same PR, new commit on top.
+  5. With the PR open, **Refresh** in the Approval tab shows the checks; a "Request changes"
+     review shows as changes requested.
+  6. Merge it: the chip shows **Approved (version N)** after a refresh; the audit log has
+     `diagram_submission_merged`. A submit after that opens a new PR.
+  7. **Withdraw** an open PR: it closes unmerged on GitHub with "Withdrawn in Canvas by <name>".
+  8. Run the sync job once (`az containerapp job start --name canvas-github-sync ...`): it ends with
+     "Synced pull requests: ..." and exit 0.
 - **CI validator** (canvas-3s5.3): `packages/validator-cli`, bundled by esbuild into one file,
   `dist/validator.mjs` (`npm run build --workspace=@canvas/validator-cli`; the Dockerfile builds it
   into the image). Each submission commits it to `.canvas/validator.mjs`; unchanged content is a

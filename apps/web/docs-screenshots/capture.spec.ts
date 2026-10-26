@@ -307,3 +307,30 @@ test("admin screens", async () => {
   await admin.waitForLoadState('networkidle');
   await shot(admin, 'admin-deleted-diagrams.png');
 });
+
+// canvas-3s5.4: the GitHub approval screens. They need
+// the local API configured with a GitHub App and the "GitHub live test" project from the live check
+// (its Sample Order Flow has real pull-request history); they only read, never submit.
+test('github approval', async () => {
+  const status = await (await api('get', '/admin/github/status')).json();
+  const projects = (await (await api('get', '/projects')).json()).projects as { id: string; name: string }[];
+  const live = projects.find((p) => p.name === 'GitHub live test');
+  test.skip(!status.enabled || !live, 'needs a configured GitHub App and the "GitHub live test" project');
+  const diagrams = (await (await api('get', `/projects/${live!.id}/diagrams?query=Sample`)).json()).diagrams as { id: string; name: string }[];
+  const sample = diagrams.find((d) => d.name === 'Sample Order Flow');
+  test.skip(!sample, 'needs the Sample Order Flow diagram');
+
+  await admin.goto('/?admin=github');
+  await expect(admin.getByTestId('github-connected')).toBeVisible();
+  await expect(admin.getByTestId('github-links')).toBeVisible();
+  await admin.waitForLoadState('networkidle');
+  await shot(admin, 'admin-github.png');
+
+  await admin.goto(`/?diagramId=${sample!.id}`);
+  await expect(admin.getByTestId('diagram-canvas')).toBeVisible();
+  await expect(admin.getByTestId('submission-chip')).toBeVisible();
+  await admin.getByTestId('rail-tab-approval').click();
+  await expect(admin.getByTestId('approval-history')).toBeVisible();
+  await admin.waitForLoadState('networkidle');
+  await shot(admin, 'editor-approval.png');
+});

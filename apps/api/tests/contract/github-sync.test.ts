@@ -366,7 +366,7 @@ describe('GitHub pull request status sync (canvas-3s5.2)', () => {
       fake.addReview(repo, c.number, 'ann', 'APPROVED');
 
       const counts = await syncOpenSubmissions(client);
-      expect(counts).toEqual({ open: 1, merged: 1, closed: 1, error: 0, skipped: 0 });
+      expect(counts).toEqual({ open: 1, merged: 1, closed: 1, error: 0, skipped: 0, rateLimited: 0 });
       expect((await rows(a.diagramId))[0].state).toBe('merged');
       expect((await rows(b.diagramId))[0].state).toBe('closed');
       const [rowC] = await rows(c.diagramId);
@@ -374,7 +374,7 @@ describe('GitHub pull request status sync (canvas-3s5.2)', () => {
 
       // Only the still-open one is a candidate, and it was just synced.
       fake.clearRecords();
-      expect(await syncOpenSubmissions(client)).toEqual({ open: 0, merged: 0, closed: 0, error: 0, skipped: 0 });
+      expect(await syncOpenSubmissions(client)).toEqual({ open: 0, merged: 0, closed: 0, error: 0, skipped: 0, rateLimited: 0 });
       expect(fake.requests).toEqual([]);
 
       // A zero minimum age syncs it regardless.
@@ -396,10 +396,35 @@ describe('GitHub pull request status sync (canvas-3s5.2)', () => {
       expect((await rows(good.diagramId))[0].review_state).toBe('approved');
     });
 
+    it('canvas-3s5.4: a rate limit stops the batch (the rest wait for the next run) and later calls skip GitHub', async () => {
+      const a = await submitted('Alpha');
+      const b = await submitted('Beta');
+      const c = await submitted('Gamma');
+      const limited = new GitHubClient({ appId: fake.appId, privateKey: fake.privateKey, apiUrl: fake.url });
+      fake.failWith = { status: 429, headers: { 'retry-after': '600' } };
+      fake.clearRecords();
+
+      const counts = await syncOpenSubmissions(limited, 0);
+      expect(counts).toEqual({ open: 0, merged: 0, closed: 0, error: 0, skipped: 2, rateLimited: 1 });
+      // One attempt reached GitHub; the batch stopped there.
+      expect(fake.requests.length).toBeLessThanOrEqual(1);
+      const errors = (await Promise.all([a, b, c].map(async (s) => (await rows(s.diagramId))[0].last_sync_error))).filter(Boolean);
+      expect(errors).toHaveLength(1);
+      expect(errors[0]).toMatch(/rate limit/i);
+
+      // Still inside the back-off: nothing is sent at all, and the link isn't flagged as broken.
+      fake.failWith = null;
+      fake.clearRecords();
+      expect((await syncOpenSubmissions(limited, 0)).rateLimited).toBe(1);
+      expect(fake.requests).toEqual([]);
+      const link = await getDb().selectFrom('github_links').select('last_check_error').where('repo_id', '=', repo.id).executeTakeFirstOrThrow();
+      expect(link.last_check_error ?? '').not.toMatch(/Needs attention/);
+    });
+
     it('a diagram that was never submitted, or a submission that failed to open, is not a candidate', async () => {
       await createDiagram('Never submitted');
       fake.clearRecords();
-      expect(await syncOpenSubmissions(client)).toEqual({ open: 0, merged: 0, closed: 0, error: 0, skipped: 0 });
+      expect(await syncOpenSubmissions(client)).toEqual({ open: 0, merged: 0, closed: 0, error: 0, skipped: 0, rateLimited: 0 });
       expect(fake.requests).toEqual([]);
     });
   });

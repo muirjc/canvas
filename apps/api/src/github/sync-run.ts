@@ -20,7 +20,8 @@ async function run(): Promise<void> {
   // Counts only.
   // bearer:disable javascript_lang_logger_leak
   console.log(
-    `Synced pull requests: ${counts.open} still open, ${counts.merged} merged (approved), ${counts.closed} closed (rejected), ${counts.error} failed.`,
+    `Synced pull requests: ${counts.open} still open, ${counts.merged} merged (approved), ${counts.closed} closed (rejected), ${counts.error} failed` +
+      (counts.rateLimited ? `; GitHub rate limit reached, ${counts.skipped} left for the next run.` : '.'),
   );
   if (counts.error > 0) process.exitCode = 1;
 }

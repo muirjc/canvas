@@ -357,3 +357,57 @@ describe('GitHubClient sync calls (canvas-3s5.2)', () => {
     expect(calls[1]).toMatchObject({ method: 'PATCH', url: 'https://github.test/repos/acme/arch/pulls/7', body: { state: 'closed' } });
   });
 });
+
+describe('GitHubClient conditional requests and backoff (canvas-3s5.4)', () => {
+  const repo = { owner: 'acme', name: 'architecture' };
+  const pull = (sha: string) => ({ number: 1, html_url: 'u', state: 'open', merged: false, merged_at: null, merge_commit_sha: null, closed_at: null, head: { sha } });
+
+  it('sends If-None-Match with the last ETag for a GET, and a 304 returns the remembered body', async () => {
+    const { client, calls } = harness((_call, n) => (n === 1 ? json(200, pull('abc'), { etag: '"v1"' }) : new Response(null, { status: 304 })));
+    expect((await client.getPullRequest('t', repo, 1)).headSha).toBe('abc');
+    expect(calls[0].headers['if-none-match']).toBeUndefined();
+    expect((await client.getPullRequest('t', repo, 1)).headSha).toBe('abc');
+    expect(calls[1].headers['if-none-match']).toBe('"v1"');
+  });
+
+  it('a changed resource (200 with a new ETag) replaces what is remembered', async () => {
+    const { client, calls } = harness((_call, n) => (n === 1 ? json(200, pull('abc'), { etag: '"v1"' }) : n === 2 ? json(200, pull('def'), { etag: '"v2"' }) : new Response(null, { status: 304 })));
+    await client.getPullRequest('t', repo, 1);
+    expect((await client.getPullRequest('t', repo, 1)).headSha).toBe('def');
+    expect((await client.getPullRequest('t', repo, 1)).headSha).toBe('def');
+    expect(calls[2].headers['if-none-match']).toBe('"v2"');
+  });
+
+  it('never sends If-None-Match on a write', async () => {
+    const { client, calls } = harness(() => json(200, pull('abc'), { etag: '"v1"' }));
+    await client.getPullRequest('t', repo, 1);
+    await client.updatePullRequest('t', repo, 1, { title: 'x' });
+    expect(calls[1].method).toBe('PATCH');
+    expect(calls[1].headers['if-none-match']).toBeUndefined();
+  });
+
+  it('after a rate limit with retry-after, calls fail fast without reaching GitHub until it passes', async () => {
+    let limited = true;
+    const { client, calls, clock } = harness(() => (limited ? json(429, { message: 'slow down' }, { 'retry-after': '120' }) : json(200, pull('abc'))));
+    const first = await client.getPullRequest('t', repo, 1).catch((e) => e);
+    expect(first).toBeInstanceOf(GitHubRateLimitError);
+    expect(first.message).toMatch(/try again after \d\d:\d\d UTC/);
+    expect(client.rateLimitedUntil).toBe(clock.now + 120_000);
+    limited = false;
+    await expect(client.getPullRequest('t', repo, 2)).rejects.toBeInstanceOf(GitHubRateLimitError);
+    expect(calls).toHaveLength(1);
+    clock.now += 121_000;
+    expect((await client.getPullRequest('t', repo, 3)).headSha).toBe('abc');
+    expect(client.rateLimitedUntil).toBe(0);
+  });
+
+  it('uses x-ratelimit-reset for the primary limit, and recognises the secondary limit by its message', async () => {
+    const primary = harness(() => json(403, { message: 'API rate limit exceeded' }, { 'x-ratelimit-remaining': '0', 'x-ratelimit-reset': String(Date.UTC(2026, 9, 24, 12, 30) / 1000) }));
+    await expect(primary.client.getPullRequest('t', repo, 1)).rejects.toBeInstanceOf(GitHubRateLimitError);
+    expect(primary.client.rateLimitedUntil).toBe(Date.UTC(2026, 9, 24, 12, 30));
+
+    const secondary = harness(() => json(403, { message: 'You have exceeded a secondary rate limit. Please wait a few minutes.' }));
+    await expect(secondary.client.createCommit('t', repo, 'm', 'tree', 'parent')).rejects.toBeInstanceOf(GitHubRateLimitError);
+    expect(secondary.client.rateLimitedUntil).toBe(secondary.clock.now + 60_000);
+  });
+});
