@@ -35,6 +35,13 @@ errors.
 Each built-in type comes with a **starter standard**. It describes the type rather than restricting
 it, and is a good base for your own.
 
+In the built-in C4 Context, Container and Component standards, every element kind is set to **Must
+be connected**: an element with no relationships is flagged as a Warning. You can ignore it, and it
+never blocks submitting a diagram for approval. Built-in standards are only added to a diagram type
+that has none yet, so an installation set up before this change keeps its existing standard. To get
+the warning there, edit that standard, tick **Must be connected** on each element kind, under
+**Strictness** set `kind-unconnected` to Warning (its default is Info), and choose **Save & publish**.
+
 ## Diagram types
 
 Also on this page:

@@ -138,8 +138,10 @@ test('C4 person text starts below the head', async ({ page }) => {
 
   for (const id of ['customer', 'clerk']) {
     const node = page.getByTestId(`node-${id}`);
-    await expect(node.locator('circle')).toHaveCount(1);
-    const head = (await node.locator('circle').boundingBox())!;
+    // The person's head -- not the standards warning dot (clerk has no connection, canvas-1n3).
+    const headCircle = node.locator('circle:not([data-testid^="violation-dot-"])');
+    await expect(headCircle).toHaveCount(1);
+    const head = (await headCircle.boundingBox())!;
     const text = (await node.locator('text').first().boundingBox())!;
     expect(text.y, `${id}: name starts below head`).toBeGreaterThanOrEqual(head.y + head.height);
   }

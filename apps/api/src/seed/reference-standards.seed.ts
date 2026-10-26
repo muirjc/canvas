@@ -64,6 +64,8 @@ export const VALUE_CHAIN_STANDARD: StandardRules = {
 
 // Fills match the C4 role defaults the renderer already draws (svg-renderer.ts C4_NODE_COLORS /
 // C4_EXTERNAL_NODE_COLORS), so an unstyled element is compliant out of the box.
+// canvas-1n3: every element must be connected -- an unconnected one is a Warning (can be ignored,
+// never blocks a GitHub submission).
 export const C4_CONTEXT_STANDARD: StandardRules = {
   ...EMPTY_V1,
   requireKnownKinds: true,
@@ -76,6 +78,7 @@ export const C4_CONTEXT_STANDARD: StandardRules = {
       shapes: ['person'],
       approvedFills: ['#08427b'],
       match: { role: 'person', external: false },
+      requireConnection: true,
     },
     {
       id: 'external_person',
@@ -84,6 +87,7 @@ export const C4_CONTEXT_STANDARD: StandardRules = {
       shapes: ['person'],
       approvedFills: ['#686868'],
       match: { role: 'person', external: true },
+      requireConnection: true,
     },
     {
       id: 'software_system',
@@ -92,6 +96,7 @@ export const C4_CONTEXT_STANDARD: StandardRules = {
       shapes: ['rectangle', 'cylinder', 'stadium'],
       approvedFills: ['#1168bd'],
       match: { role: 'system', external: false },
+      requireConnection: true,
       minCount: 1,
     },
     {
@@ -101,9 +106,12 @@ export const C4_CONTEXT_STANDARD: StandardRules = {
       shapes: ['rectangle', 'cylinder', 'stadium'],
       approvedFills: ['#999999'],
       match: { role: 'system', external: true },
+      requireConnection: true,
     },
   ],
   connectorRules: [{ id: 'relationship', label: 'Relationship', from: '*', to: '*', requireLabel: true }],
+  // canvas-1n3: the rule's built-in default is Info; the user asked for a Warning.
+  severityOverrides: { 'kind-unconnected': 'warning' },
   containers: { allowed: true, allowedRoles: ['enterprise-boundary', 'system-boundary', 'boundary'] },
   guidance:
     'A C4 System Context diagram shows the software system in scope, the people who use it, and the other systems it depends on -- nothing inside a system (no containers or components). Every relationship needs a label describing what it does.',
@@ -135,12 +143,15 @@ const C4_KINDS: Record<string, ElementKind> = {
   external_component: { id: 'external_component', label: 'External Component', description: 'A component outside the scope (Component_Ext and variants).', shapes: [], approvedFills: ['#cccccc'], match: { role: 'component', external: true } },
 };
 
-function c4Starter(kindIds: string[], boundaryRoles: string[], guidance: string): StandardRules {
+/** canvas-1n3: `requireConnection` flags an unconnected element as a Warning (Container and
+ *  Component; not Code, often a plain list, nor Deployment, where nesting is the relationship). */
+function c4Starter(kindIds: string[], boundaryRoles: string[], guidance: string, options: { requireConnection?: boolean } = {}): StandardRules {
   return {
     ...EMPTY_V1,
-    elementKinds: kindIds.map((id) => C4_KINDS[id]),
+    elementKinds: kindIds.map((id) => (options.requireConnection ? { ...C4_KINDS[id], requireConnection: true } : C4_KINDS[id])),
     connectorPolicy: 'any',
     connectorRules: [{ id: 'relationship', label: 'Relationship', from: '*', to: '*', requireLabel: true }],
+    ...(options.requireConnection ? { severityOverrides: { 'kind-unconnected': 'warning' as const } } : {}),
     containers: { allowed: true, allowedRoles: boundaryRoles },
     guidance,
   };
@@ -155,6 +166,7 @@ const STARTER_STANDARDS: { diagramTypeId: string; name: string; description: str
       ['person', 'external_person', 'software_system', 'external_system', 'container', 'external_container'],
       ['enterprise-boundary', 'system-boundary', 'container-boundary', 'boundary'],
       'A C4 Container diagram zooms into one software system and shows its containers (applications, data stores, queues), the people who use them and the external systems they talk to. Label every relationship with what it does and how (e.g. "Reads/writes [SQL]").',
+      { requireConnection: true },
     ),
   },
   {
@@ -165,6 +177,7 @@ const STARTER_STANDARDS: { diagramTypeId: string; name: string; description: str
       ['person', 'external_person', 'software_system', 'external_system', 'container', 'external_container', 'component', 'external_component'],
       ['system-boundary', 'container-boundary', 'boundary'],
       'A C4 Component diagram zooms into one container and shows its components and how they interact with each other and with surrounding containers and systems. Label every relationship.',
+      { requireConnection: true },
     ),
   },
   {
