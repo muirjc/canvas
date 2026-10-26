@@ -32,6 +32,25 @@ Opening a diagram shows it on the **canvas** in the middle:
 Sequence diagrams work differently: the layout follows the order of messages, so you don't drag.
 The **Tools** section adds notes, loop/alt/opt blocks, activations and numbering.
 
+## Legend
+
+A **legend** is a small key on the canvas that explains what each shape, colour and line means.
+Click **Legend** in the **Tools** section of the left rail to show or hide it. Turning it off keeps
+your settings, so turning it back on restores the same legend. Sequence diagrams don't have one.
+
+- **Standard entries:** if your organisation has a standard for this diagram type, the legend lists
+  each element kind (for example *Primary Activity*) and each connector from the standard that the
+  diagram actually uses, with a sample shape or line. They update as you draw.
+- **Edit legend:** click **Edit legend** (or double-click the legend) to set a title, untick
+  **Show** to hide a standard entry, type a new label to rename it (clear the label to go back to
+  the standard's), and **Add entry** for your own. Your own entries are a shape (shape, fill and
+  stroke colour) or a line (solid, dotted or thick, and arrow style) with a label.
+- **Move:** drag the legend box. Until you move it, it sits to the right of the diagram.
+  **Delete** never removes it. Use the **Legend** button instead.
+- **Exports and saving:** the legend is saved with the diagram and appears in SVG and PNG exports
+  (and in anything that uses them). The Mermaid export leaves it out, because Mermaid has no legend
+  syntax. The legend lives in the diagram's front-matter on the DSL tab.
+
 ## The DSL tab: the diagram as text
 
 Every diagram is also Mermaid text. Edit either side and the other follows. Typing in the DSL tab
