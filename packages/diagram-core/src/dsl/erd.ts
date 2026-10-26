@@ -1,5 +1,5 @@
 import { createEmptyDiagramModel, type DiagramModel, type DiagramNode, type EntityAttribute, type NodeStyle } from '../model/diagram-model.js';
-import { splitFrontMatter, joinFrontMatter, stripTrailingComment, type CanvasFrontMatter } from './front-matter.js';
+import { splitFrontMatter, joinFrontMatter, stripTrailingComment, type CanvasFrontMatter, readLegend, withLegend } from './front-matter.js';
 import type { FlowchartDirection } from '../model/diagram-model.js';
 import type { ParseError, ParseResult } from './types.js';
 
@@ -369,6 +369,7 @@ export function parseErd(dsl: string): ParseResult {
   model.accTitle = accTitle;
   model.accDescr = accDescr;
   model.mermaidConfigDirective = mermaidConfigDirective;
+  model.legend = readLegend(frontMatter);
   return { model };
 }
 
@@ -435,5 +436,5 @@ export function serializeErd(model: DiagramModel): string {
     if (!declared.has(node.id)) lines.push(declarationFor(node));
   }
 
-  return joinFrontMatter(frontMatter, `${lines.join('\n')}\n`);
+  return joinFrontMatter(withLegend(frontMatter, model), `${lines.join('\n')}\n`);
 }

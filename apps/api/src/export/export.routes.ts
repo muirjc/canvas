@@ -54,9 +54,9 @@ export async function registerExportRoutes(app: FastifyInstance): Promise<void> 
         if (format === 'mermaid') {
           return reply.send(exportMermaid(diagram.dslContent));
         } else if (format === 'svg') {
-          return reply.send(await exportSvg(dslFamilyId, diagram.dslContent));
+          return reply.send(await exportSvg(dslFamilyId, diagram.dslContent, diagram.diagramTypeId));
         } else {
-          return reply.send(await exportPng(dslFamilyId, diagram.dslContent));
+          return reply.send(await exportPng(dslFamilyId, diagram.dslContent, diagram.diagramTypeId));
         }
       } catch (error) {
         if (error instanceof DiagramNotFoundError) {

@@ -1,5 +1,5 @@
 import { createEmptyDiagramModel, type DiagramContainer, type DiagramModel, type DiagramNode } from '../model/diagram-model.js';
-import { splitFrontMatter, joinFrontMatter, stripTrailingComment, type CanvasFrontMatter } from './front-matter.js';
+import { splitFrontMatter, joinFrontMatter, stripTrailingComment, type CanvasFrontMatter, readLegend, withLegend } from './front-matter.js';
 import type { ParseError, ParseResult } from './types.js';
 import { computeArchitectureLayout } from '../model/architecture-layout.js';
 import { MERMAID_ARCHITECTURE_ICON_IDS, mermaidArchitectureIconsManifest } from '../libraries/mermaid-architecture-icons.js';
@@ -250,6 +250,7 @@ export function parseArchitecture(dsl: string): ParseResult {
   model.accTitle = accTitle;
   model.accDescr = accDescr;
   model.mermaidConfigDirective = mermaidConfigDirective;
+  model.legend = readLegend(frontMatter);
   return { model };
 }
 
@@ -315,7 +316,7 @@ export function serializeArchitecture(model: DiagramModel): string {
     lines.push(`align ${alignment.axis} ${alignment.ids.join(' ')}`);
   }
 
-  return joinFrontMatter(frontMatter, `${lines.join('\n')}\n`);
+  return joinFrontMatter(withLegend(frontMatter, model), `${lines.join('\n')}\n`);
 }
 
 /** The `(icon)` token for a service or group: iconify refs as "prefix:iconId", others the bare id. */

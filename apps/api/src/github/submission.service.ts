@@ -493,7 +493,7 @@ export async function submitDiagram(client: GitHubClient, diagramId: string, sub
       dslFamily: diagram.dslFamily,
       dslContent: diagram.dslContent,
       portableMermaid: toPortableMermaid(diagram.dslContent, { stripFrontMatter: true }),
-      svg: await exportSvg(diagram.dslFamily, diagram.dslContent),
+      svg: await exportSvg(diagram.dslFamily, diagram.dslContent, diagram.diagramTypeId),
       versionSequence,
       standard: standard ? { id: standard.id, version: standard.version, name: standard.name, description: standard.description, rules: standard.rules } : null,
       path: submission.path,

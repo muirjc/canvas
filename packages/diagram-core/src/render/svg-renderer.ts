@@ -1,5 +1,7 @@
 import { isAllowedLinkHref, type ClassMember, type DiagramContainer, type DiagramEdge, type DiagramModel, type DiagramNode, type EntityAttribute, type Size } from '../model/diagram-model.js';
 import { computeSequenceLayout, SELF_MESSAGE_LOOP_WIDTH, type SequenceLayout } from './sequence-layout.js';
+import { computeLegendEntries, legendLayout, LEGEND_METRICS, type LegendEntry, type LegendLayout } from './legend.js';
+import type { StandardRules } from '../standards/schema.js';
 
 const DEFAULT_NODE_SIZE: Size = { width: 140, height: 60 };
 // Matches diagram-ops.ts's own (module-private) DEFAULT_CONTAINER_SIZE — kept as a separate literal
@@ -1331,7 +1333,19 @@ function renderEdge(
 /** Exported so the interactive canvas can size itself to match actual content exactly the way
  *  export does (canvas-0s3) — a single source of truth rather than a second, hand-duplicated
  *  bounds calculation the two could silently disagree on. */
-export function computeBounds(model: DiagramModel): { width: number; height: number } {
+/** canvas-ltk: pass the legend entries (computeLegendEntries) to make room for a visible legend. */
+export function computeBounds(model: DiagramModel, legendEntries?: LegendEntry[]): { width: number; height: number } {
+  const content = contentBounds(model);
+  if (!legendEntries) return content;
+  const legend = legendLayout(model, legendEntries, content);
+  if (!legend) return content;
+  return {
+    width: Math.max(content.width, legend.x + legend.width + 40),
+    height: Math.max(content.height, legend.y + legend.height + 40),
+  };
+}
+
+function contentBounds(model: DiagramModel): { width: number; height: number } {
   // canvas-7vs.1: a sequence diagram's bounds come entirely from computeSequenceLayout() —
   // node/container.position is a placeholder for this family (research.md §1), so the generic
   // position-scanning loop below would compute a meaningless (near-zero) size.
@@ -1519,7 +1533,55 @@ const NOTE_ROLES_FOR_RENDER = new Set(['note-left', 'note-right', 'note-over']);
  * Renders a DiagramModel to self-contained SVG: no external network calls, no remote fonts —
  * satisfies the constitution's export constraint and Contract IV's export-fidelity requirement.
  */
-export function renderToSvg(model: DiagramModel, resolveIcon?: IconResolver): string {
+/** canvas-ltk: rendering options -- the diagram type's standard, for the legend's automatic entries. */
+export interface RenderOptions {
+  standardRules?: StandardRules;
+}
+
+const LEGEND_DASH: Record<string, string> = { dotted: '4,3', invisible: '2,4' };
+
+/** canvas-ltk: the legend box, drawn above everything else. Exported for the interactive canvas. */
+export function renderLegend(layout: LegendLayout, diagramTypeId?: string): string {
+  const m = LEGEND_METRICS;
+  const parts = [
+    `<g class="legend">`,
+    `<rect x="${layout.x}" y="${layout.y}" width="${layout.width}" height="${layout.height}" rx="6" ry="6" fill="#ffffff" stroke="#cccccc" />`,
+  ];
+  if (layout.title) {
+    parts.push(`<text x="${layout.title.x}" y="${layout.title.y}" font-family="sans-serif" font-size="${m.fontSize}" font-weight="bold" fill="#333333">${escapeXml(layout.title.text)}</text>`);
+  }
+  for (const row of layout.rows) {
+    const midY = row.y + m.rowHeight / 2;
+    const sample = row.entry.sample;
+    if (sample.kind === 'shape') {
+      // A person icon needs a squarer box to fit its head and body.
+      const w = sample.shape === 'person' ? m.sampleHeight : m.sampleWidth;
+      const node: DiagramNode = {
+        id: `legend-${row.entry.key}`,
+        label: '',
+        shape: sample.shape,
+        position: { x: row.sampleX + (m.sampleWidth - w) / 2, y: midY - m.sampleHeight / 2 },
+        size: { width: w, height: m.sampleHeight },
+        style: { ...(sample.fill ? { fillColor: sample.fill } : {}), ...(sample.stroke ? { strokeColor: sample.stroke } : {}) },
+      };
+      parts.push(renderNodeShape(node, diagramTypeId));
+    } else {
+      const stroke = sample.stroke ?? '#333333';
+      const width = sample.lineStyle === 'thick' ? 3 : 1.5;
+      const dash = LEGEND_DASH[sample.lineStyle ?? ''];
+      const end = sample.arrow === 'target' || sample.arrow === 'both' || sample.arrow === undefined ? ' marker-end="url(#arrowhead)"' : '';
+      const start = sample.arrow === 'source' || sample.arrow === 'both' ? ' marker-start="url(#arrowhead)"' : '';
+      parts.push(
+        `<line x1="${row.sampleX}" y1="${midY}" x2="${row.sampleX + m.sampleWidth}" y2="${midY}" stroke="${stroke}" stroke-width="${width}"${dash ? ` stroke-dasharray="${dash}"` : ''}${end}${start} />`,
+      );
+    }
+    parts.push(`<text x="${row.labelX}" y="${midY + m.fontSize / 3}" font-family="sans-serif" font-size="${m.fontSize}" fill="#333333">${escapeXml(row.entry.label)}</text>`);
+  }
+  parts.push('</g>');
+  return parts.join('');
+}
+
+export function renderToSvg(model: DiagramModel, resolveIcon?: IconResolver, options: RenderOptions = {}): string {
   // canvas-7vs.1: sequence diagrams get their own dedicated lifeline/timeline rendering path —
   // svg-renderer.ts had zero sequence-aware branching before this (confirmed at the epic's own
   // audit); every other family's rendering below is completely unaffected.
@@ -1528,7 +1590,9 @@ export function renderToSvg(model: DiagramModel, resolveIcon?: IconResolver): st
   }
   const nodesById = new Map(model.nodes.map((n) => [n.id, n]));
   const containersById = new Map(model.containers.map((c) => [c.id, c]));
-  const { width, height } = computeBounds(model);
+  const legendEntries = model.legend?.visible ? computeLegendEntries(model, options.standardRules) : [];
+  const { width, height } = computeBounds(model, legendEntries);
+  const legend = legendLayout(model, legendEntries, contentBounds(model));
 
   const containerMarkup = model.containers
     .map((c) => {
@@ -1555,6 +1619,7 @@ export function renderToSvg(model: DiagramModel, resolveIcon?: IconResolver): st
     containerMarkup,
     edgeMarkup,
     nodeMarkup,
+    legend ? renderLegend(legend, model.diagramTypeId) : '',
     '</svg>',
   ].join('');
 }

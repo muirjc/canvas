@@ -160,6 +160,8 @@ function checkDiagram(root: string, manifestPath: string, renderDir: string | un
     return result;
   }
 
+  // canvas-ltk: the standard also feeds a legend's automatic entries when rendering.
+  let standardRules: StandardRules | undefined;
   if (manifest.standard?.path) {
     const standardPath = insideRoot(root, manifest.standard.path);
     const standardRel = manifest.standard.path;
@@ -173,6 +175,7 @@ function checkDiagram(root: string, manifestPath: string, renderDir: string | un
       } catch {
         rules = undefined;
       }
+      standardRules = rules ? { ...emptyStandardRules(), ...rules } : undefined;
       if (!rules) {
         add({ level: 'error', file: standardRel, title: 'Unreadable standard', message: 'The standard file is not valid JSON or has no "rules".' });
       } else {
@@ -201,7 +204,7 @@ function checkDiagram(root: string, manifestPath: string, renderDir: string | un
     const svgName = (manifest.svg ?? `${manifest.source.replace(/\.canvas\.mmd$|\.mmd$/, '')}.svg`).split('/').pop()!;
     const out = join(renderDir, relative(root, folder), svgName);
     mkdirSync(dirname(out), { recursive: true });
-    writeFileSync(out, renderToSvg(parsed.model));
+    writeFileSync(out, renderToSvg(parsed.model, undefined, { standardRules }));
     result.rendered = toPosix(relative(process.cwd(), out));
   }
   return result;
