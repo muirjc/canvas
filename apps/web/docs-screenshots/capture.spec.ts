@@ -163,7 +163,9 @@ test('editor', async () => {
   await admin.keyboard.press('Escape');
 
   await admin.getByTestId('open-share-dialog').click();
-  await admin.getByTestId('share-email').fill('architect@example.com');
+  // canvas-cyt: the people picker, with its list of matches showing.
+  await admin.getByTestId('share-email').fill('Archi');
+  await expect(admin.getByRole('option', { name: /architect@example\.com/ })).toBeVisible();
   await shot(admin, 'share-dialog.png');
   await admin.getByTestId('close-share-dialog').click();
 

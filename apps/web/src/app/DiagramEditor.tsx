@@ -423,7 +423,7 @@ export const DiagramEditor = forwardRef<DiagramEditorHandle, DiagramEditorProps>
         </div>
       </div>
 
-      {sharing && <ShareDialog diagramId={diagram.id} onClose={() => setSharing(false)} />}
+      {sharing && <ShareDialog diagramId={diagram.id} currentUserId={currentUser.id} onClose={() => setSharing(false)} />}
 
       {showDetails && (
         <Modal
