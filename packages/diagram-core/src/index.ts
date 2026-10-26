@@ -5,6 +5,7 @@ export * from './model/family-capabilities.js';
 export * from './model/standard-ops.js';
 export * from './libraries/library-loader.js';
 export * from './libraries/svg-sanitizer.js';
+export * from './libraries/svg-import.js';
 export * from './libraries/azure-icons.js';
 export * from './libraries/aws-icons.js';
 export * from './libraries/generic.js';

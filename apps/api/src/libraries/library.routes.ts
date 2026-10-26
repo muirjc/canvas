@@ -12,6 +12,9 @@ export async function registerLibraryRoutes(app: FastifyInstance): Promise<void>
     },
   );
 
+  // Loads a library as BUILT-IN (the catalog seed's path; tests use it to load the bundled packs).
+  // canvas-3dq: admins import custom libraries through /admin/libraries/import-* instead, which
+  // sanitizes strictly and keeps built-in ids reserved.
   app.post<{ Body: IconShapeLibraryManifest }>(
     '/libraries',
     { preHandler: requireRole('admin'), schema: { tags: ['Libraries'], security: [{ cookieAuth: [] }] } },

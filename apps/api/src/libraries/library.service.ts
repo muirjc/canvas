@@ -28,14 +28,19 @@ export async function listLibraries(): Promise<LibrarySummary[]> {
 }
 
 /** Ingests a new library or library version (FR-010, Constitution V) — one call, no other code changes. */
-export async function ingestLibrary(manifest: IconShapeLibraryManifest): Promise<void> {
+export async function ingestLibrary(
+  manifest: IconShapeLibraryManifest,
+  options: { origin?: 'builtin' | 'custom'; displayName?: string | null } = {},
+): Promise<void> {
   const library = loadLibrary(manifest); // validates the manifest shape/uniqueness
   const db = getDb();
 
   await db.transaction().execute(async (trx) => {
+    // canvas-3dq: origin/display name are set when a library is first stored; re-ingesting (each
+    // deploy's catalog seed) never changes them, nor an admin's retirement.
     await trx
       .insertInto('icon_libraries')
-      .values({ id: library.id, version: library.version, license: library.license ?? null })
+      .values({ id: library.id, version: library.version, license: library.license ?? null, origin: options.origin ?? 'builtin', display_name: options.displayName ?? null })
       .onConflict((oc) => oc.columns(['id', 'version']).doUpdateSet((eb) => ({ license: eb.ref('excluded.license') })))
       .execute();
     for (const icon of library.icons) {
@@ -102,9 +107,13 @@ export async function searchIconsInLibrary(libraryId: string, version: string, q
   const db = getDb();
   const rows = await db
     .selectFrom('icons')
-    .select(['library_id', 'library_version', 'id', 'display_name', 'category', 'asset_ref'])
-    .where('library_id', '=', libraryId)
-    .where('library_version', '=', version)
+    .innerJoin('icon_libraries as l', (join) => join.onRef('l.id', '=', 'icons.library_id').onRef('l.version', '=', 'icons.library_version'))
+    .select(['icons.library_id', 'icons.library_version', 'icons.id', 'icons.display_name', 'icons.category', 'icons.asset_ref'])
+    .where('icons.library_id', '=', libraryId)
+    .where('icons.library_version', '=', version)
+    // canvas-3dq: retired icons and libraries aren't offered (they still render -- resolveIconAssets).
+    .where('icons.retired_at', 'is', null)
+    .where('l.retired_at', 'is', null)
     .execute();
   const library = { id: libraryId, version, icons: await toIcons(db, rows) };
   return searchIcons(library, query);
@@ -160,8 +169,11 @@ export async function searchIconsForDiagramType(diagramTypeId: string, query: st
 
   const rows = await db
     .selectFrom('icons')
-    .select(['library_id', 'library_version', 'id', 'display_name', 'category', 'asset_ref'])
-    .where('library_id', 'in', libraryIds)
+    .innerJoin('icon_libraries as l', (join) => join.onRef('l.id', '=', 'icons.library_id').onRef('l.version', '=', 'icons.library_version'))
+    .select(['icons.library_id', 'icons.library_version', 'icons.id', 'icons.display_name', 'icons.category', 'icons.asset_ref'])
+    .where('icons.library_id', 'in', libraryIds)
+    .where('icons.retired_at', 'is', null)
+    .where('l.retired_at', 'is', null)
     .execute();
   const icons = await toIcons(db, rows);
   const grouped = new Map<string, Icon[]>();

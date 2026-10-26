@@ -143,6 +143,10 @@ export interface IconLibrariesTable {
   version: string;
   license: string | null;
   created_at: GeneratedTimestamp;
+  /** canvas-3dq: 'builtin' (catalog seed; retire only) or 'custom' (admin-imported; editable). */
+  origin: Generated<'builtin' | 'custom'>;
+  display_name: string | null;
+  retired_at: Timestamp | null;
 }
 
 export interface IconsTable {
@@ -152,6 +156,8 @@ export interface IconsTable {
   display_name: string;
   category: string;
   asset_ref: string;
+  /** canvas-3dq: hidden from palettes/search; still resolves for diagrams that use it. */
+  retired_at: Timestamp | null;
 }
 
 /** Join table replacing `icons.keywords TEXT[]` (canvas-jtm.3) — the one array column that was

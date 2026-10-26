@@ -23,6 +23,8 @@ export type AuditEvent =
   | 'ai_price_set'
   | 'ai_price_removed'
   | 'ai_model_set'
+  // canvas-3dq: detail.action says what changed (imported, retired, icon_updated, palette_set, ...)
+  | 'icon_library_changed'
   | 'user_deleted'
   // canvas-3s5.1: GitHub approval
   | 'github_link_set'
