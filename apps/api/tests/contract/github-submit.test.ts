@@ -706,14 +706,26 @@ describe('Submitting diagrams to GitHub (canvas-3s5.1)', () => {
       expect((await submit(diagramId)).statusCode).toBe(201);
     });
 
-    it('a rate limit is a 503 github_rate_limited', async () => {
+    it('a rate limit is a 503 github_rate_limited, and later calls wait without reaching GitHub', async () => {
       await linkProject();
       const diagramId = await createDiagram();
-      fake.failWith = { status: 403, headers: { 'x-ratelimit-remaining': '0' } };
-      const res = await submit(diagramId);
-      expect(res.statusCode, res.body).toBe(503);
-      expect(res.json().code).toBe('github_rate_limited');
-      fake.failWith = null;
+      // canvas-3s5.4: its own app, so the back-off it sets doesn't leak into the tests after it.
+      const isolated = await buildGitHubTestApp(fake);
+      const submitIsolated = () => isolated.inject({ method: 'POST', url: `/diagrams/${diagramId}/submissions`, headers: { cookie: cookies.owner } });
+      try {
+        fake.failWith = { status: 403, headers: { 'x-ratelimit-remaining': '0' } };
+        const res = await submitIsolated();
+        expect(res.statusCode, res.body).toBe(503);
+        expect(res.json().code).toBe('github_rate_limited');
+        expect(res.json().error).toMatch(/try again after \d\d:\d\d UTC/);
+        fake.failWith = null;
+        fake.clearRecords();
+        expect((await submitIsolated()).statusCode).toBe(503);
+        expect(fake.requests).toEqual([]);
+      } finally {
+        fake.failWith = null;
+        await isolated.close();
+      }
     });
 
     it('the App losing its installation is a 502 github_access, not a crash', async () => {

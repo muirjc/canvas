@@ -73,6 +73,8 @@ installed. To link a project:
 3. Pick the branch the pull requests should target. It defaults to the repository's default branch.
 4. Choose a folder, for example `architecture/diagrams`. Each diagram gets its own subfolder in it.
 
+![The GitHub admin page](../images/admin-github.png)
+
 Each project needs its own link, because a project doesn't inherit one. Several projects can share a
 repository, but each one needs its own folder, and one project's folder can't sit inside another's.
 

@@ -24,6 +24,10 @@ export class GitHubAccessError extends GitHubApiError {}
 export class GitHubUnavailableError extends Error {}
 
 const TIMEOUT_MS = 15_000;
+/** canvas-3s5.4: GET responses remembered for conditional requests (a 304 is free against the rate limit). */
+const ETAG_CACHE_SIZE = 500;
+/** When GitHub says to back off but not for how long. */
+const DEFAULT_BACKOFF_MS = 60_000;
 const TOKEN_REFRESH_MARGIN_MS = 5 * 60_000;
 
 export interface InstallationSummary {
@@ -141,6 +145,12 @@ function checkRunState(run: { status: string; conclusion: string | null }): stri
 
 export class GitHubClient {
   private readonly tokens = new Map<string, { token: string; expiresAt: number }>();
+  /** canvas-3s5.4: ETag + body per GET path, for If-None-Match. */
+  private readonly etags = new Map<string, { etag: string; body: unknown }>();
+  /** canvas-3s5.4: after a rate-limit answer, no request with the same credentials is sent before
+   *  this time. Per credential (installation token / App JWT): GitHub limits each installation and
+   *  the App separately, so one installation's limit doesn't stop the others. */
+  private readonly blockedUntil = new Map<string, number>();
 
   constructor(
     private readonly config: GitHubAppConfig,
@@ -166,8 +176,31 @@ export class GitHubClient {
     return `${header}.${payload}.${base64url(signer.sign(this.config.privateKey))}`;
   }
 
+  /** The latest time any credential is blocked until after a rate limit (0 = none). */
+  get rateLimitedUntil(): number {
+    const latest = Math.max(0, ...this.blockedUntil.values());
+    return latest > this.now() ? latest : 0;
+  }
+
+  private rateLimited(status: number, path: string, key: string, response?: Response): GitHubRateLimitError {
+    if (response) {
+      const retryAfter = Number(response.headers.get('retry-after'));
+      const reset = Number(response.headers.get('x-ratelimit-reset'));
+      const until =
+        retryAfter > 0 ? this.now() + retryAfter * 1000 : reset > 0 && response.headers.get('x-ratelimit-remaining') === '0' ? reset * 1000 : this.now() + DEFAULT_BACKOFF_MS;
+      this.blockedUntil.set(key, Math.max(this.blockedUntil.get(key) ?? 0, until));
+    }
+    const at = new Date(this.blockedUntil.get(key) ?? this.now()).toISOString().slice(11, 16);
+    return new GitHubRateLimitError(status, `GitHub rate limit reached; Canvas will try again after ${at} UTC.`, path);
+  }
+
   private async request<T>(method: string, path: string, auth: string, body?: unknown): Promise<T> {
+    // Don't keep calling while GitHub has asked us to wait (that can get the App blocked). The App
+    // JWT changes every call, so it shares one key; installation tokens are their own keys.
+    const limitKey = auth.startsWith('Bearer ') ? 'app' : auth;
+    if ((this.blockedUntil.get(limitKey) ?? 0) > this.now()) throw this.rateLimited(429, path, limitKey);
     const attempts = method === 'GET' ? 2 : 1;
+    const cached = method === 'GET' ? this.etags.get(path) : undefined;
     let lastError: unknown;
     for (let attempt = 1; attempt <= attempts; attempt++) {
       let response: Response;
@@ -179,6 +212,7 @@ export class GitHubClient {
             authorization: auth,
             'x-github-api-version': '2022-11-28',
             'user-agent': 'canvas-diagrams',
+            ...(cached ? { 'if-none-match': cached.etag } : {}),
             ...(body === undefined ? {} : { 'content-type': 'application/json' }),
           },
           body: body === undefined ? undefined : JSON.stringify(body),
@@ -192,6 +226,7 @@ export class GitHubClient {
         lastError = new GitHubApiError(response.status, `GitHub returned ${response.status}.`, path);
         continue;
       }
+      if (response.status === 304 && cached) return cached.body as T;
       if (response.status === 204) return undefined as T;
       let text: string;
       try {
@@ -210,11 +245,20 @@ export class GitHubClient {
       }
       if (response.ok) {
         if (!parsed) throw new GitHubApiError(response.status, 'GitHub returned an unreadable response.', path);
+        const etag = response.headers.get('etag');
+        if (method === 'GET' && etag) {
+          this.etags.delete(path);
+          this.etags.set(path, { etag, body: json });
+          if (this.etags.size > ETAG_CACHE_SIZE) this.etags.delete(this.etags.keys().next().value!);
+        }
         return json as T;
       }
       const message = (json as { message?: string } | undefined)?.message ?? `GitHub returned ${response.status}.`;
-      if (response.status === 429 || (response.status === 403 && response.headers.get('x-ratelimit-remaining') === '0')) {
-        throw new GitHubRateLimitError(response.status, 'GitHub rate limit reached; try again in a few minutes.', path);
+      // Primary limit (429, or 403 with nothing remaining) and the secondary "abuse" limit (403/429
+      // with retry-after, or its message).
+      const secondary = /secondary rate limit|abuse/i.test(message) || response.headers.has('retry-after');
+      if (response.status === 429 || (response.status === 403 && (response.headers.get('x-ratelimit-remaining') === '0' || secondary))) {
+        throw this.rateLimited(response.status, path, limitKey, response);
       }
       throw new GitHubApiError(response.status, message, path);
     }

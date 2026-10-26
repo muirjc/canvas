@@ -95,7 +95,7 @@ export function ApprovalPanel({ diagramId, submission, refreshToken }: ApprovalP
       )}
 
       {current && (
-        <section className="card stack" aria-labelledby="approval-current-heading" data-testid="approval-current">
+        <section className="card stack approval__section" aria-labelledby="approval-current-heading" data-testid="approval-current">
           <h2 id="approval-current-heading" className="section-label">
             {open ? 'Open pull request' : current.withdrawnAt ? 'Withdrawn pull request' : 'Latest pull request'}
           </h2>
@@ -211,7 +211,7 @@ export function ApprovalPanel({ diagramId, submission, refreshToken }: ApprovalP
       )}
 
       {approved && (
-        <section className="card stack" aria-labelledby="approval-approved-heading" data-testid="approval-approved">
+        <section className="card stack approval__section" aria-labelledby="approval-approved-heading" data-testid="approval-approved">
           <h2 id="approval-approved-heading" className="section-label">
             Approved version
           </h2>
@@ -247,7 +247,7 @@ export function ApprovalPanel({ diagramId, submission, refreshToken }: ApprovalP
         ) : (
           <ul className="stack">
             {history.map((s) => (
-              <li key={s.id} className="card" data-testid={`approval-history-item-${s.id}`}>
+              <li key={s.id} className="card approval__section" data-testid={`approval-history-item-${s.id}`}>
                 <p>
                   <a href={s.prUrl} target="_blank" rel="noopener noreferrer">
                     PR #{s.prNumber}

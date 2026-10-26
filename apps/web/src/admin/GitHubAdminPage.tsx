@@ -99,7 +99,7 @@ export function GitHubAdminPage() {
         </p>
       )}
 
-      <section className="card stack" aria-labelledby="github-app-heading" data-testid="github-app-status">
+      <section className="card stack github-section" aria-labelledby="github-app-heading" data-testid="github-app-status">
         <h2 id="github-app-heading" className="section-label">
           GitHub App
         </h2>
@@ -141,7 +141,7 @@ export function GitHubAdminPage() {
         )}
       </section>
 
-      <section className="card stack" aria-labelledby="github-checks-heading" data-testid="github-checks-section">
+      <section className="card stack github-section" aria-labelledby="github-checks-heading" data-testid="github-checks-section">
         <h2 id="github-checks-heading" className="section-label">
           Repository checks
         </h2>
@@ -211,10 +211,10 @@ export function GitHubAdminPage() {
                   const test = tests[link.projectId];
                   return (
                     <tr key={link.id} data-testid={`github-link-row-${link.projectId}`}>
-                      <td>{link.projectName}</td>
-                      <td>{link.repoFullName}</td>
+                      <td className="github-cell--wrap">{link.projectName}</td>
+                      <td className="github-cell--wrap">{link.repoFullName}</td>
                       <td className="mono">{link.baseBranch}</td>
-                      <td className="mono">{link.folder}</td>
+                      <td className="mono github-cell--wrap">{link.folder}</td>
                       <td data-testid={`github-link-open-prs-${link.projectId}`}>{link.openSubmissionCount ?? 0}</td>
                       <td>
                         {link.lastCheckError ? (
@@ -274,7 +274,7 @@ export function GitHubAdminPage() {
           const test = tests[link.projectId];
           if (!test || test === 'running') return null;
           return (
-            <div key={link.id} className="card" role="status" data-testid={`github-test-result-${link.projectId}`}>
+            <div key={link.id} className="card github-section" role="status" data-testid={`github-test-result-${link.projectId}`}>
               <h3 className="section-label">Checks for {link.projectName}</h3>
               {'error' in test ? (
                 <p role="alert" className="field__error">

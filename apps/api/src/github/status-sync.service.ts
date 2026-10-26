@@ -2,6 +2,7 @@ import { getDb } from '../db/client.js';
 import {
   GitHubAccessError,
   GitHubApiError,
+  GitHubRateLimitError,
   SUBMIT_PERMISSIONS,
   type CheckSummary,
   type GitHubClient,
@@ -50,7 +51,7 @@ export function summarizeChecks(checks: CheckSummary[]): ChecksState {
   return 'success';
 }
 
-export type SyncOutcome = 'open' | 'merged' | 'closed' | 'error' | 'skipped';
+export type SyncOutcome = 'open' | 'merged' | 'closed' | 'error' | 'skipped' | 'rateLimited';
 
 /** Syncs one submission with GitHub. Errors are recorded on the row (and the link), not thrown. */
 export async function syncSubmission(client: GitHubClient, submissionId: string): Promise<SyncOutcome> {
@@ -84,6 +85,11 @@ export async function syncSubmission(client: GitHubClient, submissionId: string)
       .execute();
     return 'open';
   } catch (error) {
+    // canvas-3s5.4: GitHub asked us to wait. Recorded on the submission, but it's not lost access.
+    if (error instanceof GitHubRateLimitError) {
+      await db.updateTable('diagram_submissions').set({ last_synced_at: new Date(), last_sync_error: error.message }).where('id', '=', row.id).execute();
+      return 'rateLimited';
+    }
     // A cached installation token outlives the repository being removed from the installation (or
     // deleted/transferred): GitHub then answers 404 for the pull request rather than failing the
     // token request, so a 404 here is lost access too.
@@ -122,7 +128,8 @@ export async function refreshDiagramSubmission(client: GitHubClient, diagramId: 
   return { synced: true };
 }
 
-/** The scheduled job: every open submission not synced within `minAgeMs`, oldest first. */
+/** The scheduled job: every open submission not synced within `minAgeMs`, oldest first. The
+ *  cutoff is inclusive, so 0 means every open submission, even one synced this millisecond. */
 export async function syncOpenSubmissions(client: GitHubClient, minAgeMs = 60_000): Promise<Record<SyncOutcome, number>> {
   const cutoff = new Date(Date.now() - minAgeMs);
   const rows = await getDb()
@@ -130,11 +137,20 @@ export async function syncOpenSubmissions(client: GitHubClient, minAgeMs = 60_00
     .select('id')
     .where('state', '=', 'open')
     .where('pr_number', 'is not', null)
-    .where((eb) => eb.or([eb('last_synced_at', 'is', null), eb('last_synced_at', '<', cutoff)]))
+    .where((eb) => eb.or([eb('last_synced_at', 'is', null), eb('last_synced_at', '<=', cutoff)]))
     .orderBy('last_synced_at')
     .execute();
-  const counts: Record<SyncOutcome, number> = { open: 0, merged: 0, closed: 0, error: 0, skipped: 0 };
-  for (const { id } of rows) counts[await syncSubmission(client, id)]++;
+  const counts: Record<SyncOutcome, number> = { open: 0, merged: 0, closed: 0, error: 0, skipped: 0, rateLimited: 0 };
+  for (const [index, { id }] of rows.entries()) {
+    const outcome = await syncSubmission(client, id);
+    counts[outcome]++;
+    // canvas-3s5.4: stop the batch rather than keep calling a GitHub that asked us to wait; the
+    // rest are picked up on the next run (oldest-synced first).
+    if (outcome === 'rateLimited') {
+      counts.skipped += rows.length - index - 1;
+      break;
+    }
+  }
   return counts;
 }
 
