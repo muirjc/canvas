@@ -11,6 +11,7 @@ applies to you too.
 | **Overview** | Counts of users, standards and icon libraries; the cards open their pages | — |
 | **Users** | Add people, roles, passwords, unlock, two-step verification, deactivate, delete | [Managing people](people.md) |
 | **Standards** | The rules diagrams are checked against, and the diagram types themselves | [Standards and diagram types](standards-and-diagram-types.md) |
+| **Libraries** | The icon and shape libraries in the palette: import your own, retire, choose where they're offered | [Icon and shape libraries](libraries.md) |
 | **AI Personas** | The AI assistants, their prompts and reference material; turning AI chat on or off | [AI](ai.md) |
 | **AI usage** | Tokens (and estimated cost) by user; model prices | [AI](ai.md) |
 | **Audit log** | Who signed in, failed, was locked, changed what | [Audit log and recovery](audit-and-recovery.md) |

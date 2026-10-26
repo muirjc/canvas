@@ -88,9 +88,40 @@ export function describeEvent(event: AuditEventDto): string {
       const how = detail.chosen === null || detail.chosen === undefined ? ' (provider default)' : '';
       return `AI model set to ${to}${how}${from}`;
     }
+    case 'icon_library_changed':
+      return describeLibraryChange(detail);
     default:
       return event.event;
   }
+}
+
+const LIBRARY_ACTIONS: Record<string, string> = {
+  imported: 'Imported an icon library',
+  updated: 'Edited an icon library',
+  icons_added: 'Added icons to an icon library',
+  icon_updated: 'Edited an icon',
+  icon_retired: 'Retired an icon',
+  icon_restored: 'Restored an icon',
+  retired: 'Retired an icon library',
+  restored: 'Restored an icon library',
+  palette_set: 'Changed which diagram types offer an icon library',
+  icon_deleted: 'Deleted an icon',
+  deleted: 'Deleted an icon library',
+};
+
+function describeLibraryChange(detail: Record<string, unknown>): string {
+  const action = typeof detail.action === 'string' ? detail.action : '';
+  const base = LIBRARY_ACTIONS[action] ?? 'Changed an icon library';
+  const library = typeof detail.libraryId === 'string' ? `${detail.libraryId}${typeof detail.version === 'string' ? `@${detail.version}` : ''}` : '';
+  const icon = typeof detail.iconId === 'string' ? detail.iconId : '';
+  const where = icon ? `${icon} in ${library}` : library;
+  const extra =
+    action === 'imported' && detail.from === 'manifest'
+      ? ' from a manifest'
+      : action === 'imported' && detail.from === 'svg'
+        ? ' from SVG files'
+        : '';
+  return where ? `${base}${extra} (${where})` : `${base}${extra}`;
 }
 
 function githubWhere(detail: Record<string, unknown>): string {

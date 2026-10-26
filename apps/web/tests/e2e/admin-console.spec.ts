@@ -120,9 +120,9 @@ test("the Overview's counts are cards; those with an admin page open it", async 
   expect(userValue.y + userValue.height).toBeLessThanOrEqual(userCard.y + userCard.height);
   const standardsCard = (await standards.boundingBox())!;
   expect(standardsCard.x - (userCard.x + userCard.width), 'stat cards are touching').toBeGreaterThan(4);
-  // Libraries have no admin page: shown, but not a link.
+  // canvas-3dq: the libraries card links to the Libraries page too.
   await expect(page.getByTestId('overview-library-count')).toBeVisible();
-  await expect(page.locator('a:has([data-testid="overview-library-count"])')).toHaveCount(0);
+  await expect(page.getByTestId('overview-card-libraries')).toHaveAttribute('href', '?admin=libraries');
 
   await users.click();
   await expect(page).toHaveURL(/admin=users/);

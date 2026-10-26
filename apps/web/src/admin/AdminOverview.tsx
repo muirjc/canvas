@@ -5,7 +5,7 @@ import { api, type AdminOverviewDto } from '../app/api';
  * Admin-console landing view (FR-023): the console's numbers at a glance. canvas-789: each count
  * is a card that opens its page -- the "Manage Standards"/"Manage Users" links it used to end
  * with duplicated the admin tab row directly above (and covered only two of its destinations).
- * Icon/shape libraries have no admin page, so that card is plain.
+ * canvas-3dq: the libraries card opens the Libraries page too.
  */
 export function AdminOverview() {
   const [overview, setOverview] = useState<AdminOverviewDto | null>(null);
@@ -40,12 +40,12 @@ export function AdminOverview() {
           </a>
         </li>
         <li>
-          <div className="card admin-stat">
+          <a className="card admin-stat admin-stat--link" href="?admin=libraries" data-testid="overview-card-libraries">
             <span className="admin-stat__value" data-testid="overview-library-count">
               {overview.libraryCount}
             </span>
             <span className="admin-stat__label">Icon/shape libraries</span>
-          </div>
+          </a>
         </li>
       </ul>
     </div>

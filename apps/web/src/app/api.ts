@@ -15,6 +15,8 @@ export class ApiError extends Error {
   }
 }
 
+const enc = encodeURIComponent;
+
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   // Only send a JSON Content-Type when there's actually a JSON body — Fastify's default body
   // parser rejects "Content-Type: application/json" paired with an empty body (as happens on
@@ -30,7 +32,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   });
   if (!response.ok) {
     const body = await response.json().catch(() => ({}));
-    throw new ApiError(body.error ?? `Request to ${path} failed with status ${response.status}`, response.status, body.details ?? body.violations, body.code);
+    throw new ApiError(body.error ?? `Request to ${path} failed with status ${response.status}`, response.status, body.details ?? body.violations ?? body.diagrams, body.code);
   }
   // A 204 (or otherwise empty body) has nothing for .json() to parse — e.g. POST /auth/logout
   // and DELETE /shares/:id. Calling .json() on an empty body throws, so callers awaiting these
@@ -106,6 +108,45 @@ export interface StandardDto {
 export interface DefinitionIssueDto {
   path: string;
   message: string;
+}
+
+/** canvas-3dq: Admin -> Libraries. */
+export interface AdminLibraryDto {
+  id: string;
+  version: string;
+  name: string;
+  origin: 'builtin' | 'custom';
+  license: string | null;
+  iconCount: number;
+  retiredIconCount: number;
+  retiredAt: string | null;
+  diagramTypes: { id: string; name: string }[];
+  usedByDiagramCount: number;
+}
+export interface AdminIconDto {
+  id: string;
+  displayName: string;
+  category: string;
+  keywords: string[];
+  assetRef: string;
+  retiredAt: string | null;
+  usedByDiagramCount: number;
+}
+export interface LibraryUploadIcon {
+  fileName: string;
+  svg: string;
+  displayName?: string;
+  category?: string;
+  keywords?: string[];
+}
+export interface LibraryRejectedIcon {
+  fileName: string;
+  reason: string;
+}
+export interface LibraryUsageDiagramDto {
+  id: string;
+  name: string;
+  projectId: string;
 }
 
 export interface DiagramTypeDto {
@@ -795,6 +836,28 @@ export const api = {
   setGitHubLink: (projectId: string, body: { repoId: number; folder: string; baseBranch?: string }) =>
     request<{ link: GitHubLinkDto }>(`/projects/${projectId}/github-link`, { method: 'PUT', body: JSON.stringify(body) }),
   removeGitHubLink: (projectId: string) => request<void>(`/projects/${projectId}/github-link`, { method: 'DELETE' }),
+  listAdminLibraries: () => request<{ libraries: AdminLibraryDto[] }>('/admin/libraries'),
+  listAdminLibraryIcons: (id: string, version: string) =>
+    request<{ icons: AdminIconDto[] }>(`/admin/libraries/${enc(id)}/${enc(version)}/icons`),
+  importSvgLibrary: (body: { name: string; license?: string; icons: LibraryUploadIcon[] }) =>
+    request<{ library: AdminLibraryDto; rejected: LibraryRejectedIcon[] }>('/admin/libraries/import-svg', { method: 'POST', body: JSON.stringify(body) }),
+  importManifestLibrary: (body: { name?: string; manifest: unknown }) =>
+    request<{ library: AdminLibraryDto }>('/admin/libraries/import-manifest', { method: 'POST', body: JSON.stringify(body) }),
+  updateLibrary: (id: string, version: string, patch: { name?: string; license?: string | null }) =>
+    request<void>(`/admin/libraries/${enc(id)}/${enc(version)}`, { method: 'PATCH', body: JSON.stringify(patch) }),
+  addLibraryIcons: (id: string, version: string, icons: LibraryUploadIcon[]) =>
+    request<{ added: string[]; rejected: LibraryRejectedIcon[] }>(`/admin/libraries/${enc(id)}/${enc(version)}/icons`, { method: 'POST', body: JSON.stringify({ icons }) }),
+  updateLibraryIcon: (id: string, version: string, iconId: string, patch: { displayName?: string; category?: string; keywords?: string[]; svg?: string }) =>
+    request<void>(`/admin/libraries/${enc(id)}/${enc(version)}/icons/${enc(iconId)}`, { method: 'PATCH', body: JSON.stringify(patch) }),
+  setLibraryRetired: (id: string, version: string, retired: boolean) =>
+    request<void>(`/admin/libraries/${enc(id)}/${enc(version)}/${retired ? 'retire' : 'restore'}`, { method: 'POST' }),
+  setLibraryIconRetired: (id: string, version: string, iconId: string, retired: boolean) =>
+    request<void>(`/admin/libraries/${enc(id)}/${enc(version)}/icons/${enc(iconId)}/${retired ? 'retire' : 'restore'}`, { method: 'POST' }),
+  deleteLibrary: (id: string, version: string) => request<void>(`/admin/libraries/${enc(id)}/${enc(version)}`, { method: 'DELETE' }),
+  deleteLibraryIcon: (id: string, version: string, iconId: string) =>
+    request<void>(`/admin/libraries/${enc(id)}/${enc(version)}/icons/${enc(iconId)}`, { method: 'DELETE' }),
+  setLibraryPalette: (id: string, diagramTypeIds: string[]) =>
+    request<void>(`/admin/libraries/${enc(id)}/diagram-types`, { method: 'PUT', body: JSON.stringify({ diagramTypeIds }) }),
   getSubmissionStatus: (diagramId: string) => request<SubmissionStatusDto>(`/diagrams/${diagramId}/submission`),
   refreshSubmission: (diagramId: string) => request<SubmissionStatusDto>(`/diagrams/${diagramId}/submission/refresh`, { method: 'POST' }),
   withdrawSubmission: (diagramId: string) => request<SubmissionStatusDto>(`/diagrams/${diagramId}/submission/withdraw`, { method: 'POST' }),

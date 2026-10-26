@@ -129,6 +129,28 @@ test.describe('Accessibility (WCAG 2.1 AA)', () => {
     await auditPage(page);
   });
 
+  test('admin libraries console has no violations (list, library detail, import dialog)', async ({ page }) => {
+    await page.goto('/?admin=libraries');
+    await page.getByTestId('login-email').fill(ADMIN_EMAIL);
+    await page.getByTestId('login-password').fill(ADMIN_PASSWORD);
+    await page.getByTestId('login-submit').click();
+    await expect(page.getByTestId('libraries-table')).toBeVisible();
+    await auditPage(page);
+
+    await page.getByTestId('libraries-import').click();
+    await page.getByTestId('library-import-files').setInputFiles([
+      { name: 'ok.svg', mimeType: 'image/svg+xml', buffer: Buffer.from('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><rect width="24" height="24"/></svg>') },
+      { name: 'bad.svg', mimeType: 'image/svg+xml', buffer: Buffer.from('not an svg') },
+    ]);
+    await expect(page.getByTestId('library-import-error-1')).toBeVisible();
+    await auditPage(page);
+    await page.getByTestId('library-import-cancel').click();
+
+    await page.getByTestId('library-open-generic@1.0.0').click();
+    await expect(page.getByTestId('library-icon-grid')).toBeVisible();
+    await auditPage(page);
+  });
+
   test('admin AI personas console has no violations', async ({ page }) => {
     await page.goto('/?admin=ai-personas');
     await page.getByTestId('login-email').fill(ADMIN_EMAIL);
