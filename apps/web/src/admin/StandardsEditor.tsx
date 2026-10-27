@@ -107,10 +107,15 @@ export function StandardsEditor({ diagramType, standard, readOnly = false, onDon
     setRules((prev) => ({ ...prev, ...next }));
     setSavedNote(null);
   };
-  const patchKind = (i: number, next: Partial<ElementKind>) =>
-    patch({ elementKinds: kinds.map((k, idx) => (idx === i ? { ...k, ...next } : k)) });
-  const patchConnector = (i: number, next: Partial<ConnectorRule>) =>
-    patch({ connectorRules: connectors.map((c, idx) => (idx === i ? { ...c, ...next } : c)) });
+  // canvas-qxb: build on the latest rules, not this render's copy, so two quick edits can't drop one.
+  const patchKind = (i: number, next: Partial<ElementKind>) => {
+    setRules((prev) => ({ ...prev, elementKinds: (prev.elementKinds ?? []).map((k, idx) => (idx === i ? { ...k, ...next } : k)) }));
+    setSavedNote(null);
+  };
+  const patchConnector = (i: number, next: Partial<ConnectorRule>) => {
+    setRules((prev) => ({ ...prev, connectorRules: (prev.connectorRules ?? []).map((c, idx) => (idx === i ? { ...c, ...next } : c)) }));
+    setSavedNote(null);
+  };
 
   const cleaned = useMemo(() => cleanRules(rules, family), [rules, family]);
   const clientIssues = useMemo(() => checkStandardDefinition(cleaned, family), [cleaned, family]);
