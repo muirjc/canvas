@@ -280,6 +280,19 @@ const ELEMENT_TO_SHAPE: Record<string, DiagramNode['shape']> = {
   ComponentQueue_Ext: 'stadium',
 };
 
+/** canvas-syd: the shapes a C4 element of each role can actually be drawn as. Its shape comes from
+ *  its keyword (Person, SystemDb, ContainerQueue, ...), and the keyword from its role -- so a
+ *  standard's kind can only usefully list these. Derived from the two keyword tables above. */
+export const C4_ROLE_SHAPES: Record<(typeof C4_ELEMENT_ROLES)[number], readonly DiagramNode['shape'][]> = (() => {
+  const byRole: Record<string, DiagramNode['shape'][]> = {};
+  for (const [keyword, role] of Object.entries(ELEMENT_TO_ROLE)) {
+    const shape = ELEMENT_TO_SHAPE[keyword];
+    const shapes = (byRole[role] ??= []);
+    if (!shapes.includes(shape)) shapes.push(shape);
+  }
+  return byRole as Record<(typeof C4_ELEMENT_ROLES)[number], DiagramNode['shape'][]>;
+})();
+
 /** Splits a macro's remaining argument list on top-level commas, respecting quoted strings so a
  *  comma inside a quoted value isn't split (jmuir-dtu.3's UpdateElementStyle/UpdateRelStyle). */
 function splitMacroArgs(argsRaw: string): string[] {

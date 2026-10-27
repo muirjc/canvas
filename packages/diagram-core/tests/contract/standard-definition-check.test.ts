@@ -127,3 +127,45 @@ describe('checkStandardDefinition', () => {
     });
   });
 });
+
+// canvas-syd: a C4 element's shape comes from its keyword, which comes from its role -- a kind that
+// lists a shape its role can't produce could never be drawn as it says (on Azure a Person kind with
+// role 'system' made the Person button draw System_Ext rectangles, then flagged them).
+describe('C4 kind shapes must fit the kind role', () => {
+  const c4 = (kind: ElementKind) => checkStandardDefinition(rules({ elementKinds: [kind] }), 'c4');
+
+  it('rejects a person-shaped kind whose role is system, naming the shapes a system can use', () => {
+    const issues = c4(k('person', { label: 'Person', shapes: ['person'], match: { role: 'system', external: true } }));
+    const shapeIssue = issues.find((i) => i.path === 'elementKinds[0].shapes');
+    expect(shapeIssue?.message).toMatch(/person/);
+    expect(shapeIssue?.message).toMatch(/system/);
+    expect(shapeIssue?.message).toMatch(/rectangle, cylinder, stadium/);
+  });
+
+  it.each([
+    ['person', ['rectangle']],
+    ['system', ['rounded-rectangle']],
+    ['container', ['rectangle']],
+    ['component', ['person']],
+  ] as const)('rejects a %s kind with shapes %j', (role, shapes) => {
+    expect(paths(rules({ elementKinds: [k('x', { shapes: [...shapes], match: { role, external: false } })] }), 'c4')).toContain('elementKinds[0].shapes');
+  });
+
+  it.each([
+    ['person', ['person']],
+    ['system', ['rectangle', 'cylinder', 'stadium']],
+    ['container', ['rounded-rectangle', 'cylinder', 'stadium']],
+    ['component', ['rounded-rectangle', 'cylinder', 'stadium']],
+  ] as const)('accepts a %s kind with shapes %j, and with no shapes (any)', (role, shapes) => {
+    expect(c4(k('x', { shapes: [...shapes], match: { role, external: true } }))).toEqual([]);
+    expect(c4(k('x', { shapes: [], match: { role, external: false } }))).toEqual([]);
+  });
+
+  it('applies to a kind without match whose id is the role', () => {
+    expect(paths(rules({ elementKinds: [k('person', { shapes: ['rectangle'] })] }), 'c4')).toContain('elementKinds[0].shapes');
+  });
+
+  it('leaves non-C4 families alone', () => {
+    expect(checkStandardDefinition(rules({ elementKinds: [k('person', { shapes: ['rectangle'] })] }), 'flowchart')).toEqual([]);
+  });
+});
