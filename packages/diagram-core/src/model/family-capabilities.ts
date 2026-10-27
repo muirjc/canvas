@@ -45,6 +45,10 @@ export const FAMILY_SUPPORTS_ELEMENT_KINDS: ReadonlySet<string> = new Set(['flow
 export const FAMILY_KIND_SHAPES: Record<string, readonly NodeShape[]> = {
   ...FAMILY_NODE_SHAPES,
   architecture: ['icon'],
+  // canvas-syd: every shape a C4 role can be drawn as (C4_ROLE_SHAPES in dsl/c4.ts) -- including
+  // rounded-rectangle, the shape of every Container and Component. Which of these a given kind may
+  // list depends on its role.
+  c4: ['person', 'rectangle', 'rounded-rectangle', 'cylinder', 'stadium'],
 };
 
 /** jmuir-dtu.28: kind ids that would collide with a role the family's own DSL already uses. */
