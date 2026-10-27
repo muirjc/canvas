@@ -15,9 +15,13 @@ you can set:
 - **how many** a diagram must or may have (minimum and maximum);
 - whether each one **must be connected** to something;
 - for C4 types, **which C4 elements it applies to**: under *Applies to C4 elements*, the role
-  (person, system, container or component) and whether it's the **External** (`_Ext`) variant. Give
-  every kind a different combination: if two kinds match the same elements, the first one in the
-  list claims them all;
+  (person, system, container or component) and whether it's the **External** (`_Ext`) variant. The
+  role decides which shapes the kind can have: people are always the person shape; systems are
+  rectangles, cylinders (databases) or stadiums (queues); containers and components are rounded
+  rectangles, cylinders or stadiums. The editor only offers those, and won't save a kind whose shapes
+  don't fit its role. Two kinds can share a role (elements drawn in the editor or by the AI are tagged
+  with their kind), but an untagged element, such as one in imported Mermaid, counts as the first
+  matching kind in the list;
 - **connector rules**: which kinds may connect to which, and whether a connection needs a label.
 
 Each rule has a **severity**: *Must fix*, *Warning* or *Info*. Standards never block anyone. They

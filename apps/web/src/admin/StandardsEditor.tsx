@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   C4_BOUNDARY_ROLES,
   C4_ELEMENT_ROLES,
+  C4_ROLE_SHAPES,
   DEFAULT_SEVERITY,
   FAMILY_KIND_SHAPES,
   FAMILY_NODE_SHAPES,
@@ -570,6 +571,10 @@ function KindCard({ index: i, kind, isC4, familyShapes, onLabel, onPatch, onRemo
   const makeDefaultShape = (shape: string) =>
     onPatch({ shapes: [shape as ElementKind['shapes'][number], ...kind.shapes.filter((s) => s !== shape)] });
   const num = (value: string) => (value === '' ? undefined : Number(value));
+  // canvas-syd: a C4 kind only offers the shapes its role can be drawn as (plus any already ticked,
+  // so a shape left over from another role can be unticked -- the definition check flags it).
+  const roleShapes: readonly string[] | undefined = isC4 ? C4_ROLE_SHAPES[(kind.match?.role ?? 'system') as keyof typeof C4_ROLE_SHAPES] : undefined;
+  const offeredShapes = roleShapes ? familyShapes.filter((shape) => roleShapes.includes(shape) || (kind.shapes as string[]).includes(shape)) : familyShapes;
 
   return (
     <div className="std-item" data-testid={`kind-row-${i}`} role="group" aria-label={`Element kind ${kind.label || i + 1}`}>
@@ -622,7 +627,7 @@ function KindCard({ index: i, kind, isC4, familyShapes, onLabel, onPatch, onRemo
 
       <fieldset className="cluster cluster--tight std-fieldset">
         <legend className="field__label">Shapes (none = any; first is the default)</legend>
-        {familyShapes.map((shape) => {
+        {offeredShapes.map((shape) => {
           const pos = (kind.shapes as string[]).indexOf(shape);
           return (
             <span key={shape} className="cluster cluster--tight">

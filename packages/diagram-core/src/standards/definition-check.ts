@@ -1,5 +1,5 @@
 import { FAMILY_KIND_SHAPES, FAMILY_RESERVED_KIND_IDS, FAMILY_SUPPORTS_ELEMENT_KINDS } from '../model/family-capabilities.js';
-import { C4_ELEMENT_ROLES } from '../dsl/c4.js';
+import { C4_ELEMENT_ROLES, C4_ROLE_SHAPES } from '../dsl/c4.js';
 import { classifyNode } from './kinds.js';
 import { KIND_ID_PATTERN, RESERVED_KIND_IDS, type StandardRules } from './schema.js';
 
@@ -20,6 +20,7 @@ const HEX = /^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/;
  *  - fills/strokes that aren't #rgb or #rrggbb hex
  *  - minCount > maxCount, negative counts
  *  - `match` on a non-C4 family; a C4 `match.role` not in C4_ELEMENT_ROLES
+ *  - a C4 kind listing a shape its role can't be drawn as (C4_ROLE_SHAPES) -- canvas-syd
  *  - connector rules whose from/to is neither '*' nor a defined kind id; duplicate connector ids
  *  - container allowedRoles on a family with no container roles is NOT checked (kept permissive)
  */
@@ -72,6 +73,20 @@ export function checkStandardDefinition(rules: StandardRules, family: string): D
         issues.push({ path: `${at}.match`, message: 'Role matching is only used for C4 diagrams.' });
       } else if (!(C4_ELEMENT_ROLES as readonly string[]).includes(kind.match.role)) {
         issues.push({ path: `${at}.match`, message: `"${kind.match.role}" isn't a C4 element role (${C4_ELEMENT_ROLES.join(', ')}).` });
+      }
+    }
+
+    // canvas-syd: a C4 element's shape follows from its role, so a shape the role can't produce
+    // would be lost on save -- and every such element then flagged against this kind.
+    const c4Role = family === 'c4' ? (kind.match?.role ?? kind.id) : undefined;
+    const roleShapes: readonly string[] | undefined = c4Role ? C4_ROLE_SHAPES[c4Role as keyof typeof C4_ROLE_SHAPES] : undefined;
+    if (roleShapes) {
+      const unusable = kind.shapes.filter((shape) => !roleShapes.includes(shape));
+      if (unusable.length > 0) {
+        issues.push({
+          path: `${at}.shapes`,
+          message: `A C4 ${c4Role} element can't be drawn as ${unusable.map((s) => `"${s}"`).join(' or ')}; ${c4Role} elements use ${roleShapes.join(', ')}.`,
+        });
       }
     }
   });
