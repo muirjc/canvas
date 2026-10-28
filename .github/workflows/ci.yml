@@ -22,6 +22,9 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run lint
+      # canvas-qrvn: every production dependency's licence is on the allow-list, and the committed
+      # THIRD-PARTY-NOTICES.md matches package-lock.json (run `npm run licenses` to regenerate).
+      - run: npm run licenses:check
       # diagram-core must build first — api and web resolve it as a workspace dependency via its
       # built dist/ output (see packages/diagram-core/package.json "main"), not its TS source.
       - run: npm run build --workspace=@canvas/diagram-core

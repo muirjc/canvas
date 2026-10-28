@@ -567,6 +567,14 @@ az storage blob upload \
   --account-name "$STORAGE_ACCOUNT" --container-name '$web' --name index.html \
   --file "$REPO_ROOT/apps/web/dist/index.html" --content-type "text/html" \
   --content-cache-control "no-cache" --auth-mode login --overwrite --output none
+# canvas-qrvn: the licence texts include non-ASCII (e.g. ©); upload-batch's guessed text/plain has
+# no charset, so set it explicitly.
+for notice in third-party-notices.txt license.txt; do
+  az storage blob upload \
+    --account-name "$STORAGE_ACCOUNT" --container-name '$web' --name "$notice" \
+    --file "$REPO_ROOT/apps/web/dist/$notice" --content-type "text/plain; charset=utf-8" \
+    --auth-mode login --overwrite --output none
+done
 # canvas-vnh: a saved copy left by pause.sh (a resume that didn't finish) is now stale -- remove it
 # so a later resume.sh can't put an older build back over this one.
 az storage blob delete --account-name "$STORAGE_ACCOUNT" --container-name '$web' --name index.live.html \
