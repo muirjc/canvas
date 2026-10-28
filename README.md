@@ -141,7 +141,7 @@ exist (and must fail before implementation) for every new diagram type or export
 ## CI
 
 GitHub Actions (`.github/workflows/ci.yml`) runs on every push to `main` and every PR: lint +
-build, the `diagram-core`/`api` test suites as a `db-client: [postgres, sqlite]` matrix (so both
+build, a third-party licence check (see [License](#license)), the `diagram-core`/`api` test suites as a `db-client: [postgres, sqlite]` matrix (so both
 supported database engines are continuously verified, not just Postgres), and the full Playwright
 E2E suite (Postgres only — see `docs/solution-architecture-document.md` §14). `main` is protected
 — changes land via PR once CI is green.
@@ -158,3 +158,11 @@ technologies and conventions.
 Canvas is licensed under the [Apache License 2.0](LICENSE). Third-party icon artwork bundled or
 generated for the icon libraries (e.g. Microsoft Azure Architecture Icons) remains under its
 owners' own terms — see each library manifest's `license` field.
+
+[THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md) lists every production npm package Canvas ships,
+with its licence text, plus the icon artwork terms. It ships in the API image (next to `LICENSE`)
+and in the web build (`/third-party-notices.txt`, `/license.txt`). After changing dependencies, run
+`npm run licenses` and commit the regenerated file. CI's `npm run licenses:check` fails if the file
+is out of date or if a dependency's licence isn't on the allow-list in
+`scripts/third-party-notices.mjs` (MIT, ISC, Apache-2.0, BSD, 0BSD, BlueOak, MPL-2.0, ...); add a
+reviewed exception there rather than loosening the list.

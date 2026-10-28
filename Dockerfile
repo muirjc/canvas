@@ -72,6 +72,8 @@ COPY --from=build /app/packages/validator-cli/dist packages/validator-cli/dist
 # machine has one -- the catalog seed loads it in place of the placeholder AWS icons. The folder
 # always exists (its README is committed), so this COPY never fails when the file is absent.
 COPY vendor-icons vendor-icons
+# canvas-qrvn: the licence and the third-party notices the bundled npm packages require.
+COPY LICENSE THIRD-PARTY-NOTICES.md ./
 
 # Semgrep (dockerfile.security.missing-user) correctly flags running as root by default -- the
 # official node:22-slim base already ships a non-root `node` user (uid/gid 1000) for exactly this,
