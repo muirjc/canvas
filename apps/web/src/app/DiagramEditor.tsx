@@ -11,7 +11,7 @@ import { ChatPanel } from '../ai/ChatPanel';
 import { Palette } from '../palette/Palette';
 import { VersionHistory } from '../projects/VersionHistory';
 import { ShareDialog } from '../projects/ShareDialog';
-import { api, ApiError, type CommentAnchor, type DiagramDto, type IconDto } from './api';
+import { api, ApiError, type CommentAnchor, type DiagramDto, type DiagramVersionDetailDto, type DiagramVersionDto, type IconDto } from './api';
 import { SubmitForApproval } from './SubmitForApproval';
 import { ApprovalPanel } from './ApprovalPanel';
 import { useSubmission } from './useSubmission';
@@ -128,6 +128,59 @@ export const DiagramEditor = forwardRef<DiagramEditorHandle, DiagramEditorProps>
 
   useImperativeHandle(ref, () => ({ hasUnsavedChanges: () => hasUnsavedChanges }), [hasUnsavedChanges]);
 
+  // canvas-3fha: an earlier version shown read-only on the canvas (History -> View). The editor's own
+  // model -- including unsaved edits -- is left untouched while previewing.
+  const [preview, setPreview] = useState<{ version: DiagramVersionDetailDto; model: DiagramModel; dsl: string } | null>(null);
+  const [previewError, setPreviewError] = useState<string | null>(null);
+  const [restoreStep, setRestoreStep] = useState<'confirm' | 'unsaved' | null>(null);
+  const [restoring, setRestoring] = useState(false);
+  const [restoreError, setRestoreError] = useState<string | null>(null);
+  const canEdit = (diagram.accessLevel ?? 'edit') === 'edit';
+
+  const openPreview = async (version: DiagramVersionDto) => {
+    setPreviewError(null);
+    try {
+      const { version: detail } = await api.getDiagramVersion(diagram.id, version.id);
+      const family = getDslFamily(diagram.dslFamily);
+      const parsed = family?.parse(detail.dslContent);
+      const previewModel = parsed && isParseSuccess(parsed) ? parsed.model : createEmptyDiagramModel(diagram.diagramTypeId);
+      setPreview({ version: detail, model: previewModel, dsl: detail.dslContent });
+    } catch {
+      setPreviewError(`Couldn't open v${version.sequenceNumber}. Try again.`);
+    }
+  };
+
+  const closePreview = () => {
+    setPreview(null);
+    setRestoreStep(null);
+    setRestoreError(null);
+  };
+
+  const requestRestore = () => {
+    setRestoreError(null);
+    setRestoreStep(hasUnsavedChanges ? 'unsaved' : 'confirm');
+  };
+
+  const restorePreviewed = async (saveFirst: boolean) => {
+    if (!preview) return;
+    setRestoring(true);
+    setRestoreError(null);
+    try {
+      if (saveFirst && !(await handleSave())) {
+        setRestoreError("Couldn't save your changes, so nothing was restored.");
+        return;
+      }
+      await api.restoreDiagramVersion(diagram.id, preview.version.id);
+      await handleRestored();
+      setVersionRefreshToken((t) => t + 1);
+      closePreview();
+    } catch (err) {
+      setRestoreError(err instanceof ApiError ? err.message : "Couldn't restore this version.");
+    } finally {
+      setRestoring(false);
+    }
+  };
+
   const handleRestored = async () => {
     const { diagram: restored } = await api.getDiagram(diagram.id);
     setDiagram(restored);
@@ -187,7 +240,7 @@ export const DiagramEditor = forwardRef<DiagramEditorHandle, DiagramEditorProps>
     }
   };
 
-  const handleSave = async () => {
+  const handleSave = async (): Promise<boolean> => {
     setSaveStatus('saving');
     try {
       const { diagram: saved } = await api.saveDiagram(diagram.id, dsl);
@@ -198,8 +251,10 @@ export const DiagramEditor = forwardRef<DiagramEditorHandle, DiagramEditorProps>
       setVersionRefreshToken((t) => t + 1);
       setLastSavedDsl(dsl);
       setSaveStatus('saved');
+      return true;
     } catch {
       setSaveStatus('error');
+      return false;
     }
   };
 
@@ -277,7 +332,14 @@ export const DiagramEditor = forwardRef<DiagramEditorHandle, DiagramEditorProps>
             {saveLabel}
           </span>
         </span>
-        <button type="button" className="btn btn--primary btn--compact" data-testid="save-diagram" onClick={handleSave}>
+        <button
+          type="button"
+          className="btn btn--primary btn--compact"
+          data-testid="save-diagram"
+          disabled={preview !== null}
+          title={preview ? 'Go back to the current version to save' : undefined}
+          onClick={() => void handleSave()}
+        >
           Save
         </button>
         <ExportMenu diagramId={diagram.id} diagramName={diagram.name} hasUnsavedChanges={hasUnsavedChanges} />
@@ -305,18 +367,60 @@ export const DiagramEditor = forwardRef<DiagramEditorHandle, DiagramEditorProps>
       <div className="editor__body">
         <div className="editor__rail-left">
           {/* Canvas portals its diagram-tools toolbar in here, above the icon palette. */}
-          <div ref={setToolbarContainer} />
+          <div ref={setToolbarContainer} hidden={preview !== null} />
           {/* canvas-hox follow-up: every ER entity is a plain rectangle (erd.ts's own parser has
               no other shape) -- there is no legitimate icon concept for an ER diagram, so the
               search-scoped-to-the-"generic"-library section (which only ever offered the same
               handful of shape-alias sentinels the toolbar's own Shapes section already covers,
               canvas-23t.4) is hidden entirely rather than shown with nothing useful in it. */}
-          {diagram.dslFamily !== 'erd' && (
+          {diagram.dslFamily !== 'erd' && !preview && (
             <Palette diagramTypeId={diagram.diagramTypeId} onSelectIcon={handleSelectIcon} />
+          )}
+          {preview && (
+            <p className="meta editor__preview-note" data-testid="preview-tools-note">
+              Editing tools are hidden while you view an earlier version.
+            </p>
           )}
         </div>
 
-        <div className="editor__canvas" data-testid="canvas-surface">
+        <div className={`editor__canvas${preview ? ' editor__canvas--preview' : ''}`} data-testid="canvas-surface">
+          {preview && (
+            <div className="preview-bar" role="region" aria-label="Viewing an earlier version" data-testid="version-preview-bar">
+              <span className="preview-bar__text">
+                <strong>Viewing v{preview.version.sequenceNumber}</strong>
+                {preview.version.restoredFromSequence !== null && <> (restored from v{preview.version.restoredFromSequence})</>} ·{' '}
+                {preview.version.authorName} · {new Date(preview.version.createdAt).toLocaleString()} · read-only
+              </span>
+              {canEdit && (
+                <button
+                  type="button"
+                  className="btn btn--primary btn--compact"
+                  data-testid="restore-preview"
+                  disabled={restoring}
+                  onClick={requestRestore}
+                >
+                  Restore this version
+                </button>
+              )}
+              <button type="button" className="btn btn--secondary btn--compact" data-testid="close-preview" onClick={closePreview}>
+                Back to current
+              </button>
+            </div>
+          )}
+          {previewError && (
+            <p role="alert" className="state state--error" data-testid="preview-error">
+              {previewError}
+            </p>
+          )}
+          {preview ? (
+            <Canvas
+              key={`preview-${preview.version.id}`}
+              model={preview.model}
+              onChange={() => undefined}
+              dslFamily={diagram.dslFamily}
+              toolbarContainer={toolbarContainer}
+            />
+          ) : (
           <Canvas
             model={model}
             onChange={setModel}
@@ -332,6 +436,7 @@ export const DiagramEditor = forwardRef<DiagramEditorHandle, DiagramEditorProps>
               setPinHighlight((prev) => ({ anchorId, nonce: (prev?.nonce ?? 0) + 1 }));
             }}
           />
+          )}
         </div>
 
         <div className="editor__rail-right">
@@ -347,9 +452,12 @@ export const DiagramEditor = forwardRef<DiagramEditorHandle, DiagramEditorProps>
               {
                 id: 'dsl',
                 label: 'DSL',
-                render: () => (
-                  <DslPanel dsl={dsl} parseErrors={parseErrors} onApply={applyDsl} rules={standard?.rules} dslFamily={diagram.dslFamily} />
-                ),
+                render: () =>
+                  preview ? (
+                    <DslPanel key={`preview-${preview.version.id}`} dsl={preview.dsl} parseErrors={[]} onApply={() => undefined} readOnly />
+                  ) : (
+                    <DslPanel dsl={dsl} parseErrors={parseErrors} onApply={applyDsl} rules={standard?.rules} dslFamily={diagram.dslFamily} />
+                  ),
               },
               {
                 id: 'chat',
@@ -414,7 +522,8 @@ export const DiagramEditor = forwardRef<DiagramEditorHandle, DiagramEditorProps>
                   <VersionHistory
                     diagramId={diagram.id}
                     refreshToken={versionRefreshToken}
-                    onRestored={handleRestored}
+                    onPreview={(version) => void openPreview(version)}
+                    previewedVersionId={preview?.version.id}
                   />
                 ),
               },
@@ -422,6 +531,77 @@ export const DiagramEditor = forwardRef<DiagramEditorHandle, DiagramEditorProps>
           />
         </div>
       </div>
+
+      {preview && restoreStep === 'confirm' && (
+        <Modal
+          label={`Restore v${preview.version.sequenceNumber}`}
+          title={`Restore v${preview.version.sequenceNumber}?`}
+          testId="restore-confirm"
+          onClose={() => setRestoreStep(null)}
+          footer={
+            <>
+              <button type="button" className="btn btn--secondary" data-testid="restore-cancel" onClick={() => setRestoreStep(null)}>
+                Cancel
+              </button>
+              <button
+                type="button"
+                className="btn btn--primary"
+                data-testid="restore-confirm-button"
+                disabled={restoring}
+                onClick={() => void restorePreviewed(false)}
+              >
+                Restore
+              </button>
+            </>
+          }
+        >
+          <p>
+            This saves v{preview.version.sequenceNumber}&rsquo;s content as a new version. The current diagram stays in the
+            history, so you can go back to it.
+          </p>
+          {restoreError && <p role="alert">{restoreError}</p>}
+        </Modal>
+      )}
+
+      {preview && restoreStep === 'unsaved' && (
+        <Modal
+          label="Unsaved changes"
+          title="You have unsaved changes"
+          testId="restore-unsaved"
+          onClose={() => setRestoreStep(null)}
+          footer={
+            <>
+              <button type="button" className="btn btn--secondary" data-testid="restore-cancel" onClick={() => setRestoreStep(null)}>
+                Cancel
+              </button>
+              <button
+                type="button"
+                className="btn btn--secondary"
+                data-testid="restore-discard"
+                disabled={restoring}
+                onClick={() => void restorePreviewed(false)}
+              >
+                Discard them and restore
+              </button>
+              <button
+                type="button"
+                className="btn btn--primary"
+                data-testid="restore-save-first"
+                disabled={restoring}
+                onClick={() => void restorePreviewed(true)}
+              >
+                Save them, then restore
+              </button>
+            </>
+          }
+        >
+          <p>
+            Restoring v{preview.version.sequenceNumber} replaces what&rsquo;s on the canvas. Save your changes first to keep
+            them as a version, or discard them.
+          </p>
+          {restoreError && <p role="alert">{restoreError}</p>}
+        </Modal>
+      )}
 
       {sharing && <ShareDialog diagramId={diagram.id} currentUserId={currentUser.id} onClose={() => setSharing(false)} />}
 

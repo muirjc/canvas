@@ -10,12 +10,14 @@ export interface DslPanelProps {
   /** canvas-tfr: the active standard -- the draft text is checked against it as you type. */
   rules?: StandardRules;
   dslFamily?: string;
+  /** canvas-3fha: an earlier version shown in preview -- the text can be read and copied, not applied. */
+  readOnly?: boolean;
 }
 
 const SEVERITY_LABEL: Record<string, string> = { error: 'Must fix', warning: 'Warning', info: 'Info' };
 
 /** Editable Mermaid DSL text panel (FR-003): edits here update the canvas via onApply. */
-export function DslPanel({ dsl, parseErrors, onApply, rules, dslFamily }: DslPanelProps) {
+export function DslPanel({ dsl, parseErrors, onApply, rules, dslFamily, readOnly = false }: DslPanelProps) {
   const [draft, setDraft] = useState(dsl);
   const [checkedDraft, setCheckedDraft] = useState(dsl);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -70,6 +72,7 @@ export function DslPanel({ dsl, parseErrors, onApply, rules, dslFamily }: DslPan
           aria-label="Mermaid DSL for this diagram"
           value={draft}
           onChange={(event) => setDraft(event.target.value)}
+          readOnly={readOnly}
           spellCheck={false}
         />
         <UnsupportedElementNotice errors={parseErrors} />
@@ -115,16 +118,18 @@ export function DslPanel({ dsl, parseErrors, onApply, rules, dslFamily }: DslPan
           </div>
         )}
       </div>
-      <div className="panel__footer">
-        <button
-          type="button"
-          className="btn btn--primary btn--compact"
-          data-testid="apply-dsl"
-          onClick={() => onApply(draft)}
-        >
-          Apply
-        </button>
-      </div>
+      {!readOnly && (
+        <div className="panel__footer">
+          <button
+            type="button"
+            className="btn btn--primary btn--compact"
+            data-testid="apply-dsl"
+            onClick={() => onApply(draft)}
+          >
+            Apply
+          </button>
+        </div>
+      )}
     </div>
   );
 }

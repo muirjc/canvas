@@ -1123,3 +1123,29 @@
 .combobox__option[aria-disabled='true'] { cursor: default; color: var(--text-secondary); }
 .combobox__status { padding: var(--space-2) var(--space-3); color: var(--text-secondary); list-style: none; }
 .share-selected { margin: var(--space-2) 0 0; display: flex; align-items: center; gap: var(--space-2); }
+
+/* canvas-3fha: viewing an earlier version. The bar stays at the top of the scrolling canvas; the
+   diagram itself can't be clicked or dragged (its edits would go nowhere anyway). */
+.preview-bar {
+  position: sticky;
+  top: 0;
+  left: 0;
+  z-index: 2;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-4);
+  background: var(--accent-subtle);
+  border-block-end: var(--border-width) solid var(--border-default);
+}
+.preview-bar__text {
+  flex: 1;
+  min-width: 12rem;
+}
+.editor__canvas--preview svg {
+  pointer-events: none;
+}
+.editor__preview-note {
+  padding: var(--space-4);
+}

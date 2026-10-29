@@ -230,6 +230,8 @@ export interface DiagramVersionsTable {
   author_id: string;
   violations_at_save: GeneratedJsonColumn<unknown>;
   created_at: GeneratedTimestamp;
+  /** canvas-3fha: set on a version created by restoring another one. */
+  restored_from_version_id: string | null;
 }
 
 export interface TemplatesTable {

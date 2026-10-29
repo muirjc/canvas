@@ -193,6 +193,8 @@ export async function getDiagram(id: string): Promise<DiagramRecord> {
 export interface SaveDiagramInput {
   dslContent: string;
   authorId: string;
+  /** canvas-3fha: set when this save restores an earlier version (History shows "Restored from vN"). */
+  restoredFromVersionId?: string;
 }
 
 /** Saves a new version of a diagram. Never blocks on standards violations (FR-024). */
@@ -208,6 +210,7 @@ export async function saveDiagram(id: string, input: SaveDiagramInput): Promise<
       diagramId: id,
       dslContent: input.dslContent,
       authorId: input.authorId,
+      restoredFromVersionId: input.restoredFromVersionId,
     });
 
     await trx

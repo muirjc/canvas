@@ -156,6 +156,11 @@ test('editor', async () => {
   await admin.getByTestId('rail-tab-history').click();
   await expect(admin.getByTestId('version-history')).toBeVisible();
   await shot(admin, 'version-history.png');
+  // canvas-3fha: an earlier version open read-only.
+  await admin.locator('[data-testid^="view-version-"]').last().click();
+  await expect(admin.getByTestId('version-preview-bar')).toBeVisible();
+  await shot(admin, 'version-preview.png');
+  await admin.getByTestId('close-preview').click();
 
   await admin.getByTestId('export-menu-trigger').click();
   await expect(admin.getByTestId('export-menu-list')).toBeVisible();
