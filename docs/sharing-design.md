@@ -42,9 +42,9 @@ Two changes from today's `resolveDiagramAccess` (`apps/api/src/sharing/sharing.s
   diagram-level View hides a project-level Edit.
 - It adds the open-read and group sources.
 
-**Open point (proposed):** the global Entra role should cap access. A **viewer** never gets more
-than Comment, whatever they're granted. **architect** and **admin** aren't capped. Today a viewer
-given Edit can edit.
+**Role cap (decided):** the global Entra role caps access. A **viewer** never gets more than
+Comment, whatever they're granted. **architect** and **admin** aren't capped. (Before this, a viewer
+given Edit could edit.)
 
 ### Private projects
 
@@ -70,6 +70,10 @@ extension is a per-project "private" flag that turns off open read for that proj
 6. **Diagram-level Share** stays as the exception, still behind the admin switch from canvas-8em
    until the project Members dialog exists. The switch is then turned on, or removed.
 
-These are backend-heavy changes: authorization, Graph integration and notifications. The backend
-is moving to Python (canvas-lvlo), so decide per phase whether to build it in TypeScript now or
-in the Python service.
+**Where each part is built** (the backend is moving to Python, canvas-lvlo):
+
+| Part | Built in | Why |
+|---|---|---|
+| 1. Open read and effective access | TypeScript, now | It changes the security model, which the Python port then copies |
+| 2. Project members, 5. copy link | TypeScript | Mostly UI on APIs that already exist |
+| 3. Entra groups, 4. notifications | The Python service | New backend features |
