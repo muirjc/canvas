@@ -161,3 +161,47 @@ test('legend: a sequence diagram has no Legend toggle', async ({ page }) => {
   await expect(page.getByTestId('diagram-canvas')).toBeVisible();
   await expect(page.getByTestId('legend-toggle')).toHaveCount(0);
 });
+
+// canvas-eznj: hiding keeps a legend's settings; Remove deletes the legend from the diagram.
+test('legend: remove deletes it from the diagram (asking first when it has been customised)', async ({ page }) => {
+  await login(page);
+  bareTypeId = await ensureCustomDiagramType(page.request, { name: 'E2E Legend Bare', dslFamily: 'flowchart' });
+  await createDiagram(page, bareTypeId);
+
+  // An untouched legend goes without a question.
+  await page.getByTestId('legend-toggle').click();
+  await page.getByTestId('legend-edit').click();
+  await page.getByTestId('legend-remove').click();
+  await expect(page.getByTestId('confirm-dialog-confirm')).toHaveCount(0);
+  await expect(page.getByTestId('legend-editor')).toHaveCount(0);
+  await expect(page.getByTestId('legend-toggle')).toHaveAttribute('aria-pressed', 'false');
+  expect(await readDsl(page)).not.toContain('legend:');
+
+  // A customised one asks first; Cancel keeps it.
+  await page.getByTestId('legend-toggle').click();
+  await page.getByTestId('legend-edit').click();
+  await page.getByTestId('legend-title').fill('Key');
+  await page.getByTestId('legend-add-entry').click();
+  await page.getByTestId('legend-extra-0-label').fill('Manual step');
+  await page.getByTestId('legend-remove').click();
+  await page.getByTestId('confirm-dialog-cancel').click();
+  await expect(page.getByTestId('legend-editor')).toBeVisible();
+  await page.getByTestId('legend-done').click();
+  await expect(page.getByTestId('diagram-legend')).toContainText('Manual step');
+
+  await page.getByTestId('legend-edit').click();
+  await page.getByTestId('legend-remove').click();
+  await page.getByTestId('confirm-dialog-confirm').click();
+  await expect(page.getByTestId('diagram-legend')).toHaveCount(0);
+  expect(await readDsl(page)).not.toContain('legend:');
+
+  // Gone after save and reload too; turning the legend on again starts fresh.
+  await save(page);
+  await page.reload();
+  await expect(page.getByTestId('diagram-canvas')).toBeVisible();
+  expect(await readDsl(page)).not.toContain('legend:');
+  await page.getByTestId('legend-toggle').click();
+  await page.getByTestId('legend-edit').click();
+  await expect(page.getByTestId('legend-title')).toHaveValue('');
+  await page.getByTestId('legend-done').click();
+});
