@@ -1,6 +1,8 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { api, type DiagramVersionDto } from '../app/api';
 import { Icon } from '../ui/Icon';
+
+const SEARCH_DEBOUNCE_MS = 250;
 
 export interface VersionHistoryProps {
   diagramId: string;
@@ -17,19 +19,38 @@ export function VersionHistory({ diagramId, refreshToken, onRestored }: VersionH
   const [versions, setVersions] = useState<DiagramVersionDto[]>([]);
   const [hasMore, setHasMore] = useState(false);
   const [search, setSearch] = useState('');
+  // canvas-547: the query actually sent, trailing `search` by SEARCH_DEBOUNCE_MS so typing doesn't
+  // fire one request per keystroke.
+  const [query, setQuery] = useState('');
   const [status, setStatus] = useState<'loading' | 'ready' | 'error'>('loading');
+  // canvas-547: once the first page has loaded, later fetches (a search, a save elsewhere) keep the
+  // panel -- and the search input with its focus -- mounted; only the list shows it's busy.
+  // Before, every keystroke swapped the whole panel for the loading skeleton, unmounting the input.
+  const [loaded, setLoaded] = useState(false);
+  // Only the newest request may update the list, so a slow reply can't overwrite newer results.
+  const latestRequest = useRef(0);
+
+  useEffect(() => {
+    const timer = setTimeout(() => setQuery(search.trim()), SEARCH_DEBOUNCE_MS);
+    return () => clearTimeout(timer);
+  }, [search]);
 
   const refresh = useCallback(() => {
+    const request = ++latestRequest.current;
     setStatus('loading');
     api
-      .listDiagramVersions(diagramId, { q: search || undefined })
+      .listDiagramVersions(diagramId, { q: query || undefined })
       .then((page) => {
+        if (request !== latestRequest.current) return;
         setVersions(page.versions);
         setHasMore(page.hasMore);
         setStatus('ready');
+        setLoaded(true);
       })
-      .catch(() => setStatus('error'));
-  }, [diagramId, search]);
+      .catch(() => {
+        if (request === latestRequest.current) setStatus('error');
+      });
+  }, [diagramId, query]);
 
   useEffect(refresh, [refresh, refreshToken]);
 
@@ -39,7 +60,17 @@ export function VersionHistory({ diagramId, refreshToken, onRestored }: VersionH
     onRestored();
   };
 
-  if (status === 'loading') {
+  const errorMessage = (
+    <p className="state state--error" data-testid="version-history-error">
+      <Icon name="warning" className="state__icon" />
+      Could not load version history.
+      <button type="button" className="btn btn--tertiary btn--compact" onClick={refresh}>
+        Retry
+      </button>
+    </p>
+  );
+
+  if (!loaded && status === 'loading') {
     return (
       <div className="panel">
         <div className="panel__header">Version History</div>
@@ -52,24 +83,16 @@ export function VersionHistory({ diagramId, refreshToken, onRestored }: VersionH
     );
   }
 
-  if (status === 'error') {
+  if (!loaded && status === 'error') {
     return (
       <div className="panel">
         <div className="panel__header">Version History</div>
-        <div className="panel__body">
-          <p className="state state--error" data-testid="version-history-error">
-            <Icon name="warning" className="state__icon" />
-            Could not load version history.
-            <button type="button" className="btn btn--tertiary btn--compact" onClick={refresh}>
-              Retry
-            </button>
-          </p>
-        </div>
+        <div className="panel__body">{errorMessage}</div>
       </div>
     );
   }
 
-  if (versions.length === 0 && !search) {
+  if (versions.length === 0 && !search && !query) {
     return (
       <div className="panel">
         <div className="panel__header">Version History</div>
@@ -101,12 +124,13 @@ export function VersionHistory({ diagramId, refreshToken, onRestored }: VersionH
           Showing the {versions.length} most recent. Search to find older versions.
         </p>
       )}
-      {versions.length === 0 && search && (
+      {status === 'error' && errorMessage}
+      {status === 'ready' && versions.length === 0 && query && (
         <p className="state" data-testid="version-search-empty">
-          No versions match &ldquo;{search}&rdquo;.
+          No versions match &ldquo;{query}&rdquo;.
         </p>
       )}
-      <ul className="panel__body panel__body--flush" data-testid="version-history">
+      <ul className="panel__body panel__body--flush" data-testid="version-history" aria-busy={status === 'loading'}>
         {versions.map((version) => (
           <li key={version.id} className="row" data-testid={`version-${version.sequenceNumber}`}>
             <span className="row__main">
