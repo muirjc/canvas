@@ -7,7 +7,9 @@ import {
   type NodeShape,
   type StandardRules,
 } from '@canvas/diagram-core';
+import { useState } from 'react';
 import { Modal } from '../ui/Modal';
+import { ConfirmDialog } from './ConfirmDialog';
 import { getAddableShapes } from './shapes';
 
 type LineStyle = NonNullable<Extract<LegendSample, { kind: 'line' }>['lineStyle']>;
@@ -29,6 +31,12 @@ export interface LegendEditorProps {
   onClose: () => void;
 }
 
+/** canvas-eznj: whether removing the legend would throw away anything the author set up. */
+function isCustomised(legend: DiagramLegend | undefined): boolean {
+  if (!legend) return false;
+  return Boolean(legend.title || legend.position || legend.hidden?.length || Object.keys(legend.labels ?? {}).length || legend.extra?.length);
+}
+
 /** Drops empty collections so the front-matter stays tidy. */
 function tidy(legend: DiagramLegend): DiagramLegend {
   const next = { ...legend };
@@ -45,6 +53,15 @@ function tidy(legend: DiagramLegend): DiagramLegend {
  */
 export function LegendEditor({ model, dslFamily, standardRules, onChange, onClose }: LegendEditorProps) {
   const legend: DiagramLegend = model.legend ?? { visible: true };
+  const [confirmingRemove, setConfirmingRemove] = useState(false);
+  // canvas-eznj: hiding (the toolbar's Legend toggle) keeps the author's title, entries and
+  // position; removing deletes the legend altogether, so `canvas.legend` leaves the DSL.
+  const removeLegend = () => {
+    const { legend: _removed, ...rest } = model;
+    onChange(rest);
+    onClose();
+  };
+  const requestRemove = () => (isCustomised(model.legend) ? setConfirmingRemove(true) : removeLegend());
   const update = (patch: Partial<DiagramLegend>) => onChange({ ...model, legend: tidy({ ...legend, ...patch }) });
 
   // Every automatic entry, including hidden ones (so they can be shown again) and unrenamed.
@@ -89,9 +106,15 @@ export function LegendEditor({ model, dslFamily, standardRules, onChange, onClos
       testId="legend-editor"
       onClose={onClose}
       footer={
-        <button type="button" className="btn btn--primary" data-testid="legend-done" onClick={onClose}>
-          Done
-        </button>
+        <>
+          <button type="button" className="btn btn--danger" data-testid="legend-remove" onClick={requestRemove}>
+            Remove legend
+          </button>
+          <span className="spacer" />
+          <button type="button" className="btn btn--primary" data-testid="legend-done" onClick={onClose}>
+            Done
+          </button>
+        </>
       }
     >
       <div className="stack">
@@ -238,6 +261,13 @@ export function LegendEditor({ model, dslFamily, standardRules, onChange, onClos
           </div>
         </section>
       </div>
+      {confirmingRemove && (
+        <ConfirmDialog
+          message="Remove this legend? Its title, renamed and hidden entries, and your own entries will be lost. To keep them, hide the legend with the Legend button instead."
+          onConfirm={removeLegend}
+          onCancel={() => setConfirmingRemove(false)}
+        />
+      )}
     </Modal>
   );
 }
