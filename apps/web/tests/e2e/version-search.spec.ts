@@ -57,6 +57,32 @@ test('finds an older version by search and restores it', async ({ page }) => {
   await expect(page.getByTestId('version-history')).toBeVisible();
 });
 
+// canvas-547: each keystroke used to swap the whole panel for its loading skeleton, unmounting the
+// input, so focus left it after every letter (and every letter sent its own request).
+test('typing a search keeps focus in the box and searches once the typing pauses', async ({ page }) => {
+  await diagramWithManyVersions(page, 2);
+
+  const searches: string[] = [];
+  page.on('request', (request) => {
+    const url = new URL(request.url());
+    if (/\/diagrams\/[^/]+\/versions$/.test(url.pathname) && url.searchParams.has('q')) {
+      searches.push(url.searchParams.get('q')!);
+    }
+  });
+
+  const box = page.getByTestId('version-search');
+  await box.click();
+  // A short gap between keys, well inside the debounce, like real typing.
+  await box.pressSequentially('99999', { delay: 60 });
+
+  await expect(box).toBeFocused();
+  await expect(box).toHaveValue('99999');
+  await expect(page.getByTestId('version-search-empty')).toBeVisible();
+  await expect(box).toBeFocused();
+  // One request for the finished query, not one per letter.
+  expect(searches).toEqual(['99999']);
+});
+
 test('an unmatched search says so rather than showing a blank area', async ({ page }) => {
   await diagramWithManyVersions(page, 2);
 
