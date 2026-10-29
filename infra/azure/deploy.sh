@@ -607,6 +607,11 @@ wait_for_job_execution() {
   done
 }
 
+# canvas-a8mr: every job start in these scripts is a plain `az containerapp job start --name ...`
+# with no --image/--command/--args/--env-vars/--cpu/--memory/--yaml. Since Microsoft's 2026-10
+# change, a start WITH container overrides also needs Microsoft.App/jobs/write; keep starts
+# override-free and change a job's settings with `az containerapp job update` instead (as
+# reset-admin.sh does).
 echo
 echo "== Running database migrations (canvas-migrate job) =="
 MIGRATION_EXECUTION="$(az containerapp job start --name "$MIGRATION_JOB" --resource-group "$RESOURCE_GROUP" --query name -o tsv)"
