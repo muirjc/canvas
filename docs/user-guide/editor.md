@@ -47,7 +47,10 @@ your settings, so turning it back on restores the same legend. Sequence diagrams
   the standard's), and **Add entry** for your own. Your own entries are a shape (shape, fill and
   stroke colour) or a line (solid, dotted or thick, and arrow style) with a label.
 - **Move:** drag the legend box. Until you move it, it sits to the right of the diagram.
-  **Delete** never removes it. Use the **Legend** button instead.
+  The **Delete** key never removes it.
+- **Remove:** to get rid of a legend altogether, click **Edit legend**, then **Remove legend**. This
+  deletes its title, renamed and hidden entries and your own entries; if you've changed any of
+  them, Canvas asks first. To keep them for later, hide the legend with the **Legend** button instead.
 - **Exports and saving:** the legend is saved with the diagram and appears in SVG and PNG exports
   (and in anything that uses them). The Mermaid export leaves it out, because Mermaid has no legend
   syntax. The legend lives in the diagram's front-matter on the DSL tab.
