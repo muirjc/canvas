@@ -27,6 +27,20 @@ you can set:
   matching kind in the list;
 - **connector rules**: which kinds may connect to which, and whether a connection needs a label.
 
+### What authors can add
+
+Besides its element kinds (always offered), a standard decides what else the editor and the AI
+offer authors:
+- **Generic shapes:** *All* the shapes the diagram family has, *Only these* (tick them), or *None*.
+- **Icons:** *All of this type's libraries*, *Only these libraries* (tick them), or *None*. For
+  architecture diagrams this includes the **Services** buttons (Mermaid's built-in Cloud, Database,
+  Disk, Internet and Server).
+
+With both set to *None*, authors can only add the standard's element kinds. That's how to make, say,
+a Product Context Diagram offer just its own elements. Ticking **Every element must be one of these
+kinds** (under Strictness) sets both to *None* for you. Shapes or icons that arrive another way,
+such as typed or imported Mermaid, are flagged in the Issues tab.
+
 Each rule has a **severity**: *Must fix*, *Warning* or *Info*. Standards never block anyone. They
 shape what the editor and the AI offer, and flag the rest in the diagram's **Issues** tab.
 

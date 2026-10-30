@@ -146,6 +146,20 @@ export interface StandardRules {
   severityOverrides?: Partial<Record<RuleId, Severity>>;
   /** Free-text guidance for authors and the AI (e.g. "support activities sit above primaries"). */
   guidance?: string;
+  /** canvas-7ewa: what the editor (and the AI) offers authors besides the element kinds. Absent =
+   *  today's behaviour; see effectiveAuthoring() in authoring.ts. */
+  authoring?: AuthoringRules;
+}
+
+/** canvas-7ewa: 'all' = everything the diagram type has; 'listed' = only allowedShapeIds /
+ *  allowedIconLibraryRefs; 'none' = not offered (element kinds only). */
+export type AuthoringScope = 'all' | 'listed' | 'none';
+
+export interface AuthoringRules {
+  /** Generic shapes (the Shapes toolbar, the generic shape-alias icons, the AI's free addNode). */
+  shapes?: AuthoringScope;
+  /** Icon libraries (the Palette, the architecture Services grid). */
+  icons?: AuthoringScope;
 }
 
 export function emptyStandardRules(): StandardRules {

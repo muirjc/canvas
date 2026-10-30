@@ -32,6 +32,17 @@ export function checkStandardDefinition(rules: StandardRules, family: string): D
     issues.push({ path: 'elementKinds', message: `Element kinds aren't supported for the "${family}" diagram family.` });
   }
 
+  // canvas-7ewa: "What authors can add".
+  if (rules.authoring?.shapes === 'listed' && rules.allowedShapeIds.length === 0) {
+    issues.push({ path: 'authoring.shapes', message: 'Choose at least one shape, or pick All or None.' });
+  }
+  if (rules.authoring?.icons === 'listed' && rules.allowedIconLibraryRefs.length === 0) {
+    issues.push({ path: 'authoring.icons', message: 'Choose at least one icon library, or pick All or None.' });
+  }
+  if (kinds.length === 0 && rules.authoring?.shapes === 'none' && rules.authoring?.icons === 'none') {
+    issues.push({ path: 'authoring', message: 'With no element kinds, no shapes and no icons, authors would have nothing to add.' });
+  }
+
   const familyShapes: readonly string[] = FAMILY_KIND_SHAPES[family] ?? FAMILY_KIND_SHAPES.flowchart;
   const familyReserved = FAMILY_RESERVED_KIND_IDS[family] ?? [];
   const seenKindIds = new Set<string>();

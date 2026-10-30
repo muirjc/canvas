@@ -90,6 +90,9 @@ export function describeEvent(event: AuditEventDto): string {
     }
     case 'icon_library_changed':
       return describeLibraryChange(detail);
+    case 'app_setting_changed':
+      if (detail.setting === 'sharingEnabled') return detail.to ? 'Turned sharing on (Share button shown)' : 'Turned sharing off (Share button hidden)';
+      return `Changed setting ${String(detail.setting)}`;
     default:
       return event.event;
   }

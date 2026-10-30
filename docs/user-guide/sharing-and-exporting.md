@@ -2,6 +2,9 @@
 
 ## Sharing a diagram
 
+The **Share** button only appears once an admin has turned sharing on (it's off by default). With
+it off, diagrams already shared with you still appear under **Shared with me**.
+
 Click **Share** in the editor and start typing a colleague's name or email address. A list of
 matching people appears: use the Up and Down arrow keys and Enter (or click) to pick one, and
 press Escape to close the list. Then choose their access and click **Share**:

@@ -1,5 +1,6 @@
 import type { DiagramModel } from '../model/diagram-model.js';
 import { resolveNodeFillStroke } from '../render/svg-renderer.js';
+import { effectiveAuthoring, SHAPE_ALIAS_LIBRARY_ID } from './authoring.js';
 import { classifyNode, isApprovedColor, resolveConnectorRule } from './kinds.js';
 import { DEFAULT_SEVERITY, type ElementKind, type RuleId, type Severity, type StandardRules } from './schema.js';
 
@@ -15,7 +16,26 @@ export interface Violation {
   kindId?: string;
 }
 
+/** canvas-7ewa: an element that isn't one of the standard's kinds -- what the Shapes/Icons
+ *  settings govern. With no kinds defined, every element is one. */
+function isGeneric(node: DiagramModel['nodes'][number], rules: StandardRules): boolean {
+  return (rules.elementKinds?.length ?? 0) === 0 || !classifyNode(node, rules);
+}
+
 function checkAllowedShapes(model: DiagramModel, rules: StandardRules, violations: Violation[]): void {
+  // canvas-7ewa: "Generic shapes: None". A strict standard already flags these as unknown-kind.
+  if (effectiveAuthoring(rules).shapes === 'none' && !rules.requireKnownKinds) {
+    for (const node of model.nodes) {
+      if (node.shape === 'icon' || node.role === 'junction' || !isGeneric(node, rules)) continue;
+      violations.push({
+        elementId: node.id,
+        rule: 'allowed-shapes',
+        message: `This diagram type doesn't use generic shapes ("${node.shape}"); use one of its element kinds.`,
+        severity: 'warning',
+      });
+    }
+    return;
+  }
   if (rules.allowedShapeIds.length === 0) return;
   for (const node of model.nodes) {
     if (!rules.allowedShapeIds.includes(node.shape)) {
@@ -44,17 +64,27 @@ function checkMandatoryShapes(model: DiagramModel, rules: StandardRules, violati
 }
 
 function checkIconLibraries(model: DiagramModel, rules: StandardRules, violations: Violation[]): void {
-  if (rules.allowedIconLibraryRefs.length === 0) return;
+  const { icons } = effectiveAuthoring(rules);
+  if (icons === 'all') return;
   for (const node of model.nodes) {
-    if (!node.icon) continue;
-    const allowed = rules.allowedIconLibraryRefs.some(
-      (ref) => ref.libraryId === node.icon!.libraryId && ref.libraryVersion === node.icon!.libraryVersion,
-    );
-    if (!allowed) {
+    if (!node.icon || node.icon.libraryId === SHAPE_ALIAS_LIBRARY_ID) continue;
+    if (icons === 'none') {
+      // canvas-7ewa: "Icons: None" -- an icon on an element of one of the standard's kinds is fine.
+      if (!isGeneric(node, rules) || rules.requireKnownKinds) continue;
       violations.push({
         elementId: node.id,
         rule: 'allowed-icon-libraries',
-        message: `Icon from "${node.icon.libraryId}@${node.icon.libraryVersion}" is not an approved icon library/version for this diagram type.`,
+        message: `This diagram type doesn't use icons ("${node.icon.libraryId}"); use one of its element kinds.`,
+        severity: 'warning',
+      });
+      continue;
+    }
+    // canvas-7ewa: a standard lists libraries; any version of a listed library is fine.
+    if (!rules.allowedIconLibraryRefs.some((ref) => ref.libraryId === node.icon!.libraryId)) {
+      violations.push({
+        elementId: node.id,
+        rule: 'allowed-icon-libraries',
+        message: `Icons from "${node.icon.libraryId}" aren't approved for this diagram type (${rules.allowedIconLibraryRefs.map((r) => r.libraryId).join(', ')}).`,
         severity: 'warning',
       });
     }

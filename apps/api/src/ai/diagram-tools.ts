@@ -31,12 +31,14 @@ import {
   FAMILY_NODE_SHAPES,
   kindLimitMessage,
   kindLimitReached,
+  offeredShapes,
   FAMILY_SUPPORTS_ELEMENT_KINDS,
   isApprovedColor,
   resolveConnectorRule,
   validate,
   type DiagramEdge,
   type DiagramModel,
+  type NodeShape,
   type StandardRules,
 } from '@canvas/diagram-core';
 
@@ -143,7 +145,8 @@ function stylePatchSchemaFor(swatches: readonly string[]) {
  * out-of-family request, not merely a description saying so (plan.md's Constitution Check).
  */
 export function createDiagramTools(context: DiagramToolsContext, family: string, rules?: StandardRules) {
-  const nodeShapes = FAMILY_NODE_SHAPES[family] ?? FAMILY_NODE_SHAPES.flowchart;
+  // canvas-7ewa: only the shapes the standard offers authors ("Generic shapes: All / Only these / None").
+  const nodeShapes = offeredShapes(FAMILY_NODE_SHAPES[family] ?? FAMILY_NODE_SHAPES.flowchart, rules);
   // canvas-tfr: the active standard's element kinds (only for families whose DSL can carry them).
   const kinds = rules && FAMILY_SUPPORTS_ELEMENT_KINDS.has(family) ? (rules.elementKinds ?? []) : [];
   const kindIds = kinds.map((k) => k.id);
@@ -165,7 +168,7 @@ export function createDiagramTools(context: DiagramToolsContext, family: string,
         'Add a new shape to the flowchart. Returns the new shape\'s id — use it (not the label) ' +
         'as sourceId/targetId in a later addEdge call to connect it.',
       inputSchema: z.object({
-        shape: z.enum(nodeShapes).describe('The shape to draw.'),
+        shape: z.enum(nodeShapes as [NodeShape, ...NodeShape[]]).describe('The shape to draw.'),
         label: z.string().optional().describe('Text shown on the shape. Defaults to "New Node" if omitted.'),
       }),
       execute: async ({ shape, label }) => {
@@ -629,7 +632,7 @@ export function createDiagramTools(context: DiagramToolsContext, family: string,
   const { addNode: freeAddNode, ...baseRest } = base;
   const tools = {
     ...baseRest,
-    ...(strictKinds ? ({} as Record<never, never>) : { addNode: freeAddNode }),
+    ...(strictKinds || nodeShapes.length === 0 ? ({} as Record<never, never>) : { addNode: freeAddNode }),
     ...kindTools,
     ...(setNodeRole && !(kindIds.length > 0 && family === 'c4') ? { setNodeRole } : {}),
     ...(setEntityAttributes ? { setEntityAttributes } : {}),

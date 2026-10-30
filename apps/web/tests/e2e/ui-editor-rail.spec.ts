@@ -1,4 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
+import { showShareButton } from './app-settings-helpers';
 
 const PROJECT_ID = process.env.E2E_PROJECT_ID;
 const ADMIN_EMAIL = 'admin@example.com';
@@ -7,14 +8,14 @@ const API_BASE_URL = process.env.VITE_API_BASE_URL ?? 'http://localhost:3000';
 
 test.skip(!PROJECT_ID, 'E2E_PROJECT_ID env var not set — run `npm run seed` and export it first');
 
-async function openNewDiagram(page: Page) {
+async function openNewDiagram(page: Page, diagramTypeId = 'flowchart') {
   await page.goto(`/?projectId=${PROJECT_ID}`);
   await page.getByTestId('login-email').fill(ADMIN_EMAIL);
   await page.getByTestId('login-password').fill(ADMIN_PASSWORD);
   await page.getByTestId('login-submit').click();
   await expect(page.getByTestId('sign-out')).toBeVisible();
   await page.getByTestId('new-diagram').click();
-  await page.getByTestId('diagram-type-flowchart').check();
+  await page.getByTestId(`diagram-type-${diagramTypeId}`).check();
   await page.getByTestId('confirm-new-diagram').click();
   await expect(page.getByTestId('diagram-canvas')).toBeVisible();
 }
@@ -28,6 +29,7 @@ async function openNewDiagram(page: Page) {
  * other test in the suite would notice.
  */
 test('document actions and the canvas are visible without scrolling', async ({ page }) => {
+  await showShareButton(page);
   await openNewDiagram(page);
 
   // FR-009: all document-level actions live in the persistent bar.
@@ -94,11 +96,10 @@ test('the rail tabs are a real tablist and are keyboard navigable', async ({ pag
 });
 
 test('the outstanding violation count is visible without opening the violations panel', async ({ page }) => {
-  await openNewDiagram(page);
-
-  // Produce a violation without opening the Issues tab: the seeded flowchart standard permits
-  // rectangles, so a circle is non-compliant.
-  await page.getByTestId('add-shape-circle').click();
+  // Produce violations without opening the Issues tab: the seeded Value Chain reference standard
+  // needs at least one of each of its three kinds, so an empty value chain has three. (The built-in
+  // flowchart's starter standard allows every shape, so a flowchart has nothing to flag.)
+  await openNewDiagram(page, 'value-chain');
   await page.getByTestId('save-diagram').click();
   // Lowercase deliberately: five existing spec files assert this element's text exactly, so the
   // redesign keeps the word as-is and adds the status dot alongside it rather than restyling
@@ -107,7 +108,7 @@ test('the outstanding violation count is visible without opening the violations 
 
   // FR-013: the count is on the tab itself, while DSL is still the active panel.
   await expect(page.getByTestId('rail-tab-dsl')).toHaveAttribute('aria-selected', 'true');
-  await expect(page.getByTestId('rail-tab-issues')).toContainText('1');
+  await expect(page.getByTestId('rail-tab-issues')).toContainText('3');
 });
 
 test('connect mode exposes its active state to assistive technology', async ({ page }) => {

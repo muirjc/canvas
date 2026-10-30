@@ -1,5 +1,5 @@
-import { forwardRef, useImperativeHandle, useRef, useState } from 'react';
-import { createEmptyDiagramModel, getDslFamily, isParseSuccess, type DiagramModel } from '@canvas/diagram-core';
+import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from 'react';
+import { createEmptyDiagramModel, effectiveAuthoring, getDslFamily, isParseSuccess, type DiagramModel } from '@canvas/diagram-core';
 import { Canvas } from '../canvas/Canvas';
 import { DslPanel } from '../canvas/DslPanel';
 import { ExportMenu } from '../canvas/ExportMenu';
@@ -92,6 +92,21 @@ export const DiagramEditor = forwardRef<DiagramEditorHandle, DiagramEditorProps>
   const [versionRefreshToken, setVersionRefreshToken] = useState(0);
   const submission = useSubmission(diagram.id, versionRefreshToken);
   const [sharing, setSharing] = useState(false);
+  // canvas-8em: the Share button is hidden unless an admin has turned sharing on (Admin Overview).
+  // Sharing itself keeps working either way -- existing shares, the API, "Shared with me".
+  const [sharingEnabled, setSharingEnabled] = useState(false);
+  useEffect(() => {
+    let cancelled = false;
+    api
+      .getAppSettings()
+      .then((settings) => {
+        if (!cancelled) setSharingEnabled(settings.sharingEnabled);
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, []);
   // canvas-8x1: click-to-edit, mirroring ProjectsPage.tsx's own rename pattern for a project row —
   // same commit-on-Enter/blur, cancel-on-Escape shape, just scoped to this one diagram's title.
   const [editingName, setEditingName] = useState(false);
@@ -111,6 +126,8 @@ export const DiagramEditor = forwardRef<DiagramEditorHandle, DiagramEditorProps>
   const [toolbarContainer, setToolbarContainer] = useState<HTMLDivElement | null>(null);
   const { dsl, parseErrors, applyDsl } = useDslSync(model, setModel, diagram.dslFamily);
   const liveViolations = useLiveViolations(model, standard?.rules);
+  const authoring = effectiveAuthoring(standard?.rules);
+  const paletteOffered = authoring.icons !== 'none' || authoring.shapes === 'all';
   const shownViolations = liveViolations ?? violations;
 
   // Unsaved-change detection (feature 007, FR-013d). `saveStatus` above is REQUEST state — it
@@ -283,7 +300,7 @@ export const DiagramEditor = forwardRef<DiagramEditorHandle, DiagramEditorProps>
         <ExportMenu diagramId={diagram.id} diagramName={diagram.name} hasUnsavedChanges={hasUnsavedChanges} />
         <SubmitForApproval diagramId={diagram.id} hasUnsavedChanges={hasUnsavedChanges} submission={submission} />
         {/* canvas-i5y: sharing needs edit access (the API refuses it otherwise). */}
-        {(diagram.accessLevel ?? 'edit') === 'edit' && (
+        {sharingEnabled && (diagram.accessLevel ?? 'edit') === 'edit' && (
           <button
             type="button"
             className="btn btn--secondary btn--compact"
@@ -311,8 +328,10 @@ export const DiagramEditor = forwardRef<DiagramEditorHandle, DiagramEditorProps>
               search-scoped-to-the-"generic"-library section (which only ever offered the same
               handful of shape-alias sentinels the toolbar's own Shapes section already covers,
               canvas-23t.4) is hidden entirely rather than shown with nothing useful in it. */}
-          {diagram.dslFamily !== 'erd' && (
-            <Palette diagramTypeId={diagram.diagramTypeId} onSelectIcon={handleSelectIcon} />
+          {/* canvas-wid / canvas-7ewa: no Palette when the standard offers neither icons nor the
+              generic shape-alias entries (e.g. a strict Value Chain: its kinds are the only way in). */}
+          {diagram.dslFamily !== 'erd' && paletteOffered && (
+            <Palette diagramTypeId={diagram.diagramTypeId} onSelectIcon={handleSelectIcon} rules={standard?.rules} />
           )}
         </div>
 

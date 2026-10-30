@@ -534,6 +534,12 @@ export type MyAiUsageDto =
 
 export type AiProviderKind = 'anthropic' | 'openai' | 'mock' | 'unconfigured';
 
+/** canvas-8em: admin feature switches, readable by every signed-in user. */
+export interface AppSettingsDto {
+  /** Whether the editor shows the Share button (sharing itself works either way). */
+  sharingEnabled: boolean;
+}
+
 export interface AiSettingsDto {
   chatEnabled: boolean;
   /** Whether non-admins see token counts (admins always do). */
@@ -830,6 +836,9 @@ export const api = {
     request<{ prices: AiPriceDto[] }>(`/admin/ai-prices?${new URLSearchParams({ provider, modelId }).toString()}`, { method: 'DELETE' }),
   listAiModels: () => request<AiModelsDto>('/admin/ai-models'),
   getAiStatus: () => request<AiSettingsDto>('/ai-settings'),
+  getAppSettings: () => request<AppSettingsDto>('/app-settings'),
+  setAppSettings: (body: Partial<AppSettingsDto>) =>
+    request<AppSettingsDto>('/admin/app-settings', { method: 'PATCH', body: JSON.stringify(body) }),
   getGitHubStatus: () => request<GitHubStatusDto>('/admin/github/status'),
   /** Fetches the example workflow with the session cookie; returns the file text. */
   downloadGitHubWorkflowExample: async (): Promise<string> => {

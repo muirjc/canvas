@@ -80,6 +80,17 @@ describe('createDiagramTools with a standard -- flowchart (Value Chain)', () => 
     expect((await run('setElementKind', { nodeId: marginId, kind: 'margin' })).applied).toBe(true);
   });
 
+  // canvas-7ewa: the AI's free-form addNode offers only the shapes the standard offers authors.
+  it('limits addNode to the standard\'s "Only these" shapes and drops it under "None"', () => {
+    const listed = setup('flowchart', { ...rules, requireKnownKinds: false, authoring: { shapes: 'listed' }, allowedShapeIds: ['diamond', 'hexagon'] });
+    const values = new Set<string>();
+    collectEnumValues((listed.tools.addNode as { inputSchema: unknown }).inputSchema, values);
+    expect([...values].sort()).toEqual(['diamond', 'hexagon']);
+    const none = setup('flowchart', { ...rules, requireKnownKinds: false, authoring: { shapes: 'none' } });
+    expect(none.tools.addNode).toBeUndefined();
+    expect(none.tools.addElement).toBeDefined();
+  });
+
   it('keeps addNode when the standard does not require known kinds', () => {
     const { tools } = setup('flowchart', { ...rules, requireKnownKinds: false });
     expect(tools).toHaveProperty('addNode');
