@@ -1,4 +1,4 @@
-import type { DiagramNode, NodeShape, NodeStyle } from '../model/diagram-model.js';
+import type { DiagramModel, DiagramNode, NodeShape, NodeStyle } from '../model/diagram-model.js';
 import type { ConnectorRule, EdgeArrow, EdgeLineStyle, ElementKind, StandardRules } from './schema.js';
 
 /**
@@ -122,4 +122,22 @@ export function connectorDefaults(rule: ConnectorRule): ConnectorDefaults {
 export function isApprovedColor(color: string, approved: readonly string[]): boolean {
   const lower = color.toLowerCase();
   return approved.some((c) => c.toLowerCase() === lower);
+}
+
+/**
+ * canvas-8o01: whether a diagram already has as many elements of this kind as its `maxCount`
+ * allows, so the editor and the AI refuse to add another (typed DSL can still exceed it; the
+ * validator's kind-max-count flags that). `ignoreNodeId` leaves one element out of the count --
+ * the element being changed to this kind, which mustn't count against itself.
+ */
+export function kindLimitReached(model: DiagramModel, rules: StandardRules, kind: ElementKind, ignoreNodeId?: string): boolean {
+  if (kind.maxCount === undefined) return false;
+  const count = model.nodes.filter((node) => node.id !== ignoreNodeId && classifyNode(node, rules)?.id === kind.id).length;
+  return count >= kind.maxCount;
+}
+
+/** canvas-8o01: the explanation shown (and given to the AI) when a kind is at its limit. */
+export function kindLimitMessage(kind: ElementKind): string {
+  const max = kind.maxCount ?? 0;
+  return max === 1 ? `This diagram already has its 1 ${kind.label}.` : `This diagram already has its ${max} ${kind.label} elements, the most allowed.`;
 }
