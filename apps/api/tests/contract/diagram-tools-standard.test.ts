@@ -64,6 +64,22 @@ describe('createDiagramTools with a standard -- flowchart (Value Chain)', () => 
     }
   });
 
+  // canvas-8o01: the AI can't add, or re-kind something into, a kind already at its Max count.
+  it('refuses addElement and setElementKind past a kind\'s Max count', async () => {
+    const { run, getModel } = setup('flowchart', rules); // Value Chain: margin has maxCount 1
+    expect((await run('addElement', { kind: 'margin' })).applied).toBe(true);
+    const second = await run('addElement', { kind: 'margin' });
+    expect(second.applied).toBe(false);
+    expect(second.reason).toContain('already has its 1');
+    expect(getModel().nodes.filter((n) => n.role === 'margin')).toHaveLength(1);
+
+    const { nodeId } = await run('addElement', { kind: 'primary_activity' });
+    expect((await run('setElementKind', { nodeId, kind: 'margin' })).applied).toBe(false);
+    // Re-kinding the margin itself to margin is not "another one".
+    const marginId = getModel().nodes.find((n) => n.role === 'margin')!.id;
+    expect((await run('setElementKind', { nodeId: marginId, kind: 'margin' })).applied).toBe(true);
+  });
+
   // canvas-7ewa: the AI's free-form addNode offers only the shapes the standard offers authors.
   it('limits addNode to the standard\'s "Only these" shapes and drops it under "None"', () => {
     const listed = setup('flowchart', { ...rules, requireKnownKinds: false, authoring: { shapes: 'listed' }, allowedShapeIds: ['diamond', 'hexagon'] });
@@ -124,19 +140,16 @@ describe('createDiagramTools with a standard -- flowchart (Value Chain)', () => 
   it('reports newViolations for violations introduced by the call, and only those', async () => {
     const { run, outcomes } = setup('flowchart', rules);
     await run('addElement', { kind: 'margin' });
-    // A second margin introduces kind-max-count (maxCount 1).
-    const second = await run('addElement', { kind: 'margin' });
-    expect(second.applied).toBe(true);
-    expect(second.newViolations).toBeDefined();
-    expect(second.newViolations.length).toBeLessThanOrEqual(5);
-    expect(second.newViolations.map((v: { rule: string }) => v.rule)).toContain('kind-max-count');
-    for (const v of second.newViolations) {
+    // An unconnected primary introduces kind-unconnected. (This used to add a second margin to
+    // provoke kind-max-count; canvas-8o01 now refuses that call outright.)
+    const primary = await run('addElement', { kind: 'primary_activity' });
+    expect(primary.applied).toBe(true);
+    expect(primary.newViolations).toBeDefined();
+    expect(primary.newViolations.length).toBeLessThanOrEqual(5);
+    expect(primary.newViolations.map((v: { rule: string }) => v.rule)).toContain('kind-unconnected');
+    for (const v of primary.newViolations) {
       expect(Object.keys(v).sort()).toEqual(['elementId', 'message', 'rule', 'severity']);
     }
-
-    // An unconnected primary introduces kind-unconnected.
-    const primary = await run('addElement', { kind: 'primary_activity' });
-    expect(primary.newViolations.map((v: { rule: string }) => v.rule)).toContain('kind-unconnected');
 
     // Relabeling introduces nothing new: no newViolations key at all.
     const relabel = await run('updateNodeLabel', { nodeId: primary.nodeId, label: 'Renamed' });

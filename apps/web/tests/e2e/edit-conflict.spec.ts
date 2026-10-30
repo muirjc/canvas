@@ -122,7 +122,10 @@ test('"Load the newer version" replaces the canvas with what was saved', async (
 });
 
 test('once the other editor leaves, the banner goes', async () => {
-  await editor.goto('/');
+  // Leave in-app (the editor unmounts and says goodbye) and wait for that to land before checking.
+  const left = editor.waitForResponse((r) => r.url().includes('/presence/leave'));
+  await editor.getByTestId('back-to-diagrams').click();
+  await left;
   await expect(editor.getByTestId('diagram-canvas')).toHaveCount(0);
   await admin.reload();
   await expect(admin.getByTestId('diagram-canvas')).toBeVisible();
