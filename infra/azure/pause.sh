@@ -28,6 +28,9 @@ set -euo pipefail
 
 RESOURCE_GROUP="${1:-canvas-rg}"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# canvas-myh: retry + wait_for_postgres, so pausing right after resume.sh (resources still busy)
+# or after Azure's 7-day auto-restart works instead of stopping half way.
+source "$SCRIPT_DIR/lib.sh"
 
 # canvas-vnh: with the database stopped the app can't sign anyone in, so serve a "Canvas is paused"
 # page instead of a login screen that silently fails. The site's 404 document is index.html too,
@@ -54,7 +57,7 @@ else
 fi
 
 echo "== Making canvas-api eligible to scale to zero =="
-az containerapp update --name canvas-api --resource-group "$RESOURCE_GROUP" \
+retry "Updating canvas-api" az containerapp update --name canvas-api --resource-group "$RESOURCE_GROUP" \
   --min-replicas 0 --max-replicas 1 --output none
 echo "  Set to min=0/max=1. Actual replica count drops to 0 after the environment's cooldown"
 echo "  period (~5 min) once traffic stops -- not instant. Confirm with:"
@@ -64,13 +67,18 @@ echo "    az containerapp replica list --name canvas-api --resource-group $RESOU
 # can't suspend a scheduled job, so move it to once a year; resume.sh (and deploy.sh) restore it.
 if az containerapp job show --name canvas-github-sync --resource-group "$RESOURCE_GROUP" --output none 2>/dev/null; then
   echo "== Pausing the GitHub sync job (schedule moved to once a year) =="
-  az containerapp job update --name canvas-github-sync --resource-group "$RESOURCE_GROUP" \
+  retry "Updating canvas-github-sync" az containerapp job update --name canvas-github-sync --resource-group "$RESOURCE_GROUP" \
     --cron-expression "0 0 1 1 *" --output none
 fi
 
 echo "== Stopping canvas-postgres (compute only -- storage/data retained) =="
-az postgres flexible-server stop --resource-group "$RESOURCE_GROUP" --name canvas-postgres --output none
-echo "  Postgres stop requested."
+POSTGRES_STATE="$(wait_for_postgres "$RESOURCE_GROUP" canvas-postgres)"
+if [[ "$POSTGRES_STATE" == "Stopped" ]]; then
+  echo "  Already stopped -- nothing to do."
+else
+  retry "Stopping canvas-postgres" az postgres flexible-server stop --resource-group "$RESOURCE_GROUP" --name canvas-postgres --output none
+  echo "  Postgres stopped."
+fi
 
 echo
 echo "== Paused. Run resume.sh to bring the environment back. =="
