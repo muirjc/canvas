@@ -29,6 +29,6 @@ Deleting a diagram or a project moves it to a bin for **30 days**:
 
 A project can only be deleted once it has no diagrams.
 
-An AI drawing its author never saved (Create with AI, then **Discard and leave**) isn't in the bin:
-it was never saved, so it is deleted outright. Admins can't see other people's unsaved AI drawings,
-and any left behind by a closed tab are removed by the purge after 24 hours.
+A new diagram its author never saved (then **Discard and leave**) isn't in the bin: it was never
+saved, so it is deleted outright. Admins can't see other people's unsaved new diagrams, and any left
+behind by a closed tab are removed by the nightly clean-up after 24 hours.

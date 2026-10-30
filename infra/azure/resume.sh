@@ -68,4 +68,11 @@ if az containerapp job show --name canvas-github-sync --resource-group "$RESOURC
     --cron-expression "*/15 * * * *" --output none
 fi
 
+# canvas-ne2y: and the nightly purge job's.
+if az containerapp job show --name canvas-purge --resource-group "$RESOURCE_GROUP" --output none 2>/dev/null; then
+  echo "== Restoring the nightly purge job's schedule (03:00 UTC) =="
+  retry "Updating canvas-purge" az containerapp job update --name canvas-purge --resource-group "$RESOURCE_GROUP" \
+    --cron-expression "0 3 * * *" --output none
+fi
+
 echo "== Resumed. canvas-api will take a few seconds to warm up on its next request. =="

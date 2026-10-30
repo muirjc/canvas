@@ -110,7 +110,7 @@ export function requireProjectAccess(required: AccessLevel, paramName: string) {
   };
 }
 
-/** canvas-j6v: an unsaved Create with AI draft exists only for its creator -- to anyone else,
+/** canvas-j6v/tmpr: an unsaved new diagram (draft) exists only for its creator -- to anyone else,
  *  admins included, it isn't there at all. */
 function isOthersDraft(row: { owner_id: string; draft: boolean }, userId: string): boolean {
   return fromDbBoolean(row.draft) && row.owner_id !== userId;

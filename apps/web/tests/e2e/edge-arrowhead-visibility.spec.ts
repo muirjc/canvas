@@ -33,6 +33,9 @@ async function importArrowheadDiagram(page: import('@playwright/test').Page, nam
   await page.getByTestId('import-textarea').fill(ARROWHEAD_DSL);
   await page.getByTestId('confirm-import').click();
   await expect(page.getByTestId('diagram-canvas')).toBeVisible();
+  // canvas-tmpr: an import is a draft until saved (and export needs a saved diagram).
+  await page.getByTestId('save-diagram').click();
+  await expect(page.getByTestId('save-status')).toHaveText('Saved');
 }
 
 test('draws the edge line clipped to each node\'s boundary, not raw centers, on the canvas', async ({ page }) => {

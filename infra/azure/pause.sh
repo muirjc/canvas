@@ -71,6 +71,13 @@ if az containerapp job show --name canvas-github-sync --resource-group "$RESOURC
     --cron-expression "0 0 1 1 *" --output none
 fi
 
+# canvas-ne2y: the same for the nightly purge job.
+if az containerapp job show --name canvas-purge --resource-group "$RESOURCE_GROUP" --output none 2>/dev/null; then
+  echo "== Pausing the nightly purge job (schedule moved to once a year) =="
+  retry "Updating canvas-purge" az containerapp job update --name canvas-purge --resource-group "$RESOURCE_GROUP" \
+    --cron-expression "0 0 1 1 *" --output none
+fi
+
 echo "== Stopping canvas-postgres (compute only -- storage/data retained) =="
 POSTGRES_STATE="$(wait_for_postgres "$RESOURCE_GROUP" canvas-postgres)"
 if [[ "$POSTGRES_STATE" == "Stopped" ]]; then

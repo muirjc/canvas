@@ -41,7 +41,7 @@ export function ImportTemplateDialog({ projectId, persona, userPersonas, onImpor
     setError(null);
     setParseErrors([]);
     try {
-      const { diagram } = await api.importTemplate(projectId, { name, diagramTypeId: selected, templateContent });
+      const { diagram } = await api.importTemplate(projectId, { name, diagramTypeId: selected, templateContent, draft: true }); // canvas-tmpr
       onImported(diagram);
     } catch (err) {
       if (err instanceof ApiError && Array.isArray(err.details)) {

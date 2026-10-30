@@ -655,9 +655,9 @@ export const api = {
   getAuthConfig: () => request<{ authMode: 'entra' | 'local'; mfaRequired?: boolean; oidcEnabled: boolean; localAuthEnabled: boolean }>('/auth/config'),
   createDiagram: (projectId: string, body: { name: string; diagramTypeId: string; initialDslContent?: string; draft?: boolean }) =>
     request<{ diagram: DiagramDto }>(`/projects/${projectId}/diagrams`, { method: 'POST', body: JSON.stringify(body) }),
-  importDiagram: (projectId: string, body: { name: string; dslContent: string; diagramTypeHint?: string }) =>
+  importDiagram: (projectId: string, body: { name: string; dslContent: string; diagramTypeHint?: string; draft?: boolean }) =>
     request<{ diagram: DiagramDto }>(`/projects/${projectId}/diagrams/import`, { method: 'POST', body: JSON.stringify(body) }),
-  importTemplate: (projectId: string, body: { name: string; diagramTypeId: string; templateContent: string }) =>
+  importTemplate: (projectId: string, body: { name: string; diagramTypeId: string; templateContent: string; draft?: boolean }) =>
     request<{ diagram: DiagramDto }>(`/projects/${projectId}/diagrams/import-template`, {
       method: 'POST',
       body: JSON.stringify(body),

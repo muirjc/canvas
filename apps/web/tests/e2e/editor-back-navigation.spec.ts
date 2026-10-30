@@ -30,6 +30,9 @@ async function openNewDiagram(page: Page) {
 test('returns to the project browser immediately when there are no unsaved changes', async ({ page }) => {
   await signIn(page);
   await openNewDiagram(page);
+  // canvas-tmpr: a new diagram is unsaved until saved.
+  await page.getByTestId('save-diagram').click();
+  await expect(page.getByTestId('save-status')).toHaveText('Saved');
 
   await page.getByTestId('back-to-diagrams').click();
   await expect(page.getByTestId('home-nav-confirm')).toHaveCount(0);
@@ -65,4 +68,20 @@ test('confirming discard returns to the project browser', async ({ page }) => {
 
   await expect(page.getByTestId('home-nav-confirm')).toHaveCount(0);
   await expect(page.getByTestId('new-diagram')).toBeVisible();
+});
+
+// canvas-tmpr: only the user saves a diagram. A new one left without saving is discarded for good.
+test('leaving a new diagram that was never saved, and discarding, deletes it', async ({ page }) => {
+  await signIn(page);
+  await openNewDiagram(page);
+  await expect(page.getByTestId('save-status')).toHaveText('Not saved');
+  const diagramId = new URL(page.url()).searchParams.get('diagramId');
+  expect(diagramId).toBeTruthy();
+
+  await page.getByTestId('back-to-diagrams').click();
+  await expect(page.getByTestId('home-nav-confirm')).toContainText('hasn’t been saved yet');
+  const deleted = page.waitForResponse((r) => r.url().endsWith(`/diagrams/${diagramId}`) && r.request().method() === 'DELETE');
+  await page.getByTestId('confirm-home-nav').click();
+  expect((await deleted).status()).toBe(204);
+  await expect(page.getByTestId(`open-diagram-${diagramId}`)).toHaveCount(0);
 });

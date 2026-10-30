@@ -401,7 +401,7 @@ export function App() {
     }
     setPickingType(false);
     try {
-      const { diagram: created } = await api.createDiagram(currentProjectId, { name: 'Untitled Diagram', diagramTypeId });
+      const { diagram: created } = await api.createDiagram(currentProjectId, { name: 'Untitled Diagram', diagramTypeId, draft: true }); // canvas-tmpr: saved only by the user
       showDiagram(created);
     } catch (err) {
       setError((err as Error).message);
@@ -733,7 +733,7 @@ export function App() {
         >
           <p>
             {pendingNav.draft
-              ? 'This AI-drawn diagram hasn’t been saved. Leaving will discard it.'
+              ? 'This new diagram hasn’t been saved yet. Leaving will discard it.'
               : 'This diagram has unsaved changes. Leaving will discard them.'}
           </p>
         </Modal>

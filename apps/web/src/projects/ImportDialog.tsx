@@ -24,7 +24,7 @@ export function ImportDialog({ projectId, onImported, onCancel }: ImportDialogPr
     setError(null);
     setParseErrors([]);
     try {
-      const { diagram } = await api.importDiagram(projectId, { name, dslContent });
+      const { diagram } = await api.importDiagram(projectId, { name, dslContent, draft: true }); // canvas-tmpr: saved only by the user
       onImported(diagram);
     } catch (err) {
       if (err instanceof ApiError && Array.isArray(err.details)) {

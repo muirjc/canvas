@@ -65,6 +65,30 @@ describe('Import API contract', () => {
     expect(response.json().diagram.diagramTypeId).toBe('flowchart');
   });
 
+  // canvas-tmpr: from the web app an import is a draft until its creator saves it.
+  it('imports as a draft when asked: hidden from the tree, listed once saved', async () => {
+    const response = await app.inject({
+      method: 'POST',
+      url: `/projects/${projectId}/diagrams/import`,
+      headers: { cookie: sessionCookie },
+      payload: { name: 'Draft Import', dslContent: 'flowchart TD\n  A[Start]\n', draft: true },
+    });
+    expect(response.statusCode).toBe(201);
+    const { diagram } = response.json();
+    expect(diagram.draft).toBe(true);
+    const treeBody = async () => (await app.inject({ method: 'GET', url: `/projects/${projectId}/tree`, headers: { cookie: sessionCookie } })).body;
+    expect(await treeBody()).not.toContain(diagram.id);
+    const saved = await app.inject({
+      method: 'PATCH',
+      url: `/diagrams/${diagram.id}`,
+      headers: { cookie: sessionCookie },
+      payload: { baseVersionId: diagram.currentVersionId, dslContent: diagram.dslContent },
+    });
+    expect(saved.statusCode).toBe(200);
+    expect(saved.json().diagram.draft).toBe(false);
+    expect(await treeBody()).toContain(diagram.id);
+  });
+
   it('imports a "graph" header with style directives and comments (User Story 5)', async () => {
     const dslContent = [
       'graph TD',

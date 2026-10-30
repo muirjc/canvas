@@ -113,6 +113,23 @@ describe('Import Template API contract', () => {
     expect(diagram.dslContent).toContain('Rel(customer, orderService,');
   });
 
+  // canvas-tmpr: from the web app a template becomes a draft -- in no list until its creator saves.
+  it('imports as a draft when asked, kept out of the project tree', async () => {
+    const response = await app.inject({
+      method: 'POST',
+      url: `/projects/${projectId}/diagrams/import-template`,
+      headers: { cookie: sessionCookie },
+      payload: { name: 'Draft Context', diagramTypeId: 'c4-context', templateContent: VALID_TEMPLATE, draft: true },
+    });
+    expect(response.statusCode).toBe(201);
+    const { diagram } = response.json();
+    expect(diagram.draft).toBe(true);
+    expect(diagram.dslContent).toContain('System(orderService,');
+    const tree = await app.inject({ method: 'GET', url: `/projects/${projectId}/tree`, headers: { cookie: sessionCookie } });
+    expect(tree.statusCode).toBe(200);
+    expect(tree.body).not.toContain(diagram.id);
+  });
+
   it('rejects a malformed template with structured 422 details', async () => {
     // Omit "Central system name" from section 1 — a required field the compiler checks for.
     const malformed = VALID_TEMPLATE.replace('| Central system name | OrderService |', '| Central system name | |');

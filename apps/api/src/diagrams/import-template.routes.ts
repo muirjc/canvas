@@ -17,7 +17,7 @@ function handleImportTemplateError(error: unknown, reply: FastifyReply): Fastify
 export async function registerImportTemplateRoutes(app: FastifyInstance): Promise<void> {
   app.post<{
     Params: { projectId: string };
-    Body: { name: string; diagramTypeId: string; templateContent: string };
+    Body: { name: string; diagramTypeId: string; templateContent: string; draft?: boolean };
   }>(
     '/projects/:projectId/diagrams/import-template',
     {
@@ -33,17 +33,20 @@ export async function registerImportTemplateRoutes(app: FastifyInstance): Promis
             name: { type: 'string', minLength: 1 },
             diagramTypeId: { type: 'string', minLength: 1 },
             templateContent: { type: 'string', minLength: 1 },
+            // canvas-tmpr: unsaved and hidden until the creator saves it.
+            draft: { type: 'boolean' },
           },
         },
       },
     },
     async (request, reply) => {
-      const { name, diagramTypeId, templateContent } = request.body;
+      const { name, diagramTypeId, templateContent, draft } = request.body;
       try {
         const diagram = await importTemplate({
           name,
           diagramTypeId,
           templateContent,
+          draft,
           projectId: request.params.projectId,
           ownerId: request.session.user!.id,
         });

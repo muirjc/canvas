@@ -35,6 +35,9 @@ async function importClassDefDiagram(page: import('@playwright/test').Page, name
   await page.getByTestId('import-textarea').fill(CLASSDEF_DSL);
   await page.getByTestId('confirm-import').click();
   await expect(page.getByTestId('diagram-canvas')).toBeVisible();
+  // canvas-tmpr: an import is a draft until saved (and export needs a saved diagram).
+  await page.getByTestId('save-diagram').click();
+  await expect(page.getByTestId('save-status')).toHaveText('Saved');
 }
 
 test('renders a class-assigned node with its classDef fill/stroke, not the default', async ({ page }) => {
