@@ -1123,3 +1123,11 @@
 .combobox__option[aria-disabled='true'] { cursor: default; color: var(--text-secondary); }
 .combobox__status { padding: var(--space-2) var(--space-3); color: var(--text-secondary); list-style: none; }
 .share-selected { margin: var(--space-2) 0 0; display: flex; align-items: center; gap: var(--space-2); }
+
+/* canvas-8em: the Admin Overview's feature switches, below the stat cards. */
+.admin-settings {
+  margin-block-start: var(--space-6);
+}
+.admin-settings .section-label {
+  margin-block-end: var(--space-2);
+}

@@ -1,4 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
+import { showShareButton } from './app-settings-helpers';
 
 const PROJECT_ID = process.env.E2E_PROJECT_ID;
 const ADMIN_EMAIL = 'admin@example.com';
@@ -28,6 +29,7 @@ async function openNewDiagram(page: Page) {
  * other test in the suite would notice.
  */
 test('document actions and the canvas are visible without scrolling', async ({ page }) => {
+  await showShareButton(page);
   await openNewDiagram(page);
 
   // FR-009: all document-level actions live in the persistent bar.
