@@ -11,7 +11,19 @@ import { ChatPanel } from '../ai/ChatPanel';
 import { Palette } from '../palette/Palette';
 import { VersionHistory } from '../projects/VersionHistory';
 import { ShareDialog } from '../projects/ShareDialog';
-import { api, ApiError, type CommentAnchor, type DiagramDto, type DiagramVersionDetailDto, type DiagramVersionDto, type IconDto } from './api';
+import {
+  api,
+  ApiError,
+  type CommentAnchor,
+  type DiagramDto,
+  type DiagramVersionDetailDto,
+  type DiagramVersionDto,
+  type IconDto,
+  type VersionConflictDto,
+} from './api';
+import { usePresence } from './usePresence';
+import { PresenceBanner } from './PresenceBanner';
+import { SaveConflictDialog } from './SaveConflictDialog';
 import { SubmitForApproval } from './SubmitForApproval';
 import { ApprovalPanel } from './ApprovalPanel';
 import { useSubmission } from './useSubmission';
@@ -143,6 +155,13 @@ export const DiagramEditor = forwardRef<DiagramEditorHandle, DiagramEditorProps>
 
   useImperativeHandle(ref, () => ({ hasUnsavedChanges: () => hasUnsavedChanges }), [hasUnsavedChanges]);
 
+  // canvas-obp0: the version this editor started from. Every save and restore sends it, and the API
+  // refuses (409) if someone else has saved since. A ref, not state: "save first, then restore"
+  // must send the version that save just made, within the same click.
+  const baseVersionRef = useRef(initialDiagram.currentVersionId);
+  const [conflict, setConflict] = useState<VersionConflictDto | null>(null);
+  const others = usePresence(diagram.id, (diagram.accessLevel ?? 'edit') === 'edit');
+
   // canvas-3fha: an earlier version shown read-only on the canvas (History -> View). The editor's own
   // model -- including unsaved edits -- is left untouched while previewing.
   const [preview, setPreview] = useState<{ version: DiagramVersionDetailDto; model: DiagramModel; dsl: string } | null>(null);
@@ -185,7 +204,7 @@ export const DiagramEditor = forwardRef<DiagramEditorHandle, DiagramEditorProps>
         setRestoreError("Couldn't save your changes, so nothing was restored.");
         return;
       }
-      await api.restoreDiagramVersion(diagram.id, preview.version.id);
+      await api.restoreDiagramVersion(diagram.id, preview.version.id, baseVersionRef.current);
       await handleRestored();
       setVersionRefreshToken((t) => t + 1);
       closePreview();
@@ -199,6 +218,7 @@ export const DiagramEditor = forwardRef<DiagramEditorHandle, DiagramEditorProps>
   const handleRestored = async () => {
     const { diagram: restored } = await api.getDiagram(diagram.id);
     setDiagram(restored);
+    baseVersionRef.current = restored.currentVersionId;
     setModel(initialModelFromDsl(restored));
     setViolations(restored.lastValidationResult);
     setLastSavedDsl(null);
@@ -255,10 +275,13 @@ export const DiagramEditor = forwardRef<DiagramEditorHandle, DiagramEditorProps>
     }
   };
 
-  const handleSave = async (): Promise<boolean> => {
+  /** `overwriteFrom`: the newer version a conflict reported, when the user chose "Save mine anyway". */
+  const handleSave = async (overwriteFrom?: string): Promise<boolean> => {
     setSaveStatus('saving');
     try {
-      const { diagram: saved } = await api.saveDiagram(diagram.id, dsl);
+      const { diagram: saved } = await api.saveDiagram(diagram.id, dsl, overwriteFrom ?? baseVersionRef.current);
+      baseVersionRef.current = saved.currentVersionId;
+      setConflict(null);
       setViolations(saved.lastValidationResult);
       // The server checked against a different standard than the one loaded here (published or
       // retired since this editor opened): pick up the current one so live checks agree again.
@@ -267,10 +290,24 @@ export const DiagramEditor = forwardRef<DiagramEditorHandle, DiagramEditorProps>
       setLastSavedDsl(dsl);
       setSaveStatus('saved');
       return true;
-    } catch {
+    } catch (err) {
+      if (err instanceof ApiError && err.code === 'version_conflict') {
+        // Nothing was saved; the user picks what happens next (SaveConflictDialog).
+        setConflict(err.details as VersionConflictDto);
+        setSaveStatus('idle');
+        return false;
+      }
       setSaveStatus('error');
       return false;
     }
+  };
+
+  /** canvas-obp0: "Load their version" -- replaces the canvas with the newest saved version. */
+  const loadLatest = async () => {
+    await handleRestored();
+    setVersionRefreshToken((t) => t + 1);
+    setConflict(null);
+    setSaveStatus('idle');
   };
 
   // canvas-08d: plain words, not the raw request state ('idle' showed up beside Save). Whether
@@ -372,6 +409,8 @@ export const DiagramEditor = forwardRef<DiagramEditorHandle, DiagramEditorProps>
           </button>
         )}
       </div>
+
+      <PresenceBanner others={others} />
 
       {renameError && (
         <p role="alert" data-testid="diagram-rename-error">
@@ -616,6 +655,18 @@ export const DiagramEditor = forwardRef<DiagramEditorHandle, DiagramEditorProps>
           </p>
           {restoreError && <p role="alert">{restoreError}</p>}
         </Modal>
+      )}
+
+      {conflict && (
+        <SaveConflictDialog
+          conflict={conflict}
+          currentUserId={currentUser.id}
+          myDsl={dsl}
+          diagramName={diagram.name}
+          onLoadTheirs={() => void loadLatest()}
+          onSaveMine={() => void handleSave(conflict.currentVersionId)}
+          onKeepEditing={() => setConflict(null)}
+        />
       )}
 
       {sharing && <ShareDialog diagramId={diagram.id} currentUserId={currentUser.id} onClose={() => setSharing(false)} />}

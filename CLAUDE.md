@@ -93,6 +93,19 @@ tests are NON-NEGOTIABLE and must exist (and fail) before implementing any diagr
 work — see `.specify/memory/constitution.md` Principle IV.
 
 ## Recent Changes
+- `canvas-obp0` (two people editing one diagram, options A + B): saves are compare-and-set.
+  `PATCH /diagrams/:id` and `POST /diagrams/:id/versions/:versionId/restore` REQUIRE
+  `baseVersionId` (the `currentVersionId` the editor loaded or last saved; now on every diagram
+  response); `saveDiagram` updates `current_version_id` only `WHERE current_version_id = base`, so
+  of two saves from one base exactly one wins, and the loser gets 409 `code: 'version_conflict'`
+  with `details: { currentVersionId, savedBy, savedAt }` and no version written. The editor keeps
+  the base in a ref and shows `SaveConflictDialog` (Save mine anyway = resave with the reported
+  version as base / Load the newer version / Keep editing, plus copy/download of your DSL).
+  Presence: `diagram_edit_sessions` (Postgres `0032`, SQLite `0020`); `PUT /diagrams/:id/presence`
+  heartbeat every 30s (edit access only), entries expire after 90s, `POST .../presence/leave` on
+  unmount/pagehide (fetch keepalive); `PresenceBanner` names other editors and "you, in another
+  tab". Tests saving through the API use `tests/helpers/versions.ts` (`currentVersionId`) or the
+  e2e `save-helpers.ts` (`saveDsl`).
 - `canvas-3dq` (Admin -> Libraries, two PRs): icon/shape libraries are `builtin` (catalog seed;
   retire/restore only) or `custom` (admin-imported; fully editable); libraries and icons can be
   retired -- hidden from palettes and icon search, still resolved for rendering, never undone by

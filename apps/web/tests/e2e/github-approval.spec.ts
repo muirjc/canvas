@@ -1,5 +1,6 @@
 import { expect, test, type Page } from '@playwright/test';
 import { expectSignedIn } from './auth-helpers';
+import { saveDsl } from './save-helpers';
 
 /**
  * canvas-3s5.1 + canvas-3s5.2: the GitHub approval flow, end to end -- the real web app and real API
@@ -57,7 +58,7 @@ async function createDiagram(name: string, dsl = DSL): Promise<string> {
   const created = await page.request.post(`${API}/projects/${projectId}/diagrams`, { data: { name, diagramTypeId: 'flowchart' } });
   expect(created.status()).toBe(201);
   const id = (await created.json()).diagram.id as string;
-  expect((await page.request.patch(`${API}/diagrams/${id}`, { data: { dslContent: dsl } })).status()).toBe(200);
+  expect((await saveDsl(page.request, API, id, dsl)).status()).toBe(200);
   return id;
 }
 

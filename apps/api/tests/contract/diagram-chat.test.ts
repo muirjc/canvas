@@ -11,6 +11,7 @@ import { dbBoolean } from '../../src/db/sql-helpers.js';
 import { setReferenceMaterialFamilies } from '../../src/db/array-columns.js';
 import { getDiagramTypePrimer } from '../../src/ai/diagram-type-primers.js';
 import { closeTestDb, resetDatabase, seedDiagramType, seedFlowchartDiagramType, seedProject, seedUser } from '../helpers/setup.js';
+import { currentVersionId } from '../helpers/versions.js';
 
 /**
  * Feature 004 User Story 1 + 010-ai-diagram-knowledge: the `/diagrams/:id/chat/messages`
@@ -420,7 +421,7 @@ describe('Standards validation parity for AI-tool-driven mutations (010-ai-diagr
       method: 'PATCH',
       url: `/diagrams/${diagram.id}`,
       headers: { cookie: architectCookie },
-      payload: { dslContent: chatResponse.json().updatedDslContent },
+      payload: { baseVersionId: await currentVersionId(diagram.id), dslContent: chatResponse.json().updatedDslContent },
     });
     expect(saveResponse.statusCode).toBe(200);
     const aiViolations = saveResponse.json().diagram.lastValidationResult;

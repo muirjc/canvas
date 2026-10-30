@@ -59,6 +59,22 @@ export interface SessionUser {
   mustChangePassword?: boolean;
 }
 
+/** canvas-obp0: someone else with the diagram open in the editor. */
+export interface OtherEditorDto {
+  userId: string;
+  name: string;
+  since: string;
+  /** The signed-in user in another tab or browser. */
+  isYou: boolean;
+}
+
+/** canvas-obp0: the 409 a stale save or restore gets back (ApiError.details, code version_conflict). */
+export interface VersionConflictDto {
+  currentVersionId: string;
+  savedBy: { id: string | null; name: string };
+  savedAt: string;
+}
+
 export interface DiagramDto {
   id: string;
   name: string;
@@ -73,6 +89,9 @@ export interface DiagramDto {
   lastValidationResult: Violation[];
   /** canvas-tfr: version of the standard the last save was checked against (null = none). */
   standardVersionAtLastCheck?: number | null;
+  /** canvas-obp0: the version on screen. Saves and restores send it back as their base; the API
+   *  answers 409 (code version_conflict) if someone else has saved since. */
+  currentVersionId: string;
   /** canvas-hbk: resolved owner name (not a raw UUID) and creation/last-modified timestamps —
    *  already stored server-side, previously never sent to the client. */
   ownerName: string;
@@ -622,8 +641,17 @@ export const api = {
       body: JSON.stringify(body),
     }),
   getDiagram: (id: string) => request<{ diagram: DiagramDto }>(`/diagrams/${id}`),
-  saveDiagram: (id: string, dslContent: string) =>
-    request<{ diagram: DiagramDto }>(`/diagrams/${id}`, { method: 'PATCH', body: JSON.stringify({ dslContent }) }),
+  saveDiagram: (id: string, dslContent: string, baseVersionId: string) =>
+    request<{ diagram: DiagramDto }>(`/diagrams/${id}`, { method: 'PATCH', body: JSON.stringify({ dslContent, baseVersionId }) }),
+  /** canvas-obp0: this editor tab is open; returns everyone else who has the diagram open. */
+  presenceHeartbeat: (id: string, sessionId: string) =>
+    request<{ others: OtherEditorDto[]; heartbeatSeconds: number }>(`/diagrams/${id}/presence`, {
+      method: 'PUT',
+      body: JSON.stringify({ sessionId }),
+    }),
+  /** Best effort, and `keepalive` so it still goes out while the tab is closing. */
+  presenceLeave: (id: string, sessionId: string) =>
+    request<void>(`/diagrams/${id}/presence/leave`, { method: 'POST', body: JSON.stringify({ sessionId }), keepalive: true }),
   getActiveStandard: (diagramTypeId: string) =>
     request<{ standard: StandardDto }>(`/diagram-types/${diagramTypeId}/standard`),
   listStandards: (diagramTypeId: string) =>
@@ -729,8 +757,11 @@ export const api = {
   },
   getDiagramVersion: (diagramId: string, versionId: string) =>
     request<{ version: DiagramVersionDetailDto }>(`/diagrams/${diagramId}/versions/${versionId}`),
-  restoreDiagramVersion: (diagramId: string, versionId: string) =>
-    request<{ diagram: DiagramDto }>(`/diagrams/${diagramId}/versions/${versionId}/restore`, { method: 'POST' }),
+  restoreDiagramVersion: (diagramId: string, versionId: string, baseVersionId: string) =>
+    request<{ diagram: DiagramDto }>(`/diagrams/${diagramId}/versions/${versionId}/restore`, {
+      method: 'POST',
+      body: JSON.stringify({ baseVersionId }),
+    }),
   lookupUserByEmail: (email: string) =>
     request<{ user: { id: string; name: string; email: string } | null }>(`/users/lookup?email=${encodeURIComponent(email)}`),
   /** Active users whose name or email contains `q` (max 20) — the share picker (canvas-cyt). */

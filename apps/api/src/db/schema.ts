@@ -353,6 +353,15 @@ export interface DiagramCommentReadsTable {
   last_read_at: Timestamp;
 }
 
+/** canvas-obp0: one row per open editor tab (diagram/presence.service.ts). */
+export interface DiagramEditSessionsTable {
+  diagram_id: string;
+  user_id: string;
+  session_id: string;
+  started_at: Timestamp;
+  last_seen_at: Timestamp;
+}
+
 /** canvas-9af: AI token usage, one row per chat turn (ai/ai-usage.service.ts). */
 export interface AiUsageTable {
   id: string;
@@ -506,6 +515,7 @@ export interface DB {
   diagram_submissions: DiagramSubmissionsTable;
   diagram_submission_pushes: DiagramSubmissionPushesTable;
   diagram_comment_reads: DiagramCommentReadsTable;
+  diagram_edit_sessions: DiagramEditSessionsTable;
   ai_model_prices: AiModelPricesTable;
   mfa_recovery_codes: MfaRecoveryCodesTable;
   users: UsersTable;

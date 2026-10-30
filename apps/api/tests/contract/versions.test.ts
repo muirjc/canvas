@@ -1,6 +1,7 @@
 import type { FastifyInstance } from 'fastify';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { buildTestApp, closeTestDb, resetDatabase, seedFlowchartDiagramType, seedProject, seedUser } from '../helpers/setup.js';
+import { currentVersionId } from '../helpers/versions.js';
 
 /**
  * Contract for diagram version list + restore, per
@@ -50,13 +51,13 @@ describe('Diagram versions API contract', () => {
       method: 'PATCH',
       url: `/diagrams/${diagram.id}`,
       headers: { cookie: sessionCookie },
-      payload: { dslContent: 'flowchart TD\n  A[V2]\n' },
+      payload: { baseVersionId: await currentVersionId(diagram.id), dslContent: 'flowchart TD\n  A[V2]\n' },
     });
     await app.inject({
       method: 'PATCH',
       url: `/diagrams/${diagram.id}`,
       headers: { cookie: sessionCookie },
-      payload: { dslContent: 'flowchart TD\n  A[V3]\n' },
+      payload: { baseVersionId: await currentVersionId(diagram.id), dslContent: 'flowchart TD\n  A[V3]\n' },
     });
 
     const listResponse = await app.inject({ method: 'GET', url: `/diagrams/${diagram.id}/versions`, headers: { cookie: sessionCookie } });
@@ -71,6 +72,7 @@ describe('Diagram versions API contract', () => {
       method: 'POST',
       url: `/diagrams/${diagram.id}/versions/${v1.id}/restore`,
       headers: { cookie: sessionCookie },
+      payload: { baseVersionId: await currentVersionId(diagram.id) },
     });
     expect(restoreResponse.statusCode).toBe(200);
     expect(restoreResponse.json().diagram.dslContent).toContain('V1');
@@ -96,6 +98,7 @@ describe('Diagram versions API contract', () => {
       method: 'POST',
       url: `/diagrams/${diagram.id}/versions/00000000-0000-0000-0000-000000000000/restore`,
       headers: { cookie: sessionCookie },
+      payload: { baseVersionId: await currentVersionId(diagram.id) },
     });
     expect(response.statusCode).toBe(404);
   });
@@ -152,7 +155,7 @@ describe('Diagram version listing: default cap and search', () => {
         method: 'PATCH',
         url: `/diagrams/${id}`,
         headers: { cookie: sessionCookie },
-        payload: { dslContent: `flowchart TD\n  A[V${i}]\n` },
+        payload: { baseVersionId: await currentVersionId(id), dslContent: `flowchart TD\n  A[V${i}]\n` },
       });
     }
     return id;
@@ -205,6 +208,7 @@ describe('Diagram version listing: default cap and search', () => {
       method: 'POST',
       url: `/diagrams/${id}/versions/${target.id}/restore`,
       headers: { cookie: sessionCookie },
+      payload: { baseVersionId: await currentVersionId(id) },
     });
     expect(restore.statusCode).toBe(200);
   });
@@ -262,7 +266,7 @@ describe('Diagram version listing: default cap and search', () => {
   it('labels a restored version with the version it was restored from', async () => {
     const id = await diagramWithVersions(2); // v1..v3
     const v1 = (await listVersions(id, '?q=1')).json().versions[0];
-    const restore = await app.inject({ method: 'POST', url: `/diagrams/${id}/versions/${v1.id}/restore`, headers: { cookie: sessionCookie } });
+    const restore = await app.inject({ method: 'POST', url: `/diagrams/${id}/versions/${v1.id}/restore`, headers: { cookie: sessionCookie }, payload: { baseVersionId: await currentVersionId(id) } });
     expect(restore.statusCode).toBe(200);
     const latest = (await listVersions(id)).json().versions;
     expect(latest[0].sequenceNumber).toBe(4);
