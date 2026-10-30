@@ -8,7 +8,7 @@ applies to you too.
 
 | Page | What it's for | Guide |
 |---|---|---|
-| **Overview** | Counts of users, standards and icon libraries; the cards open their pages | — |
+| **Overview** | Counts of users, standards and icon libraries (the cards open their pages); **Settings**: show or hide the editor's **Share** button | [Settings](#settings) |
 | **Users** | Add people, roles, passwords, unlock, two-step verification, deactivate, delete | [Managing people](people.md) |
 | **Standards** | The rules diagrams are checked against, and the diagram types themselves | [Standards and diagram types](standards-and-diagram-types.md) |
 | **Libraries** | The icon and shape libraries in the palette: import your own, retire, choose where they're offered | [Icon and shape libraries](libraries.md) |
@@ -20,6 +20,13 @@ applies to you too.
 
 Running Canvas itself (deploying, pausing, the IP allow-list, emergency access) is covered in
 [Operations](operations.md).
+
+## Settings
+
+The **Settings** section of the Overview page has switches that apply to everyone:
+- **Show the Share button in the diagram editor** (off by default). When it's off, nobody can share
+  a diagram from the editor. Shares made earlier keep working, and shared diagrams still appear under
+  **Shared with me**. Each change is recorded in the audit log.
 
 ## How people sign in
 

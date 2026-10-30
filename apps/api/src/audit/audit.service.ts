@@ -23,6 +23,8 @@ export type AuditEvent =
   | 'ai_price_set'
   | 'ai_price_removed'
   | 'ai_model_set'
+  // canvas-8em: detail = { setting, from, to }
+  | 'app_setting_changed'
   // canvas-3dq: detail.action says what changed (imported, retired, icon_updated, palette_set, ...)
   | 'icon_library_changed'
   | 'user_deleted'
