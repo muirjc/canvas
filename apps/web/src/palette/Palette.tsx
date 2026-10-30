@@ -1,10 +1,13 @@
 import { useEffect, useState } from 'react';
+import { iconLibraryOffered, type StandardRules } from '@canvas/diagram-core';
 import { api, type IconDto } from '../app/api';
 import { Icon } from '../ui/Icon';
 
 export interface PaletteProps {
   diagramTypeId: string;
   onSelectIcon: (icon: IconDto) => void;
+  /** canvas-wid / canvas-7ewa: only icons from libraries the standard offers are listed. */
+  rules?: StandardRules;
 }
 
 /**
@@ -12,7 +15,7 @@ export interface PaletteProps {
  * (FR-007/FR-009) — e.g. a cloud-infrastructure diagram only searches azure-icons/aws-icons,
  * never surfacing unrelated notation.
  */
-export function Palette({ diagramTypeId, onSelectIcon }: PaletteProps) {
+export function Palette({ diagramTypeId, onSelectIcon, rules }: PaletteProps) {
   const [query, setQuery] = useState('');
   const [icons, setIcons] = useState<IconDto[]>([]);
 
@@ -21,7 +24,7 @@ export function Palette({ diagramTypeId, onSelectIcon }: PaletteProps) {
     api
       .searchIcons(diagramTypeId, query)
       .then(({ icons }) => {
-        if (!cancelled) setIcons(icons);
+        if (!cancelled) setIcons(icons.filter((icon) => iconLibraryOffered(icon.libraryId, rules)));
       })
       .catch(() => {
         if (!cancelled) setIcons([]);
@@ -29,7 +32,7 @@ export function Palette({ diagramTypeId, onSelectIcon }: PaletteProps) {
     return () => {
       cancelled = true;
     };
-  }, [diagramTypeId, query]);
+  }, [diagramTypeId, query, rules]);
 
   return (
     <div className="rail-section">

@@ -50,12 +50,16 @@ test('shows all 11 Add Shape buttons for the flowchart diagram type, but no -alt
   await expect(page.getByTestId('add-shape-trapezoid-alt')).toHaveCount(0);
 });
 
-test('shows only the 4 universal buttons for a non-flowchart-family diagram type (UML)', async ({ page }) => {
+// canvas-7ewa: the toolbar offers what the type's standard allows. UML's built-in starter standard
+// lists rectangle -- the only shape a UML class round-trips (FAMILY_NODE_SHAPES.uml) -- so the
+// other universal shapes, which were silently lost on save, are no longer offered.
+test('shows only the shapes a non-flowchart-family diagram type (UML) can keep', async ({ page }) => {
   await login(page);
   await createDiagramOfType(page, 'uml');
 
-  for (const testId of UNIVERSAL_SHAPE_BUTTONS) {
-    await expect(page.getByTestId(testId)).toBeVisible();
+  await expect(page.getByTestId('add-shape-rectangle')).toBeVisible();
+  for (const testId of UNIVERSAL_SHAPE_BUTTONS.filter((id) => id !== 'add-shape-rectangle')) {
+    await expect(page.getByTestId(testId)).toHaveCount(0);
   }
   for (const testId of NEW_SHAPE_BUTTONS) {
     await expect(page.getByTestId(testId)).toHaveCount(0);
