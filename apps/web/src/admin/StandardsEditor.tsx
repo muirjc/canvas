@@ -23,6 +23,7 @@ import {
 import { api, ApiError, type AdminLibraryDto, type DiagramTypeDto, type StandardDto } from '../app/api';
 import { Icon } from '../ui/Icon';
 import { Modal } from '../ui/Modal';
+import { HelpLink } from '../help/HelpLink';
 
 const HEX = /^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/;
 const LINE_STYLES = ['solid', 'dotted', 'thick'] as const;
@@ -346,7 +347,10 @@ export function StandardsEditor({ diagramType, standard, readOnly = false, onDon
 
       {/* ---- Element kinds ---- */}
       <section className="card std-section" aria-labelledby="std-kinds">
-        <h3 id="std-kinds" className="section-label">Element kinds</h3>
+        <div className="section-heading">
+          <h3 id="std-kinds" className="section-label">Element kinds</h3>
+          <HelpLink page="admin/standards-and-diagram-types" section="what-a-standard-says" topic="element kinds and standards" />
+        </div>
         {!supportsKinds ? (
           <p className="meta" data-testid="kinds-unsupported">
             {family} diagrams don’t support element kinds, so only the strictness, groupings and legacy rules below apply.
@@ -380,7 +384,10 @@ export function StandardsEditor({ diagramType, standard, readOnly = false, onDon
       {/* ---- canvas-thia: Kind groups ---- */}
       {supportsKinds && (
         <section className="card std-section" aria-labelledby="std-kind-groups" data-testid="kind-groups">
-          <h3 id="std-kind-groups" className="section-label">Kind groups</h3>
+          <div className="section-heading">
+            <h3 id="std-kind-groups" className="section-label">Kind groups</h3>
+            <HelpLink page="admin/standards-and-diagram-types" section="what-a-standard-says" topic="kind groups" />
+          </div>
           <p className="meta">
             Count several kinds together, e.g. one Component per diagram, whether it’s New, Reused or Retired. Each kind’s own counts still apply.
           </p>
@@ -538,7 +545,10 @@ export function StandardsEditor({ diagramType, standard, readOnly = false, onDon
 
       {/* ---- canvas-7ewa: what authors can add ---- */}
       <section className="card std-section" aria-labelledby="std-authoring" data-testid="authoring-section">
-        <h3 id="std-authoring" className="section-label">What authors can add</h3>
+        <div className="section-heading">
+          <h3 id="std-authoring" className="section-label">What authors can add</h3>
+          <HelpLink page="admin/standards-and-diagram-types" section="what-authors-can-add" topic="what authors can add" />
+        </div>
         <p className="meta">
           {supportsKinds && (rules.elementKinds?.length ?? 0) > 0
             ? 'The element kinds above are always offered. Choose what else the editor and the AI offer:'

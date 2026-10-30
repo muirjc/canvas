@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
+import { HelpLink } from '../help/HelpLink';
 import {
   api,
   ApiError,
@@ -87,9 +88,12 @@ export function GitHubAdminPage() {
 
   return (
     <div className="stack">
-      <h1 className="page__title" tabIndex={-1} data-browse-heading>
-        GitHub
-      </h1>
+      <div className="section-heading">
+        <h1 className="page__title" tabIndex={-1} data-browse-heading>
+          GitHub
+        </h1>
+        <HelpLink page="admin/github" topic="GitHub approval" />
+      </div>
       <p className="meta">
         Link a project to a GitHub repository so its diagrams can be submitted as pull requests for approval.
       </p>

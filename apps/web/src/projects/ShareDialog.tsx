@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { HelpLink } from '../help/HelpLink';
 import { api, type AccessLevel, type ShareGrantDto } from '../app/api';
 import { Modal } from '../ui/Modal';
 import { PersonPicker, type PickerUser } from './PersonPicker';
@@ -56,7 +57,11 @@ export function ShareDialog({ diagramId, currentUserId, onClose }: ShareDialogPr
   return (
     <Modal
       label="Share diagram"
-      title="Share this diagram"
+      title={
+        <span className="section-heading">
+          Share this diagram <HelpLink page="user/sharing-and-exporting" section="sharing-a-single-diagram" topic="sharing a diagram" />
+        </span>
+      }
       wide
       onClose={onClose}
       footer={

@@ -4,7 +4,8 @@ Canvas is a diagramming tool for architects. You draw diagrams on a canvas or wr
 [Mermaid](https://mermaid.js.org/) text, and both stay in step. Your organisation's **standards**
 check the diagrams as you work. An **AI assistant** can draw and edit diagrams from a description.
 
-This guide is for everyone who uses Canvas. If you look after Canvas for your organisation, see the
+This guide is for everyone who uses Canvas. It's also in the app: click **Help** in the top bar, or
+a **?** next to a feature to open its section. If you look after Canvas for your organisation, see the
 [admin guide](../admin-guide/README.md) too.
 
 | | |
@@ -17,6 +18,7 @@ This guide is for everyone who uses Canvas. If you look after Canvas for your or
 | [Sharing and exporting](sharing-and-exporting.md) | Giving others access; Mermaid, SVG and PNG files |
 | [Submitting for approval](submitting-for-approval.md) | Sending a diagram to GitHub as a pull request |
 | [Your account](your-account.md) | Changing your password, two-step verification, your AI usage |
+| [Common questions](common-questions.md) | Not saved, flagged shapes, limits, access, export, conflicts |
 
 **What you can do depends on your role.** Your admin gives you one of three:
 - **Viewer:** look at diagrams.
