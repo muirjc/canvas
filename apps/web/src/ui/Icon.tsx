@@ -13,6 +13,7 @@
 export type IconName =
   | 'diamond'
   | 'plus'
+  | 'minus'
   | 'download'
   | 'sparkle'
   | 'upload'
@@ -43,6 +44,7 @@ export type IconName =
 const PATHS: Record<IconName, { d: string; filled?: boolean }[]> = {
   diamond: [{ d: 'M8 1.5 14.5 8 8 14.5 1.5 8Z', filled: true }],
   plus: [{ d: 'M8 3.5v9M3.5 8h9' }],
+  minus: [{ d: 'M3.5 8h9' }],
   // canvas-cyq: open a text box in a large editor.
   expand: [{ d: 'M9.5 2.5h4v4M13.5 2.5 9 7M6.5 13.5h-4v-4M2.5 13.5 7 9' }],
   download: [{ d: 'M8 2.5v7.5M4.5 7 8 10.5 11.5 7M2.5 13h11' }],

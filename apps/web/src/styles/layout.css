@@ -1176,3 +1176,30 @@
 .editor__canvas--read-only .canvas-edit-affordance {
   display: none;
 }
+
+/* canvas-bx3: zoom controls float at the bottom-left of the visible canvas. The wrapper is sticky
+   inside the scrolling .editor__canvas and has no height, so it never adds scroll area; the bar is
+   lifted above the bottom edge. */
+.canvas-zoom {
+  position: sticky;
+  left: var(--space-3);
+  bottom: var(--space-3);
+  z-index: 2;
+  width: max-content;
+  height: 0;
+}
+.canvas-zoom__bar {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: var(--space-1);
+  transform: translateY(-100%);
+  background: var(--surface-raised);
+  border: var(--border-width) solid var(--border-default);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-sm, none);
+}
+.canvas-zoom__level {
+  min-width: 4.5ch;
+  font-variant-numeric: tabular-nums;
+}

@@ -57,6 +57,15 @@ restore is stopped and says who.
 Sequence diagrams work differently: the layout follows the order of messages, so you don't drag.
 The **Tools** section adds notes, loop/alt/opt blocks, activations and numbering.
 
+## Zoom
+
+The controls at the bottom-left of the canvas zoom the drawing from 25% to 400%: **−** and **+**
+step out and in, the percentage goes back to 100%, and **Fit** shows the whole diagram. You can
+also hold **Ctrl** (**Cmd** on a Mac) and scroll, or pinch on a trackpad, to zoom towards the
+pointer; **Ctrl +**, **Ctrl −** and **Ctrl 0** work while the canvas has focus. Zoom only changes
+your view: it isn't saved with the diagram and doesn't count as a change. Exports are always full
+size.
+
 ## Legend
 
 A **legend** is a small key on the canvas that explains what each shape, colour and line means.
