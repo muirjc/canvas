@@ -125,7 +125,8 @@ export function ChatPanel({ diagramId, currentDslContent, onDiagramUpdated }: Ch
 
   return (
     <div className="panel" data-testid="chat-panel" data-history-loaded={historyLoaded ? 'true' : 'false'}>
-      <ul className="panel__body chat-messages" data-testid="chat-messages">
+      {/* Scrolls once the conversation is long: focusable so it can be scrolled from the keyboard. */}
+      <ul className="panel__body chat-messages" data-testid="chat-messages" tabIndex={0} aria-label="Chat messages">
         {messages.length === 0 && !sending && (
           <li className="state" data-testid="chat-empty">
             <Icon name="sparkle" className="state__icon" />
