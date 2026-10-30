@@ -224,7 +224,16 @@ export interface DiagramVersionDto {
   id: string;
   sequenceNumber: number;
   authorId: string;
+  /** canvas-zfe: who saved it ("Deleted user" for a deleted account). */
+  authorName: string;
   createdAt: string;
+  /** canvas-3fha: set when this version restored an earlier one ("Restored from v1"). */
+  restoredFromSequence: number | null;
+}
+
+/** canvas-3fha: one version with its content, for the read-only preview. */
+export interface DiagramVersionDetailDto extends DiagramVersionDto {
+  dslContent: string;
 }
 
 export type AccessLevel = 'view' | 'comment' | 'edit';
@@ -707,15 +716,19 @@ export const api = {
       `/projects/${id}/restore`,
       { method: 'POST' },
     ),
-  listDiagramVersions: (diagramId: string, options: { limit?: number; q?: string } = {}) => {
+  listDiagramVersions: (diagramId: string, options: { limit?: number; q?: string; from?: string; to?: string } = {}) => {
     const params = new URLSearchParams();
     if (options.limit !== undefined) params.set('limit', String(options.limit));
     if (options.q) params.set('q', options.q);
+    if (options.from) params.set('from', options.from);
+    if (options.to) params.set('to', options.to);
     const query = params.toString();
     return request<{ versions: DiagramVersionDto[]; hasMore: boolean }>(
       `/diagrams/${diagramId}/versions${query ? `?${query}` : ''}`,
     );
   },
+  getDiagramVersion: (diagramId: string, versionId: string) =>
+    request<{ version: DiagramVersionDetailDto }>(`/diagrams/${diagramId}/versions/${versionId}`),
   restoreDiagramVersion: (diagramId: string, versionId: string) =>
     request<{ diagram: DiagramDto }>(`/diagrams/${diagramId}/versions/${versionId}/restore`, { method: 'POST' }),
   lookupUserByEmail: (email: string) =>

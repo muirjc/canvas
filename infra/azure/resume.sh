@@ -9,26 +9,34 @@
 set -euo pipefail
 
 RESOURCE_GROUP="${1:-canvas-rg}"
+# canvas-myh: retry + wait_for_postgres, so resuming an already-running server (e.g. after Azure's
+# 7-day auto-restart) or one still stopping works instead of failing with ServerIsNotStopped.
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib.sh"
 
 echo "== Starting canvas-postgres =="
-az postgres flexible-server start --resource-group "$RESOURCE_GROUP" --name canvas-postgres --output none
-echo "  Postgres start requested (takes a minute or two to become Ready)."
+POSTGRES_STATE="$(wait_for_postgres "$RESOURCE_GROUP" canvas-postgres)"
+if [[ "$POSTGRES_STATE" == "Ready" ]]; then
+  echo "  Already running -- nothing to start."
+else
+  retry "Starting canvas-postgres" az postgres flexible-server start --resource-group "$RESOURCE_GROUP" --name canvas-postgres --output none
+  echo "  Postgres start requested (takes a minute or two to become Ready)."
+fi
 
 echo "== Restoring canvas-api scale settings =="
 # canvas-api: minReplicas=0/maxReplicas=1 -- its normal scale-to-zero-eligible config
 # (apiapp.bicep); this is NOT "always on", it just allows the platform to scale it up again on
 # the next request instead of being hard-capped the way pause.sh left it (pause.sh's own change
 # here is a near-no-op today for exactly this reason -- see its own comment).
-az containerapp update --name canvas-api --resource-group "$RESOURCE_GROUP" \
+retry "Updating canvas-api" az containerapp update --name canvas-api --resource-group "$RESOURCE_GROUP" \
   --min-replicas 0 --max-replicas 1 --output none
 echo "  canvas-api restored to 0/1 (scales up on next request)."
 
 echo
 echo "== Waiting for Postgres to be Ready =="
-until [[ "$(az postgres flexible-server show --resource-group "$RESOURCE_GROUP" --name canvas-postgres --query state -o tsv 2>/dev/null)" == "Ready" ]]; do
-  sleep 10
-  echo "  ... still starting"
-done
+if [[ "$(wait_for_postgres "$RESOURCE_GROUP" canvas-postgres)" != "Ready" ]]; then
+  echo "  canvas-postgres settled as Stopped, not Ready -- run resume.sh again." >&2
+  exit 1
+fi
 echo "  Postgres is Ready."
 
 # canvas-vnh: put the app's page back (pause.sh saved it as index.live.html), last, so the site
@@ -56,7 +64,7 @@ echo
 # canvas-3s5.2: pause.sh moved the GitHub sync job's schedule to once a year.
 if az containerapp job show --name canvas-github-sync --resource-group "$RESOURCE_GROUP" --output none 2>/dev/null; then
   echo "== Restoring the GitHub sync job's schedule (every 15 minutes) =="
-  az containerapp job update --name canvas-github-sync --resource-group "$RESOURCE_GROUP" \
+  retry "Updating canvas-github-sync" az containerapp job update --name canvas-github-sync --resource-group "$RESOURCE_GROUP" \
     --cron-expression "*/15 * * * *" --output none
 fi
 

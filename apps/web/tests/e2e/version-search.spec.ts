@@ -52,9 +52,13 @@ test('finds an older version by search and restores it', async ({ page }) => {
   const older = page.getByTestId('version-2');
   await expect(older).toBeVisible();
 
-  // FR-031: restorable exactly as a recent version is.
-  await page.getByTestId('restore-version-2').click();
-  await expect(page.getByTestId('version-history')).toBeVisible();
+  // FR-031: restorable exactly as a recent version is (canvas-3fha: via its preview).
+  await page.getByTestId('view-version-2').click();
+  await page.getByTestId('restore-preview').click();
+  await page.getByTestId('restore-confirm-button').click();
+  await expect(page.getByTestId('version-preview-bar')).toHaveCount(0);
+  await page.getByTestId('version-search').fill('');
+  await expect(page.getByTestId('version-restored-from-9')).toHaveText('Restored from v2');
 });
 
 // canvas-547: each keystroke used to swap the whole panel for its loading skeleton, unmounting the
@@ -81,6 +85,31 @@ test('typing a search keeps focus in the box and searches once the typing pauses
   await expect(box).toBeFocused();
   // One request for the finished query, not one per letter.
   expect(searches).toEqual(['99999']);
+});
+
+// canvas-zfe: the forms the History list itself shows can be typed back in.
+test('finds versions by v-number, by a date as shown, by today, and by author name', async ({ page }) => {
+  await diagramWithManyVersions(page, 7);
+  const box = page.getByTestId('version-search');
+
+  await box.fill('v2');
+  await expect(page.getByTestId(/^version-\d+$/)).toHaveCount(1);
+  await expect(page.getByTestId('version-2')).toBeVisible();
+
+  await box.fill('today');
+  await expect(page.getByTestId(/^version-\d+$/)).toHaveCount(5);
+
+  // The date exactly as the list displays it (with the time after the comma).
+  const shown = (await page.getByTestId('version-8').locator('.meta').textContent())!.split(' · ')[1];
+  await box.fill(shown);
+  await expect(page.getByTestId(/^version-\d+$/)).toHaveCount(5);
+
+  // The author's name shown on the row finds their versions; someone else's finds none.
+  const author = (await page.getByTestId('version-8').locator('.meta').textContent())!.split(' · ')[0];
+  await box.fill(author.slice(0, 5));
+  await expect(page.getByTestId(/^version-\d+$/)).toHaveCount(5);
+  await box.fill('nobody-by-this-name');
+  await expect(page.getByTestId('version-search-empty')).toBeVisible();
 });
 
 test('an unmatched search says so rather than showing a blank area', async ({ page }) => {

@@ -44,7 +44,11 @@ test('save into a project, edit, and restore a prior version', async ({ page }) 
   await expect(page.locator('[data-testid^="node-"]')).toHaveCount(2);
 
   // Restore v2 (one rectangle) — the circle should disappear from the canvas.
-  await page.getByTestId('restore-version-2').click();
+  // Restoring goes through the read-only preview and a confirm (canvas-3fha).
+  await page.getByTestId('view-version-2').click();
+  await page.getByTestId('restore-preview').click();
+  await page.getByTestId('restore-confirm-button').click();
+  await page.getByTestId('rail-tab-history').click();
   await expect(page.getByTestId('version-4')).toBeVisible(); // restore appended v4, not rewritten v2
   await expect(page.locator('[data-testid^="node-"]')).toHaveCount(1);
 
