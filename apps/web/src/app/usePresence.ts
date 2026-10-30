@@ -2,7 +2,8 @@ import { useEffect, useState } from 'react';
 import { api, type OtherEditorDto } from './api';
 
 /** One id per browser tab, so the same person in two tabs shows up as "you, in another tab". */
-const TAB_ID = typeof crypto !== 'undefined' && 'randomUUID' in crypto ? crypto.randomUUID() : `tab-${Date.now()}-${Math.random()}`;
+// crypto.randomUUID needs a secure context (https or localhost), which Canvas always runs in.
+const TAB_ID = crypto.randomUUID();
 let mountCount = 0;
 
 /**
