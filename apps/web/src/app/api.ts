@@ -101,6 +101,9 @@ export interface DiagramDto {
   accessLevel?: AccessLevel;
   createdAt: string;
   updatedAt: string;
+  /** canvas-j6v: drawn by Create with AI and not yet saved -- only its creator can see it, it's in
+   *  no list, and leaving without saving deletes it. */
+  draft?: boolean;
 }
 
 /** canvas-tfr: the full rule set (v1 fields + v2 element kinds), diagram-core's own type -- the
@@ -650,7 +653,7 @@ export const api = {
    *  canvas-cpa: localAuthEnabled likewise lets it decide whether to show the password fields at
    *  all, rather than a 404 surfacing as a bare "Not Found" only after submitting them. */
   getAuthConfig: () => request<{ authMode: 'entra' | 'local'; mfaRequired?: boolean; oidcEnabled: boolean; localAuthEnabled: boolean }>('/auth/config'),
-  createDiagram: (projectId: string, body: { name: string; diagramTypeId: string; initialDslContent?: string }) =>
+  createDiagram: (projectId: string, body: { name: string; diagramTypeId: string; initialDslContent?: string; draft?: boolean }) =>
     request<{ diagram: DiagramDto }>(`/projects/${projectId}/diagrams`, { method: 'POST', body: JSON.stringify(body) }),
   importDiagram: (projectId: string, body: { name: string; dslContent: string; diagramTypeHint?: string }) =>
     request<{ diagram: DiagramDto }>(`/projects/${projectId}/diagrams/import`, { method: 'POST', body: JSON.stringify(body) }),

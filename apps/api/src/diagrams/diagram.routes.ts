@@ -46,7 +46,7 @@ function handleServiceError(error: unknown, reply: FastifyReply): FastifyReply {
 export async function registerDiagramRoutes(app: FastifyInstance): Promise<void> {
   app.post<{
     Params: { projectId: string };
-    Body: { name: string; diagramTypeId: string; initialDslContent?: string };
+    Body: { name: string; diagramTypeId: string; initialDslContent?: string; draft?: boolean };
   }>(
     '/projects/:projectId/diagrams',
     {
@@ -62,12 +62,14 @@ export async function registerDiagramRoutes(app: FastifyInstance): Promise<void>
             name: { type: 'string', minLength: 1 },
             diagramTypeId: { type: 'string', minLength: 1 },
             initialDslContent: { type: 'string' },
+            // canvas-j6v: Create with AI -- unsaved and hidden until the creator saves it.
+            draft: { type: 'boolean' },
           },
         },
       },
     },
     async (request, reply) => {
-      const { name, diagramTypeId, initialDslContent } = request.body;
+      const { name, diagramTypeId, initialDslContent, draft } = request.body;
       try {
         const diagram = await createDiagram({
           name,
@@ -75,6 +77,7 @@ export async function registerDiagramRoutes(app: FastifyInstance): Promise<void>
           projectId: request.params.projectId,
           ownerId: request.session.user!.id,
           initialDslContent,
+          draft,
         });
         return reply.code(201).send({ diagram });
       } catch (error) {

@@ -93,6 +93,19 @@ tests are NON-NEGOTIABLE and must exist (and fail) before implementing any diagr
 work — see `.specify/memory/constitution.md` Principle IV.
 
 ## Recent Changes
+- `canvas-thia` + `canvas-j6v`: **kind groups** -- `StandardRules.kindGroups` (`{ id, label, kindIds,
+  minCount?, maxCount? }`, stored in `kind_rules` JSON, no migration) count several element kinds
+  together ("one Component, whether New, Reused or Retired"). `kindAddBlockedReason()` in
+  diagram-core (kind Max count, then any full group) drives the canvas Elements buttons/kind picker
+  and the AI's addElement/setElementKind; validator rules `kind-group-min-count`/`-max-count`;
+  definition-check (>= 2 known kinds, a count, sane numbers); a "Kind groups" section in the
+  standards editor (follows kind renames, drops removed kinds). **Create with AI no longer saves**:
+  the dialog creates the diagram with `draft: true` (`diagrams.draft`, Postgres `0034`, SQLite
+  `0022`) and hands the drawing to the editor via sessionStorage (`ai/ai-draft.ts`), which shows
+  "Not saved" until the first Save clears the flag. A draft is in no list (tree, search, counts,
+  shared-with-me) and 404s for anyone but its creator (`isOthersDraft` in the access middleware);
+  deleting one (the leave prompt's Discard) is a hard purge, not the bin; `npm run purge` also
+  removes drafts older than `DRAFT_RETENTION_HOURS` (24).
 - `canvas-2h2w.1` (sharing v2, part 1, docs/sharing-design.md): **open read-only**. Access is the
   HIGHEST of View (everyone signed in), project access (owner of it or an ancestor = Manage, admin =
   Manage, project grants on it or any ancestor), a diagram share, and owning the diagram (Manage);

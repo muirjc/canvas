@@ -220,6 +220,8 @@ export interface DiagramsTable {
   restored_at: Timestamp | null;
   restored_by_user_id: string | null;
   description: string | null;
+  /** canvas-j6v: created by Create with AI and not yet saved by its creator. */
+  draft: Generated<boolean>;
 }
 
 export interface DiagramVersionsTable {

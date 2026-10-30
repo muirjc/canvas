@@ -43,6 +43,10 @@ Describe the diagram you want and the AI draws it.
    **Create diagram** to have it draw with what it has.
 4. When it has drawn something, the diagram opens in the editor. The conversation carries on in its
    **Chat** tab.
+5. Nothing is saved for you: the diagram shows **Not saved**, and only you can see it. **Save** keeps
+   it and adds it to the project. If you don't want it, leave and choose **Discard and leave**: the
+   diagram is deleted, as if it had never been made. Reloading the page keeps the drawing; closing
+   the tab without saving loses it.
 
 ![Create with AI](../images/create-with-ai.png)
 

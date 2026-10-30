@@ -98,7 +98,7 @@ export async function listProjectsForUser(userId: string): Promise<ProjectListIt
   const access = await projectAccessForUser(userId);
   const rows = await db
     .selectFrom('projects as p')
-    .leftJoin('diagrams as d', (join) => join.onRef('d.project_id', '=', 'p.id').on('d.deleted_at', 'is', null))
+    .leftJoin('diagrams as d', (join) => join.onRef('d.project_id', '=', 'p.id').on('d.deleted_at', 'is', null).on('d.draft', '=', dbBoolean(false)))
     .select([
       'p.id',
       'p.name',
@@ -185,6 +185,7 @@ export async function deleteProject(id: string, deletedByUserId: string): Promis
       .select(sql<string>`COUNT(*)`.as('diagram_count'))
       .where('project_id', '=', id)
       .where('deleted_at', 'is', null)
+      .where('draft', '=', dbBoolean(false))
       .executeTakeFirstOrThrow(),
     db
       .selectFrom('projects')
@@ -289,6 +290,8 @@ export async function getProjectTree(rootId: string): Promise<ProjectTreeNode> {
     .selectFrom('diagrams')
     .select(['id', 'name', 'diagram_type_id', 'project_id'])
     .where('deleted_at', 'is', null)
+    // canvas-j6v: an unsaved Create with AI draft isn't in any list, even its creator's.
+    .where('draft', '=', dbBoolean(false))
     .where(
       'project_id',
       'in',

@@ -91,6 +91,7 @@ function toRecord(
 /** canvas-tfr: the v2 rule fields, stored together in `standards.kind_rules`. */
 const V2_RULE_KEYS = [
   'elementKinds',
+  'kindGroups',
   'connectorRules',
   'connectorPolicy',
   'containers',
