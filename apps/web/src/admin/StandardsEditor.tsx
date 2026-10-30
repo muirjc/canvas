@@ -9,15 +9,17 @@ import {
   FAMILY_SUPPORTS_ELEMENT_KINDS,
   RULE_IDS,
   checkStandardDefinition,
+  effectiveAuthoring,
   standardDefinitionNotices,
   emptyStandardRules,
+  type AuthoringScope,
   type ConnectorRule,
   type ElementKind,
   type RuleId,
   type Severity,
   type StandardRules,
 } from '@canvas/diagram-core';
-import { api, ApiError, type DiagramTypeDto, type StandardDto } from '../app/api';
+import { api, ApiError, type AdminLibraryDto, type DiagramTypeDto, type StandardDto } from '../app/api';
 import { Icon } from '../ui/Icon';
 import { Modal } from '../ui/Modal';
 
@@ -108,6 +110,33 @@ export function StandardsEditor({ diagramType, standard, readOnly = false, onDon
     setRules((prev) => ({ ...prev, ...next }));
     setSavedNote(null);
   };
+
+  // canvas-7ewa: "What authors can add". The radios show the effective setting, so an older
+  // standard with no explicit choice shows what it does today; picking one makes it explicit.
+  const authoring = effectiveAuthoring(rules);
+  const [libraries, setLibraries] = useState<AdminLibraryDto[]>([]);
+  useEffect(() => {
+    let cancelled = false;
+    api
+      .listAdminLibraries()
+      .then(({ libraries: all }) => {
+        if (!cancelled) setLibraries(all.filter((l) => diagramType.defaultPaletteLibraryIds.includes(l.id) && l.id !== 'generic'));
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, [diagramType.defaultPaletteLibraryIds]);
+  const setShapesScope = (shapes: AuthoringScope) =>
+    patch({ authoring: { ...authoring, shapes }, ...(shapes === 'listed' ? {} : { allowedShapeIds: [] }) });
+  const setIconsScope = (icons: AuthoringScope) =>
+    patch({ authoring: { ...authoring, icons }, ...(icons === 'listed' ? {} : { allowedIconLibraryRefs: [] }) });
+  const toggleLibrary = (library: AdminLibraryDto) =>
+    patch({
+      allowedIconLibraryRefs: rules.allowedIconLibraryRefs.some((ref) => ref.libraryId === library.id)
+        ? rules.allowedIconLibraryRefs.filter((ref) => ref.libraryId !== library.id)
+        : [...rules.allowedIconLibraryRefs, { libraryId: library.id, libraryVersion: library.version }],
+    });
   // canvas-qxb: build on the latest rules, not this render's copy, so two quick edits can't drop one.
   const patchKind = (i: number, next: Partial<ElementKind>) => {
     setRules((prev) => ({ ...prev, elementKinds: (prev.elementKinds ?? []).map((k, idx) => (idx === i ? { ...k, ...next } : k)) }));
@@ -428,13 +457,75 @@ export function StandardsEditor({ diagramType, standard, readOnly = false, onDon
         )}
       </section>
 
+      {/* ---- canvas-7ewa: what authors can add ---- */}
+      <section className="card std-section" aria-labelledby="std-authoring" data-testid="authoring-section">
+        <h3 id="std-authoring" className="section-label">What authors can add</h3>
+        <p className="meta">
+          {supportsKinds && (rules.elementKinds?.length ?? 0) > 0
+            ? 'The element kinds above are always offered. Choose what else the editor and the AI offer:'
+            : 'Choose what the editor and the AI offer authors:'}
+        </p>
+        <fieldset className="std-fieldset" data-testid="authoring-shapes">
+          <legend className="field__label">Generic shapes</legend>
+          <div className="cluster">
+            {(['all', 'listed', 'none'] as const).map((scope) => (
+              <label key={scope} className="cluster cluster--tight">
+                <input type="radio" name="authoring-shapes" data-testid={`authoring-shapes-${scope}`} checked={authoring.shapes === scope} onChange={() => setShapesScope(scope)} />
+                {scope === 'all' ? 'All' : scope === 'listed' ? 'Only these' : 'None'}
+              </label>
+            ))}
+          </div>
+          {authoring.shapes === 'listed' && (
+            <div className="cluster cluster--tight">
+              {familyShapes.map((shape) => (
+                <label key={shape} className="cluster cluster--tight" data-testid={`allowed-shape-${shape}`}>
+                  <input type="checkbox" checked={rules.allowedShapeIds.includes(shape as never)} onChange={() => patch({ allowedShapeIds: toggleIn(rules.allowedShapeIds as string[], shape) } as Partial<StandardRules>)} />
+                  {shape}
+                </label>
+              ))}
+            </div>
+          )}
+          <FieldErrors path="authoring.shapes" />
+        </fieldset>
+        <fieldset className="std-fieldset" data-testid="authoring-icons">
+          <legend className="field__label">Icons{family === 'architecture' ? ' (including the Services buttons)' : ''}</legend>
+          <div className="cluster">
+            {(['all', 'listed', 'none'] as const).map((scope) => (
+              <label key={scope} className="cluster cluster--tight">
+                <input type="radio" name="authoring-icons" data-testid={`authoring-icons-${scope}`} checked={authoring.icons === scope} onChange={() => setIconsScope(scope)} />
+                {scope === 'all' ? "All of this type's libraries" : scope === 'listed' ? 'Only these libraries' : 'None'}
+              </label>
+            ))}
+          </div>
+          {authoring.icons === 'listed' && (
+            <div className="cluster cluster--tight">
+              {libraries.length === 0 && <span className="meta">This diagram type offers no icon libraries.</span>}
+              {libraries.map((library) => (
+                <label key={library.id} className="cluster cluster--tight" data-testid={`allowed-icon-library-${library.id}`}>
+                  <input type="checkbox" checked={rules.allowedIconLibraryRefs.some((ref) => ref.libraryId === library.id)} onChange={() => toggleLibrary(library)} />
+                  {library.name}
+                </label>
+              ))}
+            </div>
+          )}
+          <FieldErrors path="authoring.icons" />
+        </fieldset>
+        <FieldErrors path="authoring" />
+      </section>
+
       {/* ---- Strictness ---- */}
       <section className="card std-section" aria-labelledby="std-strict">
         <h3 id="std-strict" className="section-label">Strictness</h3>
         {supportsKinds && (
           <label className="cluster cluster--tight">
-            <input type="checkbox" data-testid="require-known-kinds" checked={Boolean(rules.requireKnownKinds)} onChange={(e) => patch({ requireKnownKinds: e.target.checked })} />
-            Every element must be one of these kinds
+            <input type="checkbox" data-testid="require-known-kinds" checked={Boolean(rules.requireKnownKinds)} onChange={(e) =>
+                patch({
+                  requireKnownKinds: e.target.checked,
+                  // canvas-7ewa: a strict standard offers only its kinds.
+                  ...(e.target.checked ? { authoring: { shapes: 'none', icons: 'none' }, allowedShapeIds: [], allowedIconLibraryRefs: [] } : {}),
+                })
+              } />
+            Every element must be one of these kinds (authors can then add only these kinds)
           </label>
         )}
         <p className="meta">How serious each kind of finding is. “Must fix” is highlighted prominently but never blocks saving.</p>
@@ -474,13 +565,13 @@ export function StandardsEditor({ diagramType, standard, readOnly = false, onDon
       {/* ---- Legacy ---- */}
       <details className="card std-section" data-testid="legacy-rules">
         <summary>Legacy rules (whole-diagram shapes and role colors)</summary>
-        {(['allowedShapeIds', 'mandatoryShapeIds'] as const).map((field) => (
+        {(['mandatoryShapeIds'] as const).map((field) => (
           <fieldset key={field} className="cluster cluster--tight std-fieldset">
             <legend className="field__label">
-              {field === 'allowedShapeIds' ? 'Allowed shapes (none selected = unrestricted)' : 'Mandatory shapes (must appear at least once)'}
+              Mandatory shapes (must appear at least once)
             </legend>
             {familyShapes.map((shape) => (
-              <label key={shape} className="cluster cluster--tight" data-testid={`${field === 'allowedShapeIds' ? 'allowed' : 'mandatory'}-shape-${shape}`}>
+              <label key={shape} className="cluster cluster--tight" data-testid={`mandatory-shape-${shape}`}>
                 <input type="checkbox" checked={rules[field].includes(shape as never)} onChange={() => patch({ [field]: toggleIn(rules[field] as string[], shape) } as Partial<StandardRules>)} />
                 {shape}
               </label>

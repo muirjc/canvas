@@ -1,5 +1,5 @@
 import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from 'react';
-import { createEmptyDiagramModel, getDslFamily, isParseSuccess, type DiagramModel } from '@canvas/diagram-core';
+import { createEmptyDiagramModel, effectiveAuthoring, getDslFamily, isParseSuccess, type DiagramModel } from '@canvas/diagram-core';
 import { Canvas } from '../canvas/Canvas';
 import { DslPanel } from '../canvas/DslPanel';
 import { ExportMenu } from '../canvas/ExportMenu';
@@ -126,6 +126,8 @@ export const DiagramEditor = forwardRef<DiagramEditorHandle, DiagramEditorProps>
   const [toolbarContainer, setToolbarContainer] = useState<HTMLDivElement | null>(null);
   const { dsl, parseErrors, applyDsl } = useDslSync(model, setModel, diagram.dslFamily);
   const liveViolations = useLiveViolations(model, standard?.rules);
+  const authoring = effectiveAuthoring(standard?.rules);
+  const paletteOffered = authoring.icons !== 'none' || authoring.shapes === 'all';
   const shownViolations = liveViolations ?? violations;
 
   // Unsaved-change detection (feature 007, FR-013d). `saveStatus` above is REQUEST state — it
@@ -388,8 +390,10 @@ export const DiagramEditor = forwardRef<DiagramEditorHandle, DiagramEditorProps>
               search-scoped-to-the-"generic"-library section (which only ever offered the same
               handful of shape-alias sentinels the toolbar's own Shapes section already covers,
               canvas-23t.4) is hidden entirely rather than shown with nothing useful in it. */}
-          {diagram.dslFamily !== 'erd' && !preview && (
-            <Palette diagramTypeId={diagram.diagramTypeId} onSelectIcon={handleSelectIcon} />
+          {/* canvas-wid / canvas-7ewa: no Palette when the standard offers neither icons nor the
+              generic shape-alias entries (e.g. a strict Value Chain: its kinds are the only way in). */}
+          {diagram.dslFamily !== 'erd' && !preview && paletteOffered && (
+            <Palette diagramTypeId={diagram.diagramTypeId} onSelectIcon={handleSelectIcon} rules={standard?.rules} />
           )}
           {preview && (
             <p className="meta editor__preview-note" data-testid="preview-tools-note">

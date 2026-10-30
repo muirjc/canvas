@@ -15,7 +15,11 @@ Opening a diagram shows it on the **canvas** in the middle:
 
 - **Add a shape:** pick one under **Shapes** in the left rail. The shapes offered depend on the
   diagram type: a flowchart has rectangles, diamonds, circles and more; a C4 diagram has people,
-  systems and containers; and so on.
+  systems and containers; and so on. Your organisation's **standard** for the type can narrow this,
+  or offer only its own **Elements** (then the Shapes and Icons sections don't appear).
+- **Architecture diagrams:** a **Services** section adds a Cloud, Database, Disk, Internet or Server
+  service in one click; **Add Junction** adds a routing point. Search **Icons** for Azure and AWS
+  services.
 - **Elements:** if your organisation has a **standard** for this diagram type, an **Elements** list
   offers its named element kinds (for example *Primary Activity* or *External System*), already
   shaped and coloured correctly. Use these when you can.
