@@ -68,4 +68,15 @@ describe('Diagram export: legend (canvas-ltk)', () => {
     expect(res.statusCode).toBe(200);
     expect(res.headers['content-type']).toContain('image/png');
   });
+
+  // Defence in depth: an export opened directly in the browser can't run script.
+  it('sends every export format with a locked-down, sandboxed Content-Security-Policy', async () => {
+    const id = await createDiagram(BODY);
+    for (const format of ['svg', 'png', 'mermaid']) {
+      const res = await app.inject({ method: 'GET', url: `/diagrams/${id}/export?format=${format}`, headers: { cookie } });
+      expect(res.statusCode).toBe(200);
+      expect(res.headers['content-security-policy']).toBe("default-src 'none'; style-src 'unsafe-inline'; img-src data:; sandbox");
+      expect(res.headers['x-content-type-options']).toBe('nosniff');
+    }
+  });
 });
