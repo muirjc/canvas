@@ -33,6 +33,17 @@ export function buildStandardPrompt(rules: StandardRules, family: string): strin
       if (details.length > 0) parts.push(` [${details.join('; ')}]`);
       lines.push(parts.join(''));
     }
+    // canvas-thia: counts across several kinds together.
+    for (const group of rules.kindGroups ?? []) {
+      const members = group.kindIds.join(', ');
+      const count =
+        group.minCount !== undefined && group.minCount === group.maxCount
+          ? `exactly ${group.minCount}`
+          : [group.minCount !== undefined ? `at least ${group.minCount}` : '', group.maxCount !== undefined ? `at most ${group.maxCount}` : '']
+              .filter(Boolean)
+              .join(' and ');
+      lines.push(`- Group "${group.label}": ${count} element(s) in total from ${members}.`);
+    }
     if (rules.requireKnownKinds) lines.push('Every element must be one of these kinds.');
   }
 

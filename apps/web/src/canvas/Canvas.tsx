@@ -84,8 +84,7 @@ import {
   type ClassMember,
   type NodeLink,
   addElementOfKind,
-  kindLimitMessage,
-  kindLimitReached,
+  kindAddBlockedReason,
   applyConnectorRule,
   applyElementKind,
   classifyNode,
@@ -1466,9 +1465,12 @@ export function Canvas({ model: modelProp, onChange, dslFamily, toolbarContainer
     onChange(addNode(model, { shape }));
   };
 
+  // canvas-8o01/thia: why this kind can't be added now (its Max count, or a full kind group).
+  const blockedReason = (kind: ElementKind, ignoreNodeId?: string) =>
+    standardRules ? kindAddBlockedReason(model, standardRules, kind, ignoreNodeId) : undefined;
+  const atLimit = (kind: ElementKind, ignoreNodeId?: string) => blockedReason(kind, ignoreNodeId) !== undefined;
+
   // canvas-tfr: a new element of a standard's kind -- role, default shape and default swatch.
-  const atLimit = (kind: ElementKind, ignoreNodeId?: string) =>
-    Boolean(standardRules) && kindLimitReached(model, standardRules!, kind, ignoreNodeId);
 
   const handleAddKind = (kind: ElementKind) => {
     if (atLimit(kind)) return;
@@ -2538,7 +2540,7 @@ export function Canvas({ model: modelProp, onChange, dslFamily, toolbarContainer
                 data-testid={`add-kind-${kind.id}`}
                 // canvas-8o01: at its Max count the kind can't be added again; the tooltip says why.
                 disabled={atLimit(kind)}
-                title={atLimit(kind) ? kindLimitMessage(kind) : kind.description ? `Add ${kind.label}: ${kind.description}` : `Add ${kind.label}`}
+                title={blockedReason(kind) ?? (kind.description ? `Add ${kind.label}: ${kind.description}` : `Add ${kind.label}`)}
                 onClick={() => handleAddKind(kind)}
               >
                 {kind.approvedFills[0] && (

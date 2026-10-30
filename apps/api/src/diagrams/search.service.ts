@@ -1,5 +1,5 @@
 import { getDb } from '../db/client.js';
-import { caseInsensitiveLike } from '../db/sql-helpers.js';
+import { caseInsensitiveLike, dbBoolean } from '../db/sql-helpers.js';
 
 export interface DiagramSummary {
   id: string;
@@ -21,7 +21,8 @@ export async function searchDiagrams(input: SearchDiagramsInput): Promise<Diagra
   let query = db
     .selectFrom('diagrams')
     .where('project_id', '=', input.projectId)
-    .where('deleted_at', 'is', null);
+    .where('deleted_at', 'is', null)
+    .where('draft', '=', dbBoolean(false)); // canvas-j6v
 
   if (input.query) {
     const pattern = `%${input.query}%`;

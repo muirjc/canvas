@@ -32,6 +32,7 @@ import { Icon } from '../ui/Icon';
 import { RailTabs } from '../ui/RailTabs';
 import { Modal } from '../ui/Modal';
 import { useActiveStandard, useLiveViolations } from '../standards/useStandard';
+import { clearDraftDsl, readDraftDsl, stashDraftDsl } from '../ai/ai-draft';
 
 let iconNodeCounter = 0;
 function nextIconNodeId(): string {
@@ -65,6 +66,8 @@ export interface DiagramEditorProps {
  */
 export interface DiagramEditorHandle {
   hasUnsavedChanges: () => boolean;
+  /** canvas-j6v: an AI-drawn diagram never saved -- leaving without saving deletes it. */
+  isUnsavedDraft: () => boolean;
 }
 
 function initialModelFromDsl(diagram: DiagramDto): DiagramModel {
@@ -81,7 +84,12 @@ export const DiagramEditor = forwardRef<DiagramEditorHandle, DiagramEditorProps>
   ref,
 ) {
   const [diagram, setDiagram] = useState(initialDiagram);
-  const [model, setModel] = useState<DiagramModel>(() => initialModelFromDsl(diagram));
+  // canvas-j6v: a Create with AI draft opens on the drawing kept in this tab, over an empty saved
+  // diagram -- so it reads "Not saved" until the user saves it.
+  const [draft, setDraft] = useState(Boolean(initialDiagram.draft));
+  const [model, setModel] = useState<DiagramModel>(() =>
+    initialModelFromDsl(draft ? { ...diagram, dslContent: readDraftDsl(diagram.id) ?? diagram.dslContent } : diagram),
+  );
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
   // The server's result of the last save -- shown until the standard has loaded, then superseded
   // by the live check below (the server stays the authority for what gets stored).
@@ -153,9 +161,14 @@ export const DiagramEditor = forwardRef<DiagramEditorHandle, DiagramEditorProps>
   const initialDslRef = useRef<string | null>(null);
   if (initialDslRef.current === null) initialDslRef.current = dsl;
   const [lastSavedDsl, setLastSavedDsl] = useState<string | null>(null);
-  const hasUnsavedChanges = dsl !== (lastSavedDsl ?? initialDslRef.current);
+  const hasUnsavedChanges = draft || dsl !== (lastSavedDsl ?? initialDslRef.current);
 
-  useImperativeHandle(ref, () => ({ hasUnsavedChanges: () => hasUnsavedChanges }), [hasUnsavedChanges]);
+  useImperativeHandle(ref, () => ({ hasUnsavedChanges: () => hasUnsavedChanges, isUnsavedDraft: () => draft }), [hasUnsavedChanges, draft]);
+
+  // canvas-j6v: keep the unsaved drawing in this tab, edits included, so a reload brings it back.
+  useEffect(() => {
+    if (draft) stashDraftDsl(diagram.id, dsl);
+  }, [draft, diagram.id, dsl]);
 
   // canvas-obp0: the version this editor started from. Every save and restore sends it, and the API
   // refuses (409) if someone else has saved since. A ref, not state: "save first, then restore"
@@ -290,6 +303,10 @@ export const DiagramEditor = forwardRef<DiagramEditorHandle, DiagramEditorProps>
       if ((saved.standardVersionAtLastCheck ?? null) !== (standard?.version ?? null)) setStandardRefreshKey((k) => k + 1);
       setVersionRefreshToken((t) => t + 1);
       setLastSavedDsl(dsl);
+      if (draft) {
+        setDraft(false);
+        clearDraftDsl(diagram.id);
+      }
       setSaveStatus('saved');
       return true;
     } catch (err) {
@@ -316,7 +333,7 @@ export const DiagramEditor = forwardRef<DiagramEditorHandle, DiagramEditorProps>
   // there's anything to save comes from hasUnsavedChanges; a failed save stays visible until the
   // next attempt. The raw state stays available to tests as data-state.
   const saveLabel =
-    saveStatus === 'saving' ? 'Saving…' : saveStatus === 'error' ? "Couldn't save" : hasUnsavedChanges ? 'Unsaved changes' : 'Saved';
+    saveStatus === 'saving' ? 'Saving…' : saveStatus === 'error' ? "Couldn't save" : draft ? 'Not saved' : hasUnsavedChanges ? 'Unsaved changes' : 'Saved';
   const statusModifier = saveStatus === 'error' ? 'error' : saveStatus === 'saving' || hasUnsavedChanges ? 'dirty' : 'saved';
 
   return (

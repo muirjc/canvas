@@ -1,5 +1,6 @@
 import type { FastifyReply, FastifyRequest } from 'fastify';
 import { getDb } from '../db/client.js';
+import { fromDbBoolean } from '../db/sql-helpers.js';
 import { projectExists, resolveProjectAccess } from '../projects/project.access.js';
 import { accessAtLeast, resolveDiagramAccess, type AccessLevel } from '../sharing/sharing.service.js';
 
@@ -27,10 +28,11 @@ export function requireDiagramOwnerOrAdmin() {
     const db = getDb();
     const row = await db
       .selectFrom('diagrams')
-      .select('owner_id')
+      .select(['owner_id', 'draft'])
       .where('id', '=', request.params.id)
       .executeTakeFirst();
     if (!row) return; // let the route's own not-found handling fire
+    if (isOthersDraft(row, user.id)) return reply.code(404).send({ error: 'Diagram not found' });
 
     if (row.owner_id !== user.id && user.role !== 'admin') {
       return reply.code(403).send({ error: 'Only this diagram\'s owner or an admin can delete it.' });
@@ -108,6 +110,12 @@ export function requireProjectAccess(required: AccessLevel, paramName: string) {
   };
 }
 
+/** canvas-j6v: an unsaved Create with AI draft exists only for its creator -- to anyone else,
+ *  admins included, it isn't there at all. */
+function isOthersDraft(row: { owner_id: string; draft: boolean }, userId: string): boolean {
+  return fromDbBoolean(row.draft) && row.owner_id !== userId;
+}
+
 export function requireDiagramAccess(required: AccessLevel) {
   return async (request: FastifyRequest<{ Params: { id: string } }>, reply: FastifyReply): Promise<void> => {
     const user = request.session.user;
@@ -115,8 +123,9 @@ export function requireDiagramAccess(required: AccessLevel) {
       return reply.code(401).send({ error: 'Authentication required' });
     }
     const db = getDb();
-    const row = await db.selectFrom('diagrams').select('id').where('id', '=', request.params.id).executeTakeFirst();
+    const row = await db.selectFrom('diagrams').select(['owner_id', 'draft']).where('id', '=', request.params.id).executeTakeFirst();
     if (!row) return; // let the route's own not-found handling fire
+    if (isOthersDraft(row, user.id)) return reply.code(404).send({ error: 'Diagram not found' });
 
     const level = await resolveDiagramAccess(user.id, request.params.id);
     if (!accessAtLeast(level, required)) {
