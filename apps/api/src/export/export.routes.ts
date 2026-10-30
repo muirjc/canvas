@@ -21,6 +21,9 @@ const CONTENT_TYPES: Record<string, string> = {
 // own content-level protections (isAllowedLinkHref/escapeXml). A fixed, non-diagram-derived
 // filename is used deliberately (not the diagram's own possibly-attacker-influenced name) so this
 // header can't become a second injection surface of its own.
+/** Inline styles only; everything else blocked, and the response gets an opaque, sandboxed origin. */
+export const EXPORT_CSP = "default-src 'none'; style-src 'unsafe-inline'; img-src data:; sandbox";
+
 const CONTENT_DISPOSITIONS: Record<string, string> = {
   mermaid: 'attachment; filename="diagram.mmd"',
   svg: 'attachment; filename="diagram.svg"',
@@ -51,6 +54,9 @@ export async function registerExportRoutes(app: FastifyInstance): Promise<void> 
 
         reply.header('Content-Type', CONTENT_TYPES[format]);
         reply.header('Content-Disposition', CONTENT_DISPOSITIONS[format]);
+        // Defence in depth: an exported file opened straight from this URL can't run anything --
+        // no scripts, no loads, a sandboxed origin -- whatever ends up inside the SVG.
+        reply.header('Content-Security-Policy', EXPORT_CSP);
         if (format === 'mermaid') {
           return reply.send(exportMermaid(diagram.dslContent));
         } else if (format === 'svg') {
