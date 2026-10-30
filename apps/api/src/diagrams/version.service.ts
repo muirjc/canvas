@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { getDb } from '../db/client.js';
 import type { DbExecutor } from '../db/client.js';
-import { caseInsensitiveLike, dateToYMD } from '../db/sql-helpers.js';
+import { caseInsensitiveLike, compareTimestamp } from '../db/sql-helpers.js';
 
 export class DiagramVersionNotFoundError extends Error {}
 
@@ -17,7 +17,7 @@ export class DiagramVersionNotFoundError extends Error {}
  */
 export async function recordDiagramVersion(
   db: DbExecutor,
-  input: { diagramId: string; dslContent: string; authorId: string },
+  input: { diagramId: string; dslContent: string; authorId: string; restoredFromVersionId?: string },
 ): Promise<string> {
   const { next_seq: nextSeq } = await db
     .selectFrom('diagram_versions')
@@ -33,6 +33,7 @@ export async function recordDiagramVersion(
       sequence_number: Number(nextSeq) + 1,
       dsl_content: input.dslContent,
       author_id: input.authorId,
+      restored_from_version_id: input.restoredFromVersionId ?? null,
     })
     .returning('id')
     .executeTakeFirstOrThrow();
@@ -43,7 +44,16 @@ export interface DiagramVersionSummary {
   id: string;
   sequenceNumber: number;
   authorId: string;
+  /** canvas-zfe: shown on each History row and searchable ("Deleted user" for a deleted account). */
+  authorName: string;
   createdAt: string;
+  /** canvas-3fha: the version this one restored, e.g. v7 "Restored from v1". */
+  restoredFromSequence: number | null;
+}
+
+/** canvas-3fha: one version with its content, for the read-only preview. */
+export interface DiagramVersionDetail extends DiagramVersionSummary {
+  dslContent: string;
 }
 
 /** How many versions a listing returns when the caller does not say (FR-028). A display and
@@ -53,9 +63,16 @@ export const DEFAULT_VERSION_LIMIT = 5;
 
 export interface ListDiagramVersionsOptions {
   limit?: number;
-  /** Matches version number or creation date (FR-030). Author is deliberately excluded — author
-   *  names are not surfaced in history today. */
+  /**
+   * canvas-zfe: a version number ("3", "v3", "V3", "#3") finds exactly that version; any other
+   * text matches the author's name or email. Dates are NOT text-matched here: the browser turns
+   * what the user typed ("Oct 26", "10/26", "today") into `from`/`to` in their own time zone.
+   */
   search?: string;
+  /** canvas-zfe: created at or after this instant. */
+  from?: Date;
+  /** canvas-zfe: created before this instant. */
+  to?: Date;
 }
 
 export interface DiagramVersionPage {
@@ -65,45 +82,88 @@ export interface DiagramVersionPage {
   hasMore: boolean;
 }
 
+const VERSION_NUMBER = /^(?:v|#)?\s*(\d+)$/i;
+
+function versionsQuery(db: DbExecutor, diagramId: string) {
+  return db
+    .selectFrom('diagram_versions as v')
+    .innerJoin('users as u', 'u.id', 'v.author_id')
+    .leftJoin('diagram_versions as src', 'src.id', 'v.restored_from_version_id')
+    .where('v.diagram_id', '=', diagramId)
+    .select([
+      'v.id',
+      'v.sequence_number',
+      'v.author_id',
+      'v.created_at',
+      'u.name as author_name',
+      'u.email as author_email',
+      'src.sequence_number as restored_from_sequence',
+    ]);
+}
+
+type VersionRow = {
+  id: string;
+  sequence_number: number;
+  author_id: string;
+  created_at: unknown;
+  author_name: string;
+  author_email: string;
+  restored_from_sequence: number | null;
+};
+
+function toSummary(r: VersionRow): DiagramVersionSummary {
+  return {
+    id: r.id,
+    sequenceNumber: r.sequence_number,
+    authorId: r.author_id,
+    authorName: r.author_name || r.author_email,
+    // See diagram-chat.service.ts's getChatMessages for why this cast is the pre-existing
+    // convention, not a new behavior change — node-postgres always returned a Date here.
+    createdAt: r.created_at as unknown as string,
+    restoredFromSequence: r.restored_from_sequence ?? null,
+  };
+}
+
 export async function listDiagramVersions(
   diagramId: string,
   options: ListDiagramVersionsOptions = {},
 ): Promise<DiagramVersionPage> {
-  const db = getDb();
   const limit = Math.max(1, options.limit ?? DEFAULT_VERSION_LIMIT);
   const search = options.search?.trim();
 
-  let query = db.selectFrom('diagram_versions').where('diagram_id', '=', diagramId);
+  let query = versionsQuery(getDb(), diagramId);
   if (search) {
-    if (/^\d+$/.test(search)) {
-      // A bare number means that version. Matching it against the date as well would be actively
-      // unhelpful: today's date contains most single digits, so "2" would match every version
-      // and the newest few would crowd out the one actually being looked for.
-      query = query.where('sequence_number', '=', Number(search));
+    const number = search.match(VERSION_NUMBER);
+    if (number) {
+      // A version number means that version. Matching it against anything else would be actively
+      // unhelpful: "2" would also match names and dates and crowd out the one being looked for.
+      query = query.where('v.sequence_number', '=', Number(number[1]));
     } else {
-      query = query.where((eb) => caseInsensitiveLike(dateToYMD(eb.ref('created_at')), `%${search}%`));
+      const pattern = `%${search}%`;
+      query = query.where((eb) => eb.or([caseInsensitiveLike(eb.ref('u.name'), pattern), caseInsensitiveLike(eb.ref('u.email'), pattern)]));
     }
   }
+  const { from, to } = options;
+  if (from) query = query.where((eb) => compareTimestamp(eb.ref('v.created_at'), '>=', from));
+  if (to) query = query.where((eb) => compareTimestamp(eb.ref('v.created_at'), '<', to));
 
   // Fetch one extra row to learn whether more exist, without a second COUNT query.
-  const rows = await query
-    .select(['id', 'sequence_number', 'author_id', 'created_at'])
-    .orderBy('sequence_number', 'desc')
-    .limit(limit + 1)
-    .execute();
+  const rows = await query.orderBy('v.sequence_number', 'desc').limit(limit + 1).execute();
 
   const hasMore = rows.length > limit;
-  return {
-    versions: rows.slice(0, limit).map((r) => ({
-      id: r.id,
-      sequenceNumber: r.sequence_number,
-      authorId: r.author_id,
-      // See diagram-chat.service.ts's getChatMessages for why this cast is the pre-existing
-      // convention, not a new behavior change — node-postgres always returned a Date here.
-      createdAt: r.created_at as unknown as string,
-    })),
-    hasMore,
-  };
+  return { versions: rows.slice(0, limit).map((r) => toSummary(r as VersionRow)), hasMore };
+}
+
+/** canvas-3fha: one version with its content (the read-only preview). */
+export async function getDiagramVersion(diagramId: string, versionId: string): Promise<DiagramVersionDetail> {
+  const row = await versionsQuery(getDb(), diagramId)
+    .select('v.dsl_content')
+    .where('v.id', '=', versionId)
+    .executeTakeFirst();
+  if (!row) {
+    throw new DiagramVersionNotFoundError(`No version ${versionId} for diagram ${diagramId}`);
+  }
+  return { ...toSummary(row as VersionRow), dslContent: row.dsl_content };
 }
 
 /** Fetches a specific version's DSL content, e.g. to restore it as a new version (FR-017). */

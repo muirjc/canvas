@@ -511,3 +511,11 @@
   overflow-wrap: anywhere;
   min-inline-size: 8rem;
 }
+
+/* canvas-3fha: the History row being previewed. */
+.row--selected {
+  background: var(--accent-subtle);
+}
+.row__title .badge {
+  margin-inline-start: var(--space-2);
+}

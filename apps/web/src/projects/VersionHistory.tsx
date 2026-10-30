@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { api, type DiagramVersionDto } from '../app/api';
+import { parseVersionQuery } from './version-query';
 import { Icon } from '../ui/Icon';
 
 const SEARCH_DEBOUNCE_MS = 250;
@@ -9,13 +10,14 @@ export interface VersionHistoryProps {
   /** Bump this (e.g. a counter) whenever the host saves a new version elsewhere — the list only
    * knows to re-fetch when either this or diagramId changes. */
   refreshToken: number;
-  /** Called after a successful restore with the (new) current diagram content, so the editor
-   * can reload it — restoring never rewrites history, it appends a new version (FR-017). */
-  onRestored: () => void;
+  /** canvas-3fha: open a version read-only on the canvas. Restoring happens from that preview. */
+  onPreview: (version: DiagramVersionDto) => void;
+  /** The version being previewed, if any (its row is marked current). */
+  previewedVersionId?: string;
 }
 
-/** Version history panel: view and restore prior versions of a diagram (FR-017). */
-export function VersionHistory({ diagramId, refreshToken, onRestored }: VersionHistoryProps) {
+/** Version history panel: find a prior version of a diagram and open it to view or restore (FR-017). */
+export function VersionHistory({ diagramId, refreshToken, onPreview, previewedVersionId }: VersionHistoryProps) {
   const [versions, setVersions] = useState<DiagramVersionDto[]>([]);
   const [hasMore, setHasMore] = useState(false);
   const [search, setSearch] = useState('');
@@ -39,7 +41,8 @@ export function VersionHistory({ diagramId, refreshToken, onRestored }: VersionH
     const request = ++latestRequest.current;
     setStatus('loading');
     api
-      .listDiagramVersions(diagramId, { q: query || undefined })
+      // canvas-zfe: version numbers and author names go as text; a typed date becomes a range.
+      .listDiagramVersions(diagramId, parseVersionQuery(query))
       .then((page) => {
         if (request !== latestRequest.current) return;
         setVersions(page.versions);
@@ -53,12 +56,6 @@ export function VersionHistory({ diagramId, refreshToken, onRestored }: VersionH
   }, [diagramId, query]);
 
   useEffect(refresh, [refresh, refreshToken]);
-
-  const handleRestore = async (versionId: string) => {
-    await api.restoreDiagramVersion(diagramId, versionId);
-    refresh();
-    onRestored();
-  };
 
   const errorMessage = (
     <p className="state state--error" data-testid="version-history-error">
@@ -112,8 +109,8 @@ export function VersionHistory({ diagramId, refreshToken, onRestored }: VersionH
       <div className="version-search">
         <input
           data-testid="version-search"
-          aria-label="Search versions by number or date"
-          placeholder="Search by version or date…"
+          aria-label="Search versions by number (v3), date (Oct 26, today) or author name"
+          placeholder="Search: v3, Oct 26, or a name…"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
         />
@@ -127,26 +124,45 @@ export function VersionHistory({ diagramId, refreshToken, onRestored }: VersionH
       {status === 'error' && errorMessage}
       {status === 'ready' && versions.length === 0 && query && (
         <p className="state" data-testid="version-search-empty">
-          No versions match &ldquo;{query}&rdquo;.
+          No versions match &ldquo;{query}&rdquo;. Try a version like v3, a date like Oct 26 or today, or a name.
         </p>
       )}
       <ul className="panel__body panel__body--flush" data-testid="version-history" aria-busy={status === 'loading'}>
-        {versions.map((version) => (
-          <li key={version.id} className="row" data-testid={`version-${version.sequenceNumber}`}>
-            <span className="row__main">
-              <span className="row__title">v{version.sequenceNumber}</span>
-              <span className="meta">{new Date(version.createdAt).toLocaleString()}</span>
-            </span>
-            <button
-              type="button"
-              className="btn btn--tertiary btn--compact"
-              data-testid={`restore-version-${version.sequenceNumber}`}
-              onClick={() => handleRestore(version.id)}
+        {versions.map((version) => {
+          const previewing = version.id === previewedVersionId;
+          return (
+            <li
+              key={version.id}
+              className={`row${previewing ? ' row--selected' : ''}`}
+              data-testid={`version-${version.sequenceNumber}`}
+              aria-current={previewing ? 'true' : undefined}
             >
-              Restore
-            </button>
-          </li>
-        ))}
+              <span className="row__main">
+                <span className="row__title">
+                  v{version.sequenceNumber}
+                  {version.restoredFromSequence !== null && (
+                    <span className="badge" data-testid={`version-restored-from-${version.sequenceNumber}`}>
+                      Restored from v{version.restoredFromSequence}
+                    </span>
+                  )}
+                </span>
+                <span className="meta">
+                  {version.authorName} · {new Date(version.createdAt).toLocaleString()}
+                </span>
+              </span>
+              <button
+                type="button"
+                className="btn btn--tertiary btn--compact"
+                data-testid={`view-version-${version.sequenceNumber}`}
+                aria-label={`View v${version.sequenceNumber}`}
+                aria-pressed={previewing}
+                onClick={() => onPreview(version)}
+              >
+                {previewing ? 'Viewing' : 'View'}
+              </button>
+            </li>
+          );
+        })}
       </ul>
     </div>
   );
