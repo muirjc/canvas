@@ -2,6 +2,10 @@
 
 Open a project and use one of the buttons at the top of its page.
 
+However you create it, a new diagram isn't saved until **you** save it. It opens showing **Not
+saved**, and nobody else can see it. **Save** keeps it and adds it to the project. If you leave
+without saving and choose **Discard and leave**, it's deleted, as if it had never been made.
+
 ![The New Diagram dialog](../images/new-diagram.png)
 
 ## New Diagram
@@ -43,10 +47,8 @@ Describe the diagram you want and the AI draws it.
    **Create diagram** to have it draw with what it has.
 4. When it has drawn something, the diagram opens in the editor. The conversation carries on in its
    **Chat** tab.
-5. Nothing is saved for you: the diagram shows **Not saved**, and only you can see it. **Save** keeps
-   it and adds it to the project. If you don't want it, leave and choose **Discard and leave**: the
-   diagram is deleted, as if it had never been made. Reloading the page keeps the drawing; closing
-   the tab without saving loses it.
+5. As with every new diagram, nothing is saved until you click **Save**. Reloading the page keeps
+   the drawing; closing the tab without saving loses it.
 
 ![Create with AI](../images/create-with-ai.png)
 

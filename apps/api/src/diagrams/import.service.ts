@@ -11,6 +11,8 @@ export interface ImportDiagramInput {
   ownerId: string;
   dslContent: string;
   diagramTypeHint?: string;
+  /** canvas-tmpr: hidden and "Not saved" until the creator's first Save, like Create with AI. */
+  draft?: boolean;
 }
 
 /**
@@ -90,5 +92,6 @@ export async function importDiagram(input: ImportDiagramInput): Promise<DiagramR
     projectId: input.projectId,
     ownerId: input.ownerId,
     initialDslContent: input.dslContent,
+    draft: input.draft,
   });
 }

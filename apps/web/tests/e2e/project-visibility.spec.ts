@@ -82,6 +82,9 @@ test('switching project changes which diagrams are listed and where new ones are
   await page.getByTestId('diagram-type-flowchart').check();
   await page.getByTestId('confirm-new-diagram').click();
   await expect(page.getByTestId('diagram-canvas')).toBeVisible();
+  // canvas-tmpr: it's listed once saved.
+  await page.getByTestId('save-diagram').click();
+  await expect(page.getByTestId('save-status')).toHaveText('Saved');
 
   const listed = await page.request.get(`${API_BASE_URL}/projects/${otherProjectId}/diagrams`);
   expect((await listed.json()).diagrams).toHaveLength(1);

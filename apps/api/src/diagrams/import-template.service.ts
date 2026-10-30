@@ -9,6 +9,8 @@ export interface ImportTemplateInput {
   ownerId: string;
   diagramTypeId: string;
   templateContent: string;
+  /** canvas-tmpr: hidden and "Not saved" until the creator's first Save, like Create with AI. */
+  draft?: boolean;
 }
 
 /**
@@ -38,5 +40,6 @@ export async function importTemplate(input: ImportTemplateInput): Promise<Diagra
     projectId: input.projectId,
     ownerId: input.ownerId,
     initialDslContent: result.dsl,
+    draft: input.draft,
   });
 }

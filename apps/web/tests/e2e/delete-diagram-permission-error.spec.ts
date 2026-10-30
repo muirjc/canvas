@@ -33,7 +33,8 @@ test('non-owner with only edit access gets a clear error on delete; dialog close
 
   const diagramName = `Delete Permission Check ${Date.now()}`;
 
-  // Owner creates a diagram (import persists it immediately, giving it a findable unique name).
+  // Owner creates a diagram with a findable unique name, and saves it (canvas-tmpr: until then it's
+  // a draft nobody else can see).
   await ownerPage.goto(`/?projectId=${PROJECT_ID}`);
   await ownerPage.getByTestId('login-email').fill(OWNER_EMAIL);
   await ownerPage.getByTestId('login-password').fill(OWNER_PASSWORD);
@@ -45,6 +46,8 @@ test('non-owner with only edit access gets a clear error on delete; dialog close
   await ownerPage.getByTestId('import-textarea').fill('flowchart TD\n  A[Node]\n');
   await ownerPage.getByTestId('confirm-import').click();
   await expect(ownerPage.getByTestId('diagram-canvas')).toBeVisible();
+  await ownerPage.getByTestId('save-diagram').click();
+  await expect(ownerPage.getByTestId('save-status')).toHaveText('Saved');
 
   // Grantee (non-owner, edit-only project access) finds the diagram in the project browser and
   // attempts to delete it.

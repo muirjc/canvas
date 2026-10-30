@@ -17,7 +17,7 @@ function handleImportError(error: unknown, reply: FastifyReply): FastifyReply {
 export async function registerImportRoutes(app: FastifyInstance): Promise<void> {
   app.post<{
     Params: { projectId: string };
-    Body: { name: string; dslContent: string; diagramTypeHint?: string };
+    Body: { name: string; dslContent: string; diagramTypeHint?: string; draft?: boolean };
   }>(
     '/projects/:projectId/diagrams/import',
     {
@@ -33,17 +33,20 @@ export async function registerImportRoutes(app: FastifyInstance): Promise<void> 
             name: { type: 'string', minLength: 1 },
             dslContent: { type: 'string', minLength: 1 },
             diagramTypeHint: { type: 'string' },
+            // canvas-tmpr: unsaved and hidden until the creator saves it.
+            draft: { type: 'boolean' },
           },
         },
       },
     },
     async (request, reply) => {
-      const { name, dslContent, diagramTypeHint } = request.body;
+      const { name, dslContent, diagramTypeHint, draft } = request.body;
       try {
         const diagram = await importDiagram({
           name,
           dslContent,
           diagramTypeHint,
+          draft,
           projectId: request.params.projectId,
           ownerId: request.session.user!.id,
         });

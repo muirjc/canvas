@@ -35,8 +35,14 @@ test('export is disabled with unsaved changes and a warning shown; re-enabled an
   const trigger = page.getByTestId('export-menu-trigger');
   const menuList = page.getByTestId('export-menu-list');
 
-  // A brand-new diagram starts with nothing unsaved yet to lose — the export trigger should be
-  // enabled and no warning shown, and opening it reveals all three formats.
+  // canvas-tmpr: a brand-new diagram isn't saved until the user saves it, so export waits too.
+  await expect(page.getByTestId('export-unsaved-warning')).toBeVisible();
+  await expect(trigger).toBeDisabled();
+  await page.getByTestId('save-diagram').click();
+  await expect(page.getByTestId('save-status')).toHaveAttribute('data-state', 'saved');
+
+  // Saved, with nothing unsaved to lose — the export trigger is enabled and no warning shown, and
+  // opening it reveals all three formats.
   await expect(page.getByTestId('export-unsaved-warning')).not.toBeVisible();
   await expect(trigger).toBeEnabled();
   await trigger.click();
