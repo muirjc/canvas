@@ -215,6 +215,11 @@ export interface ProjectDto {
   diagramCount: number;
   /** Who owns this project — only the owner (or an admin) may rename/delete it (canvas-228.3). */
   ownerId: string;
+  /** canvas-2h2w.1: the caller's access (View at least: every project is readable). Optional only
+   *  because a freshly created project's DTO may come from older code paths. */
+  accessLevel?: AccessLevel;
+  /** canvas-2h2w.1: 'owner' / 'member' = one of "My projects"; null = readable, not joined. */
+  membership?: 'owner' | 'member' | null;
 }
 
 export interface DeletedProjectDto {
@@ -258,7 +263,21 @@ export interface DiagramVersionDetailDto extends DiagramVersionDto {
   dslContent: string;
 }
 
-export type AccessLevel = 'view' | 'comment' | 'edit';
+/** canvas-2h2w.1: Manage = Edit + managing members (projects only). Everyone signed in has View. */
+export type AccessLevel = 'view' | 'comment' | 'edit' | 'manage';
+
+const ACCESS_RANK: Record<AccessLevel, number> = { view: 1, comment: 2, edit: 3, manage: 4 };
+
+/** Whether `level` is at least `required` (missing = no access). Mirrors the API's own check. */
+export function accessAtLeast(level: AccessLevel | undefined, required: AccessLevel): boolean {
+  return level !== undefined && ACCESS_RANK[level] >= ACCESS_RANK[required];
+}
+
+/** canvas-2h2w.2: GET /projects/:id/members. */
+export interface ProjectMembersDto {
+  owner: { id: string; name: string | null; email: string | null };
+  members: { grantId: string; userId: string; name: string | null; email: string | null; accessLevel: AccessLevel }[];
+}
 
 export interface ShareGrantDto {
   id: string;
@@ -779,6 +798,17 @@ export const api = {
   /** Diagrams shared directly with the signed-in user (feature 008, FR-001). */
   listSharedDiagrams: () => request<{ diagrams: SharedDiagramDto[] }>('/shared-diagrams'),
   revokeShare: (grantId: string) => request<void>(`/shares/${grantId}`, { method: 'DELETE' }),
+  /** canvas-2h2w.2: a project's owner and members, and the caller's own access to it. */
+  getProjectMembers: (projectId: string) => request<ProjectMembersDto & { yourAccess: AccessLevel }>(`/projects/${projectId}/members`),
+  /** Adds a member, or changes their level (needs Manage). */
+  setProjectMember: (projectId: string, granteeUserId: string, accessLevel: AccessLevel) =>
+    request<{ grant: ShareGrantDto }>(`/projects/${projectId}/shares`, {
+      method: 'POST',
+      body: JSON.stringify({ granteeUserId, accessLevel }),
+    }),
+  /** Owner or admin only; the previous owner stays on with Manage. */
+  transferProjectOwnership: (projectId: string, newOwnerId: string) =>
+    request<ProjectMembersDto>(`/projects/${projectId}/owner`, { method: 'POST', body: JSON.stringify({ newOwnerId }) }),
   listAdminUsers: () => request<{ users: UserRecordDto[] }>('/admin/users'),
   updateAdminUser: (id: string, body: { role?: string; personas?: string[]; active?: boolean }) =>
     request<{ user: UserRecordDto }>(`/admin/users/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),

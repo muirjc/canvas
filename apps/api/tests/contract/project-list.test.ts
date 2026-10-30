@@ -68,14 +68,16 @@ describe('Project list API contract', () => {
     expect(response.json().projects.map((p: { name: string }) => p.name)).toEqual(['Alice Owned']);
   });
 
-  it('never names a project belonging to someone else', async () => {
-    await createProject(bobCookie, 'Bob Confidential Merger');
+  // canvas-2h2w.1: open read-only -- every signed-in user sees every project, at View, and it
+  // isn't one of "their" projects (membership null) until they own it or are given access.
+  it("lists someone else's project read-only, not as one of the user's own", async () => {
+    await createProject(bobCookie, 'Bob Open Project');
 
     const response = await app.inject({ method: 'GET', url: '/projects', headers: { cookie: aliceCookie } });
     expect(response.statusCode).toBe(200);
-    expect(response.json().projects).toEqual([]);
-    // The name must not appear anywhere in the payload, not merely be absent from a parsed list.
-    expect(response.body).not.toContain('Confidential');
+    expect(response.json().projects).toEqual([expect.objectContaining({ name: 'Bob Open Project', accessLevel: 'view', membership: null })]);
+    const own = await app.inject({ method: 'GET', url: '/projects', headers: { cookie: bobCookie } });
+    expect(own.json().projects[0]).toMatchObject({ accessLevel: 'manage', membership: 'owner' });
   });
 
   it('lists a project shared with the user', async () => {
@@ -88,15 +90,12 @@ describe('Project list API contract', () => {
     });
 
     const response = await app.inject({ method: 'GET', url: '/projects', headers: { cookie: aliceCookie } });
-    expect(response.json().projects.map((p: { name: string }) => p.name)).toEqual(['Bob Shared']);
+    expect(response.json().projects).toEqual([expect.objectContaining({ name: 'Bob Shared', accessLevel: 'view', membership: 'member' })]);
   });
 
-  it('returns an empty list — not an error — for a user with access to nothing', async () => {
-    // Newly reachable: before visibility was access-controlled, "no projects" meant an empty
-    // installation. It now also means a user who owns nothing and has been given nothing, which
-    // can happen on a fully populated system. Both resolve to the first-run invitation (FR-014).
-    await createProject(bobCookie, 'Bob Only');
-
+  it('returns an empty list — not an error — when there are no projects yet', async () => {
+    // canvas-2h2w.1: with open read, "no projects" again only means an empty installation, which
+    // resolves to the first-run invitation (FR-014).
     const response = await app.inject({ method: 'GET', url: '/projects', headers: { cookie: aliceCookie } });
     expect(response.statusCode).toBe(200);
     expect(response.json().projects).toEqual([]);

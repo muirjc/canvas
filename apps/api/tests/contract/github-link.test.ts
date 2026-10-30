@@ -208,10 +208,11 @@ describe('GitHub project links (canvas-3s5.1)', () => {
       expect(events).toHaveLength(1);
     });
 
-    it('a user without access to the project cannot read its link', async () => {
+    // canvas-2h2w.1: every project is readable by everyone signed in, so its link is too.
+    it('a user with no grant on the project can still read its link', async () => {
       await seedUser({ email: 'stranger@example.com', password: 'stranger-pass', role: 'architect' }); // gitleaks:allow
       const cookie = await login('stranger@example.com', 'stranger-pass'); // gitleaks:allow
-      expect((await call('GET', `/projects/${projectId}/github-link`, cookie)).statusCode).toBe(403);
+      expect((await call('GET', `/projects/${projectId}/github-link`, cookie)).statusCode).toBe(200);
     });
 
     it('the link test passes every check, then fails once the repository leaves the installation', async () => {

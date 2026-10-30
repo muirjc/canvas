@@ -9,7 +9,9 @@
 - password changes and resets;
 - two-step verification set-ups and resets;
 - every change an admin makes to users: created, updated, deleted;
-- changes to AI model prices.
+- changes to AI model prices;
+- project membership: someone added to a project, their level changed or removed, and a project
+  handed to a new owner.
 
 Each entry shows **when**, **what**, **who did it**, **who it was about**, and from which **network
 address**. Passwords and codes are never recorded. Use **View activity** on a person (Users page) to

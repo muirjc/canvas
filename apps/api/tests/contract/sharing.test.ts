@@ -51,9 +51,18 @@ describe('Sharing API contract', () => {
     diagramId = createResponse.json().diagram.id;
   });
 
-  it('blocks a user with no grant from viewing or editing the diagram', async () => {
+  // canvas-2h2w.1: open read-only -- no grant still means View.
+  it('lets a user with no grant view the diagram (at View) but not edit it', async () => {
     const getResponse = await app.inject({ method: 'GET', url: `/diagrams/${diagramId}`, headers: { cookie: granteeCookie } });
-    expect(getResponse.statusCode).toBe(403);
+    expect(getResponse.statusCode).toBe(200);
+    expect(getResponse.json().diagram.accessLevel).toBe('view');
+    const patchResponse = await app.inject({
+      method: 'PATCH',
+      url: `/diagrams/${diagramId}`,
+      headers: { cookie: granteeCookie },
+      payload: { baseVersionId: await currentVersionId(diagramId), dslContent: 'flowchart TD\n  A[Changed]\n' },
+    });
+    expect(patchResponse.statusCode).toBe(403);
   });
 
   it('grants view access; the grantee can view but not edit', async () => {
@@ -101,7 +110,8 @@ describe('Sharing API contract', () => {
     expect(patchResponse.statusCode).toBe(200);
   });
 
-  it('a diagram-level grant overrides an inherited project-level grant (most-specific wins)', async () => {
+  // canvas-2h2w.1: the HIGHEST level wins. A diagram-level View no longer hides a project-level Edit.
+  it('a lower diagram-level grant does not hide a higher project-level grant (highest wins)', async () => {
     await app.inject({
       method: 'POST',
       url: `/projects/${projectId}/shares`,
@@ -121,15 +131,15 @@ describe('Sharing API contract', () => {
       headers: { cookie: granteeCookie },
       payload: { baseVersionId: await currentVersionId(diagramId), dslContent: 'flowchart TD\n  A[Changed]\n' },
     });
-    expect(patchResponse.statusCode).toBe(403); // diagram-level "view" overrides project-level "edit"
+    expect(patchResponse.statusCode).toBe(200); // project-level "edit" beats diagram-level "view"
   });
 
-  it('revoking a grant removes access again', async () => {
+  it('revoking a grant removes access again (back to View, from open read)', async () => {
     const grantResponse = await app.inject({
       method: 'POST',
       url: `/diagrams/${diagramId}/shares`,
       headers: { cookie: ownerCookie },
-      payload: { granteeUserId: granteeId, accessLevel: 'view' },
+      payload: { granteeUserId: granteeId, accessLevel: 'edit' },
     });
     const grantId = grantResponse.json().grant.id;
 
@@ -137,7 +147,7 @@ describe('Sharing API contract', () => {
     expect(revokeResponse.statusCode).toBe(204);
 
     const getResponse = await app.inject({ method: 'GET', url: `/diagrams/${diagramId}`, headers: { cookie: granteeCookie } });
-    expect(getResponse.statusCode).toBe(403);
+    expect(getResponse.json().diagram.accessLevel).toBe('view');
   });
 
   it('rejects sharing to a non-existent user', async () => {

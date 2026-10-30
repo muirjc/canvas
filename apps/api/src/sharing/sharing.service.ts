@@ -1,8 +1,10 @@
 import { randomUUID } from 'node:crypto';
 import { getDb } from '../db/client.js';
 import { dbBoolean } from '../db/sql-helpers.js';
+import { projectAccessForUser, resolveProjectAccess } from '../projects/project.access.js';
+import { accessAtLeast, capForRole, highestAccess, type AccessLevel } from './access-levels.js';
 
-export type AccessLevel = 'view' | 'comment' | 'edit';
+export { accessAtLeast, type AccessLevel } from './access-levels.js';
 export type SubjectType = 'diagram' | 'project';
 
 export class GranteeNotFoundError extends Error {}
@@ -108,12 +110,12 @@ export async function revokeShareGrant(id: string): Promise<void> {
   }
 }
 
-const ACCESS_RANK: Record<AccessLevel, number> = { view: 1, comment: 2, edit: 3 };
-
 /**
- * Resolves a user's effective access level to a diagram: owner or admin → edit; otherwise the
- * most specific applicable grant — a diagram-level grant overrides an inherited project-level
- * one for the same user (data-model.md's ShareGrant validation rule).
+ * A user's effective access to a diagram (canvas-2h2w.1, docs/sharing-design.md): the highest of
+ * open read (View, for everyone signed in), their access to the diagram's project (membership,
+ * ownership or admin, inherited down the project tree), a diagram-level share, and owning the
+ * diagram (Manage); then capped by the viewer role. A diagram share no longer hides a higher
+ * project-level one. Undefined only when the diagram doesn't exist.
  */
 export async function resolveDiagramAccess(
   userId: string,
@@ -126,11 +128,8 @@ export async function resolveDiagramAccess(
     .where('id', '=', diagramId)
     .executeTakeFirst();
   if (!diagram) return undefined;
-  if (diagram.owner_id === userId) return 'edit';
 
   const user = await db.selectFrom('users').select('role').where('id', '=', userId).executeTakeFirst();
-  if (user?.role === 'admin') return 'edit';
-
   const diagramGrant = await db
     .selectFrom('share_grants')
     .select('access_level')
@@ -138,16 +137,12 @@ export async function resolveDiagramAccess(
     .where('subject_id', '=', diagramId)
     .where('grantee_user_id', '=', userId)
     .executeTakeFirst();
-  if (diagramGrant) return diagramGrant.access_level;
+  const projectLevel = await resolveProjectAccess(userId, diagram.project_id);
 
-  const projectGrant = await db
-    .selectFrom('share_grants')
-    .select('access_level')
-    .where('subject_type', '=', 'project')
-    .where('subject_id', '=', diagram.project_id)
-    .where('grantee_user_id', '=', userId)
-    .executeTakeFirst();
-  return projectGrant?.access_level;
+  return capForRole(
+    highestAccess('view', projectLevel, diagramGrant?.access_level, diagram.owner_id === userId ? 'manage' : undefined),
+    user?.role,
+  );
 }
 
 export interface SharedDiagramEntry {
@@ -187,6 +182,7 @@ export async function listSharedDiagramsForUser(userId: string): Promise<SharedD
       'd.id as diagram_id',
       'd.name as diagram_name',
       'd.diagram_type_id',
+      'd.project_id',
       'p.name as project_name',
       'sg.access_level',
       'u.name as shared_by_name',
@@ -200,7 +196,14 @@ export async function listSharedDiagramsForUser(userId: string): Promise<SharedD
     .orderBy('d.name')
     .orderBy('d.id')
     .execute();
-  return rows.map((r) => ({
+  // canvas-2h2w.2: a diagram in a project the user is already a member of (at the shared level or
+  // higher) is reached through "My projects"; listing it again under "Shared with me" is noise.
+  const projects = await projectAccessForUser(userId);
+  const covered = (projectId: string, level: AccessLevel) => {
+    const entry = projects.get(projectId);
+    return entry !== undefined && entry.membership !== null && accessAtLeast(entry.level, level);
+  };
+  return rows.filter((r) => !covered(r.project_id, r.access_level)).map((r) => ({
     diagramId: r.diagram_id,
     diagramName: r.diagram_name,
     diagramTypeId: r.diagram_type_id,
@@ -214,7 +217,3 @@ export async function listSharedDiagramsForUser(userId: string): Promise<SharedD
   }));
 }
 
-export function accessAtLeast(level: AccessLevel | undefined, required: AccessLevel): boolean {
-  if (!level) return false;
-  return ACCESS_RANK[level] >= ACCESS_RANK[required];
-}

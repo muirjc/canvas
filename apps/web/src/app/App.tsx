@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { clearDraftDsl } from '../ai/ai-draft';
-import { api, type AiSettingsDto, type DiagramDto, type ProjectDto, type SessionUser, type SharedDiagramDto } from './api';
+import { accessAtLeast, api, type AiSettingsDto, type DiagramDto, type ProjectDto, type SessionUser, type SharedDiagramDto } from './api';
 import { LoginForm } from './LoginForm';
 import { ChangePasswordPage } from './ChangePasswordPage';
 import { MfaSetup } from './MfaSetup';
@@ -36,6 +36,8 @@ import { PersonaAdminPage } from '../ai/PersonaAdminPage';
 import { Icon } from '../ui/Icon';
 import { ADMIN_DESTINATIONS, AdminShell } from '../ui/AdminShell';
 import { Modal } from '../ui/Modal';
+import { CopyLinkButton } from '../ui/CopyLinkButton';
+import { MembersDialog } from '../projects/MembersDialog';
 import { AI_CHAT_DISABLED_MESSAGE } from '../ai/ai-status-messages';
 
 export function App() {
@@ -106,6 +108,9 @@ export function App() {
   // showing -- the API refuses it then, and that refusal used to stay on screen after the step
   // (found in the live check). The effects below re-run once the step clears (`user` changes).
   const signedInFully = Boolean(user && !user.mustChangePassword && !user.mustEnrollMfa);
+
+  // canvas-2h2w.2: the project page's Members dialog.
+  const [showingMembers, setShowingMembers] = useState(false);
 
   // The projects this user can see. Which one (if any) they're in comes from the address
   // (location), checked against this list below.
@@ -262,7 +267,10 @@ export function App() {
     if (!landingPending.current || projects === null || !sharedLoaded) return;
     landingPending.current = false;
     if (locationRef.current.screen !== 'projects') return; // the user already went somewhere
-    const landing = resolveLanding(projects.map((p) => p.id), sharedDiagrams.length, readLastProjectId());
+    // canvas-2h2w.1: every project is listed now; landing only considers the user's own (owned or
+    // member), so "your only project" still means yours, not the only one in the installation.
+    const mine = projects.filter((p) => p.membership !== null).map((p) => p.id);
+    const landing = resolveLanding(mine, sharedDiagrams.length, readLastProjectId());
     if (landing.screen !== 'projects') navigate(landing, { replace: true, force: true });
   }, [projects, sharedLoaded, sharedDiagrams]);
 
@@ -557,11 +565,28 @@ export function App() {
             </li>
           </ol>
         </nav>
-        <h1 className="page__title" tabIndex={-1} data-browse-heading>
-          {currentProject?.name ?? 'Project'}
-        </h1>
+        <div className="cluster">
+          <h1 className="page__title" tabIndex={-1} data-browse-heading>
+            {currentProject?.name ?? 'Project'}
+          </h1>
+          <span className="spacer" />
+          {location.screen === 'project' && (
+            <>
+              <button type="button" className="btn btn--secondary btn--compact" data-testid="open-members" onClick={() => setShowingMembers(true)}>
+                <Icon name="share" />
+                Members
+              </button>
+              <CopyLinkButton to={{ screen: 'project', projectId: location.projectId }} testId="copy-project-link" />
+            </>
+          )}
+        </div>
 
-
+        {/* canvas-2h2w.1: every project is readable; adding to it needs Edit. */}
+        {!accessAtLeast(currentProject?.accessLevel ?? 'edit', 'edit') ? (
+          <p className="meta" data-testid="project-read-only-note">
+            You can read this project. Ask its owner to add you if you need to change it.
+          </p>
+        ) : (
           <div className="home__actions">
             <button type="button" className="btn btn--primary" data-testid="new-diagram" onClick={() => setPickingType(true)}>
               <Icon name="plus" />
@@ -602,11 +627,21 @@ export function App() {
               </span>
             )}
           </div>
+        )}
 
         {error && (
           <p role="alert" data-testid="app-error">
             {error}
           </p>
+        )}
+        {location.screen === 'project' && showingMembers && user && (
+          <MembersDialog
+            projectId={location.projectId}
+            projectName={currentProject?.name ?? 'Project'}
+            currentUser={user}
+            onClose={() => setShowingMembers(false)}
+            onAccessChanged={() => api.listProjects().then(({ projects: available }) => setProjects(available)).catch(() => undefined)}
+          />
         )}
         {location.screen === 'project' && (
           <ProjectBrowser

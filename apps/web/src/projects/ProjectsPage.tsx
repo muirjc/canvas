@@ -99,6 +99,99 @@ export function ProjectsPage({
 
   const normalizedFilter = filter.trim().toLowerCase();
   const filteredProjects = normalizedFilter ? projects.filter((project) => project.name.toLowerCase().includes(normalizedFilter)) : projects;
+  // canvas-2h2w.1: every project is readable, so the list splits into the ones the user owns or is a
+  // member of, and everything else (open read-only).
+  // (An older API without `membership` lists only the user's own projects, so undefined = mine.)
+  const myProjects = filteredProjects.filter((project) => project.membership !== null);
+  const otherProjects = filteredProjects.filter((project) => project.membership === null);
+
+  const renderList = (list: ProjectDto[], testId: string) => (
+    <ul className="card project-node__list stack" data-testid={testId}>
+      {list.map((project) => {
+        // requireProjectOwnerOrAdmin's exact rule, mirrored client-side purely to decide
+        // whether to show the control — the server is what actually enforces it.
+        const canManage = project.ownerId === currentUser.id || currentUser.role === 'admin';
+        const isRenaming = renamingId === project.id;
+        return (
+          <li key={project.id} className="row" data-testid={`projects-page-row-${project.id}`}>
+            <Icon name="diamond" />
+            <span className="row__main">
+              {isRenaming ? (
+                <input
+                  data-testid={`projects-page-rename-input-${project.id}`}
+                  autoFocus
+                  defaultValue={project.name}
+                  onClick={(event) => event.stopPropagation()}
+                  onKeyDown={(event) => {
+                    if (event.key === 'Enter') void commitRename(project.id, (event.target as HTMLInputElement).value, project.name);
+                    if (event.key === 'Escape') endRename(project.id);
+                  }}
+                  onBlur={(event) => void commitRename(project.id, event.target.value, project.name)}
+                />
+              ) : (
+                // The name is a real link to the project as well as the Open button
+                // (design: names shouldn't read as dead text); a plain click stays in-app.
+                <a
+                  className="row__title"
+                  href={projectHref(project.id)}
+                  data-testid={`projects-page-name-${project.id}`}
+                  onClick={(event) => {
+                    if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+                    event.preventDefault();
+                    onViewDiagrams(project.id);
+                  }}
+                >
+                  {project.name}
+                </a>
+              )}
+              <span className="meta" data-testid={`projects-page-diagram-count-${project.id}`}>
+                {project.diagramCount} diagram{project.diagramCount === 1 ? '' : 's'}
+              </span>
+            </span>
+            {!isRenaming && (
+              <span className="row__actions">
+                <button
+                  type="button"
+                  className="btn btn--tertiary btn--compact"
+                  data-testid={`projects-page-open-${project.id}`}
+                  aria-label={`Open project ${project.name}`}
+                  onClick={() => onViewDiagrams(project.id)}
+                >
+                  Open
+                </button>
+                {canManage && (
+                  <>
+                    <button
+                      type="button"
+                      className="btn btn--tertiary btn--compact"
+                      data-testid={`projects-page-rename-${project.id}`}
+                      aria-label={`Rename project ${project.name}`}
+                      onClick={() => setRenamingId(project.id)}
+                    >
+                      <Icon name="pencil" size={12} />
+                      Rename
+                    </button>
+                    <button
+                      type="button"
+                      className="btn btn--tertiary-danger btn--compact"
+                      data-testid={`projects-page-delete-${project.id}`}
+                      aria-label={`Delete project ${project.name}`}
+                      disabled={project.diagramCount > 0}
+                      title={project.diagramCount > 0 ? 'Only a project with no diagrams can be deleted.' : undefined}
+                      onClick={() => setPendingDelete({ id: project.id, name: project.name })}
+                    >
+                      <Icon name="trash" size={12} />
+                      Delete
+                    </button>
+                  </>
+                )}
+              </span>
+            )}
+          </li>
+        );
+      })}
+    </ul>
+  );
 
   return (
     <main className="page stack">
@@ -120,7 +213,8 @@ export function ProjectsPage({
             onChange={(event) => setFilter(event.target.value)}
           />
         )}
-        {!creating && (
+        {/* canvas-2h2w.1: viewers are capped at Comment, so creating projects is for architects and admins. */}
+        {!creating && currentUser.role !== 'viewer' && (
           <button type="button" className="btn btn--primary" data-testid="projects-page-start-create" onClick={() => setCreating(true)}>
             <Icon name="plus" />
             New Project
@@ -189,100 +283,39 @@ export function ProjectsPage({
       ) : (
         <>
           {filteredProjects.length === 0 ? (
-            <p className="state" data-testid="projects-page-filter-empty">
-              No projects match &ldquo;{filter}&rdquo;.
-            </p>
+            <>
+              <p className="state" data-testid="projects-page-filter-empty">
+                No projects match &ldquo;{filter}&rdquo;.
+              </p>
+              {sharedDiagrams.length > 0 && <SharedDiagramsList diagrams={sharedDiagrams} onOpenDiagram={onOpenDiagram} />}
+            </>
           ) : (
-            <ul className="card project-node__list stack" data-testid="projects-page-list">
-              {filteredProjects.map((project) => {
-                // requireProjectOwnerOrAdmin's exact rule, mirrored client-side purely to decide
-                // whether to show the control — the server is what actually enforces it.
-                const canManage = project.ownerId === currentUser.id || currentUser.role === 'admin';
-                const isRenaming = renamingId === project.id;
-                return (
-                  <li key={project.id} className="row" data-testid={`projects-page-row-${project.id}`}>
-                    <Icon name="diamond" />
-                    <span className="row__main">
-                      {isRenaming ? (
-                        <input
-                          data-testid={`projects-page-rename-input-${project.id}`}
-                          autoFocus
-                          defaultValue={project.name}
-                          onClick={(event) => event.stopPropagation()}
-                          onKeyDown={(event) => {
-                            if (event.key === 'Enter') void commitRename(project.id, (event.target as HTMLInputElement).value, project.name);
-                            if (event.key === 'Escape') endRename(project.id);
-                          }}
-                          onBlur={(event) => void commitRename(project.id, event.target.value, project.name)}
-                        />
-                      ) : (
-                        // The name is a real link to the project as well as the Open button
-                        // (design: names shouldn't read as dead text); a plain click stays in-app.
-                        <a
-                          className="row__title"
-                          href={projectHref(project.id)}
-                          data-testid={`projects-page-name-${project.id}`}
-                          onClick={(event) => {
-                            if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
-                            event.preventDefault();
-                            onViewDiagrams(project.id);
-                          }}
-                        >
-                          {project.name}
-                        </a>
-                      )}
-                      <span className="meta" data-testid={`projects-page-diagram-count-${project.id}`}>
-                        {project.diagramCount} diagram{project.diagramCount === 1 ? '' : 's'}
-                      </span>
-                    </span>
-                    {!isRenaming && (
-                      <span className="row__actions">
-                        <button
-                          type="button"
-                          className="btn btn--tertiary btn--compact"
-                          data-testid={`projects-page-open-${project.id}`}
-                          aria-label={`Open project ${project.name}`}
-                          onClick={() => onViewDiagrams(project.id)}
-                        >
-                          Open
-                        </button>
-                        {canManage && (
-                          <>
-                            <button
-                              type="button"
-                              className="btn btn--tertiary btn--compact"
-                              data-testid={`projects-page-rename-${project.id}`}
-                              aria-label={`Rename project ${project.name}`}
-                              onClick={() => setRenamingId(project.id)}
-                            >
-                              <Icon name="pencil" size={12} />
-                              Rename
-                            </button>
-                            <button
-                              type="button"
-                              className="btn btn--tertiary-danger btn--compact"
-                              data-testid={`projects-page-delete-${project.id}`}
-                              aria-label={`Delete project ${project.name}`}
-                              disabled={project.diagramCount > 0}
-                              title={project.diagramCount > 0 ? 'Only a project with no diagrams can be deleted.' : undefined}
-                              onClick={() => setPendingDelete({ id: project.id, name: project.name })}
-                            >
-                              <Icon name="trash" size={12} />
-                              Delete
-                            </button>
-                          </>
-                        )}
-                      </span>
-                    )}
-                  </li>
-                );
-              })}
-            </ul>
+            <>
+              {myProjects.length > 0 && (
+                <section className="stack" aria-labelledby="projects-page-mine-heading">
+                  <h2 className="section-label" id="projects-page-mine-heading">
+                    My projects
+                  </h2>
+                  {renderList(myProjects, 'projects-page-list')}
+                </section>
+              )}
+              {/* Your own work first: shared-with-you sits between your projects and everyone else's. */}
+              {sharedDiagrams.length > 0 && <SharedDiagramsList diagrams={sharedDiagrams} onOpenDiagram={onOpenDiagram} />}
+              {otherProjects.length > 0 && (
+                <section className="stack" aria-labelledby="projects-page-all-heading">
+                  <h2 className="section-label" id="projects-page-all-heading">
+                    All projects
+                  </h2>
+                  <p className="meta">Everyone can read these. Ask the owner to add you to change them.</p>
+                  {renderList(otherProjects, 'projects-page-all-list')}
+                </section>
+              )}
+            </>
           )}
         </>
 
       )}
-      {sharedDiagrams.length > 0 && <SharedDiagramsList diagrams={sharedDiagrams} onOpenDiagram={onOpenDiagram} />}
+      {projects.length === 0 && sharedDiagrams.length > 0 && <SharedDiagramsList diagrams={sharedDiagrams} onOpenDiagram={onOpenDiagram} />}
       {renameError && (
         <p role="alert" data-testid="projects-page-rename-error">
           {renameError}

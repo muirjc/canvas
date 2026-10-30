@@ -31,7 +31,9 @@ async function createProject(page: Page, name: string): Promise<string> {
   return (await response.json()).project.id;
 }
 
-test('a user is never offered, or told the name of, a project belonging to someone else', async ({ browser }) => {
+// canvas-2h2w.1: open read-only. Someone else's project is listed, under "All projects" rather
+// than the user's own.
+test("someone else's project is listed under All projects, not as one of the user's own", async ({ browser }) => {
   const adminContext = await browser.newContext();
   const architectContext = await browser.newContext();
   const adminPage = await adminContext.newPage();
@@ -43,11 +45,9 @@ test('a user is never offered, or told the name of, a project belonging to someo
 
   await signIn(architectPage, ARCHITECT_EMAIL, ARCHITECT_PASSWORD);
 
-  // canvas-t3b.4: the chooser is now the project list. Not in it, and its name appears nowhere on the page.
   await architectPage.getByTestId('nav-projects').click();
-  await expect(architectPage.getByTestId('projects-page-list')).toBeVisible();
-  await expect(architectPage.getByTestId('projects-page-list')).not.toContainText(secretName);
-  await expect(architectPage.locator('body')).not.toContainText(secretName);
+  await expect(architectPage.getByTestId('projects-page-all-list')).toContainText(secretName);
+  await expect(architectPage.getByTestId('projects-page-list').getByText(secretName)).toHaveCount(0);
 
   await adminContext.close();
   await architectContext.close();
@@ -134,7 +134,8 @@ test('a link copied while viewing a project opens that same project for a collea
   await architectContext.close();
 });
 
-test('an address naming a project the user cannot reach explains itself and leaves them somewhere usable', async ({
+// canvas-2h2w.1: such an address now simply opens the project, read-only.
+test("an address naming someone else's project opens it read-only", async ({
   browser,
 }) => {
   const adminContext = await browser.newContext();
@@ -146,10 +147,8 @@ test('an address naming a project the user cannot reach explains itself and leav
   const architectPage = await architectContext.newPage();
   await signIn(architectPage, ARCHITECT_EMAIL, ARCHITECT_PASSWORD, `/?projectId=${inaccessible}`);
 
-  // Told plainly, and left able to carry on rather than stuck on a dead screen (FR-013).
-  // canvas-t3b.2: "carry on" is now the Projects top level, not a fallback project.
-  await expect(architectPage.getByTestId('app-error')).toBeVisible();
-  await expect(architectPage.getByTestId('projects-page-list')).toBeVisible();
+  await expect(architectPage.getByTestId('project-read-only-note')).toBeVisible();
+  await expect(architectPage.getByTestId('app-error')).toHaveCount(0);
   await expect(architectPage.getByTestId('new-diagram')).toHaveCount(0);
 
   await adminContext.close();

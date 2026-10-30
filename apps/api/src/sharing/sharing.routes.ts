@@ -2,6 +2,7 @@ import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { requireAuth } from '../auth/middleware.js';
 import { requireDiagramAccess, requireProjectAccess } from '../auth/access-control.middleware.js';
 import { getDb } from '../db/client.js';
+import { clientIp, recordAudit } from '../audit/audit.service.js';
 import { projectExists, resolveProjectAccess } from '../projects/project.access.js';
 import {
   accessAtLeast,
@@ -16,7 +17,15 @@ import {
   type SubjectType,
 } from './sharing.service.js';
 
-const VALID_ACCESS_LEVELS: AccessLevel[] = ['view', 'comment', 'edit'];
+/** canvas-2h2w.2: what it takes to add, change or remove access: Manage for a project's members,
+ *  Edit for a single diagram's shares. */
+const MANAGE_LEVEL: Record<SubjectType, AccessLevel> = { project: 'manage', diagram: 'edit' };
+
+/** canvas-2h2w.1: Manage (Edit + managing members) is a project level; a diagram share stops at Edit. */
+const VALID_ACCESS_LEVELS: Record<SubjectType, AccessLevel[]> = {
+  diagram: ['view', 'comment', 'edit'],
+  project: ['view', 'comment', 'edit', 'manage'],
+};
 
 function handleError(error: unknown, reply: FastifyReply): FastifyReply {
   if (error instanceof GranteeNotFoundError) {
@@ -61,7 +70,9 @@ function registerSubjectRoutes(app: FastifyInstance, subjectType: SubjectType): 
   app.post<{ Params: { id: string }; Body: { granteeUserId: string; accessLevel: AccessLevel } }>(
     basePath,
     {
-      preHandler: [requireAuth, requireSubjectAccess(subjectType, 'edit'), notFound],
+      // canvas-2h2w.2: a project's members are managed by its owner, Manage members and admins;
+      // a single diagram can still be shared by anyone who can edit it.
+      preHandler: [requireAuth, requireSubjectAccess(subjectType, MANAGE_LEVEL[subjectType]), notFound],
       // canvas-80m: declarative validation (Fastify JSON Schema) instead of a hand-rolled `if` --
       // applies to both /diagrams/:id/shares and /projects/:id/shares, since both routes are
       // registered by this same shared function.
@@ -73,13 +84,28 @@ function registerSubjectRoutes(app: FastifyInstance, subjectType: SubjectType): 
           required: ['granteeUserId', 'accessLevel'],
           properties: {
             granteeUserId: { type: 'string', minLength: 1 },
-            accessLevel: { type: 'string', enum: VALID_ACCESS_LEVELS },
+            accessLevel: { type: 'string', enum: VALID_ACCESS_LEVELS[subjectType] },
           },
         },
       },
     },
     async (request, reply) => {
       const { granteeUserId, accessLevel } = request.body;
+      // Only someone with Manage can hand out Manage, or change someone's existing Manage (an
+      // editor can't promote themselves, or demote a manager by re-sharing at a lower level).
+      const existing = await getDb()
+        .selectFrom('share_grants')
+        .select('access_level')
+        .where('subject_type', '=', subjectType)
+        .where('subject_id', '=', request.params.id)
+        .where('grantee_user_id', '=', granteeUserId)
+        .executeTakeFirst();
+      if (
+        (accessLevel === 'manage' || existing?.access_level === 'manage') &&
+        !accessAtLeast(await accessTo(subjectType, request.session.user!.id, request.params.id), 'manage')
+      ) {
+        return reply.code(403).send({ error: 'Only the owner or someone with Manage access can give or change Manage access.' });
+      }
       try {
         const grant = await createShareGrant({
           subjectType,
@@ -88,6 +114,15 @@ function registerSubjectRoutes(app: FastifyInstance, subjectType: SubjectType): 
           accessLevel,
           grantedByUserId: request.session.user!.id,
         });
+        if (subjectType === 'project' && existing?.access_level !== accessLevel) {
+          await recordAudit({
+            event: existing ? 'project_member_changed' : 'project_member_added',
+            actorUserId: request.session.user!.id,
+            targetUserId: granteeUserId,
+            ip: clientIp(request),
+            detail: { projectId: request.params.id, level: accessLevel, ...(existing ? { from: existing.access_level } : {}) },
+          });
+        }
         return reply.code(201).send({ grant });
       } catch (error) {
         return handleError(error, reply);
@@ -129,15 +164,32 @@ export async function registerSharingRoutes(app: FastifyInstance): Promise<void>
         // canvas-i5y: revoking needs edit access to what the grant is for.
         const grant = await getDb()
           .selectFrom('share_grants')
-          .select(['subject_type', 'subject_id'])
+          .select(['subject_type', 'subject_id', 'access_level', 'grantee_user_id'])
           .where('id', '=', request.params.id)
           .executeTakeFirst();
         if (!grant) return reply.code(404).send({ error: `No share grant with id ${request.params.id}` });
         const level = await accessTo(grant.subject_type, request.session.user!.id, grant.subject_id);
-        if (!accessAtLeast(level, 'edit')) {
-          return reply.code(403).send({ error: 'Only someone with edit access can remove a share.' });
+        if (!accessAtLeast(level, MANAGE_LEVEL[grant.subject_type])) {
+          return reply.code(403).send({
+            error:
+              grant.subject_type === 'project'
+                ? 'Only the owner or someone with Manage access can remove a member.'
+                : 'Only someone with edit access can remove a share.',
+          });
+        }
+        if (grant.access_level === 'manage' && !accessAtLeast(level, 'manage')) {
+          return reply.code(403).send({ error: 'Only the owner or someone with Manage access can remove Manage access.' });
         }
         await revokeShareGrant(request.params.id);
+        if (grant.subject_type === 'project') {
+          await recordAudit({
+            event: 'project_member_removed',
+            actorUserId: request.session.user!.id,
+            targetUserId: grant.grantee_user_id,
+            ip: clientIp(request),
+            detail: { projectId: grant.subject_id, from: grant.access_level },
+          });
+        }
         return reply.code(204).send();
       } catch (error) {
         return handleError(error, reply);

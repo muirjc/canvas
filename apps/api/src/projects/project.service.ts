@@ -2,7 +2,8 @@ import { randomUUID } from 'node:crypto';
 import { sql } from 'kysely';
 import { getDb } from '../db/client.js';
 import { dbBoolean, toDate } from '../db/sql-helpers.js';
-import { withAccessibleProjects } from './project.access.js';
+import { projectAccessForUser } from './project.access.js';
+import type { AccessLevel } from '../sharing/access-levels.js';
 
 export class ProjectNotFoundError extends Error {}
 export class ProjectCycleError extends Error {}
@@ -36,6 +37,10 @@ export interface ProjectListItem extends ProjectRecord {
   /** Who owns this project — canvas-228.3's Projects screen only offers rename/delete for
    *  projects the current user owns (or if they're an admin). */
   ownerId: string;
+  /** canvas-2h2w.1: the caller's effective access (View at least: every project is readable). */
+  accessLevel: AccessLevel;
+  /** canvas-2h2w.1: 'owner' / 'member' put it under "My projects"; null = readable, not joined. */
+  membership: 'owner' | 'member' | null;
 }
 
 export interface CreateProjectInput {
@@ -75,20 +80,23 @@ export async function createProject(input: CreateProjectInput): Promise<ProjectL
     createdAt: row.created_at as unknown as string,
     diagramCount: 0,
     ownerId: input.ownerId,
+    accessLevel: 'manage',
+    membership: 'owner',
   };
 }
 
 /**
- * The projects available to a user — owned or shared, plus their descendants (feature 007,
- * FR-013a). Delegates the rule to `project.access.ts` so the list and the route guard cannot
- * disagree; a disagreement between them is a data leak, not a display bug.
+ * Every live project, with the user's access to each (canvas-2h2w.1: everyone signed in can read
+ * every project). The level comes from `project.access.ts` -- the same rule as the route guard,
+ * so the list never promises more than the routes allow.
  *
  * Ordered by name so the chooser is stable between loads. No search or paging: the clarified
  * scale is tens of projects (FR-013e).
  */
 export async function listProjectsForUser(userId: string): Promise<ProjectListItem[]> {
   const db = getDb();
-  const rows = await withAccessibleProjects(db, userId)
+  const access = await projectAccessForUser(userId);
+  const rows = await db
     .selectFrom('projects as p')
     .leftJoin('diagrams as d', (join) => join.onRef('d.project_id', '=', 'p.id').on('d.deleted_at', 'is', null).on('d.draft', '=', dbBoolean(false)))
     .select([
@@ -99,7 +107,7 @@ export async function listProjectsForUser(userId: string): Promise<ProjectListIt
       'p.owner_id',
       sql<string>`COUNT(d.id)`.as('diagram_count'),
     ])
-    .where('p.id', 'in', (eb) => eb.selectFrom('accessible').select('id'))
+    .where('p.deleted_at', 'is', null)
     .groupBy('p.id')
     .orderBy('p.name')
     .orderBy('p.id')
@@ -113,6 +121,8 @@ export async function listProjectsForUser(userId: string): Promise<ProjectListIt
     createdAt: r.created_at as unknown as string,
     ownerId: r.owner_id,
     diagramCount: Number(r.diagram_count),
+    accessLevel: access.get(r.id)?.level ?? 'view',
+    membership: access.get(r.id)?.membership ?? null,
   }));
 }
 
@@ -380,4 +390,84 @@ export async function purgeExpiredProjects(): Promise<ProjectPurgeResult> {
     purgedProjectIds: purged,
     skipped: remaining.map((id) => ({ id, reason: blockReasons.get(id) ?? 'still referenced' })),
   };
+}
+
+export interface ProjectMember {
+  grantId: string;
+  userId: string;
+  name: string | null;
+  email: string | null;
+  accessLevel: AccessLevel;
+}
+
+export interface ProjectMembers {
+  owner: { id: string; name: string | null; email: string | null };
+  members: ProjectMember[];
+}
+
+/** canvas-2h2w.2: who owns a project and who has been added to it (its project share grants). */
+export async function listProjectMembers(projectId: string): Promise<ProjectMembers> {
+  const db = getDb();
+  const project = await db
+    .selectFrom('projects as p')
+    .leftJoin('users as u', 'u.id', 'p.owner_id')
+    .select(['p.owner_id', 'u.name', 'u.email'])
+    .where('p.id', '=', projectId)
+    .where('p.deleted_at', 'is', null)
+    .executeTakeFirst();
+  if (!project) throw new ProjectNotFoundError(`No project with id ${projectId}`);
+  const rows = await db
+    .selectFrom('share_grants as g')
+    .leftJoin('users as u', 'u.id', 'g.grantee_user_id')
+    .select(['g.id', 'g.grantee_user_id', 'g.access_level', 'u.name', 'u.email'])
+    .where('g.subject_type', '=', 'project')
+    .where('g.subject_id', '=', projectId)
+    .orderBy('u.name')
+    .orderBy('g.id')
+    .execute();
+  return {
+    owner: { id: project.owner_id, name: project.name, email: project.email },
+    members: rows.map((r) => ({ grantId: r.id, userId: r.grantee_user_id, name: r.name, email: r.email, accessLevel: r.access_level })),
+  };
+}
+
+export class NewOwnerNotFoundError extends Error {}
+
+/**
+ * canvas-2h2w.2: hands a project to someone else (the route allows the owner or an admin). The new
+ * owner's member entry goes (owning already gives Manage), and the previous owner stays on as a
+ * Manage member, so nobody loses access by accident. Returns the previous owner, or null if the
+ * project already belonged to `newOwnerId`.
+ */
+export async function transferProjectOwnership(projectId: string, newOwnerId: string, actorId: string): Promise<string | null> {
+  const db = getDb();
+  return db.transaction().execute(async (trx) => {
+    const project = await trx.selectFrom('projects').select('owner_id').where('id', '=', projectId).where('deleted_at', 'is', null).executeTakeFirst();
+    if (!project) throw new ProjectNotFoundError(`No project with id ${projectId}`);
+    const newOwner = await trx.selectFrom('users').select(['id', 'role']).where('id', '=', newOwnerId).where('active', '=', dbBoolean(true)).executeTakeFirst();
+    if (!newOwner) throw new NewOwnerNotFoundError(`No active user with id ${newOwnerId}`);
+    if (newOwner.role === 'viewer') throw new NewOwnerNotFoundError('A viewer can only read and comment, so they cannot own a project.');
+    if (project.owner_id === newOwnerId) return null;
+
+    await trx.updateTable('projects').set({ owner_id: newOwnerId }).where('id', '=', projectId).execute();
+    await trx
+      .deleteFrom('share_grants')
+      .where('subject_type', '=', 'project')
+      .where('subject_id', '=', projectId)
+      .where('grantee_user_id', '=', newOwnerId)
+      .execute();
+    await trx
+      .insertInto('share_grants')
+      .values({
+        id: randomUUID(),
+        subject_type: 'project',
+        subject_id: projectId,
+        grantee_user_id: project.owner_id,
+        access_level: 'manage',
+        granted_by_user_id: actorId,
+      })
+      .onConflict((oc) => oc.columns(['subject_type', 'subject_id', 'grantee_user_id']).doUpdateSet({ access_level: 'manage' }))
+      .execute();
+    return project.owner_id;
+  });
 }

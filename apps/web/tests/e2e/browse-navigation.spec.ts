@@ -185,14 +185,17 @@ test('landing with exactly one project but something shared stays on the Project
   expect(new URL(page.url()).searchParams.get('projectId')).toBeNull();
 });
 
-test("the editor's back button reads \"Projects\" for a diagram shared from a project the user cannot see", async ({ browser }) => {
+// canvas-2h2w.1: every project is readable now, so a diagram shared from a project the user isn't a
+// member of still names that project, and Back opens it (read-only).
+test("the editor's back button names the project even for a diagram shared from a project the user isn't in", async ({ browser }) => {
   const adminContext = await browser.newContext();
   const architectContext = await browser.newContext();
   const adminPage = await adminContext.newPage();
   const architectPage = await architectContext.newPage();
 
   await signIn(adminPage);
-  const projectId = await createProject(adminPage, `Nav Hidden ${Date.now()}`);
+  const projectName = `Nav Hidden ${Date.now()}`;
+  const projectId = await createProject(adminPage, projectName);
   const diagramId = await createDiagram(adminPage, projectId, 'Hidden Shared Diagram');
   const lookup = await adminPage.request.get(`${API_BASE_URL}/users/lookup?email=${encodeURIComponent(ARCHITECT_EMAIL)}`);
   const { user } = await lookup.json();
@@ -216,12 +219,11 @@ test("the editor's back button reads \"Projects\" for a diagram shared from a pr
     await expect(architectPage.getByTestId('diagram-canvas')).toBeVisible();
 
     const back = architectPage.getByTestId('back-to-diagrams');
-    await expect(back).toHaveText('Projects');
-    await expect(back).toHaveAccessibleName('Back to Projects');
+    await expect(back).toHaveText(projectName);
     await back.click();
-    await expect(architectPage.getByTestId('projects-page-list')).toBeVisible();
+    await expect(architectPage.getByTestId('project-read-only-note')).toBeVisible();
     const url = new URL(architectPage.url());
-    expect(url.searchParams.get('projectId')).toBeNull();
+    expect(url.searchParams.get('projectId')).toBe(projectId);
     expect(url.searchParams.get('diagramId')).toBeNull();
 
     // Contrast: a diagram in a project the architect can see is labelled with that project.
