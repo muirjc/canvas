@@ -84,6 +84,8 @@ import {
   type ClassMember,
   type NodeLink,
   addElementOfKind,
+  kindLimitMessage,
+  kindLimitReached,
   applyConnectorRule,
   applyElementKind,
   classifyNode,
@@ -1465,7 +1467,11 @@ export function Canvas({ model: modelProp, onChange, dslFamily, toolbarContainer
   };
 
   // canvas-tfr: a new element of a standard's kind -- role, default shape and default swatch.
+  const atLimit = (kind: ElementKind, ignoreNodeId?: string) =>
+    Boolean(standardRules) && kindLimitReached(model, standardRules!, kind, ignoreNodeId);
+
   const handleAddKind = (kind: ElementKind) => {
+    if (atLimit(kind)) return;
     // jmuir-dtu.28: an architecture element is a service ('icon'), not a plain rectangle.
     // canvas-7hp: the rules let a C4 element carry a $tags kind when several kinds share its role.
     onChange(
@@ -1962,7 +1968,7 @@ export function Canvas({ model: modelProp, onChange, dslFamily, toolbarContainer
     onPick: (role: string) => void,
     onClose: () => void,
     // canvas-tfr: the standard's element kinds replace the raw C4 roles when present.
-    options: { value: string; label: string }[] = C4_ELEMENT_ROLES.map((role) => ({ value: role, label: C4_ELEMENT_ROLE_LABELS[role] })),
+    options: { value: string; label: string; disabled?: boolean }[] = C4_ELEMENT_ROLES.map((role) => ({ value: role, label: C4_ELEMENT_ROLE_LABELS[role] })),
   ) => (
     <foreignObject x={x} y={y} width={STYLE_POPUP_WIDTH} height={STYLE_POPUP_HEIGHT}>
       <div
@@ -1987,7 +1993,7 @@ export function Canvas({ model: modelProp, onChange, dslFamily, toolbarContainer
               Choose a kind…
             </option>
             {options.map((option) => (
-              <option key={option.value} value={option.value}>
+              <option key={option.value} value={option.value} disabled={option.disabled}>
                 {option.label}
               </option>
             ))}
@@ -2530,7 +2536,9 @@ export function Canvas({ model: modelProp, onChange, dslFamily, toolbarContainer
                 type="button"
                 className="btn btn--secondary"
                 data-testid={`add-kind-${kind.id}`}
-                title={kind.description ? `Add ${kind.label}: ${kind.description}` : `Add ${kind.label}`}
+                // canvas-8o01: at its Max count the kind can't be added again; the tooltip says why.
+                disabled={atLimit(kind)}
+                title={atLimit(kind) ? kindLimitMessage(kind) : kind.description ? `Add ${kind.label}: ${kind.description}` : `Add ${kind.label}`}
                 onClick={() => handleAddKind(kind)}
               >
                 {kind.approvedFills[0] && (
@@ -4008,10 +4016,18 @@ export function Canvas({ model: modelProp, onChange, dslFamily, toolbarContainer
                   kindsActive ? kindOfNode(node)?.id : node.role,
                   (value) => {
                     const kind = standardKinds.find((k) => k.id === value);
+                    if (kind && atLimit(kind, node.id)) return;
                     onChange(kind ? applyElementKind(model, node.id, kind, standardRules) : updateNodeRole(model, node.id, value));
                   },
                   () => setEditingKindNodeId(null),
-                  kindsActive ? standardKinds.map((k) => ({ value: k.id, label: k.label })) : undefined,
+                  // canvas-8o01: a kind at its Max count is listed but can't be picked (unless this
+                  // element is already of that kind).
+                  kindsActive
+                    ? standardKinds.map((k) => {
+                        const full = atLimit(k, node.id);
+                        return { value: k.id, label: full ? `${k.label} (limit reached)` : k.label, disabled: full };
+                      })
+                    : undefined,
                 )}
               {/* jmuir-dzd.5: flowchart's own click href/tooltip interaction — DiagramNode.link is
                   flowchart-only, same family-gated precedent as C4's own kind affordance above.
