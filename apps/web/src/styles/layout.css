@@ -1149,3 +1149,10 @@
 .editor__preview-note {
   padding: var(--space-4);
 }
+/* canvas-8em: the Admin Overview's feature switches, below the stat cards. */
+.admin-settings {
+  margin-block-start: var(--space-6);
+}
+.admin-settings .section-label {
+  margin-block-end: var(--space-2);
+}

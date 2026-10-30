@@ -1,6 +1,7 @@
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { expect, test, type Browser, type BrowserContext, type Locator, type Page } from '@playwright/test';
+import { showShareButton } from '../tests/e2e/app-settings-helpers';
 import { nextCode } from '../tests/e2e/totp-helper';
 
 /**
@@ -167,12 +168,18 @@ test('editor', async () => {
   await shot(admin, 'export-menu.png');
   await admin.keyboard.press('Escape');
 
+  // canvas-8em: Share is hidden unless an admin turns sharing on; show it for this page only so the
+  // shots above keep the default editor and the share dialog can still be pictured.
+  await showShareButton(admin);
+  await admin.reload();
+  await expect(admin.getByTestId('diagram-canvas')).toBeVisible();
   await admin.getByTestId('open-share-dialog').click();
   // canvas-cyt: the people picker, with its list of matches showing.
   await admin.getByTestId('share-email').fill('Archi');
   await expect(admin.getByRole('option', { name: /architect@example\.com/ })).toBeVisible();
   await shot(admin, 'share-dialog.png');
   await admin.getByTestId('close-share-dialog').click();
+  await admin.unrouteAll({ behavior: 'ignoreErrors' });
 
   // Chat on a fresh scratch diagram (a diagram's chat history persists, so reusing one would grow
   // run after run); it is deleted again afterwards.

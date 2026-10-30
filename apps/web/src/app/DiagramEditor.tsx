@@ -1,4 +1,4 @@
-import { forwardRef, useImperativeHandle, useRef, useState } from 'react';
+import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from 'react';
 import { createEmptyDiagramModel, getDslFamily, isParseSuccess, type DiagramModel } from '@canvas/diagram-core';
 import { Canvas } from '../canvas/Canvas';
 import { DslPanel } from '../canvas/DslPanel';
@@ -92,6 +92,21 @@ export const DiagramEditor = forwardRef<DiagramEditorHandle, DiagramEditorProps>
   const [versionRefreshToken, setVersionRefreshToken] = useState(0);
   const submission = useSubmission(diagram.id, versionRefreshToken);
   const [sharing, setSharing] = useState(false);
+  // canvas-8em: the Share button is hidden unless an admin has turned sharing on (Admin Overview).
+  // Sharing itself keeps working either way -- existing shares, the API, "Shared with me".
+  const [sharingEnabled, setSharingEnabled] = useState(false);
+  useEffect(() => {
+    let cancelled = false;
+    api
+      .getAppSettings()
+      .then((settings) => {
+        if (!cancelled) setSharingEnabled(settings.sharingEnabled);
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, []);
   // canvas-8x1: click-to-edit, mirroring ProjectsPage.tsx's own rename pattern for a project row —
   // same commit-on-Enter/blur, cancel-on-Escape shape, just scoped to this one diagram's title.
   const [editingName, setEditingName] = useState(false);
@@ -345,7 +360,7 @@ export const DiagramEditor = forwardRef<DiagramEditorHandle, DiagramEditorProps>
         <ExportMenu diagramId={diagram.id} diagramName={diagram.name} hasUnsavedChanges={hasUnsavedChanges} />
         <SubmitForApproval diagramId={diagram.id} hasUnsavedChanges={hasUnsavedChanges} submission={submission} />
         {/* canvas-i5y: sharing needs edit access (the API refuses it otherwise). */}
-        {(diagram.accessLevel ?? 'edit') === 'edit' && (
+        {sharingEnabled && (diagram.accessLevel ?? 'edit') === 'edit' && (
           <button
             type="button"
             className="btn btn--secondary btn--compact"

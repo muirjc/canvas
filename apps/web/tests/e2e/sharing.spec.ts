@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test';
+import { showShareButton } from './app-settings-helpers';
 import { expectSignedIn } from './auth-helpers';
 
 const PROJECT_ID = process.env.E2E_PROJECT_ID;
@@ -15,6 +16,7 @@ test.skip(!PROJECT_ID, 'E2E_PROJECT_ID env var not set — run `npm run seed` an
  */
 test('shares a diagram at view access (edit blocked), then upgrades to edit (allowed)', async ({ browser }) => {
   const ownerContext = await browser.newContext();
+  await showShareButton(ownerContext);
   const granteeContext = await browser.newContext();
   const ownerPage = await ownerContext.newPage();
   const granteePage = await granteeContext.newPage();

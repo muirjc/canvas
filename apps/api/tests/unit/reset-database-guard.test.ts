@@ -49,9 +49,10 @@ describe.skipIf(loadConfig().dbClient === 'sqlite')('resetDatabase() guard again
     queryMock.mockResolvedValueOnce({ rows: [{ current_database: 'canvas_test' }] }); // SELECT current_database()
     queryMock.mockResolvedValueOnce({}); // TRUNCATE ...
     queryMock.mockResolvedValueOnce({}); // UPDATE ai_settings ...
+    queryMock.mockResolvedValueOnce({}); // UPDATE app_settings ... (canvas-8em)
 
     const { resetDatabase } = await import('../helpers/setup.js');
     await expect(resetDatabase()).resolves.toBeUndefined();
-    expect(queryMock).toHaveBeenCalledTimes(3);
+    expect(queryMock).toHaveBeenCalledTimes(4);
   });
 });
