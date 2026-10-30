@@ -25,6 +25,7 @@ One resource group (`canvas-rg` by default), from `main.bicep`:
 | DB migration job | `modules/migrationjob.bicep` | Manual-trigger, one-shot, same image as the API app. |
 | Dev/demo seed job | `modules/seedjob.bicep` | Manual-trigger, **not run automatically** — creates a demo admin login. Not deployed in local mode (`AUTH_MODE=local`). |
 | First-admin job (local mode only) | `modules/bootstrapadminjob.bicep` | `canvas-bootstrap-admin`: run by `deploy.sh` to create `CANVAS_ADMIN_EMAIL` with a one-time password from `.secrets/bootstrap-admin-password`; `reset-admin.sh` runs it in reset mode to recover a lone admin (RUNBOOK "Local accounts"). |
+| Nightly purge job | `modules/purgejob.bicep` | `canvas-purge`: scheduled 03:00 UTC, runs `node apps/api/dist/purge/run.js` -- removes diagrams/projects deleted over 30 days ago and unsaved drafts abandoned over 24 hours. `pause.sh` parks its schedule at once a year; `resume.sh` restores it. Run it now with `az containerapp job start --name canvas-purge --resource-group canvas-rg`. |
 | Storage account (frontend) | `modules/storage.bicep` | Static website hosting enabled by `deploy.sh` (no ARM resource for that setting). **Storage firewall limited to the IP allow-list.** |
 
 ### Entra ID SSO / MFA (canvas-haz)

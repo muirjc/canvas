@@ -216,6 +216,20 @@ module catalogSeedJob 'modules/catalogseedjob.bicep' = {
   }
 }
 
+// canvas-ne2y: the nightly housekeeping purge (expired deletions, abandoned drafts).
+module purgeJob 'modules/purgejob.bicep' = {
+  name: 'purgeJobDeploy'
+  scope: rg
+  params: {
+    location: location
+    environmentId: containerAppsEnv.outputs.environmentId
+    identityId: keyVault.outputs.identityId
+    acrLoginServer: acr.outputs.loginServer
+    apiImageTag: apiImageTag
+    keyVaultUri: keyVault.outputs.keyVaultUri
+  }
+}
+
 // canvas-3s5.2: only when a GitHub App is configured.
 module githubSyncJob 'modules/githubsyncjob.bicep' = if (githubAppId != 'unset') {
   name: 'githubSyncJobDeploy'
