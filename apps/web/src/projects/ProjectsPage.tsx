@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { api, ApiError, type ProjectDto, type SessionUser, type SharedDiagramDto } from '../app/api';
 import { ConfirmDialog } from '../canvas/ConfirmDialog';
 import { Icon } from '../ui/Icon';
+import { RecentDiagrams } from './RecentDiagrams';
 import { SharedDiagramsList } from './SharedDiagramsList';
 
 export interface ProjectsPageProps {
@@ -17,6 +18,8 @@ export interface ProjectsPageProps {
   onOpenDiagram: (diagramId: string) => void;
   /** The address of a project's screen, so its name is a real link (open in a new tab, copy). */
   projectHref: (projectId: string) => string;
+  /** canvas-93n: a diagram's address, for the "Recently opened" links. */
+  diagramHref?: (diagramId: string) => string;
 }
 
 /**
@@ -34,6 +37,7 @@ export function ProjectsPage({
   sharedDiagrams,
   onOpenDiagram,
   projectHref,
+  diagramHref,
 }: ProjectsPageProps) {
   const [creating, setCreating] = useState(false);
   const [name, setName] = useState('');
@@ -221,6 +225,7 @@ export function ProjectsPage({
           </button>
         )}
       </div>
+      {diagramHref && <RecentDiagrams userId={currentUser.id} onOpenDiagram={onOpenDiagram} diagramHref={diagramHref} />}
       {creating && (
         <section className="card">
           <div className="panel__body">

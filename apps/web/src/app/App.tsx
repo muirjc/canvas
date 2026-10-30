@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { clearDraftDsl } from '../ai/ai-draft';
 import { HelpScreen } from '../help/HelpScreen';
 import { findHelpPage } from '../help/help-content';
+import { recordRecentDiagram } from '../projects/recent-diagrams';
 import { accessAtLeast, api, type AiSettingsDto, type DiagramDto, type ProjectDto, type SessionUser, type SharedDiagramDto } from './api';
 import { LoginForm } from './LoginForm';
 import { ChangePasswordPage } from './ChangePasswordPage';
@@ -289,6 +290,11 @@ export function App() {
     setError('That project is not available to you. Showing your projects instead.');
   }, [projects, location]);
 
+  // canvas-93n: a saved diagram that's opened goes to the top of "Recently opened".
+  useEffect(() => {
+    if (user && diagram && !diagram.draft) recordRecentDiagram(user.id, diagram);
+  }, [user?.id, diagram?.id, diagram?.draft]);
+
   // The open diagram follows the address: fetched for ?diagramId= (a link or a reload), dropped on
   // any other screen. A diagram the user can't open shows the top level with an error.
   useEffect(() => {
@@ -536,6 +542,7 @@ export function App() {
           sharedDiagrams={sharedDiagrams}
           onOpenDiagram={openDiagram}
           projectHref={(id) => urlFor({ screen: 'project', projectId: id })}
+          diagramHref={(id) => urlFor({ screen: 'diagram', diagramId: id })}
         />
       </>
     );

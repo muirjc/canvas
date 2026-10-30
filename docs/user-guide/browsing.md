@@ -4,6 +4,7 @@ The bar at the top is the same on every screen:
 - **Projects:** your list of projects.
 - **Admin:** shown only to admins.
 - **Change password:** only for Canvas accounts.
+- **Help:** this guide, in the app. A **?** next to a feature opens its section in a new tab.
 - **Sign Out.**
 
 ## Projects
@@ -14,6 +15,7 @@ holds:
 - **My projects:** projects you own or have been added to.
 - **All projects:** everyone else's. You can open and read them, but not change them.
 
+- **Recently opened:** above the lists, up to five diagrams you opened lately on this browser.
 - **Find a project:** type in the filter box.
 - **New project:** creates one, and you're its owner. (People with the viewer role can't create
   projects.)

@@ -1332,3 +1332,13 @@
 .section-heading > :is(h1, h2, h3) {
   margin-block-end: 0;
 }
+
+/* canvas-93n: recently opened diagrams on the Projects page. */
+.recent-diagrams {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-5);
+}
