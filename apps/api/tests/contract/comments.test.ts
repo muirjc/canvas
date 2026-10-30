@@ -165,11 +165,13 @@ describe('Diagram comments (canvas-bw4)', () => {
       expect(await threads()).toHaveLength(2);
     });
 
-    it('a user with no access gets 403 on every route', async () => {
+    // canvas-2h2w.1: open read-only means a stranger can READ comments, but commenting (and changing
+    // comments) needs Comment access or more.
+    it('a user with no grant can read comments but not post, edit, delete or resolve', async () => {
       const root = await post('owner', 'Root');
-      expect((await call('GET', base(), 'stranger')).statusCode).toBe(403);
-      expect((await call('GET', `${base()}/unread`, 'stranger')).statusCode).toBe(403);
-      expect((await call('POST', `${base()}/read`, 'stranger')).statusCode).toBe(403);
+      expect((await call('GET', base(), 'stranger')).statusCode).toBe(200);
+      expect((await call('GET', `${base()}/unread`, 'stranger')).statusCode).toBe(200);
+      expect((await call('POST', `${base()}/read`, 'stranger')).statusCode).toBe(204);
       expect((await call('POST', base(), 'stranger', { body: 'x' })).statusCode).toBe(403);
       expect((await call('PATCH', `${base()}/${root}`, 'stranger', { body: 'x' })).statusCode).toBe(403);
       expect((await call('DELETE', `${base()}/${root}`, 'stranger')).statusCode).toBe(403);

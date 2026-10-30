@@ -343,7 +343,8 @@ describe('GitHub pull request status sync (canvas-3s5.2)', () => {
       expect(links[0].lastCheckError ?? '').not.toMatch(/Needs attention/);
     });
 
-    it('a view-only user can refresh but cannot withdraw; a stranger can do neither', async () => {
+    // canvas-2h2w.1: everyone signed in can read, so anyone can refresh; withdrawing needs edit.
+    it('anyone signed in can refresh, but only an editor can withdraw', async () => {
       const { diagramId, number } = await submitted();
       expect((await call('POST', `/diagrams/${diagramId}/shares`, 'owner', { granteeUserId: ids.viewer, accessLevel: 'view' })).statusCode).toBe(201);
       expect((await refresh(diagramId, 'viewer')).statusCode).toBe(200);
@@ -351,7 +352,7 @@ describe('GitHub pull request status sync (canvas-3s5.2)', () => {
       expect(view.json().canWithdraw).toBe(false);
       expect((await call('POST', `/diagrams/${diagramId}/submission/withdraw`, 'viewer')).statusCode).toBe(403);
       expect(fake.pull(repo, number).state).toBe('open');
-      expect((await refresh(diagramId, 'stranger')).statusCode).toBe(403);
+      expect((await refresh(diagramId, 'stranger')).statusCode).toBe(200);
       expect((await call('POST', `/diagrams/${diagramId}/submission/withdraw`, 'stranger')).statusCode).toBe(403);
       expect((await app.inject({ method: 'POST', url: `/diagrams/${diagramId}/submission/refresh` })).statusCode).toBe(401);
     });
@@ -542,7 +543,7 @@ describe('GitHub pull request status sync (canvas-3s5.2)', () => {
       expect(third.statusCode, third.body).toBe(201); // PR 2
 
       const res = await call('GET', `/diagrams/${diagramId}/submissions`, 'viewer');
-      expect(res.statusCode).toBe(403); // not shared
+      expect(res.statusCode).toBe(200); // not shared, but readable by everyone (canvas-2h2w.1)
       const history = (await call('GET', `/diagrams/${diagramId}/submissions`)).json().submissions;
       expect(history.map((s: { prNumber: number; state: string }) => [s.prNumber, s.state])).toEqual([[2, 'open'], [1, 'merged']]);
       expect(history[1].pushes).toHaveLength(2);
@@ -615,9 +616,9 @@ describe('GitHub pull request status sync (canvas-3s5.2)', () => {
       expect(Object.keys((await badges(otherProject)).json().statuses)).toEqual([elsewhere]);
     });
 
-    it('403 without access to the project, 404 for a missing one, 401 without a cookie', async () => {
+    it('readable by anyone signed in, 404 for a missing project, 401 without a cookie', async () => {
       await submitted();
-      expect((await badges(projectId, 'stranger')).statusCode).toBe(403);
+      expect((await badges(projectId, 'stranger')).statusCode).toBe(200);
       expect((await badges('00000000-0000-4000-8000-000000000000', 'admin')).statusCode).toBe(404);
       expect((await app.inject({ method: 'GET', url: `/projects/${projectId}/submission-statuses` })).statusCode).toBe(401);
     });

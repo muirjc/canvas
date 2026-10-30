@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { api, ApiError, type SubmissionBadgeDto, type DiagramSummaryDto, type DiagramTypeDto, type ProjectDto, type ProjectTreeNodeDto } from '../app/api';
+import { accessAtLeast, api, ApiError, type SubmissionBadgeDto, type DiagramSummaryDto, type DiagramTypeDto, type ProjectDto, type ProjectTreeNodeDto } from '../app/api';
 import { ConfirmDialog } from '../canvas/ConfirmDialog';
 import { Modal } from '../ui/Modal';
 import { Icon } from '../ui/Icon';
@@ -25,6 +25,8 @@ interface DiagramActionsProps {
   onOpenDiagram: (id: string) => void;
   onRequestDelete: (diagramId: string, diagramName: string) => void;
   onRequestMove: (diagramId: string, diagramName: string, currentProjectId: string) => void;
+  /** canvas-2h2w.1: whether to offer Move/Delete -- everyone can open every diagram, few can change it. */
+  canChange: boolean;
 }
 
 function SubmissionBadge({ badge }: { badge: SubmissionBadgeDto }) {
@@ -39,7 +41,7 @@ function SubmissionBadge({ badge }: { badge: SubmissionBadgeDto }) {
 
 /** One diagram row's Open/Move/Delete actions — shared by the recursive tree view and the flat
  *  search-results view (canvas-3vq.1) so the two can't drift apart on testids or behavior. */
-function DiagramRow({ diagramId, diagramName, typeName, currentProjectId, badge, onOpenDiagram, onRequestDelete, onRequestMove }: DiagramActionsProps) {
+function DiagramRow({ diagramId, diagramName, typeName, currentProjectId, badge, onOpenDiagram, onRequestDelete, onRequestMove, canChange }: DiagramActionsProps) {
   return (
     <li className="row">
       <Icon name="diamond" />
@@ -58,6 +60,8 @@ function DiagramRow({ diagramId, diagramName, typeName, currentProjectId, badge,
         >
           Open
         </button>
+        {canChange && (
+        <>
         <button
           type="button"
           className="btn btn--tertiary btn--compact"
@@ -78,6 +82,8 @@ function DiagramRow({ diagramId, diagramName, typeName, currentProjectId, badge,
           <Icon name="trash" size={12} />
           Delete
         </button>
+        </>
+        )}
       </span>
     </li>
   );
@@ -93,13 +99,14 @@ interface TreeNodeProps {
   onOpenDiagram: (id: string) => void;
   onRequestDelete: (diagramId: string, diagramName: string) => void;
   onRequestMove: (diagramId: string, diagramName: string, currentProjectId: string) => void;
+  canChange: (projectId: string) => boolean;
 }
 
 function countDiagrams(node: ProjectTreeNodeDto): number {
   return node.diagrams.length + node.children.reduce((sum, child) => sum + countDiagrams(child), 0);
 }
 
-function TreeNode({ node, isRoot = false, typeNameOf, badges, onOpenDiagram, onRequestDelete, onRequestMove }: TreeNodeProps) {
+function TreeNode({ node, isRoot = false, typeNameOf, badges, onOpenDiagram, onRequestDelete, onRequestMove, canChange }: TreeNodeProps) {
   const total = countDiagrams(node);
   return (
     <li className="project-node">
@@ -127,6 +134,7 @@ function TreeNode({ node, isRoot = false, typeNameOf, badges, onOpenDiagram, onR
             onOpenDiagram={onOpenDiagram}
             onRequestDelete={onRequestDelete}
             onRequestMove={onRequestMove}
+            canChange={canChange(node.id)}
           />
         ))}
         {node.children.map((child) => (
@@ -138,6 +146,7 @@ function TreeNode({ node, isRoot = false, typeNameOf, badges, onOpenDiagram, onR
             onOpenDiagram={onOpenDiagram}
             onRequestDelete={onRequestDelete}
             onRequestMove={onRequestMove}
+            canChange={canChange}
           />
         ))}
       </ul>
@@ -147,6 +156,8 @@ function TreeNode({ node, isRoot = false, typeNameOf, badges, onOpenDiagram, onR
 
 /** Project/folder browser (FR-016): browse a nested project hierarchy, open, or delete a diagram. */
 export function ProjectBrowser({ rootProjectId, projects, onOpenDiagram }: ProjectBrowserProps) {
+  // canvas-2h2w.1: Move/Delete only where the user can edit (the API still decides).
+  const canChange = (projectId: string) => accessAtLeast(projects.find((p) => p.id === projectId)?.accessLevel ?? 'edit', 'edit');
   const [tree, setTree] = useState<ProjectTreeNodeDto | null>(null);
   const [status, setStatus] = useState<'loading' | 'ready' | 'error'>('loading');
   const [pendingDelete, setPendingDelete] = useState<{ id: string; name: string } | null>(null);
@@ -349,6 +360,7 @@ export function ProjectBrowser({ rootProjectId, projects, onOpenDiagram }: Proje
                   onOpenDiagram={onOpenDiagram}
                   onRequestDelete={requestDelete}
                   onRequestMove={requestMove}
+                  canChange={canChange(diagram.projectId)}
                 />
               ))}
             </ul>
@@ -371,6 +383,7 @@ export function ProjectBrowser({ rootProjectId, projects, onOpenDiagram }: Proje
               onOpenDiagram={onOpenDiagram}
               onRequestDelete={requestDelete}
               onRequestMove={requestMove}
+              canChange={canChange}
             />
           </ul>
         )

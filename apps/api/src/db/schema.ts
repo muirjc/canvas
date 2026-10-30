@@ -248,7 +248,7 @@ export interface ShareGrantsTable {
   subject_type: 'diagram' | 'project';
   subject_id: string;
   grantee_user_id: string;
-  access_level: 'view' | 'comment' | 'edit';
+  access_level: 'view' | 'comment' | 'edit' | 'manage';
   granted_by_user_id: string;
   created_at: GeneratedTimestamp;
 }

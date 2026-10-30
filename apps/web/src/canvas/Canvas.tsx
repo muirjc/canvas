@@ -276,6 +276,10 @@ export interface CanvasProps {
   /** canvas-bw4: element id -> open comment threads, drawn as a speech-bubble pin. */
   commentPins?: Record<string, number>;
   onCommentPinClick?: (anchorId: string) => void;
+  /** canvas-2h2w.1: someone with View/Comment access. Shapes can be selected (to comment on them)
+   *  but nothing changes: edits are dropped, Delete and double-click editing are off, and the
+   *  editor hides the toolbar and the in-place edit buttons. */
+  readOnly?: boolean;
 }
 
 const SEVERITY_DOT_COLOR: Record<Severity, string> = { error: '#c81e1e', warning: '#d97706', info: '#64748b' };
@@ -1161,7 +1165,8 @@ function descendantContainerIds(model: DiagramModel, containerId: string): Set<s
  * labels via direct manipulation. Renders the same DiagramModel that packages/diagram-core
  * parses/serializes, so every edit here is reflected in the Mermaid DSL by useDslSync.
  */
-export function Canvas({ model: modelProp, onChange, dslFamily, toolbarContainer, standardRules, violations, focusRequest, onSelectionChange, commentPins, onCommentPinClick }: CanvasProps) {
+export function Canvas({ model: modelProp, onChange: onChangeProp, dslFamily, toolbarContainer, standardRules, violations, focusRequest, onSelectionChange, commentPins, onCommentPinClick, readOnly = false }: CanvasProps) {
+  const onChange = readOnly ? () => undefined : onChangeProp;
   // canvas-hzf: a C4 element's type line ("[Software System]") is derived from its role; refresh it
   // here so a kind picked in the editor shows at once, not only after the next reload/parse.
   const model = useMemo(() => (dslFamily === 'c4' ? withC4TypeLabels(modelProp) : modelProp), [modelProp, dslFamily]);
@@ -2475,7 +2480,7 @@ export function Canvas({ model: modelProp, onChange, dslFamily, toolbarContainer
 
   const handleKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
     // Don't intercept Delete/Backspace while a label is being typed into.
-    if (editingNodeId || editingEdgeId) return;
+    if (editingNodeId || editingEdgeId || readOnly) return;
     const tag = (event.target as HTMLElement).tagName;
     if (tag === 'INPUT' || tag === 'TEXTAREA') return;
     if ((event.key === 'Delete' || event.key === 'Backspace') && (selectedIds.size > 0 || selectedEdgeId)) {
@@ -3261,7 +3266,7 @@ export function Canvas({ model: modelProp, onChange, dslFamily, toolbarContainer
               onPointerDown={handleContainerPointerDown(container)}
               onDoubleClick={(event) => {
                 event.stopPropagation();
-                setEditingContainerId(container.id);
+                if (!readOnly) setEditingContainerId(container.id);
               }}
               style={{ cursor: sequenceLayout ? 'default' : 'move' }}
             >
@@ -3466,7 +3471,7 @@ export function Canvas({ model: modelProp, onChange, dslFamily, toolbarContainer
               onPointerLeave={() => setHoveredId((current) => (current === edge.id ? null : current))}
               onDoubleClick={(event) => {
                 event.stopPropagation();
-                setEditingEdgeId(edge.id);
+                if (!readOnly) setEditingEdgeId(edge.id);
               }}
             >
               {/* canvas-7vs.1: a self-message (source === target participant) draws as a small
@@ -3729,7 +3734,7 @@ export function Canvas({ model: modelProp, onChange, dslFamily, toolbarContainer
               onPointerLeave={() => setHoveredId((current) => (current === node.id ? null : current))}
               onDoubleClick={(event) => {
                 event.stopPropagation();
-                setEditingNodeId(node.id);
+                if (!readOnly) setEditingNodeId(node.id);
               }}
               style={{ cursor: connectMode ? 'crosshair' : lifeline ? 'default' : 'move' }}
             >
@@ -4069,7 +4074,7 @@ export function Canvas({ model: modelProp, onChange, dslFamily, toolbarContainer
             layout={legend}
             diagramTypeId={model.diagramTypeId}
             onPointerDown={handleLegendPointerDown}
-            onDoubleClick={() => setEditingLegend(true)}
+            onDoubleClick={() => !readOnly && setEditingLegend(true)}
           />
         )}
 

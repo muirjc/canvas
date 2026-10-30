@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { api, type AiSettingsDto, type DiagramDto, type ProjectDto, type SessionUser, type SharedDiagramDto } from './api';
+import { accessAtLeast, api, type AiSettingsDto, type DiagramDto, type ProjectDto, type SessionUser, type SharedDiagramDto } from './api';
 import { LoginForm } from './LoginForm';
 import { ChangePasswordPage } from './ChangePasswordPage';
 import { MfaSetup } from './MfaSetup';
@@ -261,7 +261,10 @@ export function App() {
     if (!landingPending.current || projects === null || !sharedLoaded) return;
     landingPending.current = false;
     if (locationRef.current.screen !== 'projects') return; // the user already went somewhere
-    const landing = resolveLanding(projects.map((p) => p.id), sharedDiagrams.length, readLastProjectId());
+    // canvas-2h2w.1: every project is listed now; landing only considers the user's own (owned or
+    // member), so "your only project" still means yours, not the only one in the installation.
+    const mine = projects.filter((p) => p.membership !== null).map((p) => p.id);
+    const landing = resolveLanding(mine, sharedDiagrams.length, readLastProjectId());
     if (landing.screen !== 'projects') navigate(landing, { replace: true, force: true });
   }, [projects, sharedLoaded, sharedDiagrams]);
 
@@ -553,7 +556,12 @@ export function App() {
           {currentProject?.name ?? 'Project'}
         </h1>
 
-
+        {/* canvas-2h2w.1: every project is readable; adding to it needs Edit. */}
+        {!accessAtLeast(currentProject?.accessLevel ?? 'edit', 'edit') ? (
+          <p className="meta" data-testid="project-read-only-note">
+            You can read this project. Ask its owner to add you if you need to change it.
+          </p>
+        ) : (
           <div className="home__actions">
             <button type="button" className="btn btn--primary" data-testid="new-diagram" onClick={() => setPickingType(true)}>
               <Icon name="plus" />
@@ -594,6 +602,7 @@ export function App() {
               </span>
             )}
           </div>
+        )}
 
         {error && (
           <p role="alert" data-testid="app-error">

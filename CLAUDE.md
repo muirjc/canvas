@@ -93,6 +93,20 @@ tests are NON-NEGOTIABLE and must exist (and fail) before implementing any diagr
 work — see `.specify/memory/constitution.md` Principle IV.
 
 ## Recent Changes
+- `canvas-2h2w.1` (sharing v2, part 1, docs/sharing-design.md): **open read-only**. Access is the
+  HIGHEST of View (everyone signed in), project access (owner of it or an ancestor = Manage, admin =
+  Manage, project grants on it or any ancestor), a diagram share, and owning the diagram (Manage);
+  then the `viewer` role caps it at Comment (`src/sharing/access-levels.ts`: `highestAccess`,
+  `capForRole`). A diagram-level grant no longer hides a higher project grant (the old
+  most-specific rule), and the project owner now has access to every diagram in the project. New
+  level `manage` (Postgres `0033`, SQLite `0021` rebuilds `share_grants` for its CHECK): projects
+  only (diagram shares stop at Edit); only Manage can give, change or remove a Manage grant.
+  `GET /projects` lists every project with `accessLevel` and `membership` ('owner' | 'member' |
+  null), computed by `projectAccessForUser`; `withAccessibleProjects` is gone. Viewers can't
+  `POST /projects`. Web: Projects page = My projects / Shared with me / All projects; a project or
+  diagram below Edit is read-only (no New Diagram/Move/Delete; editor hides tools, Save, Chat,
+  in-canvas `.canvas-edit-affordance`s; Canvas `readOnly` drops edits, Delete and double-click
+  editing). Landing considers only the user's own projects.
 - `canvas-obp0` (two people editing one diagram, options A + B): saves are compare-and-set.
   `PATCH /diagrams/:id` and `POST /diagrams/:id/versions/:versionId/restore` REQUIRE
   `baseVersionId` (the `currentVersionId` the editor loaded or last saved; now on every diagram

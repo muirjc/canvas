@@ -60,12 +60,15 @@ async function revokeGuestShare(page: Page, grantId: string): Promise<void> {
   await page.request.delete(`${API_BASE_URL}/shares/${grantId}`);
 }
 
-test('a user with nothing shared and no project access still sees the ordinary invitation', async ({ browser }) => {
+// canvas-2h2w.1: with open read, a user with no projects of their own still sees everyone's,
+// read-only, instead of the empty "create your first project" invitation.
+test('a user with nothing shared and no projects of their own sees every project read-only', async ({ browser }) => {
   const guestContext = await browser.newContext();
   const guestPage = await guestContext.newPage();
 
   await signIn(guestPage, GUEST_EMAIL, GUEST_PASSWORD);
-  await expect(guestPage.getByTestId('projects-page-empty')).toBeVisible(); // canvas-hmm
+  await expect(guestPage.getByTestId('projects-page-all-list')).toBeVisible();
+  await expect(guestPage.getByTestId('projects-page-empty')).toHaveCount(0);
   await expect(guestPage.getByTestId('shared-diagrams')).toHaveCount(0);
 
   await guestContext.close();

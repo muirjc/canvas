@@ -2,7 +2,8 @@ import { randomUUID } from 'node:crypto';
 import { sql } from 'kysely';
 import { getDb } from '../db/client.js';
 import { toDate } from '../db/sql-helpers.js';
-import { withAccessibleProjects } from './project.access.js';
+import { projectAccessForUser } from './project.access.js';
+import type { AccessLevel } from '../sharing/access-levels.js';
 
 export class ProjectNotFoundError extends Error {}
 export class ProjectCycleError extends Error {}
@@ -36,6 +37,10 @@ export interface ProjectListItem extends ProjectRecord {
   /** Who owns this project — canvas-228.3's Projects screen only offers rename/delete for
    *  projects the current user owns (or if they're an admin). */
   ownerId: string;
+  /** canvas-2h2w.1: the caller's effective access (View at least: every project is readable). */
+  accessLevel: AccessLevel;
+  /** canvas-2h2w.1: 'owner' / 'member' put it under "My projects"; null = readable, not joined. */
+  membership: 'owner' | 'member' | null;
 }
 
 export interface CreateProjectInput {
@@ -75,20 +80,23 @@ export async function createProject(input: CreateProjectInput): Promise<ProjectL
     createdAt: row.created_at as unknown as string,
     diagramCount: 0,
     ownerId: input.ownerId,
+    accessLevel: 'manage',
+    membership: 'owner',
   };
 }
 
 /**
- * The projects available to a user — owned or shared, plus their descendants (feature 007,
- * FR-013a). Delegates the rule to `project.access.ts` so the list and the route guard cannot
- * disagree; a disagreement between them is a data leak, not a display bug.
+ * Every live project, with the user's access to each (canvas-2h2w.1: everyone signed in can read
+ * every project). The level comes from `project.access.ts` -- the same rule as the route guard,
+ * so the list never promises more than the routes allow.
  *
  * Ordered by name so the chooser is stable between loads. No search or paging: the clarified
  * scale is tens of projects (FR-013e).
  */
 export async function listProjectsForUser(userId: string): Promise<ProjectListItem[]> {
   const db = getDb();
-  const rows = await withAccessibleProjects(db, userId)
+  const access = await projectAccessForUser(userId);
+  const rows = await db
     .selectFrom('projects as p')
     .leftJoin('diagrams as d', (join) => join.onRef('d.project_id', '=', 'p.id').on('d.deleted_at', 'is', null))
     .select([
@@ -99,7 +107,7 @@ export async function listProjectsForUser(userId: string): Promise<ProjectListIt
       'p.owner_id',
       sql<string>`COUNT(d.id)`.as('diagram_count'),
     ])
-    .where('p.id', 'in', (eb) => eb.selectFrom('accessible').select('id'))
+    .where('p.deleted_at', 'is', null)
     .groupBy('p.id')
     .orderBy('p.name')
     .orderBy('p.id')
@@ -113,6 +121,8 @@ export async function listProjectsForUser(userId: string): Promise<ProjectListIt
     createdAt: r.created_at as unknown as string,
     ownerId: r.owner_id,
     diagramCount: Number(r.diagram_count),
+    accessLevel: access.get(r.id)?.level ?? 'view',
+    membership: access.get(r.id)?.membership ?? null,
   }));
 }
 

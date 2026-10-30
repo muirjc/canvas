@@ -16,7 +16,11 @@ import {
   type SubjectType,
 } from './sharing.service.js';
 
-const VALID_ACCESS_LEVELS: AccessLevel[] = ['view', 'comment', 'edit'];
+/** canvas-2h2w.1: Manage (Edit + managing members) is a project level; a diagram share stops at Edit. */
+const VALID_ACCESS_LEVELS: Record<SubjectType, AccessLevel[]> = {
+  diagram: ['view', 'comment', 'edit'],
+  project: ['view', 'comment', 'edit', 'manage'],
+};
 
 function handleError(error: unknown, reply: FastifyReply): FastifyReply {
   if (error instanceof GranteeNotFoundError) {
@@ -73,13 +77,28 @@ function registerSubjectRoutes(app: FastifyInstance, subjectType: SubjectType): 
           required: ['granteeUserId', 'accessLevel'],
           properties: {
             granteeUserId: { type: 'string', minLength: 1 },
-            accessLevel: { type: 'string', enum: VALID_ACCESS_LEVELS },
+            accessLevel: { type: 'string', enum: VALID_ACCESS_LEVELS[subjectType] },
           },
         },
       },
     },
     async (request, reply) => {
       const { granteeUserId, accessLevel } = request.body;
+      // Only someone with Manage can hand out Manage, or change someone's existing Manage (an
+      // editor can't promote themselves, or demote a manager by re-sharing at a lower level).
+      const existing = await getDb()
+        .selectFrom('share_grants')
+        .select('access_level')
+        .where('subject_type', '=', subjectType)
+        .where('subject_id', '=', request.params.id)
+        .where('grantee_user_id', '=', granteeUserId)
+        .executeTakeFirst();
+      if (
+        (accessLevel === 'manage' || existing?.access_level === 'manage') &&
+        !accessAtLeast(await accessTo(subjectType, request.session.user!.id, request.params.id), 'manage')
+      ) {
+        return reply.code(403).send({ error: 'Only the owner or someone with Manage access can give or change Manage access.' });
+      }
       try {
         const grant = await createShareGrant({
           subjectType,
@@ -129,13 +148,16 @@ export async function registerSharingRoutes(app: FastifyInstance): Promise<void>
         // canvas-i5y: revoking needs edit access to what the grant is for.
         const grant = await getDb()
           .selectFrom('share_grants')
-          .select(['subject_type', 'subject_id'])
+          .select(['subject_type', 'subject_id', 'access_level'])
           .where('id', '=', request.params.id)
           .executeTakeFirst();
         if (!grant) return reply.code(404).send({ error: `No share grant with id ${request.params.id}` });
         const level = await accessTo(grant.subject_type, request.session.user!.id, grant.subject_id);
         if (!accessAtLeast(level, 'edit')) {
           return reply.code(403).send({ error: 'Only someone with edit access can remove a share.' });
+        }
+        if (grant.access_level === 'manage' && !accessAtLeast(level, 'manage')) {
+          return reply.code(403).send({ error: 'Only the owner or someone with Manage access can remove Manage access.' });
         }
         await revokeShareGrant(request.params.id);
         return reply.code(204).send();

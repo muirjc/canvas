@@ -11,9 +11,16 @@ press Escape to close the list. Then choose their access and click **Share**:
 
 | Level | They can |
 |---|---|
-| **View** | Open and read the diagram |
+| **View** | Open and read the diagram (everyone signed in can already do this) |
 | **Comment** | Read the diagram and add comments (see [Comments](editor.md#comments)) |
 | **Edit** | Change it (and use its AI chat) |
+
+Projects have a fourth level, **Manage**: Edit, plus deciding who else has access. A project's
+owner always has Manage, and only the owner or someone with Manage can give or remove it.
+
+Someone's access is the highest level they get from anywhere: the project, a share of the
+diagram itself, or owning it. People with the **viewer** role never get more than Comment,
+whatever they're given.
 
 ![Sharing a diagram](../images/share-dialog.png)
 
@@ -24,11 +31,11 @@ appear as "(you)". The list below the form shows each person who has access, wit
 If the person you want isn't listed, type their full email address and press **Share** without
 picking: Canvas looks up that exact address. They must already have a Canvas account (with
 single sign-on, that means they have signed in at least once). The diagram then appears under **Shared with me** on their
-project list. People who can see a project can see all its diagrams; sharing is for giving someone
-one diagram without the whole project.
+project list. Access to a project covers all its diagrams; sharing a diagram is for giving someone
+more access to that one diagram without the whole project.
 
 You need **edit** access to share a diagram or remove someone's access; the **Share** button only
-appears for people who have it. Anyone with view access can see who else has access.
+appears for people who have it. Anyone can see who has access.
 
 ## Exporting
 

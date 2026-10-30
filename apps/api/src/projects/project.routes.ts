@@ -33,7 +33,9 @@ export async function registerProjectRoutes(app: FastifyInstance): Promise<void>
   app.post<{ Body: { name: string; parentProjectId?: string } }>(
     '/projects',
     {
-      preHandler: requireAuth,
+      // canvas-2h2w.1: viewers are capped at Comment everywhere, so a project they created would be
+      // one they couldn't add to. Creating projects is for architects and admins.
+      preHandler: requireRole('architect', 'admin'),
       // canvas-80m: declarative validation (Fastify JSON Schema) instead of a hand-rolled `if`.
       schema: {
         tags: ['Projects'],

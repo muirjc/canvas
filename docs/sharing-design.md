@@ -74,6 +74,6 @@ extension is a per-project "private" flag that turns off open read for that proj
 
 | Part | Built in | Why |
 |---|---|---|
-| 1. Open read and effective access | TypeScript, now | It changes the security model, which the Python port then copies |
+| 1. Open read and effective access | TypeScript, now (done: canvas-2h2w.1) | It changes the security model, which the Python port then copies |
 | 2. Project members, 5. copy link | TypeScript | Mostly UI on APIs that already exist |
 | 3. Entra groups, 4. notifications | The Python service | New backend features |

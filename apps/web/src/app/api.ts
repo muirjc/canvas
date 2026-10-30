@@ -212,6 +212,11 @@ export interface ProjectDto {
   diagramCount: number;
   /** Who owns this project — only the owner (or an admin) may rename/delete it (canvas-228.3). */
   ownerId: string;
+  /** canvas-2h2w.1: the caller's access (View at least: every project is readable). Optional only
+   *  because a freshly created project's DTO may come from older code paths. */
+  accessLevel?: AccessLevel;
+  /** canvas-2h2w.1: 'owner' / 'member' = one of "My projects"; null = readable, not joined. */
+  membership?: 'owner' | 'member' | null;
 }
 
 export interface DeletedProjectDto {
@@ -255,7 +260,15 @@ export interface DiagramVersionDetailDto extends DiagramVersionDto {
   dslContent: string;
 }
 
-export type AccessLevel = 'view' | 'comment' | 'edit';
+/** canvas-2h2w.1: Manage = Edit + managing members (projects only). Everyone signed in has View. */
+export type AccessLevel = 'view' | 'comment' | 'edit' | 'manage';
+
+const ACCESS_RANK: Record<AccessLevel, number> = { view: 1, comment: 2, edit: 3, manage: 4 };
+
+/** Whether `level` is at least `required` (missing = no access). Mirrors the API's own check. */
+export function accessAtLeast(level: AccessLevel | undefined, required: AccessLevel): boolean {
+  return level !== undefined && ACCESS_RANK[level] >= ACCESS_RANK[required];
+}
 
 export interface ShareGrantDto {
   id: string;

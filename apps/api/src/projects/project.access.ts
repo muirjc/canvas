@@ -16,10 +16,9 @@
  * everywhere the original did, which is what makes a project hierarchy with no real cycles safe to
  * walk without ever producing a duplicate row.
  */
-import { sql, type Kysely } from 'kysely';
+import { sql } from 'kysely';
 import { getDb } from '../db/client.js';
-import type { DB } from '../db/schema.js';
-import type { AccessLevel } from '../sharing/sharing.service.js';
+import { capForRole, highestAccess, type AccessLevel } from '../sharing/access-levels.js';
 
 /**
  * A project's ancestor chain, nearest first: the project itself, then its parent, and so on.
@@ -59,12 +58,14 @@ export async function projectExists(projectId: string): Promise<boolean> {
 }
 
 /**
- * Resolves the user's access to a project, or `undefined` for none (and for a project that does
- * not exist — callers check `projectExists` when they need to tell those apart).
+ * Resolves the user's access to a project (canvas-2h2w.1, docs/sharing-design.md): everyone signed
+ * in can read every project (View); owning the project or an ancestor, or being an admin, is
+ * Manage; a project grant on it or any ancestor counts too. The HIGHEST of these wins (it used to
+ * be the nearest grant), then the viewer role caps it at Comment. Undefined only for a project that
+ * doesn't exist (or is deleted).
  *
- * Access inherits DOWNWARD only: holding a parent grants its descendants, because that is what
- * `GET /projects/:id/tree` returns and a tree with holes in it serves nobody. Holding a child
- * grants nothing about its parent or siblings (data-model.md).
+ * Access still inherits DOWNWARD only: membership of a parent covers its descendants, never the
+ * other way round.
  */
 export async function resolveProjectAccess(
   userId: string,
@@ -73,17 +74,11 @@ export async function resolveProjectAccess(
   const chain = await ancestorChain(projectId);
   if (chain.length === 0) return undefined;
 
-  // Owning the project or any ancestor of it.
-  if (chain.some((p) => p.owner_id === userId)) return 'edit';
-
   const db = getDb();
   const user = await db.selectFrom('users').select('role').where('id', '=', userId).executeTakeFirst();
-  if (user?.role === 'admin') return 'edit';
-
-  // A grant on the project or on any ancestor. Nearest ancestor wins, matching the chain order.
   const grants = await db
     .selectFrom('share_grants')
-    .select(['subject_id', 'access_level'])
+    .select('access_level')
     .where('subject_type', '=', 'project')
     .where('grantee_user_id', '=', userId)
     .where(
@@ -92,65 +87,57 @@ export async function resolveProjectAccess(
       chain.map((p) => p.id),
     )
     .execute();
-  if (grants.length === 0) return undefined;
 
-  const byId = new Map(grants.map((g) => [g.subject_id, g.access_level]));
-  for (const link of chain) {
-    const level = byId.get(link.id);
-    if (level) return level;
-  }
-  return undefined;
+  const owns = chain.some((p) => p.owner_id === userId);
+  return capForRole(
+    highestAccess('view', owns || user?.role === 'admin' ? 'manage' : undefined, ...grants.map((g) => g.access_level)),
+    user?.role,
+  );
+}
+
+export interface ProjectAccessEntry {
+  level: AccessLevel;
+  /** How the user belongs, ignoring open read and the admin role: 'owner' (of it or an ancestor),
+   *  'member' (a project grant on it or an ancestor), or null (they can only read it). The
+   *  Projects page lists owners and members under "My projects". */
+  membership: 'owner' | 'member' | null;
 }
 
 /**
- * Registers the `roots`/`accessible` recursive CTEs on `db` (every project the user can see:
- * those they own or have been granted, plus every descendant of those) and returns the extended
- * query context — callers continue from it with their own `.selectFrom(...)`, filtering on
- * `WHERE p.id IN (SELECT id FROM accessible)` exactly like `listProjectsForUser` does.
- *
- * Shares its definition with `resolveProjectAccess` above by construction — both express "owned
- * or granted, inherited downward". Admins see everything, matching `resolveProjectAccess` and
- * `resolveDiagramAccess`.
+ * Every live project's access for one user, for the project list -- the same rule as
+ * resolveProjectAccess, computed for all projects at once (tens of projects, so in memory).
  */
-export function withAccessibleProjects(db: Kysely<DB>, userId: string) {
-  return db
-    .withRecursive('roots', (qb) =>
-      qb
-        .selectFrom('projects')
-        .select('id')
-        .where('owner_id', '=', userId)
-        .where('deleted_at', 'is', null)
-        .union((eb) =>
-          eb
-            .selectFrom('share_grants as sg')
-            .innerJoin('projects as p', 'p.id', 'sg.subject_id')
-            .select('sg.subject_id as id')
-            .where('sg.subject_type', '=', 'project')
-            .where('sg.grantee_user_id', '=', userId)
-            .where('p.deleted_at', 'is', null),
-        )
-        .union((eb) =>
-          eb
-            .selectFrom('projects')
-            .select('id')
-            .where((wb) =>
-              wb.exists(
-                wb.selectFrom('users').select(sql`1`.as('one')).where('id', '=', userId).where('role', '=', 'admin'),
-              ),
-            )
-            .where('deleted_at', 'is', null),
-        ),
-    )
-    .withRecursive('accessible', (qb) =>
-      qb
-        .selectFrom('roots')
-        .select('id')
-        .union((eb) =>
-          eb
-            .selectFrom('projects as p')
-            .innerJoin('accessible as a', 'a.id', 'p.parent_project_id')
-            .select('p.id')
-            .where('p.deleted_at', 'is', null),
-        ),
-    );
+export async function projectAccessForUser(userId: string): Promise<Map<string, ProjectAccessEntry>> {
+  const db = getDb();
+  const [projects, user, grants] = await Promise.all([
+    db.selectFrom('projects').select(['id', 'parent_project_id', 'owner_id']).where('deleted_at', 'is', null).execute(),
+    db.selectFrom('users').select('role').where('id', '=', userId).executeTakeFirst(),
+    db
+      .selectFrom('share_grants')
+      .select(['subject_id', 'access_level'])
+      .where('subject_type', '=', 'project')
+      .where('grantee_user_id', '=', userId)
+      .execute(),
+  ]);
+  const byId = new Map(projects.map((p) => [p.id, p]));
+  const grantFor = new Map(grants.map((g) => [g.subject_id, g.access_level]));
+  const result = new Map<string, ProjectAccessEntry>();
+  for (const project of projects) {
+    let owns = false;
+    const levels: AccessLevel[] = [];
+    // Walk up the tree; `seen` guards against a (never expected) cycle.
+    const seen = new Set<string>();
+    for (let p: typeof project | undefined = project; p && !seen.has(p.id); p = p.parent_project_id ? byId.get(p.parent_project_id) : undefined) {
+      seen.add(p.id);
+      if (p.owner_id === userId) owns = true;
+      const granted = grantFor.get(p.id);
+      if (granted) levels.push(granted);
+    }
+    const level = capForRole(
+      highestAccess('view', owns || user?.role === 'admin' ? 'manage' : undefined, ...levels),
+      user?.role,
+    )!;
+    result.set(project.id, { level, membership: owns ? 'owner' : levels.length > 0 ? 'member' : null });
+  }
+  return result;
 }

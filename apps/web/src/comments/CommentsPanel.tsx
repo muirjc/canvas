@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import type { DiagramModel } from '@canvas/diagram-core';
-import { api, ApiError, type AccessLevel, type CommentAnchor, type CommentDto, type CommentThreadDto } from '../app/api';
+import { accessAtLeast, api, ApiError, type AccessLevel, type CommentAnchor, type CommentDto, type CommentThreadDto } from '../app/api';
 import { ConfirmDialog } from '../canvas/ConfirmDialog';
 
 export interface CommentsPanelProps {
@@ -48,7 +48,7 @@ export function CommentsPanel({ diagramId, threads, onThreadsChange, currentUser
   const [busy, setBusy] = useState(false);
   const composerRef = useRef<HTMLTextAreaElement>(null);
 
-  const canComment = accessLevel === 'comment' || accessLevel === 'edit';
+  const canComment = accessAtLeast(accessLevel, 'comment');
   const resolvedCount = threads.filter((t) => t.resolved).length;
   const shown = threads.filter((t) => showResolved || !t.resolved);
   const canPin = selection !== null;

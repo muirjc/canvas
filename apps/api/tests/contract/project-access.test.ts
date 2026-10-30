@@ -51,19 +51,21 @@ describe('Project access control contract', () => {
     ).json().project.id;
   });
 
-  describe('a signed-in user with no access to the project', () => {
-    it('cannot read the project', async () => {
+  // canvas-2h2w.1: open read-only. Someone with no grant can read every project (View), but
+  // changing anything still needs a grant.
+  describe('a signed-in user with no grant on the project', () => {
+    it('can read the project', async () => {
       const response = await app.inject({ method: 'GET', url: `/projects/${projectId}`, headers: { cookie: outsiderCookie } });
-      expect(response.statusCode).toBe(403);
+      expect(response.statusCode).toBe(200);
     });
 
-    it('cannot read the project tree — the whole diagram inventory', async () => {
+    it('can read the project tree', async () => {
       const response = await app.inject({
         method: 'GET',
         url: `/projects/${projectId}/tree`,
         headers: { cookie: outsiderCookie },
       });
-      expect(response.statusCode).toBe(403);
+      expect(response.statusCode).toBe(200);
     });
 
     // The three `:projectId` routes. These are the ones a mis-parameterised guard leaves open.
@@ -77,13 +79,13 @@ describe('Project access control contract', () => {
       expect(response.statusCode).toBe(403);
     });
 
-    it('cannot list or search the project\'s diagrams', async () => {
+    it('can list and search the project\'s diagrams', async () => {
       const response = await app.inject({
         method: 'GET',
         url: `/projects/${projectId}/diagrams`,
         headers: { cookie: outsiderCookie },
       });
-      expect(response.statusCode).toBe(403);
+      expect(response.statusCode).toBe(200);
     });
 
     it('cannot import into the project', async () => {
@@ -122,6 +124,17 @@ describe('Project access control contract', () => {
     expect(response.statusCode).toBe(200);
   });
 
+  // Reading is open to everyone, so these check WRITE access: creating a diagram needs Edit.
+  const createIn = async (id: string) =>
+    (
+      await app.inject({
+        method: 'POST',
+        url: `/projects/${id}/diagrams`,
+        headers: { cookie: outsiderCookie },
+        payload: { name: 'Nested', diagramTypeId: 'flowchart' },
+      })
+    ).statusCode;
+
   describe('nesting — access inherits downward only', () => {
     it('grants a child project to someone who holds the parent', async () => {
       const childId = (
@@ -137,11 +150,10 @@ describe('Project access control contract', () => {
         method: 'POST',
         url: `/projects/${projectId}/shares`,
         headers: { cookie: ownerCookie },
-        payload: { granteeUserId: outsiderId, accessLevel: 'view' },
+        payload: { granteeUserId: outsiderId, accessLevel: 'edit' },
       });
 
-      const response = await app.inject({ method: 'GET', url: `/projects/${childId}`, headers: { cookie: outsiderCookie } });
-      expect(response.statusCode).toBe(200);
+      expect(await createIn(childId)).toBe(201);
     });
 
     it('does NOT grant the parent to someone who holds only a child', async () => {
@@ -158,11 +170,10 @@ describe('Project access control contract', () => {
         method: 'POST',
         url: `/projects/${childId}/shares`,
         headers: { cookie: ownerCookie },
-        payload: { granteeUserId: outsiderId, accessLevel: 'view' },
+        payload: { granteeUserId: outsiderId, accessLevel: 'edit' },
       });
 
-      const response = await app.inject({ method: 'GET', url: `/projects/${projectId}`, headers: { cookie: outsiderCookie } });
-      expect(response.statusCode).toBe(403);
+      expect(await createIn(projectId)).toBe(403);
     });
 
     /**
@@ -194,18 +205,16 @@ describe('Project access control contract', () => {
         method: 'POST',
         url: `/projects/${projectId}/shares`,
         headers: { cookie: ownerCookie },
-        payload: { granteeUserId: outsiderId, accessLevel: 'view' },
+        payload: { granteeUserId: outsiderId, accessLevel: 'edit' },
       });
 
-      const response = await app.inject({ method: 'GET', url: `/projects/${grandchildId}`, headers: { cookie: outsiderCookie } });
-      expect(response.statusCode).toBe(200);
+      expect(await createIn(grandchildId)).toBe(201);
 
-      // listProjectsForUser (GET /projects) must agree with the single-project guard above —
-      // they share one definition precisely so they can't disagree (this file's own header
-      // comment). The grandchild must appear in the outsider's own project list too.
+      // GET /projects must agree with the single-project guard above: the grandchild is listed
+      // with Edit, as a project the outsider is a member of.
       const listResponse = await app.inject({ method: 'GET', url: '/projects', headers: { cookie: outsiderCookie } });
-      const listedIds = listResponse.json().projects.map((p: { id: string }) => p.id);
-      expect(listedIds).toContain(grandchildId);
+      const listed = listResponse.json().projects.find((p: { id: string }) => p.id === grandchildId);
+      expect(listed).toMatchObject({ accessLevel: 'edit', membership: 'member' });
     });
 
     /**
@@ -240,18 +249,16 @@ describe('Project access control contract', () => {
         method: 'POST',
         url: `/projects/${projectId}/shares`,
         headers: { cookie: ownerCookie },
-        payload: { granteeUserId: outsiderId, accessLevel: 'view' },
+        payload: { granteeUserId: outsiderId, accessLevel: 'edit' },
       });
 
       // Confirmed reachable before the soft-delete, mirroring the test above.
-      const before = await app.inject({ method: 'GET', url: `/projects/${grandchildId}`, headers: { cookie: outsiderCookie } });
-      expect(before.statusCode).toBe(200);
+      expect(await createIn(grandchildId)).toBe(201);
 
       const { getDb } = await import('../../src/db/client.js');
       await getDb().updateTable('projects').set({ deleted_at: new Date() }).where('id', '=', projectId).execute();
 
-      const after = await app.inject({ method: 'GET', url: `/projects/${grandchildId}`, headers: { cookie: outsiderCookie } });
-      expect(after.statusCode).toBe(403);
+      expect(await createIn(grandchildId)).toBe(403);
     });
   });
 });
