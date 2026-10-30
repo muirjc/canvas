@@ -66,7 +66,9 @@ test('an owner adds a member by name, who then finds the project under My projec
   await admin.getByTestId('member-add').click();
   await expect(admin.getByTestId(`member-level-${memberId}`)).toHaveValue('edit');
 
-  await member.goto('/?');
+  // With exactly one project of their own, landing opens it; the list is one click away.
+  await member.goto('/');
+  await member.getByTestId('nav-projects').click();
   await expect(member.getByTestId('projects-page-list').getByTestId(`projects-page-row-${projectId}`)).toBeVisible();
   await member.goto(`/?projectId=${projectId}`);
   await expect(member.getByTestId('new-diagram')).toBeVisible();
