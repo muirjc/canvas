@@ -152,8 +152,17 @@ describe('Edit conflicts and presence', () => {
     });
 
     it('says when it is you in another tab', async () => {
-      await heartbeat(aliceCookie, 'tab-1');
-      expect((await heartbeat(aliceCookie, 'tab-2')).json().others).toEqual([expect.objectContaining({ isYou: true, name: 'You' })]);
+      await heartbeat(aliceCookie, 'tab-1.1');
+      expect((await heartbeat(aliceCookie, 'tab-2.1')).json().others).toEqual([expect.objectContaining({ isYou: true, name: 'You' })]);
+    });
+
+    it("a remount of the same tab isn't another editor, and its late goodbye doesn't remove the live one", async () => {
+      await heartbeat(aliceCookie, 'tab-1.1');
+      expect((await heartbeat(aliceCookie, 'tab-1.2')).json().others).toEqual([]);
+      await heartbeat(bobCookie, 'bob.1');
+      // The first mount's goodbye arrives after the second mount's heartbeat.
+      await app.inject({ method: 'POST', url: `/diagrams/${diagramId}/presence/leave`, headers: { cookie: aliceCookie }, payload: { sessionId: 'tab-1.1' } });
+      expect((await heartbeat(bobCookie, 'bob.1')).json().others).toEqual([expect.objectContaining({ name: 'Alice Archer' })]);
     });
 
     it('drops an editor not heard from for 90 seconds', async () => {

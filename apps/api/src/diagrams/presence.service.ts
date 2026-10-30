@@ -41,9 +41,12 @@ export async function heartbeat(diagramId: string, userId: string, sessionId: st
 
   // One entry per person: someone with two tabs open is still one other editor, shown with the
   // earliest time they opened it.
+  // A session id is "<tab>.<mount>" (web/usePresence.ts): the caller's own tab, in any mount, isn't
+  // "someone else" -- an earlier mount whose goodbye hasn't landed yet is the same editor.
+  const tabOf = (id: string) => id.split('.')[0];
   const byKey = new Map<string, OtherEditor>();
   for (const row of rows) {
-    if (row.user_id === userId && row.session_id === sessionId) continue;
+    if (row.user_id === userId && tabOf(row.session_id) === tabOf(sessionId)) continue;
     const isYou = row.user_id === userId;
     const since = toDate(row.started_at as unknown as Date | string).toISOString();
     const existing = byKey.get(row.user_id);
