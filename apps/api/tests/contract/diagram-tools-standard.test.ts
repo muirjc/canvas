@@ -80,6 +80,24 @@ describe('createDiagramTools with a standard -- flowchart (Value Chain)', () => 
     expect((await run('setElementKind', { nodeId: marginId, kind: 'margin' })).applied).toBe(true);
   });
 
+  // canvas-thia: one of a group of kinds -- e.g. one Component, whether New, Reused or Retired.
+  it('refuses addElement and setElementKind into a full kind group', async () => {
+    const grouped = {
+      ...rules,
+      kindGroups: [{ id: 'activities', label: 'Activity', kindIds: ['primary_activity', 'support_activity'], maxCount: 1 }],
+    };
+    const { run, getModel } = setup('flowchart', grouped);
+    const { nodeId } = await run('addElement', { kind: 'primary_activity' });
+    const second = await run('addElement', { kind: 'support_activity' });
+    expect(second.applied).toBe(false);
+    expect(second.reason).toBe('This diagram already has its 1 Activity (Primary Activity or Support Activity).');
+    // Switching the one activity between kinds of its own group is fine.
+    expect((await run('setElementKind', { nodeId, kind: 'support_activity' })).applied).toBe(true);
+    const { nodeId: marginId } = await run('addElement', { kind: 'margin' });
+    expect((await run('setElementKind', { nodeId: marginId, kind: 'primary_activity' })).applied).toBe(false);
+    expect(getModel().nodes.filter((n) => n.role === 'primary_activity' || n.role === 'support_activity')).toHaveLength(1);
+  });
+
   // canvas-7ewa: the AI's free-form addNode offers only the shapes the standard offers authors.
   it('limits addNode to the standard\'s "Only these" shapes and drops it under "None"', () => {
     const listed = setup('flowchart', { ...rules, requireKnownKinds: false, authoring: { shapes: 'listed' }, allowedShapeIds: ['diamond', 'hexagon'] });

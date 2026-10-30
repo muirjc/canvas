@@ -1,7 +1,7 @@
 import type { DiagramModel } from '../model/diagram-model.js';
 import { resolveNodeFillStroke } from '../render/svg-renderer.js';
 import { effectiveAuthoring, SHAPE_ALIAS_LIBRARY_ID } from './authoring.js';
-import { classifyNode, isApprovedColor, resolveConnectorRule } from './kinds.js';
+import { classifyNode, isApprovedColor, kindGroupMembers, resolveConnectorRule } from './kinds.js';
 import { DEFAULT_SEVERITY, type ElementKind, type RuleId, type Severity, type StandardRules } from './schema.js';
 
 export interface Violation {
@@ -243,6 +243,30 @@ function checkKinds(model: DiagramModel, rules: StandardRules, violations: Viola
         kindId: kind.id,
         rule: 'kind-max-count',
         message: `Allows at most ${kind.maxCount} ${kind.label}${kind.maxCount === 1 ? '' : ' elements'}; found ${count}.`,
+        severity: 'warning',
+      });
+    }
+  }
+
+  // canvas-thia: count rules across several kinds together.
+  for (const group of rules.kindGroups ?? []) {
+    const count = group.kindIds.reduce((sum, id) => sum + (counts.get(id) ?? 0), 0);
+    const members = kindGroupMembers(group, rules);
+    if (group.minCount !== undefined && count < group.minCount) {
+      violations.push({
+        elementId: '(diagram)',
+        elementType: 'diagram',
+        rule: 'kind-group-min-count',
+        message: `Needs at least ${group.minCount} ${group.label}${group.minCount === 1 ? '' : ' elements'} (${members}); found ${count}.`,
+        severity: 'warning',
+      });
+    }
+    if (group.maxCount !== undefined && count > group.maxCount) {
+      violations.push({
+        elementId: '(diagram)',
+        elementType: 'diagram',
+        rule: 'kind-group-max-count',
+        message: `Allows at most ${group.maxCount} ${group.label}${group.maxCount === 1 ? '' : ' elements'} (${members}); found ${count}.`,
         severity: 'warning',
       });
     }

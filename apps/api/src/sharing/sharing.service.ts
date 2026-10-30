@@ -196,6 +196,7 @@ export async function listSharedDiagramsForUser(userId: string): Promise<SharedD
     .where('sg.subject_type', '=', 'diagram')
     .where('sg.grantee_user_id', '=', userId)
     .where('d.deleted_at', 'is', null)
+    .where('d.draft', '=', dbBoolean(false)) // canvas-j6v
     .orderBy('d.name')
     .orderBy('d.id')
     .execute();

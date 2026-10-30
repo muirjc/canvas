@@ -24,6 +24,15 @@ const elementKind = z.object({
   requireConnection: z.boolean().optional(),
 });
 
+// canvas-thia
+const kindGroup = z.object({
+  id: z.string(),
+  label: z.string(),
+  kindIds: z.array(z.string()).default([]),
+  minCount: z.number().int().optional(),
+  maxCount: z.number().int().optional(),
+});
+
 const connectorRule = z.object({
   id: z.string(),
   label: z.string(),
@@ -49,6 +58,7 @@ export const standardBodySchema = z.object({
     .optional(),
   // v2
   elementKinds: z.array(elementKind).optional(),
+  kindGroups: z.array(kindGroup).optional(),
   connectorRules: z.array(connectorRule).optional(),
   connectorPolicy: z.enum(['listed-only', 'any']).optional(),
   containers: z.object({ allowed: z.boolean(), allowedRoles: z.array(z.string()).optional() }).optional(),

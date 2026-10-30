@@ -45,6 +45,9 @@ test('resumes a diagram\'s prior chat conversation on reopen', async ({ page }) 
   await expect(page.locator('[data-testid="chat-message-assistant"]')).toHaveCount(3);
 
   const userMessagesBeforeReload = await page.locator('[data-testid="chat-message-user"]').allTextContents();
+  // canvas-j6v: an AI drawing is a draft until saved; save it so it's in the project's list.
+  await page.getByTestId('save-diagram').click();
+  await expect(page.getByTestId('save-status')).toHaveText('Saved');
 
   // Leave the diagram and reopen it — a full navigation, not an in-app "back" action (none
   // exists), matching how other specs (e.g. delete-restore-diagram.spec.ts) reopen a diagram.

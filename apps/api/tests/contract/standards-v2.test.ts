@@ -101,6 +101,17 @@ describe('Standards v2 API contract', () => {
       expect(bad.statusCode).toBe(400);
     });
 
+    // canvas-thia: a count across several kinds is stored with the other v2 rules and checked.
+    it('persists kind groups and rejects one naming an unknown kind', async () => {
+      const kindGroups = [{ id: 'nodes', label: 'Node', kindIds: ['step', 'decision'], maxCount: 4 }];
+      const response = await create({ ...V2_BODY, kindGroups });
+      expect(response.statusCode).toBe(201);
+      expect(response.json().standard.rules.kindGroups).toEqual(kindGroups);
+      const bad = await create({ ...V2_BODY, kindGroups: [{ ...kindGroups[0], kindIds: ['step', 'ghost'] }] });
+      expect(bad.statusCode).toBe(400);
+      expect(JSON.stringify(bad.json())).toContain('ghost');
+    });
+
     it('still accepts a v1-only body (back-compat) and returns no v2 fields', async () => {
       const response = await create({ allowedShapeIds: ['rectangle'], colorPalette: [{ role: 'system', colorHex: '#1168bd' }] });
       expect(response.statusCode).toBe(201);

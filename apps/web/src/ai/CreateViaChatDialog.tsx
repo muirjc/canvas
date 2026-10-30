@@ -14,6 +14,7 @@ import { ChatUsageLine, ChatUsageTotal, addUsage } from './ChatUsage';
 import { Modal } from '../ui/Modal';
 import { AI_MOCK_MODE_MESSAGE } from './ai-status-messages';
 import { groupPersonasByCategory } from './persona-grouping';
+import { stashDraftDsl } from './ai-draft';
 
 export interface CreateViaChatDialogProps {
   projectId: string;
@@ -115,10 +116,10 @@ export function CreateViaChatDialog({ projectId, onCreated, onCancel, mockMode =
   }, [conversing, busy, transcript.length]);
 
   const finish = async (target: DiagramDto, finalDsl: string, hadConversation: boolean) => {
-    // Saved here rather than left to the editor: the editor treats its opening DSL as the saved
-    // baseline, so an unsaved AI-drawn diagram would otherwise be silently lost on navigation.
-    const { diagram: saved } = await api.saveDiagram(target.id, finalDsl, target.currentVersionId);
-    onCreated(saved, { openChat: hadConversation });
+    // canvas-j6v: NOT saved for the user. The diagram is a draft; the drawing goes to the editor
+    // (kept in this tab), which shows it as "Not saved" until the user saves -- or discards it.
+    stashDraftDsl(target.id, finalDsl);
+    onCreated({ ...target, draft: true }, { openChat: hadConversation });
   };
 
   /**
@@ -134,7 +135,8 @@ export function CreateViaChatDialog({ projectId, onCreated, onCancel, mockMode =
     try {
       let currentDsl = dslContent;
       if (!target) {
-        const { diagram: created } = await api.createDiagram(projectId, { name, diagramTypeId });
+        // canvas-j6v: a draft -- in no list, and only its creator can open it, until they save.
+        const { diagram: created } = await api.createDiagram(projectId, { name, diagramTypeId, draft: true });
         target = created;
         currentDsl = created.dslContent;
         setDiagram(created);
@@ -186,8 +188,8 @@ export function CreateViaChatDialog({ projectId, onCreated, onCancel, mockMode =
   };
 
   const cancel = async () => {
-    // The diagram only existed to hold this conversation; nothing was drawn, so remove it rather
-    // than leave an empty "Untitled Diagram" behind. Best effort -- cancelling must never fail.
+    // The diagram only existed to hold this conversation; nothing was drawn, so remove it (a draft
+    // is deleted outright). Best effort -- cancelling must never fail; the purge removes leftovers.
     if (diagram && drawnDsl === null) {
       try {
         await api.deleteDiagram(diagram.id);

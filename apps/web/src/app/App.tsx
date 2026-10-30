@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { clearDraftDsl } from '../ai/ai-draft';
 import { api, type AiSettingsDto, type DiagramDto, type ProjectDto, type SessionUser, type SharedDiagramDto } from './api';
 import { LoginForm } from './LoginForm';
 import { ChangePasswordPage } from './ChangePasswordPage';
@@ -61,7 +62,7 @@ export function App() {
   // Landing rules apply once, to a bare address (design decisions 1-2).
   const landingPending = useRef(isBareAddress(window.location.search));
   // A navigation waiting on the "leave without saving?" confirm; viaHistory = it came from Back/Forward.
-  const [pendingNav, setPendingNav] = useState<{ to: Location; viaHistory: boolean } | null>(null);
+  const [pendingNav, setPendingNav] = useState<{ to: Location; viaHistory: boolean; draft: boolean } | null>(null);
   const skipGuardOnce = useRef(false);
   // Set by user-made navigations so the next screen's heading takes focus (canvas-t3b.3).
   const focusAfterNavigation = useRef(false);
@@ -196,7 +197,7 @@ export function App() {
   const navigate = (to: Location, options: { replace?: boolean; force?: boolean } = {}) => {
     const from = locationRef.current;
     if (!options.force && from.screen === 'diagram' && !sameLocation(from, to) && diagramEditorRef.current?.hasUnsavedChanges()) {
-      setPendingNav({ to, viaHistory: false });
+      setPendingNav({ to, viaHistory: false, draft: Boolean(diagramEditorRef.current?.isUnsavedDraft()) });
       return;
     }
     // Leaving an admin page is always a navigation, even to the same Browse location (canvas-513).
@@ -221,7 +222,7 @@ export function App() {
         skipGuardOnce.current = false;
       } else if (from.screen === 'diagram' && !sameLocation(from, to) && diagramEditorRef.current?.hasUnsavedChanges()) {
         window.history.pushState(null, '', urlFor(from));
-        setPendingNav({ to, viaHistory: true });
+        setPendingNav({ to, viaHistory: true, draft: Boolean(diagramEditorRef.current?.isUnsavedDraft()) });
         return;
       }
       setError(null);
@@ -367,6 +368,13 @@ export function App() {
     const pending = pendingNav;
     setPendingNav(null);
     if (!pending) return;
+    // canvas-j6v: discarding an AI drawing that was never saved deletes it -- it was only ever a
+    // draft placeholder for the AI conversation. Best effort: the purge removes any it misses.
+    if (pending.draft && diagram) {
+      const draftId = diagram.id;
+      clearDraftDsl(draftId);
+      void api.deleteDiagram(draftId).catch(() => undefined);
+    }
     if (pending.viaHistory) {
       // The editor's address was put back on top of the destination; step back onto it.
       skipGuardOnce.current = true;
@@ -688,7 +696,11 @@ export function App() {
             </>
           }
         >
-          <p>This diagram has unsaved changes. Leaving will discard them.</p>
+          <p>
+            {pendingNav.draft
+              ? 'This AI-drawn diagram hasn’t been saved. Leaving will discard it.'
+              : 'This diagram has unsaved changes. Leaving will discard them.'}
+          </p>
         </Modal>
       )}
     </AppShell>

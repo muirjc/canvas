@@ -21,6 +21,8 @@ const HEX = /^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/;
  *  - minCount > maxCount, negative counts
  *  - `match` on a non-C4 family; a C4 `match.role` not in C4_ELEMENT_ROLES
  *  - a C4 kind listing a shape its role can't be drawn as (C4_ROLE_SHAPES) -- canvas-syd
+ *  - kind groups (canvas-thia): bad/duplicate ids, no name, fewer than two kinds, unknown kinds,
+ *    bad counts, or no count at all
  *  - connector rules whose from/to is neither '*' nor a defined kind id; duplicate connector ids
  *  - container allowedRoles on a family with no container roles is NOT checked (kept permissive)
  */
@@ -99,6 +101,32 @@ export function checkStandardDefinition(rules: StandardRules, family: string): D
           message: `A C4 ${c4Role} element can't be drawn as ${unusable.map((s) => `"${s}"`).join(' or ')}; ${c4Role} elements use ${roleShapes.join(', ')}.`,
         });
       }
+    }
+  });
+
+  // canvas-thia: kind groups.
+  const seenGroupIds = new Set<string>();
+  (rules.kindGroups ?? []).forEach((group, i) => {
+    const at = `kindGroups[${i}]`;
+    if (!KIND_ID_PATTERN.test(group.id)) {
+      issues.push({ path: `${at}.id`, message: `Group id "${group.id}" must start with a lowercase letter and use only lowercase letters, digits and underscores.` });
+    }
+    if (seenGroupIds.has(group.id)) issues.push({ path: `${at}.id`, message: `Duplicate group id "${group.id}".` });
+    seenGroupIds.add(group.id);
+    if (!group.label?.trim()) issues.push({ path: `${at}.label`, message: 'A group needs a name.' });
+    const unique = new Set(group.kindIds);
+    if (unique.size < 2) issues.push({ path: `${at}.kindIds`, message: 'A group needs at least two element kinds.' });
+    for (const id of unique) {
+      if (!seenKindIds.has(id)) issues.push({ path: `${at}.kindIds`, message: `"${id}" isn't a defined element kind.` });
+    }
+    if ((group.minCount ?? 0) < 0 || (group.maxCount ?? 0) < 0) {
+      issues.push({ path: `${at}.minCount`, message: 'Counts cannot be negative.' });
+    }
+    if (group.minCount !== undefined && group.maxCount !== undefined && group.minCount > group.maxCount) {
+      issues.push({ path: `${at}.minCount`, message: `Minimum count ${group.minCount} exceeds maximum ${group.maxCount}.` });
+    }
+    if (group.minCount === undefined && group.maxCount === undefined) {
+      issues.push({ path: `${at}.maxCount`, message: 'Set a minimum or a maximum count for the group.' });
     }
   });
 

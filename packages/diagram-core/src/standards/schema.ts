@@ -50,6 +50,21 @@ export interface ConnectorRule {
   maxPerSource?: number;
 }
 
+/**
+ * canvas-thia: a count rule over several element kinds together -- e.g. a Product Context diagram
+ * holds exactly one Component, whether New, Reused or Retired. A kind may sit in several groups;
+ * each kind's own min/max still applies too.
+ */
+export interface KindGroup {
+  /** Same pattern as a kind id. */
+  id: string;
+  label: string;
+  /** The element kinds counted together (at least two). */
+  kindIds: string[];
+  minCount?: number;
+  maxCount?: number;
+}
+
 export interface ContainerRules {
   allowed: boolean;
   /** If set, only containers with one of these roles are allowed (C4 boundary roles etc.). */
@@ -69,6 +84,8 @@ export const RULE_IDS = [
   'kind-stroke',
   'kind-min-count',
   'kind-max-count',
+  'kind-group-min-count',
+  'kind-group-max-count',
   'kind-unconnected',
   'connector-not-allowed',
   'connector-style',
@@ -91,6 +108,8 @@ export const DEFAULT_SEVERITY: Record<RuleId, Severity> = {
   'kind-stroke': 'info',
   'kind-min-count': 'error',
   'kind-max-count': 'error',
+  'kind-group-min-count': 'error',
+  'kind-group-max-count': 'error',
   'kind-unconnected': 'info',
   'connector-not-allowed': 'error',
   'connector-style': 'info',
@@ -137,6 +156,8 @@ export interface StandardRules {
   fontConstraints?: FontConstraints;
   // ---- canvas-tfr (v2), all optional so v1 standards stay valid unchanged ----
   elementKinds?: ElementKind[];
+  /** canvas-thia: count rules across several kinds. */
+  kindGroups?: KindGroup[];
   connectorRules?: ConnectorRule[];
   /** 'listed-only': an edge whose endpoint kinds match no rule is a violation. Default 'any'. */
   connectorPolicy?: 'listed-only' | 'any';
