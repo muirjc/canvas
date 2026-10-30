@@ -186,3 +186,54 @@ test('Auto Layout + Save persists the new direction and positions server-side', 
   expect(serverA).toEqual(clientA);
   expect(serverB).toEqual(clientB);
 });
+
+// canvas-p2g8.1: Auto Layout for every family but sequence, laying out inside groups too.
+test('C4: Auto Layout arranges a boundary\'s contents and the boundary encloses them', async ({ page }) => {
+  await signIn(page, OWNER_EMAIL, OWNER_PASSWORD);
+  const name = `Auto Layout C4 ${Date.now()}`;
+  const projectId = await createProject(page, name);
+  const c4 = [
+    'C4Context',
+    '  Person(customer, "Customer")',
+    '  System_Boundary(bank, "Bank") {',
+    '    System(web, "Web app")',
+    '    System(core, "Core banking")',
+    '  }',
+    '  Rel(customer, web, "Uses")',
+    '  Rel(web, core, "Calls")',
+    '',
+  ].join('\n');
+  const diagramId = await createDiagram(page, projectId, name, 'c4-context', c4);
+  await openDiagram(page, projectId, diagramId);
+
+  await expect(page.getByTestId('auto-layout')).toBeVisible();
+  await page.getByTestId('auto-layout').click();
+  await expect(page.getByTestId('save-status')).toHaveText('Unsaved changes');
+
+  const box = async (testId: string) => (await page.getByTestId(testId).boundingBox())!;
+  const bank = await box('container-bank');
+  for (const id of ['web', 'core']) {
+    const node = await box(`node-${id}`);
+    expect(node.x, id).toBeGreaterThanOrEqual(bank.x);
+    expect(node.y, id).toBeGreaterThanOrEqual(bank.y);
+    expect(node.x + node.width, id).toBeLessThanOrEqual(bank.x + bank.width + 1);
+    expect(node.y + node.height, id).toBeLessThanOrEqual(bank.y + bank.height + 1);
+  }
+  // TD: the customer above the boundary, web above core inside it.
+  expect((await box('node-customer')).y + (await box('node-customer')).height).toBeLessThanOrEqual(bank.y + 1);
+  expect((await box('node-core')).y).toBeGreaterThan((await box('node-web')).y);
+});
+
+test('architecture: Auto Layout follows the diagram\'s own hints, so there is no direction picker', async ({ page }) => {
+  await signIn(page, OWNER_EMAIL, OWNER_PASSWORD);
+  const name = `Auto Layout Architecture ${Date.now()}`;
+  const projectId = await createProject(page, name);
+  const diagramId = await createDiagram(page, projectId, name, 'cloud-infrastructure', 'architecture-beta\n  service db(database)[Database]\n  service api(server)[API]\n  db:L -- R:api\n');
+  await openDiagram(page, projectId, diagramId);
+  await expect(page.getByTestId('auto-layout')).toBeVisible();
+  await expect(page.getByTestId('auto-layout-direction')).toHaveCount(0);
+  await page.getByTestId('auto-layout').click();
+  const db = (await page.getByTestId('node-db').boundingBox())!;
+  const api = (await page.getByTestId('node-api').boundingBox())!;
+  expect(db.x).toBeGreaterThan(api.x);
+});

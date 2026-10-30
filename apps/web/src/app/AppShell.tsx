@@ -5,7 +5,10 @@ export interface AppShellProps {
   user: SessionUser;
   onSignOut: () => void;
   /** canvas-t3b.4: which header link is the current section ('browse' at both Browse levels). */
-  currentSection: 'browse' | 'admin' | 'account' | null;
+  currentSection: 'browse' | 'admin' | 'account' | 'help' | null;
+  /** canvas-fkp: the Help screen's address, and the in-app way to open it. */
+  helpHref?: string;
+  onNavigateHelp?: () => void;
   /** Change-password link (local accounts only), and the in-app way to open it. */
   accountHref?: string;
   onNavigateAccount?: () => void;
@@ -23,7 +26,7 @@ export interface AppShellProps {
  * the header no longer needs to know one -- it's the same on every screen: the wordmark, the
  * Projects and Admin sections, the user and Sign Out, plus a skip link past it all.
  */
-export function AppShell({ user, onSignOut, currentSection, projectsHref, onNavigateProjects, accountHref, onNavigateAccount, minimal = false, children }: AppShellProps) {
+export function AppShell({ user, onSignOut, currentSection, projectsHref, onNavigateProjects, accountHref, onNavigateAccount, helpHref, onNavigateHelp, minimal = false, children }: AppShellProps) {
   const handleSignOut = async () => {
     const result = await api.logout();
     if (result?.logoutUrl) {
@@ -85,6 +88,21 @@ export function AppShell({ user, onSignOut, currentSection, projectsHref, onNavi
               }}
             >
               <span className="app-nav__long">Change </span>password
+            </a>
+          )}
+          {helpHref && (
+            <a
+              className="app-nav__link"
+              href={helpHref}
+              data-testid="nav-help"
+              aria-current={currentSection === 'help' ? 'page' : undefined}
+              onClick={(event) => {
+                if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+                event.preventDefault();
+                onNavigateHelp?.();
+              }}
+            >
+              Help
             </a>
           )}
         </nav>

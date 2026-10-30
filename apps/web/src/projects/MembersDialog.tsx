@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
+import { HelpLink } from '../help/HelpLink';
 import { accessAtLeast, api, ApiError, type AccessLevel, type ProjectMembersDto } from '../app/api';
 import { Modal } from '../ui/Modal';
 import { ConfirmDialog } from '../canvas/ConfirmDialog';
@@ -88,7 +89,11 @@ export function MembersDialog({ projectId, projectName, currentUser, onClose, on
   return (
     <Modal
       label={`Members of ${projectName}`}
-      title={`Members of ${projectName}`}
+      title={
+        <span className="section-heading">
+          Members of {projectName} <HelpLink page="user/sharing-and-exporting" section="project-members" topic="project members" />
+        </span>
+      }
       wide
       testId="members-dialog"
       onClose={onClose}

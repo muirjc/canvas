@@ -93,6 +93,22 @@ tests are NON-NEGOTIABLE and must exist (and fail) before implementing any diagr
 work — see `.specify/memory/constitution.md` Principle IV.
 
 ## Recent Changes
+- Wave 4 (editor UX): **zoom** (`canvas-bx3`): one factor on the canvas svg's `viewBox`
+  (25%-400%, controls bottom-left, Ctrl/Cmd + wheel/pinch toward the pointer, Ctrl/Cmd + = - 0);
+  `toClientPoint` divides by it; popups use `ScreenSizedForeignObject` to keep their on-screen size
+  (small on-shape buttons and inline editors scale with the drawing); a view setting, never in the
+  DSL. **Help** (`canvas-fkp`): `?help=<user|admin>[/<page>][&section=]`, docs/user-guide and
+  docs/admin-guide bundled with `import.meta.glob` (images too) and rendered by
+  `help/HelpMarkdown.tsx` (React elements, no raw HTML; tables, anchors); search by section;
+  admin guide admins-only; `HelpLink` "?"s open sections in a new tab (rail tabs, Share/Members,
+  Standards editor, GitHub page); new `docs/user-guide/common-questions.md`. A doc heading rename
+  can break a "?" link -- `tests/unit/help.test.tsx` checks them. **Auto Layout for every family**
+  (`canvas-p2g8.1`): `autoLayout(model, direction, family)` is compound (dagre per group,
+  bottom-up, groups sized to fit, a group's own direction inside it); architecture uses
+  `computeArchitectureLayout`; sequence untouched; direction written back only for
+  flowchart/erd/uml. C4 Rel_U/D/L/R hints and pinned elements are `canvas-rqm6`. **Recently
+  opened** (`canvas-93n`): localStorage per user (`projects/recent-diagrams.ts`), re-checked with
+  the server on the Projects page.
 - `canvas-thia` + `canvas-j6v`: **kind groups** -- `StandardRules.kindGroups` (`{ id, label, kindIds,
   minCount?, maxCount? }`, stored in `kind_rules` JSON, no migration) count several element kinds
   together ("one Component, whether New, Reused or Retired"). `kindAddBlockedReason()` in

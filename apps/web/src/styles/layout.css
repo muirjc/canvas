@@ -1176,3 +1176,169 @@
 .editor__canvas--read-only .canvas-edit-affordance {
   display: none;
 }
+
+/* canvas-bx3: zoom controls float at the bottom-left of the visible canvas. The wrapper is sticky
+   inside the scrolling .editor__canvas and has no height, so it never adds scroll area; the bar is
+   lifted above the bottom edge. */
+.canvas-zoom {
+  position: sticky;
+  left: var(--space-3);
+  bottom: var(--space-3);
+  z-index: 2;
+  width: max-content;
+  height: 0;
+}
+.canvas-zoom__bar {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: var(--space-1);
+  transform: translateY(-100%);
+  background: var(--surface-raised);
+  border: var(--border-width) solid var(--border-default);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-sm, none);
+}
+.canvas-zoom__level {
+  min-width: 4.5ch;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---- canvas-fkp: Help ----------------------------------------------------- */
+.help {
+  display: grid;
+  grid-template-columns: 15rem minmax(0, 1fr);
+  gap: var(--space-6);
+  align-items: start;
+}
+.help__nav {
+  position: sticky;
+  top: var(--space-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+.help__nav ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+.help__nav a[aria-current='page'] {
+  font-weight: 600;
+}
+.help__results li {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.help__article {
+  min-width: 0;
+  padding: var(--space-6);
+}
+.help-markdown h1 {
+  margin-block: 0 var(--space-4);
+}
+.help-markdown h2 {
+  margin-block: var(--space-6) var(--space-2);
+}
+.help-markdown h3 {
+  margin-block: var(--space-4) var(--space-2);
+}
+.help-markdown p,
+.help-markdown ul,
+.help-markdown ol,
+.help-markdown blockquote {
+  margin-block: 0 var(--space-3);
+  max-width: 72ch;
+}
+.help-markdown__image {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  margin-block: var(--space-3) var(--space-4);
+  border: var(--border-width) solid var(--border-default);
+  border-radius: var(--radius-md);
+}
+.help-markdown__table {
+  overflow-x: auto;
+  margin-block: 0 var(--space-4);
+}
+.help-markdown table {
+  border-collapse: collapse;
+}
+.help-markdown th,
+.help-markdown td {
+  text-align: start;
+  vertical-align: top;
+  padding: var(--space-2) var(--space-3);
+  border-block-end: var(--border-width) solid var(--border-default);
+}
+.help-markdown pre {
+  overflow-x: auto;
+  padding: var(--space-3);
+  background: var(--surface-sunken, var(--surface-canvas));
+  border-radius: var(--radius-md);
+}
+.help__legal {
+  margin: 0;
+}
+@media (max-width: 800px) {
+  .help {
+    grid-template-columns: 1fr;
+  }
+  .help__nav {
+    position: static;
+  }
+  .help__article {
+    padding: var(--space-4);
+  }
+}
+
+/* canvas-fkp: a small "?" link to the matching Help section, opening in a new tab. */
+.help-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.25rem;
+  height: 1.25rem;
+  border-radius: 50%;
+  border: var(--border-width) solid var(--border-default);
+  font-size: var(--text-small-size);
+  font-weight: 600;
+  line-height: 1;
+  text-decoration: none;
+  color: var(--text-secondary, inherit);
+  vertical-align: middle;
+}
+.help-link:hover,
+.help-link:focus-visible {
+  border-color: var(--accent, currentColor);
+  color: var(--accent, inherit);
+}
+.rail-help {
+  display: flex;
+  justify-content: flex-end;
+  padding: var(--space-2) var(--space-4) 0;
+}
+/* canvas-fkp: a heading with its "?" help link beside it. */
+.section-heading {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+.section-heading > :is(h1, h2, h3) {
+  margin-block-end: 0;
+}
+
+/* canvas-93n: recently opened diagrams on the Projects page. */
+.recent-diagrams {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-5);
+}

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { createContext, useCallback, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import {
   addContainer,
@@ -53,6 +53,8 @@ import {
   CONTROL_FLOW_TAB_FILL,
   sanitizeSvgFragment,
   autoLayout,
+  autoLayoutUsesDirection,
+  supportsAutoLayout,
   iconLibraryOffered,
   mermaidArchitectureIconsManifest,
   offeredShapes,
@@ -250,6 +252,42 @@ const FIELDS_POPUP_HEIGHT = 280;
 // bounds (see containerSize state / computeBounds below) — no longer the canvas's true fixed size.
 const DEFAULT_CANVAS_WIDTH = 800;
 const DEFAULT_CANVAS_HEIGHT = 500;
+
+// canvas-bx3: zoom is a view setting -- one scale factor on the drawing (the svg's viewBox), never
+// written to the diagram. Steps for the +/- buttons and keyboard shortcuts; the wheel/pinch zooms
+// smoothly within the same range.
+export const ZOOM_MIN = 0.25;
+export const ZOOM_MAX = 4;
+const ZOOM_STEPS = [0.25, 0.33, 0.5, 0.67, 0.75, 0.9, 1, 1.1, 1.25, 1.5, 1.75, 2, 2.5, 3, 4];
+const clampZoom = (zoom: number) => Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, zoom));
+const nextZoomStep = (zoom: number, direction: 1 | -1) =>
+  direction > 0
+    ? (ZOOM_STEPS.find((step) => step > zoom + 0.001) ?? ZOOM_MAX)
+    : ([...ZOOM_STEPS].reverse().find((step) => step < zoom - 0.001) ?? ZOOM_MIN);
+
+const CanvasZoomContext = createContext(1);
+
+/**
+ * canvas-bx3: a popup drawn inside the canvas (style, kind, fields, link...) keeps its on-screen
+ * size at any zoom -- readable at 25%, not huge at 400%: its box is divided by the zoom and its
+ * content scaled back up. The small edit buttons on a shape and the inline editors that sit ON a
+ * shape use a plain <foreignObject> and scale with it, so they stay where they belong on the shape.
+ */
+function ScreenSizedForeignObject({ x, y, width, height, children }: { x: number; y: number; width: number; height: number; children: ReactNode }) {
+  const zoom = useContext(CanvasZoomContext);
+  if (zoom === 1) {
+    return (
+      <foreignObject x={x} y={y} width={width} height={height}>
+        {children}
+      </foreignObject>
+    );
+  }
+  return (
+    <foreignObject x={x} y={y} width={width / zoom} height={height / zoom}>
+      <div style={{ width, height, transform: `scale(${1 / zoom})`, transformOrigin: '0 0' }}>{children}</div>
+    </foreignObject>
+  );
+}
 
 export interface CanvasProps {
   model: DiagramModel;
@@ -515,7 +553,7 @@ function FieldsPopup({ node, model, dslFamily, x, y, onChange, onClose }: Fields
   };
 
   return (
-    <foreignObject x={x} y={y} width={FIELDS_POPUP_WIDTH} height={FIELDS_POPUP_HEIGHT}>
+    <ScreenSizedForeignObject x={x} y={y} width={FIELDS_POPUP_WIDTH} height={FIELDS_POPUP_HEIGHT}>
       <div
         className="card"
         style={{
@@ -930,7 +968,7 @@ function FieldsPopup({ node, model, dslFamily, x, y, onChange, onClose }: Fields
           </div>
         )}
       </div>
-    </foreignObject>
+    </ScreenSizedForeignObject>
   );
 }
 
@@ -991,7 +1029,7 @@ function LinkPopup({ node, model, x, y, onChange, onClose }: LinkPopupProps) {
   };
 
   return (
-    <foreignObject x={x} y={y} width={LINK_POPUP_WIDTH} height={LINK_POPUP_HEIGHT}>
+    <ScreenSizedForeignObject x={x} y={y} width={LINK_POPUP_WIDTH} height={LINK_POPUP_HEIGHT}>
       <div
         className="card stack"
         style={{ padding: 'var(--space-2)', gap: 'var(--space-1)' }}
@@ -1053,7 +1091,7 @@ function LinkPopup({ node, model, x, y, onChange, onClose }: LinkPopupProps) {
           </button>
         </div>
       </div>
-    </foreignObject>
+    </ScreenSizedForeignObject>
   );
 }
 
@@ -1384,6 +1422,69 @@ export function Canvas({ model: modelProp, onChange: onChangeProp, dslFamily, to
     return () => observer.disconnect();
   }, []);
 
+  // canvas-bx3: zoom. `zoomRef` mirrors the state for the wheel listener; `zoomAnchor` is the
+  // diagram point that must stay under the same screen point (the pointer, or the view's centre)
+  // when the zoom changes, applied to the scroll position right after the re-render.
+  const [zoom, setZoomState] = useState(1);
+  const zoomRef = useRef(1);
+  const zoomAnchor = useRef<{ diagramX: number; diagramY: number; screenX: number; screenY: number } | null>(null);
+  const scrollContainer = () => svgRef.current?.closest('.editor__canvas') as HTMLElement | null | undefined;
+  const setZoom = useCallback((next: number, anchor?: { clientX: number; clientY: number }) => {
+    const svg = svgRef.current;
+    const container = scrollContainer();
+    const target = clampZoom(next);
+    if (!svg || !container || target === zoomRef.current) return;
+    const svgRect = svg.getBoundingClientRect();
+    const box = container.getBoundingClientRect();
+    const clientX = anchor?.clientX ?? box.left + box.width / 2;
+    const clientY = anchor?.clientY ?? box.top + box.height / 2;
+    zoomAnchor.current = {
+      diagramX: (clientX - svgRect.left) / zoomRef.current,
+      diagramY: (clientY - svgRect.top) / zoomRef.current,
+      screenX: clientX,
+      screenY: clientY,
+    };
+    zoomRef.current = target;
+    setZoomState(target);
+  }, []);
+
+  useLayoutEffect(() => {
+    const anchor = zoomAnchor.current;
+    const svg = svgRef.current;
+    const container = scrollContainer();
+    zoomAnchor.current = null;
+    if (!anchor || !svg || !container) return;
+    const svgRect = svg.getBoundingClientRect();
+    container.scrollLeft += svgRect.left + anchor.diagramX * zoom - anchor.screenX;
+    container.scrollTop += svgRect.top + anchor.diagramY * zoom - anchor.screenY;
+  }, [zoom]);
+
+  // The dot grid (a background on the scroll container) scales with the drawing.
+  useEffect(() => {
+    const container = scrollContainer();
+    if (!container) return;
+    if (zoom === 1) {
+      container.style.removeProperty('background-size');
+      return;
+    }
+    const base = parseFloat(getComputedStyle(container).getPropertyValue('--canvas-grid-size')) || 16;
+    container.style.backgroundSize = `${base * zoom}px ${base * zoom}px`;
+  }, [zoom]);
+
+  // Ctrl/Cmd + wheel, and trackpad pinch (which browsers report as a ctrl+wheel), zoom toward the
+  // pointer instead of zooming the whole page. Non-passive so preventDefault works.
+  useEffect(() => {
+    const container = scrollContainer();
+    if (!container) return;
+    const onWheel = (event: WheelEvent) => {
+      if (!event.ctrlKey && !event.metaKey) return;
+      event.preventDefault();
+      setZoom(zoomRef.current * Math.exp(-event.deltaY * 0.0015), { clientX: event.clientX, clientY: event.clientY });
+    };
+    container.addEventListener('wheel', onWheel, { passive: false });
+    return () => container.removeEventListener('wheel', onWheel);
+  }, [setZoom]);
+
   // canvas-8n7: a node only stores an icon *reference* (Constitution V), not its artwork, so the
   // canvas must resolve refs to real SVG markup at render time — mirroring how svg-renderer.ts's
   // export path already does via its own resolveIcon callback (SC-004). Cached per library+
@@ -1503,14 +1604,15 @@ export function Canvas({ model: modelProp, onChange: onChangeProp, dslFamily, to
   };
 
   const handleAutoLayout = () => {
-    onChange(autoLayout(model, layoutDirection));
+    onChange(autoLayout(model, layoutDirection, dslFamily));
   };
 
   const toClientPoint = (event: React.PointerEvent): { x: number; y: number } => {
     const svg = svgRef.current;
     if (!svg) return { x: 0, y: 0 };
     const rect = svg.getBoundingClientRect();
-    return { x: event.clientX - rect.left, y: event.clientY - rect.top };
+    // canvas-bx3: screen pixels -> diagram units.
+    return { x: (event.clientX - rect.left) / zoom, y: (event.clientY - rect.top) / zoom };
   };
 
   const handleNodePointerDown = (node: DiagramNode) => (event: React.PointerEvent) => {
@@ -1977,7 +2079,7 @@ export function Canvas({ model: modelProp, onChange: onChangeProp, dslFamily, to
     // canvas-tfr: the standard's element kinds replace the raw C4 roles when present.
     options: { value: string; label: string; disabled?: boolean }[] = C4_ELEMENT_ROLES.map((role) => ({ value: role, label: C4_ELEMENT_ROLE_LABELS[role] })),
   ) => (
-    <foreignObject x={x} y={y} width={STYLE_POPUP_WIDTH} height={STYLE_POPUP_HEIGHT}>
+    <ScreenSizedForeignObject x={x} y={y} width={STYLE_POPUP_WIDTH} height={STYLE_POPUP_HEIGHT}>
       <div
         className="card cluster"
         style={{ padding: 'var(--space-2)', flexWrap: 'nowrap' }}
@@ -2010,7 +2112,7 @@ export function Canvas({ model: modelProp, onChange: onChangeProp, dslFamily, to
           Done
         </button>
       </div>
-    </foreignObject>
+    </ScreenSizedForeignObject>
   );
 
   /** Post-hoc UML relationship-kind + cardinality popup — the same "settable at connect time
@@ -2028,7 +2130,7 @@ export function Canvas({ model: modelProp, onChange: onChangeProp, dslFamily, to
     currentTargetCardinality: string | undefined,
     onClose: () => void,
   ) => (
-    <foreignObject x={x} y={y} width={RELATION_KIND_POPUP_WIDTH} height={RELATION_KIND_POPUP_HEIGHT}>
+    <ScreenSizedForeignObject x={x} y={y} width={RELATION_KIND_POPUP_WIDTH} height={RELATION_KIND_POPUP_HEIGHT}>
       <div
         className="card stack"
         style={{ padding: 'var(--space-2)', gap: 'var(--space-1)' }}
@@ -2075,7 +2177,7 @@ export function Canvas({ model: modelProp, onChange: onChangeProp, dslFamily, to
           </button>
         </div>
       </div>
-    </foreignObject>
+    </ScreenSizedForeignObject>
   );
 
   /** canvas-2s6.4: post-hoc ER cardinality + identifying/non-identifying popup — the ERD analog
@@ -2091,7 +2193,7 @@ export function Canvas({ model: modelProp, onChange: onChangeProp, dslFamily, to
     currentlyNonIdentifying: boolean,
     onClose: () => void,
   ) => (
-    <foreignObject x={x} y={y} width={RELATION_KIND_POPUP_WIDTH} height={RELATION_KIND_POPUP_HEIGHT}>
+    <ScreenSizedForeignObject x={x} y={y} width={RELATION_KIND_POPUP_WIDTH} height={RELATION_KIND_POPUP_HEIGHT}>
       <div
         className="card stack"
         style={{ padding: 'var(--space-2)', gap: 'var(--space-1)' }}
@@ -2143,7 +2245,7 @@ export function Canvas({ model: modelProp, onChange: onChangeProp, dslFamily, to
           </button>
         </div>
       </div>
-    </foreignObject>
+    </ScreenSizedForeignObject>
   );
 
   /** canvas-2s6.7: style-popup parity pass — was a single color swatch, now a small form covering
@@ -2170,7 +2272,7 @@ export function Canvas({ model: modelProp, onChange: onChangeProp, dslFamily, to
     // replace the free color input, and "Reset" restores the first (default) swatch.
     swatches?: { fills?: string[]; strokes?: string[]; effectiveFill?: string; effectiveStroke?: string },
   ) => (
-    <foreignObject x={x} y={y} width={STYLE_POPUP_WIDTH} height={STYLE_POPUP_HEIGHT}>
+    <ScreenSizedForeignObject x={x} y={y} width={STYLE_POPUP_WIDTH} height={STYLE_POPUP_HEIGHT}>
       <div
         className="card stack"
         style={{ padding: 'var(--space-2)', gap: 'var(--space-1)' }}
@@ -2314,7 +2416,7 @@ export function Canvas({ model: modelProp, onChange: onChangeProp, dslFamily, to
           Done
         </button>
       </div>
-    </foreignObject>
+    </ScreenSizedForeignObject>
   );
 
   const commitContainerLabel = (containerId: string, label: string) => {
@@ -2489,10 +2591,19 @@ export function Canvas({ model: modelProp, onChange: onChangeProp, dslFamily, to
   const cancelDeleteSelected = () => setShowDeleteConfirm(false);
 
   const handleKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
+    const tag = (event.target as HTMLElement).tagName;
+    const typing = tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT';
+    // canvas-bx3: Ctrl/Cmd + '=' / '-' / '0' zoom the canvas while it has focus (not while typing,
+    // and anywhere else the browser's own page zoom still applies).
+    if ((event.ctrlKey || event.metaKey) && !typing && ['=', '+', '-', '0'].includes(event.key)) {
+      event.preventDefault();
+      if (event.key === '0') setZoom(1);
+      else setZoom(nextZoomStep(zoomRef.current, event.key === '-' ? -1 : 1));
+      return;
+    }
     // Don't intercept Delete/Backspace while a label is being typed into.
     if (editingNodeId || editingEdgeId || readOnly) return;
-    const tag = (event.target as HTMLElement).tagName;
-    if (tag === 'INPUT' || tag === 'TEXTAREA') return;
+    if (typing) return;
     if ((event.key === 'Delete' || event.key === 'Backspace') && (selectedIds.size > 0 || selectedEdgeId)) {
       event.preventDefault();
       requestDeleteSelected();
@@ -3097,8 +3208,10 @@ export function Canvas({ model: modelProp, onChange: onChangeProp, dslFamily, to
               getAddableShapes above. Not a mode like Connect: one click rearranges the whole
               diagram in the picked direction and the picker stays visible so it can be changed and
               re-run at any time, mirroring docs/mermaid_dagre_demo.html's own select+button shape. */}
-          {dslFamily === 'flowchart' && (
+          {/* canvas-p2g8.1: every family but sequence; architecture follows its own hints. */}
+          {supportsAutoLayout(dslFamily) && !readOnly && (
             <>
+              {autoLayoutUsesDirection(dslFamily) && (
               <label className="field__label" htmlFor="auto-layout-direction">
                 Layout Direction
                 <select
@@ -3113,6 +3226,7 @@ export function Canvas({ model: modelProp, onChange: onChangeProp, dslFamily, to
                   <option value="RL">Right → Left</option>
                 </select>
               </label>
+              )}
               <button type="button" className="btn btn--secondary" data-testid="auto-layout" onClick={handleAutoLayout}>
                 <Icon name="layout" />
                 Auto Layout
@@ -3127,9 +3241,20 @@ export function Canvas({ model: modelProp, onChange: onChangeProp, dslFamily, to
   // canvas-0s3: whichever is larger of the visible container and actual content — never smaller
   // than the container (so the drawable area always fills the visible viewport, matching what the
   // dot-grid background already implies is drawable) and grows past it for content that needs more.
+  // canvas-bx3: in diagram units the drawable area is the visible area divided by the zoom (so it
+  // still fills the view zoomed out); the svg's on-screen size is that times the zoom.
   const contentBounds = computeBounds(model, legendEntries);
-  const canvasWidth = Math.max(containerSize.width, contentBounds.width);
-  const canvasHeight = Math.max(containerSize.height, contentBounds.height);
+  const canvasWidth = Math.max(containerSize.width / zoom, contentBounds.width);
+  const canvasHeight = Math.max(containerSize.height / zoom, contentBounds.height);
+  const fitToDiagram = () => {
+    const fit = clampZoom(Math.min(containerSize.width / contentBounds.width, containerSize.height / contentBounds.height));
+    const container = scrollContainer();
+    setZoom(fit);
+    if (container) {
+      zoomAnchor.current = null;
+      requestAnimationFrame(() => container.scrollTo({ left: 0, top: 0 }));
+    }
+  };
   // canvas-7vs.7: built once per render, not per edge, for architectureEndpointBox's {group}
   // parent-container lookup.
   const containersById = new Map(model.containers.map((c) => [c.id, c]));
@@ -3161,17 +3286,20 @@ export function Canvas({ model: modelProp, onChange: onChangeProp, dslFamily, to
         />
       )}
 
+      <CanvasZoomContext.Provider value={zoom}>
       <svg
         ref={svgRef}
         data-testid="diagram-canvas"
         className="canvas-svg"
-        width={canvasWidth}
-        height={canvasHeight}
+        width={canvasWidth * zoom}
+        height={canvasHeight * zoom}
+        viewBox={`0 0 ${canvasWidth} ${canvasHeight}`}
+        data-zoom={zoom}
         // The border moved to the surrounding container so the SVG can fill it and let the
         // dot-grid background show through; `touchAction` stays inline because it is behaviour,
-        // not styling. width/height above are computed (canvas-0s3), not CSS-stretched — no
-        // viewBox, so the origin stays at the container's top-left and drag coordinate maths
-        // (1 SVG unit = 1 CSS pixel) is unchanged regardless of how large the canvas grows.
+        // not styling. width/height above are computed (canvas-0s3), not CSS-stretched. The
+        // viewBox (canvas-bx3) is the zoom: 1 SVG unit = `zoom` CSS pixels, origin at the top-left,
+        // and toClientPoint divides by the zoom.
         style={{ touchAction: 'none' }}
         onPointerDown={(event) => {
           // canvas-558: a pointer-down that reaches here (not stopped by a node/edge/container's
@@ -4151,6 +4279,25 @@ export function Canvas({ model: modelProp, onChange: onChangeProp, dslFamily, to
           />
         )}
       </svg>
+      </CanvasZoomContext.Provider>
+      {/* canvas-bx3: zoom controls, floating at the bottom-left of the visible canvas. A view
+          setting for everyone (viewers included); never part of the diagram. */}
+      <div className="canvas-zoom">
+        <div className="canvas-zoom__bar" role="group" aria-label="Zoom" data-testid="canvas-zoom">
+          <button type="button" className="btn btn--tertiary btn--compact" data-testid="zoom-out" aria-label="Zoom out" title="Zoom out (Ctrl -)" disabled={zoom <= ZOOM_MIN} onClick={() => setZoom(nextZoomStep(zoom, -1))}>
+            <Icon name="minus" />
+          </button>
+          <button type="button" className="btn btn--tertiary btn--compact canvas-zoom__level" data-testid="zoom-reset" aria-label={`Zoom ${Math.round(zoom * 100)}%, reset to 100%`} title="Reset to 100% (Ctrl 0)" onClick={() => setZoom(1)}>
+            {Math.round(zoom * 100)}%
+          </button>
+          <button type="button" className="btn btn--tertiary btn--compact" data-testid="zoom-in" aria-label="Zoom in" title="Zoom in (Ctrl +)" disabled={zoom >= ZOOM_MAX} onClick={() => setZoom(nextZoomStep(zoom, 1))}>
+            <Icon name="plus" />
+          </button>
+          <button type="button" className="btn btn--tertiary btn--compact" data-testid="zoom-fit" title="Fit the whole diagram in view" onClick={fitToDiagram}>
+            Fit
+          </button>
+        </div>
+      </div>
     </div>
   );
 }

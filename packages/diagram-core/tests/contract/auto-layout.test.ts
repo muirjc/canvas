@@ -1,12 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import { autoLayout } from '../../src/model/auto-layout.js';
 import { createEmptyDiagramModel, type DiagramModel } from '../../src/model/diagram-model.js';
+import { nodeSize } from '../../src/render/svg-renderer.js';
 
 /**
- * canvas-esn: dagre-based Auto Layout for flowchart-family diagrams. v1 is FLAT — only
- * container-less nodes and top-level containers are laid out directly by dagre; a container's
- * own contents are shifted afterward via the existing `moveContainer` (already covered by
- * `diagram-ops.test.ts`), preserving each member's relative position exactly.
+ * canvas-esn: dagre-based Auto Layout; canvas-p2g8.1 made it compound (inside groups too) and
+ * extended it to C4, ERD, UML and architecture. Assertions are geometric relationships (rank
+ * order, enclosure, no overlap), never exact pixels.
  */
 
 function chainModel(): DiagramModel {
@@ -133,35 +133,101 @@ describe('autoLayout: direction resolution', () => {
   });
 });
 
-describe('autoLayout: containers', () => {
-  it('preserves a member node\'s position relative to its container after the container moves', () => {
+// canvas-p2g8.1: Auto Layout now arranges INSIDE groups too, and sizes each group to fit.
+type Box = { x: number; y: number; width: number; height: number };
+const nodeBox = (m: DiagramModel, id: string): Box => {
+  const n = m.nodes.find((node) => node.id === id)!;
+  const { width, height } = nodeSize(n);
+  return { ...n.position, width, height };
+};
+const groupBox = (m: DiagramModel, id: string): Box => {
+  const c = m.containers.find((container) => container.id === id)!;
+  return { ...c.position, ...c.size! };
+};
+const encloses = (outer: Box, inner: Box) =>
+  inner.x >= outer.x && inner.y >= outer.y && inner.x + inner.width <= outer.x + outer.width && inner.y + inner.height <= outer.y + outer.height;
+const overlaps = (a: Box, b: Box) => a.x < b.x + b.width && b.x < a.x + a.width && a.y < b.y + b.height && b.y < a.y + a.height;
+
+describe('autoLayout: containers (compound)', () => {
+  it('lays out a group\'s own members, sizes the group to enclose them, and keeps membership', () => {
     const model = containerModel();
-    const before = model.containers.find((c) => c.id === 'g1')!.position;
-    const inABefore = model.nodes.find((n) => n.id === 'inA')!.position;
-    const inBBefore = model.nodes.find((n) => n.id === 'inB')!.position;
-    const relA = { x: inABefore.x - before.x, y: inABefore.y - before.y };
-    const relB = { x: inBBefore.x - before.x, y: inBBefore.y - before.y };
-
+    model.edges.push({ id: 'e2', sourceId: 'inA', targetId: 'inB' });
     const result = autoLayout(model, 'TD');
-
-    const after = result.containers.find((c) => c.id === 'g1')!.position;
-    // Sanity check the premise: the container actually moved (there's an edge from a top-level
-    // node into one of its members, forcing dagre to rank it away from the origin).
-    expect(after).not.toEqual(before);
-
-    const inAAfter = result.nodes.find((n) => n.id === 'inA')!.position;
-    const inBAfter = result.nodes.find((n) => n.id === 'inB')!.position;
-    expect({ x: inAAfter.x - after.x, y: inAAfter.y - after.y }).toEqual(relA);
-    expect({ x: inBAfter.x - after.x, y: inBAfter.y - after.y }).toEqual(relB);
+    const g1 = groupBox(result, 'g1');
+    expect(encloses(g1, nodeBox(result, 'inA'))).toBe(true);
+    expect(encloses(g1, nodeBox(result, 'inB'))).toBe(true);
+    // Inside the group too, a connector puts its target below its source (TD).
+    expect(nodeBox(result, 'inB').y).toBeGreaterThan(nodeBox(result, 'inA').y);
+    // The outside node and the group don't overlap, and x (with a connector into g1) sits above it.
+    expect(overlaps(nodeBox(result, 'x'), g1)).toBe(false);
+    expect(nodeBox(result, 'x').y + nodeBox(result, 'x').height).toBeLessThanOrEqual(g1.y);
+    expect(result.nodes.map((n) => n.containerId)).toEqual(model.nodes.map((n) => n.containerId));
   });
 
-  it('does not resize the container or change any membership', () => {
-    const model = containerModel();
+  it('nested groups each enclose theirs, siblings never overlap, and a group\'s own direction is used inside it', () => {
+    const model: DiagramModel = {
+      diagramTypeId: 'flowchart',
+      nodes: [
+        { id: 'a', label: 'A', shape: 'rectangle', position: { x: 0, y: 0 }, containerId: 'inner' },
+        { id: 'b', label: 'B', shape: 'rectangle', position: { x: 0, y: 0 }, containerId: 'inner' },
+        { id: 'c', label: 'C', shape: 'rectangle', position: { x: 0, y: 0 }, containerId: 'outer' },
+        { id: 'd', label: 'D', shape: 'rectangle', position: { x: 0, y: 0 }, containerId: 'side' },
+      ],
+      edges: [
+        { id: 'e1', sourceId: 'a', targetId: 'b' },
+        { id: 'e2', sourceId: 'c', targetId: 'a' },
+        { id: 'e3', sourceId: 'b', targetId: 'd' },
+      ],
+      containers: [
+        { id: 'outer', label: 'Outer', position: { x: 0, y: 0 } },
+        { id: 'inner', label: 'Inner', position: { x: 0, y: 0 }, parentContainerId: 'outer', direction: 'LR' },
+        { id: 'side', label: 'Side', position: { x: 0, y: 0 } },
+      ],
+    };
     const result = autoLayout(model, 'TD');
-    expect(result.containers.find((c) => c.id === 'g1')!.size).toEqual(
-      model.containers.find((c) => c.id === 'g1')!.size,
-    );
-    expect(result.nodes.map((n) => n.containerId)).toEqual(model.nodes.map((n) => n.containerId));
+    const outer = groupBox(result, 'outer');
+    const inner = groupBox(result, 'inner');
+    expect(encloses(outer, inner)).toBe(true);
+    expect(encloses(inner, nodeBox(result, 'a'))).toBe(true);
+    expect(encloses(outer, nodeBox(result, 'c'))).toBe(true);
+    expect(encloses(groupBox(result, 'side'), nodeBox(result, 'd'))).toBe(true);
+    expect(overlaps(outer, groupBox(result, 'side'))).toBe(false);
+    expect(overlaps(inner, nodeBox(result, 'c'))).toBe(false);
+    // inner is LR: b is right of a, on the same row.
+    expect(nodeBox(result, 'b').x).toBeGreaterThan(nodeBox(result, 'a').x + nodeBox(result, 'a').width);
+    expect(nodeBox(result, 'b').y).toBeCloseTo(nodeBox(result, 'a').y, 0);
+  });
+});
+
+describe('autoLayout: every family', () => {
+  const two = (diagramTypeId: string, extra: Partial<DiagramModel['nodes'][number]> = {}): DiagramModel => ({
+    diagramTypeId,
+    nodes: [
+      { id: 'a', label: 'A', shape: 'rectangle', position: { x: 0, y: 0 }, ...extra },
+      { id: 'b', label: 'B', shape: 'rectangle', position: { x: 0, y: 0 }, ...extra },
+    ],
+    edges: [{ id: 'e1', sourceId: 'a', targetId: 'b' }],
+    containers: [],
+  });
+
+  it('C4, ERD and UML are ranked like flowcharts; only families with a DSL direction record it', () => {
+    for (const [family, typeId] of [['c4', 'c4-context'], ['erd', 'erd'], ['uml', 'uml-class']] as const) {
+      const result = autoLayout(two(typeId), 'LR', family);
+      expect(nodeBox(result, 'b').x, family).toBeGreaterThan(nodeBox(result, 'a').x);
+      expect(result.direction, family).toBe(family === 'c4' ? undefined : 'LR');
+    }
+  });
+
+  it('architecture follows its own hints: a connector anchored db:L -- R:server puts db right of server', () => {
+    const model = two('architecture');
+    model.edges = [{ id: 'e1', sourceId: 'a', targetId: 'b', sourceAnchor: 'L', targetAnchor: 'R' }];
+    const result = autoLayout(model, 'TD', 'architecture');
+    expect(nodeBox(result, 'a').x).toBeGreaterThan(nodeBox(result, 'b').x);
+  });
+
+  it('sequence diagrams are left exactly as they are', () => {
+    const model = two('sequence');
+    expect(autoLayout(model, 'LR', 'sequence')).toBe(model);
   });
 });
 

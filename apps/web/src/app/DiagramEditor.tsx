@@ -1,4 +1,4 @@
-import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from 'react';
+import { forwardRef, useEffect, useImperativeHandle, useRef, useState, type ReactNode } from 'react';
 import { createEmptyDiagramModel, effectiveAuthoring, getDslFamily, isParseSuccess, type DiagramModel } from '@canvas/diagram-core';
 import { Canvas } from '../canvas/Canvas';
 import { DslPanel } from '../canvas/DslPanel';
@@ -32,6 +32,7 @@ import { useSubmission } from './useSubmission';
 import { isApprovalTabVisible } from './submission-state';
 import { Icon } from '../ui/Icon';
 import { RailTabs } from '../ui/RailTabs';
+import { HelpLink } from '../help/HelpLink';
 import { Modal } from '../ui/Modal';
 import { useActiveStandard, useLiveViolations } from '../standards/useStandard';
 import { clearDraftDsl, readDraftDsl, stashDraftDsl } from '../ai/ai-draft';
@@ -79,6 +80,34 @@ function initialModelFromDsl(diagram: DiagramDto): DiagramModel {
   if (!family) return createEmptyDiagramModel(diagram.diagramTypeId);
   const result = family.parse(diagram.dslContent);
   return isParseSuccess(result) ? result.model : createEmptyDiagramModel(diagram.diagramTypeId);
+}
+
+/** canvas-fkp: each rail tab opens with a "?" to its section of the user guide. */
+const RAIL_HELP: Record<string, { page: string; section?: string; topic: string }> = {
+  dsl: { page: 'user/editor', section: 'the-dsl-tab-the-diagram-as-text', topic: 'the DSL tab' },
+  chat: { page: 'user/ai-chat', topic: 'AI chat' },
+  comments: { page: 'user/editor', section: 'comments', topic: 'comments' },
+  issues: { page: 'user/editor', section: 'the-issues-tab-standards', topic: 'the Issues tab' },
+  approval: { page: 'user/submitting-for-approval', topic: 'approval' },
+  history: { page: 'user/editor', section: 'the-history-tab-versions', topic: 'version history' },
+};
+
+function withRailHelp<T extends { id: string; render: () => ReactNode }>(tabs: T[]): T[] {
+  return tabs.map((tab) => {
+    const help = RAIL_HELP[tab.id];
+    if (!help) return tab;
+    return {
+      ...tab,
+      render: () => (
+        <>
+          <div className="rail-help">
+            <HelpLink {...help} />
+          </div>
+          {tab.render()}
+        </>
+      ),
+    };
+  });
 }
 
 export const DiagramEditor = forwardRef<DiagramEditorHandle, DiagramEditorProps>(function DiagramEditor(
@@ -544,7 +573,7 @@ export const DiagramEditor = forwardRef<DiagramEditorHandle, DiagramEditorProps>
               setCommentsTabActive(id === 'comments');
               if (id === 'comments') comments.markRead();
             }}
-            tabs={[
+            tabs={withRailHelp([
               {
                 id: 'dsl',
                 label: 'DSL',
@@ -633,7 +662,7 @@ export const DiagramEditor = forwardRef<DiagramEditorHandle, DiagramEditorProps>
                   />
                 ),
               },
-            ]}
+            ])}
           />
         </div>
       </div>

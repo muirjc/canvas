@@ -77,12 +77,15 @@ export function parseBlocks(text: string): Block[] {
   return blocks;
 }
 
-const SAFE_LINK = /^(https?:\/\/|mailto:)/i;
+export const SAFE_LINK = /^(https?:\/\/|mailto:)/i;
 
 // Order matters: code first (nothing inside it is formatted), then links, bold, italic.
 const INLINE = /(`[^`]+`)|\[([^\]]+)\]\(([^)\s]+)\)|(\*\*|__)(?=\S)([\s\S]*?\S)\4|(\*|_)(?=\S)([\s\S]*?\S)\6/;
 
-export function renderInline(text: string, keyPrefix = 'i'): ReactNode[] {
+/** canvas-fkp: lets Help render its own links (between help pages) with the same inline rules. */
+export type RenderLink = (href: string, label: ReactNode[], key: string) => ReactNode;
+
+export function renderInline(text: string, keyPrefix = 'i', renderLink?: RenderLink): ReactNode[] {
   const out: ReactNode[] = [];
   let rest = text;
   let n = 0;
@@ -97,9 +100,11 @@ export function renderInline(text: string, keyPrefix = 'i'): ReactNode[] {
     if (m[1]) {
       out.push(<code key={key}>{m[1].slice(1, -1)}</code>);
     } else if (m[2] !== undefined) {
-      const label = renderInline(m[2], key);
+      const label = renderInline(m[2], key, renderLink);
       out.push(
-        SAFE_LINK.test(m[3]) ? (
+        renderLink ? (
+          <Fragment key={key}>{renderLink(m[3], label, key)}</Fragment>
+        ) : SAFE_LINK.test(m[3]) ? (
           <a key={key} href={m[3]} target="_blank" rel="noopener noreferrer">
             {label}
           </a>
@@ -108,7 +113,7 @@ export function renderInline(text: string, keyPrefix = 'i'): ReactNode[] {
         ),
       );
     } else if (m[4]) {
-      out.push(<strong key={key}>{renderInline(m[5], key)}</strong>);
+      out.push(<strong key={key}>{renderInline(m[5], key, renderLink)}</strong>);
     } else if (m[6]) {
       // `snake_case_words` aren't emphasis: an underscore pair must not touch letters outside it.
       const before = rest[m.index - 1];
@@ -116,7 +121,7 @@ export function renderInline(text: string, keyPrefix = 'i'): ReactNode[] {
       if (m[6] === '_' && ((before && /\w/.test(before)) || (after && /\w/.test(after)))) {
         out.push(m[0]);
       } else {
-        out.push(<em key={key}>{renderInline(m[7], key)}</em>);
+        out.push(<em key={key}>{renderInline(m[7], key, renderLink)}</em>);
       }
     }
     rest = rest.slice(m.index + m[0].length);

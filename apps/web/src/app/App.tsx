@@ -1,5 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 import { clearDraftDsl } from '../ai/ai-draft';
+import { HelpScreen } from '../help/HelpScreen';
+import { findHelpPage } from '../help/help-content';
+import { recordRecentDiagram } from '../projects/recent-diagrams';
 import { accessAtLeast, api, type AiSettingsDto, type DiagramDto, type ProjectDto, type SessionUser, type SharedDiagramDto } from './api';
 import { LoginForm } from './LoginForm';
 import { ChangePasswordPage } from './ChangePasswordPage';
@@ -287,6 +290,11 @@ export function App() {
     setError('That project is not available to you. Showing your projects instead.');
   }, [projects, location]);
 
+  // canvas-93n: a saved diagram that's opened goes to the top of "Recently opened".
+  useEffect(() => {
+    if (user && diagram && !diagram.draft) recordRecentDiagram(user.id, diagram);
+  }, [user?.id, diagram?.id, diagram?.draft]);
+
   // The open diagram follows the address: fetched for ?diagramId= (a link or a reload), dropped on
   // any other screen. A diagram the user can't open shows the top level with an error.
   useEffect(() => {
@@ -332,7 +340,9 @@ export function App() {
           ? currentProject?.name
           : location.screen === 'account'
             ? 'Change password'
-            : 'Projects';
+            : location.screen === 'help'
+              ? `${findHelpPage(location.page, user?.role === 'admin')?.title ?? 'Help'} – Help`
+              : 'Projects';
     document.title = name ? `${name} – Canvas` : 'Canvas';
   }, [location, diagram?.name, currentProject?.name, adminParam, user?.role]);
 
@@ -471,6 +481,17 @@ export function App() {
         {adminScreen}
       </AdminShell>
     );
+  } else if (location.screen === 'help') {
+    // canvas-fkp: the guides, in the app.
+    content = (
+      <HelpScreen
+        page={location.page}
+        {...(location.section ? { section: location.section } : {})}
+        isAdmin={user.role === 'admin'}
+        hrefFor={(page, section) => urlFor({ screen: 'help', page, ...(section ? { section } : {}) })}
+        onNavigate={(page, section) => navigate({ screen: 'help', page, ...(section ? { section } : {}) })}
+      />
+    );
   } else if (location.screen === 'account' && user.localAccount) {
     content = (
       <ChangePasswordPage
@@ -521,6 +542,7 @@ export function App() {
           sharedDiagrams={sharedDiagrams}
           onOpenDiagram={openDiagram}
           projectHref={(id) => urlFor({ screen: 'project', projectId: id })}
+          diagramHref={(id) => urlFor({ screen: 'diagram', diagramId: id })}
         />
       </>
     );
@@ -666,8 +688,12 @@ export function App() {
             ? null
             : location.screen === 'account'
               ? 'account'
-              : 'browse'
+              : location.screen === 'help'
+                ? 'help'
+                : 'browse'
       }
+      helpHref={urlFor({ screen: 'help', page: 'user' })}
+      onNavigateHelp={() => navigate({ screen: 'help', page: 'user' })}
       accountHref={urlFor({ screen: 'account' })}
       onNavigateAccount={() => navigate({ screen: 'account' })}
       projectsHref={urlFor({ screen: 'projects' })}
