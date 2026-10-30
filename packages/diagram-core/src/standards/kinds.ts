@@ -1,5 +1,5 @@
 import type { DiagramModel, DiagramNode, NodeShape, NodeStyle } from '../model/diagram-model.js';
-import type { ConnectorRule, EdgeArrow, EdgeLineStyle, ElementKind, StandardRules } from './schema.js';
+import type { ConnectorRule, EdgeArrow, EdgeLineStyle, ElementKind, KindGroup, StandardRules } from './schema.js';
 
 /**
  * canvas-tfr: which element kind (if any) a node is. A kind matches when the node's role equals
@@ -140,4 +140,43 @@ export function kindLimitReached(model: DiagramModel, rules: StandardRules, kind
 export function kindLimitMessage(kind: ElementKind): string {
   const max = kind.maxCount ?? 0;
   return max === 1 ? `This diagram already has its 1 ${kind.label}.` : `This diagram already has its ${max} ${kind.label} elements, the most allowed.`;
+}
+
+/** canvas-thia: "New Component, Reused Component or Retired Component" -- a group's kinds in plain words. */
+export function kindGroupMembers(group: KindGroup, rules: StandardRules): string {
+  const labels = group.kindIds.map((id) => rules.elementKinds?.find((k) => k.id === id)?.label ?? id);
+  return labels.length <= 1 ? labels.join('') : `${labels.slice(0, -1).join(', ')} or ${labels[labels.length - 1]}`;
+}
+
+/** canvas-thia: how many of a diagram's elements belong to the group's kinds. */
+export function countKindGroup(model: DiagramModel, rules: StandardRules, group: KindGroup, ignoreNodeId?: string): number {
+  const members = new Set(group.kindIds);
+  return model.nodes.filter((node) => {
+    if (node.id === ignoreNodeId) return false;
+    const kind = classifyNode(node, rules);
+    return kind !== undefined && members.has(kind.id);
+  }).length;
+}
+
+/** canvas-thia: the explanation shown (and given to the AI) when a kind group is full. */
+export function kindGroupLimitMessage(group: KindGroup, rules: StandardRules): string {
+  const max = group.maxCount ?? 0;
+  const members = kindGroupMembers(group, rules);
+  return max === 1
+    ? `This diagram already has its 1 ${group.label} (${members}).`
+    : `This diagram already has its ${max} ${group.label} elements (${members}), the most allowed.`;
+}
+
+/**
+ * canvas-8o01 + canvas-thia: why another element of this kind can't be added (or an element
+ * changed to it) -- the kind is at its own Max count, or a group it belongs to is full. Undefined
+ * when it can. `ignoreNodeId` is the element being changed, which mustn't count against itself.
+ */
+export function kindAddBlockedReason(model: DiagramModel, rules: StandardRules, kind: ElementKind, ignoreNodeId?: string): string | undefined {
+  if (kindLimitReached(model, rules, kind, ignoreNodeId)) return kindLimitMessage(kind);
+  for (const group of rules.kindGroups ?? []) {
+    if (group.maxCount === undefined || !group.kindIds.includes(kind.id)) continue;
+    if (countKindGroup(model, rules, group, ignoreNodeId) >= group.maxCount) return kindGroupLimitMessage(group, rules);
+  }
+  return undefined;
 }

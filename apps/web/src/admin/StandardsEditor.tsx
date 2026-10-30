@@ -15,6 +15,7 @@ import {
   type AuthoringScope,
   type ConnectorRule,
   type ElementKind,
+  type KindGroup,
   type RuleId,
   type Severity,
   type StandardRules,
@@ -105,6 +106,7 @@ export function StandardsEditor({ diagramType, standard, readOnly = false, onDon
 
   const kinds = rules.elementKinds ?? [];
   const connectors = rules.connectorRules ?? [];
+  const groups = rules.kindGroups ?? [];
 
   const patch = (next: Partial<StandardRules>) => {
     setRules((prev) => ({ ...prev, ...next }));
@@ -141,6 +143,21 @@ export function StandardsEditor({ diagramType, standard, readOnly = false, onDon
   const patchKind = (i: number, next: Partial<ElementKind>) => {
     setRules((prev) => ({ ...prev, elementKinds: (prev.elementKinds ?? []).map((k, idx) => (idx === i ? { ...k, ...next } : k)) }));
     setSavedNote(null);
+  };
+  const patchGroup = (i: number, next: Partial<KindGroup>) => {
+    setRules((prev) => ({ ...prev, kindGroups: (prev.kindGroups ?? []).map((g, idx) => (idx === i ? { ...g, ...next } : g)) }));
+    setSavedNote(null);
+  };
+  const addGroup = () => {
+    const taken = new Set(groups.map((g) => g.id));
+    let n = groups.length + 1;
+    while (taken.has(`group_${n}`)) n += 1;
+    patch({ kindGroups: [...groups, { id: `group_${n}`, label: '', kindIds: [], maxCount: 1 }] });
+  };
+  const setGroupLabel = (i: number, label: string) => {
+    const group = groups[i];
+    const idFollows = /^group_\d+$/.test(group.id) || group.id === snake(group.label);
+    patchGroup(i, idFollows && snake(label) ? { label, id: snake(label) } : { label });
   };
   const patchConnector = (i: number, next: Partial<ConnectorRule>) => {
     setRules((prev) => ({ ...prev, connectorRules: (prev.connectorRules ?? []).map((c, idx) => (idx === i ? { ...c, ...next } : c)) }));
@@ -226,12 +243,22 @@ export function StandardsEditor({ diagramType, standard, readOnly = false, onDon
       elementKinds: kinds.filter((_, idx) => idx !== i),
       // Connector rules pointing at a removed kind would be invalid; reset those ends to "Any".
       connectorRules: connectors.map((c) => ({ ...c, from: c.from === removed ? '*' : c.from, to: c.to === removed ? '*' : c.to })),
+      // canvas-thia: and a kind group simply loses it.
+      ...(groups.length > 0 ? { kindGroups: groups.map((g) => ({ ...g, kindIds: g.kindIds.filter((id) => id !== removed) })) } : {}),
     });
   };
   const setKindLabel = (i: number, label: string) => {
     const kind = kinds[i];
     const idFollows = kind.id === '' || kind.id === snake(kind.label);
     patchKind(i, idFollows ? { label, id: snake(label) } : { label });
+    // canvas-thia: a kind group refers to kinds by id, so follow the rename.
+    const nextId = idFollows ? snake(label) : kind.id;
+    if (nextId !== kind.id && kind.id && groups.some((g) => g.kindIds.includes(kind.id))) {
+      setRules((prev) => ({
+        ...prev,
+        kindGroups: (prev.kindGroups ?? []).map((g) => ({ ...g, kindIds: g.kindIds.map((id) => (id === kind.id ? nextId : id)) })),
+      }));
+    }
   };
 
   const addConnector = () => {
@@ -349,6 +376,58 @@ export function StandardsEditor({ diagramType, standard, readOnly = false, onDon
           </>
         )}
       </section>
+
+      {/* ---- canvas-thia: Kind groups ---- */}
+      {supportsKinds && (
+        <section className="card std-section" aria-labelledby="std-kind-groups" data-testid="kind-groups">
+          <h3 id="std-kind-groups" className="section-label">Kind groups</h3>
+          <p className="meta">
+            Count several kinds together, e.g. one Component per diagram, whether it’s New, Reused or Retired. Each kind’s own counts still apply.
+          </p>
+          {groups.length === 0 && <p className="meta">No kind groups.</p>}
+          {groups.map((group, i) => (
+            <div key={i} className="std-item" data-testid={`kind-group-${i}`}>
+              <div className="std-grid">
+                <div className="field">
+                  <label className="field__label" htmlFor={`kind-group-label-${i}`}>Name</label>
+                  <input id={`kind-group-label-${i}`} data-testid={`kind-group-label-${i}`} value={group.label} placeholder="e.g. Component" onChange={(e) => setGroupLabel(i, e.target.value)} />
+                  <FieldErrors path={`kindGroups[${i}].label`} />
+                  <FieldErrors path={`kindGroups[${i}].id`} />
+                </div>
+                <div className="field">
+                  <label className="field__label" htmlFor={`kind-group-min-${i}`}>Min count</label>
+                  <input id={`kind-group-min-${i}`} type="number" min={0} data-testid={`kind-group-min-${i}`} value={group.minCount ?? ''} onChange={(e) => patchGroup(i, { minCount: e.target.value === '' ? undefined : Number(e.target.value) })} />
+                  <FieldErrors path={`kindGroups[${i}].minCount`} />
+                </div>
+                <div className="field">
+                  <label className="field__label" htmlFor={`kind-group-max-${i}`}>Max count</label>
+                  <input id={`kind-group-max-${i}`} type="number" min={0} data-testid={`kind-group-max-${i}`} value={group.maxCount ?? ''} onChange={(e) => patchGroup(i, { maxCount: e.target.value === '' ? undefined : Number(e.target.value) })} />
+                  <FieldErrors path={`kindGroups[${i}].maxCount`} />
+                </div>
+              </div>
+              <fieldset className="cluster cluster--tight std-fieldset">
+                <legend className="field__label">Kinds in this group</legend>
+                {kinds.filter((k) => k.id).map((k) => (
+                  <label key={k.id} className="cluster cluster--tight">
+                    <input type="checkbox" data-testid={`kind-group-${i}-kind-${k.id}`} checked={group.kindIds.includes(k.id)} onChange={() => patchGroup(i, { kindIds: toggleIn(group.kindIds, k.id) })} />
+                    {k.label || k.id}
+                  </label>
+                ))}
+              </fieldset>
+              <FieldErrors path={`kindGroups[${i}].kindIds`} />
+              <div className="cluster">
+                <span className="spacer" />
+                <button type="button" className="btn btn--tertiary-danger btn--compact" data-testid={`kind-group-remove-${i}`} onClick={() => patch({ kindGroups: groups.filter((_, idx) => idx !== i) })}>
+                  Remove kind group
+                </button>
+              </div>
+            </div>
+          ))}
+          <button type="button" className="btn btn--secondary" data-testid="kind-group-add" onClick={addGroup} disabled={kinds.filter((k) => k.id).length < 2}>
+            <Icon name="plus" /> Add kind group
+          </button>
+        </section>
+      )}
 
       {/* ---- Connector rules ---- */}
       <section className="card std-section" aria-labelledby="std-connectors">

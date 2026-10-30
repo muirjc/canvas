@@ -16,6 +16,12 @@ you can set:
   example a *Max count* of 1 for "one Component per diagram"), the editor won't add another: the
   kind's button is greyed out and says why, and the AI is refused too. Typed or imported Mermaid can
   still go over, and is flagged as *Must fix*;
+- **Kind groups** count several kinds together. Use one when a diagram may hold one thing that comes
+  in variants: for example a group *Component* of *New Component*, *Reused Component* and *Retired
+  Component* with a Max count of 1 means one Component in all, whichever variant. Give the group a
+  name, tick its kinds (at least two) and set a minimum and/or maximum. A full group greys out every
+  kind in it, the AI is refused too, and going over (or under) is flagged as *Must fix*. Each kind's
+  own counts still apply;
 - whether each one **must be connected** to something;
 - for C4 types, **which C4 elements it applies to**: under *Applies to C4 elements*, the role
   (person, system, container or component) and whether it's the **External** (`_Ext`) variant. The

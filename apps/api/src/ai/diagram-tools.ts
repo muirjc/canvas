@@ -29,8 +29,7 @@ import {
   applyElementKind,
   classifyNode,
   FAMILY_NODE_SHAPES,
-  kindLimitMessage,
-  kindLimitReached,
+  kindAddBlockedReason,
   offeredShapes,
   FAMILY_SUPPORTS_ELEMENT_KINDS,
   isApprovedColor,
@@ -584,10 +583,9 @@ export function createDiagramTools(context: DiagramToolsContext, family: string,
             }),
             execute: async ({ kind, label }) => {
               const def = kinds.find((k) => k.id === kind)!;
-              // canvas-8o01: a kind at its Max count can't be added to (the editor refuses too).
-              if (rules && kindLimitReached(context.getModel(), rules, def)) {
-                return record('addElement', { applied: false, reason: kindLimitMessage(def) });
-              }
+              // canvas-8o01/thia: not past the kind's Max count or a full kind group (the editor refuses too).
+              const blocked = rules ? kindAddBlockedReason(context.getModel(), rules, def) : undefined;
+              if (blocked) return record('addElement', { applied: false, reason: blocked });
               // jmuir-dtu.28: an architecture element is a service ('icon'), not a plain rectangle.
               const { model, nodeId } = addElementOfKind(context.getModel(), def, {
                 label,
@@ -616,10 +614,9 @@ export function createDiagramTools(context: DiagramToolsContext, family: string,
                 return record('setElementKind', { applied: false, reason: `'${nodeId}' is a junction; junctions can't have an element kind.` });
               }
               const def = kinds.find((k) => k.id === kind)!;
-              // canvas-8o01: not when the kind is already at its Max count (this element excepted).
-              if (rules && kindLimitReached(model, rules, def, nodeId)) {
-                return record('setElementKind', { applied: false, reason: kindLimitMessage(def) });
-              }
+              // canvas-8o01/thia: not into a kind or group that's full (this element excepted).
+              const blocked = rules ? kindAddBlockedReason(model, rules, def, nodeId) : undefined;
+              if (blocked) return record('setElementKind', { applied: false, reason: blocked });
               context.setModel(applyElementKind(model, nodeId, def, rules));
               return record('setElementKind', { applied: true });
             },

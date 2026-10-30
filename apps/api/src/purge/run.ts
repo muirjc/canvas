@@ -1,7 +1,7 @@
 import { closePool } from '../db/pool.js';
 import { closeDb } from '../db/client.js';
 import { runMigrations } from '../db/migrate.js';
-import { DIAGRAM_RETENTION_DAYS, findExpiredDiagramIds, purgeExpiredDiagrams } from '../diagrams/diagram.service.js';
+import { DIAGRAM_RETENTION_DAYS, DRAFT_RETENTION_HOURS, findAbandonedDraftIds, findExpiredDiagramIds, purgeExpiredDiagrams } from '../diagrams/diagram.service.js';
 import { PROJECT_RETENTION_DAYS, findExpiredProjectIds, purgeExpiredProjects } from '../projects/project.service.js';
 
 /**
@@ -16,7 +16,8 @@ import { PROJECT_RETENTION_DAYS, findExpiredProjectIds, purgeExpiredProjects } f
  * project already expects `npm run migrate`/`npm run seed` to be invoked from outside the app.
  *
  * Usage:
- *   npm run purge --workspace=@canvas/api             # physically deletes expired diagrams, then projects
+ *   npm run purge --workspace=@canvas/api             # physically deletes expired diagrams (and unsaved
+ *                                                     # AI drafts over DRAFT_RETENTION_HOURS old), then projects
  *   npm run purge --workspace=@canvas/api -- --dry-run  # lists candidate ids, deletes nothing
  */
 async function purge(): Promise<void> {
@@ -25,6 +26,9 @@ async function purge(): Promise<void> {
   const dryRun = process.argv.includes('--dry-run');
   if (dryRun) {
     listIds('[dry run] diagram(s) would be purged', 'diagrams', DIAGRAM_RETENTION_DAYS, await findExpiredDiagramIds());
+    // canvas-j6v: Create with AI drafts never saved by their creator.
+    const drafts = await findAbandonedDraftIds();
+    console.log(`[dry run] unsaved AI drafts older than ${DRAFT_RETENTION_HOURS} hours that would be purged: ${drafts.length}`);
     // Without deleting the diagrams first, which expired projects would still be blocked can't be
     // known -- so this lists every candidate.
     listIds('[dry run] project(s) are candidates (purged only once they hold no diagrams or sub-projects)', 'projects', PROJECT_RETENTION_DAYS, await findExpiredProjectIds());

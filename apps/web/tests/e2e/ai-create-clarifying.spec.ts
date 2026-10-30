@@ -40,7 +40,7 @@ async function startConversation(page: Page, name: string) {
   await expect(page.getByTestId('diagram-canvas')).toHaveCount(0);
 }
 
-test('a vague request gets a question; the answer is played back; Create diagram draws, opens the Chat tab, and is auto-saved', async ({ page }) => {
+test('a vague request gets a question; the answer is played back; Create diagram draws and opens the Chat tab, not saved until Save', async ({ page }) => {
   const name = `Clarify ${Date.now()}`;
   await startConversation(page, name);
 
@@ -60,7 +60,17 @@ test('a vague request gets a question; the answer is played back; Create diagram
   await expect(page.locator('[data-testid="chat-message-assistant"]').first()).toContainText(QUESTION);
   await expect(page.locator('[data-testid^="node-"]')).toHaveCount(1);
 
-  // Reopen from the project browser: the node was persisted, not only held in client state.
+  // canvas-j6v: nothing is saved for the user -- the drawing is theirs to save or discard.
+  await expect(page.getByTestId('save-status')).toHaveText('Not saved');
+  // A reload in the same tab keeps the unsaved drawing.
+  await page.reload();
+  await expect(page.getByTestId('diagram-canvas')).toBeVisible();
+  await expect(page.locator('[data-testid^="node-"]')).toHaveCount(1);
+  await expect(page.getByTestId('save-status')).toHaveText('Not saved');
+  await page.getByTestId('save-diagram').click();
+  await expect(page.getByTestId('save-status')).toHaveText('Saved');
+
+  // Reopen from the project browser: once saved, the node was persisted.
   await page.getByTestId('back-to-diagrams').click();
   await expect(page.getByTestId('project-browser')).toBeVisible();
   await page.locator('li', { hasText: name }).locator('[data-testid^="open-diagram-"]').first().click();
@@ -116,4 +126,29 @@ test('the type picker creates a Value Chain diagram (after Create diagram), with
   await expect(page.getByTestId('rail-tab-chat')).toHaveAttribute('aria-selected', 'true');
   await page.getByTestId('rail-tab-dsl').click();
   await expect(page.getByTestId('dsl-panel')).toContainText(':::primary_activity');
+});
+
+// canvas-j6v: the user who didn't want the AI's drawing discards it, and it's gone -- not saved
+// behind their back, not in the list, not in the admin's recycle bin.
+test('discarding an AI drawing that was never saved deletes it', async ({ page }) => {
+  const name = `Discard ${Date.now()}`;
+  await openDialog(page, name);
+  await page.getByTestId('ai-create-persona').selectOption({ label: 'Business Architect' });
+  await page.getByTestId('ai-create-type').selectOption('flowchart');
+  await page.getByTestId('ai-create-description').fill('Add a shape called Order Received');
+  await page.getByTestId('ai-create-confirm').click();
+  await expect(page.getByTestId('create-chat-assistant')).toBeVisible();
+  await page.getByTestId('ai-create-build').click();
+  await expect(page.getByTestId('diagram-canvas')).toBeVisible();
+  const diagramId = new URL(page.url()).searchParams.get('diagramId');
+  expect(diagramId).toBeTruthy();
+
+  await page.getByTestId('back-to-diagrams').click();
+  await expect(page.getByTestId('home-nav-confirm')).toContainText("hasn’t been saved");
+  const deleted = page.waitForResponse((r) => r.url().endsWith(`/diagrams/${diagramId}`) && r.request().method() === 'DELETE');
+  await page.getByTestId('confirm-home-nav').click();
+  expect((await deleted).status()).toBe(204);
+  await expect(page.getByTestId('project-browser')).toBeVisible();
+  await expect(page.getByText(name)).toHaveCount(0);
+  expect((await page.request.get(`${API_BASE_URL}/diagrams/${diagramId}`)).status()).toBe(404);
 });

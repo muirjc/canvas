@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { createEmptyDiagramModel, getDslFamily, validate, type DiagramModel, type ParseError } from '@canvas/diagram-core';
 import { getDb, type DbExecutor } from '../db/client.js';
-import { caseInsensitiveLike, toDate } from '../db/sql-helpers.js';
+import { caseInsensitiveLike, dbBoolean, fromDbBoolean, toDate } from '../db/sql-helpers.js';
 import { recordDiagramVersion } from './version.service.js';
 import { getActiveStandard } from '../standards/standard.service.js';
 import type { Violation } from '@canvas/diagram-core';
@@ -33,6 +33,8 @@ export interface DiagramRecord {
   currentVersionId: string;
   createdAt: string;
   updatedAt: string;
+  /** canvas-j6v: drawn by Create with AI and not yet saved -- only its creator sees it. */
+  draft: boolean;
 }
 
 export class DslValidationError extends Error {
@@ -112,6 +114,8 @@ export interface CreateDiagramInput {
   /** If omitted, a valid empty diagram for the type's DSL family is generated (never a hardcoded
    * "flowchart TD" — that would fail to parse for a C4/sequence/ERD/UML/architecture diagram). */
   initialDslContent?: string;
+  /** canvas-j6v: Create with AI -- hidden and unsaved until its creator's first Save. */
+  draft?: boolean;
 }
 
 export async function createDiagram(input: CreateDiagramInput): Promise<DiagramRecord> {
@@ -137,6 +141,7 @@ export async function createDiagram(input: CreateDiagramInput): Promise<DiagramR
         owner_id: input.ownerId,
         last_validation_result: JSON.stringify(violations),
         standard_version_at_last_check: standardVersion,
+        ...(input.draft ? { draft: dbBoolean(true) } : {}),
       })
       .returning('id')
       .executeTakeFirstOrThrow();
@@ -177,6 +182,7 @@ export async function getDiagram(id: string): Promise<DiagramRecord> {
       'd.current_version_id',
       'd.created_at',
       'd.updated_at',
+      'd.draft',
       'v.dsl_content',
     ])
     .where('d.id', '=', id)
@@ -205,6 +211,7 @@ export async function getDiagram(id: string): Promise<DiagramRecord> {
     // convention, not a new behavior change — node-postgres always returned a Date here.
     createdAt: row.created_at as unknown as string,
     updatedAt: row.updated_at as unknown as string,
+    draft: fromDbBoolean(row.draft),
   };
 }
 
@@ -244,6 +251,8 @@ export async function saveDiagram(id: string, input: SaveDiagramInput): Promise<
         updated_at: new Date(),
         last_validation_result: JSON.stringify(violations),
         standard_version_at_last_check: standardVersion,
+        // canvas-j6v: the creator's first Save is what makes a draft a real diagram.
+        draft: dbBoolean(false),
       })
       .where('id', '=', id)
       .where('current_version_id', '=', input.baseVersionId)
@@ -331,9 +340,14 @@ export async function updateDiagramDescription(id: string, description: string):
  */
 export async function deleteDiagram(id: string, deletedByUserId: string): Promise<void> {
   const db = getDb();
-  const row = await db.selectFrom('diagrams').select('id').where('id', '=', id).executeTakeFirst();
+  const row = await db.selectFrom('diagrams').select(['id', 'draft']).where('id', '=', id).executeTakeFirst();
   if (!row) {
     throw new DiagramNotFoundError(`No diagram with id ${id}`);
+  }
+  // canvas-j6v: a draft was never saved, so discarding it leaves nothing behind -- no recycle bin.
+  if (fromDbBoolean(row.draft)) {
+    await purgeDiagrams([id]);
+    return;
   }
   await db
     .updateTable('diagrams')
@@ -484,7 +498,22 @@ export interface PurgeResult {
  * call — a diagram row and its own dependents either all go or none do.
  */
 export async function purgeExpiredDiagrams(): Promise<PurgeResult> {
-  return { purgedDiagramIds: await purgeDiagrams(await findExpiredDiagramIds()) };
+  return { purgedDiagramIds: await purgeDiagrams([...(await findExpiredDiagramIds()), ...(await findAbandonedDraftIds())]) };
+}
+
+/** canvas-j6v: drafts nobody saved within this many hours are removed by the purge. */
+export const DRAFT_RETENTION_HOURS = 24;
+
+/** canvas-j6v: Create with AI drafts whose creator never saved them (tab closed, browser crashed). */
+export async function findAbandonedDraftIds(now = new Date()): Promise<string[]> {
+  const cutoff = new Date(now.getTime() - DRAFT_RETENTION_HOURS * 3600 * 1000);
+  const rows = await getDb()
+    .selectFrom('diagrams')
+    .select('id')
+    .where('draft', '=', dbBoolean(true))
+    .where('created_at', '<', cutoff)
+    .execute();
+  return rows.map((r) => r.id);
 }
 
 /**
