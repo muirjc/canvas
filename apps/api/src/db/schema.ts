@@ -430,6 +430,13 @@ export interface ChatMessagesTable {
 /** Singleton row — `id` is always literal `true` (0001_init.sql's `CHECK (id)` makes a second row
  *  impossible). Not `Generated`: every insert (there is exactly one, in the migration itself)
  *  supplies it explicitly. */
+/** canvas-8em: platform-wide feature switches (singleton row). */
+export interface AppSettingsTable {
+  id: true;
+  sharing_enabled: Generated<boolean>;
+  updated_at: GeneratedTimestamp;
+}
+
 export interface AiSettingsTable {
   id: true;
   chat_enabled: Generated<boolean>;
@@ -520,6 +527,7 @@ export interface DB {
   diagram_chats: DiagramChatsTable;
   chat_messages: ChatMessagesTable;
   ai_settings: AiSettingsTable;
+  app_settings: AppSettingsTable;
   ai_persona_reference_material: AiPersonaReferenceMaterialTable;
   ai_persona_reference_material_families: AiPersonaReferenceMaterialFamiliesTable;
   schema_migrations: SchemaMigrationsTable;

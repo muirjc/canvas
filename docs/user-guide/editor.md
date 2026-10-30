@@ -3,7 +3,8 @@
 Opening a diagram shows it on the **canvas** in the middle:
 - **Left:** a rail of tools.
 - **Right:** panels in tabs: **DSL**, **Chat**, **Issues**, **History**.
-- **Top:** the diagram's name and the **Save**, **Share** and **Export** buttons.
+- **Top:** the diagram's name and the **Save** and **Export** buttons (and **Share**, if an admin has
+  turned sharing on).
 
 ![The editor](../images/editor.png)
 

@@ -19,6 +19,7 @@ import { registerLibraryRoutes } from './libraries/library.routes.js';
 import { registerLibraryAdminRoutes } from './libraries/library-admin.routes.js';
 import { registerProjectRoutes } from './projects/project.routes.js';
 import { registerAiSettingsRoutes } from './ai/ai-settings.routes.js';
+import { registerAppSettingsRoutes } from './settings/app-settings.routes.js';
 import { registerPersonaRoutes } from './ai/persona.routes.js';
 import { registerPersonaReferenceMaterialRoutes } from './ai/persona-reference-material.routes.js';
 import { registerDiagramChatRoutes } from './ai/diagram-chat.routes.js';
@@ -113,6 +114,7 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
   await registerLibraryAdminRoutes(app);
   await registerProjectRoutes(app);
   await registerAiSettingsRoutes(app, { aiFetch: options.aiFetch });
+  await registerAppSettingsRoutes(app);
   await registerPersonaRoutes(app);
   await registerPersonaReferenceMaterialRoutes(app);
   await registerDiagramChatRoutes(app, { languageModel: options.languageModel });

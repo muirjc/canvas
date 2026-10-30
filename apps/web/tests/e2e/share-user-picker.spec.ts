@@ -1,5 +1,6 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, test, type Page } from '@playwright/test';
+import { showShareButton } from './app-settings-helpers';
 import { expectSignedIn } from './auth-helpers';
 
 const PROJECT_ID = process.env.E2E_PROJECT_ID;
@@ -20,6 +21,7 @@ async function throwawayUser(page: Page, suffix: string) {
 }
 
 async function openShareDialog(page: Page) {
+  await showShareButton(page);
   await page.goto(`/?projectId=${PROJECT_ID}`);
   await page.getByTestId('login-email').fill('admin@example.com');
   await page.getByTestId('login-password').fill('admin-dev-password');
