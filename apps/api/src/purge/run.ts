@@ -28,7 +28,7 @@ async function purge(): Promise<void> {
     listIds('[dry run] diagram(s) would be purged', 'diagrams', DIAGRAM_RETENTION_DAYS, await findExpiredDiagramIds());
     // canvas-j6v: Create with AI drafts never saved by their creator.
     const drafts = await findAbandonedDraftIds();
-    console.log(`[dry run] ${drafts.length} unsaved AI draft(s) older than ${DRAFT_RETENTION_HOURS} hours would be purged${drafts.length ? `: ${drafts.join(', ')}` : '.'}`);
+    console.log(`[dry run] unsaved AI drafts older than ${DRAFT_RETENTION_HOURS} hours that would be purged: ${drafts.length}`);
     // Without deleting the diagrams first, which expired projects would still be blocked can't be
     // known -- so this lists every candidate.
     listIds('[dry run] project(s) are candidates (purged only once they hold no diagrams or sub-projects)', 'projects', PROJECT_RETENTION_DAYS, await findExpiredProjectIds());
