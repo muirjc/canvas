@@ -60,6 +60,8 @@ trap restore_job EXIT
 az containerapp job update --name "$JOB" --resource-group "$RESOURCE_GROUP" --output none \
   --set-env-vars "BOOTSTRAP_MODE=reset" "BOOTSTRAP_ADMIN_EMAIL=$EMAIL"
 
+# canvas-a8mr: env changes go through `job update` above, never start-time overrides (`job start
+# --env-vars ...`), which since Microsoft's 2026-10 change also need Microsoft.App/jobs/write.
 EXECUTION="$(az containerapp job start --name "$JOB" --resource-group "$RESOURCE_GROUP" --query name -o tsv)"
 echo "  Running $JOB in reset mode (execution $EXECUTION)..."
 while true; do
