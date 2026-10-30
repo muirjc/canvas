@@ -53,6 +53,8 @@ import {
   CONTROL_FLOW_TAB_FILL,
   sanitizeSvgFragment,
   autoLayout,
+  autoLayoutUsesDirection,
+  supportsAutoLayout,
   iconLibraryOffered,
   mermaidArchitectureIconsManifest,
   offeredShapes,
@@ -1602,7 +1604,7 @@ export function Canvas({ model: modelProp, onChange: onChangeProp, dslFamily, to
   };
 
   const handleAutoLayout = () => {
-    onChange(autoLayout(model, layoutDirection));
+    onChange(autoLayout(model, layoutDirection, dslFamily));
   };
 
   const toClientPoint = (event: React.PointerEvent): { x: number; y: number } => {
@@ -3206,8 +3208,10 @@ export function Canvas({ model: modelProp, onChange: onChangeProp, dslFamily, to
               getAddableShapes above. Not a mode like Connect: one click rearranges the whole
               diagram in the picked direction and the picker stays visible so it can be changed and
               re-run at any time, mirroring docs/mermaid_dagre_demo.html's own select+button shape. */}
-          {dslFamily === 'flowchart' && (
+          {/* canvas-p2g8.1: every family but sequence; architecture follows its own hints. */}
+          {supportsAutoLayout(dslFamily) && !readOnly && (
             <>
+              {autoLayoutUsesDirection(dslFamily) && (
               <label className="field__label" htmlFor="auto-layout-direction">
                 Layout Direction
                 <select
@@ -3222,6 +3226,7 @@ export function Canvas({ model: modelProp, onChange: onChangeProp, dslFamily, to
                   <option value="RL">Right → Left</option>
                 </select>
               </label>
+              )}
               <button type="button" className="btn btn--secondary" data-testid="auto-layout" onClick={handleAutoLayout}>
                 <Icon name="layout" />
                 Auto Layout

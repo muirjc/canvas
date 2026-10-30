@@ -52,7 +52,11 @@ restore is stopped and says who.
 - **Group:** **Add Container** draws a box (a subgraph, boundary or namespace, depending on the
   type). Select shapes and choose **Group into Container** to put them inside one.
 - **Delete:** select something and press **Delete** or use **Delete Selected**. Canvas asks first.
-- **Auto Layout** (flowcharts): arranges the shapes for you, top-down or left-to-right.
+- **Auto Layout:** arranges the whole diagram for you, inside groups and boundaries too, and resizes
+  each group to fit. Pick a direction (top-down, left-to-right and so on) first; a group with its
+  own direction keeps it. Architecture diagrams follow their own hints instead (which side each
+  connector leaves from, and `align` lines), so they have no direction choice. It's a normal edit:
+  Save keeps it, and you can still move things afterwards.
 
 Sequence diagrams work differently: the layout follows the order of messages, so you don't drag.
 The **Tools** section adds notes, loop/alt/opt blocks, activations and numbering.
