@@ -55,6 +55,10 @@ export const standardBodySchema = z.object({
   requireKnownKinds: z.boolean().optional(),
   severityOverrides: z.partialRecord(z.enum(RULE_IDS), severity).optional(),
   guidance: z.string().optional(),
+  // canvas-7ewa: what authors can add besides the kinds.
+  authoring: z
+    .object({ shapes: z.enum(['all', 'listed', 'none']).optional(), icons: z.enum(['all', 'listed', 'none']).optional() })
+    .optional(),
 });
 
 export type StandardBody = z.infer<typeof standardBodySchema>;

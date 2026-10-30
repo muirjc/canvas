@@ -193,6 +193,19 @@ paused) removes any stale saved copy after publishing a new build.
 Azure auto-restarts a stopped Postgres Flexible Server after 7 days if not resumed manually —
 `pause.sh` prints this reminder every time.
 
+Both scripts are safe to re-run and to run back to back (canvas-myh): they wait for Postgres to
+finish any start/stop in progress, skip the stop or start if it's already in the state wanted
+(re-running `pause.sh` after the 7-day auto-restart works), and retry Container Apps updates that
+Azure rejects while a previous operation is still finishing.
+
+## Starting jobs
+
+Start Container Apps jobs without overrides (`az containerapp job start --name <job> -g <rg>`,
+as `deploy.sh`, `reset-admin.sh` and the commands above do). Since Microsoft's 2026-10 change, a
+start that overrides the image, command, args, environment variables or resources (or passes
+`--yaml`) also needs `Microsoft.App/jobs/write` on the job. Change a job's settings with
+`az containerapp job update` instead (canvas-a8mr).
+
 ## Driving it from Claude Code without a terminal (canvas-7zw)
 
 Claude Code's auto mode blocks piping `y` into `deploy.sh`'s prompt, and Claude can't add its own

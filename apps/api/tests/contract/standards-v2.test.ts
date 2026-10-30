@@ -92,6 +92,15 @@ describe('Standards v2 API contract', () => {
       }
     });
 
+    // canvas-7ewa: "What authors can add" is stored with the other v2 rules.
+    it('persists the authoring setting and rejects an unknown scope', async () => {
+      const response = await create({ ...V2_BODY, authoring: { shapes: 'none', icons: 'listed' }, allowedIconLibraryRefs: [{ libraryId: 'azure-icons', libraryVersion: '1.0.0' }] });
+      expect(response.statusCode).toBe(201);
+      expect(response.json().standard.rules.authoring).toEqual({ shapes: 'none', icons: 'listed' });
+      const bad = await create({ ...V2_BODY, authoring: { shapes: 'some' } });
+      expect(bad.statusCode).toBe(400);
+    });
+
     it('still accepts a v1-only body (back-compat) and returns no v2 fields', async () => {
       const response = await create({ allowedShapeIds: ['rectangle'], colorPalette: [{ role: 'system', colorHex: '#1168bd' }] });
       expect(response.statusCode).toBe(201);

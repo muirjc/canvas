@@ -34,6 +34,8 @@ export async function createAndPublishShapeStandard(
   await page.getByTestId('standard-name-input').fill(opts.name);
   if (opts.description) await page.getByTestId('standard-description-input').fill(opts.description);
   await openLegacyRules(page);
+  // canvas-7ewa: the allowed-shapes list now lives under "What authors can add" -> Only these.
+  if (opts.allowed?.length) await page.getByTestId('authoring-shapes-listed').check();
   for (const shape of opts.allowed ?? []) await page.getByTestId(`allowed-shape-${shape}`).locator('input').check();
   for (const shape of opts.mandatory ?? []) await page.getByTestId(`mandatory-shape-${shape}`).locator('input').check();
   await publishFromEditor(page);
