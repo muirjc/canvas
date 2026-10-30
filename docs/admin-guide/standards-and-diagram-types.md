@@ -12,7 +12,10 @@ as a value chain's *Primary Activity* or a C4 context's *Person* and *External S
 you can set:
 - **which shapes** it may use;
 - **approved colours** (fill and outline swatches). People pick from these instead of any colour;
-- **how many** a diagram must or may have (minimum and maximum);
+- **how many** a diagram must or may have (minimum and maximum). Once a diagram has the maximum (for
+  example a *Max count* of 1 for "one Component per diagram"), the editor won't add another: the
+  kind's button is greyed out and says why, and the AI is refused too. Typed or imported Mermaid can
+  still go over, and is flagged as *Must fix*;
 - whether each one **must be connected** to something;
 - for C4 types, **which C4 elements it applies to**: under *Applies to C4 elements*, the role
   (person, system, container or component) and whether it's the **External** (`_Ext`) variant. The
