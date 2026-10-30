@@ -132,8 +132,10 @@ describe('Effective access (canvas-2h2w.1)', () => {
         (g: { granteeUserId: string }) => g.granteeUserId === ids.member,
       );
       expect((await call('DELETE', `/shares/${managerGrant.id}`, 'author')).statusCode).toBe(403);
-      // Plain levels are still the editor's to give.
-      expect((await share('projects', projectId, 'author', 'stranger', 'comment')).statusCode).toBe(201);
+      // canvas-2h2w.2: managing a project's members at all needs Manage; an editor can still share
+      // a single diagram.
+      expect((await share('projects', projectId, 'author', 'stranger', 'comment')).statusCode).toBe(403);
+      expect((await share('diagrams', diagramId, 'author', 'stranger', 'comment')).statusCode).toBe(201);
     });
 
     it('someone with Manage can give and remove Manage', async () => {

@@ -90,6 +90,15 @@ export function describeEvent(event: AuditEventDto): string {
     }
     case 'icon_library_changed':
       return describeLibraryChange(detail);
+    // canvas-2h2w.2: project membership (the person is the row's target).
+    case 'project_member_added':
+      return `Added to a project with ${String(detail.level)} access`;
+    case 'project_member_changed':
+      return `Project access changed from ${String(detail.from)} to ${String(detail.level)}`;
+    case 'project_member_removed':
+      return `Removed from a project (had ${String(detail.from)} access)`;
+    case 'project_owner_transferred':
+      return 'Made owner of a project';
     case 'app_setting_changed':
       if (detail.setting === 'sharingEnabled') return detail.to ? 'Turned sharing on (Share button shown)' : 'Turned sharing off (Share button hidden)';
       return `Changed setting ${String(detail.setting)}`;

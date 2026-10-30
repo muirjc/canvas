@@ -23,6 +23,7 @@ import {
   type VersionConflictDto,
 } from './api';
 import { usePresence } from './usePresence';
+import { CopyLinkButton } from '../ui/CopyLinkButton';
 import { PresenceBanner } from './PresenceBanner';
 import { SaveConflictDialog } from './SaveConflictDialog';
 import { SubmitForApproval } from './SubmitForApproval';
@@ -403,6 +404,7 @@ export const DiagramEditor = forwardRef<DiagramEditorHandle, DiagramEditorProps>
           </span>
         )}
         <ExportMenu diagramId={diagram.id} diagramName={diagram.name} hasUnsavedChanges={hasUnsavedChanges} />
+        <CopyLinkButton to={{ screen: 'diagram', diagramId: diagram.id }} testId="copy-diagram-link" />
         <SubmitForApproval diagramId={diagram.id} hasUnsavedChanges={hasUnsavedChanges} submission={submission} />
         {/* canvas-i5y: sharing needs edit access (the API refuses it otherwise). */}
         {sharingEnabled && canEdit && (

@@ -270,6 +270,12 @@ export function accessAtLeast(level: AccessLevel | undefined, required: AccessLe
   return level !== undefined && ACCESS_RANK[level] >= ACCESS_RANK[required];
 }
 
+/** canvas-2h2w.2: GET /projects/:id/members. */
+export interface ProjectMembersDto {
+  owner: { id: string; name: string | null; email: string | null };
+  members: { grantId: string; userId: string; name: string | null; email: string | null; accessLevel: AccessLevel }[];
+}
+
 export interface ShareGrantDto {
   id: string;
   subjectType: 'diagram' | 'project';
@@ -789,6 +795,17 @@ export const api = {
   /** Diagrams shared directly with the signed-in user (feature 008, FR-001). */
   listSharedDiagrams: () => request<{ diagrams: SharedDiagramDto[] }>('/shared-diagrams'),
   revokeShare: (grantId: string) => request<void>(`/shares/${grantId}`, { method: 'DELETE' }),
+  /** canvas-2h2w.2: a project's owner and members, and the caller's own access to it. */
+  getProjectMembers: (projectId: string) => request<ProjectMembersDto & { yourAccess: AccessLevel }>(`/projects/${projectId}/members`),
+  /** Adds a member, or changes their level (needs Manage). */
+  setProjectMember: (projectId: string, granteeUserId: string, accessLevel: AccessLevel) =>
+    request<{ grant: ShareGrantDto }>(`/projects/${projectId}/shares`, {
+      method: 'POST',
+      body: JSON.stringify({ granteeUserId, accessLevel }),
+    }),
+  /** Owner or admin only; the previous owner stays on with Manage. */
+  transferProjectOwnership: (projectId: string, newOwnerId: string) =>
+    request<ProjectMembersDto>(`/projects/${projectId}/owner`, { method: 'POST', body: JSON.stringify({ newOwnerId }) }),
   listAdminUsers: () => request<{ users: UserRecordDto[] }>('/admin/users'),
   updateAdminUser: (id: string, body: { role?: string; personas?: string[]; active?: boolean }) =>
     request<{ user: UserRecordDto }>(`/admin/users/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),

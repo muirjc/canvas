@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { sql } from 'kysely';
 import { getDb } from '../db/client.js';
-import { toDate } from '../db/sql-helpers.js';
+import { dbBoolean, toDate } from '../db/sql-helpers.js';
 import { projectAccessForUser } from './project.access.js';
 import type { AccessLevel } from '../sharing/access-levels.js';
 
@@ -387,4 +387,84 @@ export async function purgeExpiredProjects(): Promise<ProjectPurgeResult> {
     purgedProjectIds: purged,
     skipped: remaining.map((id) => ({ id, reason: blockReasons.get(id) ?? 'still referenced' })),
   };
+}
+
+export interface ProjectMember {
+  grantId: string;
+  userId: string;
+  name: string | null;
+  email: string | null;
+  accessLevel: AccessLevel;
+}
+
+export interface ProjectMembers {
+  owner: { id: string; name: string | null; email: string | null };
+  members: ProjectMember[];
+}
+
+/** canvas-2h2w.2: who owns a project and who has been added to it (its project share grants). */
+export async function listProjectMembers(projectId: string): Promise<ProjectMembers> {
+  const db = getDb();
+  const project = await db
+    .selectFrom('projects as p')
+    .leftJoin('users as u', 'u.id', 'p.owner_id')
+    .select(['p.owner_id', 'u.name', 'u.email'])
+    .where('p.id', '=', projectId)
+    .where('p.deleted_at', 'is', null)
+    .executeTakeFirst();
+  if (!project) throw new ProjectNotFoundError(`No project with id ${projectId}`);
+  const rows = await db
+    .selectFrom('share_grants as g')
+    .leftJoin('users as u', 'u.id', 'g.grantee_user_id')
+    .select(['g.id', 'g.grantee_user_id', 'g.access_level', 'u.name', 'u.email'])
+    .where('g.subject_type', '=', 'project')
+    .where('g.subject_id', '=', projectId)
+    .orderBy('u.name')
+    .orderBy('g.id')
+    .execute();
+  return {
+    owner: { id: project.owner_id, name: project.name, email: project.email },
+    members: rows.map((r) => ({ grantId: r.id, userId: r.grantee_user_id, name: r.name, email: r.email, accessLevel: r.access_level })),
+  };
+}
+
+export class NewOwnerNotFoundError extends Error {}
+
+/**
+ * canvas-2h2w.2: hands a project to someone else (the route allows the owner or an admin). The new
+ * owner's member entry goes (owning already gives Manage), and the previous owner stays on as a
+ * Manage member, so nobody loses access by accident. Returns the previous owner, or null if the
+ * project already belonged to `newOwnerId`.
+ */
+export async function transferProjectOwnership(projectId: string, newOwnerId: string, actorId: string): Promise<string | null> {
+  const db = getDb();
+  return db.transaction().execute(async (trx) => {
+    const project = await trx.selectFrom('projects').select('owner_id').where('id', '=', projectId).where('deleted_at', 'is', null).executeTakeFirst();
+    if (!project) throw new ProjectNotFoundError(`No project with id ${projectId}`);
+    const newOwner = await trx.selectFrom('users').select(['id', 'role']).where('id', '=', newOwnerId).where('active', '=', dbBoolean(true)).executeTakeFirst();
+    if (!newOwner) throw new NewOwnerNotFoundError(`No active user with id ${newOwnerId}`);
+    if (newOwner.role === 'viewer') throw new NewOwnerNotFoundError('A viewer can only read and comment, so they cannot own a project.');
+    if (project.owner_id === newOwnerId) return null;
+
+    await trx.updateTable('projects').set({ owner_id: newOwnerId }).where('id', '=', projectId).execute();
+    await trx
+      .deleteFrom('share_grants')
+      .where('subject_type', '=', 'project')
+      .where('subject_id', '=', projectId)
+      .where('grantee_user_id', '=', newOwnerId)
+      .execute();
+    await trx
+      .insertInto('share_grants')
+      .values({
+        id: randomUUID(),
+        subject_type: 'project',
+        subject_id: projectId,
+        grantee_user_id: project.owner_id,
+        access_level: 'manage',
+        granted_by_user_id: actorId,
+      })
+      .onConflict((oc) => oc.columns(['subject_type', 'subject_id', 'grantee_user_id']).doUpdateSet({ access_level: 'manage' }))
+      .execute();
+    return project.owner_id;
+  });
 }

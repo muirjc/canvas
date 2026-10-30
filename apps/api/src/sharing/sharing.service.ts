@@ -1,8 +1,8 @@
 import { randomUUID } from 'node:crypto';
 import { getDb } from '../db/client.js';
 import { dbBoolean } from '../db/sql-helpers.js';
-import { resolveProjectAccess } from '../projects/project.access.js';
-import { capForRole, highestAccess, type AccessLevel } from './access-levels.js';
+import { projectAccessForUser, resolveProjectAccess } from '../projects/project.access.js';
+import { accessAtLeast, capForRole, highestAccess, type AccessLevel } from './access-levels.js';
 
 export { accessAtLeast, type AccessLevel } from './access-levels.js';
 export type SubjectType = 'diagram' | 'project';
@@ -182,6 +182,7 @@ export async function listSharedDiagramsForUser(userId: string): Promise<SharedD
       'd.id as diagram_id',
       'd.name as diagram_name',
       'd.diagram_type_id',
+      'd.project_id',
       'p.name as project_name',
       'sg.access_level',
       'u.name as shared_by_name',
@@ -194,7 +195,14 @@ export async function listSharedDiagramsForUser(userId: string): Promise<SharedD
     .orderBy('d.name')
     .orderBy('d.id')
     .execute();
-  return rows.map((r) => ({
+  // canvas-2h2w.2: a diagram in a project the user is already a member of (at the shared level or
+  // higher) is reached through "My projects"; listing it again under "Shared with me" is noise.
+  const projects = await projectAccessForUser(userId);
+  const covered = (projectId: string, level: AccessLevel) => {
+    const entry = projects.get(projectId);
+    return entry !== undefined && entry.membership !== null && accessAtLeast(entry.level, level);
+  };
+  return rows.filter((r) => !covered(r.project_id, r.access_level)).map((r) => ({
     diagramId: r.diagram_id,
     diagramName: r.diagram_name,
     diagramTypeId: r.diagram_type_id,

@@ -35,6 +35,8 @@ import { PersonaAdminPage } from '../ai/PersonaAdminPage';
 import { Icon } from '../ui/Icon';
 import { ADMIN_DESTINATIONS, AdminShell } from '../ui/AdminShell';
 import { Modal } from '../ui/Modal';
+import { CopyLinkButton } from '../ui/CopyLinkButton';
+import { MembersDialog } from '../projects/MembersDialog';
 import { AI_CHAT_DISABLED_MESSAGE } from '../ai/ai-status-messages';
 
 export function App() {
@@ -105,6 +107,9 @@ export function App() {
   // showing -- the API refuses it then, and that refusal used to stay on screen after the step
   // (found in the live check). The effects below re-run once the step clears (`user` changes).
   const signedInFully = Boolean(user && !user.mustChangePassword && !user.mustEnrollMfa);
+
+  // canvas-2h2w.2: the project page's Members dialog.
+  const [showingMembers, setShowingMembers] = useState(false);
 
   // The projects this user can see. Which one (if any) they're in comes from the address
   // (location), checked against this list below.
@@ -552,9 +557,21 @@ export function App() {
             </li>
           </ol>
         </nav>
-        <h1 className="page__title" tabIndex={-1} data-browse-heading>
-          {currentProject?.name ?? 'Project'}
-        </h1>
+        <div className="cluster">
+          <h1 className="page__title" tabIndex={-1} data-browse-heading>
+            {currentProject?.name ?? 'Project'}
+          </h1>
+          <span className="spacer" />
+          {location.screen === 'project' && (
+            <>
+              <button type="button" className="btn btn--secondary btn--compact" data-testid="open-members" onClick={() => setShowingMembers(true)}>
+                <Icon name="share" />
+                Members
+              </button>
+              <CopyLinkButton to={{ screen: 'project', projectId: location.projectId }} testId="copy-project-link" />
+            </>
+          )}
+        </div>
 
         {/* canvas-2h2w.1: every project is readable; adding to it needs Edit. */}
         {!accessAtLeast(currentProject?.accessLevel ?? 'edit', 'edit') ? (
@@ -608,6 +625,15 @@ export function App() {
           <p role="alert" data-testid="app-error">
             {error}
           </p>
+        )}
+        {location.screen === 'project' && showingMembers && user && (
+          <MembersDialog
+            projectId={location.projectId}
+            projectName={currentProject?.name ?? 'Project'}
+            currentUser={user}
+            onClose={() => setShowingMembers(false)}
+            onAccessChanged={() => api.listProjects().then(({ projects: available }) => setProjects(available)).catch(() => undefined)}
+          />
         )}
         {location.screen === 'project' && (
           <ProjectBrowser

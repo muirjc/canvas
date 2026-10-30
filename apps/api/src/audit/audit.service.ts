@@ -34,7 +34,11 @@ export type AuditEvent =
   | 'diagram_submitted'
   | 'diagram_submission_merged'
   | 'diagram_submission_closed'
-  | 'diagram_submission_withdrawn';
+  | 'diagram_submission_withdrawn'
+  | 'project_member_added'
+  | 'project_member_changed'
+  | 'project_member_removed'
+  | 'project_owner_transferred';
 
 export interface AuditEntry {
   event: AuditEvent;

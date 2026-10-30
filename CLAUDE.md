@@ -107,6 +107,15 @@ work — see `.specify/memory/constitution.md` Principle IV.
   diagram below Edit is read-only (no New Diagram/Move/Delete; editor hides tools, Save, Chat,
   in-canvas `.canvas-edit-affordance`s; Canvas `readOnly` drops edits, Delete and double-click
   editing). Landing considers only the user's own projects.
+  Same PR, `canvas-2h2w.2` (Members) + `.5` (Copy link): a project's members are managed by its
+  owner, Manage members and admins (`POST /projects/:id/shares` and revoking a project grant need
+  Manage; a diagram share still needs Edit). `GET /projects/:id/members` (owner + members +
+  `yourAccess`, readable by all), `POST /projects/:id/owner` (owner/admin; new owner's grant
+  removed, old owner kept as Manage; viewers can't own). Audit `project_member_added|changed|
+  removed`, `project_owner_transferred`. "Shared with me" drops diagrams the user's project
+  membership already covers at that level. Web: `MembersDialog` on the project page; the share
+  picker is now `projects/PersonPicker.tsx` (ShareDialog's testids unchanged); `ui/CopyLinkButton`
+  in the editor doc bar and the project header.
 - `canvas-obp0` (two people editing one diagram, options A + B): saves are compare-and-set.
   `PATCH /diagrams/:id` and `POST /diagrams/:id/versions/:versionId/restore` REQUIRE
   `baseVersionId` (the `currentVersionId` the editor loaded or last saved; now on every diagram

@@ -1,8 +1,32 @@
 # Sharing and exporting
 
-## Sharing a diagram
+Everyone who signs in can read every project and diagram. Sharing gives people **more** than that:
+the right to comment, change things, or manage who else can.
 
-The **Share** button only appears once an admin has turned sharing on (it's off by default). With
+## Project members
+
+Most sharing happens on a project: its members see all its diagrams at their level. Click
+**Members** on a project's page to see who owns the project and who has been added.
+
+The owner, members with **Manage**, and admins can:
+- **add someone:** type their name or email, pick them, choose **Comment**, **Edit** or **Manage**,
+  and click **Add**;
+- **change someone's level** with the list next to their name;
+- **remove someone**;
+- **Make owner** (owner and admins only): hands the project to that member. You stay on as a
+  member with Manage. To hand it to someone who isn't a member yet, add them first.
+
+Everyone else sees the list but can't change it. Each change is recorded in the admin audit log.
+
+## Copying a link
+
+**Copy link** (in the editor, and on a project's page) copies the address of that diagram or
+project. Anyone who signs in can open it; it doesn't give them any extra access.
+
+## Sharing a single diagram
+
+To give someone more access to just one diagram, rather than the whole project, use **Share** in
+the editor. The **Share** button only appears once an admin has turned sharing on (it's off by default). With
 it off, diagrams already shared with you still appear under **Shared with me**.
 
 Click **Share** in the editor and start typing a colleague's name or email address. A list of
