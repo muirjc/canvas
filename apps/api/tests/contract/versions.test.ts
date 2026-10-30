@@ -226,4 +226,63 @@ describe('Diagram version listing: default cap and search', () => {
     const response = await app.inject({ method: 'GET', url: `/diagrams/${id}/versions` });
     expect(response.statusCode).toBe(401);
   });
+
+  // canvas-zfe: "v2", "V2", "#2" and "2" all mean version 2.
+  it('finds a version by number written as v2, V2, #2 or 2', async () => {
+    const id = await diagramWithVersions(9);
+    for (const q of ['2', 'v2', 'V2', '#2', 'v 2']) {
+      const found = (await listVersions(id, `?q=${encodeURIComponent(q)}`)).json().versions;
+      expect(found.map((v: { sequenceNumber: number }) => v.sequenceNumber), q).toEqual([2]);
+    }
+  });
+
+  // canvas-zfe: each version carries its author's name, which is searchable.
+  it('returns the author name on each version and finds versions by author name or email', async () => {
+    const id = await diagramWithVersions(2);
+    const versions = (await listVersions(id)).json().versions;
+    expect(versions[0].authorName).toBeTruthy();
+    const byName = (await listVersions(id, `?q=${encodeURIComponent(versions[0].authorName.slice(0, 4).toUpperCase())}`)).json().versions;
+    expect(byName).toHaveLength(3);
+    expect((await listVersions(id, '?q=architect%40example')).json().versions).toHaveLength(3);
+    expect((await listVersions(id, '?q=someone-else')).json().versions).toHaveLength(0);
+  });
+
+  // canvas-zfe: dates are turned into a from/to range by the browser.
+  it('filters by a from/to range and rejects a malformed instant', async () => {
+    const id = await diagramWithVersions(2);
+    const now = Date.now();
+    const inRange = `?from=${new Date(now - 3_600_000).toISOString()}&to=${new Date(now + 3_600_000).toISOString()}`;
+    expect((await listVersions(id, inRange)).json().versions).toHaveLength(3);
+    const tomorrow = `?from=${new Date(now + 86_400_000).toISOString()}`;
+    expect((await listVersions(id, tomorrow)).json().versions).toHaveLength(0);
+    expect((await listVersions(id, '?from=not-a-date')).statusCode).toBe(400);
+  });
+
+  // canvas-3fha: a restore is labelled with the version it came from.
+  it('labels a restored version with the version it was restored from', async () => {
+    const id = await diagramWithVersions(2); // v1..v3
+    const v1 = (await listVersions(id, '?q=1')).json().versions[0];
+    const restore = await app.inject({ method: 'POST', url: `/diagrams/${id}/versions/${v1.id}/restore`, headers: { cookie: sessionCookie } });
+    expect(restore.statusCode).toBe(200);
+    const latest = (await listVersions(id)).json().versions;
+    expect(latest[0].sequenceNumber).toBe(4);
+    expect(latest[0].restoredFromSequence).toBe(1);
+    expect(latest[1].restoredFromSequence).toBeNull();
+  });
+
+  // canvas-3fha: the preview reads one version's content.
+  it('returns one version with its content for preview, scoped to its diagram', async () => {
+    const id = await diagramWithVersions(2);
+    const v2 = (await listVersions(id, '?q=2')).json().versions[0];
+    const response = await app.inject({ method: 'GET', url: `/diagrams/${id}/versions/${v2.id}`, headers: { cookie: sessionCookie } });
+    expect(response.statusCode).toBe(200);
+    expect(response.json().version).toMatchObject({ id: v2.id, sequenceNumber: 2, restoredFromSequence: null });
+    expect(response.json().version.dslContent).toContain('A[V2]');
+
+    const other = await diagramWithVersions(0);
+    const wrongDiagram = await app.inject({ method: 'GET', url: `/diagrams/${other}/versions/${v2.id}`, headers: { cookie: sessionCookie } });
+    expect(wrongDiagram.statusCode).toBe(404);
+    const anonymous = await app.inject({ method: 'GET', url: `/diagrams/${id}/versions/${v2.id}` });
+    expect(anonymous.statusCode).toBe(401);
+  });
 });

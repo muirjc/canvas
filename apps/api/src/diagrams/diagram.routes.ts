@@ -19,7 +19,7 @@ import {
   UnknownDiagramTypeError,
 } from './diagram.service.js';
 import { searchDiagrams } from './search.service.js';
-import { DiagramVersionNotFoundError, getDiagramVersionContent, listDiagramVersions } from './version.service.js';
+import { DiagramVersionNotFoundError, getDiagramVersion, getDiagramVersionContent, listDiagramVersions } from './version.service.js';
 
 function handleServiceError(error: unknown, reply: FastifyReply): FastifyReply {
   if (error instanceof DslValidationError) {
@@ -236,16 +236,48 @@ export async function registerDiagramRoutes(app: FastifyInstance): Promise<void>
     },
   );
 
-  app.get<{ Params: { id: string }; Querystring: { limit?: string; q?: string } }>(
+  app.get<{ Params: { id: string }; Querystring: { limit?: string; q?: string; from?: string; to?: string } }>(
     '/diagrams/:id/versions',
-    { preHandler: [requireAuth, requireDiagramAccess('view')], schema: { tags: ['Diagrams'], security: [{ cookieAuth: [] }] } },
+    {
+      preHandler: [requireAuth, requireDiagramAccess('view')],
+      schema: {
+        tags: ['Diagrams'],
+        security: [{ cookieAuth: [] }],
+        // canvas-zfe: from/to are instants (ISO 8601) the browser computes from a typed date in
+        // the user's own time zone.
+        querystring: {
+          type: 'object',
+          properties: {
+            limit: { type: 'string' },
+            q: { type: 'string' },
+            from: { type: 'string', format: 'date-time' },
+            to: { type: 'string', format: 'date-time' },
+          },
+        },
+      },
+    },
     async (request, reply) => {
       const parsedLimit = Number.parseInt(request.query.limit ?? '', 10);
       const page = await listDiagramVersions(request.params.id, {
         limit: Number.isFinite(parsedLimit) ? parsedLimit : undefined,
         search: request.query.q,
+        from: request.query.from ? new Date(request.query.from) : undefined,
+        to: request.query.to ? new Date(request.query.to) : undefined,
       });
       return reply.send(page);
+    },
+  );
+
+  // canvas-3fha: one version with its content, for the read-only preview in History.
+  app.get<{ Params: { id: string; versionId: string } }>(
+    '/diagrams/:id/versions/:versionId',
+    { preHandler: [requireAuth, requireDiagramAccess('view')], schema: { tags: ['Diagrams'], security: [{ cookieAuth: [] }] } },
+    async (request, reply) => {
+      try {
+        return reply.send({ version: await getDiagramVersion(request.params.id, request.params.versionId) });
+      } catch (error) {
+        return handleServiceError(error, reply);
+      }
     },
   );
 
@@ -258,6 +290,7 @@ export async function registerDiagramRoutes(app: FastifyInstance): Promise<void>
         const diagram = await saveDiagram(request.params.id, {
           dslContent: restoredContent,
           authorId: request.session.user!.id,
+          restoredFromVersionId: request.params.versionId,
         });
         return reply.send({ diagram });
       } catch (error) {

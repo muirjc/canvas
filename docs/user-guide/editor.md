@@ -101,10 +101,25 @@ so you don't need to click Save.
 
 ## The History tab: versions
 
-Each save makes a **version**. The History tab lists the last five, with their dates, and you can
-search them. **Restore** brings an earlier version back as the current diagram.
+Each save makes a **version**. The History tab lists the last five, with who saved each one and
+when. To find an older one, search by:
+- **version number:** `v3`, `#3` or just `3`;
+- **date:** as the list shows it, or `Oct 26`, `10/26`, `2026-10-26`, `today`, `yesterday`;
+- **name:** the person who saved it, e.g. `jane`.
+
+Click **View** on a version to see it on the canvas, read-only. A bar at the top says which version
+you're looking at, the DSL tab shows its text, and the editing tools are hidden. Your current
+diagram, including anything you haven't saved, is untouched. **Back to current** returns to it.
+
+To bring the version back, click **Restore this version** and confirm. Restoring never deletes
+anything: it saves that version's content as a new version, marked **Restored from v3** in the
+list, so the diagram you had stays in the history too. If you have unsaved changes, Canvas asks
+whether to save them first (they become a version of their own) or to discard them. You need edit
+access to restore; anyone who can open the diagram can view its versions.
 
 ![Version history](../images/version-history.png)
+
+![Viewing an earlier version](../images/version-preview.png)
 
 ## Name and description
 

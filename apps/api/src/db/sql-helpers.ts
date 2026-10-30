@@ -52,6 +52,21 @@ export function dateToYMD(column: Expression<Date>): RawBuilder<string> {
 }
 
 /**
+ * canvas-zfe: compares a timestamp column with an instant on both engines. SQLite stores a
+ * `DEFAULT CURRENT_TIMESTAMP` column as `YYYY-MM-DD HH:MM:SS` text, while a bound Date arrives as
+ * ISO 8601 (`...T...Z`), so a plain comparison is a string comparison that mis-orders them;
+ * `datetime()` normalises both sides to the same UTC text. Postgres compares real timestamps.
+ */
+export function compareTimestamp(column: Expression<Date>, op: '>=' | '<', instant: Date): RawBuilder<boolean> {
+  if (loadConfig().dbClient === 'sqlite') {
+    return op === '>='
+      ? sql<boolean>`datetime(${column}) >= datetime(${instant.toISOString()})`
+      : sql<boolean>`datetime(${column}) < datetime(${instant.toISOString()})`;
+  }
+  return op === '>=' ? sql<boolean>`${column} >= ${instant}` : sql<boolean>`${column} < ${instant}`;
+}
+
+/**
  * Converts a JS boolean to whatever bound-parameter value each driver actually accepts, for a
  * call site writing a literal boolean through Kysely's `.values()`/`.set()`/`.where()`.
  * better-sqlite3 throws ("can only bind numbers, strings, bigints, buffers, and null") on a raw
