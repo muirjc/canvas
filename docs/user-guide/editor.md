@@ -11,6 +11,26 @@ Opening a diagram shows it on the **canvas** in the middle:
 **Save often.** Next to **Save**, the editor shows **Unsaved changes**, **Saving…**, **Saved** or
 **Couldn't save**. If you try to leave with unsaved changes, it asks first.
 
+## When someone else is editing
+
+Two people can open the same diagram, but changes aren't shared live. Canvas keeps either person's
+work from being lost without warning:
+
+- **Who else is here.** If someone else with edit access has the diagram open, a bar under the top
+  says so, e.g. *Alex Smith is also editing this diagram (opened 10:31)*. It also tells you if you
+  have the diagram open in another tab. You can keep editing; the bar just suggests you save often.
+- **If they saved first.** When you save and someone has saved a newer version since you opened (or
+  last saved) the diagram, your save is stopped and Canvas tells you who saved and when. Nothing of
+  yours has been saved yet. Choose:
+  - **Save mine anyway:** saves your version on top. Theirs stays in **History**.
+  - **Load the newer version:** replaces what's on your screen with theirs. Use **Copy my version**
+    or **Download my version (.mmd)** first if you want to keep yours, then paste it into the DSL
+    tab later.
+  - **Keep editing:** closes the message. Saving asks again.
+
+Restoring an old version works the same way: if someone saved after you opened the diagram, the
+restore is stopped and says who.
+
 ## Drawing
 
 - **Add a shape:** pick one under **Shapes** in the left rail. The shapes offered depend on the

@@ -3,6 +3,7 @@ import { fileURLToPath } from 'node:url';
 import { expect, test, type Browser, type BrowserContext, type Locator, type Page } from '@playwright/test';
 import { showShareButton } from '../tests/e2e/app-settings-helpers';
 import { nextCode } from '../tests/e2e/totp-helper';
+import { saveDsl } from '../tests/e2e/save-helpers';
 
 /**
  * Captures the screenshots used by docs/user-guide and docs/admin-guide into docs/images/.
@@ -75,7 +76,7 @@ async function ensureDiagram(name: string, diagramTypeId: string, dsl: string): 
   const list = (await (await api('get', `/projects/${projectId}/diagrams?query=${encodeURIComponent(name)}`)).json()).diagrams as { id: string; name: string }[];
   const existing = list.find((d) => d.name === name);
   const id = existing?.id ?? (await (await api('post', `/projects/${projectId}/diagrams`, { name, diagramTypeId })).json()).diagram.id;
-  expect((await api('patch', `/diagrams/${id}`, { dslContent: dsl })).status()).toBe(200);
+  expect((await saveDsl(admin.request, API, id, dsl)).status()).toBe(200);
   return id as string;
 }
 
@@ -106,8 +107,8 @@ test.beforeAll(async ({ browser }) => {
   flowId = await ensureDiagram('Order flow', 'flowchart', FLOW_DSL);
   await ensureDiagram('Order data', 'erd', ERD_DSL);
   // Version history needs more than one version.
-  await api('patch', `/diagrams/${flowId}`, { dslContent: FLOW_DSL_V2 });
-  await api('patch', `/diagrams/${flowId}`, { dslContent: FLOW_DSL });
+  await saveDsl(admin.request, API, flowId, FLOW_DSL_V2);
+  await saveDsl(admin.request, API, flowId, FLOW_DSL);
 
   // Something in Deleted Diagrams.
   const deleted = (await (await api('get', '/admin/deleted-diagrams')).json()) as { diagrams?: { name: string }[] };
@@ -184,7 +185,7 @@ test('editor', async () => {
   // Chat on a fresh scratch diagram (a diagram's chat history persists, so reusing one would grow
   // run after run); it is deleted again afterwards.
   const scratch = (await (await api('post', `/projects/${projectId}/diagrams`, { name: 'Order flow', diagramTypeId: 'flowchart' })).json()).diagram.id as string;
-  expect((await api('patch', `/diagrams/${scratch}`, { dslContent: FLOW_DSL })).status()).toBe(200);
+  expect((await saveDsl(admin.request, API, scratch, FLOW_DSL)).status()).toBe(200);
   await openEditor(admin, scratch);
   await admin.getByTestId('rail-tab-chat').click();
   const replies = admin.locator('[data-testid="chat-message-assistant"]');

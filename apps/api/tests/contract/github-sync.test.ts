@@ -5,6 +5,7 @@ import { GitHubClient } from '../../src/github/github-client.js';
 import { REFRESH_THROTTLE_MS, syncOpenSubmissions } from '../../src/github/status-sync.service.js';
 import { buildGitHubTestApp, githubTestConfig, startFakeGitHub, type FakeGitHub, type FakeRepo } from '../helpers/fake-github.js';
 import { closeTestDb, resetDatabase, seedFlowchartDiagramType, seedProject, seedUser } from '../helpers/setup.js';
+import { currentVersionId } from '../helpers/versions.js';
 
 /**
  * canvas-3s5.2: keeping Canvas's view of a submitted diagram's pull request current -- merged
@@ -40,7 +41,7 @@ describe('GitHub pull request status sync (canvas-3s5.2)', () => {
     return res.json().diagram.id as string;
   }
   async function save(diagramId: string, dsl: string) {
-    expect((await call('PATCH', `/diagrams/${diagramId}`, 'owner', { dslContent: dsl })).statusCode).toBe(200);
+    expect((await call('PATCH', `/diagrams/${diagramId}`, 'owner', { baseVersionId: await currentVersionId(diagramId), dslContent: dsl })).statusCode).toBe(200);
   }
   async function linkProject(folder = 'architecture', target: FakeRepo = repo, project = projectId) {
     const res = await call('PUT', `/projects/${project}/github-link`, 'admin', { repoId: target.id, folder });

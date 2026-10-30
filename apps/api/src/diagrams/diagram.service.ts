@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { createEmptyDiagramModel, getDslFamily, validate, type DiagramModel, type ParseError } from '@canvas/diagram-core';
-import { getDb } from '../db/client.js';
+import { getDb, type DbExecutor } from '../db/client.js';
 import { caseInsensitiveLike, toDate } from '../db/sql-helpers.js';
 import { recordDiagramVersion } from './version.service.js';
 import { getActiveStandard } from '../standards/standard.service.js';
@@ -29,6 +29,8 @@ export interface DiagramRecord {
   /** canvas-tfr: version of the standard `lastValidationResult` was computed against (null = none),
    *  so the editor can tell when its loaded standard is out of date. */
   standardVersionAtLastCheck: number | null;
+  /** canvas-obp0: the version the editor is looking at. A save sends it back as its base. */
+  currentVersionId: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -40,6 +42,20 @@ export class DslValidationError extends Error {
 }
 
 export class DiagramNotFoundError extends Error {}
+
+/** canvas-obp0: who saved the version that replaced the one a stale save started from. */
+export interface VersionConflict {
+  currentVersionId: string;
+  savedBy: { id: string | null; name: string };
+  savedAt: string;
+}
+
+/** canvas-obp0: a save (or restore) started from a version that is no longer the current one. */
+export class DiagramVersionConflictError extends Error {
+  constructor(public readonly conflict: VersionConflict) {
+    super(`${conflict.savedBy.name} saved a newer version of this diagram while you were editing.`);
+  }
+}
 export class UnknownDiagramTypeError extends Error {}
 export class DiagramRetentionExpiredError extends Error {}
 
@@ -158,6 +174,7 @@ export async function getDiagram(id: string): Promise<DiagramRecord> {
       'u.name as owner_name',
       'd.last_validation_result',
       'd.standard_version_at_last_check',
+      'd.current_version_id',
       'd.created_at',
       'd.updated_at',
       'v.dsl_content',
@@ -183,6 +200,7 @@ export async function getDiagram(id: string): Promise<DiagramRecord> {
     // `pool.query<DiagramRow>(...)` generic type parameter always implicitly did.
     lastValidationResult: row.last_validation_result as unknown as Violation[],
     standardVersionAtLastCheck: row.standard_version_at_last_check ?? null,
+    currentVersionId: row.current_version_id!,
     // See diagram-chat.service.ts's getChatMessages for why these casts are the pre-existing
     // convention, not a new behavior change — node-postgres always returned a Date here.
     createdAt: row.created_at as unknown as string,
@@ -195,6 +213,9 @@ export interface SaveDiagramInput {
   authorId: string;
   /** canvas-3fha: set when this save restores an earlier version (History shows "Restored from vN"). */
   restoredFromVersionId?: string;
+  /** canvas-obp0: the version the caller started from. If another save has replaced it since,
+   *  nothing is written and DiagramVersionConflictError says who saved and when. */
+  baseVersionId: string;
 }
 
 /** Saves a new version of a diagram. Never blocks on standards violations (FR-024). */
@@ -213,7 +234,10 @@ export async function saveDiagram(id: string, input: SaveDiagramInput): Promise<
       restoredFromVersionId: input.restoredFromVersionId,
     });
 
-    await trx
+    // canvas-obp0: compare-and-set in the one UPDATE, so two saves from the same base can't both
+    // win. No row updated = someone else's save got there first; throwing rolls back the version
+    // inserted above.
+    const result = await trx
       .updateTable('diagrams')
       .set({
         current_version_id: versionId,
@@ -222,10 +246,29 @@ export async function saveDiagram(id: string, input: SaveDiagramInput): Promise<
         standard_version_at_last_check: standardVersion,
       })
       .where('id', '=', id)
-      .execute();
+      .where('current_version_id', '=', input.baseVersionId)
+      .executeTakeFirst();
+    if (Number(result.numUpdatedRows) === 0) {
+      throw new DiagramVersionConflictError(await describeCurrentVersion(trx, id));
+    }
   });
 
   return getDiagram(id);
+}
+
+async function describeCurrentVersion(trx: DbExecutor, diagramId: string): Promise<VersionConflict> {
+  const row = await trx
+    .selectFrom('diagrams as d')
+    .innerJoin('diagram_versions as v', 'v.id', 'd.current_version_id')
+    .leftJoin('users as u', 'u.id', 'v.author_id')
+    .select(['v.id', 'v.author_id', 'v.created_at', 'u.name', 'u.email'])
+    .where('d.id', '=', diagramId)
+    .executeTakeFirstOrThrow();
+  return {
+    currentVersionId: row.id,
+    savedBy: { id: row.author_id, name: row.name ?? row.email ?? 'Someone' },
+    savedAt: toDate(row.created_at as unknown as Date | string).toISOString(),
+  };
 }
 
 /**

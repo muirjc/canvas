@@ -4,6 +4,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { getDb } from '../../src/db/client.js';
 import { setUserPersonas } from '../../src/db/array-columns.js';
 import { buildTestApp, closeTestDb, resetDatabase, seedFlowchartDiagramType, seedUser } from '../helpers/setup.js';
+import { currentVersionId } from '../helpers/versions.js';
 
 /** canvas-0se: an admin deletes a user -- content transferred, access removed, history kept. */
 describe('User deletion (canvas-0se)', () => {
@@ -27,7 +28,7 @@ describe('User deletion (canvas-0se)', () => {
     const diagram = (await call('POST', `/projects/${project}/diagrams`, cookies.doomed, { name: 'Live', diagramTypeId: 'flowchart' })).json().diagram.id as string;
     const trashed = (await call('POST', `/projects/${project}/diagrams`, cookies.doomed, { name: 'Trashed', diagramTypeId: 'flowchart' })).json().diagram.id as string;
     expect((await call('DELETE', `/diagrams/${trashed}`, cookies.doomed)).statusCode).toBeLessThan(300);
-    expect((await call('PATCH', `/diagrams/${diagram}`, cookies.doomed, { dslContent: 'flowchart TD\n  A[One] --> B[Two]\n' })).statusCode).toBe(200);
+    expect((await call('PATCH', `/diagrams/${diagram}`, cookies.doomed, { baseVersionId: await currentVersionId(diagram), dslContent: 'flowchart TD\n  A[One] --> B[Two]\n' })).statusCode).toBe(200);
 
     // Gave a share: the grantee can open the doomed user's diagram.
     expect((await call('POST', `/diagrams/${diagram}/shares`, cookies.doomed, { granteeUserId: ids.grantee, accessLevel: 'view' })).statusCode).toBe(201);

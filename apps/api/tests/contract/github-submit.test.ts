@@ -3,6 +3,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { getDb } from '../../src/db/client.js';
 import { buildGitHubTestApp, startFakeGitHub, type FakeGitHub, type FakeRepo } from '../helpers/fake-github.js';
 import { closeTestDb, resetDatabase, seedFlowchartDiagramType, seedProject, seedUser } from '../helpers/setup.js';
+import { currentVersionId } from '../helpers/versions.js';
 
 /**
  * canvas-3s5.1: submitting a diagram to GitHub as a pull request, against an in-memory fake GitHub.
@@ -47,7 +48,7 @@ describe('Submitting diagrams to GitHub (canvas-3s5.1)', () => {
     return res.json().diagram.id as string;
   }
   async function save(diagramId: string, dsl: string) {
-    const res = await call('PATCH', `/diagrams/${diagramId}`, 'owner', { dslContent: dsl });
+    const res = await call('PATCH', `/diagrams/${diagramId}`, 'owner', { baseVersionId: await currentVersionId(diagramId), dslContent: dsl });
     expect(res.statusCode, res.body).toBe(200);
   }
   const saved = async (diagramId: string) => (await call('GET', `/diagrams/${diagramId}`)).json().diagram.dslContent as string;

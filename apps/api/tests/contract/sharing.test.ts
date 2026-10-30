@@ -1,6 +1,7 @@
 import type { FastifyInstance } from 'fastify';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { buildTestApp, closeTestDb, resetDatabase, seedFlowchartDiagramType, seedProject, seedUser } from '../helpers/setup.js';
+import { currentVersionId } from '../helpers/versions.js';
 
 /**
  * Contract for ShareGrant CRUD + access resolution, per
@@ -71,7 +72,7 @@ describe('Sharing API contract', () => {
       method: 'PATCH',
       url: `/diagrams/${diagramId}`,
       headers: { cookie: granteeCookie },
-      payload: { dslContent: 'flowchart TD\n  A[Changed]\n' },
+      payload: { baseVersionId: await currentVersionId(diagramId), dslContent: 'flowchart TD\n  A[Changed]\n' },
     });
     expect(patchResponse.statusCode).toBe(403);
     expect(patchResponse.json().error).toContain('edit');
@@ -95,7 +96,7 @@ describe('Sharing API contract', () => {
       method: 'PATCH',
       url: `/diagrams/${diagramId}`,
       headers: { cookie: granteeCookie },
-      payload: { dslContent: 'flowchart TD\n  A[Changed]\n' },
+      payload: { baseVersionId: await currentVersionId(diagramId), dslContent: 'flowchart TD\n  A[Changed]\n' },
     });
     expect(patchResponse.statusCode).toBe(200);
   });
@@ -118,7 +119,7 @@ describe('Sharing API contract', () => {
       method: 'PATCH',
       url: `/diagrams/${diagramId}`,
       headers: { cookie: granteeCookie },
-      payload: { dslContent: 'flowchart TD\n  A[Changed]\n' },
+      payload: { baseVersionId: await currentVersionId(diagramId), dslContent: 'flowchart TD\n  A[Changed]\n' },
     });
     expect(patchResponse.statusCode).toBe(403); // diagram-level "view" overrides project-level "edit"
   });

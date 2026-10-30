@@ -3,6 +3,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { buildTestApp, closeTestDb, resetDatabase, seedProject, seedUser } from '../helpers/setup.js';
 import { getDb } from '../../src/db/client.js';
 import { setDiagramTypePersonas, setDiagramTypePaletteLibraries } from '../../src/db/array-columns.js';
+import { currentVersionId } from '../helpers/versions.js';
 
 /**
  * Contract for POST /projects/:id/diagrams/import per contracts/api-diagrams.md. Covers User
@@ -240,7 +241,7 @@ describe('Import API contract', () => {
       method: 'PATCH',
       url: `/diagrams/${diagram.id}`,
       headers: { cookie: sessionCookie },
-      payload: { dslContent: 'flowchart TD\n  A[Start]\n  B[End]\n  A --> B\n' },
+      payload: { baseVersionId: await currentVersionId(diagram.id), dslContent: 'flowchart TD\n  A[Start]\n  B[End]\n  A --> B\n' },
     });
     expect(patchResponse.statusCode).toBe(200);
 

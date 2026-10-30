@@ -8,6 +8,7 @@ import {
   seedProject,
   seedUser,
 } from '../helpers/setup.js';
+import { currentVersionId } from '../helpers/versions.js';
 
 /**
  * Contract for POST/GET/PATCH /diagrams and GET /diagrams/:id/export, per
@@ -89,7 +90,7 @@ describe('Diagrams API contract', () => {
       method: 'PATCH',
       url: `/diagrams/${diagram.id}`,
       headers: { cookie: sessionCookie },
-      payload: { dslContent: 'flowchart TD\n  A[Start]\n  B[End]\n  C[New]\n  A --> B\n  B --> C\n' },
+      payload: { baseVersionId: await currentVersionId(diagram.id), dslContent: 'flowchart TD\n  A[Start]\n  B[End]\n  C[New]\n  A --> B\n  B --> C\n' },
     });
     expect(patchResponse.statusCode).toBe(200);
     expect(patchResponse.json().diagram.dslContent).toContain('C[New]');
@@ -131,7 +132,7 @@ describe('Diagrams API contract', () => {
       method: 'PATCH',
       url: `/diagrams/${diagram.id}`,
       headers: { cookie: sessionCookie },
-      payload: { dslContent: 'flowchart TD\n  ???not-valid???\n' },
+      payload: { baseVersionId: await currentVersionId(diagram.id), dslContent: 'flowchart TD\n  ???not-valid???\n' },
     });
     expect(patchResponse.statusCode).toBe(422);
     const body = patchResponse.json();

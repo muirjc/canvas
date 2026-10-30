@@ -117,7 +117,7 @@ export function CreateViaChatDialog({ projectId, onCreated, onCancel, mockMode =
   const finish = async (target: DiagramDto, finalDsl: string, hadConversation: boolean) => {
     // Saved here rather than left to the editor: the editor treats its opening DSL as the saved
     // baseline, so an unsaved AI-drawn diagram would otherwise be silently lost on navigation.
-    const { diagram: saved } = await api.saveDiagram(target.id, finalDsl);
+    const { diagram: saved } = await api.saveDiagram(target.id, finalDsl, target.currentVersionId);
     onCreated(saved, { openChat: hadConversation });
   };
 

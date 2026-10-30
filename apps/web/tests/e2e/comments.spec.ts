@@ -1,6 +1,7 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, test, type Browser, type BrowserContext, type Page } from '@playwright/test';
 import { expectSignedIn } from './auth-helpers';
+import { saveDsl } from './save-helpers';
 
 const PROJECT_ID = process.env.E2E_PROJECT_ID;
 const API_BASE_URL = process.env.VITE_API_BASE_URL ?? 'http://localhost:3000';
@@ -84,7 +85,7 @@ test.beforeAll(async ({ browser }) => {
   const created = await admin.request.post(`${API_BASE_URL}/projects/${PROJECT_ID}/diagrams`, { data: { name: `Comments ${RUN}`, diagramTypeId: 'flowchart' } });
   expect(created.status()).toBe(201);
   diagramId = (await created.json()).diagram.id;
-  expect((await admin.request.patch(`${API_BASE_URL}/diagrams/${diagramId}`, { data: { dslContent: DSL } })).status()).toBe(200);
+  expect((await saveDsl(admin.request, API_BASE_URL, diagramId, DSL)).status()).toBe(200);
 
   const c = await member(browser, 'commenter', 'comment');
   commenterCtx = c.ctx;

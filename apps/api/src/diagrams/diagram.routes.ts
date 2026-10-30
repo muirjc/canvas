@@ -1,4 +1,5 @@
 import type { FastifyInstance, FastifyReply } from 'fastify';
+import { heartbeat, leave, HEARTBEAT_SECONDS } from './presence.service.js';
 import { requireAuth, requireRole } from '../auth/middleware.js';
 import { requireDiagramAccess, requireDiagramOwnerOrAdmin, requireProjectAccess } from '../auth/access-control.middleware.js';
 import { projectExists, resolveProjectAccess } from '../projects/project.access.js';
@@ -8,6 +9,7 @@ import {
   deleteDiagram,
   DiagramNotFoundError,
   DiagramRetentionExpiredError,
+  DiagramVersionConflictError,
   DslValidationError,
   getDiagram,
   listDeletedDiagrams,
@@ -27,6 +29,10 @@ function handleServiceError(error: unknown, reply: FastifyReply): FastifyReply {
   }
   if (error instanceof DiagramNotFoundError || error instanceof DiagramVersionNotFoundError) {
     return reply.code(404).send({ error: error.message });
+  }
+  if (error instanceof DiagramVersionConflictError) {
+    // canvas-obp0: the editor shows who saved and when, and offers to load theirs or save anyway.
+    return reply.code(409).send({ error: error.message, code: 'version_conflict', details: error.conflict });
   }
   if (error instanceof DiagramRetentionExpiredError) {
     return reply.code(409).send({ error: error.message });
@@ -111,7 +117,7 @@ export async function registerDiagramRoutes(app: FastifyInstance): Promise<void>
     },
   );
 
-  app.patch<{ Params: { id: string }; Body: { dslContent: string } }>(
+  app.patch<{ Params: { id: string }; Body: { dslContent: string; baseVersionId: string } }>(
     '/diagrams/:id',
     {
       preHandler: [requireAuth, requireDiagramAccess('edit')],
@@ -119,15 +125,22 @@ export async function registerDiagramRoutes(app: FastifyInstance): Promise<void>
       schema: {
         tags: ['Diagrams'],
         security: [{ cookieAuth: [] }],
-        body: { type: 'object', required: ['dslContent'], properties: { dslContent: { type: 'string' } } },
+        // canvas-obp0: baseVersionId is the version the editor started from (the diagram's
+        // currentVersionId when loaded or last saved). 409 if another save has replaced it since.
+        body: {
+          type: 'object',
+          required: ['dslContent', 'baseVersionId'],
+          properties: { dslContent: { type: 'string' }, baseVersionId: { type: 'string', minLength: 1 } },
+        },
       },
     },
     async (request, reply) => {
-      const { dslContent } = request.body;
+      const { dslContent, baseVersionId } = request.body;
       try {
         const diagram = await saveDiagram(request.params.id, {
           dslContent,
           authorId: request.session.user!.id,
+          baseVersionId,
         });
         return reply.send({ diagram });
       } catch (error) {
@@ -281,9 +294,17 @@ export async function registerDiagramRoutes(app: FastifyInstance): Promise<void>
     },
   );
 
-  app.post<{ Params: { id: string; versionId: string } }>(
+  app.post<{ Params: { id: string; versionId: string }; Body: { baseVersionId: string } }>(
     '/diagrams/:id/versions/:versionId/restore',
-    { preHandler: [requireAuth, requireDiagramAccess('edit')], schema: { tags: ['Diagrams'], security: [{ cookieAuth: [] }] } },
+    {
+      preHandler: [requireAuth, requireDiagramAccess('edit')],
+      // canvas-obp0: restoring on top of someone else's newer save is a conflict too.
+      schema: {
+        tags: ['Diagrams'],
+        security: [{ cookieAuth: [] }],
+        body: { type: 'object', required: ['baseVersionId'], properties: { baseVersionId: { type: 'string', minLength: 1 } } },
+      },
+    },
     async (request, reply) => {
       try {
         const restoredContent = await getDiagramVersionContent(request.params.id, request.params.versionId);
@@ -291,11 +312,38 @@ export async function registerDiagramRoutes(app: FastifyInstance): Promise<void>
           dslContent: restoredContent,
           authorId: request.session.user!.id,
           restoredFromVersionId: request.params.versionId,
+          baseVersionId: request.body.baseVersionId,
         });
         return reply.send({ diagram });
       } catch (error) {
         return handleServiceError(error, reply);
       }
+    },
+  );
+
+  // canvas-obp0: presence. The editor heartbeats while it is open (edit access only: viewers aren't
+  // editors) and gets back everyone else who has the diagram open, for the "also editing" banner.
+  const sessionBody = {
+    type: 'object',
+    required: ['sessionId'],
+    properties: { sessionId: { type: 'string', minLength: 1, maxLength: 100 } },
+  } as const;
+
+  app.put<{ Params: { id: string }; Body: { sessionId: string } }>(
+    '/diagrams/:id/presence',
+    { preHandler: [requireAuth, requireDiagramAccess('edit')], schema: { tags: ['Diagrams'], security: [{ cookieAuth: [] }], body: sessionBody } },
+    async (request, reply) => {
+      const others = await heartbeat(request.params.id, request.session.user!.id, request.body.sessionId);
+      return reply.send({ others, heartbeatSeconds: HEARTBEAT_SECONDS });
+    },
+  );
+
+  app.post<{ Params: { id: string }; Body: { sessionId: string } }>(
+    '/diagrams/:id/presence/leave',
+    { preHandler: [requireAuth, requireDiagramAccess('edit')], schema: { tags: ['Diagrams'], security: [{ cookieAuth: [] }], body: sessionBody } },
+    async (request, reply) => {
+      await leave(request.params.id, request.session.user!.id, request.body.sessionId);
+      return reply.code(204).send();
     },
   );
 
