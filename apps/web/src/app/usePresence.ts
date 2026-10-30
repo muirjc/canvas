@@ -26,10 +26,15 @@ export function usePresence(diagramId: string, enabled: boolean): OtherEditorDto
     // it arrives after the new heartbeat. The API ignores the same tab's other mounts.
     mountCount += 1;
     const sessionId = `${TAB_ID}.${mountCount}`;
+    // The heartbeat request in flight, if any. Saying goodbye waits for it: a goodbye that overtook
+    // it would be undone when it landed, leaving a stale "also editing" entry for up to 90s.
+    let inFlight: Promise<unknown> = Promise.resolve();
     const beat = async () => {
       let next = 30;
       try {
-        const result = await api.presenceHeartbeat(diagramId, sessionId);
+        const request = api.presenceHeartbeat(diagramId, sessionId);
+        inFlight = request.catch(() => undefined);
+        const result = await request;
         if (cancelled) return;
         setOthers(result.others);
         next = result.heartbeatSeconds;
@@ -39,13 +44,19 @@ export function usePresence(diagramId: string, enabled: boolean): OtherEditorDto
       if (!cancelled) timer = setTimeout(() => void beat(), next * 1000);
     };
     void beat();
-    const leave = () => void api.presenceLeave(diagramId, sessionId).catch(() => undefined);
-    window.addEventListener('pagehide', leave);
+    const sendLeave = () => api.presenceLeave(diagramId, sessionId).catch(() => undefined);
+    // The page is going away: there's no time to wait, so say goodbye now (keepalive) and again
+    // once any heartbeat in flight has landed, in case that request still reaches the API.
+    const onPageHide = () => {
+      void sendLeave();
+      void inFlight.then(sendLeave);
+    };
+    window.addEventListener('pagehide', onPageHide);
     return () => {
       cancelled = true;
       clearTimeout(timer);
-      window.removeEventListener('pagehide', leave);
-      leave();
+      window.removeEventListener('pagehide', onPageHide);
+      void inFlight.then(sendLeave);
     };
   }, [diagramId, enabled]);
 
