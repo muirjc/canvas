@@ -66,9 +66,9 @@ describe('Sharing authorization (canvas-i5y)', () => {
       }
     });
 
-    it('the list needs view access', async () => {
-      expect((await call('GET', `/diagrams/${diagramId}/shares`, 'stranger')).statusCode).toBe(403);
-      for (const who of ['viewer', 'commenter', 'editor', 'owner', 'admin'] as Who[]) {
+    // canvas-2h2w.1: everyone signed in has View (open read), so everyone can see who it's shared with.
+    it('anyone signed in can see the list', async () => {
+      for (const who of ['stranger', 'viewer', 'commenter', 'editor', 'owner', 'admin'] as Who[]) {
         expect((await call('GET', `/diagrams/${diagramId}/shares`, who)).statusCode, who).toBe(200);
       }
     });
@@ -101,10 +101,10 @@ describe('Sharing authorization (canvas-i5y)', () => {
   });
 
   describe('project shares', () => {
-    it('only someone with edit access to the project can share it, revoke, or (with view) list', async () => {
-      // stranger has no project access at all
+    it('only someone with edit access to the project can share it or revoke; anyone can list', async () => {
+      // stranger has no grant: open read lets them list, not share
       expect((await share(`/projects/${projectId}`, 'stranger', ids.stranger, 'edit')).statusCode).toBe(403);
-      expect((await call('GET', `/projects/${projectId}/shares`, 'stranger')).statusCode).toBe(403);
+      expect((await call('GET', `/projects/${projectId}/shares`, 'stranger')).statusCode).toBe(200);
       expect((await share(`/projects/${projectId}`, 'owner', ids.viewer, 'view')).statusCode).toBe(201);
       // a project viewer can list but not share or revoke
       expect((await call('GET', `/projects/${projectId}/shares`, 'viewer')).statusCode).toBe(200);

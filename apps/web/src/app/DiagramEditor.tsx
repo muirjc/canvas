@@ -12,6 +12,7 @@ import { Palette } from '../palette/Palette';
 import { VersionHistory } from '../projects/VersionHistory';
 import { ShareDialog } from '../projects/ShareDialog';
 import {
+  accessAtLeast,
   api,
   ApiError,
   type CommentAnchor,
@@ -22,6 +23,7 @@ import {
   type VersionConflictDto,
 } from './api';
 import { usePresence } from './usePresence';
+import { CopyLinkButton } from '../ui/CopyLinkButton';
 import { PresenceBanner } from './PresenceBanner';
 import { SaveConflictDialog } from './SaveConflictDialog';
 import { SubmitForApproval } from './SubmitForApproval';
@@ -175,7 +177,9 @@ export const DiagramEditor = forwardRef<DiagramEditorHandle, DiagramEditorProps>
   // must send the version that save just made, within the same click.
   const baseVersionRef = useRef(initialDiagram.currentVersionId);
   const [conflict, setConflict] = useState<VersionConflictDto | null>(null);
-  const others = usePresence(diagram.id, (diagram.accessLevel ?? 'edit') === 'edit');
+  // canvas-2h2w.1: everyone signed in can open every diagram; editing needs Edit (or Manage).
+  const canEdit = accessAtLeast(diagram.accessLevel ?? 'edit', 'edit');
+  const others = usePresence(diagram.id, canEdit);
 
   // canvas-3fha: an earlier version shown read-only on the canvas (History -> View). The editor's own
   // model -- including unsaved edits -- is left untouched while previewing.
@@ -184,7 +188,6 @@ export const DiagramEditor = forwardRef<DiagramEditorHandle, DiagramEditorProps>
   const [restoreStep, setRestoreStep] = useState<'confirm' | 'unsaved' | null>(null);
   const [restoring, setRestoring] = useState(false);
   const [restoreError, setRestoreError] = useState<string | null>(null);
-  const canEdit = (diagram.accessLevel ?? 'edit') === 'edit';
 
   const openPreview = async (version: DiagramVersionDto) => {
     setPreviewError(null);
@@ -403,20 +406,27 @@ export const DiagramEditor = forwardRef<DiagramEditorHandle, DiagramEditorProps>
             {saveLabel}
           </span>
         </span>
-        <button
-          type="button"
-          className="btn btn--primary btn--compact"
-          data-testid="save-diagram"
-          disabled={preview !== null}
-          title={preview ? 'Go back to the current version to save' : undefined}
-          onClick={() => void handleSave()}
-        >
-          Save
-        </button>
+        {canEdit ? (
+          <button
+            type="button"
+            className="btn btn--primary btn--compact"
+            data-testid="save-diagram"
+            disabled={preview !== null}
+            title={preview ? 'Go back to the current version to save' : undefined}
+            onClick={() => void handleSave()}
+          >
+            Save
+          </button>
+        ) : (
+          <span className="badge" data-testid="read-only-badge">
+            {diagram.accessLevel === 'comment' ? 'Can comment' : 'Read-only'}
+          </span>
+        )}
         <ExportMenu diagramId={diagram.id} diagramName={diagram.name} hasUnsavedChanges={hasUnsavedChanges} />
+        <CopyLinkButton to={{ screen: 'diagram', diagramId: diagram.id }} testId="copy-diagram-link" />
         <SubmitForApproval diagramId={diagram.id} hasUnsavedChanges={hasUnsavedChanges} submission={submission} />
         {/* canvas-i5y: sharing needs edit access (the API refuses it otherwise). */}
-        {sharingEnabled && (diagram.accessLevel ?? 'edit') === 'edit' && (
+        {sharingEnabled && canEdit && (
           <button
             type="button"
             className="btn btn--secondary btn--compact"
@@ -440,7 +450,7 @@ export const DiagramEditor = forwardRef<DiagramEditorHandle, DiagramEditorProps>
       <div className="editor__body">
         <div className="editor__rail-left">
           {/* Canvas portals its diagram-tools toolbar in here, above the icon palette. */}
-          <div ref={setToolbarContainer} hidden={preview !== null} />
+          <div ref={setToolbarContainer} hidden={preview !== null || !canEdit} />
           {/* canvas-hox follow-up: every ER entity is a plain rectangle (erd.ts's own parser has
               no other shape) -- there is no legitimate icon concept for an ER diagram, so the
               search-scoped-to-the-"generic"-library section (which only ever offered the same
@@ -448,7 +458,7 @@ export const DiagramEditor = forwardRef<DiagramEditorHandle, DiagramEditorProps>
               canvas-23t.4) is hidden entirely rather than shown with nothing useful in it. */}
           {/* canvas-wid / canvas-7ewa: no Palette when the standard offers neither icons nor the
               generic shape-alias entries (e.g. a strict Value Chain: its kinds are the only way in). */}
-          {diagram.dslFamily !== 'erd' && !preview && paletteOffered && (
+          {diagram.dslFamily !== 'erd' && !preview && canEdit && paletteOffered && (
             <Palette diagramTypeId={diagram.diagramTypeId} onSelectIcon={handleSelectIcon} rules={standard?.rules} />
           )}
           {preview && (
@@ -456,9 +466,19 @@ export const DiagramEditor = forwardRef<DiagramEditorHandle, DiagramEditorProps>
               Editing tools are hidden while you view an earlier version.
             </p>
           )}
+          {!preview && !canEdit && (
+            <p className="meta editor__preview-note" data-testid="read-only-tools-note">
+              {diagram.accessLevel === 'comment'
+                ? 'You can read this diagram and comment on it. Ask its owner for edit access to change it.'
+                : 'You can read this diagram. Ask its owner for access to comment on it or change it.'}
+            </p>
+          )}
         </div>
 
-        <div className={`editor__canvas${preview ? ' editor__canvas--preview' : ''}`} data-testid="canvas-surface">
+        <div
+          className={`editor__canvas${preview ? ' editor__canvas--preview' : ''}${canEdit ? '' : ' editor__canvas--read-only'}`}
+          data-testid="canvas-surface"
+        >
           {preview && (
             <div className="preview-bar" role="region" aria-label="Viewing an earlier version" data-testid="version-preview-bar">
               <span className="preview-bar__text">
@@ -499,6 +519,7 @@ export const DiagramEditor = forwardRef<DiagramEditorHandle, DiagramEditorProps>
           <Canvas
             model={model}
             onChange={setModel}
+            readOnly={!canEdit}
             dslFamily={diagram.dslFamily}
             toolbarContainer={toolbarContainer}
             standardRules={standard?.rules}
@@ -517,7 +538,7 @@ export const DiagramEditor = forwardRef<DiagramEditorHandle, DiagramEditorProps>
         <div className="editor__rail-right">
           <RailTabs
             aria-label="Diagram panels"
-            initialTabId={initialRailTab}
+            initialTabId={canEdit ? initialRailTab : 'dsl'}
             activeRequest={commentsTabRequest}
             onActivate={(id) => {
               setCommentsTabActive(id === 'comments');
@@ -531,16 +552,26 @@ export const DiagramEditor = forwardRef<DiagramEditorHandle, DiagramEditorProps>
                   preview ? (
                     <DslPanel key={`preview-${preview.version.id}`} dsl={preview.dsl} parseErrors={[]} onApply={() => undefined} readOnly />
                   ) : (
-                    <DslPanel dsl={dsl} parseErrors={parseErrors} onApply={applyDsl} rules={standard?.rules} dslFamily={diagram.dslFamily} />
+                    <DslPanel
+                      dsl={dsl}
+                      parseErrors={parseErrors}
+                      onApply={applyDsl}
+                      rules={standard?.rules}
+                      dslFamily={diagram.dslFamily}
+                      readOnly={!canEdit}
+                    />
                   ),
               },
-              {
-                id: 'chat',
-                label: 'Chat',
-                render: () => (
-                  <ChatPanel diagramId={diagram.id} currentDslContent={dsl} onDiagramUpdated={applyDsl} />
-                ),
-              },
+              // AI chat changes the diagram, and its API needs Edit: editors only (canvas-2h2w.1).
+              ...(canEdit
+                ? [
+                    {
+                      id: 'chat',
+                      label: 'Chat',
+                      render: () => <ChatPanel diagramId={diagram.id} currentDslContent={dsl} onDiagramUpdated={applyDsl} />,
+                    },
+                  ]
+                : []),
               {
                 id: 'comments',
                 label: 'Comments',

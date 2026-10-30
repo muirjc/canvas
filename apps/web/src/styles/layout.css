@@ -1172,3 +1172,7 @@
   border-radius: 50%;
   background: var(--warning-surface);
 }
+/* canvas-2h2w.1: View/Comment access -- shapes can be selected (to comment on), not edited. */
+.editor__canvas--read-only .canvas-edit-affordance {
+  display: none;
+}

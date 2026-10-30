@@ -117,7 +117,7 @@ test.describe('project rename', () => {
     await input.fill(newName);
 
     // Click a neutral, non-interactive element to move focus away without pressing Enter.
-    await page.getByRole('heading', { name: 'Projects' }).click();
+    await page.getByRole('heading', { level: 1, name: 'Projects' }).click();
 
     await expect(page.getByTestId(`projects-page-rename-input-${projectId}`)).toHaveCount(0);
     await expect(page.getByTestId(`projects-page-row-${projectId}`)).toContainText(newName);
