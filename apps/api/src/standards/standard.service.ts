@@ -97,6 +97,7 @@ const V2_RULE_KEYS = [
   'requireKnownKinds',
   'severityOverrides',
   'guidance',
+  'authoring',
 ] as const satisfies readonly (keyof StandardRules)[];
 
 function v2RulesJson(rules: StandardRules): string {

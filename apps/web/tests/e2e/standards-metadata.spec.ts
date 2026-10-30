@@ -6,9 +6,10 @@ const PROJECT_ID = process.env.E2E_PROJECT_ID;
 test.skip(!PROJECT_ID, 'E2E_PROJECT_ID env var not set — run `npm run seed` and export it first');
 
 async function createAndPublish(page: Page, name: string, description?: string) {
-  // The seeded standard permits rectangles; keep the new one equivalent so publishing it does
-  // not invalidate unrelated diagrams used by other specs.
-  await createAndPublishShapeStandard(page, { name, description, allowed: ['rectangle'] });
+  // No shape restriction: this publishes onto the built-in flowchart type, and since canvas-7ewa
+  // the editor's toolbar follows the active standard -- a rectangles-only one would take the
+  // other shapes away from every spec that runs after it.
+  await createAndPublishShapeStandard(page, { name, description });
 }
 
 /**

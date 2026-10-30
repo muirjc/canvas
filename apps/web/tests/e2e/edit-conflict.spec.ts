@@ -73,7 +73,10 @@ test.afterAll(async () => {
 });
 
 test('each editor is told who else has the diagram open', async () => {
+  // Wait for the editor's first heartbeat to land, so the admin's first one hears about it.
+  const heartbeat = editor.waitForResponse((r) => r.url().includes('/presence') && r.request().method() === 'PUT');
   await open(editor);
+  await heartbeat;
   await expect(editor.getByTestId('presence-banner')).toHaveCount(0);
   await open(admin);
   // The admin's first heartbeat already hears about the editor.

@@ -53,6 +53,9 @@ import {
   CONTROL_FLOW_TAB_FILL,
   sanitizeSvgFragment,
   autoLayout,
+  iconLibraryOffered,
+  mermaidArchitectureIconsManifest,
+  offeredShapes,
   iconNodeLayout,
   tableNodeLayout,
   cardinalityGlyphs,
@@ -1175,7 +1178,6 @@ export function Canvas({ model: modelProp, onChange: onChangeProp, dslFamily, to
   const standardKinds: ElementKind[] =
     standardRules && FAMILY_SUPPORTS_ELEMENT_KINDS.has(dslFamily) ? (standardRules.elementKinds ?? []) : [];
   const kindsActive = standardKinds.length > 0;
-  const strictKinds = kindsActive && Boolean(standardRules?.requireKnownKinds);
   const kindOfNode = (node: DiagramNode | undefined) => (node && standardRules ? classifyNode(node, standardRules) : undefined);
   const [connectNotice, setConnectNotice] = useState<string | null>(null);
   const worstSeverityByElement = new Map<string, Severity>();
@@ -2491,7 +2493,27 @@ export function Canvas({ model: modelProp, onChange: onChangeProp, dslFamily, to
 
   // canvas-7vs.10: empty for sequence diagrams (getAddableShapes' own doc comment) — the whole
   // "Shapes" section is hidden rather than shown with nothing in its grid.
-  const addableShapes = getAddableShapes(dslFamily);
+  // canvas-7ewa: only the shapes the standard offers ("Generic shapes: All / Only these / None").
+  // A strict standard (every element must be a kind) defaults to none -- effectiveAuthoring().
+  const addableShapes = getAddableShapes(dslFamily).filter(({ shape }) => offeredShapes([shape], standardRules).length > 0);
+  // canvas-8hi9: architecture-beta has no shapes, but Mermaid's five built-in service icons are the
+  // nearest thing; offered as one-click buttons when the standard's Icons setting allows them.
+  const builtInServices =
+    dslFamily === 'architecture' && iconLibraryOffered(mermaidArchitectureIconsManifest.id, standardRules)
+      ? mermaidArchitectureIconsManifest.icons
+      : [];
+  const handleAddService = (iconId: string, label: string) => {
+    const withNode = addNode(model, { shape: 'icon', label });
+    const added = withNode.nodes[withNode.nodes.length - 1];
+    onChange({
+      ...withNode,
+      nodes: withNode.nodes.map((n) =>
+        n.id === added.id
+          ? { ...n, icon: { libraryId: mermaidArchitectureIconsManifest.id, libraryVersion: mermaidArchitectureIconsManifest.version, iconId } }
+          : n,
+      ),
+    });
+  };
 
   // canvas-ltk: the legend. Entries and geometry come from diagram-core, shared with the export.
   const legendSupported = dslFamily !== 'sequence' && model.diagramTypeId !== 'sequence';
@@ -2525,7 +2547,26 @@ export function Canvas({ model: modelProp, onChange: onChangeProp, dslFamily, to
           </div>
         </div>
       )}
-      {addableShapes.length > 0 && !strictKinds && (
+      {builtInServices.length > 0 && (
+        <div className="rail-section" data-testid="service-toolbar">
+          <p className="section-label rail-section__label">Services</p>
+          <div className="tool-list">
+            {builtInServices.map((icon) => (
+              <button
+                key={icon.id}
+                type="button"
+                className="btn btn--secondary"
+                data-testid={`add-service-${icon.id}`}
+                title={`Add a ${icon.displayName} service`}
+                onClick={() => handleAddService(icon.id, icon.displayName)}
+              >
+                {icon.displayName}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+      {addableShapes.length > 0 && (
         <div className="rail-section">
           <p className="section-label rail-section__label">Shapes</p>
           <div className="shape-grid">

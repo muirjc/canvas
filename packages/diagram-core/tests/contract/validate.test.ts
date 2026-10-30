@@ -43,7 +43,9 @@ describe('validate(model, standard)', () => {
     expect(violations).toContainEqual(expect.objectContaining({ rule: 'mandatory-shapes' }));
   });
 
-  it('flags an icon from a non-approved library/version', () => {
+  // canvas-7ewa: a standard lists icon LIBRARIES ("Icons: Only these"); any version of a listed
+  // library is accepted, so this now uses a different library rather than a different version.
+  it('flags an icon from a library that is not approved', () => {
     const modelWithIcon: DiagramModel = {
       ...baseModel,
       nodes: [
@@ -58,7 +60,7 @@ describe('validate(model, standard)', () => {
     };
     const rules: StandardRules = {
       ...emptyStandardRules(),
-      allowedIconLibraryRefs: [{ libraryId: 'aws-icons', libraryVersion: '2024.1' }],
+      allowedIconLibraryRefs: [{ libraryId: 'azure-icons', libraryVersion: '2024.1' }],
     };
     const violations = validate(modelWithIcon, rules);
     expect(violations).toContainEqual(
