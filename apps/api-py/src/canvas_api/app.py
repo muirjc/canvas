@@ -4,12 +4,15 @@ from __future__ import annotations
 
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
+from typing import Annotated
 
-from fastapi import FastAPI
+from fastapi import Depends, FastAPI
 from sqlalchemy import Engine
 
+from canvas_api.auth.session import SessionUser, current_user
 from canvas_api.config import Settings
 from canvas_api.db import create_db_engine
+from canvas_api.errors import register_error_handlers
 from canvas_api.telemetry import configure_telemetry
 
 
@@ -27,10 +30,17 @@ def create_app(settings: Settings | None = None, engine: Engine | None = None) -
     app.state.settings = settings
     app.state.db = db
     configure_telemetry(app, settings.applicationinsights_connection_string)
+    register_error_handlers(app)
 
     @app.get("/health", tags=["Health"])
     def health() -> dict[str, str]:
         """Same answer as the TypeScript service's /health."""
         return {"status": "ok"}
+
+    @app.get("/py/me", tags=["Auth"])
+    def python_me(user: Annotated[SessionUser, Depends(current_user)]) -> dict[str, str]:
+        """canvas-1bty.2: who the Python service thinks is signed in. Proves a session made by the
+        TypeScript service works here; removed once real routes have moved."""
+        return {"id": user.id, "email": user.email, "role": user.role, "service": "python"}
 
     return app
