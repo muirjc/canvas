@@ -1,0 +1,54 @@
+[project]
+name = "canvas-api"
+version = "0.1.0"
+description = "Canvas backend, Python (canvas-1bty: incremental move from apps/api, see docs/python-backend-assessment.md)"
+requires-python = ">=3.13,<3.14"
+dependencies = [
+    "azure-monitor-opentelemetry>=1.8.11",
+    "fastapi>=0.143.3",
+    "psycopg[binary]>=3.3.6",
+    "pydantic>=2.14.1",
+    "pydantic-settings>=2.16.0",
+    "sqlalchemy>=2.1.5",
+    "structlog>=26.1.0",
+    "uvicorn[standard]>=0.54.0",
+]
+
+[dependency-groups]
+dev = [
+    "httpx>=0.28.1",
+    "mypy>=2.4.0",
+    "pytest>=9.1.1",
+    "ruff>=0.17.1",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/canvas_api"]
+
+[tool.uv]
+# Same rule as npm: only package versions at least two weeks old.
+exclude-newer = "2026-10-17T00:00:00Z"
+
+[tool.ruff]
+line-length = 120
+target-version = "py313"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP", "S", "SIM", "RUF"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["S101", "S105", "S106"]
+
+[tool.mypy]
+strict = true
+python_version = "3.13"
+mypy_path = "src"
+packages = ["canvas_api"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"

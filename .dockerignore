@@ -32,3 +32,9 @@ Dockerfile*
 **/.secrets
 **/*.pem
 **/*.key
+# canvas-1bty.1: the Python service's local environment and caches.
+**/.venv
+**/__pycache__
+**/.pytest_cache
+**/.mypy_cache
+**/.ruff_cache
