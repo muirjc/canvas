@@ -16,6 +16,7 @@ export * from './dsl/flowchart-serializer.js';
 export * from './dsl/registry.js';
 export * from './dsl/detect.js';
 export * from './dsl/portable-mermaid.js';
+export * from './embeds/markdown-embeds.js';
 export * from './dsl/c4.js';
 export * from './dsl/architecture.js';
 export * from './dsl/sequence.js';

@@ -8,8 +8,9 @@ const VERSION = typeof __VALIDATOR_VERSION__ === 'string' ? __VALIDATOR_VERSION_
 const USAGE = `Canvas diagram validator ${VERSION}
 
 Checks the diagrams Canvas submitted to this repository: each folder with a canvas.json is parsed
-and checked against the standard it names. Exits 1 if any diagram has a syntax error or a Must fix
-finding.
+and checked against the standard it names. Markdown documents that embed a diagram
+(<!-- MERMAID: path -->) are checked against the committed files. Exits 1 if any diagram has a
+syntax error or a Must fix finding, or an embedded copy is out of date.
 
 Usage: node .canvas/validator.mjs [options] [paths...]
 
@@ -18,6 +19,8 @@ Usage: node .canvas/validator.mjs [options] [paths...]
   --format text|github  github = annotations on the pull request (default: github when
                         GITHUB_ACTIONS is set, otherwise text)
   --render-dir <dir>    also render each diagram to SVG under <dir>
+  --fix-docs            rewrite the diagram sections of Markdown documents that embed a diagram
+                        (<!-- MERMAID: path -->) so they match the committed files
   --version             print the version
   --help                show this help
 `;
@@ -32,6 +35,7 @@ export function runCli(argv: string[], env: NodeJS.ProcessEnv = process.env): Cl
   let root = '.';
   let format: 'text' | 'github' = env.GITHUB_ACTIONS === 'true' ? 'github' : 'text';
   let renderDir: string | undefined;
+  let fixDocs = false;
   for (let i = 0; i < argv.length; i++) {
     const arg = argv[i];
     const value = () => {
@@ -43,6 +47,7 @@ export function runCli(argv: string[], env: NodeJS.ProcessEnv = process.env): Cl
     if (arg === '--version') return { exitCode: 0, stdout: `${VERSION}\n` };
     if (arg === '--root') root = value();
     else if (arg === '--render-dir') renderDir = value();
+    else if (arg === '--fix-docs') fixDocs = true;
     else if (arg === '--format') {
       const f = value();
       if (f !== 'text' && f !== 'github') throw new UsageError(`--format must be text or github (got: ${f})`);
@@ -51,7 +56,7 @@ export function runCli(argv: string[], env: NodeJS.ProcessEnv = process.env): Cl
     else paths.push(arg);
   }
 
-  const report = validateRepository({ root, paths, renderDir });
+  const report = validateRepository({ root, paths, renderDir, fixDocs });
   if (env.GITHUB_STEP_SUMMARY) {
     try {
       appendFileSync(env.GITHUB_STEP_SUMMARY, formatSummary(report));

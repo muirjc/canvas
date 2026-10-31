@@ -11,14 +11,21 @@ export function formatText(report: ValidationReport): string {
     lines.push(`${status}  ${d.name}  (${d.manifest})`);
     for (const f of d.findings) lines.push(`      ${LEVEL_WORD[f.level]}: ${f.file}${f.line ? `:${f.line}` : ''}  ${f.title}: ${f.message}`);
   }
+  for (const doc of report.documents.filter((d) => d.findings.length > 0)) {
+    const status = doc.findings.some((f) => f.level === 'error') ? 'FAIL' : 'ok';
+    lines.push(`${status}  ${doc.file}  (document)`);
+    for (const f of doc.findings) lines.push(`      ${LEVEL_WORD[f.level]}: ${f.file}:${f.line}  ${f.title}: ${f.message}`);
+  }
   lines.push(summaryLine(report));
   return `${lines.join('\n')}\n`;
 }
 
 export function summaryLine(report: ValidationReport): string {
   const n = report.diagrams.length;
-  if (n === 0) return 'No Canvas diagrams found (no canvas.json manifests).';
-  return `${n} diagram${n === 1 ? '' : 's'} checked: ${report.errorCount} error${report.errorCount === 1 ? '' : 's'}, ${report.warningCount} warning${report.warningCount === 1 ? '' : 's'}.`;
+  const docs = report.documents.length;
+  if (n === 0 && docs === 0) return 'No Canvas diagrams found (no canvas.json manifests).';
+  const docPart = docs > 0 ? ` and ${docs} document${docs === 1 ? '' : 's'} embedding diagrams` : '';
+  return `${n} diagram${n === 1 ? '' : 's'}${docPart} checked: ${report.errorCount} error${report.errorCount === 1 ? '' : 's'}, ${report.warningCount} warning${report.warningCount === 1 ? '' : 's'}.`;
 }
 
 /** GitHub's workflow-command escaping: message data, and property values (which also escape : and ,). */
@@ -35,6 +42,12 @@ export function formatGitHub(report: ValidationReport): string {
   for (const d of report.diagrams) {
     for (const f of d.findings) {
       const props = [`file=${escapeProperty(f.file)}`, ...(f.line ? [`line=${f.line}`] : []), `title=${escapeProperty(`${f.title} (${d.name})`)}`];
+      lines.push(`::${f.level} ${props.join(',')}::${escapeData(f.message)}`);
+    }
+  }
+  for (const doc of report.documents) {
+    for (const f of doc.findings) {
+      const props = [`file=${escapeProperty(f.file)}`, ...(f.line ? [`line=${f.line}`] : []), `title=${escapeProperty(f.title)}`];
       lines.push(`::${f.level} ${props.join(',')}::${escapeData(f.message)}`);
     }
   }
@@ -60,6 +73,16 @@ export function formatSummary(report: ValidationReport): string {
       const result = errors > 0 ? '❌ Fails' : warnings > 0 ? '⚠️ Passes with warnings' : '✅ Passes';
       const findings = d.findings.length === 0 ? '—' : d.findings.slice(0, 5).map((f) => cell(`${f.title}: ${f.message}`)).join('<br>') + (d.findings.length > 5 ? `<br>…and ${d.findings.length - 5} more` : '');
       lines.push(`| ${cell(d.name)} (\`${cell(d.manifest)}\`) | ${result} | ${cell(d.standard ?? 'none')} | ${findings} |`);
+    }
+    lines.push('');
+  }
+  const docs = report.documents.filter((d) => d.findings.length > 0);
+  if (docs.length > 0) {
+    lines.push('| Document | Result | Findings |', '|---|---|---|');
+    for (const d of docs) {
+      const errors = d.findings.filter((f) => f.level === 'error').length;
+      const result = errors > 0 ? '❌ Out of date' : d.fixed ? '🔧 Fixed' : '⚠️ Warnings';
+      lines.push(`| \`${cell(d.file)}\` | ${result} | ${d.findings.slice(0, 5).map((f) => cell(`line ${f.line}: ${f.title}`)).join('<br>')} |`);
     }
     lines.push('');
   }

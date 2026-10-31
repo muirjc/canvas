@@ -528,6 +528,26 @@ export class FakeGitHub {
       if (!commit) throw new HttpError(404, 'Not Found');
       return { sha: commit.sha, message: commit.message, tree: { sha: commit.tree }, parents: commit.parents.map((sha) => ({ sha })) };
     }
+    // canvas-finl: tree listing and blob reads. A blob's sha is the hash of its content.
+    if (method === 'GET' && (r = rest.match(/^git\/trees\/([0-9a-f]+)$/))) {
+      this.need(token, 'contents', 'read');
+      const files = repo.trees.get(r[1]);
+      if (!files) throw new HttpError(404, 'Not Found');
+      return {
+        sha: r[1],
+        truncated: false,
+        tree: [...files.entries()].map(([path, content]) => ({ path, mode: '100644', type: 'blob', sha: sha1(`blob|${content}`), size: Buffer.byteLength(content) })),
+      };
+    }
+    if (method === 'GET' && (r = rest.match(/^git\/blobs\/([0-9a-f]+)$/))) {
+      this.need(token, 'contents', 'read');
+      for (const files of repo.trees.values()) {
+        for (const content of files.values()) {
+          if (sha1(`blob|${content}`) === r[1]) return { sha: r[1], encoding: 'base64', content: Buffer.from(content).toString('base64') };
+        }
+      }
+      throw new HttpError(404, 'Not Found');
+    }
     if (method === 'POST' && rest === 'git/trees') {
       this.need(token, 'contents', 'write');
       const base = repo.trees.get(String(b.base_tree));

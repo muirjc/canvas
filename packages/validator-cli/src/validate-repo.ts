@@ -1,7 +1,7 @@
 import { createHash, timingSafeEqual } from 'node:crypto';
 import { existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { dirname, join, relative, resolve, sep } from 'node:path';
-import { emptyStandardRules, findElementLine, getDslFamily, renderToSvg, validate, type StandardRules, type Violation } from './diagram-core.js';
+import { emptyStandardRules, findElementLine, getDslFamily, renderToSvg, updateEmbeds, validate, type EmbedResult, type EmbedSource, type StandardRules, type Violation } from './diagram-core.js';
 
 /**
  * canvas-3s5.3: checks every diagram Canvas committed to a repository. A diagram folder is found by
@@ -33,8 +33,17 @@ export interface DiagramResult {
   rendered?: string;
 }
 
+/** canvas-finl: a Markdown document with `<!-- MERMAID: path -->` markers. */
+export interface DocumentResult {
+  file: string;
+  findings: Finding[];
+  /** --fix-docs rewrote it. */
+  fixed: boolean;
+}
+
 export interface ValidationReport {
   diagrams: DiagramResult[];
+  documents: DocumentResult[];
   errorCount: number;
   warningCount: number;
 }
@@ -46,6 +55,8 @@ export interface ValidateOptions {
   paths?: string[];
   /** Write each diagram's SVG here, mirroring its folder (default: don't render). */
   renderDir?: string;
+  /** canvas-finl: rewrite out-of-date or unfilled diagram sections in Markdown documents. */
+  fixDocs?: boolean;
 }
 
 interface Manifest {
@@ -221,6 +232,77 @@ export function validateRepository(options: ValidateOptions): ValidationReport {
     else if (full.endsWith('canvas.json')) manifests.add(full);
   }
   const diagrams = [...manifests].sort().map((m) => checkDiagram(root, m, options.renderDir ? resolve(options.renderDir) : undefined));
-  const all = diagrams.flatMap((d) => d.findings);
-  return { diagrams, errorCount: all.filter((f) => f.level === 'error').length, warningCount: all.filter((f) => f.level === 'warning').length };
+  const documents = findMarkdown(root)
+    .map((doc) => checkDocument(root, doc, Boolean(options.fixDocs)))
+    .filter((d): d is DocumentResult => d !== null);
+  const all = [...diagrams.flatMap((d) => d.findings), ...documents.flatMap((d) => d.findings)];
+  return { diagrams, documents, errorCount: all.filter((f) => f.level === 'error').length, warningCount: all.filter((f) => f.level === 'warning').length };
+}
+
+// ---- canvas-finl: Markdown documents that embed a diagram ----------------------------------------
+
+const MAX_DOCUMENT_BYTES = 1024 * 1024;
+const MARKER_HINT = /<!--\s*mermaid:/i;
+const FIX_HINT = 'Resubmit the diagram from Canvas, or run `node .canvas/validator.mjs --fix-docs` and commit the result.';
+
+/** Every .md file under `dir`, skipping node_modules, .git and other dot-folders. */
+export function findMarkdown(dir: string): string[] {
+  const found: string[] = [];
+  const walk = (current: string) => {
+    let entries;
+    try {
+      entries = readdirSync(current, { withFileTypes: true });
+    } catch {
+      return;
+    }
+    for (const entry of entries) {
+      if (entry.isDirectory()) {
+        if (SKIP_DIRS.has(entry.name) || entry.name.startsWith('.')) continue;
+        walk(join(current, entry.name));
+      } else if (entry.isFile() && /\.md$/i.test(entry.name)) {
+        found.push(join(current, entry.name));
+      }
+    }
+  };
+  walk(dir);
+  return found.sort();
+}
+
+/** The document's findings, or null when it has no markers (most documents). */
+function checkDocument(root: string, docPath: string, fix: boolean): DocumentResult | null {
+  if (statSync(docPath).size > MAX_DOCUMENT_BYTES) return null;
+  const text = readFileSync(docPath, 'utf8');
+  if (!MARKER_HINT.test(text)) return null;
+  const file = toPosix(relative(root, docPath));
+  const resolveTarget = (path: string): EmbedSource | undefined => {
+    const full = insideRoot(root, path);
+    if (!full || !existsSync(full) || !statSync(full).isFile()) return undefined;
+    return path.endsWith('.svg') ? { kind: 'svg' } : { kind: 'mermaid', text: readFileSync(full, 'utf8') };
+  };
+  const update = updateEmbeds(text, file, resolveTarget);
+  if (update.results.length === 0) return null;
+  const fixed = fix && update.changed;
+  if (fixed) writeFileSync(docPath, update.markdown);
+  const findings = update.results.flatMap((r) => embedFinding(file, r, fixed));
+  return { file, findings, fixed };
+}
+
+function embedFinding(file: string, r: EmbedResult, fixed: boolean): Finding[] {
+  const at = { file, line: r.line };
+  switch (r.status) {
+    case 'current':
+      return [];
+    case 'updated':
+      return fixed
+        ? [{ level: 'notice', ...at, title: 'Embedded diagram updated', message: `Updated the copy of ${r.path} to match the file.` }]
+        : [{ level: 'error', ...at, title: 'Embedded diagram out of date', message: `The copy of ${r.path} in this document doesn't match the file. ${FIX_HINT}` }];
+    case 'filled':
+      return fixed
+        ? [{ level: 'notice', ...at, title: 'Embedded diagram added', message: `Added ${r.path} under its marker.` }]
+        : [{ level: 'warning', ...at, title: 'Embedded diagram not filled in', message: `The marker for ${r.path} has nothing under it yet. ${FIX_HINT}` }];
+    case 'missing':
+      return [{ level: 'warning', ...at, title: 'Embedded diagram not found', message: `No file at ${r.path}. Check the path in the marker (it starts at the repository root).` }];
+    case 'unsupported':
+      return [{ level: 'warning', ...at, title: 'Embedded diagram path not supported', message: `"${r.target}" isn't a .mmd or .svg file in this repository (use the .mmd, not the .canvas.mmd).` }];
+  }
 }
