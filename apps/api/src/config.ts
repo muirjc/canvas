@@ -69,6 +69,12 @@ export interface AppConfig {
    *  expose its full route surface by default just because this repo added the capability — a
    *  deliberate choice to make later, not an accidental default. */
   enableApiDocs: boolean;
+  /** canvas-r3y: the built web app to serve from this origin (the container image sets it). */
+  webDistDir?: string;
+  /** canvas-r3y: pause.sh sets CANVAS_PAUSED=true -- every request gets the "paused" page / a 503. */
+  paused: boolean;
+  /** canvas-r3y: the page shown while paused. */
+  pausedPagePath?: string;
 }
 
 // canvas-ai2: reads from the given `env` (loadConfig's own override parameter) rather than
@@ -188,6 +194,9 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
     cookieSecure,
     cookieSameSite,
     enableApiDocs: env.ENABLE_API_DOCS === 'true',
+    ...(env.WEB_DIST_DIR ? { webDistDir: env.WEB_DIST_DIR } : {}),
+    paused: env.CANVAS_PAUSED === 'true',
+    ...(env.PAUSED_PAGE_PATH ? { pausedPagePath: env.PAUSED_PAGE_PATH } : {}),
     sessionIdleMinutes: positiveNumber(env, 'SESSION_IDLE_MINUTES', 480),
     sessionMaxHours: positiveNumber(env, 'SESSION_MAX_HOURS', 12),
   };

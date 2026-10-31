@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # Deploy/update the canvas Azure environment (canvas-ycu, mirrors ADP's infra/azure/deploy.sh).
 # Resource group, ACR, VNet, private Postgres, Key Vault + managed identity, Container Apps
-# environment, API app, migration job, and a Storage static website for the frontend.
+# environment, API app (which also serves the web app, canvas-r3y), migration job, and a Storage
+# static website that now only redirects the old address.
 #
 # Usage: ENTRA_CLIENT_ID=<id> [ENTRA_TENANT_ID=<id>] [ENTRA_CLIENT_SECRET=<secret>] \
 #        [CANVAS_AI_PROVIDER=mock|anthropic|openai] [CANVAS_ANTHROPIC_API_KEY=<key>] \
@@ -350,18 +351,9 @@ if [[ -n "$EXISTING_IDENTITY_PRINCIPAL_ID" ]]; then
     echo "== Identity already holds AcrPull on $RESOURCE_GROUP -- skipping role assignment this run =="
   fi
 fi
-# Real frontend origin, once the storage account exists AND static website hosting has been
-# enabled on it (see modules/storage.bicep's own comment for why this isn't predictable ahead of
-# time the way canvas-api's own apiPublicBaseUrl is). Empty on a from-scratch first run; a
-# subsequent run picks up the real value once step "Enabling static website hosting" below has run
-# at least once.
-EXISTING_STORAGE="$(az storage account list --resource-group "$RESOURCE_GROUP" --query "[0].name" -o tsv 2>/dev/null || true)"
+# canvas-r3y: canvas-api serves the web app itself, so the public URL is the API's own and
+# main.bicep computes it (empty here = that default).
 WEB_ORIGIN=""
-if [[ -n "$EXISTING_STORAGE" ]]; then
-  WEB_ORIGIN="$(az storage account show --name "$EXISTING_STORAGE" --resource-group "$RESOURCE_GROUP" \
-    --query "primaryEndpoints.web" -o tsv 2>/dev/null || true)"
-  WEB_ORIGIN="${WEB_ORIGIN%/}"  # az returns a trailing slash; WEB_ORIGINS/CORS origin must not have one
-fi
 
 # canvas-28j: Container Apps caches a Key Vault secret reference's VALUE at the app/job level
 # (refreshed only every ~30 min) and a new revision does NOT refetch it -- found live 2026-10-08:
@@ -473,6 +465,8 @@ KEY_VAULT_NAME="$(az deployment sub show --name "canvas-foundation" --query "pro
 API_FQDN="$(az deployment sub show --name "canvas-foundation" --query "properties.outputs.apiFqdn.value" -o tsv)"
 MIGRATION_JOB="$(az deployment sub show --name "canvas-foundation" --query "properties.outputs.migrationJobName.value" -o tsv)"
 OIDC_REDIRECT_URI="$(az deployment sub show --name "canvas-foundation" --query "properties.outputs.oidcRedirectUri.value" -o tsv)"
+# canvas-r3y: Canvas's address is canvas-api's own (it serves the web app).
+REAL_WEB_ORIGIN="https://${API_FQDN}"
 
 echo "== Enabling static website hosting on $STORAGE_ACCOUNT (data-plane -- no Bicep resource for this, see modules/storage.bicep) =="
 # storage.bicep's Storage Blob Data Contributor role assignment for the deployer may have been
@@ -496,15 +490,6 @@ for attempt in 1 2 3 4 5; do
   sleep 20
 done
 rm -f /tmp/canvas-deploy-blob-err
-
-REAL_WEB_ORIGIN="$(az storage account show --name "$STORAGE_ACCOUNT" --resource-group "$RESOURCE_GROUP" \
-  --query "primaryEndpoints.web" -o tsv)"
-REAL_WEB_ORIGIN="${REAL_WEB_ORIGIN%/}"
-if [[ "$REAL_WEB_ORIGIN" != "$WEB_ORIGIN" ]]; then
-  echo "== Patching canvas-api's WEB_ORIGINS to the real static website URL ($REAL_WEB_ORIGIN) =="
-  az containerapp update --name canvas-api --resource-group "$RESOURCE_GROUP" \
-    --set-env-vars "WEB_ORIGINS=${REAL_WEB_ORIGIN}" --output none
-fi
 
 SEED_JOB="$(az deployment sub show --name "canvas-foundation" --query "properties.outputs.seedJobName.value" -o tsv)"
 CATALOG_SEED_JOB="$(az deployment sub show --name "canvas-foundation" --query "properties.outputs.catalogSeedJobName.value" -o tsv)"
@@ -552,31 +537,27 @@ refresh_kv_secret_refs() {
 }
 refresh_kv_secret_refs
 
-echo "== Building and deploying the frontend to $STORAGE_ACCOUNT =="
-( cd "$REPO_ROOT" && npm ci && npm run build --workspace=@canvas/diagram-core && \
-  VITE_API_BASE_URL="https://${API_FQDN}" npm run build --workspace=@canvas/web )
-az storage blob upload-batch \
-  --account-name "$STORAGE_ACCOUNT" --destination '$web' --source "$REPO_ROOT/apps/web/dist" \
-  --auth-mode login --overwrite --output none
-# canvas-oyp: index.html must never be served from a browser's cache. Without a Cache-Control
-# header browsers cache it heuristically, keep loading the PREVIOUS build's bundle after a deploy,
-# and users silently run old code (seen live: the Create-with-AI dialog kept its pre-#159 one-shot
-# behavior after deploying). The bundles it references are content-hashed (Vite), so they can stay
-# cacheable; only the entry page needs revalidating on every load.
+# canvas-r3y: the web app is built into the canvas-api image and served from its URL. The old
+# Storage static website now only holds a page that sends old bookmarks (deep links included) to
+# the new address, and the licence files.
+echo "== Pointing the old web address ($STORAGE_ACCOUNT) at https://${API_FQDN} =="
+REDIRECT_PAGE="$(mktemp)"
+cat > "$REDIRECT_PAGE" <<HTML
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>Canvas has moved</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script>location.replace("https://${API_FQDN}/" + location.search + location.hash);</script>
+<meta http-equiv="refresh" content="0; url=https://${API_FQDN}/">
+</head><body><p>Canvas has moved to <a href="https://${API_FQDN}/">https://${API_FQDN}/</a>. Please update your bookmark.</p></body></html>
+HTML
 az storage blob upload \
   --account-name "$STORAGE_ACCOUNT" --container-name '$web' --name index.html \
-  --file "$REPO_ROOT/apps/web/dist/index.html" --content-type "text/html" \
+  --file "$REDIRECT_PAGE" --content-type "text/html; charset=utf-8" \
   --content-cache-control "no-cache" --auth-mode login --overwrite --output none
-# canvas-qrvn: the licence texts include non-ASCII (e.g. ©); upload-batch's guessed text/plain has
-# no charset, so set it explicitly.
-for notice in third-party-notices.txt license.txt; do
-  az storage blob upload \
-    --account-name "$STORAGE_ACCOUNT" --container-name '$web' --name "$notice" \
-    --file "$REPO_ROOT/apps/web/dist/$notice" --content-type "text/plain; charset=utf-8" \
-    --auth-mode login --overwrite --output none
-done
-# canvas-vnh: a saved copy left by pause.sh (a resume that didn't finish) is now stale -- remove it
-# so a later resume.sh can't put an older build back over this one.
+rm -f "$REDIRECT_PAGE"
+# The old app's bundles and the paused-page swap copies are no longer needed there.
+az storage blob delete-batch --account-name "$STORAGE_ACCOUNT" --source '$web' --pattern 'assets/*' \
+  --auth-mode login --output none 2>/dev/null || true
 az storage blob delete --account-name "$STORAGE_ACCOUNT" --container-name '$web' --name index.live.html \
   --auth-mode login --output none 2>/dev/null || true
 
@@ -645,7 +626,7 @@ fi
 echo
 echo "== Done =="
 echo "  API:      https://${API_FQDN}"
-echo "  Frontend: ${REAL_WEB_ORIGIN}"
+echo "  Canvas:   ${REAL_WEB_ORIGIN}  (the old Storage address redirects here)"
 echo "  Key Vault: $KEY_VAULT_NAME"
 echo
 if [[ "$AUTH_MODE" == local ]]; then

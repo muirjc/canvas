@@ -1,5 +1,9 @@
 # Plan: an IP allow-list security model (like ADP)
 
+> **Status:** done. Option **2b** (serve the web app from the API container) shipped as canvas-r3y:
+> one origin, `SameSite=Lax`, no CORS preflight; the Storage static website only redirects the old
+> address.
+
 Status: **built** (2026-10-22). Option A shipped first (canvas-cng, PR #211: API ingress + Storage
 firewall allow-list, live-verified). Option B followed as the canvas-ez1 epic (PRs #212–#216):
 `AUTH_MODE=local`, admin-managed accounts, a bootstrapped first admin, lockout + rate limiting +

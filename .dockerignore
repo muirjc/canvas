@@ -26,3 +26,9 @@ coverage
 .gitignore
 Dockerfile*
 .dockerignore
+# Deployment secrets (Postgres password, AI keys, the bootstrap admin password, the perf-test
+# account) live in infra/azure/.secrets. `az acr build` uploads the whole build context to the
+# registry, so they must never be part of it -- nothing in the image needs them.
+**/.secrets
+**/*.pem
+**/*.key

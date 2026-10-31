@@ -27,7 +27,7 @@ One resource group (`canvas-rg` by default), from `main.bicep`:
 | First-admin job (local mode only) | `modules/bootstrapadminjob.bicep` | `canvas-bootstrap-admin`: run by `deploy.sh` to create `CANVAS_ADMIN_EMAIL` with a one-time password from `.secrets/bootstrap-admin-password`; `reset-admin.sh` runs it in reset mode to recover a lone admin (RUNBOOK "Local accounts"). |
 | Application Insights + workbook + alert | `modules/monitoring.bicep` | `canvas-insights` on `canvas-logs`: the API's OpenTelemetry traces (canvas-6upe). Workbook **Canvas performance**; hourly p95 alert `canvas-key-route-p95` emails `adminEmail` when set. RUNBOOK "Performance telemetry". |
 | Nightly purge job | `modules/purgejob.bicep` | `canvas-purge`: scheduled 03:00 UTC, runs `node apps/api/dist/purge/run.js` -- removes diagrams/projects deleted over 30 days ago and unsaved drafts abandoned over 24 hours. `pause.sh` parks its schedule at once a year; `resume.sh` restores it. Run it now with `az containerapp job start --name canvas-purge --resource-group canvas-rg`. |
-| Storage account (frontend) | `modules/storage.bicep` | Static website hosting enabled by `deploy.sh` (no ARM resource for that setting). **Storage firewall limited to the IP allow-list.** |
+| Storage account (old web address) | `modules/storage.bicep` | canvas-r3y: the web app is now served by `canvas-api` itself, from its own URL. The Storage static website only holds a page that redirects the old address (deep links included) to it. **Storage firewall limited to the IP allow-list.** |
 
 ### Entra ID SSO / MFA (canvas-haz)
 
@@ -52,9 +52,9 @@ Log for the full rationale.
   once per environment (RUNBOOK.md), then pass its tenant ID/client ID/client secret to `deploy.sh`
   via `ENTRA_TENANT_ID`/`ENTRA_CLIENT_ID`/`ENTRA_CLIENT_SECRET`.
 - **Redirect URIs are a manual post-deploy step, every time the environment's addresses change**
-  (a from-scratch redeploy gets new addresses — the Container Apps environment's own default domain
-  and the Storage static website's hostname are both assigned at creation time). `deploy.sh` prints
-  the exact two URIs to register (the API's `/auth/callback` and the frontend's own origin, serving
+  (a from-scratch redeploy gets new addresses — the Container Apps environment's default domain is
+  assigned at creation time). `deploy.sh` prints the exact two URIs to register (the API's
+  `/auth/callback` and Canvas's own address, which since canvas-r3y is the API's URL too, serving
   as both the sign-in redirect and the post-logout target — Entra has one Redirect URIs list per
   app registration, not separate lists the way Keycloak did) plus a ready-to-paste
   `az ad app update --web-redirect-uris` command, rather than attempting to automate it via Graph
@@ -74,13 +74,12 @@ Log for the full rationale.
 
 ## Architecture decisions (and why)
 
-- **Split-origin frontend, not one container.** ADP builds its React frontend into the *same*
-  container as its API and serves it via static-file mounting — a same-origin architecture with
-  no CORS/cookie complexity. canvas keeps its **existing** split-origin topology instead
-  (frontend on Storage static website, API on Container Apps, different hostnames) — the
-  `COOKIE_SECURE`/`COOKIE_SAME_SITE=none` path `docs/azure-deployment.md` already implements and
-  documents is proven and working; merging the two into one container would be a much larger,
-  riskier change than this bead's own scope.
+- **One container, one origin (canvas-r3y).** Like ADP, the web app is built into the API image
+  and served by the API (`apps/api/src/web/web-app.ts`: hashed assets cached for a year, Brotli/
+  gzip copies made at build time, `index.html` always revalidated). One origin means a first-party
+  `SameSite=Lax` session cookie (sign-in works in Safari/iOS and private windows, which block
+  third-party cookies), no CORS preflight before each API call, and one IP allow-list rule. It
+  replaced the original split-origin setup (Storage static website + `SameSite=None`).
 - **Container Apps, not App Service**, for the API — matches ADP's proven pattern exactly
   (`pause.sh`/`resume.sh` both operate on `az containerapp update --min-replicas`).
 - **Single Postgres admin login** for both server administration and the app's own connection —
@@ -161,11 +160,10 @@ Vault exists and it completes normally.
    digest changed (a real gotcha ADP hit).
 4. Runs `az deployment sub what-if` (dry run) and asks for confirmation before applying
    (`--what-if-only` stops here; `--yes` skips the prompt).
-5. Enables static website hosting on the Storage account (a data-plane setting with no ARM
-   resource — see `modules/storage.bicep`'s own comment) and patches the API app's `WEB_ORIGINS`
-   to the real URL as a second pass, since that URL isn't predictable ahead of the account
-   actually existing.
-6. Builds and uploads the frontend (`apps/web/dist`) to the Storage static website.
+5. Builds the image — API **and** web app (`VITE_API_BASE_URL` empty, so the app calls its own
+   origin) — in ACR (canvas-r3y).
+6. Puts a redirect page on the old Storage static website address, sending old bookmarks (deep
+   links included) to Canvas's address.
 7. Starts the migration job.
 8. Prints the exact redirect URIs to register on the `canvas-azure` app registration (see the
    Entra ID SSO section above) — a manual step this script deliberately doesn't automate.
@@ -186,11 +184,11 @@ az containerapp job start --name canvas-seed --resource-group canvas-rg
 ./resume.sh   # starts Postgres, restores scale, polls until Postgres is Ready, then puts the app back.
 ```
 
-While paused, the web site serves `paused.html` instead of the app (canvas-vnh): `pause.sh` saves
-the app's `index.html` in the `$web` container as `index.live.html` and uploads the paused page in
-its place; `resume.sh` copies it back. Deep links show the paused page too (the site's 404 document
-is `index.html`). Pausing twice keeps the saved app page, and `deploy.sh` (which can't run while
-paused) removes any stale saved copy after publishing a new build.
+While paused, Canvas shows `paused.html` instead of the app (canvas-vnh, canvas-r3y): `pause.sh`
+sets `CANVAS_PAUSED=true` on `canvas-api`, which then answers every browser request with that page
+(HTTP 503) and every API call with a 503, without touching the stopped database; `/health` keeps
+answering. `resume.sh` removes the setting once Postgres is ready. A deploy (which can't run while
+paused) leaves it unset.
 
 Azure auto-restarts a stopped Postgres Flexible Server after 7 days if not resumed manually —
 `pause.sh` prints this reminder every time.
