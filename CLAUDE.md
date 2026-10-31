@@ -93,6 +93,23 @@ tests are NON-NEGOTIABLE and must exist (and fail) before implementing any diagr
 work — see `.specify/memory/constitution.md` Principle IV.
 
 ## Recent Changes
+- Wave 5 (performance + hosting): **telemetry** (`canvas-6upe`, #269): OpenTelemetry ->
+  Application Insights (`apps/api/src/telemetry/`; `register.ts` loads first; one span per Kysely
+  query via its `log` hook; `tagRequestRoute` names spans by route template; `withSpan` for app
+  work), workbook "Canvas performance" + `canvas-key-route-p95` alert (`modules/monitoring.bicep`);
+  off when no connection string. **Same origin** (`canvas-r3y`, #270): the production image builds
+  `apps/web` and canvas-api serves it (`src/web/web-app.ts`, `@fastify/static`, `wildcard:false`,
+  precompressed `.br`/`.gz` from `apps/web/scripts/precompress.mjs`; `/assets/*` immutable for a
+  year, `index.html` no-cache; unknown non-API GETs get `index.html`). One origin = no CORS
+  preflights and first-party cookies (`COOKIE_SAME_SITE=lax`), so sign-in works with third-party
+  cookies blocked. The old Storage website only redirects. Paused mode is now `CANVAS_PAUSED=true`
+  on canvas-api (`registerPausedMode`: paused page for browsers, 503 for API calls), set by
+  pause.sh, removed by resume.sh. Measured (`canvas-i3n`): first load 1.3 s -> 0.77 s, bundle
+  1.52 MB -> 352 KB, preflights gone; cold starts (`canvas-aots`) deliberately left as is.
+  **Federated credential** (`canvas-haz.9`, #271): `OIDC_CLIENT_AUTH=managed-identity` signs in to
+  Entra with the managed identity's token as a jwt-bearer `client_assertion`
+  (`auth/managed-identity.ts`) instead of a client secret; default stays `secret`; deploy.sh
+  `CANVAS_OIDC_CLIENT_AUTH`; not yet verified live (Azure runs `AUTH_MODE=local`).
 - Wave 4 (editor UX): **zoom** (`canvas-bx3`): one factor on the canvas svg's `viewBox`
   (25%-400%, controls bottom-left, Ctrl/Cmd + wheel/pinch toward the pointer, Ctrl/Cmd + = - 0);
   `toClientPoint` divides by it; popups use `ScreenSizedForeignObject` to keep their on-screen size
