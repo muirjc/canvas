@@ -37,13 +37,14 @@ async function buildIconResolver(model: DiagramModel): Promise<IconResolver | un
   return (icon) => assets.get(`${icon.libraryId}@${icon.libraryVersion}@${icon.iconId}`);
 }
 
-/** `diagramTypeId` (canvas-ltk): its active standard supplies a visible legend's automatic entries. */
-export async function exportSvg(dslFamilyId: string, dslContent: string, diagramTypeId?: string): Promise<string> {
+/** `diagramTypeId` (canvas-ltk): its active standard supplies a visible legend's automatic entries.
+ *  `background` (canvas-n85n): a solid hex colour behind the drawing; downloads stay transparent. */
+export async function exportSvg(dslFamilyId: string, dslContent: string, diagramTypeId?: string, options: { background?: string } = {}): Promise<string> {
   return withSpan('render svg', { 'canvas.diagram.family': dslFamilyId }, async () => {
     const model = parseOrThrow(dslFamilyId, dslContent);
     const resolveIcon = await buildIconResolver(model);
     const standard = model.legend?.visible && diagramTypeId ? await getActiveStandard(diagramTypeId) : null;
-    return renderToSvg(model, resolveIcon, { standardRules: standard?.rules });
+    return renderToSvg(model, resolveIcon, { standardRules: standard?.rules, background: options.background });
   });
 }
 

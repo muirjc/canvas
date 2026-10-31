@@ -113,6 +113,12 @@ To run the check by hand, start the job with
 .canvas/validator.mjs                      the validator the repository's CI runs
 ```
 
+The `.mmd` file carries the diagram's colours as plain Mermaid lines where Mermaid has syntax for
+them: `style` lines in flowcharts, ER and class diagrams, `linkStyle` in flowcharts, and
+`UpdateElementStyle` / `UpdateRelStyle` in C4. GitHub draws Mermaid with its own copy of Mermaid
+(v12.2.0 when checked on 2026-10-31) and its own automatic layout, so positions never match Canvas.
+The README says so, and puts the Canvas-drawn SVG first as the picture to review.
+
 Commits are made by the App, with a `Co-authored-by:` line naming the Canvas user who submitted.
 A diagram keeps the folder it was first submitted to, even if it's renamed later. Canvas never
 deletes or moves files in the repository.

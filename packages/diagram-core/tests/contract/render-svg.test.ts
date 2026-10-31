@@ -11,6 +11,8 @@ import {
   type CardinalityGlyph,
 } from '../../src/render/svg-renderer.js';
 import type { DiagramModel, DiagramNode } from '../../src/model/diagram-model.js';
+import { parseFlowchart } from '../../src/dsl/flowchart-parser.js';
+import { parseSequence } from '../../src/dsl/sequence.js';
 
 /**
  * Constitution's export constraint: exported SVG/PNG MUST NOT embed tracking pixels, telemetry,
@@ -1877,5 +1879,27 @@ describe('canvas-tfr: family-scoped default colors and C4 external styling', () 
     expect(resolveNodeFillStroke(n).fill).toBe('#1168bd');
     expect(resolveNodeFillStroke(n, 'flowchart').fill).toBe('#ffffff');
     expect(resolveNodeFillStroke(n, 'c4-context').fill).toBe('#1168bd');
+  });
+});
+
+// canvas-n85n: GitHub shows a submitted SVG on its own page colour; a transparent picture loses its
+// dark lines and text in dark mode, so the submission asks for a white background.
+describe('renderToSvg background option', () => {
+  const flow = (parseFlowchart('flowchart LR\n  A --> B\n') as { model: DiagramModel }).model;
+  const seq = (parseSequence('sequenceDiagram\n  participant A\n  participant B\n  A->>B: hi\n') as { model: DiagramModel }).model;
+
+  it('is transparent by default', () => {
+    expect(renderToSvg(flow)).not.toContain('<rect width="100%" height="100%"');
+  });
+
+  it.each([['flowchart', flow], ['sequence', seq]])('%s: puts a full-size rect first, behind everything', (_name, model) => {
+    const svg = renderToSvg(model, undefined, { background: '#ffffff' });
+    expect(svg).toMatch(/^<svg [^>]*><rect width="100%" height="100%" fill="#ffffff" \/>/);
+  });
+
+  it('ignores anything that is not a hex colour', () => {
+    const svg = renderToSvg(flow, undefined, { background: 'red" onload="x' });
+    expect(svg).not.toContain('onload');
+    expect(svg).not.toContain('<rect width="100%"');
   });
 });
