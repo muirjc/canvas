@@ -65,6 +65,9 @@ param githubAppId string = 'unset'
 @description('canvas-3s5.1: GITHUB_APP_API_URL.')
 param githubApiUrl string = 'https://api.github.com'
 
+@description('canvas-6upe: Application Insights connection string. Empty = telemetry off.')
+param appInsightsConnectionString string = ''
+
 resource apiApp 'Microsoft.App/containerApps@2025-01-01' = {
   name: 'canvas-api'
   location: location
@@ -142,6 +145,8 @@ resource apiApp 'Microsoft.App/containerApps@2025-01-01' = {
           image: '${acrLoginServer}/canvas-api:${apiImageTag}'
           env: [
             { name: 'PORT', value: string(apiPort) }
+            // canvas-6upe: OpenTelemetry -> Application Insights (off when empty).
+            { name: 'APPLICATIONINSIGHTS_CONNECTION_STRING', value: appInsightsConnectionString }
             // NOT string(allowLocalAuth) -- Bicep/ARM's string() on a bool produces "True"/
             // "False" (capitalized), but apps/api/src/config.ts checks
             // `env.ALLOW_LOCAL_AUTH === 'true'` as an exact lowercase string match. string(true)

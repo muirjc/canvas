@@ -5,6 +5,7 @@
  * `apps/api/migrations/sqlite/0001_init.sql`'s own header comment for the concurrency caveat).
  */
 import { Kysely, PostgresDialect, SqliteDialect, type Transaction } from 'kysely';
+import { recordQuery } from '../telemetry/telemetry.js';
 import Database from 'better-sqlite3';
 import pg from 'pg';
 import { loadConfig } from '../config.js';
@@ -45,12 +46,14 @@ export function getDb(): Kysely<DB> {
         // OUT (result transform) — both apply to every query regardless of plugin order here, but
         // listed in that logical "write then read" sequence for clarity.
         plugins: [new SqliteValueCoercionPlugin(), new SqliteJsonColumnsPlugin(), new SqliteTimestampPlugin()],
+        log: recordQuery('sqlite'), // canvas-6upe: a span per query (no-op with telemetry off)
       });
     } else {
       db = new Kysely<DB>({
         dialect: new PostgresDialect({
           pool: new pg.Pool({ connectionString: config.databaseUrl }),
         }),
+        log: recordQuery('postgresql'), // canvas-6upe: a span per query (no-op with telemetry off)
       });
     }
   }

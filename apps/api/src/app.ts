@@ -1,4 +1,5 @@
 import Fastify, { type FastifyError, type FastifyInstance } from 'fastify';
+import { tagRequestRoute, tagRequestUser, traceIds } from './telemetry/telemetry.js';
 import cors from '@fastify/cors';
 import type { LanguageModel } from 'ai';
 import { loadConfig, type AppConfig } from './config.js';
@@ -46,6 +47,8 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
   const app = Fastify({
     logger: options.logger ?? {
       transport: process.env.NODE_ENV === 'production' ? undefined : { target: 'pino-pretty' },
+      // canvas-6upe: each log line carries its request's trace id, when telemetry is on.
+      mixin: traceIds,
     },
     // canvas-azure-deploy: most real deployments (Azure App Service among them) terminate TLS at
     // a reverse proxy/load balancer and forward to this process over plain HTTP internally.
@@ -87,6 +90,14 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
   if (config.enableApiDocs) {
     await registerApiDocsRoutes(app);
   }
+
+  // canvas-6upe: name each request's span after its route template, and say whose request it was.
+  app.addHook('onRequest', async (request) => {
+    tagRequestRoute(request.method, request.routeOptions.url);
+  });
+  app.addHook('onResponse', async (request) => {
+    tagRequestUser(request.session?.user);
+  });
 
   app.addHook('onSend', async (_request, reply) => {
     reply.header('X-Content-Type-Options', 'nosniff');

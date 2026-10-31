@@ -51,5 +51,6 @@ resource environment 'Microsoft.App/managedEnvironments@2025-01-01' = {
 }
 
 output environmentId string = environment.id
+output logAnalyticsWorkspaceId string = logAnalytics.id
 output environmentName string = environment.name
 output environmentDefaultDomain string = environment.properties.defaultDomain

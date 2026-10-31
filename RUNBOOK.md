@@ -503,6 +503,27 @@ RUN_PERF_TESTS=1 npx playwright test tests/e2e/canvas-performance.spec.ts   # op
 Tests missing `E2E_PROJECT_ID` are skipped, not failed — a suite showing all-skipped almost always
 means that variable isn't set.
 
+## Performance telemetry (canvas-6upe)
+
+The API sends OpenTelemetry traces and metrics to Azure **Application Insights** (`canvas-insights`,
+on the `canvas-logs` workspace) whenever `APPLICATIONINSIGHTS_CONNECTION_STRING` is set; `deploy.sh`
+sets it from the Bicep output. Each request is a span named after its route template
+(`GET /diagrams/:id`) with the user's opaque id and role; child spans time every SQL query (the
+parameterised text only, never values), rendering (`render svg`, `rasterize png`), standards
+validation, AI chat turns (with token counts) and outbound HTTP (AI providers, GitHub, Entra).
+Diagram content, prompts, emails and tokens are never recorded. Log lines carry `trace_id`.
+
+- **Where to look:** Azure portal -> Monitor -> Workbooks -> **Canvas performance** (per-route
+  p50/p95/p99 and failures, key routes over 7 days, slowest SQL, outbound calls, requests over 3 s,
+  i.e. cold starts), or Application Insights -> Performance / Transaction search for one request's
+  timeline.
+- **Alert:** `canvas-key-route-p95` runs hourly and emails the admin (`adminEmail`; local auth mode)
+  when open diagram / save / export / project list p95 > 2 s, or AI chat > 30 s (at least 5 requests).
+- **Locally:** off unless you set `APPLICATIONINSIGHTS_CONNECTION_STRING` in `apps/api/.env` (for
+  example to a separate dev Application Insights). `TELEMETRY=off` forces it off;
+  `TELEMETRY_SAMPLING_RATIO` (0-1, default 1) samples. Never on under tests.
+- **Cost:** pay per GB ingested, 90-day retention; nothing is sent while the environment is paused.
+
 ## Known flakiness
 
 - **E2E specs run with `workers: 1`** (`apps/web/playwright.config.ts`) because every spec shares
