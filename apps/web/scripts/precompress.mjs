@@ -6,7 +6,6 @@ import { brotliCompressSync, constants, gzipSync } from 'node:zlib';
 
 const root = process.argv[2] ?? new URL('../dist', import.meta.url).pathname;
 const TEXT = /\.(js|mjs|css|html|svg|txt|json|map)$/;
-let files = 0;
 function walk(dir) {
   for (const name of readdirSync(dir)) {
     const path = join(dir, name);
@@ -15,9 +14,7 @@ function walk(dir) {
       const body = readFileSync(path);
       writeFileSync(`${path}.br`, brotliCompressSync(body, { params: { [constants.BROTLI_PARAM_QUALITY]: 11 } }));
       writeFileSync(`${path}.gz`, gzipSync(body, { level: 9 }));
-      files += 1;
     }
   }
 }
 walk(root);
-console.log(`Precompressed ${files} files in ${root}`);
