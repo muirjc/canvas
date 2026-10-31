@@ -248,8 +248,74 @@ describe('validateRepository', () => {
   });
 });
 
+// canvas-finl: Markdown documents that embed a diagram (<!-- MERMAID: path -->).
+describe('documents that embed a diagram', () => {
+  let root: string;
+  const MMD = 'architecture/order-flow/order-flow.mmd';
+  const SVG = 'architecture/order-flow/order-flow.svg';
+  beforeEach(() => {
+    root = tempDir();
+    writeDiagram(root);
+  });
+  const doc = () => readFileSync(join(root, 'docs/hld.md'), 'utf8');
+  const docResult = (report: ValidationReport) => report.documents.find((d) => d.file === 'docs/hld.md')!;
+
+  it('a filled, current copy passes; documents without markers are not reported', () => {
+    write(root, 'docs/hld.md', `# HLD\n<!-- MERMAID: ${MMD} -->\n`);
+    write(root, 'docs/plain.md', '# Nothing\n');
+    validateRepository({ root, fixDocs: true });
+    const report = validateRepository({ root });
+    expect(report.errorCount).toBe(0);
+    expect(report.documents).toEqual([{ file: 'docs/hld.md', findings: [], fixed: false }]);
+  });
+
+  it('an out-of-date copy fails the check with a line number, and --fix-docs repairs it', () => {
+    write(root, 'docs/hld.md', `# HLD\n<!-- MERMAID: ${MMD} -->\n\`\`\`mermaid\nflowchart TD\n  Old --> Stuff\n\`\`\`\n<!-- /MERMAID -->\n`);
+    const before = validateRepository({ root });
+    expect(before.errorCount).toBe(1);
+    expect(docResult(before).findings[0]).toMatchObject({ level: 'error', file: 'docs/hld.md', line: 2, title: 'Embedded diagram out of date' });
+    expect(runCli(['--root', root, '--format', 'text'], {}).exitCode).toBe(1);
+
+    const fixed = runCli(['--root', root, '--fix-docs', '--format', 'text'], {});
+    expect(fixed.exitCode).toBe(0);
+    expect(fixed.stdout).toContain('Embedded diagram updated');
+    expect(doc()).not.toContain('Old --> Stuff');
+    expect(doc()).toContain(readFileSync(join(root, MMD), 'utf8').trimEnd());
+    expect(validateRepository({ root }).errorCount).toBe(0);
+  });
+
+  it('a marker with nothing under it is a warning (not a failure) until filled', () => {
+    write(root, 'docs/hld.md', `<!-- MERMAID: ${SVG} -->\n`);
+    const report = validateRepository({ root });
+    expect(report.errorCount).toBe(0);
+    expect(docResult(report).findings[0]).toMatchObject({ level: 'warning', line: 1, title: 'Embedded diagram not filled in' });
+    validateRepository({ root, fixDocs: true });
+    expect(doc()).toBe(`<!-- MERMAID: ${SVG} -->\n![order-flow](../architecture/order-flow/order-flow.svg)\n<!-- /MERMAID -->\n`);
+  });
+
+  it('a marker pointing at a missing file, or at something it cannot embed, is a warning', () => {
+    write(root, 'docs/hld.md', '<!-- MERMAID: architecture/order_flow/order_flow.mmd -->\n<!-- MERMAID: architecture/order-flow/order-flow.canvas.mmd -->\n');
+    const report = validateRepository({ root, fixDocs: true });
+    expect(report.errorCount).toBe(0);
+    expect(docResult(report).findings.map((f) => [f.level, f.line, f.title])).toEqual([
+      ['warning', 1, 'Embedded diagram not found'],
+      ['warning', 2, 'Embedded diagram path not supported'],
+    ]);
+    expect(doc()).toBe('<!-- MERMAID: architecture/order_flow/order_flow.mmd -->\n<!-- MERMAID: architecture/order-flow/order-flow.canvas.mmd -->\n');
+  });
+
+  it('marks out-of-date documents on the pull request and in the step summary', () => {
+    write(root, 'docs/hld.md', `<!-- MERMAID: ${MMD} -->\n\`\`\`mermaid\nstale\n\`\`\`\n<!-- /MERMAID -->\n`);
+    const report = validateRepository({ root });
+    expect(formatGitHub(report)).toContain('::error file=docs/hld.md,line=1,title=Embedded diagram out of date::');
+    expect(formatSummary(report)).toContain('| `docs/hld.md` | ❌ Out of date |');
+    expect(formatGitHub(report)).toContain('1 diagram and 1 document embedding diagrams checked: 1 error');
+  });
+});
+
 describe('report formatting', () => {
   const report = (over: { name?: string; file?: string; message: string; title?: string }): ValidationReport => ({
+    documents: [],
     diagrams: [
       {
         manifest: 'm/canvas.json',

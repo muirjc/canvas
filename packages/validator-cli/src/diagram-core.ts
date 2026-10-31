@@ -9,3 +9,4 @@ export { renderToSvg } from '../../diagram-core/src/render/svg-renderer.js';
 export { findElementLine } from '../../diagram-core/src/standards/locate.js';
 export { emptyStandardRules, type StandardRules } from '../../diagram-core/src/standards/schema.js';
 export type { DiagramModel } from '../../diagram-core/src/model/diagram-model.js';
+export { updateEmbeds, type EmbedResult, type EmbedSource } from '../../diagram-core/src/embeds/markdown-embeds.js';

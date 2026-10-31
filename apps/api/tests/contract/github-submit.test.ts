@@ -750,4 +750,85 @@ describe('Submitting diagrams to GitHub (canvas-3s5.1)', () => {
       expect(res.body).not.toMatch(/ghs_|Bearer |-----BEGIN/);
     });
   });
+
+  // canvas-finl: Markdown documents that embed the diagram (<!-- MERMAID: path -->) are updated in the
+  // same pull request; markers for other diagrams, or for files that don't exist, are left alone.
+  describe('documents that embed the diagram (canvas-finl)', () => {
+    const MMD = 'architecture/order-flow/order-flow.mmd';
+    const SVG = 'architecture/order-flow/order-flow.svg';
+    const HLD = [
+      '# High Level Design',
+      '',
+      `<!-- MERMAID: ${MMD} -->`,
+      '',
+      '## Picture',
+      `<!-- MERMAID: ${SVG} -->`,
+      '',
+      '<!-- MERMAID: architecture/other/other.mmd -->',
+      '<!-- MERMAID: architecture/order_flow/order_flow.mmd -->',
+      '',
+    ].join('\n');
+
+    function seedDocs(files: Record<string, string>) {
+      const sha = fake.makeCommit(repo, fake.headOf(repo, 'main'), files, 'docs');
+      fake.forceMoveBranch(repo, 'main', sha);
+    }
+
+    it('fills the markers that point at this diagram, in the same commit, and lists the document in the PR', async () => {
+      seedDocs({ 'docs/hld.md': HLD, 'docs/unrelated.md': '# Nothing here\n' });
+      const mainBefore = fake.headOf(repo, 'main');
+      await linkProject();
+      const diagramId = await createDiagram();
+      const res = await submit(diagramId);
+      expect(res.statusCode, res.body).toBe(201);
+      const branch = res.json().submission.branch as string;
+
+      const files = fake.files(repo, branch)!;
+      const portable = files.get(MMD)!.replace(/\s+$/, '');
+      const hld = files.get('docs/hld.md')!;
+      expect(hld).toContain(`<!-- MERMAID: ${MMD} -->\n\`\`\`mermaid\n${portable}\n\`\`\`\n<!-- /MERMAID -->\n`);
+      expect(hld).toContain(`<!-- MERMAID: ${SVG} -->\n![order-flow](../architecture/order-flow/order-flow.svg)\n<!-- /MERMAID -->\n`);
+      // Other diagrams' markers and a path that doesn't exist are untouched.
+      expect(hld).toContain('<!-- MERMAID: architecture/other/other.mmd -->\n<!-- MERMAID: architecture/order_flow/order_flow.mmd -->\n');
+      expect(hld.match(/\/MERMAID/g)).toHaveLength(2);
+      expect(files.get('docs/unrelated.md')).toBe('# Nothing here\n');
+
+      // One commit for diagram and document; main itself is unchanged.
+      expect(fake.commitsOn(repo, branch)).toHaveLength(fake.commitsOn(repo, 'main').length + 1);
+      expect(fake.headOf(repo, 'main')).toBe(mainBefore);
+      expect(fake.files(repo, 'main')!.get('docs/hld.md')).toBe(HLD);
+
+      const body = fake.pull(repo, 1).body;
+      expect(body).toContain('Documents that embed this diagram (1)');
+      expect(body).toContain('[docs/hld.md](docs/hld.md)');
+    });
+
+    it('pushing an update rewrites the embedded copy; an unchanged resubmit is still up to date', async () => {
+      seedDocs({ 'docs/hld.md': HLD });
+      await linkProject();
+      const diagramId = await createDiagram();
+      const branch = (await submit(diagramId)).json().submission.branch as string;
+
+      await save(diagramId, DSL_V2);
+      const update = await submit(diagramId);
+      expect(update.statusCode, update.body).toBe(200);
+      expect(update.json().outcome).toBe('updated');
+      const hld = fake.files(repo, branch)!.get('docs/hld.md')!;
+      expect(hld).toContain('Invoice');
+      expect(hld.match(/```mermaid/g)).toHaveLength(1);
+      expect(hld.match(/\/MERMAID/g)).toHaveLength(2);
+
+      const again = await submit(diagramId);
+      expect(again.json().outcome).toBe('upToDate');
+    });
+
+    it('a repository with no markers gets no document changes and no documents section', async () => {
+      seedDocs({ 'docs/readme.md': '# Docs\n' });
+      await linkProject();
+      const diagramId = await createDiagram();
+      const branch = (await submit(diagramId)).json().submission.branch as string;
+      expect(fake.files(repo, branch)!.get('docs/readme.md')).toBe('# Docs\n');
+      expect(fake.pull(repo, 1).body).not.toContain('Documents that embed');
+    });
+  });
 });

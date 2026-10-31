@@ -169,7 +169,8 @@ export function buildPrTitle(input: Pick<SubmissionInput, 'name' | 'versionSeque
 
 const SEVERITY_LABEL: Record<string, string> = { warning: 'Warning', info: 'Info', error: 'Must fix' };
 
-export function buildPrBody(input: SubmissionInput, warnings: Violation[], submittedBy: string): string {
+/** `documents` (canvas-finl): documents in the repository that embed this diagram. */
+export function buildPrBody(input: SubmissionInput, warnings: Violation[], submittedBy: string, documents: string[] = []): string {
   const name = escapeMarkdown(input.name);
   const lines = [
     `**${name}** submitted from Canvas for approval by ${escapeMarkdown(submittedBy)}.`,
@@ -191,6 +192,12 @@ export function buildPrBody(input: SubmissionInput, warnings: Violation[], submi
       lines.push(`- ${SEVERITY_LABEL[w.severity] ?? w.severity}: ${escapeMarkdown(w.message)}`);
     }
     if (warnings.length > MAX_LISTED_WARNINGS) lines.push(`- …and ${warnings.length - MAX_LISTED_WARNINGS} more (see the Issues tab in Canvas)`);
+    lines.push('');
+  }
+  if (documents.length > 0) {
+    lines.push(`### Documents that embed this diagram (${documents.length})`, '', 'Updated in this pull request where they were out of date.', '');
+    for (const doc of documents.slice(0, MAX_LISTED_WARNINGS)) lines.push(`- [${escapeMarkdown(doc)}](${encodeURI(doc)})`);
+    if (documents.length > MAX_LISTED_WARNINGS) lines.push(`- …and ${documents.length - MAX_LISTED_WARNINGS} more`);
     lines.push('');
   }
   // The marker identifies the diagram from the pull request alone, so truncation must never cut it.

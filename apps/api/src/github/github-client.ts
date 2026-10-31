@@ -83,6 +83,13 @@ export interface TreeEntry {
   path: string;
   content: string;
 }
+/** canvas-finl: a file in a repository tree listing. */
+export interface RepoTreeFile {
+  path: string;
+  sha: string;
+  size: number;
+}
+
 export type TokenPermissions = Record<string, 'read' | 'write'>;
 
 /** Permissions a submission asks for -- no more than it uses. */
@@ -359,6 +366,26 @@ export class GitHubClient {
   async getCommitTreeSha(token: string, repo: { owner: string; name: string }, commitSha: string): Promise<string> {
     const commit = await this.asInstallation<{ tree: { sha: string } }>(token, 'GET', `${this.repoPath(repo)}/git/commits/${commitSha}`);
     return commit.tree.sha;
+  }
+
+  /** canvas-finl: every file under a tree. `truncated` when GitHub cut the listing short (very
+   *  large repositories); the caller then knows the list is incomplete. */
+  async listTreeFiles(token: string, repo: { owner: string; name: string }, treeSha: string): Promise<{ files: RepoTreeFile[]; truncated: boolean }> {
+    const tree = await this.asInstallation<{ tree: { path: string; type: string; sha: string; size?: number }[]; truncated?: boolean }>(
+      token,
+      'GET',
+      `${this.repoPath(repo)}/git/trees/${treeSha}?recursive=1`,
+    );
+    return {
+      files: tree.tree.filter((e) => e.type === 'blob').map((e) => ({ path: e.path, sha: e.sha, size: e.size ?? 0 })),
+      truncated: Boolean(tree.truncated),
+    };
+  }
+
+  /** canvas-finl: a file's content as UTF-8 text. */
+  async getBlobText(token: string, repo: { owner: string; name: string }, blobSha: string): Promise<string> {
+    const blob = await this.asInstallation<{ content: string; encoding: string }>(token, 'GET', `${this.repoPath(repo)}/git/blobs/${blobSha}`);
+    return blob.encoding === 'base64' ? Buffer.from(blob.content, 'base64').toString('utf8') : blob.content;
   }
 
   /** A tree that is `baseTree` with these files written (text content; GitHub creates the blobs). */

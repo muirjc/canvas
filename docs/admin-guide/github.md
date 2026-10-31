@@ -137,6 +137,19 @@ The check fails when a diagram has a syntax error or a Must fix issue. Warnings 
 fail it. Canvas already refuses to submit a diagram with Must fix issues, so a failing check usually
 means someone edited the files in GitHub.
 
+The validator also checks Markdown documents that embed a diagram with a
+`<!-- MERMAID: <path>.mmd|.svg -->` marker (see the user guide's
+[Embedding a diagram in other documents](../user-guide/submitting-for-approval.md#embedding-a-diagram-in-other-documents)):
+- **Out of date** (fails the check): the section under the marker doesn't match the committed file,
+  usually because someone edited the document or the diagram's file by hand.
+- **Not filled in** (warning): a new marker with nothing under it yet. The next submission of that
+  diagram fills it.
+- **Not found** (warning): no file at the marker's path.
+
+To repair documents without resubmitting, run `node .canvas/validator.mjs --fix-docs` in a clone of
+the repository and commit the result. Canvas only updates documents in the same repository as the
+diagram; documents elsewhere (other repositories, wikis) are not updated.
+
 To set it up:
 1. On **Admin → GitHub**, choose **Download example workflow**.
 2. Commit the file to the repository as `.github/workflows/canvas-diagrams.yml`. Canvas never writes

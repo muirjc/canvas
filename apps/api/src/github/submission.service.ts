@@ -9,6 +9,7 @@ import { GitHubApiError, SUBMIT_PERMISSIONS, type GitHubClient, type OpenPullReq
 import { getLinkForProject, type GitHubLink } from './github-link.service.js';
 import { slugify } from './folder-path.js';
 import { validatorBundle } from './validator-bundle.js';
+import { documentEmbedUpdates } from './document-embeds.js';
 import {
   buildCommitMessage,
   buildPrBody,
@@ -515,7 +516,13 @@ export async function submitDiagram(client: GitHubClient, diagramId: string, sub
         : new SubmissionNotLinkedError(`The linked branch "${submission.base_branch}" no longer exists in ${target.owner}/${target.name}.`);
     }
     const parentTree = await client.getCommitTreeSha(token, target, parentSha);
-    const tree = await client.createTree(token, target, parentTree, files);
+    // canvas-finl: documents that embed this diagram are updated in the same commit.
+    const embeds = await documentEmbedUpdates(client, token, target, parentTree, {
+      mmdPath: `${input.path}/${input.slug}.mmd`,
+      mmdText: input.portableMermaid,
+      svgPath: `${input.path}/${input.slug}.svg`,
+    });
+    const tree = await client.createTree(token, target, parentTree, [...files, ...embeds.files]);
     const fingerprint = submissionFingerprint(diagram.dslContent, diagram.name, diagram.description);
 
     if (tree === parentTree) {
@@ -537,14 +544,14 @@ export async function submitDiagram(client: GitHubClient, diagramId: string, sub
         }
         throw error;
       }
-      pull = await client.updatePullRequest(token, target, submission.pr_number!, { title: buildPrTitle(input), body: buildPrBody(input, warnings, submitter.name) });
+      pull = await client.updatePullRequest(token, target, submission.pr_number!, { title: buildPrTitle(input), body: buildPrBody(input, warnings, submitter.name, embeds.documents) });
     } else {
       // A branch left over from an attempt that failed before its pull request was opened.
       if (!(await client.createBranch(token, target, branchName, commit))) {
         branchName = `${branchName}-${randomUUID().slice(0, 4)}`;
         if (!(await client.createBranch(token, target, branchName, commit))) throw new SubmissionConflictError('Could not create a branch for this submission; try again.');
       }
-      pull = await client.createPullRequest(token, target, { title: buildPrTitle(input), head: branchName, base: submission.base_branch, body: buildPrBody(input, warnings, submitter.name) });
+      pull = await client.createPullRequest(token, target, { title: buildPrTitle(input), head: branchName, base: submission.base_branch, body: buildPrBody(input, warnings, submitter.name, embeds.documents) });
     }
 
     await db.transaction().execute(async (trx) => {

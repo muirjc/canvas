@@ -35,6 +35,30 @@ looks different:
 
 The picture at the top is the one to review.
 
+## Embedding a diagram in other documents
+
+Other Markdown documents in the same repository, such as a design document, can include a submitted
+diagram. Put a marker where the diagram should go, with the path of the diagram's file from the
+top of the repository:
+
+```markdown
+<!-- MERMAID: architecture/payments/payments-context/payments-context.mmd -->
+```
+
+- A path ending `.mmd` puts the diagram's Mermaid text there, which GitHub draws (with GitHub's
+  layout, see above).
+- A path ending `.svg` puts the picture from Canvas there instead.
+
+Each time you submit or push an update, Canvas fills in the diagram under every marker that
+points at it, in the same pull request, so reviewers see the documents change with the diagram.
+Canvas adds `<!-- /MERMAID -->` after what it writes and only ever replaces what's between the two
+markers. Don't edit that part by hand: the next submission replaces it. The pull request lists the
+documents that embed the diagram.
+
+The repository's check fails if an embedded copy no longer matches the diagram's file, and warns
+about a marker whose path doesn't exist. Paths are easy to get wrong: Canvas names folders and
+files with hyphens (`product-context`), not underscores.
+
 ## Changing a diagram under review
 
 You can keep editing while the pull request is open. The status next to the button changes to
