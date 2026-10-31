@@ -38,7 +38,7 @@ param deployerPrincipalId string
 @description('Tag of the API image (repo-root Dockerfile), already built+pushed to ACR by deploy.sh before this runs. No default -- deploy.sh always supplies a unique tag (git short SHA) so a rebuild reliably produces a new revision, unlike a floating :latest tag (a real gotcha ADP hit: Container Apps revision diffing treats a same-tag image as a no-op even when the digest changed).')
 param apiImageTag string
 
-@description('Public URL the frontend is served from (WEB_ORIGINS). Empty on a from-scratch first deploy -- deploy.sh patches the real Storage static website URL in as a second pass once storage.bicep has actually created the account and static website hosting has been enabled on it (see storage.bicep\'s own comment for why this can\'t be known ahead of time the way the API\'s own public URL below can).')
+@description('canvas-r3y: the web app is served by canvas-api itself, so the public URL is the API\'s own (computed below). Kept as a parameter only to override it (e.g. a custom domain); empty = the API\'s URL.')
 param webOrigin string = ''
 
 @description('canvas-vp1: forwarded to modules/keyvault.bicep\'s own grantAcrPull -- see that file\'s header comment. deploy.sh sets this to false once it has confirmed the shared identity already holds AcrPull, since this whole template (and therefore that module) redeploys on every run regardless of which image tag actually changed.')
@@ -165,7 +165,7 @@ module apiApp 'modules/apiapp.bicep' = {
     acrLoginServer: acr.outputs.loginServer
     apiImageTag: apiImageTag
     keyVaultUri: keyVault.outputs.keyVaultUri
-    webOrigin: webOrigin
+    webOrigin: empty(webOrigin) ? apiPublicBaseUrl : webOrigin
     entraTenantId: entraTenantId
     entraClientId: entraClientId
     oidcRedirectUri: oidcRedirectUri

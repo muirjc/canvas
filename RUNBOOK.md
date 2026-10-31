@@ -160,11 +160,11 @@ API's ingress (Container Apps access restrictions) and on the web app's Storage 
   ```
   Then put the new address in `allowed-ips` so the next deploy keeps it (a deploy replaces the
   live rules with the file's list).
-- **Checking it:** from an allowed network the site and API answer normally. From anywhere else
-  the API returns **403** "RBAC: access denied" (Container Apps ingress), and the web app returns
-  **404 "The requested content does not exist" (`WebContentNotFound`)** — that's how a Storage
-  static website answers a request its firewall refuses, not a missing deploy. (Verified
-  2026-10-22 from a phone on another network.)
+- **Checking it:** from an allowed network Canvas answers normally. From anywhere else it returns
+  **403** "RBAC: access denied" (Container Apps ingress) -- the web app and the API are one address
+  since canvas-r3y. The old Storage web address (now only a redirect) returns **404 "The requested
+  content does not exist" (`WebContentNotFound`)**: how a Storage static website answers a request
+  its firewall refuses.
 
 ## Local accounts (canvas-ez1, option B)
 

@@ -31,7 +31,7 @@ param apiImageTag string
 @description('Key Vault URI (used to build secret references).')
 param keyVaultUri string
 
-@description('Public URL the frontend (Storage static website) is served from -- becomes WEB_ORIGINS, the one origin allowed to make credentialed requests (apps/api/src/app.ts CORS config).')
+@description('canvas-r3y: the public URL Canvas is used at -- this app\'s own URL, since it serves the web app too. Becomes WEB_ORIGINS and CANVAS_PUBLIC_URL.')
 param webOrigin string
 
 @description('Port the API listens on inside the container (matches apps/api/src/config.ts PORT).')
@@ -161,12 +161,11 @@ resource apiApp 'Microsoft.App/containerApps@2025-01-01' = {
             // deployment sub what-if`'s actual rendered output, not by inspection alone.
             { name: 'ALLOW_LOCAL_AUTH', value: allowLocalAuth ? 'true' : 'false' }
             { name: 'AUTH_MODE', value: authMode }
-            // Split-origin deployment (frontend on Storage static website, API here) --
-            // COOKIE_SAME_SITE=none requires COOKIE_SECURE=true, which config.ts already forces
-            // automatically whenever SameSite=none is set, but both are passed explicitly for
-            // clarity (docs/azure-deployment.md, RUNBOOK.md).
+            // canvas-r3y: the web app is served from this same origin, so the session cookie is
+            // first-party: SameSite=Lax (was None, a third-party cookie that Safari/iOS and private
+            // windows block, so sign-in "succeeded" and the next request was a 401).
             { name: 'COOKIE_SECURE', value: 'true' }
-            { name: 'COOKIE_SAME_SITE', value: 'none' }
+            { name: 'COOKIE_SAME_SITE', value: 'lax' }
             { name: 'WEB_ORIGINS', value: webOrigin }
             { name: 'AI_PROVIDER', value: aiProvider }
             // canvas-haz: Entra's issuer is always public -- no internal/public split, no reverse
