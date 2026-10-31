@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import { withSpan } from '../telemetry/telemetry.js';
 import { createEmptyDiagramModel, getDslFamily, validate, type DiagramModel, type ParseError } from '@canvas/diagram-core';
 import { getDb, type DbExecutor } from '../db/client.js';
 import { caseInsensitiveLike, dbBoolean, fromDbBoolean, toDate } from '../db/sql-helpers.js';
@@ -103,7 +104,8 @@ export async function computeValidation(diagramTypeId: string, model: DiagramMod
 }> {
   const standard = await getActiveStandard(diagramTypeId);
   if (!standard) return { violations: [], standardVersion: null };
-  return { violations: validate(model, standard.rules), standardVersion: standard.version };
+  const violations = await withSpan('validate standard', { 'canvas.standard.version': standard.version }, () => validate(model, standard.rules));
+  return { violations, standardVersion: standard.version };
 }
 
 export interface CreateDiagramInput {

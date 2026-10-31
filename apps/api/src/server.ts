@@ -1,3 +1,5 @@
+// canvas-6upe: first, so OpenTelemetry is in place before Fastify and the http module load.
+import './telemetry/register.js';
 import { buildApp } from './app.js';
 import { loadConfig } from './config.js';
 import { createMockLanguageModel } from './ai/mock-nlu.js';

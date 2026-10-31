@@ -1,4 +1,6 @@
 import { randomUUID } from 'node:crypto';
+import { trace } from '@opentelemetry/api';
+import { withSpan } from '../telemetry/telemetry.js';
 import { generateText, stepCountIs, type LanguageModel } from 'ai';
 import { recordAiUsage, usageForMessages, type TokenCounts } from './ai-usage.service.js';
 import { getDslFamily, isParseSuccess, validate, type DiagramModel, type StandardRules } from '@canvas/diagram-core';
@@ -247,7 +249,7 @@ export async function sendChatMessage(input: SendChatMessageInput): Promise<Send
 
   let result: Awaited<ReturnType<typeof generateText>>;
   try {
-    result = await generateText({
+    result = await withSpan('ai chat', { 'canvas.ai.mode': mode, 'canvas.diagram.family': input.dslFamily }, () => generateText({
       model: languageModel,
       system,
       messages: [
@@ -268,6 +270,13 @@ export async function sendChatMessage(input: SendChatMessageInput): Promise<Send
         usage.provider = step.model.provider;
         usage.modelId = step.model.modelId;
       },
+    }));
+    // canvas-6upe: token counts on the request's span (never the prompt or the reply).
+    trace.getActiveSpan()?.setAttributes({
+      'gen_ai.provider.name': usage.provider ?? '',
+      'gen_ai.request.model': usage.modelId ?? '',
+      'gen_ai.usage.input_tokens': usage.inputTokens,
+      'gen_ai.usage.output_tokens': usage.outputTokens,
     });
   } catch (error) {
     if (usage.steps > 0) await recordTurn(false);

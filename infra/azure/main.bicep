@@ -140,6 +140,17 @@ module storage 'modules/storage.bicep' = {
 var apiPublicBaseUrl = 'https://canvas-api.${containerAppsEnv.outputs.environmentDefaultDomain}'
 var oidcRedirectUri = '${apiPublicBaseUrl}/auth/callback'
 
+// canvas-6upe: Application Insights, the performance workbook and the p95 alert.
+module monitoring 'modules/monitoring.bicep' = {
+  name: 'monitoringDeploy'
+  scope: rg
+  params: {
+    location: location
+    logAnalyticsWorkspaceId: containerAppsEnv.outputs.logAnalyticsWorkspaceId
+    alertEmail: adminEmail
+  }
+}
+
 module apiApp 'modules/apiapp.bicep' = {
   name: 'apiAppDeploy'
   scope: rg
@@ -159,6 +170,7 @@ module apiApp 'modules/apiapp.bicep' = {
     authMode: authMode
     githubAppId: githubAppId
     githubApiUrl: githubApiUrl
+    appInsightsConnectionString: monitoring.outputs.connectionString
   }
 }
 

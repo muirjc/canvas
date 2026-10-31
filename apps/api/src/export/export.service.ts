@@ -1,4 +1,5 @@
 import { Resvg } from '@resvg/resvg-js';
+import { withSpan } from '../telemetry/telemetry.js';
 import { getDslFamily, renderToSvg, toPortableMermaid, type DiagramModel, type IconResolver } from '@canvas/diagram-core';
 import { resolveIconAssets } from '../libraries/library.service.js';
 import { getActiveStandard } from '../standards/standard.service.js';
@@ -38,10 +39,12 @@ async function buildIconResolver(model: DiagramModel): Promise<IconResolver | un
 
 /** `diagramTypeId` (canvas-ltk): its active standard supplies a visible legend's automatic entries. */
 export async function exportSvg(dslFamilyId: string, dslContent: string, diagramTypeId?: string): Promise<string> {
-  const model = parseOrThrow(dslFamilyId, dslContent);
-  const resolveIcon = await buildIconResolver(model);
-  const standard = model.legend?.visible && diagramTypeId ? await getActiveStandard(diagramTypeId) : null;
-  return renderToSvg(model, resolveIcon, { standardRules: standard?.rules });
+  return withSpan('render svg', { 'canvas.diagram.family': dslFamilyId }, async () => {
+    const model = parseOrThrow(dslFamilyId, dslContent);
+    const resolveIcon = await buildIconResolver(model);
+    const standard = model.legend?.visible && diagramTypeId ? await getActiveStandard(diagramTypeId) : null;
+    return renderToSvg(model, resolveIcon, { standardRules: standard?.rules });
+  });
 }
 
 /**
@@ -51,7 +54,8 @@ export async function exportSvg(dslFamilyId: string, dslContent: string, diagram
  */
 export async function exportPng(dslFamilyId: string, dslContent: string, diagramTypeId?: string): Promise<Buffer> {
   const svg = await exportSvg(dslFamilyId, dslContent, diagramTypeId);
-  const resvg = new Resvg(svg, { font: { loadSystemFonts: false } });
-  const rendered = resvg.render();
-  return rendered.asPng();
+  return withSpan('rasterize png', { 'canvas.diagram.family': dslFamilyId }, () => {
+    const resvg = new Resvg(svg, { font: { loadSystemFonts: false } });
+    return resvg.render().asPng();
+  });
 }
