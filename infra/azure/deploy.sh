@@ -135,10 +135,24 @@ case "$AUTH_MODE" in
   *) echo "ERROR: CANVAS_AUTH_MODE must be entra or local (got: $AUTH_MODE)." >&2; exit 1 ;;
 esac
 
+# canvas-haz.9: CANVAS_OIDC_CLIENT_AUTH=managed-identity signs in to Entra with the API's managed
+# identity through a federated credential on the app registration -- no client secret at all.
+# Cached like the auth mode. The deploy prints the one-time 'az ad app federated-credential create'.
+OIDC_CLIENT_AUTH_FILE="$SECRETS_DIR/oidc-client-auth"
+if [[ -n "${CANVAS_OIDC_CLIENT_AUTH:-}" ]]; then
+  printf '%s' "$CANVAS_OIDC_CLIENT_AUTH" > "$OIDC_CLIENT_AUTH_FILE"
+  chmod 600 "$OIDC_CLIENT_AUTH_FILE"
+fi
+OIDC_CLIENT_AUTH="$(cat "$OIDC_CLIENT_AUTH_FILE" 2>/dev/null || echo secret)"
+case "$OIDC_CLIENT_AUTH" in
+  secret|managed-identity) ;;
+  *) echo "ERROR: CANVAS_OIDC_CLIENT_AUTH must be secret or managed-identity (got: $OIDC_CLIENT_AUTH)." >&2; exit 1 ;;
+esac
+
 if [[ -n "${ENTRA_CLIENT_SECRET:-}" ]]; then
   printf '%s' "$ENTRA_CLIENT_SECRET" > "$OIDC_CLIENT_SECRET_FILE"
   chmod 600 "$OIDC_CLIENT_SECRET_FILE"
-elif [[ "$AUTH_MODE" == local ]]; then
+elif [[ "$AUTH_MODE" == local || "$OIDC_CLIENT_AUTH" == managed-identity ]]; then
   # No Entra in local mode; the Key Vault secret still has to exist for the app's secret reference.
   [[ -f "$OIDC_CLIENT_SECRET_FILE" ]] || { printf 'unset' > "$OIDC_CLIENT_SECRET_FILE"; chmod 600 "$OIDC_CLIENT_SECRET_FILE"; }
 elif [[ ! -f "$OIDC_CLIENT_SECRET_FILE" ]]; then
@@ -437,7 +451,7 @@ az deployment sub what-if \
     deployerPrincipalId="$DEPLOYER_PRINCIPAL_ID" apiImageTag="$API_IMAGE_TAG" \
     webOrigin="$WEB_ORIGIN" grantAcrPull="$GRANT_ACR_PULL" \
     entraTenantId="$ENTRA_TENANT_ID" entraClientId="$ENTRA_CLIENT_ID" aiProvider="$AI_PROVIDER" \
-    allowedIpRanges="$ALLOWED_IPS_JSON" authMode="$AUTH_MODE" adminEmail="$ADMIN_EMAIL" \
+    allowedIpRanges="$ALLOWED_IPS_JSON" authMode="$AUTH_MODE" adminEmail="$ADMIN_EMAIL" oidcClientAuth="$OIDC_CLIENT_AUTH" \
     githubAppId="$GITHUB_APP_ID"
 
 echo
@@ -464,7 +478,7 @@ az deployment sub create \
     deployerPrincipalId="$DEPLOYER_PRINCIPAL_ID" apiImageTag="$API_IMAGE_TAG" \
     webOrigin="$WEB_ORIGIN" grantAcrPull="$GRANT_ACR_PULL" \
     entraTenantId="$ENTRA_TENANT_ID" entraClientId="$ENTRA_CLIENT_ID" aiProvider="$AI_PROVIDER" \
-    allowedIpRanges="$ALLOWED_IPS_JSON" authMode="$AUTH_MODE" adminEmail="$ADMIN_EMAIL" \
+    allowedIpRanges="$ALLOWED_IPS_JSON" authMode="$AUTH_MODE" adminEmail="$ADMIN_EMAIL" oidcClientAuth="$OIDC_CLIENT_AUTH" \
     githubAppId="$GITHUB_APP_ID" \
   --output table
 
@@ -683,6 +697,16 @@ echo "other environments' URIs you still need, e.g. the 'canvas-dev' localhost o
 echo "command if so):"
 echo "  az ad app update --id \"$ENTRA_CLIENT_ID\" --web-redirect-uris \"${OIDC_REDIRECT_URI}\" \"${REAL_WEB_ORIGIN}\""
 echo
+if [[ "$OIDC_CLIENT_AUTH" == managed-identity ]]; then
+  # canvas-haz.9: no client secret -- Entra trusts canvas-identity through a federated credential.
+  MI_PRINCIPAL_ID="$(az identity show --resource-group "$RESOURCE_GROUP" --name canvas-identity --query principalId -o tsv)"
+  TENANT_FOR_FIC="$(az account show --query tenantId -o tsv)"
+  echo "Sign-in uses the managed identity, not a client secret (CANVAS_OIDC_CLIENT_AUTH=managed-identity)."
+  echo "One-time, on the app registration (re-run only if canvas-identity is recreated):"
+  echo "  az ad app federated-credential create --id \"$ENTRA_CLIENT_ID\" --parameters '{\"name\":\"canvas-api-managed-identity\",\"issuer\":\"https://login.microsoftonline.com/${TENANT_FOR_FIC}/v2.0\",\"subject\":\"${MI_PRINCIPAL_ID}\",\"audiences\":[\"api://AzureADTokenExchange\"]}'"
+  echo "Then delete the app registration's old client secret(s) -- nothing uses them any more."
+  echo
+fi
 echo "App roles (admin/architect/viewer -- apps/api/src/auth/types.ts's UserRole) and user/group"
 echo "assignment are also managed entirely in the Entra portal; see RUNBOOK.md for the full"
 echo "one-time app-registration setup this environment depends on."

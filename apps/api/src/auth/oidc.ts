@@ -6,6 +6,7 @@ import { getUserPersonas } from '../db/array-columns.js';
 import type { AppConfig } from '../config.js';
 import type { SessionUser, UserRole } from './types.js';
 import { startAuthenticatedSession } from './session.js';
+import { ManagedIdentityAssertion } from './managed-identity.js';
 
 declare module '@fastify/session' {
   interface FastifySessionObject {
@@ -189,12 +190,21 @@ export async function registerOidcRoutes(app: FastifyInstance, config: AppConfig
   }
   // Re-narrowed explicitly (not implied by `oidcEnabled`'s own boolean type) so TypeScript still
   // sees these as definitely-defined below.
-  const { issuerUrl, clientId, clientSecret, redirectUri } = config.oidc as {
+  const { issuerUrl, clientId, clientSecret, redirectUri, clientAuth, managedIdentityClientId } = config.oidc as {
     issuerUrl: string;
     clientId: string;
     clientSecret?: string;
     redirectUri: string;
+    clientAuth?: 'secret' | 'managed-identity';
+    managedIdentityClientId?: string;
   };
+  // canvas-haz.9: with a federated credential, the managed identity's token stands in for the
+  // client secret (no secret to store or rotate).
+  const assertion =
+    clientAuth === 'managed-identity'
+      ? new ManagedIdentityAssertion({ identityClientId: managedIdentityClientId ?? '' })
+      : undefined;
+  if (assertion && !managedIdentityClientId) throw new Error('OIDC_CLIENT_AUTH=managed-identity needs AZURE_CLIENT_ID (the managed identity\'s client id).');
 
   const issuer = new URL(issuerUrl);
   // canvas-mi9: openid-client v6 refuses plain-HTTP discovery/token/userinfo requests by default
@@ -215,7 +225,9 @@ export async function registerOidcRoutes(app: FastifyInstance, config: AppConfig
   // than left as the library default.
   execute.push(client.enableNonRepudiationChecks);
 
-  const oidcConfig = await client.discovery(issuer, clientId, clientSecret, undefined, { execute });
+  const oidcConfig = assertion
+    ? await client.discovery(issuer, clientId, undefined, assertion.clientAuth(clientId), { execute })
+    : await client.discovery(issuer, clientId, clientSecret, undefined, { execute });
 
   // canvas-252: RP-Initiated Logout needs the discovered end_session_endpoint. Read defensively
   // (optional chaining + try/catch) rather than assuming oidcConfig.serverMetadata() exists --
@@ -293,6 +305,7 @@ export async function registerOidcRoutes(app: FastifyInstance, config: AppConfig
         // against, which nothing in this codebase had done before canvas-mi9.
         // `request.headers.host` is the raw Host header value and does include the port.
         const currentUrl = new URL(request.url, `${request.protocol}://${request.headers.host}`);
+        await assertion?.refresh();
         const tokens = await client.authorizationCodeGrant(oidcConfig, currentUrl, {
           pkceCodeVerifier: oidcCodeVerifier,
           expectedState: oidcState,

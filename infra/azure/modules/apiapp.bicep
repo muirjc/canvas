@@ -65,6 +65,13 @@ param githubAppId string = 'unset'
 @description('canvas-3s5.1: GITHUB_APP_API_URL.')
 param githubApiUrl string = 'https://api.github.com'
 
+@description('canvas-haz.9: how the API authenticates to Entra -- "secret" (OIDC_CLIENT_SECRET) or "managed-identity" (a federated credential on the app registration trusts this app\'s managed identity; no secret).')
+@allowed(['secret', 'managed-identity'])
+param oidcClientAuth string = 'secret'
+
+@description('canvas-haz.9: client id of the user-assigned managed identity (used for the federated credential).')
+param identityClientId string = ''
+
 @description('canvas-6upe: Application Insights connection string. Empty = telemetry off.')
 param appInsightsConnectionString string = ''
 
@@ -174,6 +181,9 @@ resource apiApp 'Microsoft.App/containerApps@2025-01-01' = {
             { name: 'OIDC_ISSUER_URL', value: '${environment().authentication.loginEndpoint}${entraTenantId}/v2.0' }
             { name: 'OIDC_CLIENT_ID', value: entraClientId }
             { name: 'OIDC_CLIENT_SECRET', secretRef: 'oidc-client-secret' }
+            // canvas-haz.9: in managed-identity mode the secret above is unused ("unset").
+            { name: 'OIDC_CLIENT_AUTH', value: oidcClientAuth }
+            { name: 'AZURE_CLIENT_ID', value: identityClientId }
             { name: 'OIDC_REDIRECT_URI', value: oidcRedirectUri }
             { name: 'DATABASE_URL', secretRef: 'database-url' }
             { name: 'SESSION_SECRET', secretRef: 'session-secret' }

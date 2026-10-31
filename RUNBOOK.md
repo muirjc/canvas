@@ -364,6 +364,26 @@ changed, then points the affected `canvas-api`/job secrets at Key Vault again an
 `canvas-api`'s active revision (canvas-28j). A run that fails partway leaves the list of pending
 secrets in `.secrets/pending-secret-refresh`, and the next run picks it up.
 
+### No client secret: a federated credential (canvas-haz.9)
+
+Instead of the app registration's client secret (which expires and has to be rotated), the API can
+prove who it is with a token from its own managed identity (`canvas-identity`), which Entra trusts
+through a **federated credential** on the app registration.
+
+1. Deploy with `CANVAS_OIDC_CLIENT_AUTH=managed-identity ./deploy.sh` (cached in
+   `.secrets/oidc-client-auth`, so later deploys keep it). `ENTRA_CLIENT_SECRET` is then not needed.
+2. Run the `az ad app federated-credential create ...` command `deploy.sh` prints (issuer
+   `https://login.microsoftonline.com/<tenant>/v2.0`, subject = the identity's object id, audience
+   `api://AzureADTokenExchange`). Once per app registration; again only if `canvas-identity` is
+   recreated.
+3. Sign in to check, then delete the app registration's old client secret(s).
+
+How it works: on each sign-in callback the API fetches the identity's token from the Container Apps
+identity endpoint (cached until shortly before it expires) and sends it as the
+`client_assertion` (`jwt-bearer`) in the token request -- no `client_secret`. Covered by
+`tests/contract/oidc-callback.test.ts`; not yet verified live (Azure runs `AUTH_MODE=local` today).
+Back to a secret: `CANVAS_OIDC_CLIENT_AUTH=secret ENTRA_CLIENT_SECRET=... ./deploy.sh`.
+
 ### Manual post-deploy live verification (Entra, Phase 7 of canvas-haz)
 
 Nothing above is a substitute for actually trying this against the real deployed Azure

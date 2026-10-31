@@ -70,6 +70,10 @@ param githubAppId string = 'unset'
 @description('canvas-3s5.1: GitHub REST API base URL (github.com by default).')
 param githubApiUrl string = 'https://api.github.com'
 
+@description('canvas-haz.9: "secret" or "managed-identity" (federated credential, no client secret).')
+@allowed(['secret', 'managed-identity'])
+param oidcClientAuth string = 'secret'
+
 resource rg 'Microsoft.Resources/resourceGroups@2023-07-01' = {
   name: resourceGroupName
   location: location
@@ -171,6 +175,8 @@ module apiApp 'modules/apiapp.bicep' = {
     githubAppId: githubAppId
     githubApiUrl: githubApiUrl
     appInsightsConnectionString: monitoring.outputs.connectionString
+    oidcClientAuth: oidcClientAuth
+    identityClientId: keyVault.outputs.identityClientId
   }
 }
 

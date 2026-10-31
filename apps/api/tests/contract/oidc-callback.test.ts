@@ -55,6 +55,11 @@ let realPrivateKey: KeyLike;
 let realPublicJwk: Record<string, unknown>;
 let otherPrivateKey: KeyLike;
 
+/** canvas-haz.9: what the app sent to the token endpoint, and calls to the identity endpoint. */
+let lastTokenRequest: URLSearchParams | null = null;
+let identityCalls: string[] = [];
+const IDENTITY_ENDPOINT = 'http://identity.local/msi/token';
+
 /** Set per-test via `setTokenEndpointResponse()`; read by the fetch stub's token-endpoint route. */
 let tokenEndpointBody: Record<string, unknown> | null = null;
 
@@ -111,13 +116,20 @@ beforeEach(async () => {
   await resetDatabase();
   tokenEndpointBody = null;
 
-  vi.stubGlobal('fetch', async (input: string | URL | Request): Promise<Response> => {
+  identityCalls = [];
+  vi.stubGlobal('fetch', async (input: string | URL | Request, init?: RequestInit): Promise<Response> => {
     const url = input instanceof Request ? input.url : input.toString();
     if (url.endsWith('/.well-known/openid-configuration')) return jsonResponse(discoveryDocument());
     if (url === JWKS_URI) return jsonResponse({ keys: [realPublicJwk] });
     if (url === TOKEN_ENDPOINT) {
       if (!tokenEndpointBody) throw new Error('Test token endpoint called with no response configured');
+      lastTokenRequest = new URLSearchParams(String(input instanceof Request ? await input.text() : init?.body ?? ''));
       return jsonResponse(tokenEndpointBody);
+    }
+    // canvas-haz.9: the Container Apps managed-identity endpoint.
+    if (url.startsWith(IDENTITY_ENDPOINT)) {
+      identityCalls.push(url);
+      return jsonResponse({ access_token: 'managed-identity-token', expires_on: String(Math.floor(Date.now() / 1000) + 3600) });
     }
     throw new Error(`Unexpected fetch() call in oidc-callback.test.ts to: ${url}`);
   });
@@ -357,5 +369,42 @@ describe('OIDC callback against a real openid-client validation pipeline (canvas
       setTokenEndpointResponse(await signIdToken(realPrivateKey, baseClaims({ nonce })));
       await expectRejected(cookie, 'completely-wrong-state');
     });
+  });
+});
+
+// canvas-haz.9: no client secret -- the managed identity's token is the client assertion.
+describe('signing in with a federated credential (managed identity) instead of a client secret', () => {
+  beforeEach(async () => {
+    await app.close();
+    process.env.IDENTITY_ENDPOINT = IDENTITY_ENDPOINT;
+    process.env.IDENTITY_HEADER = 'platform-header';
+    const config = loadConfig();
+    config.oidc = { issuerUrl: ISSUER, clientId: CLIENT_ID, redirectUri: REDIRECT_URI, clientAuth: 'managed-identity', managedIdentityClientId: 'mi-client-id' };
+    config.webOrigins = [WEB_ORIGIN];
+    app = await buildApp({ config, logger: false });
+    await app.ready();
+  });
+  afterEach(() => {
+    delete process.env.IDENTITY_ENDPOINT;
+    delete process.env.IDENTITY_HEADER;
+  });
+
+  it('sends the identity token as a jwt-bearer client assertion and never a secret, and reuses the token', async () => {
+    for (const round of [1, 2]) {
+      const { cookie, state, nonce } = await startLogin();
+      setTokenEndpointResponse(await signIdToken(realPrivateKey, baseClaims({ nonce })));
+      const response = await callback(cookie, state);
+      expect(response.statusCode, `round ${round}`).toBe(302);
+      expect(lastTokenRequest?.get('client_assertion_type')).toBe('urn:ietf:params:oauth:client-assertion-type:jwt-bearer');
+      expect(lastTokenRequest?.get('client_assertion')).toBe('managed-identity-token');
+      expect(lastTokenRequest?.get('client_id')).toBe(CLIENT_ID);
+      expect(lastTokenRequest?.has('client_secret')).toBe(false);
+    }
+    // One identity-endpoint call for both sign-ins (cached until near expiry), asking for Entra's
+    // token-exchange audience for this identity.
+    expect(identityCalls).toHaveLength(1);
+    const asked = new URL(identityCalls[0]);
+    expect(asked.searchParams.get('resource')).toBe('api://AzureADTokenExchange');
+    expect(asked.searchParams.get('client_id')).toBe('mi-client-id');
   });
 });

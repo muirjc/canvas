@@ -14,6 +14,11 @@ export interface AppConfig {
     clientId?: string;
     clientSecret?: string;
     redirectUri?: string;
+    /** canvas-haz.9: 'managed-identity' = authenticate to Entra with the managed identity's token
+     *  (a federated credential), no client secret. Default 'secret'. */
+    clientAuth?: 'secret' | 'managed-identity';
+    /** canvas-haz.9: the user-assigned managed identity's client id (AZURE_CLIENT_ID). */
+    managedIdentityClientId?: string;
   };
   /**
    * canvas-ez1.1: how people sign in. 'entra' (the default): Entra ID SSO when OIDC_* is set, plus
@@ -176,6 +181,8 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
             clientId: env.OIDC_CLIENT_ID,
             clientSecret: env.OIDC_CLIENT_SECRET,
             redirectUri: env.OIDC_REDIRECT_URI,
+            clientAuth: env.OIDC_CLIENT_AUTH === 'managed-identity' ? 'managed-identity' : 'secret',
+            ...(env.AZURE_CLIENT_ID ? { managedIdentityClientId: env.AZURE_CLIENT_ID } : {}),
           },
     authMode,
     allowLocalAuth: authMode === 'local' || env.ALLOW_LOCAL_AUTH === 'true',
