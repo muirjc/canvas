@@ -30,8 +30,8 @@ build-backend = "hatchling.build"
 packages = ["src/canvas_api"]
 
 [tool.uv]
-# Same rule as npm: only package versions at least two weeks old.
-exclude-newer = "2026-10-17T00:00:00Z"
+# Dependency cooldown, same rule as npm: only package versions at least two weeks old.
+exclude-newer = "14 days"
 
 [tool.ruff]
 line-length = 120

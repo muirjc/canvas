@@ -4,7 +4,7 @@
 # Not deployed yet: phase 0d (canvas-1bty.3) adds it to Azure as an internal container.
 
 FROM python:3.13-slim AS build
-COPY --from=ghcr.io/astral-sh/uv:0.9.8 /uv /bin/uv
+COPY --from=ghcr.io/astral-sh/uv:0.13.1 /uv /bin/uv
 ENV UV_COMPILE_BYTECODE=1 UV_LINK_MODE=copy UV_PYTHON_DOWNLOADS=never
 WORKDIR /app/apps/api-py
 COPY apps/api-py/pyproject.toml apps/api-py/uv.lock ./

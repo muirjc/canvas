@@ -15,6 +15,20 @@ from sqlalchemy import Engine, text
 MIGRATIONS_ROOT = Path(__file__).resolve().parents[3] / "api" / "migrations"
 
 
+# The bookkeeping table, as apps/api/src/db/migrate.ts creates it on each engine. Fixed statements:
+# nothing from outside ever reaches this SQL.
+_CREATE_TABLE = {
+    "postgresql": text(
+        "CREATE TABLE IF NOT EXISTS schema_migrations ("
+        "filename TEXT PRIMARY KEY, applied_at TIMESTAMPTZ NOT NULL DEFAULT now())"
+    ),
+    "sqlite": text(
+        "CREATE TABLE IF NOT EXISTS schema_migrations ("
+        "filename TEXT PRIMARY KEY, applied_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)"
+    ),
+}
+
+
 def migration_dir(dialect: str) -> Path:
     return MIGRATIONS_ROOT / "sqlite" if dialect == "sqlite" else MIGRATIONS_ROOT
 
@@ -22,13 +36,8 @@ def migration_dir(dialect: str) -> Path:
 def run_migrations(engine: Engine) -> list[str]:
     """Applies every not-yet-applied migration file in name order. Returns the files applied."""
     dialect = engine.dialect.name
-    applied_at = (
-        "TIMESTAMPTZ NOT NULL DEFAULT now()" if dialect == "postgresql" else "TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP"
-    )
     with engine.begin() as conn:
-        conn.execute(
-            text(f"CREATE TABLE IF NOT EXISTS schema_migrations (filename TEXT PRIMARY KEY, applied_at {applied_at})")
-        )
+        conn.execute(_CREATE_TABLE[dialect])
         done = {row[0] for row in conn.execute(text("SELECT filename FROM schema_migrations"))}
 
     applied: list[str] = []
