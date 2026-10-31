@@ -75,6 +75,12 @@ param identityClientId string = ''
 @description('canvas-6upe: Application Insights connection string. Empty = telemetry off.')
 param appInsightsConnectionString string = ''
 
+@description('canvas-1bty.3: the Python service canvas-api forwards moved routes to (PYTHON_API_URL). Empty = nothing forwarded.')
+param pythonApiUrl string = ''
+
+@description('canvas-1bty.3: route prefixes the Python service answers (PYTHON_ROUTES, comma-separated).')
+param pythonRoutes string = '/py'
+
 resource apiApp 'Microsoft.App/containerApps@2025-01-01' = {
   name: 'canvas-api'
   location: location
@@ -194,6 +200,9 @@ resource apiApp 'Microsoft.App/containerApps@2025-01-01' = {
             { name: 'GITHUB_APP_API_URL', value: githubApiUrl }
             // Links in pull requests point back at the web app.
             { name: 'CANVAS_PUBLIC_URL', value: webOrigin }
+            // canvas-1bty.3: route groups that have moved to Python (modules/pyapiapp.bicep).
+            { name: 'PYTHON_API_URL', value: pythonApiUrl }
+            { name: 'PYTHON_ROUTES', value: pythonRoutes }
           ]
           resources: {
             cpu: json('0.5')

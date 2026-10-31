@@ -544,6 +544,31 @@ Diagram content, prompts, emails and tokens are never recorded. Log lines carry 
   `TELEMETRY_SAMPLING_RATIO` (0-1, default 1) samples. Never on under tests.
 - **Cost:** pay per GB ingested, 90-day retention; nothing is sent while the environment is paused.
 
+## Python service (canvas-1bty)
+
+The backend is moving to Python (`apps/api-py`), route group by route group
+([docs/python-backend-assessment.md](docs/python-backend-assessment.md)). While it does, `apps/api`
+stays the front door: it serves the web app and forwards the route prefixes listed in
+`PYTHON_ROUTES` (default `/py`) to `PYTHON_API_URL`. Nothing is forwarded when `PYTHON_API_URL` is
+unset. Both services read the same sessions, so they need the same `SESSION_SECRET` and the same
+database.
+
+Locally, with the API running as usual:
+
+```bash
+cd apps/api-py && uv sync
+DATABASE_URL=<same as apps/api/.env> SESSION_SECRET=<same as apps/api/.env> \
+  uv run uvicorn canvas_api.main:app --port 8000
+# apps/api/.env: PYTHON_API_URL=http://localhost:8000, then restart the API.
+# http://localhost:3000/py/me answers from Python with your session.
+```
+
+In Azure, `deploy.sh` builds both images with the same tag. `canvas-api-py` is an internal-only
+container app (no public address); `canvas-api` reaches it as `http://canvas-api-py`. It scales to
+zero like `canvas-api`; `pause.sh` needs no change because a paused `canvas-api` forwards nothing.
+Tests: `uv run pytest` (Postgres, schema `canvas_py`) and `TEST_DB_CLIENT=sqlite uv run pytest`;
+see [apps/api-py/README.md](apps/api-py/README.md).
+
 ## Known flakiness
 
 - **E2E specs run with `workers: 1`** (`apps/web/playwright.config.ts`) because every spec shares
