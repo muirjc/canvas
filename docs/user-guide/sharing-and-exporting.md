@@ -65,6 +65,9 @@ appears for people who have it. Anyone can see who has access.
 
 **Export** in the editor downloads the diagram as:
 - **Mermaid** (`.mmd`): the text, to use in other tools or documentation that renders Mermaid.
+  Colours are written so other tools can show them where Mermaid allows (see
+  [What reviewers see on GitHub](submitting-for-approval.md#what-reviewers-see-on-github)). Other
+  tools arrange the shapes themselves.
 - **SVG**: a sharp, scalable picture for documents and wikis.
 - **PNG**: an image.
 

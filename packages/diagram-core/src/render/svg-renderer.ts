@@ -1536,6 +1536,19 @@ const NOTE_ROLES_FOR_RENDER = new Set(['note-left', 'note-right', 'note-over']);
 /** canvas-ltk: rendering options -- the diagram type's standard, for the legend's automatic entries. */
 export interface RenderOptions {
   standardRules?: StandardRules;
+  /**
+   * canvas-n85n: a solid background colour (hex) behind the whole drawing. Without one the SVG is
+   * transparent, so dark lines and text vanish on a dark page (GitHub in dark mode). Not a hex
+   * colour = ignored.
+   */
+  background?: string;
+}
+
+/** Puts a full-size background rect first inside the root <svg>, so it sits behind everything. */
+function withBackground(svg: string, background: string | undefined): string {
+  if (!background || !/^#[0-9a-fA-F]{3,8}$/.test(background)) return svg;
+  const open = svg.indexOf('>') + 1;
+  return `${svg.slice(0, open)}<rect width="100%" height="100%" fill="${background}" />${svg.slice(open)}`;
 }
 
 const LEGEND_DASH: Record<string, string> = { dotted: '4,3', invisible: '2,4' };
@@ -1582,6 +1595,10 @@ export function renderLegend(layout: LegendLayout, diagramTypeId?: string): stri
 }
 
 export function renderToSvg(model: DiagramModel, resolveIcon?: IconResolver, options: RenderOptions = {}): string {
+  return withBackground(renderDiagramSvg(model, resolveIcon, options), options.background);
+}
+
+function renderDiagramSvg(model: DiagramModel, resolveIcon: IconResolver | undefined, options: RenderOptions): string {
   // canvas-7vs.1: sequence diagrams get their own dedicated lifeline/timeline rendering path —
   // svg-renderer.ts had zero sequence-aware branching before this (confirmed at the epic's own
   // audit); every other family's rendering below is completely unaffected.

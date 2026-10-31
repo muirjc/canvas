@@ -20,6 +20,21 @@ You need **edit** access to the diagram to submit it.
 fix, fix it first. The **Issues** tab lists the problems. Warnings and info don't block, but they are
 listed in the pull request so reviewers can see them.
 
+## What reviewers see on GitHub
+
+The pull request's README shows the diagram as a picture, exactly as it looks in Canvas. Below it,
+under **Mermaid source**, GitHub draws the diagram again from its Mermaid text. That second view
+looks different:
+- **Positions:** GitHub always arranges a Mermaid diagram itself, so shapes won't sit where you put
+  them. Mermaid has no way to say where a shape goes.
+- **Colours:** kept for shapes in flowcharts, C4, ER and class diagrams, and for lines in flowcharts
+  and C4. Sequence and architecture diagrams show GitHub's default colours, and so do lines in ER
+  and class diagrams (Mermaid has no colour syntax for these). In C4, when several lines join the
+  same two elements in different colours, those lines show the default colour.
+- **Icons:** GitHub uses its own icon set, not Canvas's.
+
+The picture at the top is the one to review.
+
 ## Changing a diagram under review
 
 You can keep editing while the pull request is open. The status next to the button changes to

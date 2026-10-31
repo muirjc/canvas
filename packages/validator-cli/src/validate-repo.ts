@@ -204,7 +204,7 @@ function checkDiagram(root: string, manifestPath: string, renderDir: string | un
     const svgName = (manifest.svg ?? `${manifest.source.replace(/\.canvas\.mmd$|\.mmd$/, '')}.svg`).split('/').pop()!;
     const out = join(renderDir, relative(root, folder), svgName);
     mkdirSync(dirname(out), { recursive: true });
-    writeFileSync(out, renderToSvg(parsed.model, undefined, { standardRules }));
+    writeFileSync(out, renderToSvg(parsed.model, undefined, { standardRules, background: '#ffffff' }));
     result.rendered = toPosix(relative(process.cwd(), out));
   }
   return result;

@@ -493,7 +493,8 @@ export async function submitDiagram(client: GitHubClient, diagramId: string, sub
       dslFamily: diagram.dslFamily,
       dslContent: diagram.dslContent,
       portableMermaid: toPortableMermaid(diagram.dslContent, { stripFrontMatter: true }),
-      svg: await exportSvg(diagram.dslFamily, diagram.dslContent, diagram.diagramTypeId),
+      // canvas-n85n: white behind the drawing, so it stays readable in GitHub's dark mode.
+      svg: await exportSvg(diagram.dslFamily, diagram.dslContent, diagram.diagramTypeId, { background: '#ffffff' }),
       versionSequence,
       standard: standard ? { id: standard.id, version: standard.version, name: standard.name, description: standard.description, rules: standard.rules } : null,
       path: submission.path,

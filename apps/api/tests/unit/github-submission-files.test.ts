@@ -107,6 +107,17 @@ describe('buildSubmissionFiles', () => {
     expect(readme).toContain('# @' + ZWSP + 'everyone \\*\\*x\\*\\*');
   });
 
+  it('says the picture is the layout from Canvas and GitHub lays out the Mermaid view itself (canvas-n85n)', () => {
+    const readme = buildSubmissionFiles(input())[0].content;
+    const picture = readme.indexOf('.svg)');
+    const note = readme.indexOf('_Layout as drawn in Canvas._');
+    expect(note).toBeGreaterThan(picture);
+    const details = readme.indexOf('<summary>Mermaid source</summary>');
+    const autoLayout = readme.indexOf('GitHub arranges this view automatically');
+    expect(autoLayout).toBeGreaterThan(details);
+    expect(autoLayout).toBeLessThan(readme.indexOf('mermaid\n'));
+  });
+
   it('puts the Mermaid in a fence longer than any backtick run inside it', () => {
     for (const run of [3, 4, 7]) {
       const mermaid = `flowchart TD\n  A["${'`'.repeat(run)}"] --> B\n`;

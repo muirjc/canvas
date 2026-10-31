@@ -223,6 +223,8 @@ describe('Submitting diagrams to GitHub (canvas-3s5.1)', () => {
       expect(portable).toContain('flowchart TD');
       expect(portable).toContain('Receive order');
       expect(files.get('architecture/order-flow/order-flow.svg')).toMatch(/^<svg[\s\S]*Receive order/);
+      // canvas-n85n: white behind the drawing, for GitHub's dark mode.
+      expect(files.get('architecture/order-flow/order-flow.svg')).toMatch(/^<svg [^>]*><rect width="100%" height="100%" fill="#ffffff" \/>/);
       const readme = files.get('architecture/order-flow/README.md')!;
       expect(readme).toContain('(./order-flow.svg)');
       expect(readme).toContain('```mermaid');

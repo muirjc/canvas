@@ -113,6 +113,10 @@ function buildReadme(input: SubmissionInput): string {
     '',
     `![${name}](./${input.slug}.svg)`,
     '',
+    // canvas-n85n: Mermaid has no syntax for positions, so GitHub's own render of the source below
+    // is laid out automatically; the picture above is the authoritative one.
+    '_Layout as drawn in Canvas._',
+    '',
     '| | |',
     '|---|---|',
     `| Diagram type | ${escapeMarkdown(input.diagramTypeName)} |`,
@@ -124,6 +128,8 @@ function buildReadme(input: SubmissionInput): string {
   if (input.description?.trim()) lines.push(escapeMarkdown(input.description.trim()), '');
   lines.push(
     '<details><summary>Mermaid source</summary>',
+    '',
+    'GitHub arranges this view automatically, so positions differ from Canvas. Colours are kept where Mermaid supports them.',
     '',
     `${fence}mermaid`,
     input.portableMermaid.trimEnd(),
