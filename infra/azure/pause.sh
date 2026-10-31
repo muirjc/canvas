@@ -17,9 +17,8 @@
 #   - Postgres storage (the 32GB volume itself, ~$4/month) and backups.
 #   - ACR image storage (Basic SKU, ~$5/month regardless of activity).
 #   - Key Vault (~$0.03/10k operations -- negligible at rest).
-#   - Storage account (the frontend static website) -- effectively free at rest, no compute to
-#     pause; blob storage + bandwidth are the only costs and both are near-zero when idle. It
-#     keeps serving, so canvas-vnh swaps in a "Canvas is paused" page (paused.html) -- see below.
+#   - Storage account (now only the old web address's redirect page, canvas-r3y) -- effectively
+#     free at rest.
 #   - Log Analytics workspace (pay-per-GB ingested; near-zero once apps are quiet).
 #
 # Usage: ./pause.sh [resource-group]
@@ -32,33 +31,14 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # or after Azure's 7-day auto-restart works instead of stopping half way.
 source "$SCRIPT_DIR/lib.sh"
 
-# canvas-vnh: with the database stopped the app can't sign anyone in, so serve a "Canvas is paused"
-# page instead of a login screen that silently fails. The site's 404 document is index.html too,
-# so deep links (?projectId=...) show it as well. The live index.html is saved as index.live.html
-# for resume.sh -- only if no saved copy exists yet, so pausing twice can't overwrite the real
-# page with the paused one.
-STORAGE_ACCOUNT="$(az storage account list --resource-group "$RESOURCE_GROUP" --query "[0].name" -o tsv)"
-echo "== Taking the web site offline (paused page) =="
-if [[ "$(az storage blob exists --account-name "$STORAGE_ACCOUNT" --container-name '$web' --name index.live.html \
-  --auth-mode login --query exists -o tsv)" == "true" ]]; then
-  echo "  Already showing the paused page (index.live.html is saved) -- leaving it."
-else
-  live_copy="$(mktemp)"
-  az storage blob download --account-name "$STORAGE_ACCOUNT" --container-name '$web' --name index.html \
-    --file "$live_copy" --auth-mode login --no-progress --output none
-  az storage blob upload --account-name "$STORAGE_ACCOUNT" --container-name '$web' --name index.live.html \
-    --file "$live_copy" --content-type "text/html" --content-cache-control "no-cache" \
-    --auth-mode login --overwrite --no-progress --output none
-  rm -f "$live_copy"
-  az storage blob upload --account-name "$STORAGE_ACCOUNT" --container-name '$web' --name index.html \
-    --file "$SCRIPT_DIR/paused.html" --content-type "text/html; charset=utf-8" --content-cache-control "no-cache" \
-    --auth-mode login --overwrite --no-progress --output none
-  echo "  The site now shows 'Canvas is paused'; the app's page is saved as index.live.html."
-fi
-
+# canvas-vnh / canvas-r3y: with the database stopped the app can't sign anyone in, so canvas-api
+# (which serves the web app) answers every request with the "Canvas is paused" page (browsers) or
+# a 503 (API calls) while CANVAS_PAUSED=true. Set together with the scale settings below: one
+# revision. resume.sh removes it once the database is back.
 echo "== Making canvas-api eligible to scale to zero =="
 retry "Updating canvas-api" az containerapp update --name canvas-api --resource-group "$RESOURCE_GROUP" \
-  --min-replicas 0 --max-replicas 1 --output none
+  --min-replicas 0 --max-replicas 1 --set-env-vars CANVAS_PAUSED=true --output none
+echo "  The site now shows 'Canvas is paused'."
 echo "  Set to min=0/max=1. Actual replica count drops to 0 after the environment's cooldown"
 echo "  period (~5 min) once traffic stops -- not instant. Confirm with:"
 echo "    az containerapp replica list --name canvas-api --resource-group $RESOURCE_GROUP"

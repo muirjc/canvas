@@ -44,15 +44,18 @@ RUN npm ci
 COPY packages/diagram-core packages/diagram-core
 COPY packages/validator-cli packages/validator-cli
 COPY apps/api apps/api
-# apps/web is NOT built or copied into this image (canvas-ycu keeps the existing split-origin
-# topology: the frontend deploys separately to Storage static website hosting, matching
-# docs/azure-deployment.md's already-working COOKIE_SAME_SITE=none configuration -- see
-# infra/azure/README.md for the full reasoning). A root `npm run build` would try to build every
-# workspace including web, so build diagram-core and api explicitly instead of `--workspaces`.
+# canvas-r3y: the web app is built here and served by the API from its own origin (one origin:
+# first-party session cookie, no CORS preflight, one IP allow-list rule). Relative API URLs
+# (VITE_API_BASE_URL empty); Help bundles docs/user-guide + docs/admin-guide; the build also
+# emits the licence notices. Each text file gets .br/.gz copies served by @fastify/static.
+COPY apps/web apps/web
+COPY docs docs
+COPY LICENSE THIRD-PARTY-NOTICES.md ./
 RUN npm run build --workspace=@canvas/diagram-core && npm run build --workspace=@canvas/api
 # canvas-3s5.3: the CI validator bundle (dist/validator.mjs + the example workflow), which the API
 # commits to repositories with each GitHub submission.
 RUN npm run build --workspace=@canvas/validator-cli
+RUN VITE_API_BASE_URL= npm run build --workspace=@canvas/web && node apps/web/scripts/precompress.mjs apps/web/dist
 
 # The runtime image still needs node_modules (this Dockerfile does not prune devDependencies,
 # see the top-of-file note) and the migrations/ directory (read by dist/db/migrate.js at a path
@@ -74,6 +77,10 @@ COPY --from=build /app/packages/validator-cli/dist packages/validator-cli/dist
 COPY vendor-icons vendor-icons
 # canvas-qrvn: the licence and the third-party notices the bundled npm packages require.
 COPY LICENSE THIRD-PARTY-NOTICES.md ./
+# canvas-r3y: the web app, and the page shown while the environment is paused.
+COPY --from=build /app/apps/web/dist apps/web/dist
+COPY infra/azure/paused.html paused.html
+ENV WEB_DIST_DIR=/app/apps/web/dist PAUSED_PAGE_PATH=/app/paused.html
 
 # Semgrep (dockerfile.security.missing-user) correctly flags running as root by default -- the
 # official node:22-slim base already ships a non-root `node` user (uid/gid 1000) for exactly this,

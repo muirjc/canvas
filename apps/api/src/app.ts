@@ -1,5 +1,6 @@
 import Fastify, { type FastifyError, type FastifyInstance } from 'fastify';
 import { tagRequestRoute, tagRequestUser, traceIds } from './telemetry/telemetry.js';
+import { registerPausedMode, registerWebApp } from './web/web-app.js';
 import cors from '@fastify/cors';
 import type { LanguageModel } from 'ai';
 import { loadConfig, type AppConfig } from './config.js';
@@ -91,6 +92,9 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
     await registerApiDocsRoutes(app);
   }
 
+  // canvas-r3y: while paused, nothing below runs (the database is stopped).
+  if (config.paused) registerPausedMode(app, config.pausedPagePath);
+
   // canvas-6upe: name each request's span after its route template, and say whose request it was.
   app.addHook('onRequest', async (request) => {
     tagRequestRoute(request.method, request.routeOptions.url);
@@ -137,6 +141,9 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
   // separately) -- security: [] is explicit, not merely omitted, so /docs shows this was
   // deliberately reviewed as public rather than simply never annotated.
   app.get('/health', { schema: { tags: ['Health'], security: [] } }, async () => ({ status: 'ok' }));
+
+  // canvas-r3y: the web app, from this same origin (production image only).
+  await registerWebApp(app, config.webDistDir);
 
   return app;
 }

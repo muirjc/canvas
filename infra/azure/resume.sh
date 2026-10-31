@@ -39,25 +39,17 @@ if [[ "$(wait_for_postgres "$RESOURCE_GROUP" canvas-postgres)" != "Ready" ]]; th
 fi
 echo "  Postgres is Ready."
 
-# canvas-vnh: put the app's page back (pause.sh saved it as index.live.html), last, so the site
-# only comes back once the database it needs is up.
-STORAGE_ACCOUNT="$(az storage account list --resource-group "$RESOURCE_GROUP" --query "[0].name" -o tsv)"
+# canvas-vnh / canvas-r3y: take canvas-api out of paused mode, last, so the site only comes back
+# once the database it needs is up.
 echo
 echo "== Bringing the web site back =="
-if [[ "$(az storage blob exists --account-name "$STORAGE_ACCOUNT" --container-name '$web' --name index.live.html \
-  --auth-mode login --query exists -o tsv)" == "true" ]]; then
-  live_copy="$(mktemp)"
-  az storage blob download --account-name "$STORAGE_ACCOUNT" --container-name '$web' --name index.live.html \
-    --file "$live_copy" --auth-mode login --no-progress --output none
-  az storage blob upload --account-name "$STORAGE_ACCOUNT" --container-name '$web' --name index.html \
-    --file "$live_copy" --content-type "text/html" --content-cache-control "no-cache" \
-    --auth-mode login --overwrite --no-progress --output none
-  rm -f "$live_copy"
-  az storage blob delete --account-name "$STORAGE_ACCOUNT" --container-name '$web' --name index.live.html \
-    --auth-mode login --output none
-  echo "  The app is back (index.html restored from index.live.html)."
+if [[ "$(az containerapp show --name canvas-api --resource-group "$RESOURCE_GROUP" \
+  --query "properties.template.containers[0].env[?name=='CANVAS_PAUSED'] | length(@)" -o tsv)" != "0" ]]; then
+  retry "Updating canvas-api" az containerapp update --name canvas-api --resource-group "$RESOURCE_GROUP" \
+    --remove-env-vars CANVAS_PAUSED --output none
+  echo "  The app is back."
 else
-  echo "  No paused page in place -- nothing to restore."
+  echo "  Not in paused mode -- nothing to restore."
 fi
 
 echo

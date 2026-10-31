@@ -41,7 +41,7 @@ you have left. When they run out, ask an admin to reset your two-step verificati
 | "Invalid email or password" | Check both and try again. **Three wrong tries in a row lock the account.** |
 | "This account is locked…" | Ask an admin to unlock it (or to reset your password). It doesn't unlock by itself. |
 | "This account has been deactivated…" | Your account was switched off. Ask an admin. |
-| "Your browser blocked Canvas's sign-in cookie" | This happens in **private/incognito windows** and in **Safari** (including every browser on an iPhone or iPad). Use a normal window in Chrome, Edge or Firefox, or allow third-party cookies for the Canvas site. |
+| "Your browser blocked Canvas's sign-in cookie" | Your browser is refusing all cookies for the Canvas site. Allow cookies for it (Canvas only uses its own sign-in cookie), or try a normal window. |
 | "Too many sign-in attempts from this network" | Wait a minute and try again. |
 | Lost your phone and your recovery codes | Ask an admin to **reset your two-step verification**. You set it up again at your next sign-in. |
 | The site doesn't load at all | Canvas may only be reachable from your organisation's networks, or it may be paused. Ask your admin. |
