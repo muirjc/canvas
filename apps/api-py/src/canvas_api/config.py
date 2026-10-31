@@ -23,3 +23,15 @@ class Settings(BaseSettings):
     applicationinsights_connection_string: str | None = Field(
         default=None, alias="APPLICATIONINSIGHTS_CONNECTION_STRING"
     )
+
+    # Sessions are shared with the TypeScript service (canvas-1bty.2): same secret, cookie and limits.
+    session_secret: str = Field(alias="SESSION_SECRET", min_length=32)
+    session_idle_minutes: float = Field(default=480, alias="SESSION_IDLE_MINUTES", gt=0)
+    session_max_hours: float = Field(default=12, alias="SESSION_MAX_HOURS", gt=0)
+    cookie_same_site: Literal["lax", "strict", "none"] = Field(default="lax", alias="COOKIE_SAME_SITE")
+    cookie_secure_setting: bool = Field(default=False, alias="COOKIE_SECURE")
+
+    @property
+    def cookie_secure(self) -> bool:
+        """SameSite=None cookies must be Secure (browsers drop them otherwise), as in apps/api."""
+        return self.cookie_same_site == "none" or self.cookie_secure_setting

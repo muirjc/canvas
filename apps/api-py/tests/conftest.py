@@ -20,6 +20,8 @@ from canvas_api.config import Settings
 from canvas_api.db import create_db_engine
 from canvas_api.migrations import run_migrations
 
+#: The TypeScript tests' fixed session secret (apps/api/src/config.ts TEST_SESSION_SECRET).
+TEST_SESSION_SECRET = "test-secret-at-least-32-characters-long"
 PG_DATABASE = "postgresql://canvas:canvas_dev_password@localhost:5433/canvas_test"
 PG_SCHEMA = "canvas_py"
 
@@ -34,9 +36,10 @@ def _fresh_postgres() -> str:
 @pytest.fixture(scope="session")
 def settings() -> Settings:
     client = os.environ.get("TEST_DB_CLIENT", "postgres")
+    common = {"SESSION_SECRET": TEST_SESSION_SECRET}
     if client == "sqlite":
-        return Settings(DB_CLIENT="sqlite", DATABASE_URL=":memory:")
-    return Settings(DB_CLIENT="postgres", DATABASE_URL=_fresh_postgres())
+        return Settings(DB_CLIENT="sqlite", DATABASE_URL=":memory:", **common)
+    return Settings(DB_CLIENT="postgres", DATABASE_URL=_fresh_postgres(), **common)
 
 
 @pytest.fixture(scope="session")
