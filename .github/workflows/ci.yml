@@ -90,6 +90,51 @@ jobs:
           TEST_DB_CLIENT: ${{ matrix.db-client }}
         run: npm run test --workspace=@canvas/api
 
+  # canvas-1bty.1: the Python backend (apps/api-py), moving here from apps/api route group by route
+  # group (docs/python-backend-assessment.md). Same Postgres/SQLite matrix as the TypeScript suite;
+  # its Postgres tests use their own schema (canvas_py) in the same test database.
+  python-tests:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        db-client: [postgres, sqlite]
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: canvas
+          POSTGRES_PASSWORD: canvas_dev_password
+          POSTGRES_DB: canvas_test
+        ports:
+          - 5433:5432
+        options: >-
+          --health-cmd="pg_isready -U canvas"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
+    defaults:
+      run:
+        working-directory: apps/api-py
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Install uv
+        run: pipx install uv==0.13.1
+      - run: uv python install 3.13
+      - run: uv sync --frozen
+      - name: Lint and format
+        if: matrix.db-client == 'postgres'
+        run: |
+          uv run ruff check .
+          uv run ruff format --check .
+      - name: Type check
+        if: matrix.db-client == 'postgres'
+        run: uv run mypy
+      - name: Tests
+        env:
+          TEST_DB_CLIENT: ${{ matrix.db-client }}
+        run: uv run pytest
+
   e2e-tests:
     runs-on: ubuntu-latest
     needs: lint-and-build
