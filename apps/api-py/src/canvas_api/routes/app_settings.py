@@ -19,8 +19,8 @@ from canvas_api.errors import ApiError
 router = APIRouter(tags=["Settings"])
 Db = Annotated[Engine, Depends(get_engine)]
 
-#: setting -> its column. Only booleans so far.
-_SETTINGS = {"sharingEnabled": "sharing_enabled"}
+#: The settings there are (all booleans so far). A new one gets its own column in the UPDATE below.
+_SETTINGS = ("sharingEnabled",)
 
 
 def _read(conn: Connection) -> dict[str, bool]:
@@ -52,8 +52,10 @@ def set_app_settings(
         raise ApiError(400, "No known setting to change.")
     with db.begin() as conn:
         before = _read(conn)
-        assignments = ", ".join(f"{_SETTINGS[s]} = :{s}" for s in changes)  # fixed column names
-        conn.execute(text(f"UPDATE app_settings SET {assignments}, updated_at = CURRENT_TIMESTAMP"), changes)  # noqa: S608
+        conn.execute(
+            text("UPDATE app_settings SET sharing_enabled = :sharingEnabled, updated_at = CURRENT_TIMESTAMP"),
+            changes,
+        )
         after = _read(conn)
         for setting in changes:
             if before[setting] == after[setting]:

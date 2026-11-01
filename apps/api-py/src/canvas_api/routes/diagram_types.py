@@ -8,11 +8,11 @@ from __future__ import annotations
 
 import re
 import unicodedata
-from typing import Annotated, Any
+from typing import Annotated, Any, Literal
 
 from fastapi import APIRouter, Depends, Response
 from pydantic import BaseModel, StrictBool, StrictStr
-from sqlalchemy import Connection, Engine, bindparam, text
+from sqlalchemy import Connection, Engine, bindparam, column, table, text, update
 
 from canvas_api.auth.roles import AdminUser, CurrentUser
 from canvas_api.catalog import BUILTIN_DIAGRAM_TYPE_IDS, DSL_FAMILIES, PERSONAS
@@ -54,45 +54,76 @@ def _validate(*, name: str | None = None, dsl_family: str | None = None, persona
             raise ApiError(400, f"Unknown persona(s): {', '.join(unknown)}.")
 
 
-def _set_join_rows(conn: Connection, table: str, column: str, type_id: str, values: list[str]) -> None:
-    """Replaces a diagram type's ordered join rows (array-columns.ts setDiagramTypePersonas/PaletteLibraries)."""
-    # table/column are fixed names from this module, never input.
-    conn.execute(text(f"DELETE FROM {table} WHERE diagram_type_id = :id"), {"id": type_id})  # noqa: S608
+#: A diagram type's ordered join rows (array-columns.ts): personas and palette libraries. Whole
+#: statements per table, never assembled from names.
+_JOIN_SQL = {
+    "personas": {
+        "delete": text("DELETE FROM diagram_types_personas WHERE diagram_type_id = :id"),
+        "insert": text(
+            "INSERT INTO diagram_types_personas (diagram_type_id, persona, position) VALUES (:id, :value, :position)"
+        ),
+        "select": text(
+            "SELECT diagram_type_id, persona AS value FROM diagram_types_personas"
+            " WHERE diagram_type_id IN :ids ORDER BY diagram_type_id, position"
+        ).bindparams(bindparam("ids", expanding=True)),
+    },
+    "palette": {
+        "delete": text("DELETE FROM diagram_type_palette_libraries WHERE diagram_type_id = :id"),
+        "insert": text(
+            "INSERT INTO diagram_type_palette_libraries (diagram_type_id, library_id, position)"
+            " VALUES (:id, :value, :position)"
+        ),
+        "select": text(
+            "SELECT diagram_type_id, library_id AS value FROM diagram_type_palette_libraries"
+            " WHERE diagram_type_id IN :ids ORDER BY diagram_type_id, position"
+        ).bindparams(bindparam("ids", expanding=True)),
+    },
+}
+_LIST_ALL = text(
+    "SELECT id, name, abstraction_level, dsl_family, origin, admin_edited, description, hidden"
+    " FROM diagram_types ORDER BY name"
+)
+_LIST_SOME = text(
+    "SELECT id, name, abstraction_level, dsl_family, origin, admin_edited, description, hidden"
+    " FROM diagram_types WHERE id IN :ids ORDER BY name"
+).bindparams(bindparam("ids", expanding=True))
+#: For partial updates: SQLAlchemy Core builds the SET list from the columns given.
+_diagram_types = table(
+    "diagram_types",
+    column("id"),
+    column("name"),
+    column("dsl_family"),
+    column("description"),
+    column("hidden"),
+    column("admin_edited"),
+)
+
+
+def _set_join_rows(conn: Connection, kind: Literal["personas", "palette"], type_id: str, values: list[str]) -> None:
+    conn.execute(_JOIN_SQL[kind]["delete"], {"id": type_id})
     if values:
         conn.execute(
-            text(f"INSERT INTO {table} (diagram_type_id, {column}, position) VALUES (:id, :value, :position)"),  # noqa: S608
+            _JOIN_SQL[kind]["insert"],
             [{"id": type_id, "value": value, "position": i} for i, value in enumerate(values)],
         )
 
 
-def _join_rows(conn: Connection, table: str, column: str, ids: list[str]) -> dict[str, list[str]]:
+def _join_rows(conn: Connection, kind: Literal["personas", "palette"], ids: list[str]) -> dict[str, list[str]]:
     result: dict[str, list[str]] = {}
     if not ids:
         return result
-    rows = conn.execute(
-        text(
-            f"SELECT diagram_type_id, {column} AS value FROM {table}"  # noqa: S608 - fixed names
-            " WHERE diagram_type_id IN :ids ORDER BY diagram_type_id, position"
-        ).bindparams(bindparam("ids", expanding=True)),
-        {"ids": ids},
-    ).all()
-    for row in rows:
+    for row in conn.execute(_JOIN_SQL[kind]["select"], {"ids": ids}).all():
         result.setdefault(row.diagram_type_id, []).append(row.value)
     return result
 
 
 def list_diagram_type_records(conn: Connection, ids: list[str] | None = None) -> list[dict[str, Any]]:
     """All diagram types (or just `ids`), ordered by name."""
-    sql = "SELECT id, name, abstraction_level, dsl_family, origin, admin_edited, description, hidden FROM diagram_types"
-    params: dict[str, Any] = {}
-    statement = text(sql + " ORDER BY name")
-    if ids is not None:
-        statement = text(sql + " WHERE id IN :ids ORDER BY name").bindparams(bindparam("ids", expanding=True))
-        params["ids"] = ids or [""]
-    rows = conn.execute(statement, params).all()
+    result = conn.execute(_LIST_ALL) if ids is None else conn.execute(_LIST_SOME, {"ids": ids or [""]})
+    rows = result.all()
     row_ids = [r.id for r in rows]
-    personas = _join_rows(conn, "diagram_types_personas", "persona", row_ids)
-    palettes = _join_rows(conn, "diagram_type_palette_libraries", "library_id", row_ids)
+    personas = _join_rows(conn, "personas", row_ids)
+    palettes = _join_rows(conn, "palette", row_ids)
     return [
         {
             "id": r.id,
@@ -158,8 +189,8 @@ def create_diagram_type(_admin: AdminUser, db: Db, body: DiagramTypeBody | None 
             ),
             {"id": type_id, "name": name.strip(), "family": dsl_family, "description": body.description},
         )
-        _set_join_rows(conn, "diagram_types_personas", "persona", type_id, personas)
-        _set_join_rows(conn, "diagram_type_palette_libraries", "library_id", type_id, body.paletteLibraryIds or [])
+        _set_join_rows(conn, "personas", type_id, personas)
+        _set_join_rows(conn, "palette", type_id, body.paletteLibraryIds or [])
         return {"diagramType": _get_record(conn, type_id)}
 
 
@@ -200,12 +231,11 @@ def update_diagram_type(id: str, _admin: AdminUser, db: Db, body: DiagramTypeBod
         if row.origin == "builtin" and edits_definition:
             changes["admin_edited"] = True
         if changes:
-            assignments = ", ".join(f"{column} = :{column}" for column in changes)  # fixed column names
-            conn.execute(text(f"UPDATE diagram_types SET {assignments} WHERE id = :id"), {**changes, "id": id})  # noqa: S608
+            conn.execute(update(_diagram_types).where(_diagram_types.c.id == id).values(**changes))
         if patch.personas is not None:
-            _set_join_rows(conn, "diagram_types_personas", "persona", id, patch.personas)
+            _set_join_rows(conn, "personas", id, patch.personas)
         if patch.paletteLibraryIds is not None:
-            _set_join_rows(conn, "diagram_type_palette_libraries", "library_id", id, patch.paletteLibraryIds)
+            _set_join_rows(conn, "palette", id, patch.paletteLibraryIds)
         return {"diagramType": _get_record(conn, id)}
 
 

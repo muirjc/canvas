@@ -18,10 +18,18 @@ from canvas_api.db import get_engine
 router = APIRouter(tags=["Libraries"])
 Db = Annotated[Engine, Depends(get_engine)]
 
-_ICON_COLUMNS = (
+#: Live icons (retired icons and libraries aren't offered), of one library version or of several libraries.
+_ICONS_IN_VERSION = text(
     "SELECT icons.library_id, icons.library_version, icons.id, icons.display_name, icons.category, icons.asset_ref"
     " FROM icons JOIN icon_libraries l ON l.id = icons.library_id AND l.version = icons.library_version"
+    " WHERE icons.library_id = :id AND icons.library_version = :version"
+    " AND icons.retired_at IS NULL AND l.retired_at IS NULL"
 )
+_ICONS_IN_LIBRARIES = text(
+    "SELECT icons.library_id, icons.library_version, icons.id, icons.display_name, icons.category, icons.asset_ref"
+    " FROM icons JOIN icon_libraries l ON l.id = icons.library_id AND l.version = icons.library_version"
+    " WHERE icons.library_id IN :ids AND icons.retired_at IS NULL AND l.retired_at IS NULL"
+).bindparams(bindparam("ids", expanding=True))
 
 
 def search_icons(icons: list[dict[str, Any]], query: str) -> list[dict[str, Any]]:
@@ -89,13 +97,7 @@ def list_libraries(_user: CurrentUser, db: Db) -> dict[str, Any]:
 @router.get("/libraries/{id}/versions/{version}/icons")
 def search_library(id: str, version: str, _user: CurrentUser, db: Db, query: str = "") -> dict[str, Any]:
     with db.connect() as conn:
-        rows = conn.execute(
-            text(
-                _ICON_COLUMNS + " WHERE icons.library_id = :id AND icons.library_version = :version"
-                " AND icons.retired_at IS NULL AND l.retired_at IS NULL"
-            ),
-            {"id": id, "version": version},
-        ).all()
+        rows = conn.execute(_ICONS_IN_VERSION, {"id": id, "version": version}).all()
         icons = _to_icons(conn, list(rows))
     return {"icons": search_icons(icons, query)}
 
@@ -121,12 +123,7 @@ def search_for_diagram_type(
         ]
         if not library_ids:
             return {"icons": []}
-        rows = conn.execute(
-            text(
-                _ICON_COLUMNS + " WHERE icons.library_id IN :ids AND icons.retired_at IS NULL AND l.retired_at IS NULL"
-            ).bindparams(bindparam("ids", expanding=True)),
-            {"ids": library_ids},
-        ).all()
+        rows = conn.execute(_ICONS_IN_LIBRARIES, {"ids": library_ids}).all()
         icons = _to_icons(conn, list(rows))
     grouped: dict[tuple[str, str], list[dict[str, Any]]] = {}
     for icon in icons:
