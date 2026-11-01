@@ -81,6 +81,9 @@ param pythonApiUrl string = ''
 @description('canvas-1bty.3: route prefixes the Python service answers (PYTHON_ROUTES, comma-separated).')
 param pythonRoutes string = '/py'
 
+@description('canvas-1bty.6: moved route groups forwarded to Python (PYTHON_ROUTE_GROUPS). Empty = all; "none" = none.')
+param pythonRouteGroups string = ''
+
 resource apiApp 'Microsoft.App/containerApps@2025-01-01' = {
   name: 'canvas-api'
   location: location
@@ -203,6 +206,7 @@ resource apiApp 'Microsoft.App/containerApps@2025-01-01' = {
             // canvas-1bty.3: route groups that have moved to Python (modules/pyapiapp.bicep).
             { name: 'PYTHON_API_URL', value: pythonApiUrl }
             { name: 'PYTHON_ROUTES', value: pythonRoutes }
+            { name: 'PYTHON_ROUTE_GROUPS', value: pythonRouteGroups }
           ]
           resources: {
             cpu: json('0.5')

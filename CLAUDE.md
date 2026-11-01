@@ -93,6 +93,23 @@ tests are NON-NEGOTIABLE and must exist (and fail) before implementing any diagr
 work — see `.specify/memory/constitution.md` Principle IV.
 
 ## Recent Changes
+- `canvas-1bty.6` (Python phase 2): projects (create/list/read/tree/rename/soft-delete/restore; NOT
+  members/ownership, those are phase 3), diagram types (list + admin create/edit/hide/delete), icon
+  library list/search, and app settings now answer from `apps/api-py` (`src/canvas_api/routes/`).
+  **Front door by route**: `apps/api/src/python/route-groups.ts` lists the moved routes as Fastify
+  patterns; an `onRequest` hook (after the session plugin, before routes) forwards a request whose
+  matched route is listed, via `@fastify/reply-from` (`@fastify/http-proxy` removed). The TypeScript
+  routes stay registered one release as the fallback: `PYTHON_ROUTE_GROUPS` (unset = all, `none`,
+  or names; deploy.sh `CANVAS_PYTHON_ROUTE_GROUPS`, bicep `pythonRouteGroups`). The front door sends
+  `X-Canvas-Client-IP` (Python's own ingress adds an X-Forwarded-For hop). **Contract (canvas-62y,
+  per group)**: shared response schemas in `apps/api/src/contract/schemas.ts` (`$id`s, so /docs names
+  them; Fastify serializes through them, so a schema must list every field); snapshot
+  `apps/api/contract/openapi.json` + `constants.json` (families, personas, built-in type ids) from
+  `tests/contract/openapi-snapshot.test.ts` (`UPDATE_CONTRACT=1` to regenerate); Python's
+  `tests/api.py` client checks every response against it (extra fields, missing fields, JS ISO
+  timestamps, undocumented statuses all fail). CI's e2e job starts the Python service and checks
+  `/py/me` is forwarded before Playwright. Validated live on the dev DB: identical TS/Python answers
+  for every moved GET (2,218 projects).
 - Wave 5 (performance + hosting): **telemetry** (`canvas-6upe`, #269): OpenTelemetry ->
   Application Insights (`apps/api/src/telemetry/`; `register.ts` loads first; one span per Kysely
   query via its `log` hook; `tagRequestRoute` names spans by route template; `withSpan` for app

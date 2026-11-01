@@ -1,0 +1,36 @@
+{
+  "builtinDiagramTypeIds": [
+    "flowchart",
+    "c4-context",
+    "c4-container",
+    "c4-component",
+    "c4-code",
+    "c4-deployment",
+    "business-capability-map",
+    "value-chain",
+    "value-stream",
+    "application-landscape",
+    "roadmap",
+    "solution-architecture",
+    "sequence",
+    "network",
+    "deployment",
+    "cloud-infrastructure",
+    "erd",
+    "uml"
+  ],
+  "dslFamilies": [
+    "flowchart",
+    "c4",
+    "architecture",
+    "sequence",
+    "erd",
+    "uml"
+  ],
+  "personas": [
+    "Business",
+    "Enterprise",
+    "Solution",
+    "Technical"
+  ]
+}

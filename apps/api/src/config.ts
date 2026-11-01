@@ -1,3 +1,4 @@
+import { PYTHON_ROUTE_GROUP_NAMES, type PythonRouteGroup } from './python/route-groups.js';
 import { createHash, createPrivateKey, type KeyObject } from 'node:crypto';
 export interface AppConfig {
   port: number;
@@ -81,6 +82,9 @@ export interface AppConfig {
   pythonApiUrl?: string;
   /** canvas-1bty.3: route prefixes the Python service now answers (PYTHON_ROUTES, comma-separated). */
   pythonRoutePrefixes: string[];
+  /** canvas-1bty.6: the moved route groups (python/route-groups.ts) forwarded to Python
+   *  (PYTHON_ROUTE_GROUPS: comma-separated names, or "none"; default all). Empty without pythonApiUrl. */
+  pythonRouteGroups: PythonRouteGroup[];
   /** canvas-r3y: pause.sh sets CANVAS_PAUSED=true -- every request gets the "paused" page / a 503. */
   paused: boolean;
   /** canvas-r3y: the page shown while paused. */
@@ -219,9 +223,9 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
  *  a startup error rather than a silently ignored setting. */
 /** canvas-1bty.3: PYTHON_API_URL (http/https) and PYTHON_ROUTES (default "/py"). Each prefix is a plain
  *  path ("/py", "/projects") -- never "/" (that would forward everything, the web app included). */
-function parsePythonRouting(env: NodeJS.ProcessEnv): Pick<AppConfig, 'pythonApiUrl' | 'pythonRoutePrefixes'> {
+function parsePythonRouting(env: NodeJS.ProcessEnv): Pick<AppConfig, 'pythonApiUrl' | 'pythonRoutePrefixes' | 'pythonRouteGroups'> {
   const url = env.PYTHON_API_URL?.trim();
-  if (!url) return { pythonRoutePrefixes: [] };
+  if (!url) return { pythonRoutePrefixes: [], pythonRouteGroups: [] };
   let parsed: URL;
   try {
     parsed = new URL(url);
@@ -237,7 +241,21 @@ function parsePythonRouting(env: NodeJS.ProcessEnv): Pick<AppConfig, 'pythonApiU
   for (const prefix of prefixes) {
     if (!/^(\/[a-z0-9][a-z0-9-]*)+$/.test(prefix)) throw new Error(`PYTHON_ROUTES: "${prefix}" is not a route prefix like /py or /projects`);
   }
-  return { pythonApiUrl: url.replace(/\/+$/, ''), pythonRoutePrefixes: prefixes };
+  return { pythonApiUrl: url.replace(/\/+$/, ''), pythonRoutePrefixes: prefixes, pythonRouteGroups: parsePythonRouteGroups(env.PYTHON_ROUTE_GROUPS) };
+}
+
+/** canvas-1bty.6: unset or empty = every group; "none" = none (everything back on TypeScript). */
+function parsePythonRouteGroups(raw: string | undefined): PythonRouteGroup[] {
+  const value = raw?.trim();
+  if (!value) return [...PYTHON_ROUTE_GROUP_NAMES];
+  if (value === 'none') return [];
+  const names = value.split(',').map((n) => n.trim()).filter((n) => n.length > 0);
+  for (const name of names) {
+    if (!(PYTHON_ROUTE_GROUP_NAMES as string[]).includes(name)) {
+      throw new Error(`PYTHON_ROUTE_GROUPS: unknown group "${name}" (known: ${PYTHON_ROUTE_GROUP_NAMES.join(', ')}, or none)`);
+    }
+  }
+  return names as PythonRouteGroup[];
 }
 
 function positiveNumber(env: NodeJS.ProcessEnv, name: string, fallback: number): number {

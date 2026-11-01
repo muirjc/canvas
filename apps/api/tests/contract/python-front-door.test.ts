@@ -6,6 +6,7 @@ import { buildApp } from '../../src/app.js';
 import { loadConfig } from '../../src/config.js';
 import { runMigrations } from '../../src/db/migrate.js';
 import { closeTestDb } from '../helpers/setup.js';
+import { PYTHON_ROUTE_GROUP_NAMES } from '../../src/python/route-groups.js';
 
 /**
  * canvas-1bty.3: this service stays the front door while the backend moves to Python, forwarding the
@@ -88,6 +89,80 @@ describe('forwarding moved routes to the Python service (canvas-1bty.3)', () => 
   });
 });
 
+describe('forwarding moved routes by route pattern (canvas-1bty.6)', () => {
+  let upstream: Server;
+  const seen: Seen[] = [];
+  let app: FastifyInstance;
+  let fallbackApp: FastifyInstance;
+
+  beforeAll(async () => {
+    upstream = createServer((req, res) => {
+      let body = '';
+      req.on('data', (chunk) => (body += chunk));
+      req.on('end', () => {
+        seen.push({ method: req.method!, url: req.url!, headers: req.headers, body });
+        res.writeHead(200, { 'content-type': 'application/json' }).end(JSON.stringify({ service: 'python', path: req.url }));
+      });
+    });
+    await new Promise<void>((resolve) => upstream.listen(0, '127.0.0.1', resolve));
+    const url = `http://127.0.0.1:${(upstream.address() as AddressInfo).port}`;
+    process.env.NODE_ENV = 'test';
+    await runMigrations();
+    const build = (groups?: string) =>
+      buildApp({
+        config: {
+          ...loadConfig({ ...process.env, NODE_ENV: 'test', PYTHON_API_URL: url, ...(groups === undefined ? {} : { PYTHON_ROUTE_GROUPS: groups }) }),
+          allowLocalAuth: true,
+        },
+        logger: false,
+      });
+    app = await build();
+    fallbackApp = await build('libraries');
+  });
+
+  afterAll(async () => {
+    await app.close();
+    await fallbackApp.close();
+    await new Promise<void>((resolve) => upstream.close(() => resolve()));
+  });
+
+  it('forwards a moved route with its parameters, query and body', async () => {
+    const payload = '{"name":"Renamed"}';
+    const res = await app.inject({ method: 'PATCH', url: '/projects/abc', headers: { 'content-type': 'application/json' }, payload });
+    expect(res.json()).toEqual({ service: 'python', path: '/projects/abc' });
+    expect(seen.at(-1)).toMatchObject({ method: 'PATCH', url: '/projects/abc', body: payload });
+    // The audit log's client address, worked out here; one the client sends is overwritten.
+    const spoofed = await app.inject({
+      method: 'GET',
+      url: '/projects',
+      headers: { 'x-forwarded-for': '6.6.6.6, 203.0.113.9', 'x-canvas-client-ip': '6.6.6.6' },
+    });
+    expect(spoofed.statusCode).toBe(200);
+    expect(seen.at(-1)!.headers['x-canvas-client-ip']).toBe('203.0.113.9');
+    expect((await app.inject({ method: 'GET', url: '/icons/search?diagramTypeId=x&query=y' })).json()).toEqual({
+      service: 'python',
+      path: '/icons/search?diagramTypeId=x&query=y',
+    });
+  });
+
+  it('only forwards the moved method and pattern, not its neighbours', async () => {
+    const before = seen.length;
+    // Same prefix, routes not moved yet: TypeScript answers (401, no session).
+    expect((await app.inject({ method: 'GET', url: '/projects/abc/members' })).statusCode).toBe(401);
+    expect((await app.inject({ method: 'POST', url: '/projects/abc/owner', payload: { newOwnerId: 'x' } })).statusCode).toBe(401);
+    // POST /libraries stays on TypeScript while GET /libraries moved.
+    expect((await app.inject({ method: 'POST', url: '/libraries', payload: {} })).statusCode).toBe(401);
+    expect(seen.length).toBe(before);
+  });
+
+  it('a group left out of PYTHON_ROUTE_GROUPS falls back to the TypeScript route', async () => {
+    const before = seen.length;
+    expect((await fallbackApp.inject({ method: 'GET', url: '/projects' })).statusCode).toBe(401);
+    expect(seen.length).toBe(before);
+    expect((await fallbackApp.inject({ method: 'GET', url: '/libraries' })).json()).toMatchObject({ service: 'python' });
+  });
+});
+
 describe('Python routing settings (canvas-1bty.3)', () => {
   const load = (env: Record<string, string>) => loadConfig({ ...process.env, NODE_ENV: 'test', ...env });
 
@@ -103,6 +178,14 @@ describe('Python routing settings (canvas-1bty.3)', () => {
 
   it.each(['/', 'py', '/py/*', '/../x', '/Py'])('refuses the prefix %s', (prefix) => {
     expect(() => load({ PYTHON_API_URL: 'http://x', PYTHON_ROUTES: prefix })).toThrow(/PYTHON_ROUTES/);
+  });
+
+  it('forwards every moved route group by default, none with "none", or the listed ones (canvas-1bty.6)', () => {
+    expect(load({ PYTHON_API_URL: 'http://x' }).pythonRouteGroups).toEqual(PYTHON_ROUTE_GROUP_NAMES);
+    expect(load({ PYTHON_API_URL: 'http://x', PYTHON_ROUTE_GROUPS: 'none' }).pythonRouteGroups).toEqual([]);
+    expect(load({ PYTHON_API_URL: 'http://x', PYTHON_ROUTE_GROUPS: ' projects , libraries' }).pythonRouteGroups).toEqual(['projects', 'libraries']);
+    expect(load({ PYTHON_API_URL: '', PYTHON_ROUTE_GROUPS: 'projects' }).pythonRouteGroups).toEqual([]);
+    expect(() => load({ PYTHON_API_URL: 'http://x', PYTHON_ROUTE_GROUPS: 'everything' })).toThrow(/PYTHON_ROUTE_GROUPS/);
   });
 
   it('refuses a URL that is not http(s)', () => {

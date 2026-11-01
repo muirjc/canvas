@@ -24,6 +24,8 @@ import { SESSION_COOKIE_NAME } from '../auth/session.js';
  */
 export async function registerApiDocsRoutes(app: FastifyInstance): Promise<void> {
   await app.register(swagger, {
+    // canvas-1bty.6: shared schemas appear under their own names (components.schemas.Project), not def-0.
+    refResolver: { buildLocalReference: (json, _baseUri, _fragment, i) => (typeof json.$id === 'string' ? json.$id : `def-${i}`) },
     openapi: {
       info: {
         title: 'Canvas API',
@@ -63,6 +65,7 @@ export async function registerApiDocsRoutes(app: FastifyInstance): Promise<void>
         { name: 'AI', description: 'AI chat, personas, reference material, and the chat feature flag.' },
         { name: 'Admin', description: 'Admin-only user management and platform overview.' },
         { name: 'Users', description: 'Non-admin-gated user lookup (e.g. for sharing).' },
+        { name: 'Settings', description: 'Platform feature switches.' },
       ],
     },
   });

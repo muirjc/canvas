@@ -216,12 +216,35 @@ jobs:
             sleep 1
           done
           echo "fake GitHub did not become healthy in time"; cat /tmp/fake-github.log; exit 1
+      # canvas-1bty.6: as in Azure, the API forwards the route groups that have moved to the Python
+      # service (apps/api/src/python/route-groups.ts), so this unchanged e2e suite is each phase's gate.
+      - name: Install uv
+        run: pipx install uv==0.13.1
+      - name: Start the Python service
+        working-directory: apps/api-py
+        run: |
+          uv python install 3.13
+          uv sync --frozen
+          nohup uv run uvicorn canvas_api.main:app --host 127.0.0.1 --port 8000 > /tmp/api-py.log 2>&1 &
+          for i in $(seq 1 30); do
+            if curl -sf http://127.0.0.1:8000/health > /dev/null; then
+              echo "PYTHON_API_URL=http://127.0.0.1:8000" >> "$GITHUB_ENV"
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "Python service did not become healthy in time"; cat /tmp/api-py.log; exit 1
       - name: Start API server
         working-directory: apps/api
         run: |
           nohup npm run dev > /tmp/api.log 2>&1 &
           for i in $(seq 1 30); do
-            curl -sf http://localhost:3000/health && exit 0
+            if curl -sf http://localhost:3000/health > /dev/null; then
+              # Forwarding is on: /py/me exists only in Python (401 signed out; 404 would mean not forwarded).
+              status=$(curl -s -o /dev/null -w '%{http_code}' http://localhost:3000/py/me)
+              [ "$status" = "401" ] && exit 0
+              echo "API is up but not forwarding to Python (/py/me -> $status)"; cat /tmp/api.log; exit 1
+            fi
             sleep 1
           done
           echo "API server did not become healthy in time"; cat /tmp/api.log; exit 1
@@ -230,10 +253,11 @@ jobs:
       - name: Run Playwright E2E tests
         working-directory: apps/web
         run: npx playwright test
-      - name: Show API and fake GitHub logs
+      - name: Show API, Python service and fake GitHub logs
         if: failure()
         run: |
           echo "--- API (last 200 lines) ---"; tail -n 200 /tmp/api.log || true
+          echo "--- Python service (last 200 lines) ---"; tail -n 200 /tmp/api-py.log || true
           echo "--- fake GitHub ---"; tail -n 100 /tmp/fake-github.log || true
       - name: Upload Playwright report
         if: failure()

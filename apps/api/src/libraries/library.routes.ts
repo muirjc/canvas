@@ -1,12 +1,16 @@
 import type { FastifyInstance } from 'fastify';
 import type { IconShapeLibraryManifest } from '@canvas/diagram-core';
 import { requireAuth, requireRole } from '../auth/middleware.js';
+import { errorResponse, listEnvelope } from '../contract/schemas.js';
 import { ingestLibrary, listLibraries, searchIconsForDiagramType, searchIconsInLibrary } from './library.service.js';
 
 export async function registerLibraryRoutes(app: FastifyInstance): Promise<void> {
   app.get(
     '/libraries',
-    { preHandler: requireAuth, schema: { tags: ['Libraries'], security: [{ cookieAuth: [] }] } },
+    {
+      preHandler: requireAuth,
+      schema: { tags: ['Libraries'], security: [{ cookieAuth: [] }], response: { 200: listEnvelope('libraries', 'LibrarySummary'), '4xx': errorResponse } },
+    },
     async (_request, reply) => {
       return reply.send({ libraries: await listLibraries() });
     },
@@ -30,7 +34,16 @@ export async function registerLibraryRoutes(app: FastifyInstance): Promise<void>
 
   app.get<{ Params: { id: string; version: string }; Querystring: { query?: string } }>(
     '/libraries/:id/versions/:version/icons',
-    { preHandler: requireAuth, schema: { tags: ['Libraries'], security: [{ cookieAuth: [] }] } },
+    {
+      preHandler: requireAuth,
+      schema: {
+        tags: ['Libraries'],
+        security: [{ cookieAuth: [] }],
+        params: { type: 'object', required: ['id', 'version'], properties: { id: { type: 'string' }, version: { type: 'string' } } },
+        querystring: { type: 'object', properties: { query: { type: 'string' } } },
+        response: { 200: listEnvelope('icons', 'Icon'), '4xx': errorResponse },
+      },
+    },
     async (request, reply) => {
       const icons = await searchIconsInLibrary(request.params.id, request.params.version, request.query.query ?? '');
       return reply.send({ icons });
@@ -50,6 +63,7 @@ export async function registerLibraryRoutes(app: FastifyInstance): Promise<void>
           required: ['diagramTypeId'],
           properties: { diagramTypeId: { type: 'string', minLength: 1 }, query: { type: 'string' } },
         },
+        response: { 200: listEnvelope('icons', 'Icon'), '4xx': errorResponse },
       },
     },
     async (request, reply) => {

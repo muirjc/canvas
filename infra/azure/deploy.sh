@@ -136,6 +136,12 @@ case "$AUTH_MODE" in
   *) echo "ERROR: CANVAS_AUTH_MODE must be entra or local (got: $AUTH_MODE)." >&2; exit 1 ;;
 esac
 
+# canvas-1bty.6: which moved route groups canvas-api forwards to the Python service. Unset = all of them;
+# CANVAS_PYTHON_ROUTE_GROUPS=none sends everything back to the TypeScript routes (kept one release as the
+# fallback), or name the groups to keep on Python (apps/api/src/python/route-groups.ts). Not remembered
+# between runs: set it on each deploy while you need it.
+PYTHON_ROUTE_GROUPS="${CANVAS_PYTHON_ROUTE_GROUPS:-}"
+
 # canvas-haz.9: CANVAS_OIDC_CLIENT_AUTH=managed-identity signs in to Entra with the API's managed
 # identity through a federated credential on the app registration -- no client secret at all.
 # Cached like the auth mode. The deploy prints the one-time 'az ad app federated-credential create'.
@@ -450,7 +456,7 @@ az deployment sub what-if \
     webOrigin="$WEB_ORIGIN" grantAcrPull="$GRANT_ACR_PULL" \
     entraTenantId="$ENTRA_TENANT_ID" entraClientId="$ENTRA_CLIENT_ID" aiProvider="$AI_PROVIDER" \
     allowedIpRanges="$ALLOWED_IPS_JSON" authMode="$AUTH_MODE" adminEmail="$ADMIN_EMAIL" oidcClientAuth="$OIDC_CLIENT_AUTH" \
-    githubAppId="$GITHUB_APP_ID"
+    githubAppId="$GITHUB_APP_ID" pythonRouteGroups="$PYTHON_ROUTE_GROUPS"
 
 echo
 if [[ "$WHAT_IF_ONLY" == true ]]; then
@@ -477,7 +483,7 @@ az deployment sub create \
     webOrigin="$WEB_ORIGIN" grantAcrPull="$GRANT_ACR_PULL" \
     entraTenantId="$ENTRA_TENANT_ID" entraClientId="$ENTRA_CLIENT_ID" aiProvider="$AI_PROVIDER" \
     allowedIpRanges="$ALLOWED_IPS_JSON" authMode="$AUTH_MODE" adminEmail="$ADMIN_EMAIL" oidcClientAuth="$OIDC_CLIENT_AUTH" \
-    githubAppId="$GITHUB_APP_ID" \
+    githubAppId="$GITHUB_APP_ID" pythonRouteGroups="$PYTHON_ROUTE_GROUPS" \
   --output table
 
 STORAGE_ACCOUNT="$(az deployment sub show --name "canvas-foundation" --query "properties.outputs.storageAccountName.value" -o tsv)"
