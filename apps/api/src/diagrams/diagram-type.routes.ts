@@ -39,7 +39,10 @@ export async function registerDiagramTypeRoutes(app: FastifyInstance): Promise<v
       schema: {
         tags: ['DiagramTypes'],
         security: [{ cookieAuth: [] }],
-        querystring: { type: 'object', properties: { persona: { type: 'string' }, includeHidden: { type: 'string' } } },
+        querystring: {
+          type: 'object',
+          properties: { persona: { type: 'string' }, includeHidden: { type: 'string' } },
+        },
         response: { 200: listEnvelope('diagramTypes', 'DiagramType'), '4xx': errorResponse },
       },
     },
@@ -48,7 +51,9 @@ export async function registerDiagramTypeRoutes(app: FastifyInstance): Promise<v
       // the project browser (which labels existing diagrams) pass includeHidden=true.
       const includeHidden = request.query.includeHidden === 'true';
       const diagramTypes = (await listDiagramTypeRecords()).filter(
-        (t) => (includeHidden || !t.hidden) && (!request.query.persona || t.personas.includes(request.query.persona)),
+        (t) =>
+          (includeHidden || !t.hidden) &&
+          (!request.query.persona || t.personas.includes(request.query.persona)),
       );
       return reply.send({ diagramTypes });
     },
@@ -83,7 +88,9 @@ export async function registerDiagramTypeRoutes(app: FastifyInstance): Promise<v
             name: String(body.name ?? ''),
             dslFamily: String(body.dslFamily ?? ''),
             personas: Array.isArray(body.personas) ? body.personas.map(String) : [],
-            paletteLibraryIds: Array.isArray(body.paletteLibraryIds) ? body.paletteLibraryIds.map(String) : [],
+            paletteLibraryIds: Array.isArray(body.paletteLibraryIds)
+              ? body.paletteLibraryIds.map(String)
+              : [],
             description: typeof body.description === 'string' ? body.description : null,
           }),
         });
@@ -117,7 +124,9 @@ export async function registerDiagramTypeRoutes(app: FastifyInstance): Promise<v
     },
     async (request, reply) => {
       try {
-        return reply.send({ diagramType: await updateDiagramType(request.params.id, request.body ?? {}) });
+        return reply.send({
+          diagramType: await updateDiagramType(request.params.id, request.body ?? {}),
+        });
       } catch (error) {
         return handleError(error, reply);
       }
@@ -129,7 +138,12 @@ export async function registerDiagramTypeRoutes(app: FastifyInstance): Promise<v
     '/admin/diagram-types/:id',
     {
       preHandler: requireRole('admin'),
-      schema: { tags: ['DiagramTypes'], security: [{ cookieAuth: [] }], params: idParams, response: { 204: noContent, '4xx': errorResponse } },
+      schema: {
+        tags: ['DiagramTypes'],
+        security: [{ cookieAuth: [] }],
+        params: idParams,
+        response: { 204: noContent, '4xx': errorResponse },
+      },
     },
     async (request, reply) => {
       try {

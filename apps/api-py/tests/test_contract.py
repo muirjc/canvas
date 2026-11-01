@@ -9,7 +9,7 @@ import httpx
 import pytest
 from fastapi.testclient import TestClient
 
-from canvas_api.catalog import BUILTIN_DIAGRAM_TYPE_IDS, DSL_FAMILIES, PERSONAS
+from canvas_api.catalog import BUILTIN_DIAGRAM_TYPE_IDS, DSL_FAMILIES, PERSONAS, RULE_IDS
 from canvas_api.telemetry import route_template
 from tests.api import CONTRACT, CONTRACT_DIR, check_contract
 
@@ -22,6 +22,7 @@ def test_catalog_values_match_the_typescript_service() -> None:
     assert list(DSL_FAMILIES) == constants["dslFamilies"]
     assert list(PERSONAS) == constants["personas"]
     assert list(BUILTIN_DIAGRAM_TYPE_IDS) == constants["builtinDiagramTypeIds"]
+    assert list(RULE_IDS) == constants["ruleIds"]
 
 
 def _python_routes(client: TestClient) -> set[str]:

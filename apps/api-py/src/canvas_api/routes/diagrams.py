@@ -313,6 +313,13 @@ def _save(
     return get_diagram(conn, diagram_id)
 
 
+def _live_project_or_404(conn: Connection, project_id: str) -> None:
+    """canvas-1bty.18: the access check lets a missing project through for this 404 (otherwise the
+    foreign key fails, and a deleted project would take the diagram)."""
+    if not project_exists(conn, project_id):
+        raise ApiError(404, f"No project with id {project_id}")
+
+
 def _live_diagram_or_404(conn: Connection, diagram_id: str) -> None:
     if (
         conn.execute(text("SELECT id FROM diagrams WHERE id = :id AND deleted_at IS NULL"), {"id": diagram_id}).first()
@@ -329,6 +336,7 @@ def create(projectId: str, request: Request, user: CurrentUser, db: Db, body: Ne
     bridge = _bridge(request)
     with db.begin() as conn:
         require_project_access(conn, user.id, projectId, "edit")
+        _live_project_or_404(conn, projectId)
         diagram = create_diagram(
             conn,
             bridge,
@@ -783,6 +791,7 @@ def import_dsl(projectId: str, request: Request, user: CurrentUser, db: Db, body
     bridge = _bridge(request)
     with db.begin() as conn:
         require_project_access(conn, user.id, projectId, "edit")
+        _live_project_or_404(conn, projectId)
         family = bridge.detect(body.dslContent)
         if family is None:
             raise ApiError(
@@ -851,6 +860,7 @@ def import_template(
     bridge = _bridge(request)
     with db.begin() as conn:
         require_project_access(conn, user.id, projectId, "edit")
+        _live_project_or_404(conn, projectId)
         compiled = bridge.compile_template(body.diagramTypeId, body.templateContent)
         if compiled.get("unsupported"):
             raise ApiError(422, f'No template importer is available for diagram type "{body.diagramTypeId}".')

@@ -26,7 +26,21 @@ export const contractSchemas = [
     required: ['error'],
     additionalProperties: false,
     // details: a parse error list (422) or a save conflict's current version (409, code version_conflict).
-    properties: { error: { type: 'string' }, code: { type: 'string' }, details: {} },
+    // issues: an invalid standard definition's problems (400), as { path, message }.
+    properties: {
+      error: { type: 'string' },
+      code: { type: 'string' },
+      details: {},
+      issues: {
+        type: 'array',
+        items: {
+          type: 'object',
+          required: ['path', 'message'],
+          additionalProperties: false,
+          properties: { path: { type: 'string' }, message: { type: 'string' } },
+        },
+      },
+    },
   },
   {
     $id: 'Project',
@@ -511,6 +525,55 @@ export const contractSchemas = [
       name: { type: 'string' },
       since: dateTime,
       isYou: { type: 'boolean' },
+    },
+  },
+  // Phase 5 (canvas-1bty.9): standards. `rules` is diagram-core's StandardRules (v1 fields plus the v2
+  // element kinds, connector rules and so on); its own definition check governs it, not this schema.
+  {
+    $id: 'Standard',
+    type: 'object',
+    required: [
+      'id',
+      'diagramTypeId',
+      'version',
+      'status',
+      'rules',
+      'name',
+      'description',
+      'publishedAt',
+      'createdAt',
+      'retiredAt',
+    ],
+    additionalProperties: false,
+    properties: {
+      id: { type: 'string' },
+      diagramTypeId: { type: 'string' },
+      version: { type: 'integer', minimum: 1 },
+      status: { type: 'string', enum: ['draft', 'published', 'retired'] },
+      rules: {
+        type: 'object',
+        required: [
+          'allowedShapeIds',
+          'mandatoryShapeIds',
+          'allowedIconLibraryRefs',
+          'colorPalette',
+        ],
+        additionalProperties: true,
+        properties: {
+          allowedShapeIds: { type: 'array', items: { type: 'string' } },
+          mandatoryShapeIds: { type: 'array', items: { type: 'string' } },
+          allowedIconLibraryRefs: {
+            type: 'array',
+            items: { type: 'object', additionalProperties: true },
+          },
+          colorPalette: { type: 'array', items: { type: 'object', additionalProperties: true } },
+        },
+      },
+      name: nullable({ type: 'string' }),
+      description: nullable({ type: 'string' }),
+      publishedAt: nullable(dateTime),
+      createdAt: dateTime,
+      retiredAt: nullable(dateTime),
     },
   },
   {

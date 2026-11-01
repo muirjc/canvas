@@ -79,6 +79,16 @@ export const PYTHON_ROUTE_GROUPS = {
     'GET /admin/deleted-diagrams',
     'POST /diagrams/:id/restore',
   ],
+  // Phase 5 (canvas-1bty.9). Publishing or retiring re-checks every diagram of the type afterwards.
+  standards: [
+    'GET /diagram-types/:id/standard',
+    'GET /diagram-types/:id/standards',
+    'POST /diagram-types/:id/standards',
+    'PUT /standards/:id',
+    'POST /standards/:id/clone',
+    'POST /standards/:id/publish',
+    'POST /standards/:id/retire',
+  ],
 } as const satisfies Record<string, readonly string[]>;
 
 export type PythonRouteGroup = keyof typeof PYTHON_ROUTE_GROUPS;

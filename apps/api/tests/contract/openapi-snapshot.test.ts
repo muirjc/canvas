@@ -2,7 +2,7 @@ import { readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { FastifyInstance } from 'fastify';
-import { dslFamilies } from '@canvas/diagram-core';
+import { dslFamilies, RULE_IDS } from '@canvas/diagram-core';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { buildApp } from '../../src/app.js';
 import { loadConfig } from '../../src/config.js';
@@ -71,12 +71,18 @@ function checkOrUpdate(file: string, content: string): void {
   } catch {
     // missing: fails below with the same hint
   }
-  expect(current, `apps/api/contract/${file} is out of date: UPDATE_CONTRACT=1 npx vitest run tests/contract/openapi-snapshot.test.ts`).toBe(content);
+  expect(
+    current,
+    `apps/api/contract/${file} is out of date: UPDATE_CONTRACT=1 npx vitest run tests/contract/openapi-snapshot.test.ts`,
+  ).toBe(content);
 }
 
 describe('API contract snapshot for the routes moved to Python (canvas-1bty.6)', () => {
   let app: FastifyInstance;
-  let document: { paths: Record<string, Record<string, Json>>; components: { schemas: Record<string, Json> } };
+  let document: {
+    paths: Record<string, Record<string, Json>>;
+    components: { schemas: Record<string, Json> };
+  };
 
   beforeAll(async () => {
     process.env.NODE_ENV = 'test';
@@ -95,12 +101,16 @@ describe('API contract snapshot for the routes moved to Python (canvas-1bty.6)',
 
   it.each(moved)('%s has a success response schema', (route) => {
     const [method, path] = openApiKey(route);
-    const operation = document.paths[path]?.[method] as { responses?: Record<string, { content?: unknown; description?: string }> } | undefined;
+    const operation = document.paths[path]?.[method] as
+      { responses?: Record<string, { content?: unknown; description?: string }> } | undefined;
     expect(operation, `${route} is not in the OpenAPI document`).toBeDefined();
-    const success = Object.entries(operation!.responses ?? {}).filter(([status]) => status.startsWith('2'));
+    const success = Object.entries(operation!.responses ?? {}).filter(([status]) =>
+      status.startsWith('2'),
+    );
     expect(success.length, `${route} has no 2xx response schema`).toBeGreaterThan(0);
     for (const [status, response] of success) {
-      if (status !== '204') expect(response.content, `${route} ${status} has no body schema`).toBeDefined();
+      if (status !== '204')
+        expect(response.content, `${route} ${status} has no body schema`).toBeDefined();
     }
   });
 
@@ -112,19 +122,35 @@ describe('API contract snapshot for the routes moved to Python (canvas-1bty.6)',
     }
     const wanted = referencedSchemas(paths as Json);
     // Shared schemas can refer to each other (a tree node's children).
-    for (let grew = true; grew; ) {
+    for (let grew = true; grew;) {
       const before = wanted.size;
       for (const name of [...wanted]) referencedSchemas(document.components.schemas[name], wanted);
       grew = wanted.size > before;
     }
-    const schemas = Object.fromEntries([...wanted].sort().map((name) => [name, document.components.schemas[name]]));
-    checkOrUpdate('openapi.json', write({ openapi: '3.0.3', info: { title: 'Canvas API contract (routes moved to Python)', version: '1' }, paths, components: { schemas } }));
+    const schemas = Object.fromEntries(
+      [...wanted].sort().map((name) => [name, document.components.schemas[name]]),
+    );
+    checkOrUpdate(
+      'openapi.json',
+      write({
+        openapi: '3.0.3',
+        info: { title: 'Canvas API contract (routes moved to Python)', version: '1' },
+        paths,
+        components: { schemas },
+      }),
+    );
   });
 
   it('matches apps/api/contract/constants.json', () => {
     checkOrUpdate(
       'constants.json',
-      write({ builtinDiagramTypeIds: [...BUILTIN_DIAGRAM_TYPE_IDS], dslFamilies: Object.keys(dslFamilies), personas: [...PERSONAS] }),
+      write({
+        builtinDiagramTypeIds: [...BUILTIN_DIAGRAM_TYPE_IDS],
+        dslFamilies: Object.keys(dslFamilies),
+        personas: [...PERSONAS],
+        // canvas-1bty.9: the rule ids a standard's severityOverrides may name.
+        ruleIds: [...RULE_IDS],
+      }),
     );
   });
 });

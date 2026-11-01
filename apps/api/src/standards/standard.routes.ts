@@ -15,6 +15,13 @@ import {
   StandardStateError,
 } from './standard.service.js';
 import { runInBackground } from '../background/tasks.js';
+import { envelope, errorResponse, idParams, listEnvelope } from '../contract/schemas.js';
+
+// canvas-1bty.9: response shapes (apps/api/src/contract/schemas.ts).
+const standardResponse = (status: 200 | 201 = 200) => ({
+  [status]: envelope('standard', 'Standard'),
+  '4xx': errorResponse,
+});
 import { revalidateDiagramsForType } from './revalidate.service.js';
 
 function handleServiceError(error: unknown, reply: FastifyReply): FastifyReply {
@@ -52,11 +59,21 @@ function revalidateInBackground(log: FastifyBaseLogger, diagramTypeId: string): 
 export async function registerStandardRoutes(app: FastifyInstance): Promise<void> {
   app.get<{ Params: { id: string } }>(
     '/diagram-types/:id/standard',
-    { preHandler: requireAuth, schema: { tags: ['Standards'], security: [{ cookieAuth: [] }] } },
+    {
+      preHandler: requireAuth,
+      schema: {
+        tags: ['Standards'],
+        security: [{ cookieAuth: [] }],
+        params: idParams,
+        response: standardResponse(),
+      },
+    },
     async (request, reply) => {
       const standard = await getActiveStandard(request.params.id);
       if (!standard) {
-        return reply.code(404).send({ error: `No published standard for diagram type ${request.params.id}` });
+        return reply
+          .code(404)
+          .send({ error: `No published standard for diagram type ${request.params.id}` });
       }
       return reply.send({ standard });
     },
@@ -64,7 +81,15 @@ export async function registerStandardRoutes(app: FastifyInstance): Promise<void
 
   app.get<{ Params: { id: string } }>(
     '/diagram-types/:id/standards',
-    { preHandler: requireAuth, schema: { tags: ['Standards'], security: [{ cookieAuth: [] }] } },
+    {
+      preHandler: requireAuth,
+      schema: {
+        tags: ['Standards'],
+        security: [{ cookieAuth: [] }],
+        params: idParams,
+        response: { 200: listEnvelope('standards', 'Standard'), '4xx': errorResponse },
+      },
+    },
     async (request, reply) => {
       return reply.send({ standards: await listStandards(request.params.id) });
     },
@@ -72,13 +97,23 @@ export async function registerStandardRoutes(app: FastifyInstance): Promise<void
 
   app.post<{ Params: { id: string }; Body: unknown }>(
     '/diagram-types/:id/standards',
-    { preHandler: requireRole('admin'), schema: { tags: ['Standards'], security: [{ cookieAuth: [] }] } },
+    {
+      preHandler: requireRole('admin'),
+      schema: {
+        tags: ['Standards'],
+        security: [{ cookieAuth: [] }],
+        params: idParams,
+        response: standardResponse(201),
+      },
+    },
     async (request, reply) => {
       try {
         const family = await loadDiagramTypeDslFamily(request.params.id);
         const parsed = parseStandardBody(request.body, family);
         if (!parsed.ok) {
-          return reply.code(400).send({ error: 'Invalid standard definition', issues: parsed.issues });
+          return reply
+            .code(400)
+            .send({ error: 'Invalid standard definition', issues: parsed.issues });
         }
         const standard = await createDraftStandard({
           diagramTypeId: request.params.id,
@@ -96,14 +131,24 @@ export async function registerStandardRoutes(app: FastifyInstance): Promise<void
   // canvas-tfr: edit a draft in place (published/retired standards are immutable -- clone instead).
   app.put<{ Params: { id: string }; Body: unknown }>(
     '/standards/:id',
-    { preHandler: requireRole('admin'), schema: { tags: ['Standards'], security: [{ cookieAuth: [] }] } },
+    {
+      preHandler: requireRole('admin'),
+      schema: {
+        tags: ['Standards'],
+        security: [{ cookieAuth: [] }],
+        params: idParams,
+        response: standardResponse(),
+      },
+    },
     async (request, reply) => {
       try {
         const existing = await getStandardRecord(request.params.id);
         const family = await loadDiagramTypeDslFamily(existing.diagramTypeId);
         const parsed = parseStandardBody(request.body, family);
         if (!parsed.ok) {
-          return reply.code(400).send({ error: 'Invalid standard definition', issues: parsed.issues });
+          return reply
+            .code(400)
+            .send({ error: 'Invalid standard definition', issues: parsed.issues });
         }
         const standard = await updateDraftStandard(request.params.id, {
           rules: parsed.rules,
@@ -120,7 +165,15 @@ export async function registerStandardRoutes(app: FastifyInstance): Promise<void
   // canvas-tfr: copy any version into a new draft (the safe way to change a published standard).
   app.post<{ Params: { id: string } }>(
     '/standards/:id/clone',
-    { preHandler: requireRole('admin'), schema: { tags: ['Standards'], security: [{ cookieAuth: [] }] } },
+    {
+      preHandler: requireRole('admin'),
+      schema: {
+        tags: ['Standards'],
+        security: [{ cookieAuth: [] }],
+        params: idParams,
+        response: standardResponse(201),
+      },
+    },
     async (request, reply) => {
       try {
         return reply.code(201).send({ standard: await cloneStandard(request.params.id) });
@@ -132,7 +185,15 @@ export async function registerStandardRoutes(app: FastifyInstance): Promise<void
 
   app.post<{ Params: { id: string } }>(
     '/standards/:id/publish',
-    { preHandler: requireRole('admin'), schema: { tags: ['Standards'], security: [{ cookieAuth: [] }] } },
+    {
+      preHandler: requireRole('admin'),
+      schema: {
+        tags: ['Standards'],
+        security: [{ cookieAuth: [] }],
+        params: idParams,
+        response: standardResponse(),
+      },
+    },
     async (request, reply) => {
       try {
         const standard = await publishStandard(request.params.id);
@@ -148,7 +209,15 @@ export async function registerStandardRoutes(app: FastifyInstance): Promise<void
 
   app.post<{ Params: { id: string } }>(
     '/standards/:id/retire',
-    { preHandler: requireRole('admin'), schema: { tags: ['Standards'], security: [{ cookieAuth: [] }] } },
+    {
+      preHandler: requireRole('admin'),
+      schema: {
+        tags: ['Standards'],
+        security: [{ cookieAuth: [] }],
+        params: idParams,
+        response: standardResponse(),
+      },
+    },
     async (request, reply) => {
       try {
         const standard = await retireStandard(request.params.id);

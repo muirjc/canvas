@@ -618,6 +618,25 @@
           "details": {},
           "error": {
             "type": "string"
+          },
+          "issues": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "message": {
+                  "type": "string"
+                },
+                "path": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "path",
+                "message"
+              ],
+              "type": "object"
+            },
+            "type": "array"
           }
         },
         "required": [
@@ -1130,6 +1149,126 @@
           "sharedByName",
           "sharedByEmail",
           "sharedAt"
+        ],
+        "type": "object"
+      },
+      "Standard": {
+        "additionalProperties": false,
+        "properties": {
+          "createdAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "diagramTypeId": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "publishedAt": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "retiredAt": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "rules": {
+            "additionalProperties": true,
+            "properties": {
+              "allowedIconLibraryRefs": {
+                "items": {
+                  "additionalProperties": true,
+                  "type": "object"
+                },
+                "type": "array"
+              },
+              "allowedShapeIds": {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              "colorPalette": {
+                "items": {
+                  "additionalProperties": true,
+                  "type": "object"
+                },
+                "type": "array"
+              },
+              "mandatoryShapeIds": {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              }
+            },
+            "required": [
+              "allowedShapeIds",
+              "mandatoryShapeIds",
+              "allowedIconLibraryRefs",
+              "colorPalette"
+            ],
+            "type": "object"
+          },
+          "status": {
+            "enum": [
+              "draft",
+              "published",
+              "retired"
+            ],
+            "type": "string"
+          },
+          "version": {
+            "minimum": 1,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "diagramTypeId",
+          "version",
+          "status",
+          "rules",
+          "name",
+          "description",
+          "publishedAt",
+          "createdAt",
+          "retiredAt"
         ],
         "type": "object"
       },
@@ -2086,6 +2225,166 @@
         ],
         "tags": [
           "DiagramTypes"
+        ]
+      }
+    },
+    "/diagram-types/{id}/standard": {
+      "get": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "standard": {
+                      "$ref": "#/components/schemas/Standard"
+                    }
+                  },
+                  "required": [
+                    "standard"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Default Response"
+          },
+          "4XX": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        },
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ],
+        "tags": [
+          "Standards"
+        ]
+      }
+    },
+    "/diagram-types/{id}/standards": {
+      "get": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "standards": {
+                      "items": {
+                        "$ref": "#/components/schemas/Standard"
+                      },
+                      "type": "array"
+                    }
+                  },
+                  "required": [
+                    "standards"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Default Response"
+          },
+          "4XX": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        },
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ],
+        "tags": [
+          "Standards"
+        ]
+      },
+      "post": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "standard": {
+                      "$ref": "#/components/schemas/Standard"
+                    }
+                  },
+                  "required": [
+                    "standard"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Default Response"
+          },
+          "4XX": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        },
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ],
+        "tags": [
+          "Standards"
         ]
       }
     },
@@ -4738,6 +5037,218 @@
         ],
         "tags": [
           "Sharing"
+        ]
+      }
+    },
+    "/standards/{id}": {
+      "put": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "standard": {
+                      "$ref": "#/components/schemas/Standard"
+                    }
+                  },
+                  "required": [
+                    "standard"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Default Response"
+          },
+          "4XX": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        },
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ],
+        "tags": [
+          "Standards"
+        ]
+      }
+    },
+    "/standards/{id}/clone": {
+      "post": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "standard": {
+                      "$ref": "#/components/schemas/Standard"
+                    }
+                  },
+                  "required": [
+                    "standard"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Default Response"
+          },
+          "4XX": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        },
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ],
+        "tags": [
+          "Standards"
+        ]
+      }
+    },
+    "/standards/{id}/publish": {
+      "post": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "standard": {
+                      "$ref": "#/components/schemas/Standard"
+                    }
+                  },
+                  "required": [
+                    "standard"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Default Response"
+          },
+          "4XX": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        },
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ],
+        "tags": [
+          "Standards"
+        ]
+      }
+    },
+    "/standards/{id}/retire": {
+      "post": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "standard": {
+                      "$ref": "#/components/schemas/Standard"
+                    }
+                  },
+                  "required": [
+                    "standard"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Default Response"
+          },
+          "4XX": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        },
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ],
+        "tags": [
+          "Standards"
         ]
       }
     },

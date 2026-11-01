@@ -1,6 +1,7 @@
 import type { FastifyInstance, FastifyReply } from 'fastify';
 import { requireProjectAccess } from '../auth/access-control.middleware.js';
 import { requireAuth } from '../auth/middleware.js';
+import { projectExists } from '../projects/project.access.js';
 import { envelope, errorResponse } from '../contract/schemas.js';
 import { DslValidationError } from './diagram.service.js';
 import {
@@ -47,6 +48,10 @@ export async function registerImportRoutes(app: FastifyInstance): Promise<void> 
     },
     async (request, reply) => {
       const { name, dslContent, diagramTypeHint, draft } = request.body;
+      // canvas-1bty.18: 404, not a foreign-key failure (or a diagram inside a deleted project).
+      if (!(await projectExists(request.params.projectId))) {
+        return reply.code(404).send({ error: `No project with id ${request.params.projectId}` });
+      }
       try {
         const diagram = await importDiagram({
           name,
