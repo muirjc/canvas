@@ -93,6 +93,17 @@ tests are NON-NEGOTIABLE and must exist (and fail) before implementing any diagr
 work — see `.specify/memory/constitution.md` Principle IV.
 
 ## Recent Changes
+- `canvas-1bty.8` (Python phase 4): diagrams now answer from `apps/api-py` (`routes/diagrams.py`,
+  group `diagrams`, 17 routes): create, search, read, compare-and-set save (409 `version_conflict`
+  with `details`), rename/description/move, versions (list/preview/restore), presence, delete
+  (drafts purged outright) and admin restore, DSL import and intake-template import. Parsing,
+  validation, a new diagram's starting DSL and template compiling go through the diagram-core bridge
+  (new bridge ops `empty-dsl`, `compile-template`; bundle now ~830 KB with the icon manifests the
+  architecture template compiler needs). `canvas_api/standards.py` reads a type's published rules
+  (writing standards is phase 5). The bridge is now required for the Python service (503 without
+  it); CI's e2e job starts it, Azure already runs it as a sidecar. Optional query filters use one
+  fixed statement per database with CAST-typed parameters (no SQL concatenation, no Core on UUID
+  columns). `Error` schema gained an open `details`. 150 pytest cases ported (448 total, both DBs).
 - `canvas-1bty.7` (Python phase 3): comments (8 routes), sharing + project members/ownership (8),
   admin users list/edit/delete + deletion impact + audit log + overview, and user lookup/search (8)
   now answer from `apps/api-py` (`routes/comments.py`, `sharing.py`, `admin_users.py`); groups

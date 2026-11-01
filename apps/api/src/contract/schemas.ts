@@ -25,19 +25,34 @@ export const contractSchemas = [
     type: 'object',
     required: ['error'],
     additionalProperties: false,
-    properties: { error: { type: 'string' }, code: { type: 'string' } },
+    // details: a parse error list (422) or a save conflict's current version (409, code version_conflict).
+    properties: { error: { type: 'string' }, code: { type: 'string' }, details: {} },
   },
   {
     $id: 'Project',
     type: 'object',
     required: ['id', 'name', 'parentProjectId', 'createdAt'],
     additionalProperties: false,
-    properties: { id: { type: 'string' }, name: { type: 'string' }, parentProjectId: nullable({ type: 'string' }), createdAt: dateTime },
+    properties: {
+      id: { type: 'string' },
+      name: { type: 'string' },
+      parentProjectId: nullable({ type: 'string' }),
+      createdAt: dateTime,
+    },
   },
   {
     $id: 'ProjectListItem',
     type: 'object',
-    required: ['id', 'name', 'parentProjectId', 'createdAt', 'diagramCount', 'ownerId', 'accessLevel', 'membership'],
+    required: [
+      'id',
+      'name',
+      'parentProjectId',
+      'createdAt',
+      'diagramCount',
+      'ownerId',
+      'accessLevel',
+      'membership',
+    ],
     additionalProperties: false,
     properties: {
       id: { type: 'string' },
@@ -64,7 +79,11 @@ export const contractSchemas = [
           type: 'object',
           required: ['id', 'name', 'diagramTypeId'],
           additionalProperties: false,
-          properties: { id: { type: 'string' }, name: { type: 'string' }, diagramTypeId: { type: 'string' } },
+          properties: {
+            id: { type: 'string' },
+            name: { type: 'string' },
+            diagramTypeId: { type: 'string' },
+          },
         },
       },
       children: { type: 'array', items: { $ref: 'ProjectTreeNode#' } },
@@ -75,12 +94,28 @@ export const contractSchemas = [
     type: 'object',
     required: ['id', 'name', 'ownerId', 'deletedAt'],
     additionalProperties: false,
-    properties: { id: { type: 'string' }, name: { type: 'string' }, ownerId: { type: 'string' }, deletedAt: dateTime },
+    properties: {
+      id: { type: 'string' },
+      name: { type: 'string' },
+      ownerId: { type: 'string' },
+      deletedAt: dateTime,
+    },
   },
   {
     $id: 'DiagramType',
     type: 'object',
-    required: ['id', 'name', 'personas', 'abstractionLevel', 'dslFamily', 'defaultPaletteLibraryIds', 'origin', 'adminEdited', 'description', 'hidden'],
+    required: [
+      'id',
+      'name',
+      'personas',
+      'abstractionLevel',
+      'dslFamily',
+      'defaultPaletteLibraryIds',
+      'origin',
+      'adminEdited',
+      'description',
+      'hidden',
+    ],
     additionalProperties: false,
     properties: {
       id: { type: 'string' },
@@ -100,12 +135,25 @@ export const contractSchemas = [
     type: 'object',
     required: ['id', 'version', 'license', 'iconCount'],
     additionalProperties: false,
-    properties: { id: { type: 'string' }, version: { type: 'string' }, license: nullable({ type: 'string' }), iconCount: { type: 'integer', minimum: 0 } },
+    properties: {
+      id: { type: 'string' },
+      version: { type: 'string' },
+      license: nullable({ type: 'string' }),
+      iconCount: { type: 'integer', minimum: 0 },
+    },
   },
   {
     $id: 'Icon',
     type: 'object',
-    required: ['libraryId', 'libraryVersion', 'id', 'displayName', 'keywords', 'category', 'assetRef'],
+    required: [
+      'libraryId',
+      'libraryVersion',
+      'id',
+      'displayName',
+      'keywords',
+      'category',
+      'assetRef',
+    ],
     additionalProperties: false,
     properties: {
       libraryId: { type: 'string' },
@@ -143,7 +191,18 @@ export const contractSchemas = [
   {
     $id: 'CommentThread',
     type: 'object',
-    required: ['id', 'threadRootId', 'author', 'body', 'createdAt', 'editedAt', 'deleted', 'anchor', 'resolved', 'replies'],
+    required: [
+      'id',
+      'threadRootId',
+      'author',
+      'body',
+      'createdAt',
+      'editedAt',
+      'deleted',
+      'anchor',
+      'resolved',
+      'replies',
+    ],
     additionalProperties: false,
     properties: {
       id: { type: 'string' },
@@ -157,7 +216,10 @@ export const contractSchemas = [
         type: 'object',
         required: ['type', 'id'],
         additionalProperties: false,
-        properties: { type: { type: 'string', enum: ['node', 'edge', 'container'] }, id: { type: 'string' } },
+        properties: {
+          type: { type: 'string', enum: ['node', 'edge', 'container'] },
+          id: { type: 'string' },
+        },
       }),
       resolved: nullable({
         type: 'object',
@@ -171,7 +233,15 @@ export const contractSchemas = [
   {
     $id: 'ShareGrant',
     type: 'object',
-    required: ['id', 'subjectType', 'subjectId', 'granteeUserId', 'accessLevel', 'grantedByUserId', 'createdAt'],
+    required: [
+      'id',
+      'subjectType',
+      'subjectId',
+      'granteeUserId',
+      'accessLevel',
+      'grantedByUserId',
+      'createdAt',
+    ],
     additionalProperties: false,
     properties: {
       id: { type: 'string' },
@@ -186,7 +256,17 @@ export const contractSchemas = [
   {
     $id: 'ListedShareGrant',
     type: 'object',
-    required: ['id', 'subjectType', 'subjectId', 'granteeUserId', 'accessLevel', 'grantedByUserId', 'createdAt', 'granteeName', 'granteeEmail'],
+    required: [
+      'id',
+      'subjectType',
+      'subjectId',
+      'granteeUserId',
+      'accessLevel',
+      'grantedByUserId',
+      'createdAt',
+      'granteeName',
+      'granteeEmail',
+    ],
     additionalProperties: false,
     properties: {
       id: { type: 'string' },
@@ -203,7 +283,16 @@ export const contractSchemas = [
   {
     $id: 'SharedDiagram',
     type: 'object',
-    required: ['diagramId', 'diagramName', 'diagramTypeId', 'projectName', 'accessLevel', 'sharedByName', 'sharedByEmail', 'sharedAt'],
+    required: [
+      'diagramId',
+      'diagramName',
+      'diagramTypeId',
+      'projectName',
+      'accessLevel',
+      'sharedByName',
+      'sharedByEmail',
+      'sharedAt',
+    ],
     additionalProperties: false,
     properties: {
       diagramId: { type: 'string' },
@@ -226,7 +315,11 @@ export const contractSchemas = [
         type: 'object',
         required: ['id', 'name', 'email'],
         additionalProperties: false,
-        properties: { id: { type: 'string' }, name: nullable({ type: 'string' }), email: nullable({ type: 'string' }) },
+        properties: {
+          id: { type: 'string' },
+          name: nullable({ type: 'string' }),
+          email: nullable({ type: 'string' }),
+        },
       },
       members: {
         type: 'array',
@@ -250,7 +343,17 @@ export const contractSchemas = [
   {
     $id: 'AdminUser',
     type: 'object',
-    required: ['id', 'name', 'email', 'role', 'personas', 'active', 'hasPassword', 'locked', 'mfaEnabled'],
+    required: [
+      'id',
+      'name',
+      'email',
+      'role',
+      'personas',
+      'active',
+      'hasPassword',
+      'locked',
+      'mfaEnabled',
+    ],
     additionalProperties: false,
     properties: {
       id: { type: 'string' },
@@ -301,6 +404,115 @@ export const contractSchemas = [
     additionalProperties: false,
     properties: { id: { type: 'string' }, name: { type: 'string' }, email: { type: 'string' } },
   },
+  // Phase 4 (canvas-1bty.8): diagrams.
+  {
+    $id: 'Diagram',
+    type: 'object',
+    required: [
+      'id',
+      'name',
+      'description',
+      'diagramTypeId',
+      'dslFamily',
+      'projectId',
+      'ownerId',
+      'ownerName',
+      'dslContent',
+      'lastValidationResult',
+      'standardVersionAtLastCheck',
+      'currentVersionId',
+      'createdAt',
+      'updatedAt',
+      'draft',
+    ],
+    additionalProperties: false,
+    properties: {
+      id: { type: 'string' },
+      name: { type: 'string' },
+      description: nullable({ type: 'string' }),
+      diagramTypeId: { type: 'string' },
+      dslFamily: { type: 'string' },
+      projectId: { type: 'string' },
+      ownerId: { type: 'string' },
+      ownerName: { type: 'string' },
+      dslContent: { type: 'string' },
+      // diagram-core Violation objects, as the validator returns them.
+      lastValidationResult: {
+        type: 'array',
+        items: { type: 'object', additionalProperties: true },
+      },
+      standardVersionAtLastCheck: nullable({ type: 'integer' }),
+      currentVersionId: { type: 'string' },
+      createdAt: dateTime,
+      updatedAt: dateTime,
+      draft: { type: 'boolean' },
+      // GET /diagrams/:id only: the caller's own access.
+      accessLevel,
+    },
+  },
+  {
+    $id: 'DiagramSummary',
+    type: 'object',
+    required: ['id', 'name', 'diagramTypeId', 'projectId', 'updatedAt'],
+    additionalProperties: false,
+    properties: {
+      id: { type: 'string' },
+      name: { type: 'string' },
+      diagramTypeId: { type: 'string' },
+      projectId: { type: 'string' },
+      updatedAt: dateTime,
+    },
+  },
+  {
+    $id: 'DeletedDiagram',
+    type: 'object',
+    required: ['id', 'name', 'ownerId', 'ownerName', 'projectId', 'projectName', 'deletedAt'],
+    additionalProperties: false,
+    properties: {
+      id: { type: 'string' },
+      name: { type: 'string' },
+      ownerId: { type: 'string' },
+      ownerName: { type: 'string' },
+      projectId: { type: 'string' },
+      projectName: { type: 'string' },
+      deletedAt: dateTime,
+    },
+  },
+  {
+    $id: 'DiagramVersion',
+    type: 'object',
+    required: [
+      'id',
+      'sequenceNumber',
+      'authorId',
+      'authorName',
+      'createdAt',
+      'restoredFromSequence',
+    ],
+    additionalProperties: false,
+    properties: {
+      id: { type: 'string' },
+      sequenceNumber: { type: 'integer', minimum: 1 },
+      authorId: { type: 'string' },
+      authorName: { type: 'string' },
+      createdAt: dateTime,
+      restoredFromSequence: nullable({ type: 'integer' }),
+      // GET /diagrams/:id/versions/:versionId only.
+      dslContent: { type: 'string' },
+    },
+  },
+  {
+    $id: 'OtherEditor',
+    type: 'object',
+    required: ['userId', 'name', 'since', 'isYou'],
+    additionalProperties: false,
+    properties: {
+      userId: { type: 'string' },
+      name: { type: 'string' },
+      since: dateTime,
+      isYou: { type: 'boolean' },
+    },
+  },
   {
     $id: 'AppSettings',
     type: 'object',
@@ -339,4 +551,8 @@ export const objectResponse = (properties: Record<string, unknown>) => ({
   properties,
 });
 
-export const idParams = { type: 'object', required: ['id'], properties: { id: { type: 'string' } } } as const;
+export const idParams = {
+  type: 'object',
+  required: ['id'],
+  properties: { id: { type: 'string' } },
+} as const;

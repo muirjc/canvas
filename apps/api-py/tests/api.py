@@ -1,7 +1,7 @@
 """Helpers for the route tests: a clean database, seeded rows, signed-in users, and a client that holds
 every response to the API contract (apps/api/contract/openapi.json, written by the TypeScript tests).
 
-Routes that haven't moved to Python yet (creating diagrams, sharing) aren't callable here, so tests
+Routes that haven't moved to Python yet (standards, export, AI chat) aren't callable here, so tests
 seed those rows directly -- the cases come from apps/api/tests/contract, the setup doesn't.
 """
 
@@ -104,9 +104,12 @@ _TABLES = (
     "mfa_recovery_codes",
     "user_mfa",
     "share_grants",
+    "diagram_edit_sessions",
     "diagram_versions",
     "diagrams",
     "templates",
+    "standard_allowed_shapes",
+    "standard_mandatory_shapes",
     "standards",
     "icon_keywords",
     "icons",
@@ -357,6 +360,78 @@ class Api:
                 text("INSERT INTO standards (id, diagram_type_id, version, status) VALUES (:id, :type, :v, :status)"),
                 {"id": str(uuid4()), "type": diagram_type_id, "v": version, "status": status},
             )
+
+    def published_standard(
+        self,
+        diagram_type_id: str,
+        *,
+        allowed_shapes: list[str] | None = None,
+        mandatory_shapes: list[str] | None = None,
+        kind_rules: dict[str, Any] | None = None,
+        version: int = 1,
+    ) -> None:
+        """A published standard with rules, the way apps/api's standard service stores them: shape join tables
+        plus the v2 rules (element kinds, connector rules, ...) as one JSON column."""
+        standard_id = str(uuid4())
+        rules = json.dumps(kind_rules or {})
+        insert = {
+            "postgresql": (
+                "INSERT INTO standards (id, diagram_type_id, version, status, kind_rules)"
+                " VALUES (:id, :type, :v, 'published', CAST(:rules AS JSONB))"
+            ),
+            "sqlite": (
+                "INSERT INTO standards (id, diagram_type_id, version, status, kind_rules)"
+                " VALUES (:id, :type, :v, 'published', :rules)"
+            ),
+        }[self.dialect]
+        with self.engine.begin() as conn:
+            conn.execute(text(insert), {"id": standard_id, "type": diagram_type_id, "v": version, "rules": rules})
+            for position, shape in enumerate(allowed_shapes or []):
+                conn.execute(
+                    text("INSERT INTO standard_allowed_shapes (standard_id, shape_id, position) VALUES (:s, :h, :i)"),
+                    {"s": standard_id, "h": shape, "i": position},
+                )
+            for position, shape in enumerate(mandatory_shapes or []):
+                conn.execute(
+                    text("INSERT INTO standard_mandatory_shapes (standard_id, shape_id, position) VALUES (:s, :h, :i)"),
+                    {"s": standard_id, "h": shape, "i": position},
+                )
+
+    def new_diagram(
+        self,
+        project_id: str,
+        who: User,
+        name: str = "D",
+        diagram_type_id: str = "flowchart",
+        dsl: str | None = None,
+        *,
+        draft: bool | None = None,
+    ) -> dict[str, Any]:
+        """A diagram made through POST /projects/:id/diagrams, so it has a real first version (needs_bridge)."""
+        payload: dict[str, Any] = {"name": name, "diagramTypeId": diagram_type_id}
+        if dsl is not None:
+            payload["initialDslContent"] = dsl
+        if draft is not None:
+            payload["draft"] = draft
+        response = self.call("POST", f"/projects/{project_id}/diagrams", who, json=payload)
+        assert response.status_code == 201, response.text
+        diagram: dict[str, Any] = response.json()["diagram"]
+        return diagram
+
+    def save_diagram(
+        self, who: User, diagram: dict[str, Any] | str, dsl: str, base: str | None = None
+    ) -> httpx.Response:
+        """PATCH /diagrams/:id from `base` (default: the diagram's current version, read from the database)."""
+        diagram_id = diagram if isinstance(diagram, str) else diagram["id"]
+        return self.call(
+            "PATCH",
+            f"/diagrams/{diagram_id}",
+            who,
+            json={"dslContent": dsl, "baseVersionId": base or self.current_version(diagram_id)},
+        )
+
+    def current_version(self, diagram_id: str) -> str:
+        return str(self.scalar("SELECT current_version_id FROM diagrams WHERE id = :id", id=diagram_id))
 
     def diagram_type(
         self,

@@ -18,7 +18,12 @@ export const PYTHON_ROUTE_GROUPS = {
     'GET /admin/deleted-projects',
     'POST /projects/:id/restore',
   ],
-  'diagram-types': ['GET /diagram-types', 'POST /admin/diagram-types', 'PATCH /admin/diagram-types/:id', 'DELETE /admin/diagram-types/:id'],
+  'diagram-types': [
+    'GET /diagram-types',
+    'POST /admin/diagram-types',
+    'PATCH /admin/diagram-types/:id',
+    'DELETE /admin/diagram-types/:id',
+  ],
   // POST /libraries (loading a built-in library, used by the catalog seed) stays with library admin.
   libraries: ['GET /libraries', 'GET /libraries/:id/versions/:version/icons', 'GET /icons/search'],
   'app-settings': ['GET /app-settings', 'PATCH /admin/app-settings'],
@@ -53,6 +58,26 @@ export const PYTHON_ROUTE_GROUPS = {
     'GET /admin/overview',
     'GET /users/lookup',
     'GET /users/search',
+  ],
+  // Phase 4 (canvas-1bty.8). Parsing, validation and template compiling go through the diagram-core bridge.
+  diagrams: [
+    'POST /projects/:projectId/diagrams',
+    'GET /projects/:projectId/diagrams',
+    'POST /projects/:projectId/diagrams/import',
+    'POST /projects/:projectId/diagrams/import-template',
+    'GET /diagrams/:id',
+    'PATCH /diagrams/:id',
+    'PATCH /diagrams/:id/name',
+    'PATCH /diagrams/:id/description',
+    'PATCH /diagrams/:id/project',
+    'GET /diagrams/:id/versions',
+    'GET /diagrams/:id/versions/:versionId',
+    'POST /diagrams/:id/versions/:versionId/restore',
+    'PUT /diagrams/:id/presence',
+    'POST /diagrams/:id/presence/leave',
+    'DELETE /diagrams/:id',
+    'GET /admin/deleted-diagrams',
+    'POST /diagrams/:id/restore',
   ],
 } as const satisfies Record<string, readonly string[]>;
 

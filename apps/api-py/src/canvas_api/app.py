@@ -14,7 +14,16 @@ from canvas_api.config import Settings
 from canvas_api.db import create_db_engine
 from canvas_api.diagram_core import BridgeError, DiagramBridge
 from canvas_api.errors import register_error_handlers
-from canvas_api.routes import admin_users, app_settings, comments, diagram_types, libraries, projects, sharing
+from canvas_api.routes import (
+    admin_users,
+    app_settings,
+    comments,
+    diagram_types,
+    diagrams,
+    libraries,
+    projects,
+    sharing,
+)
 from canvas_api.telemetry import configure_telemetry
 
 
@@ -39,8 +48,8 @@ def create_app(settings: Settings | None = None, engine: Engine | None = None) -
     register_error_handlers(app)
 
     # The route groups apps/api forwards here (apps/api/src/python/route-groups.ts): phase 2
-    # (canvas-1bty.6), then phase 3 (canvas-1bty.7).
-    for group in (projects, diagram_types, libraries, app_settings, comments, sharing, admin_users):
+    # (canvas-1bty.6), phase 3 (canvas-1bty.7), phase 4 (canvas-1bty.8).
+    for group in (projects, diagram_types, libraries, app_settings, comments, sharing, admin_users, diagrams):
         app.include_router(group.router)
 
     @app.get("/health", tags=["Health"])

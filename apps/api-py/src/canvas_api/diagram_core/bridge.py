@@ -73,6 +73,14 @@ class DiagramBridge:
     def serialize(self, family: str, model: JsonObject) -> str:
         return cast(str, self._post("serialize", {"family": family, "model": model})["dsl"])
 
+    def empty_dsl(self, family: str, diagram_type_id: str) -> str:
+        """A new diagram's starting DSL: the family's serialization of an empty model."""
+        return cast(str, self._post("empty-dsl", {"family": family, "diagramTypeId": diagram_type_id})["dsl"])
+
+    def compile_template(self, diagram_type_id: str, template: str) -> JsonObject:
+        """{"dsl"}, {"errors"} or {"unsupported": True} for a filled-in intake template."""
+        return self._post("compile-template", {"diagramTypeId": diagram_type_id, "template": template})
+
     def validate(self, model: JsonObject, rules: JsonObject) -> list[JsonObject]:
         return cast(list[JsonObject], self._post("validate", {"model": model, "rules": rules})["violations"])
 

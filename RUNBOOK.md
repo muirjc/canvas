@@ -550,7 +550,8 @@ The backend is moving to Python (`apps/api-py`), route group by route group
 ([docs/python-backend-assessment.md](docs/python-backend-assessment.md)). While it does, `apps/api`
 stays the front door: it serves the web app and forwards to `PYTHON_API_URL`
 - the **moved route groups** listed in `apps/api/src/python/route-groups.ts` (phase 2: `projects`,
-  `diagram-types`, `libraries`, `app-settings`; phase 3: `comments`, `sharing`, `admin-users`),
+  `diagram-types`, `libraries`, `app-settings`; phase 3: `comments`, `sharing`, `admin-users`;
+  phase 4: `diagrams`),
   matched by Fastify route (`PATCH /projects/:id`), so a route under the same prefix that hasn't
   moved (`/projects/:id/diagrams`, or local accounts under `/admin/users`) stays on TypeScript;
 - the route prefixes in `PYTHON_ROUTES` (default `/py`), which have no TypeScript routes at all.
@@ -591,7 +592,9 @@ The Python service reaches diagram-core (parsing, validation, SVG) through the *
 bridge** (`packages/diagram-bridge`, canvas-1bty.4): a second container in `canvas-api-py`
 listening on `127.0.0.1:7070`, set as `DIAGRAM_BRIDGE_URL`. Locally:
 `npm run build --workspace=@canvas/diagram-bridge && npm start --workspace=@canvas/diagram-bridge`,
-then `DIAGRAM_BRIDGE_URL=http://127.0.0.1:7070` for uvicorn. Signed in, `/py/diagram-core` answers
+then `DIAGRAM_BRIDGE_URL=http://127.0.0.1:7070` for uvicorn. Since phase 4 (canvas-1bty.8) the bridge
+is required, not optional: creating, saving, importing and restoring diagrams parse and validate through
+it, and answer 503 without it. Signed in, `/py/diagram-core` answers
 `{"bridge": "ok"}` when it works. The Python tests run the golden corpus
 (`packages/diagram-core/corpus`) through it; they skip without Node and the built bundle, except in
 CI.
