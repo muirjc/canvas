@@ -11,7 +11,7 @@ import json
 import re
 import time
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
 from urllib.parse import quote, urlsplit
@@ -31,6 +31,13 @@ CONTRACT: dict[str, Any] = json.loads((CONTRACT_DIR / "openapi.json").read_text(
 ALL_PERSONAS = ["Business", "Enterprise", "Solution", "Technical"]
 MISSING_ID = "00000000-0000-0000-0000-000000000000"
 HOUR_MS = 60 * 60 * 1000
+#: A fixed past instant for seeding rows whose order matters (a row's own timestamp is never "now").
+T0 = datetime(2026, 1, 1, 12, 0, tzinfo=UTC)
+
+
+def minutes_after(start: datetime, minutes: int) -> datetime:
+    return start + timedelta(minutes=minutes)
+
 
 # --- the contract -----------------------------------------------------------------------------------
 
@@ -92,6 +99,10 @@ def check_contract(response: httpx.Response) -> None:
 _TABLES = (
     "audit_events",
     "sessions",
+    "diagram_comment_reads",
+    "diagram_comments",
+    "mfa_recovery_codes",
+    "user_mfa",
     "share_grants",
     "diagram_versions",
     "diagrams",
@@ -246,6 +257,105 @@ class Api:
                     "level": level,
                     "by": by.id,
                 },
+            )
+
+    def comment(
+        self,
+        diagram_id: str,
+        author: User,
+        body: str = "A comment",
+        *,
+        root: str | None = None,
+        anchor: tuple[str, str] | None = None,
+        at: datetime | None = None,
+        deleted: bool = False,
+    ) -> str:
+        """A comment seeded directly, at an explicit instant (so ordering and unread counts are exact)."""
+        comment_id = str(uuid4())
+        when = to_db(at or T0, self.dialect)
+        with self.engine.begin() as conn:
+            conn.execute(
+                text(
+                    "INSERT INTO diagram_comments (id, diagram_id, thread_root_id, author_id, body, anchor_type,"
+                    " anchor_id, created_at, deleted_at) VALUES (:id, :diagram, :root, :author, :body, :atype,"
+                    " :aid, :at, :deleted)"
+                ),
+                {
+                    "id": comment_id,
+                    "diagram": diagram_id,
+                    "root": root,
+                    "author": author.id,
+                    "body": "" if deleted else body,
+                    "atype": anchor[0] if anchor else None,
+                    "aid": anchor[1] if anchor else None,
+                    "at": when,
+                    "deleted": when if deleted else None,
+                },
+            )
+        return comment_id
+
+    def credentials(self, user: User, *, locked: bool = False) -> None:
+        """A local account's password row (hash and salt are placeholders: nothing here signs in)."""
+        with self.engine.begin() as conn:
+            conn.execute(
+                text(
+                    "INSERT INTO local_credentials (user_id, password_hash, password_salt, locked_at)"
+                    " VALUES (:id, :hash, :salt, :locked)"
+                ),
+                {
+                    "id": user.id,
+                    "hash": "placeholder",
+                    "salt": "placeholder",
+                    "locked": to_db(T0, self.dialect) if locked else None,
+                },
+            )
+
+    def mfa(self, user: User, *, enabled: bool = True) -> None:
+        """Two-step verification for a user, with one recovery code."""
+        with self.engine.begin() as conn:
+            conn.execute(
+                text("INSERT INTO user_mfa (user_id, secret_encrypted, enabled_at) VALUES (:id, :secret, :at)"),
+                {"id": user.id, "secret": "v1:x:y:z", "at": to_db(T0, self.dialect) if enabled else None},
+            )
+            conn.execute(
+                text("INSERT INTO mfa_recovery_codes (id, user_id, code_hash) VALUES (:id, :user, :hash)"),
+                {"id": str(uuid4()), "user": user.id, "hash": "abc"},
+            )
+
+    def audit_event(
+        self,
+        event: str,
+        *,
+        actor: User | None = None,
+        target: User | None = None,
+        at: datetime | None = None,
+        ip: str | None = None,
+        detail: dict[str, Any] | None = None,
+    ) -> str:
+        event_id = str(uuid4())
+        with self.engine.begin() as conn:
+            conn.execute(
+                text(
+                    "INSERT INTO audit_events (id, occurred_at, event, actor_user_id, target_user_id, ip, detail)"
+                    " VALUES (:id, :at, :event, :actor, :target, :ip, :detail)"
+                ),
+                {
+                    "id": event_id,
+                    "at": to_db(at or T0, self.dialect),
+                    "event": event,
+                    "actor": actor.id if actor else None,
+                    "target": target.id if target else None,
+                    "ip": ip,
+                    "detail": json.dumps(detail) if detail else None,
+                },
+            )
+        return event_id
+
+    def standard(self, diagram_type_id: str, status: str = "published", version: int = 1) -> None:
+        with self.engine.begin() as conn:
+            conn.execute(
+                text("INSERT INTO standards (id, diagram_type_id, version, status) VALUES (:id, :type, :v, :status)"),
+                {"id": str(uuid4()), "type": diagram_type_id, "v": version, "status": status},
             )
 
     def diagram_type(

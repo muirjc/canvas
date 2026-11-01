@@ -15,13 +15,7 @@ from fastapi import APIRouter, Depends, Response
 from pydantic import BaseModel, Field, StrictStr
 from sqlalchemy import Connection, Engine, bindparam, text
 
-from canvas_api.access import (
-    AccessLevel,
-    access_at_least,
-    project_access_for_user,
-    project_exists,
-    resolve_project_access,
-)
+from canvas_api.access import project_access_for_user, require_project_access
 from canvas_api.auth.roles import AdminUser, ArchitectOrAdmin, CurrentUser
 from canvas_api.auth.session import SessionUser
 from canvas_api.db import get_engine
@@ -46,21 +40,6 @@ class RenameProjectBody(BaseModel):
 
 def _not_found(project_id: str) -> ApiError:
     return ApiError(404, f"No project with id {project_id}")
-
-
-def _require_project_access(conn: Connection, user: SessionUser, project_id: str, required: AccessLevel) -> None:
-    """access-control.middleware.ts requireProjectAccess: a missing project falls through to the
-    route's own 404 (a 403 would say it exists)."""
-    if not project_exists(conn, project_id):
-        return
-    level = resolve_project_access(conn, user.id, project_id)
-    if not access_at_least(level, required):
-        raise ApiError(
-            403,
-            f'This action requires "{required}" access, but you only have "{level}" access to this project.'
-            if level
-            else "You do not have access to this project.",
-        )
 
 
 def _require_owner_or_admin(conn: Connection, user: SessionUser, project_id: str) -> None:
@@ -146,7 +125,7 @@ def list_projects(user: CurrentUser, db: Db) -> dict[str, Any]:
 @router.get("/projects/{id}")
 def get_project(id: str, user: CurrentUser, db: Db) -> dict[str, Any]:
     with db.connect() as conn:
-        _require_project_access(conn, user, id, "view")
+        require_project_access(conn, user.id, id, "view")
         return {"project": _get_project(conn, id)}
 
 
@@ -154,7 +133,7 @@ def get_project(id: str, user: CurrentUser, db: Db) -> dict[str, Any]:
 def get_project_tree(id: str, user: CurrentUser, db: Db) -> dict[str, Any]:
     """The project's subtree with each level's diagrams (newest first), for the project browser."""
     with db.connect() as conn:
-        _require_project_access(conn, user, id, "view")
+        require_project_access(conn, user.id, id, "view")
         projects = conn.execute(
             text(
                 "WITH RECURSIVE subtree (id, name, parent_project_id) AS ("

@@ -1,6 +1,58 @@
 {
   "components": {
     "schemas": {
+      "AdminUser": {
+        "additionalProperties": false,
+        "properties": {
+          "active": {
+            "type": "boolean"
+          },
+          "email": {
+            "type": "string"
+          },
+          "hasPassword": {
+            "type": "boolean"
+          },
+          "id": {
+            "type": "string"
+          },
+          "locked": {
+            "type": "boolean"
+          },
+          "mfaEnabled": {
+            "type": "boolean"
+          },
+          "name": {
+            "type": "string"
+          },
+          "personas": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "role": {
+            "enum": [
+              "admin",
+              "architect",
+              "viewer"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "email",
+          "role",
+          "personas",
+          "active",
+          "hasPassword",
+          "locked",
+          "mfaEnabled"
+        ],
+        "type": "object"
+      },
       "AppSettings": {
         "additionalProperties": false,
         "properties": {
@@ -10,6 +62,253 @@
         },
         "required": [
           "sharingEnabled"
+        ],
+        "type": "object"
+      },
+      "AuditEvent": {
+        "additionalProperties": false,
+        "properties": {
+          "actorEmail": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "detail": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "event": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "ip": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "occurredAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "targetEmail": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "occurredAt",
+          "event",
+          "actorEmail",
+          "targetEmail",
+          "ip",
+          "detail"
+        ],
+        "type": "object"
+      },
+      "Comment": {
+        "additionalProperties": false,
+        "properties": {
+          "author": {
+            "$ref": "#/components/schemas/CommentAuthor"
+          },
+          "body": {
+            "type": "string"
+          },
+          "createdAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "deleted": {
+            "type": "boolean"
+          },
+          "editedAt": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "id": {
+            "type": "string"
+          },
+          "threadRootId": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "threadRootId",
+          "author",
+          "body",
+          "createdAt",
+          "editedAt",
+          "deleted"
+        ],
+        "type": "object"
+      },
+      "CommentAuthor": {
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name"
+        ],
+        "type": "object"
+      },
+      "CommentThread": {
+        "additionalProperties": false,
+        "properties": {
+          "anchor": {
+            "anyOf": [
+              {
+                "additionalProperties": false,
+                "properties": {
+                  "id": {
+                    "type": "string"
+                  },
+                  "type": {
+                    "enum": [
+                      "node",
+                      "edge",
+                      "container"
+                    ],
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "type",
+                  "id"
+                ],
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "author": {
+            "$ref": "#/components/schemas/CommentAuthor"
+          },
+          "body": {
+            "type": "string"
+          },
+          "createdAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "deleted": {
+            "type": "boolean"
+          },
+          "editedAt": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "id": {
+            "type": "string"
+          },
+          "replies": {
+            "items": {
+              "$ref": "#/components/schemas/Comment"
+            },
+            "type": "array"
+          },
+          "resolved": {
+            "anyOf": [
+              {
+                "additionalProperties": false,
+                "properties": {
+                  "at": {
+                    "format": "date-time",
+                    "type": "string"
+                  },
+                  "by": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  }
+                },
+                "required": [
+                  "at",
+                  "by"
+                ],
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "threadRootId": {
+            "type": "null"
+          }
+        },
+        "required": [
+          "id",
+          "threadRootId",
+          "author",
+          "body",
+          "createdAt",
+          "editedAt",
+          "deleted",
+          "anchor",
+          "resolved",
+          "replies"
         ],
         "type": "object"
       },
@@ -189,6 +488,75 @@
         ],
         "type": "object"
       },
+      "ListedShareGrant": {
+        "additionalProperties": false,
+        "properties": {
+          "accessLevel": {
+            "enum": [
+              "view",
+              "comment",
+              "edit",
+              "manage"
+            ],
+            "type": "string"
+          },
+          "createdAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "grantedByUserId": {
+            "type": "string"
+          },
+          "granteeEmail": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "granteeName": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "granteeUserId": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "subjectId": {
+            "type": "string"
+          },
+          "subjectType": {
+            "enum": [
+              "diagram",
+              "project"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "subjectType",
+          "subjectId",
+          "granteeUserId",
+          "accessLevel",
+          "grantedByUserId",
+          "createdAt",
+          "granteeName",
+          "granteeEmail"
+        ],
+        "type": "object"
+      },
       "Project": {
         "additionalProperties": false,
         "properties": {
@@ -287,6 +655,110 @@
         ],
         "type": "object"
       },
+      "ProjectMembers": {
+        "additionalProperties": false,
+        "properties": {
+          "members": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "accessLevel": {
+                  "enum": [
+                    "view",
+                    "comment",
+                    "edit",
+                    "manage"
+                  ],
+                  "type": "string"
+                },
+                "email": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "grantId": {
+                  "type": "string"
+                },
+                "name": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "userId": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "grantId",
+                "userId",
+                "name",
+                "email",
+                "accessLevel"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "owner": {
+            "additionalProperties": false,
+            "properties": {
+              "email": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "id": {
+                "type": "string"
+              },
+              "name": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": [
+              "id",
+              "name",
+              "email"
+            ],
+            "type": "object"
+          },
+          "yourAccess": {
+            "enum": [
+              "view",
+              "comment",
+              "edit",
+              "manage"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "owner",
+          "members"
+        ],
+        "type": "object"
+      },
       "ProjectTreeNode": {
         "additionalProperties": false,
         "properties": {
@@ -331,6 +803,160 @@
           "name",
           "diagrams",
           "children"
+        ],
+        "type": "object"
+      },
+      "ShareGrant": {
+        "additionalProperties": false,
+        "properties": {
+          "accessLevel": {
+            "enum": [
+              "view",
+              "comment",
+              "edit",
+              "manage"
+            ],
+            "type": "string"
+          },
+          "createdAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "grantedByUserId": {
+            "type": "string"
+          },
+          "granteeUserId": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "subjectId": {
+            "type": "string"
+          },
+          "subjectType": {
+            "enum": [
+              "diagram",
+              "project"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "subjectType",
+          "subjectId",
+          "granteeUserId",
+          "accessLevel",
+          "grantedByUserId",
+          "createdAt"
+        ],
+        "type": "object"
+      },
+      "SharedDiagram": {
+        "additionalProperties": false,
+        "properties": {
+          "accessLevel": {
+            "enum": [
+              "view",
+              "comment",
+              "edit",
+              "manage"
+            ],
+            "type": "string"
+          },
+          "diagramId": {
+            "type": "string"
+          },
+          "diagramName": {
+            "type": "string"
+          },
+          "diagramTypeId": {
+            "type": "string"
+          },
+          "projectName": {
+            "type": "string"
+          },
+          "sharedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "sharedByEmail": {
+            "type": "string"
+          },
+          "sharedByName": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "diagramId",
+          "diagramName",
+          "diagramTypeId",
+          "projectName",
+          "accessLevel",
+          "sharedByName",
+          "sharedByEmail",
+          "sharedAt"
+        ],
+        "type": "object"
+      },
+      "UpdatedUser": {
+        "additionalProperties": false,
+        "properties": {
+          "active": {
+            "type": "boolean"
+          },
+          "email": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "personas": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "role": {
+            "enum": [
+              "admin",
+              "architect",
+              "viewer"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "email",
+          "role",
+          "personas",
+          "active"
+        ],
+        "type": "object"
+      },
+      "UserSummary": {
+        "additionalProperties": false,
+        "properties": {
+          "email": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "email"
         ],
         "type": "object"
       }
@@ -390,6 +1016,80 @@
         ],
         "tags": [
           "Settings"
+        ]
+      }
+    },
+    "/admin/audit": {
+      "get": {
+        "parameters": [
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "pattern": "^([1-9]|[1-9][0-9]|1[0-9][0-9]|200)$",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "before",
+            "required": false,
+            "schema": {
+              "format": "date-time",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "userId",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "events": {
+                      "items": {
+                        "$ref": "#/components/schemas/AuditEvent"
+                      },
+                      "type": "array"
+                    }
+                  },
+                  "required": [
+                    "events"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Default Response"
+          },
+          "4XX": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        },
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ],
+        "tags": [
+          "Admin"
         ]
       }
     },
@@ -653,6 +1353,361 @@
         ]
       }
     },
+    "/admin/overview": {
+      "get": {
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "overview": {
+                      "additionalProperties": false,
+                      "properties": {
+                        "libraryCount": {
+                          "minimum": 0,
+                          "type": "integer"
+                        },
+                        "publishedStandardsCount": {
+                          "minimum": 0,
+                          "type": "integer"
+                        },
+                        "standardsCount": {
+                          "minimum": 0,
+                          "type": "integer"
+                        },
+                        "userCount": {
+                          "minimum": 0,
+                          "type": "integer"
+                        }
+                      },
+                      "required": [
+                        "userCount",
+                        "standardsCount",
+                        "publishedStandardsCount",
+                        "libraryCount"
+                      ],
+                      "type": "object"
+                    }
+                  },
+                  "required": [
+                    "overview"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Default Response"
+          },
+          "4XX": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        },
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ],
+        "tags": [
+          "Admin"
+        ]
+      }
+    },
+    "/admin/users": {
+      "get": {
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "users": {
+                      "items": {
+                        "$ref": "#/components/schemas/AdminUser"
+                      },
+                      "type": "array"
+                    }
+                  },
+                  "required": [
+                    "users"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Default Response"
+          },
+          "4XX": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        },
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ],
+        "tags": [
+          "Admin"
+        ]
+      }
+    },
+    "/admin/users/{id}": {
+      "delete": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "properties": {
+                  "transferToUserId": {
+                    "minLength": 1,
+                    "type": "string"
+                  }
+                },
+                "type": [
+                  "object",
+                  "null"
+                ]
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "deleted": {
+                      "enum": [
+                        true
+                      ],
+                      "type": "boolean"
+                    },
+                    "transferredDiagrams": {
+                      "minimum": 0,
+                      "type": "integer"
+                    },
+                    "transferredProjects": {
+                      "minimum": 0,
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "deleted",
+                    "transferredProjects",
+                    "transferredDiagrams"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Default Response"
+          },
+          "4XX": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        },
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ],
+        "tags": [
+          "Admin"
+        ]
+      },
+      "patch": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "properties": {
+                  "active": {
+                    "type": "boolean"
+                  },
+                  "personas": {
+                    "items": {
+                      "enum": [
+                        "Business",
+                        "Enterprise",
+                        "Solution",
+                        "Technical"
+                      ],
+                      "type": "string"
+                    },
+                    "maxItems": 4,
+                    "type": "array",
+                    "uniqueItems": true
+                  },
+                  "role": {
+                    "enum": [
+                      "admin",
+                      "architect",
+                      "viewer"
+                    ],
+                    "type": "string"
+                  }
+                },
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "user": {
+                      "$ref": "#/components/schemas/UpdatedUser"
+                    }
+                  },
+                  "required": [
+                    "user"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Default Response"
+          },
+          "4XX": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        },
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ],
+        "tags": [
+          "Admin"
+        ]
+      }
+    },
+    "/admin/users/{id}/deletion-impact": {
+      "get": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "isLastActiveAdmin": {
+                      "type": "boolean"
+                    },
+                    "ownedDiagrams": {
+                      "minimum": 0,
+                      "type": "integer"
+                    },
+                    "ownedProjects": {
+                      "minimum": 0,
+                      "type": "integer"
+                    },
+                    "sharesReceived": {
+                      "minimum": 0,
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "ownedProjects",
+                    "ownedDiagrams",
+                    "sharesReceived",
+                    "isLastActiveAdmin"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Default Response"
+          },
+          "4XX": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        },
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ],
+        "tags": [
+          "Admin"
+        ]
+      }
+    },
     "/app-settings": {
       "get": {
         "responses": {
@@ -748,6 +1803,668 @@
         ],
         "tags": [
           "DiagramTypes"
+        ]
+      }
+    },
+    "/diagrams/{id}/comments": {
+      "get": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "threads": {
+                      "items": {
+                        "$ref": "#/components/schemas/CommentThread"
+                      },
+                      "type": "array"
+                    },
+                    "unread": {
+                      "minimum": 0,
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "threads",
+                    "unread"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Default Response"
+          },
+          "4XX": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        },
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ],
+        "tags": [
+          "Comments"
+        ]
+      },
+      "post": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "properties": {
+                  "anchor": {
+                    "properties": {
+                      "id": {
+                        "maxLength": 200,
+                        "minLength": 1,
+                        "type": "string"
+                      },
+                      "type": {
+                        "enum": [
+                          "node",
+                          "edge",
+                          "container"
+                        ],
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "type",
+                      "id"
+                    ],
+                    "type": "object"
+                  },
+                  "body": {
+                    "maxLength": 4200,
+                    "type": "string"
+                  },
+                  "threadRootId": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "body"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "threads": {
+                      "items": {
+                        "$ref": "#/components/schemas/CommentThread"
+                      },
+                      "type": "array"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "threads"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Default Response"
+          },
+          "4XX": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        },
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ],
+        "tags": [
+          "Comments"
+        ]
+      }
+    },
+    "/diagrams/{id}/comments/read": {
+      "post": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No content"
+          },
+          "4XX": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        },
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ],
+        "tags": [
+          "Comments"
+        ]
+      }
+    },
+    "/diagrams/{id}/comments/unread": {
+      "get": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "unread": {
+                      "minimum": 0,
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "unread"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Default Response"
+          },
+          "4XX": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        },
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ],
+        "tags": [
+          "Comments"
+        ]
+      }
+    },
+    "/diagrams/{id}/comments/{commentId}": {
+      "delete": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "commentId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "threads": {
+                      "items": {
+                        "$ref": "#/components/schemas/CommentThread"
+                      },
+                      "type": "array"
+                    }
+                  },
+                  "required": [
+                    "threads"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Default Response"
+          },
+          "4XX": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        },
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ],
+        "tags": [
+          "Comments"
+        ]
+      },
+      "patch": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "commentId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "properties": {
+                  "body": {
+                    "maxLength": 4200,
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "body"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "threads": {
+                      "items": {
+                        "$ref": "#/components/schemas/CommentThread"
+                      },
+                      "type": "array"
+                    }
+                  },
+                  "required": [
+                    "threads"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Default Response"
+          },
+          "4XX": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        },
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ],
+        "tags": [
+          "Comments"
+        ]
+      }
+    },
+    "/diagrams/{id}/comments/{commentId}/reopen": {
+      "post": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "commentId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "threads": {
+                      "items": {
+                        "$ref": "#/components/schemas/CommentThread"
+                      },
+                      "type": "array"
+                    }
+                  },
+                  "required": [
+                    "threads"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Default Response"
+          },
+          "4XX": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        },
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ],
+        "tags": [
+          "Comments"
+        ]
+      }
+    },
+    "/diagrams/{id}/comments/{commentId}/resolve": {
+      "post": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "commentId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "threads": {
+                      "items": {
+                        "$ref": "#/components/schemas/CommentThread"
+                      },
+                      "type": "array"
+                    }
+                  },
+                  "required": [
+                    "threads"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Default Response"
+          },
+          "4XX": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        },
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ],
+        "tags": [
+          "Comments"
+        ]
+      }
+    },
+    "/diagrams/{id}/shares": {
+      "get": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "grants": {
+                      "items": {
+                        "$ref": "#/components/schemas/ListedShareGrant"
+                      },
+                      "type": "array"
+                    }
+                  },
+                  "required": [
+                    "grants"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Default Response"
+          },
+          "4XX": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        },
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ],
+        "tags": [
+          "Sharing"
+        ]
+      },
+      "post": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "properties": {
+                  "accessLevel": {
+                    "enum": [
+                      "view",
+                      "comment",
+                      "edit"
+                    ],
+                    "type": "string"
+                  },
+                  "granteeUserId": {
+                    "minLength": 1,
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "granteeUserId",
+                  "accessLevel"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "grant": {
+                      "$ref": "#/components/schemas/ShareGrant"
+                    }
+                  },
+                  "required": [
+                    "grant"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Default Response"
+          },
+          "4XX": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        },
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ],
+        "tags": [
+          "Sharing"
         ]
       }
     },
@@ -1201,6 +2918,113 @@
         ]
       }
     },
+    "/projects/{id}/members": {
+      "get": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProjectMembers"
+                }
+              }
+            },
+            "description": "Default Response"
+          },
+          "4XX": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        },
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ],
+        "tags": [
+          "Projects"
+        ]
+      }
+    },
+    "/projects/{id}/owner": {
+      "post": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "properties": {
+                  "newOwnerId": {
+                    "minLength": 1,
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "newOwnerId"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProjectMembers"
+                }
+              }
+            },
+            "description": "Default Response"
+          },
+          "4XX": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        },
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ],
+        "tags": [
+          "Projects"
+        ]
+      }
+    },
     "/projects/{id}/restore": {
       "post": {
         "parameters": [
@@ -1254,6 +3078,142 @@
         ]
       }
     },
+    "/projects/{id}/shares": {
+      "get": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "grants": {
+                      "items": {
+                        "$ref": "#/components/schemas/ListedShareGrant"
+                      },
+                      "type": "array"
+                    }
+                  },
+                  "required": [
+                    "grants"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Default Response"
+          },
+          "4XX": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        },
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ],
+        "tags": [
+          "Sharing"
+        ]
+      },
+      "post": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "properties": {
+                  "accessLevel": {
+                    "enum": [
+                      "view",
+                      "comment",
+                      "edit",
+                      "manage"
+                    ],
+                    "type": "string"
+                  },
+                  "granteeUserId": {
+                    "minLength": 1,
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "granteeUserId",
+                  "accessLevel"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "grant": {
+                      "$ref": "#/components/schemas/ShareGrant"
+                    }
+                  },
+                  "required": [
+                    "grant"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Default Response"
+          },
+          "4XX": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        },
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ],
+        "tags": [
+          "Sharing"
+        ]
+      }
+    },
     "/projects/{id}/tree": {
       "get": {
         "parameters": [
@@ -1304,6 +3264,208 @@
         ],
         "tags": [
           "Projects"
+        ]
+      }
+    },
+    "/shared-diagrams": {
+      "get": {
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "diagrams": {
+                      "items": {
+                        "$ref": "#/components/schemas/SharedDiagram"
+                      },
+                      "type": "array"
+                    }
+                  },
+                  "required": [
+                    "diagrams"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Default Response"
+          },
+          "4XX": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        },
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ],
+        "tags": [
+          "Sharing"
+        ]
+      }
+    },
+    "/shares/{id}": {
+      "delete": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No content"
+          },
+          "4XX": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        },
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ],
+        "tags": [
+          "Sharing"
+        ]
+      }
+    },
+    "/users/lookup": {
+      "get": {
+        "parameters": [
+          {
+            "in": "query",
+            "name": "email",
+            "required": true,
+            "schema": {
+              "minLength": 1,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "user": {
+                      "anyOf": [
+                        {
+                          "$ref": "#/components/schemas/UserSummary"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    }
+                  },
+                  "required": [
+                    "user"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Default Response"
+          },
+          "4XX": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        },
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ],
+        "tags": [
+          "Users"
+        ]
+      }
+    },
+    "/users/search": {
+      "get": {
+        "parameters": [
+          {
+            "in": "query",
+            "name": "q",
+            "required": true,
+            "schema": {
+              "maxLength": 100,
+              "minLength": 1,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "users": {
+                      "items": {
+                        "$ref": "#/components/schemas/UserSummary"
+                      },
+                      "type": "array"
+                    }
+                  },
+                  "required": [
+                    "users"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Default Response"
+          },
+          "4XX": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        },
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ],
+        "tags": [
+          "Users"
         ]
       }
     }

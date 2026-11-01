@@ -20,7 +20,8 @@ class ApiError(Exception):
 
 def _describe(error: Mapping[str, Any]) -> str:
     """One validation error, worded like Fastify's ("body/name must ...")."""
-    loc = [str(part) for part in error.get("loc", ())]
+    # Fastify names the query string "querystring".
+    loc = ["querystring" if part == "query" else str(part) for part in error.get("loc", ())]
     where = "/".join(loc) if loc else "body"
     return f"{where} {error.get('msg', 'is invalid')}"
 

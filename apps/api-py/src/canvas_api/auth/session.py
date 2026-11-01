@@ -20,7 +20,7 @@ from urllib.parse import unquote
 
 from fastapi import Request, Response
 from pydantic import BaseModel
-from sqlalchemy import Engine, text
+from sqlalchemy import Connection, Engine, text
 
 from canvas_api.auth.cookie_signer import unsign
 from canvas_api.config import Settings
@@ -162,3 +162,11 @@ def current_user(request: Request, response: Response) -> SessionUser:
     touch_session(engine, session_id, data, settings)
     refresh_cookie(response, request, settings)
     return user
+
+
+def revoke_sessions(conn: Connection, user_id: str) -> None:
+    """Signs a user out everywhere now (session-store.ts revokeSessions): their rows are revoked and
+    emptied, so neither service accepts them again."""
+    conn.execute(
+        text("UPDATE sessions SET revoked = :yes, data = '{}' WHERE user_id = :uid"), {"yes": True, "uid": user_id}
+    )

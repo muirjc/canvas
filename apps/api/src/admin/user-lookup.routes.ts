@@ -3,6 +3,7 @@ import { sql } from 'kysely';
 import { requireAuth } from '../auth/middleware.js';
 import { getDb } from '../db/client.js';
 import { dbBoolean } from '../db/sql-helpers.js';
+import { errorResponse, listEnvelope, objectResponse } from '../contract/schemas.js';
 
 /**
  * A minimal, non-admin-gated user lookup — any authenticated user needs this to share a diagram
@@ -19,6 +20,7 @@ export async function registerUserLookupRoutes(app: FastifyInstance): Promise<vo
         tags: ['Users'],
         security: [{ cookieAuth: [] }],
         querystring: { type: 'object', required: ['email'], properties: { email: { type: 'string', minLength: 1 } } },
+        response: { 200: objectResponse({ user: { anyOf: [{ $ref: 'UserSummary#' }, { type: 'null' }] } }), '4xx': errorResponse },
       },
     },
     async (request, reply) => {
@@ -46,6 +48,7 @@ export async function registerUserLookupRoutes(app: FastifyInstance): Promise<vo
         tags: ['Users'],
         security: [{ cookieAuth: [] }],
         querystring: { type: 'object', required: ['q'], properties: { q: { type: 'string', minLength: 1, maxLength: 100 } } },
+        response: { 200: listEnvelope('users', 'UserSummary'), '4xx': errorResponse },
       },
     },
     async (request, reply) => {

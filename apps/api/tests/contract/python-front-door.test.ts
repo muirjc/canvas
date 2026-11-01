@@ -148,8 +148,11 @@ describe('forwarding moved routes by route pattern (canvas-1bty.6)', () => {
   it('only forwards the moved method and pattern, not its neighbours', async () => {
     const before = seen.length;
     // Same prefix, routes not moved yet: TypeScript answers (401, no session).
-    expect((await app.inject({ method: 'GET', url: '/projects/abc/members' })).statusCode).toBe(401);
-    expect((await app.inject({ method: 'POST', url: '/projects/abc/owner', payload: { newOwnerId: 'x' } })).statusCode).toBe(401);
+    expect((await app.inject({ method: 'GET', url: '/projects/abc/diagrams' })).statusCode).toBe(401);
+    // Local accounts stay on TypeScript (phase 9) while the rest of /admin/users moved.
+    // (TypeScript checks this body before the role: 400 here means it answered, not Python.)
+    expect((await app.inject({ method: 'POST', url: '/admin/users', payload: {} })).statusCode).toBe(400);
+    expect((await app.inject({ method: 'POST', url: '/admin/users/abc/unlock' })).statusCode).toBe(401);
     // POST /libraries stays on TypeScript while GET /libraries moved.
     expect((await app.inject({ method: 'POST', url: '/libraries', payload: {} })).statusCode).toBe(401);
     expect(seen.length).toBe(before);

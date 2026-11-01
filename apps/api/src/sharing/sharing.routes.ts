@@ -2,6 +2,7 @@ import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { requireAuth } from '../auth/middleware.js';
 import { requireDiagramAccess, requireProjectAccess } from '../auth/access-control.middleware.js';
 import { getDb } from '../db/client.js';
+import { envelope, errorResponse, idParams, listEnvelope, noContent } from '../contract/schemas.js';
 import { clientIp, recordAudit } from '../audit/audit.service.js';
 import { projectExists, resolveProjectAccess } from '../projects/project.access.js';
 import {
@@ -87,6 +88,8 @@ function registerSubjectRoutes(app: FastifyInstance, subjectType: SubjectType): 
             accessLevel: { type: 'string', enum: VALID_ACCESS_LEVELS[subjectType] },
           },
         },
+        params: idParams,
+        response: { 201: envelope('grant', 'ShareGrant'), '4xx': errorResponse },
       },
     },
     async (request, reply) => {
@@ -132,7 +135,10 @@ function registerSubjectRoutes(app: FastifyInstance, subjectType: SubjectType): 
 
   app.get<{ Params: { id: string } }>(
     basePath,
-    { preHandler: [requireAuth, requireSubjectAccess(subjectType, 'view'), notFound], schema: { tags: ['Sharing'], security: [{ cookieAuth: [] }] } },
+    {
+      preHandler: [requireAuth, requireSubjectAccess(subjectType, 'view'), notFound],
+      schema: { tags: ['Sharing'], security: [{ cookieAuth: [] }], params: idParams, response: { 200: listEnvelope('grants', 'ListedShareGrant'), '4xx': errorResponse } },
+    },
     async (request, reply) => {
       return reply.send({ grants: await listShareGrants(subjectType, request.params.id) });
     },
@@ -150,7 +156,10 @@ export async function registerSharingRoutes(app: FastifyInstance): Promise<void>
    */
   app.get(
     '/shared-diagrams',
-    { preHandler: requireAuth, schema: { tags: ['Sharing'], security: [{ cookieAuth: [] }] } },
+    {
+      preHandler: requireAuth,
+      schema: { tags: ['Sharing'], security: [{ cookieAuth: [] }], response: { 200: listEnvelope('diagrams', 'SharedDiagram'), '4xx': errorResponse } },
+    },
     async (request, reply) => {
       return reply.send({ diagrams: await listSharedDiagramsForUser(request.session.user!.id) });
     },
@@ -158,7 +167,10 @@ export async function registerSharingRoutes(app: FastifyInstance): Promise<void>
 
   app.delete<{ Params: { id: string } }>(
     '/shares/:id',
-    { preHandler: requireAuth, schema: { tags: ['Sharing'], security: [{ cookieAuth: [] }] } },
+    {
+      preHandler: requireAuth,
+      schema: { tags: ['Sharing'], security: [{ cookieAuth: [] }], params: idParams, response: { 204: noContent, '4xx': errorResponse } },
+    },
     async (request, reply) => {
       try {
         // canvas-i5y: revoking needs edit access to what the grant is for.
