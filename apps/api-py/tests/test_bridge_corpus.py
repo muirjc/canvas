@@ -98,3 +98,30 @@ def test_a_model_survives_the_trip_through_python_unchanged(bridge: DiagramBridg
 def test_bridge_errors_are_raised(bridge: DiagramBridge) -> None:
     with pytest.raises(BridgeError, match="unknown family"):
         bridge.parse("gantt", "gantt")
+
+
+# canvas-1bty.4: the diagnostic route that proves the Python service reaches the bridge in Azure.
+from tests.test_session import _user, make_session  # noqa: E402, F401 - fixture re-used
+
+
+def test_the_diagnostic_route_reaches_the_bridge(
+    bridge: DiagramBridge,
+    settings: Any,
+    engine: Any,
+    make_session: Any,  # noqa: F811
+) -> None:
+    from fastapi.testclient import TestClient
+
+    from canvas_api.app import create_app
+
+    url = str(bridge._client.base_url)
+    configured = settings.model_copy(update={"diagram_bridge_url": url})
+    with TestClient(create_app(configured, engine)) as client:
+        assert client.get("/py/diagram-core").status_code == 401
+        client.cookies.set("cid", make_session(_user()))
+        assert client.get("/py/diagram-core").json() == {"bridge": "ok"}
+
+
+def test_the_diagnostic_route_without_a_bridge(client: Any, make_session: Any) -> None:  # noqa: F811
+    client.cookies.set("cid", make_session(_user()))
+    assert client.get("/py/diagram-core").json() == {"bridge": "not configured"}

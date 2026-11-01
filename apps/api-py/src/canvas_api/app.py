@@ -12,6 +12,7 @@ from sqlalchemy import Engine
 from canvas_api.auth.session import SessionUser, current_user
 from canvas_api.config import Settings
 from canvas_api.db import create_db_engine
+from canvas_api.diagram_core import BridgeError, DiagramBridge
 from canvas_api.errors import register_error_handlers
 from canvas_api.telemetry import configure_telemetry
 
@@ -19,16 +20,20 @@ from canvas_api.telemetry import configure_telemetry
 def create_app(settings: Settings | None = None, engine: Engine | None = None) -> FastAPI:
     settings = settings or Settings()  # type: ignore[call-arg]  # read from the environment
     db = engine or create_db_engine(settings)
+    bridge = DiagramBridge(settings.diagram_bridge_url) if settings.diagram_bridge_url else None
 
     @asynccontextmanager
     async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
         yield
+        if bridge is not None:
+            bridge.close()
         if engine is None:
             db.dispose()
 
     app = FastAPI(title="Canvas API (Python)", lifespan=lifespan, docs_url=None, redoc_url=None)
     app.state.settings = settings
     app.state.db = db
+    app.state.diagram_bridge = bridge
     configure_telemetry(app, settings.applicationinsights_connection_string)
     register_error_handlers(app)
 
@@ -42,5 +47,17 @@ def create_app(settings: Settings | None = None, engine: Engine | None = None) -
         """canvas-1bty.2: who the Python service thinks is signed in. Proves a session made by the
         TypeScript service works here; removed once real routes have moved."""
         return {"id": user.id, "email": user.email, "role": user.role, "service": "python"}
+
+    @app.get("/py/diagram-core", tags=["Diagnostics"])
+    def python_diagram_core(_user: Annotated[SessionUser, Depends(current_user)]) -> dict[str, str]:
+        """canvas-1bty.4: proves the Python service reaches diagram-core through the bridge (parses a
+        one-line flowchart). Signed-in users only; removed once real routes use the bridge."""
+        if bridge is None:
+            return {"bridge": "not configured"}
+        try:
+            parsed = bridge.parse("flowchart", "flowchart TD\n  A --> B\n")
+        except BridgeError:
+            return {"bridge": "unreachable"}
+        return {"bridge": "ok" if "model" in parsed else "error"}
 
     return app

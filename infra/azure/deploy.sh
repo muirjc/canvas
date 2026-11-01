@@ -433,6 +433,9 @@ elif [[ -n "$EXISTING_ACR" ]]; then
   # canvas-1bty.3: the Python backend (internal container), same tag.
   echo "== Building Python API image (apps/api-py/Dockerfile) to $EXISTING_ACR, tag $API_IMAGE_TAG =="
   az acr build --registry "$EXISTING_ACR" --image "canvas-api-py:${API_IMAGE_TAG}" --file "$REPO_ROOT/apps/api-py/Dockerfile" "$REPO_ROOT" --output none
+  # canvas-1bty.4: the diagram-core bridge, the Python service's sidecar, same tag.
+  echo "== Building diagram-core bridge image (packages/diagram-bridge/Dockerfile) to $EXISTING_ACR, tag $API_IMAGE_TAG =="
+  az acr build --registry "$EXISTING_ACR" --image "canvas-diagram-bridge:${API_IMAGE_TAG}" --file "$REPO_ROOT/packages/diagram-bridge/Dockerfile" "$REPO_ROOT" --output none
 else
   echo "== No existing ACR found -- skipping image build (first-ever run) =="
 fi

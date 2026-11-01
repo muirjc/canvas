@@ -5,6 +5,8 @@
 // database as canvas-api; both services read the same sessions (canvas-1bty.2), so the session
 // secret and cookie settings must match canvas-api's.
 //
+// canvas-1bty.4: a second container, diagram-bridge, runs next to it (diagram-core over localhost).
+//
 // minReplicas=0 like canvas-api: it costs nothing while idle (cold starts accepted, canvas-aots).
 
 @description('Azure region.')
@@ -84,6 +86,8 @@ resource pyApp 'Microsoft.App/containerApps@2025-01-01' = {
             { name: 'COOKIE_SAME_SITE', value: 'lax' }
             { name: 'APPLICATIONINSIGHTS_CONNECTION_STRING', value: appInsightsConnectionString }
             { name: 'OTEL_SERVICE_NAME', value: 'canvas-api-py' }
+            // canvas-1bty.4: the diagram-core bridge, the sidecar below (same localhost).
+            { name: 'DIAGRAM_BRIDGE_URL', value: 'http://127.0.0.1:7070' }
           ]
           resources: {
             cpu: json('0.5')
@@ -109,6 +113,22 @@ resource pyApp 'Microsoft.App/containerApps@2025-01-01' = {
               periodSeconds: 10
             }
           ]
+        }
+        {
+          // canvas-1bty.4: diagram-core (TypeScript) for the Python service until it is ported
+          // (packages/diagram-bridge). Shares the app's network: listens on 127.0.0.1 only, so
+          // nothing outside this replica can reach it.
+          name: 'diagram-bridge'
+          image: '${acrLoginServer}/canvas-diagram-bridge:${imageTag}'
+          env: [
+            { name: 'BRIDGE_HOST', value: '127.0.0.1' }
+            { name: 'BRIDGE_PORT', value: '7070' }
+          ]
+          // 0.5 + 0.25 CPU / 1 + 0.5 Gi: a valid Container Apps combination (0.75 / 1.5Gi).
+          resources: {
+            cpu: json('0.25')
+            memory: '0.5Gi'
+          }
         }
       ]
       scale: {
