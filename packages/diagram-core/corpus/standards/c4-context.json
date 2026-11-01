@@ -1,0 +1,100 @@
+{
+  "allowedShapeIds": [],
+  "mandatoryShapeIds": [],
+  "allowedIconLibraryRefs": [],
+  "colorPalette": [],
+  "requireKnownKinds": true,
+  "connectorPolicy": "any",
+  "elementKinds": [
+    {
+      "id": "person",
+      "label": "Person",
+      "description": "A user of the system (Person).",
+      "shapes": [
+        "person"
+      ],
+      "approvedFills": [
+        "#08427b"
+      ],
+      "match": {
+        "role": "person",
+        "external": false
+      },
+      "requireConnection": true
+    },
+    {
+      "id": "external_person",
+      "label": "External Person",
+      "description": "A person outside the organisation (Person_Ext).",
+      "shapes": [
+        "person"
+      ],
+      "approvedFills": [
+        "#686868"
+      ],
+      "match": {
+        "role": "person",
+        "external": true
+      },
+      "requireConnection": true
+    },
+    {
+      "id": "software_system",
+      "label": "Software System",
+      "description": "The system in scope, or another internal system (System / SystemDb / SystemQueue).",
+      "shapes": [
+        "rectangle",
+        "cylinder",
+        "stadium"
+      ],
+      "approvedFills": [
+        "#1168bd"
+      ],
+      "match": {
+        "role": "system",
+        "external": false
+      },
+      "requireConnection": true,
+      "minCount": 1
+    },
+    {
+      "id": "external_system",
+      "label": "External System",
+      "description": "A system outside the scope being described (System_Ext / SystemDb_Ext / SystemQueue_Ext).",
+      "shapes": [
+        "rectangle",
+        "cylinder",
+        "stadium"
+      ],
+      "approvedFills": [
+        "#999999"
+      ],
+      "match": {
+        "role": "system",
+        "external": true
+      },
+      "requireConnection": true
+    }
+  ],
+  "connectorRules": [
+    {
+      "id": "relationship",
+      "label": "Relationship",
+      "from": "*",
+      "to": "*",
+      "requireLabel": true
+    }
+  ],
+  "severityOverrides": {
+    "kind-unconnected": "warning"
+  },
+  "containers": {
+    "allowed": true,
+    "allowedRoles": [
+      "enterprise-boundary",
+      "system-boundary",
+      "boundary"
+    ]
+  },
+  "guidance": "A C4 System Context diagram shows the software system in scope, the people who use it, and the other systems it depends on -- nothing inside a system (no containers or components). Every relationship needs a label describing what it does."
+}

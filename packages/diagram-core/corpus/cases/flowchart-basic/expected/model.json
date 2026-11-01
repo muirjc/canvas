@@ -1,0 +1,67 @@
+{
+  "containers": [],
+  "diagramTypeId": "flowchart",
+  "direction": "TD",
+  "edges": [
+    {
+      "id": "e1",
+      "sourceId": "A",
+      "targetId": "B"
+    },
+    {
+      "id": "e2",
+      "label": "Yes",
+      "sourceId": "B",
+      "targetId": "C"
+    },
+    {
+      "id": "e3",
+      "label": "No",
+      "sourceId": "B",
+      "targetId": "D"
+    },
+    {
+      "id": "e4",
+      "sourceId": "D",
+      "targetId": "A"
+    }
+  ],
+  "nodes": [
+    {
+      "id": "A",
+      "label": "Start",
+      "position": {
+        "x": 40,
+        "y": 40
+      },
+      "shape": "rectangle"
+    },
+    {
+      "id": "B",
+      "label": "Decision",
+      "position": {
+        "x": 220,
+        "y": 40
+      },
+      "shape": "diamond"
+    },
+    {
+      "id": "C",
+      "label": "Done",
+      "position": {
+        "x": 400,
+        "y": 40
+      },
+      "shape": "stadium"
+    },
+    {
+      "id": "D",
+      "label": "Retry",
+      "position": {
+        "x": 580,
+        "y": 40
+      },
+      "shape": "subroutine"
+    }
+  ]
+}

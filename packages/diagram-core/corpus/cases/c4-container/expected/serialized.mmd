@@ -1,0 +1,43 @@
+---
+canvas:
+  positions:
+    user:
+      x: 40
+      y: 323
+    web:
+      x: 60
+      y: 90
+    api:
+      x: 300
+      y: 90
+    db:
+      x: 540
+      y: 90
+    q:
+      x: 780
+      y: 90
+    legacy:
+      x: 60
+      y: 203
+  styles: {}
+  edgeStyles: {}
+  containers:
+    app:
+      x: 40
+      y: 40
+      width: 900
+      height: 243
+---
+C4Container
+Container_Boundary(app, "Shop") {
+  Container(web, "Web app", "React", "Storefront")
+  Container(api, "API", "Fastify")
+  ContainerDb(db, "Database", "PostgreSQL")
+  ContainerQueue(q, "Orders queue")
+  ContainerDb_Ext(legacy, "Legacy DB")
+}
+Person(user, "User")
+Rel(user, web, "Uses")
+Rel(web, api, "Calls", "JSON/HTTPS")
+Rel(api, db, "Reads/writes")
+Rel(api, q, "Publishes")

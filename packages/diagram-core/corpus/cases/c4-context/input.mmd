@@ -1,0 +1,18 @@
+C4Context
+  title Internet banking
+  Person(customer, "Customer", "A bank customer")
+  Person_Ext(auditor, "Auditor")
+  Enterprise_Boundary(bank, "Bank") {
+    System(ib, "Internet Banking", "Lets customers view accounts")
+    System_Boundary(core, "Core") {
+      SystemDb(mainframe, "Mainframe", "Stores accounts")
+      SystemQueue(events, "Event bus")
+    }
+  }
+  System_Ext(mail, "E-mail system")
+  Rel(customer, ib, "Uses", "HTTPS")
+  BiRel(ib, mainframe, "Reads and writes")
+  Rel_Back(mail, ib, "Sends e-mail")
+  Rel_U(auditor, ib, "Reviews")
+  UpdateElementStyle(ib, $bgColor="#d62728", $borderColor="#2ca02c")
+  UpdateRelStyle(customer, ib, $lineColor="#ff7f0e")

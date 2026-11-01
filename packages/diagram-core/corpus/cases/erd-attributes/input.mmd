@@ -1,0 +1,18 @@
+erDiagram
+  direction LR
+  CUSTOMER[Customer] {
+    string id PK
+    string email UK "login"
+    string name
+  }
+  ORDER {
+    string id PK
+    string customer_id FK
+    date placed_on
+  }
+  LINE_ITEM
+  CUSTOMER ||--o{ ORDER : places
+  ORDER ||--|{ LINE_ITEM : contains
+  style CUSTOMER fill:#d62728,stroke:#2ca02c
+  classDef hot fill:#ff7f0e
+  class ORDER hot

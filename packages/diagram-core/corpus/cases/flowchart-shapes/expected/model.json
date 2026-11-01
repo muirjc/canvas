@@ -1,0 +1,162 @@
+{
+  "containers": [],
+  "diagramTypeId": "flowchart",
+  "direction": "LR",
+  "edges": [
+    {
+      "id": "e1",
+      "sourceId": "r",
+      "targetId": "ro"
+    },
+    {
+      "id": "e2",
+      "sourceId": "ro",
+      "targetId": "st"
+    },
+    {
+      "id": "e3",
+      "sourceId": "st",
+      "targetId": "su"
+    },
+    {
+      "id": "e4",
+      "sourceId": "cy",
+      "targetId": "ci"
+    },
+    {
+      "id": "e5",
+      "sourceId": "ci",
+      "targetId": "dc"
+    },
+    {
+      "id": "e6",
+      "sourceId": "di",
+      "targetId": "hx"
+    },
+    {
+      "id": "e7",
+      "sourceId": "hx",
+      "targetId": "pa"
+    },
+    {
+      "id": "e8",
+      "sourceId": "pa",
+      "targetId": "tr"
+    },
+    {
+      "id": "e9",
+      "sourceId": "tr",
+      "targetId": "as"
+    }
+  ],
+  "nodes": [
+    {
+      "id": "r",
+      "label": "Rectangle",
+      "position": {
+        "x": 40,
+        "y": 40
+      },
+      "shape": "rectangle"
+    },
+    {
+      "id": "ro",
+      "label": "Rounded",
+      "position": {
+        "x": 220,
+        "y": 40
+      },
+      "shape": "rounded-rectangle"
+    },
+    {
+      "id": "st",
+      "label": "Stadium",
+      "position": {
+        "x": 400,
+        "y": 40
+      },
+      "shape": "stadium"
+    },
+    {
+      "id": "su",
+      "label": "Subroutine",
+      "position": {
+        "x": 580,
+        "y": 40
+      },
+      "shape": "subroutine"
+    },
+    {
+      "id": "cy",
+      "label": "Cylinder",
+      "position": {
+        "x": 760,
+        "y": 40
+      },
+      "shape": "cylinder"
+    },
+    {
+      "id": "ci",
+      "label": "Circle",
+      "position": {
+        "x": 940,
+        "y": 40
+      },
+      "shape": "circle"
+    },
+    {
+      "id": "dc",
+      "label": "Double circle",
+      "position": {
+        "x": 40,
+        "y": 140
+      },
+      "shape": "double-circle"
+    },
+    {
+      "id": "di",
+      "label": "Diamond",
+      "position": {
+        "x": 220,
+        "y": 140
+      },
+      "shape": "diamond"
+    },
+    {
+      "id": "hx",
+      "label": "Hexagon",
+      "position": {
+        "x": 400,
+        "y": 140
+      },
+      "shape": "hexagon"
+    },
+    {
+      "id": "pa",
+      "label": "Parallelogram",
+      "position": {
+        "x": 580,
+        "y": 140
+      },
+      "shape": "parallelogram"
+    },
+    {
+      "id": "tr",
+      "label": "Trapezoid",
+      "position": {
+        "x": 760,
+        "y": 140
+      },
+      "shape": "trapezoid"
+    },
+    {
+      "id": "as",
+      "label": "Asymmetric",
+      "position": {
+        "x": 940,
+        "y": 140
+      },
+      "shape": "asymmetric"
+    }
+  ]
+}

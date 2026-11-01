@@ -1,0 +1,68 @@
+---
+canvas:
+  positions:
+    gw:
+      x: 76
+      y: 198.2
+    api:
+      x: 280
+      y: 140
+    db:
+      x: 280
+      y: 286.4
+    fn:
+      x: 468
+      y: 198.2
+    j1:
+      x: 60
+      y: 452.8
+  containers:
+    cloud:
+      x: 40
+      y: 40
+      width: 556
+      height: 492.8
+    private:
+      x: 260
+      y: 90
+      width: 148
+      height: 302.8
+  icons:
+    gw:
+      libraryId: mermaid-architecture
+      libraryVersion: 1.0.0
+      iconId: internet
+    api:
+      libraryId: mermaid-architecture
+      libraryVersion: 1.0.0
+      iconId: server
+    db:
+      libraryId: mermaid-architecture
+      libraryVersion: 1.0.0
+      iconId: database
+    fn:
+      libraryId: logos
+      libraryVersion: iconify
+      iconId: aws-lambda
+    cloud:
+      libraryId: mermaid-architecture
+      libraryVersion: 1.0.0
+      iconId: cloud
+    private:
+      libraryId: mermaid-architecture
+      libraryVersion: 1.0.0
+      iconId: cloud
+---
+architecture-beta
+group cloud(cloud)[Cloud]
+group private(cloud)[Private] in cloud
+service gw(internet)[Gateway] in cloud
+service api(server)[API] in private
+service db(database)[Database] in private
+service fn(logos:aws-lambda)[Function] in cloud
+junction j1 in cloud
+gw:R --> L:api
+api:B -- T:db
+api{group}:R --> L:fn
+gw:B -- T:j1
+align row gw api

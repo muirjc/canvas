@@ -1,0 +1,73 @@
+[
+  {
+    "elementId": "in",
+    "elementType": "node",
+    "kindId": "primary_activity",
+    "message": "Primary Activity \"Inbound logistics\" uses shape \"rectangle\"; allowed: asymmetric.",
+    "rule": "kind-shape",
+    "severity": "warning"
+  },
+  {
+    "elementId": "in",
+    "elementType": "node",
+    "kindId": "primary_activity",
+    "message": "Primary Activity \"Inbound logistics\" has border #1e3a8a; approved: #1d4ed8.",
+    "rule": "kind-stroke",
+    "severity": "info"
+  },
+  {
+    "elementId": "ops",
+    "elementType": "node",
+    "kindId": "primary_activity",
+    "message": "Primary Activity \"Operations\" uses shape \"rectangle\"; allowed: asymmetric.",
+    "rule": "kind-shape",
+    "severity": "warning"
+  },
+  {
+    "elementId": "ops",
+    "elementType": "node",
+    "kindId": "primary_activity",
+    "message": "Primary Activity \"Operations\" is filled #ffffff; approved: #dbeafe, #bfdbfe.",
+    "rule": "kind-fill",
+    "severity": "warning"
+  },
+  {
+    "elementId": "ops",
+    "elementType": "node",
+    "kindId": "primary_activity",
+    "message": "Primary Activity \"Operations\" has border #333333; approved: #1d4ed8.",
+    "rule": "kind-stroke",
+    "severity": "info"
+  },
+  {
+    "elementId": "hr",
+    "elementType": "node",
+    "kindId": "support_activity",
+    "message": "Support Activity \"HR management\" is filled #ffffff; approved: #fef3c7, #fde68a.",
+    "rule": "kind-fill",
+    "severity": "warning"
+  },
+  {
+    "elementId": "hr",
+    "elementType": "node",
+    "kindId": "support_activity",
+    "message": "Support Activity \"HR management\" has border #333333; approved: #b45309.",
+    "rule": "kind-stroke",
+    "severity": "info"
+  },
+  {
+    "elementId": "stray",
+    "elementType": "node",
+    "message": "\"Unknown kind\" is a \"mystery\", which isn't one of this standard's element kinds (Primary Activity, Support Activity, Margin).",
+    "rule": "unknown-kind",
+    "severity": "error"
+  },
+  {
+    "elementId": "(diagram)",
+    "elementType": "diagram",
+    "kindId": "margin",
+    "message": "Needs at least 1 Margin; found 0.",
+    "rule": "kind-min-count",
+    "severity": "error"
+  }
+]

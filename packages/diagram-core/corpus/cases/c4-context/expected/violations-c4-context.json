@@ -1,0 +1,18 @@
+[
+  {
+    "elementId": "ib",
+    "elementType": "node",
+    "kindId": "software_system",
+    "message": "Software System \"Internet Banking\" is filled #d62728; approved: #1168bd.",
+    "rule": "kind-fill",
+    "severity": "warning"
+  },
+  {
+    "elementId": "events",
+    "elementType": "node",
+    "kindId": "software_system",
+    "message": "Software System \"Event bus\" isn't connected to anything.",
+    "rule": "kind-unconnected",
+    "severity": "warning"
+  }
+]

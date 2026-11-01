@@ -1,0 +1,82 @@
+{
+  "containers": [
+    {
+      "boundaryType": "Cloud",
+      "id": "azure",
+      "label": "Azure",
+      "position": {
+        "x": 40,
+        "y": 40
+      },
+      "role": "deployment-node",
+      "size": {
+        "height": 200,
+        "width": 500
+      }
+    },
+    {
+      "id": "env",
+      "label": "Container Apps",
+      "parentContainerId": "azure",
+      "position": {
+        "x": 60,
+        "y": 90
+      },
+      "role": "deployment-node",
+      "size": {
+        "height": 130,
+        "width": 240
+      }
+    },
+    {
+      "id": "pg",
+      "label": "Postgres server",
+      "parentContainerId": "azure",
+      "position": {
+        "x": 340,
+        "y": 90
+      },
+      "role": "deployment-node",
+      "size": {
+        "height": 130,
+        "width": 180
+      }
+    }
+  ],
+  "diagramTypeId": "c4-deployment",
+  "edges": [
+    {
+      "id": "e1",
+      "label": "SQL",
+      "sourceId": "api",
+      "targetId": "db"
+    }
+  ],
+  "nodes": [
+    {
+      "c4TypeLabel": "Container",
+      "containerId": "env",
+      "id": "api",
+      "label": "API",
+      "position": {
+        "x": 80,
+        "y": 140
+      },
+      "role": "container",
+      "shape": "rounded-rectangle",
+      "technology": "Node"
+    },
+    {
+      "c4TypeLabel": "Container",
+      "containerId": "pg",
+      "id": "db",
+      "label": "Database",
+      "position": {
+        "x": 360,
+        "y": 140
+      },
+      "role": "container",
+      "shape": "cylinder"
+    }
+  ]
+}

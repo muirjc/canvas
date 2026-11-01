@@ -1,0 +1,36 @@
+sequenceDiagram
+autonumber
+box Aqua Team
+  participant A
+  participant B
+end
+participant C
+loop Every minute
+  A->>B: ping
+end
+alt ok
+  B->>A: pong
+  else failed
+    B->>C: alert
+end
+opt extra
+  C->>A: info
+end
+par one
+  A->>B: x
+  and two
+    A->>C: y
+end
+critical must work
+  A->>B: z
+end
+break stop
+  B->>A: bye
+end
+rect rgb(200, 255, 200)
+  A->>C: highlighted
+end
+create participant D
+C->>D: hello
+destroy D
+C->>D: bye

@@ -1,0 +1,78 @@
+---
+canvas:
+  positions:
+    A:
+      x: 40
+      y: 40
+    B:
+      x: 220
+      y: 40
+    C:
+      x: 400
+      y: 40
+    D:
+      x: 580
+      y: 40
+    E:
+      x: 760
+      y: 40
+    F:
+      x: 940
+      y: 40
+    G:
+      x: 40
+      y: 140
+    H:
+      x: 220
+      y: 140
+    P:
+      x: 400
+      y: 140
+    Q:
+      x: 580
+      y: 140
+    R:
+      x: 760
+      y: 140
+    S:
+      x: 940
+      y: 140
+    T:
+      x: 40
+      y: 240
+    U:
+      x: 220
+      y: 240
+  containers: {}
+  styles: {}
+  edgeStyles: {}
+  icons: {}
+---
+flowchart LR
+  A[A]
+  B[B]
+  C[C]
+  D[D]
+  E[E]
+  F[F]
+  G[G]
+  H[H]
+  P[P]
+  Q[Q]
+  R[R]
+  S[S]
+  T[T]
+  U[U]
+  A -.-> B
+  B ==> C
+  C --- D
+  D <--> E
+  E ~~~ F
+  F -.- G
+  G === H
+  A -->|label text| C
+  A -->|piped label| D
+  P --> Q
+  Q --> R
+  S --> T
+  S --> U

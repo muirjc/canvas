@@ -1,0 +1,61 @@
+---
+canvas:
+  positions:
+    a1:
+      x: 80
+      y: 140
+    a2:
+      x: 260
+      y: 140
+    a3:
+      x: 460
+      y: 90
+    b1:
+      x: 660
+      y: 40
+    outer:
+      x: 840
+      y: 40
+  containers:
+    outer:
+      x: 40
+      y: 40
+      width: 580
+      height: 200
+    inner:
+      x: 60
+      y: 90
+      width: 360
+      height: 130
+  styles:
+    a2:
+      fillColor: "#1f77b4"
+      strokeDasharray: 5 5
+    a3:
+      fillColor: "#ff7f0e"
+      strokeColor: "#d62728"
+      strokeWidth: 2
+    b1:
+      fillColor: "#ff7f0e"
+      strokeColor: "#d62728"
+      strokeWidth: 2
+  edgeStyles:
+    e1:
+      strokeColor: "#2ca02c"
+      strokeWidth: 3
+  icons: {}
+---
+flowchart TB
+subgraph outer [Outer group]
+  direction LR
+  a3[a3]:::hot
+  subgraph inner [Inner]
+    a1[One<br/>Two lines]
+    a2[a2]
+  end
+end
+  b1[b1]:::hot
+  outer[outer]
+  a1 --> a2
+  a3 --> a1
+  b1 --> outer
