@@ -5,6 +5,7 @@ description = "Canvas backend, Python (canvas-1bty: incremental move from apps/a
 requires-python = ">=3.13,<3.14"
 dependencies = [
     "azure-monitor-opentelemetry>=1.8.11",
+    "cryptography>=46",
     "fastapi>=0.143.3",
     "httpx>=0.28.1",
     "psycopg[binary]>=3.3.6",

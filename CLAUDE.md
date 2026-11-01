@@ -93,6 +93,24 @@ tests are NON-NEGOTIABLE and must exist (and fail) before implementing any diagr
 work — see `.specify/memory/constitution.md` Principle IV.
 
 ## Recent Changes
+- `canvas-1bty.11` (Python phase 7): the GitHub approval routes answer from `apps/api-py` (group
+  `github`, 14 routes: admin status/repositories/workflow example/links/test, project link set/remove/
+  read, submit, submission status/refresh/withdraw/history, project badges). `canvas_api/github/`
+  ports the client (httpx; App JWT signed with `cryptography`, now a direct dependency; same token,
+  ETag and rate-limit caches), links, submissions (lock row, orphan adoption, document embeds via
+  the bridge's `embeds` op), status sync and the submission files. Those files must match the
+  TypeScript ones byte for byte (a diagram submitted from one service and resubmitted unchanged
+  from the other is "up to date"), so `github/jstext.py` copies JavaScript string rules: UTF-16
+  lengths and slices, `trim`/`\s`, `JSON.stringify` spacing and numbers. The scheduled
+  `canvas-github-sync` job now runs `python -m canvas_api.github.sync_run` in the canvas-api-py
+  image; that image builds the CI validator bundle (`CANVAS_VALIDATOR_DIR`), and the Python app gets
+  the GitHub App settings and `CANVAS_PUBLIC_URL` (pyapiapp.bicep). Contract: new GitHub schemas,
+  and `Error` gained `violations` (422 `must_fix`). Python tests use an in-process fake GitHub
+  (`tests/fake_github.py`, an httpx transport passed to `create_app(github_transport=)`). Also fixed:
+  deploy.sh's rotated-secret refresh (canvas-28j) never reached canvas-api-py, so a rotated
+  `database-url`/`session-secret` (since phase 2) or GitHub key wasn't picked up there.
+  Live parity on the dev DB, against the fake GitHub: 50/50 responses identical, and resubmitting
+  unchanged across services is "up to date" both ways.
 - `canvas-1bty.10` (Python phase 6): `GET /diagrams/:id/export` (Mermaid/SVG/PNG) answers from
   `apps/api-py` (`routes/export.py`, group `export`): Mermaid and SVG through the bridge (icon
   artwork looked up here, legend entries from the active standard), PNG with **resvg-py** (new

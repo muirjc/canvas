@@ -23,7 +23,9 @@ from sqlalchemy import Engine
 from canvas_api.app import create_app
 from canvas_api.config import Settings
 from canvas_api.db import create_db_engine
+from canvas_api.github.validator_bundle import reset_cache
 from canvas_api.migrations import run_migrations
+from tests.fake_github import FakeGitHub
 
 #: The TypeScript tests' fixed session secret (apps/api/src/config.ts TEST_SESSION_SECRET).
 TEST_SESSION_SECRET = "test-secret-at-least-32-characters-long"
@@ -104,3 +106,59 @@ def api(client: TestClient, engine: Engine) -> Iterator[Any]:
 
     reset(engine)
     yield Api(client, engine)
+
+
+@pytest.fixture(scope="session")
+def fake_github() -> FakeGitHub:
+    """The in-memory GitHub (tests/fake_github.py); its App key is generated once per run."""
+    return FakeGitHub()
+
+
+def github_settings(base: Settings, fake: FakeGitHub, validator_dir: Path) -> Settings:
+    """Settings for an app wired to the fake GitHub. CANVAS_VALIDATOR_DIR always points somewhere (an empty
+    directory by default): unlike the TypeScript service, Python has no NODE_ENV=test switch that keeps a
+    locally built validator out of the results."""
+    return base.model_copy(
+        update={
+            "github_app_id": fake.app_id,
+            "github_app_private_key": fake.private_key_pem(),
+            "github_app_api_url": fake.url,
+            "canvas_public_url_setting": "http://canvas.test",
+            "canvas_validator_dir": str(validator_dir),
+        }
+    )
+
+
+@pytest.fixture(scope="session")
+def github_engine(settings: Settings, engine: Engine, tmp_path_factory: pytest.TempPathFactory) -> Iterator[Engine]:
+    """The GitHub tests' database. Postgres: the usual one. SQLite: a file, not :memory:, because the in-memory
+    engine shares ONE connection between all threads, and these tests send simultaneous requests (a real
+    SQLite deployment uses a file, with a connection per thread, as better-sqlite3 never interleaves)."""
+    if settings.db_client != "sqlite":
+        yield engine
+        return
+    file_settings = settings.model_copy(update={"database_url": str(tmp_path_factory.mktemp("sqlite") / "canvas.db")})
+    file_engine = create_db_engine(file_settings)
+    run_migrations(file_engine)
+    yield file_engine
+    file_engine.dispose()
+
+
+@pytest.fixture()
+def github(
+    settings: Settings, github_engine: Engine, fake_github: FakeGitHub, tmp_path: Path, needs_bridge: str
+) -> Iterator[Any]:
+    """A clean database and an app wired to the fake GitHub, with its installation, two repositories and users."""
+    from tests.api import Api, reset
+    from tests.github_helpers import GH
+
+    engine = github_engine
+    empty = tmp_path / "validator-none"
+    empty.mkdir()
+    reset(engine)
+    fake_github.reset()
+    reset_cache()
+    app = create_app(github_settings(settings, fake_github, empty), engine, fake_github.transport())
+    with TestClient(app) as test_client:
+        yield GH(Api(test_client, engine), app, fake_github, engine, tmp_path, needs_bridge)
+    reset_cache()

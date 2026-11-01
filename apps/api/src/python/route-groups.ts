@@ -92,6 +92,24 @@ export const PYTHON_ROUTE_GROUPS = {
   // Phase 6 (canvas-1bty.10). SVG through the diagram-core bridge, PNG with resvg-py (the same Rust
   // renderer as @resvg/resvg-js; pixel-identical output).
   export: ['GET /diagrams/:id/export'],
+  // Phase 7 (canvas-1bty.11). The GitHub App: admin status and repository links, submitting a diagram
+  // as a pull request (with document embeds), status sync on demand and withdrawing.
+  github: [
+    'GET /admin/github/status',
+    'GET /admin/github/repositories',
+    'GET /admin/github/workflow-example',
+    'GET /admin/github/links',
+    'POST /admin/github/links/:id/test',
+    'PUT /projects/:id/github-link',
+    'DELETE /projects/:id/github-link',
+    'GET /projects/:id/github-link',
+    'POST /diagrams/:id/submissions',
+    'GET /diagrams/:id/submission',
+    'POST /diagrams/:id/submission/refresh',
+    'POST /diagrams/:id/submission/withdraw',
+    'GET /diagrams/:id/submissions',
+    'GET /projects/:id/submission-statuses',
+  ],
 } as const satisfies Record<string, readonly string[]>;
 
 export type PythonRouteGroup = keyof typeof PYTHON_ROUTE_GROUPS;

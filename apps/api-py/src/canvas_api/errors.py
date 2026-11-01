@@ -12,7 +12,13 @@ from fastapi.responses import JSONResponse
 
 class ApiError(Exception):
     def __init__(
-        self, status: int, error: str, code: str | None = None, details: Any = None, issues: Any = None
+        self,
+        status: int,
+        error: str,
+        code: str | None = None,
+        details: Any = None,
+        issues: Any = None,
+        violations: Any = None,
     ) -> None:
         super().__init__(error)
         self.status = status
@@ -22,6 +28,8 @@ class ApiError(Exception):
         self.details = details
         #: An invalid standard definition's problems, as [{path, message}].
         self.issues = issues
+        #: The Must fix issues blocking a GitHub submission (422, code must_fix).
+        self.violations = violations
 
 
 def _describe(error: Mapping[str, Any]) -> str:
@@ -42,6 +50,8 @@ def register_error_handlers(app: FastAPI) -> None:
             body["details"] = exc.details
         if exc.issues is not None:
             body["issues"] = exc.issues
+        if exc.violations is not None:
+            body["violations"] = exc.violations
         return JSONResponse(body, status_code=exc.status)
 
     @app.exception_handler(RequestValidationError)

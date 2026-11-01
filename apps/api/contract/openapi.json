@@ -637,10 +637,191 @@
               "type": "object"
             },
             "type": "array"
+          },
+          "violations": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "type": "array"
           }
         },
         "required": [
           "error"
+        ],
+        "type": "object"
+      },
+      "GitHubInstallation": {
+        "additionalProperties": false,
+        "properties": {
+          "account": {
+            "type": "string"
+          },
+          "id": {
+            "type": "integer"
+          },
+          "permissions": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object"
+          },
+          "repositorySelection": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "account",
+          "repositorySelection",
+          "permissions"
+        ],
+        "type": "object"
+      },
+      "GitHubLink": {
+        "additionalProperties": false,
+        "properties": {
+          "baseBranch": {
+            "type": "string"
+          },
+          "createdAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "folder": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "installationId": {
+            "type": "integer"
+          },
+          "lastCheckError": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "lastCheckedAt": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "openSubmissionCount": {
+            "type": "integer"
+          },
+          "projectId": {
+            "type": "string"
+          },
+          "projectName": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "repoFullName": {
+            "type": "string"
+          },
+          "repoId": {
+            "type": "integer"
+          },
+          "repoName": {
+            "type": "string"
+          },
+          "repoOwner": {
+            "type": "string"
+          },
+          "updatedAt": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "projectId",
+          "projectName",
+          "repoId",
+          "repoOwner",
+          "repoName",
+          "repoFullName",
+          "installationId",
+          "baseBranch",
+          "folder",
+          "createdAt",
+          "updatedAt",
+          "lastCheckedAt",
+          "lastCheckError"
+        ],
+        "type": "object"
+      },
+      "GitHubLinkSummary": {
+        "additionalProperties": false,
+        "properties": {
+          "baseBranch": {
+            "type": "string"
+          },
+          "folder": {
+            "type": "string"
+          },
+          "repoFullName": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "repoFullName",
+          "folder",
+          "baseBranch"
+        ],
+        "type": "object"
+      },
+      "GitHubRepository": {
+        "additionalProperties": false,
+        "properties": {
+          "defaultBranch": {
+            "type": "string"
+          },
+          "fullName": {
+            "type": "string"
+          },
+          "id": {
+            "type": "integer"
+          },
+          "installationId": {
+            "type": "integer"
+          },
+          "name": {
+            "type": "string"
+          },
+          "owner": {
+            "type": "string"
+          },
+          "private": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "id",
+          "owner",
+          "name",
+          "fullName",
+          "defaultBranch",
+          "private",
+          "installationId"
         ],
         "type": "object"
       },
@@ -1272,6 +1453,405 @@
         ],
         "type": "object"
       },
+      "Submission": {
+        "additionalProperties": false,
+        "properties": {
+          "baseBranch": {
+            "type": "string"
+          },
+          "branch": {
+            "type": "string"
+          },
+          "checksState": {
+            "type": "string"
+          },
+          "closedAt": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "firstSubmittedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "lastSubmittedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "lastSyncError": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "lastSyncedAt": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "mergedAt": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "mergedBy": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "mergedHeadMatches": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "path": {
+            "type": "string"
+          },
+          "prNumber": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "prUrl": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "pushes": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "commitSha": {
+                  "type": "string"
+                },
+                "pushedAt": {
+                  "format": "date-time",
+                  "type": "string"
+                },
+                "pushedBy": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "versionSequence": {
+                  "type": "integer"
+                },
+                "warningCount": {
+                  "type": "integer"
+                }
+              },
+              "required": [
+                "versionSequence",
+                "commitSha",
+                "pushedBy",
+                "pushedAt",
+                "warningCount"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "repoFullName": {
+            "type": "string"
+          },
+          "reviewState": {
+            "type": "string"
+          },
+          "state": {
+            "enum": [
+              "open",
+              "merged",
+              "closed"
+            ],
+            "type": "string"
+          },
+          "statusDetail": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "submittedBy": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "submittedVersionSequence": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "withdrawnAt": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "withdrawnBy": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "state",
+          "prNumber",
+          "prUrl",
+          "repoFullName",
+          "baseBranch",
+          "branch",
+          "path",
+          "submittedVersionSequence",
+          "submittedBy",
+          "firstSubmittedAt",
+          "lastSubmittedAt",
+          "reviewState",
+          "checksState",
+          "mergedAt",
+          "mergedBy",
+          "closedAt",
+          "mergedHeadMatches",
+          "withdrawnAt",
+          "withdrawnBy",
+          "statusDetail",
+          "lastSyncedAt",
+          "lastSyncError"
+        ],
+        "type": "object"
+      },
+      "SubmissionBadge": {
+        "additionalProperties": false,
+        "properties": {
+          "changesSinceSubmitting": {
+            "type": "boolean"
+          },
+          "checksState": {
+            "type": "string"
+          },
+          "prNumber": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "prUrl": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "reviewState": {
+            "type": "string"
+          },
+          "state": {
+            "enum": [
+              "open",
+              "merged",
+              "closed"
+            ],
+            "type": "string"
+          },
+          "submittedVersionSequence": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "withdrawn": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "state",
+          "prNumber",
+          "prUrl",
+          "reviewState",
+          "checksState",
+          "submittedVersionSequence",
+          "changesSinceSubmitting",
+          "withdrawn"
+        ],
+        "type": "object"
+      },
+      "SubmissionStatus": {
+        "additionalProperties": false,
+        "properties": {
+          "approved": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Submission"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "canSubmit": {
+            "additionalProperties": false,
+            "properties": {
+              "allowed": {
+                "type": "boolean"
+              },
+              "mustFixCount": {
+                "type": "integer"
+              },
+              "reason": {
+                "anyOf": [
+                  {
+                    "enum": [
+                      "github_disabled",
+                      "not_linked",
+                      "no_edit_access",
+                      "must_fix"
+                    ],
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "warningCount": {
+                "type": "integer"
+              }
+            },
+            "required": [
+              "allowed",
+              "reason",
+              "mustFixCount",
+              "warningCount"
+            ],
+            "type": "object"
+          },
+          "canWithdraw": {
+            "type": "boolean"
+          },
+          "changesSinceSubmitting": {
+            "type": "boolean"
+          },
+          "current": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Submission"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "link": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/GitHubLinkSummary"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "enabled",
+          "link",
+          "current",
+          "approved",
+          "changesSinceSubmitting",
+          "canSubmit",
+          "canWithdraw"
+        ],
+        "type": "object"
+      },
       "UpdatedUser": {
         "additionalProperties": false,
         "properties": {
@@ -1772,6 +2352,332 @@
         ],
         "tags": [
           "DiagramTypes"
+        ]
+      }
+    },
+    "/admin/github/links": {
+      "get": {
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "links": {
+                      "items": {
+                        "$ref": "#/components/schemas/GitHubLink"
+                      },
+                      "type": "array"
+                    }
+                  },
+                  "required": [
+                    "links"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Default Response"
+          },
+          "4XX": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Default Response"
+          },
+          "5XX": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        },
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ],
+        "tags": [
+          "GitHub"
+        ]
+      }
+    },
+    "/admin/github/links/{id}/test": {
+      "post": {
+        "description": "Checks the link of the project with this id.",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "checks": {
+                      "items": {
+                        "additionalProperties": false,
+                        "properties": {
+                          "detail": {
+                            "type": "string"
+                          },
+                          "id": {
+                            "enum": [
+                              "installation",
+                              "repository",
+                              "branch",
+                              "contents",
+                              "pull_requests"
+                            ],
+                            "type": "string"
+                          },
+                          "label": {
+                            "type": "string"
+                          },
+                          "ok": {
+                            "type": "boolean"
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "label",
+                          "ok"
+                        ],
+                        "type": "object"
+                      },
+                      "type": "array"
+                    },
+                    "ok": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "ok",
+                    "checks"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Default Response"
+          },
+          "4XX": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Default Response"
+          },
+          "5XX": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        },
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ],
+        "tags": [
+          "GitHub"
+        ]
+      }
+    },
+    "/admin/github/repositories": {
+      "get": {
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "repositories": {
+                      "items": {
+                        "$ref": "#/components/schemas/GitHubRepository"
+                      },
+                      "type": "array"
+                    }
+                  },
+                  "required": [
+                    "repositories"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Default Response"
+          },
+          "4XX": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Default Response"
+          },
+          "5XX": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        },
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ],
+        "tags": [
+          "GitHub"
+        ]
+      }
+    },
+    "/admin/github/status": {
+      "get": {
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "apiUrl": {
+                      "type": "string"
+                    },
+                    "appId": {
+                      "type": "string"
+                    },
+                    "enabled": {
+                      "type": "boolean"
+                    },
+                    "error": {
+                      "type": "string"
+                    },
+                    "installations": {
+                      "items": {
+                        "$ref": "#/components/schemas/GitHubInstallation"
+                      },
+                      "type": "array"
+                    },
+                    "validatorAvailable": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "enabled",
+                    "installations"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Default Response"
+          },
+          "4XX": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Default Response"
+          },
+          "5XX": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        },
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ],
+        "tags": [
+          "GitHub"
+        ]
+      }
+    },
+    "/admin/github/workflow-example": {
+      "get": {
+        "responses": {
+          "200": {
+            "content": {
+              "text/yaml": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "description": "The example workflow"
+          },
+          "4XX": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Default Response"
+          },
+          "5XX": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        },
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ],
+        "tags": [
+          "GitHub"
         ]
       }
     },
@@ -3686,6 +4592,364 @@
         ]
       }
     },
+    "/diagrams/{id}/submission": {
+      "get": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SubmissionStatus"
+                }
+              }
+            },
+            "description": "Default Response"
+          },
+          "4XX": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Default Response"
+          },
+          "5XX": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        },
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ],
+        "tags": [
+          "GitHub"
+        ]
+      }
+    },
+    "/diagrams/{id}/submission/refresh": {
+      "post": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SubmissionStatus"
+                }
+              }
+            },
+            "description": "Default Response"
+          },
+          "4XX": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Default Response"
+          },
+          "5XX": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        },
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ],
+        "tags": [
+          "GitHub"
+        ]
+      }
+    },
+    "/diagrams/{id}/submission/withdraw": {
+      "post": {
+        "description": "Closes the diagram's open pull request.",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SubmissionStatus"
+                }
+              }
+            },
+            "description": "Default Response"
+          },
+          "4XX": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Default Response"
+          },
+          "5XX": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        },
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ],
+        "tags": [
+          "GitHub"
+        ]
+      }
+    },
+    "/diagrams/{id}/submissions": {
+      "get": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "submissions": {
+                      "items": {
+                        "$ref": "#/components/schemas/Submission"
+                      },
+                      "type": "array"
+                    }
+                  },
+                  "required": [
+                    "submissions"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Default Response"
+          },
+          "4XX": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Default Response"
+          },
+          "5XX": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        },
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ],
+        "tags": [
+          "GitHub"
+        ]
+      },
+      "post": {
+        "description": "Submits the saved diagram to GitHub for approval.",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "outcome": {
+                      "enum": [
+                        "created",
+                        "updated",
+                        "upToDate"
+                      ],
+                      "type": "string"
+                    },
+                    "submission": {
+                      "anyOf": [
+                        {
+                          "$ref": "#/components/schemas/Submission"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "warnings": {
+                      "items": {
+                        "additionalProperties": true,
+                        "type": "object"
+                      },
+                      "type": "array"
+                    }
+                  },
+                  "required": [
+                    "outcome",
+                    "submission",
+                    "warnings"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Default Response"
+          },
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "outcome": {
+                      "enum": [
+                        "created",
+                        "updated",
+                        "upToDate"
+                      ],
+                      "type": "string"
+                    },
+                    "submission": {
+                      "anyOf": [
+                        {
+                          "$ref": "#/components/schemas/Submission"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "warnings": {
+                      "items": {
+                        "additionalProperties": true,
+                        "type": "object"
+                      },
+                      "type": "array"
+                    }
+                  },
+                  "required": [
+                    "outcome",
+                    "submission",
+                    "warnings"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Default Response"
+          },
+          "4XX": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Default Response"
+          },
+          "5XX": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        },
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ],
+        "tags": [
+          "GitHub"
+        ]
+      }
+    },
     "/diagrams/{id}/versions": {
       "get": {
         "parameters": [
@@ -4371,6 +5635,216 @@
         ]
       }
     },
+    "/projects/{id}/github-link": {
+      "delete": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No content"
+          },
+          "4XX": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Default Response"
+          },
+          "5XX": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        },
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ],
+        "tags": [
+          "GitHub"
+        ]
+      },
+      "get": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "enabled": {
+                      "type": "boolean"
+                    },
+                    "link": {
+                      "anyOf": [
+                        {
+                          "$ref": "#/components/schemas/GitHubLinkSummary"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    }
+                  },
+                  "required": [
+                    "enabled",
+                    "link"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Default Response"
+          },
+          "4XX": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Default Response"
+          },
+          "5XX": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        },
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ],
+        "tags": [
+          "GitHub"
+        ]
+      },
+      "put": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": false,
+                "properties": {
+                  "baseBranch": {
+                    "maxLength": 250,
+                    "type": "string"
+                  },
+                  "folder": {
+                    "maxLength": 300,
+                    "minLength": 1,
+                    "type": "string"
+                  },
+                  "repoId": {
+                    "minimum": 1,
+                    "type": "integer"
+                  }
+                },
+                "required": [
+                  "repoId",
+                  "folder"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "link": {
+                      "$ref": "#/components/schemas/GitHubLink"
+                    }
+                  },
+                  "required": [
+                    "link"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Default Response"
+          },
+          "4XX": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Default Response"
+          },
+          "5XX": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        },
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ],
+        "tags": [
+          "GitHub"
+        ]
+      }
+    },
     "/projects/{id}/members": {
       "get": {
         "parameters": [
@@ -4664,6 +6138,72 @@
         ],
         "tags": [
           "Sharing"
+        ]
+      }
+    },
+    "/projects/{id}/submission-statuses": {
+      "get": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "statuses": {
+                      "additionalProperties": {
+                        "$ref": "#/components/schemas/SubmissionBadge"
+                      },
+                      "type": "object"
+                    }
+                  },
+                  "required": [
+                    "statuses"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Default Response"
+          },
+          "4XX": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Default Response"
+          },
+          "5XX": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        },
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ],
+        "tags": [
+          "GitHub"
         ]
       }
     },

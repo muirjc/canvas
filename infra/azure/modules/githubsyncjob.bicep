@@ -1,6 +1,7 @@
 // canvas-3s5.2: scheduled Container Apps Job that syncs open GitHub pull requests Canvas opened
-// (merged = approved, closed = rejected, open = review/check state) -- `node
-// apps/api/dist/github/sync-run.js`. Polling rather than webhooks: the API's IP allow-list keeps
+// (merged = approved, closed = rejected, open = review/check state) -- `python -m
+// canvas_api.github.sync_run` in the canvas-api-py image (canvas-1bty.11; it was `node
+// apps/api/dist/github/sync-run.js` in canvas-api before). Polling rather than webhooks: the API's IP allow-list keeps
 // GitHub's webhook deliveries out. Deployed only when a GitHub App is configured (main.bicep).
 // pause.sh moves the schedule to once a year (the CLI can't suspend a scheduled job); resume.sh
 // and deploy.sh put it back.
@@ -17,7 +18,7 @@ param identityId string
 @description('ACR login server.')
 param acrLoginServer string
 
-@description('Tag of the API image -- the same image the API app runs; only the command differs.')
+@description('Tag of the canvas-api-py image -- the same image the Python service runs; only the command differs.')
 param apiImageTag string
 
 @description('Key Vault URI.')
@@ -80,12 +81,13 @@ resource syncJob 'Microsoft.App/jobs@2025-01-01' = {
       containers: [
         {
           name: 'github-sync'
-          image: '${acrLoginServer}/canvas-api:${apiImageTag}'
-          command: ['node']
-          args: ['apps/api/dist/github/sync-run.js']
+          image: '${acrLoginServer}/canvas-api-py:${apiImageTag}'
+          command: ['python']
+          args: ['-m', 'canvas_api.github.sync_run']
           env: [
+            { name: 'DB_CLIENT', value: 'postgres' }
             { name: 'DATABASE_URL', secretRef: 'database-url' }
-            // Not used by the sync; loadConfig requires it.
+            // Not used by the sync; Settings requires it.
             { name: 'SESSION_SECRET', secretRef: 'session-secret' }
             { name: 'GITHUB_APP_ID', value: githubAppId }
             { name: 'GITHUB_APP_PRIVATE_KEY', secretRef: 'github-app-private-key' }
