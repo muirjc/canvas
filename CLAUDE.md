@@ -93,6 +93,15 @@ tests are NON-NEGOTIABLE and must exist (and fail) before implementing any diagr
 work — see `.specify/memory/constitution.md` Principle IV.
 
 ## Recent Changes
+- `canvas-1bty.10` (Python phase 6): `GET /diagrams/:id/export` (Mermaid/SVG/PNG) answers from
+  `apps/api-py` (`routes/export.py`, group `export`): Mermaid and SVG through the bridge (icon
+  artwork looked up here, legend entries from the active standard), PNG with **resvg-py** (new
+  dependency; same Rust renderer as `@resvg/resvg-js`, system fonts off as there). Same download and
+  CSP headers. The contract snapshot describes the route's file responses per content type; the
+  pytest contract checker accepts a non-JSON response whose type the contract lists. Live parity
+  on the dev DB: every Mermaid and SVG export byte-identical; PNGs pixel-identical except anti-
+  aliasing on rotated arrowheads (~160 pixels; resvg-py bundles a newer resvg). Found:
+  `canvas-dyvn`, PNG exports draw no text at all in either service (no font available to resvg).
 - `canvas-1bty.9` (Python phase 5): standards now answer from `apps/api-py` (`routes/standards.py`,
   group `standards`, 7 routes): active/all versions of a type, create/edit draft, clone, publish
   (retires the one in force), retire. Publish/retire re-check every diagram of the type in a FastAPI

@@ -9,8 +9,8 @@ Request validation: zod and pydantic word structural errors differently, so thos
 are asserted only for diagram-core's definition-check issues, which come from the same code on both sides.
 
 Left out:
-- standards.test.ts's last case of the first describe ends by exporting the flagged diagram as SVG: export
-  hasn't moved. What it proves about standards (the violation is flagged, the save still succeeds) is kept.
+- standards.test.ts's last case of the first describe ends by exporting the flagged diagram as SVG: that step
+  is in test_export.py (the case here keeps the flag and the save).
 - standards-c4-role-shapes.test.ts's "built-in standards pass the definition check": it runs the seed
   catalog (a TypeScript script) through diagram-core directly; no route is involved.
 """

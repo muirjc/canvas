@@ -4,8 +4,8 @@ also checked against the API contract (tests/api.py). Detection, parsing and tem
 diagram-core bridge (`needs_bridge`).
 
 Left out:
-- import.test.ts's last case ends by exporting the imported diagram as SVG: export hasn't moved. What it
-  proves about the import (it saves like a native diagram) is kept, without the export.
+- import.test.ts's last case ends by exporting the imported diagram as SVG: that step is in test_export.py
+  (the case here keeps the import and the save).
 - docs/*-template.md files other than the C4 context one: the TypeScript test only sends that template, and
   compiling the others is diagram-core's own tests (and the bridge corpus), not this route's.
 """
