@@ -14,9 +14,8 @@ Left out:
 - diagrams.test.ts's three export cases (mermaid, svg, png): export hasn't moved.
 - diagram-draft.test.ts's "an abandoned draft is purged after a day": it calls the TypeScript service
   functions (findAbandonedDraftIds, purgeExpiredDiagrams), not a route; the purge job isn't ported yet.
-- standards.test.ts / standards-v2.test.ts: publishing, retiring and cloning standards hasn't moved (phase 5),
-  so "revalidates existing diagrams when a v2 standard is published" and "clears cached violations after the
-  standard is retired" are left out. The standard is seeded as published, directly.
+- standards.test.ts / standards-v2.test.ts: publishing and retiring standards (and the revalidation they
+  trigger) are in test_standards.py; here the standard is seeded as published, directly.
 - diagram-delete-restore.test.ts reads restored_at/restored_by_user_id from the database, as the TS test does.
 """
 

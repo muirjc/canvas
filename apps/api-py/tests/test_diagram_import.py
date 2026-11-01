@@ -16,7 +16,7 @@ from typing import Any
 
 import pytest
 
-from tests.api import Api, User
+from tests.api import MISSING_ID, T0, Api, User
 
 VALID_TEMPLATE = "\n".join(
     [
@@ -414,3 +414,26 @@ def test_a_signed_in_user_with_no_access_to_the_project_is_refused_a_template_im
         api, outsider, project, name="Trespass", diagramTypeId="c4-context", templateContent=VALID_TEMPLATE
     )
     assert response.status_code == 403
+
+
+# --- diagram-missing-project.test.ts (canvas-1bty.18) -------------------------------------------------
+
+
+@pytest.mark.parametrize("which", ["missing", "soft-deleted"])
+@pytest.mark.parametrize("route", ["create", "import", "import-template"])
+def test_a_diagram_cannot_go_into_a_missing_or_deleted_project(
+    api: Api, architect: User, route: str, which: str
+) -> None:
+    project = MISSING_ID if which == "missing" else api.project(architect, "Gone", deleted_at=T0)
+    url, payload = {
+        "create": ("diagrams", {"name": "D", "diagramTypeId": "flowchart"}),
+        "import": ("diagrams/import", {"name": "D", "dslContent": "flowchart TD\n  A --> B\n"}),
+        "import-template": (
+            "diagrams/import-template",
+            {"name": "D", "diagramTypeId": "c4-context", "templateContent": "# x"},
+        ),
+    }[route]
+    response = api.call("POST", f"/projects/{project}/{url}", architect, json=payload)
+    assert response.status_code == 404
+    assert response.json() == {"error": f"No project with id {project}"}
+    assert api.scalar("SELECT COUNT(*) FROM diagrams") == 0

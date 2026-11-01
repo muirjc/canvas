@@ -93,6 +93,16 @@ tests are NON-NEGOTIABLE and must exist (and fail) before implementing any diagr
 work — see `.specify/memory/constitution.md` Principle IV.
 
 ## Recent Changes
+- `canvas-1bty.9` (Python phase 5): standards now answer from `apps/api-py` (`routes/standards.py`,
+  group `standards`, 7 routes): active/all versions of a type, create/edit draft, clone, publish
+  (retires the one in force), retire. Publish/retire re-check every diagram of the type in a FastAPI
+  `BackgroundTasks` task (refreshes cached violations only). The zod body schema is ported to
+  pydantic (`standards_schema.py`, same field order/defaults, unknown keys dropped); structural error
+  messages differ from zod's by design, diagram-core's definition-check issues (via the bridge's
+  `check-standard`) are identical. `Error` schema gained `issues`; `constants.json` gained `ruleIds`.
+  Also fixed `canvas-1bty.18` on both sides: creating/importing a diagram into a missing or
+  soft-deleted project is 404 (was a foreign-key 500, or a diagram inside a deleted project).
+  Live parity: 106/106 standards reads identical across 53 types (418 versions).
 - `canvas-1bty.8` (Python phase 4): diagrams now answer from `apps/api-py` (`routes/diagrams.py`,
   group `diagrams`, 17 routes): create, search, read, compare-and-set save (409 `version_conflict`
   with `details`), rename/description/move, versions (list/preview/restore), presence, delete

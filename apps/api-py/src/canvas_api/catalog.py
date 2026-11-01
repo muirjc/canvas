@@ -33,3 +33,27 @@ BUILTIN_DIAGRAM_TYPE_IDS: tuple[str, ...] = (
     "erd",
     "uml",
 )
+
+#: packages/diagram-core/src/standards/schema.ts RULE_IDS: what a standard's severityOverrides may name.
+RULE_IDS: tuple[str, ...] = (
+    "allowed-shapes",
+    "mandatory-shapes",
+    "allowed-icon-libraries",
+    "color-palette",
+    "font-family",
+    "font-size",
+    "unknown-kind",
+    "kind-shape",
+    "kind-fill",
+    "kind-stroke",
+    "kind-min-count",
+    "kind-max-count",
+    "kind-group-min-count",
+    "kind-group-max-count",
+    "kind-unconnected",
+    "connector-not-allowed",
+    "connector-style",
+    "connector-label-required",
+    "connector-max-per-source",
+    "container-not-allowed",
+)

@@ -11,13 +11,17 @@ from fastapi.responses import JSONResponse
 
 
 class ApiError(Exception):
-    def __init__(self, status: int, error: str, code: str | None = None, details: Any = None) -> None:
+    def __init__(
+        self, status: int, error: str, code: str | None = None, details: Any = None, issues: Any = None
+    ) -> None:
         super().__init__(error)
         self.status = status
         self.error = error
         self.code = code
         #: Extra data some errors carry: a parse error list, a save conflict's current version.
         self.details = details
+        #: An invalid standard definition's problems, as [{path, message}].
+        self.issues = issues
 
 
 def _describe(error: Mapping[str, Any]) -> str:
@@ -36,6 +40,8 @@ def register_error_handlers(app: FastAPI) -> None:
             body["code"] = exc.code
         if exc.details is not None:
             body["details"] = exc.details
+        if exc.issues is not None:
+            body["issues"] = exc.issues
         return JSONResponse(body, status_code=exc.status)
 
     @app.exception_handler(RequestValidationError)

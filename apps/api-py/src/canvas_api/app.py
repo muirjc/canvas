@@ -23,6 +23,7 @@ from canvas_api.routes import (
     libraries,
     projects,
     sharing,
+    standards,
 )
 from canvas_api.telemetry import configure_telemetry
 
@@ -48,8 +49,18 @@ def create_app(settings: Settings | None = None, engine: Engine | None = None) -
     register_error_handlers(app)
 
     # The route groups apps/api forwards here (apps/api/src/python/route-groups.ts): phase 2
-    # (canvas-1bty.6), phase 3 (canvas-1bty.7), phase 4 (canvas-1bty.8).
-    for group in (projects, diagram_types, libraries, app_settings, comments, sharing, admin_users, diagrams):
+    # (canvas-1bty.6), phase 3 (canvas-1bty.7), phase 4 (canvas-1bty.8), phase 5 (canvas-1bty.9).
+    for group in (
+        projects,
+        diagram_types,
+        libraries,
+        app_settings,
+        comments,
+        sharing,
+        admin_users,
+        diagrams,
+        standards,
+    ):
         app.include_router(group.router)
 
     @app.get("/health", tags=["Health"])

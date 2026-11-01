@@ -32,5 +32,27 @@
     "Enterprise",
     "Solution",
     "Technical"
+  ],
+  "ruleIds": [
+    "allowed-shapes",
+    "mandatory-shapes",
+    "allowed-icon-libraries",
+    "color-palette",
+    "font-family",
+    "font-size",
+    "unknown-kind",
+    "kind-shape",
+    "kind-fill",
+    "kind-stroke",
+    "kind-min-count",
+    "kind-max-count",
+    "kind-group-min-count",
+    "kind-group-max-count",
+    "kind-unconnected",
+    "connector-not-allowed",
+    "connector-style",
+    "connector-label-required",
+    "connector-max-per-source",
+    "container-not-allowed"
   ]
 }

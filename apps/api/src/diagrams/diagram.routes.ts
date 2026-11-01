@@ -99,6 +99,11 @@ export async function registerDiagramRoutes(app: FastifyInstance): Promise<void>
     },
     async (request, reply) => {
       const { name, diagramTypeId, initialDslContent, draft } = request.body;
+      // canvas-1bty.18: the access check lets a missing project through for this 404 (it used to hit
+      // the foreign key, a 500; a deleted project would have taken the diagram).
+      if (!(await projectExists(request.params.projectId))) {
+        return reply.code(404).send({ error: `No project with id ${request.params.projectId}` });
+      }
       try {
         const diagram = await createDiagram({
           name,
