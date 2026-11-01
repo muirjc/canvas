@@ -70,7 +70,16 @@ def _icon_artwork(conn: Connection, model: dict[str, Any]) -> dict[str, str]:
     return {ref: markup for ref, markup in artwork.items() if ref in refs}
 
 
-def render_svg(conn: Connection, bridge: DiagramBridge, family: str, dsl: str, diagram_type_id: str) -> str:
+def render_svg(
+    conn: Connection,
+    bridge: DiagramBridge,
+    family: str,
+    dsl: str,
+    diagram_type_id: str,
+    background: str | None = None,
+) -> str:
+    """The diagram as SVG. `background` (canvas-n85n): a solid hex colour behind the drawing (GitHub
+    submissions); downloads stay transparent."""
     if family not in DSL_FAMILIES:
         raise ApiError(422, f"No DSL family registered for: {family}")
     parsed = bridge.parse(family, dsl)
@@ -81,7 +90,10 @@ def render_svg(conn: Connection, bridge: DiagramBridge, family: str, dsl: str, d
     legend = model.get("legend") or {}
     standard = get_active_standard(conn, diagram_type_id) if legend.get("visible") else None
     return bridge.render_svg(
-        model, icons=_icon_artwork(conn, model), standard_rules=standard.rules if standard else None
+        model,
+        icons=_icon_artwork(conn, model),
+        standard_rules=standard.rules if standard else None,
+        background=background,
     )
 
 

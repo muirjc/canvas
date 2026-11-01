@@ -20,6 +20,9 @@ from canvas_api.timestamps import to_api
 class ActiveStandard:
     version: int
     rules: dict[str, Any]
+    id: str = ""
+    name: str | None = None
+    description: str | None = None
 
 
 def _json(value: Any) -> Any:
@@ -47,7 +50,7 @@ def get_active_standard(conn: Connection, diagram_type_id: str) -> ActiveStandar
     row = conn.execute(_ACTIVE, {"type": diagram_type_id}).first()
     if row is None:
         return None
-    return ActiveStandard(int(row.version), rules_of(conn, row))
+    return ActiveStandard(int(row.version), rules_of(conn, row), str(row.id), row.name, row.description)
 
 
 def rules_of(conn: Connection, row: Any) -> dict[str, Any]:

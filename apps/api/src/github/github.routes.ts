@@ -35,6 +35,7 @@ import {
 } from './submission.service.js';
 import { submissionFingerprint } from './submission-files.js';
 import { exampleWorkflow, validatorBundle } from './validator-bundle.js';
+import { envelope, errorResponse, listEnvelope, noContent, objectResponse } from '../contract/schemas.js';
 import { refreshDiagramSubmission, SubmissionNotOpenError, withdrawSubmission } from './status-sync.service.js';
 
 /**
@@ -66,6 +67,46 @@ function handleError(error: unknown, reply: FastifyReply, request: FastifyReques
 const projectParams = { type: 'object', required: ['id'], properties: { id: { type: 'string' } } } as const;
 const schema = (extra: object = {}) => ({ tags: ['GitHub'], security: [{ cookieAuth: [] }], ...extra });
 
+// canvas-1bty.11: response shapes (src/contract/schemas.ts), so the Python service answers the same.
+const errors = { '4xx': errorResponse, '5xx': errorResponse };
+const submissionStatusResponse = { 200: { $ref: 'SubmissionStatus#' }, ...errors };
+const violations = { type: 'array', items: { type: 'object', additionalProperties: true } } as const;
+const statusResponse = {
+  type: 'object',
+  required: ['enabled', 'installations'],
+  additionalProperties: false,
+  properties: {
+    enabled: { type: 'boolean' },
+    appId: { type: 'string' },
+    apiUrl: { type: 'string' },
+    installations: { type: 'array', items: { $ref: 'GitHubInstallation#' } },
+    validatorAvailable: { type: 'boolean' },
+    error: { type: 'string' },
+  },
+};
+const linkTest = objectResponse({
+  ok: { type: 'boolean' },
+  checks: {
+    type: 'array',
+    items: {
+      type: 'object',
+      required: ['id', 'label', 'ok'],
+      additionalProperties: false,
+      properties: {
+        id: { type: 'string', enum: ['installation', 'repository', 'branch', 'contents', 'pull_requests'] },
+        label: { type: 'string' },
+        ok: { type: 'boolean' },
+        detail: { type: 'string' },
+      },
+    },
+  },
+});
+const submitResult = objectResponse({
+  outcome: { type: 'string', enum: ['created', 'updated', 'upToDate'] },
+  submission: { anyOf: [{ $ref: 'Submission#' }, { type: 'null' }] },
+  warnings: violations,
+});
+
 export async function registerGitHubRoutes(app: FastifyInstance, config: AppConfig, fetchImpl?: typeof fetch): Promise<void> {
   const client = config.github ? new GitHubClient(config.github, fetchImpl) : null;
   const requireClient = (): GitHubClient => {
@@ -74,7 +115,7 @@ export async function registerGitHubRoutes(app: FastifyInstance, config: AppConf
   };
   const admin = requireRole('admin');
 
-  app.get('/admin/github/status', { preHandler: admin, schema: schema() }, async (request, reply) => {
+  app.get('/admin/github/status', { preHandler: admin, schema: schema({ response: { 200: statusResponse, ...errors } }) }, async (request, reply) => {
     if (!client) return reply.send({ enabled: false, installations: [] });
     try {
       const installations = await client.listInstallations();
@@ -86,7 +127,7 @@ export async function registerGitHubRoutes(app: FastifyInstance, config: AppConf
     }
   });
 
-  app.get('/admin/github/repositories', { preHandler: admin, schema: schema() }, async (request, reply) => {
+  app.get('/admin/github/repositories', { preHandler: admin, schema: schema({ response: { 200: listEnvelope('repositories', 'GitHubRepository'), ...errors } }) }, async (request, reply) => {
     try {
       return reply.send({ repositories: await listInstalledRepositories(requireClient()) });
     } catch (error) {
@@ -95,7 +136,13 @@ export async function registerGitHubRoutes(app: FastifyInstance, config: AppConf
   });
 
   // canvas-3s5.3: the example workflow that runs the committed validator in the repository's CI.
-  app.get('/admin/github/workflow-example', { preHandler: admin, schema: schema() }, async (_request, reply) => {
+  app.get('/admin/github/workflow-example',
+    {
+      preHandler: admin,
+      schema: schema({
+        response: { 200: { description: 'The example workflow', content: { 'text/yaml': { schema: { type: 'string' } } } }, ...errors },
+      }),
+    }, async (_request, reply) => {
     const workflow = exampleWorkflow();
     if (!workflow) return reply.code(404).send({ error: 'The example workflow is not available (packages/validator-cli has not been built).' });
     return reply
@@ -104,11 +151,11 @@ export async function registerGitHubRoutes(app: FastifyInstance, config: AppConf
       .send(workflow);
   });
 
-  app.get('/admin/github/links', { preHandler: admin, schema: schema() }, async (_request, reply) => reply.send({ links: await listLinks() }));
+  app.get('/admin/github/links', { preHandler: admin, schema: schema({ response: { 200: listEnvelope('links', 'GitHubLink'), ...errors } }) }, async (_request, reply) => reply.send({ links: await listLinks() }));
 
   app.post<{ Params: { id: string } }>(
     '/admin/github/links/:id/test',
-    { preHandler: admin, schema: schema({ params: projectParams, description: 'Checks the link of the project with this id.' }) },
+    { preHandler: admin, schema: schema({ params: projectParams, description: 'Checks the link of the project with this id.', response: { 200: linkTest, ...errors } }) },
     async (request, reply) => {
       try {
         return reply.send(await testLink(requireClient(), request.params.id));
@@ -134,6 +181,7 @@ export async function registerGitHubRoutes(app: FastifyInstance, config: AppConf
             baseBranch: { type: 'string', maxLength: 250 },
           },
         },
+        response: { 200: envelope('link', 'GitHubLink'), ...errors },
       }),
     },
     async (request, reply) => {
@@ -153,7 +201,7 @@ export async function registerGitHubRoutes(app: FastifyInstance, config: AppConf
     },
   );
 
-  app.delete<{ Params: { id: string } }>('/projects/:id/github-link', { preHandler: admin, schema: schema({ params: projectParams }) }, async (request, reply) => {
+  app.delete<{ Params: { id: string } }>('/projects/:id/github-link', { preHandler: admin, schema: schema({ params: projectParams, response: { 204: noContent, ...errors } }) }, async (request, reply) => {
     try {
       const link = await removeLink(request.params.id);
       await recordAudit({
@@ -171,7 +219,13 @@ export async function registerGitHubRoutes(app: FastifyInstance, config: AppConf
   // What a project member needs to know: whether submitting is possible, and where it goes.
   app.get<{ Params: { id: string } }>(
     '/projects/:id/github-link',
-    { preHandler: [requireAuth, requireProjectAccess('view', 'id')], schema: schema({ params: projectParams }) },
+    {
+      preHandler: [requireAuth, requireProjectAccess('view', 'id')],
+      schema: schema({
+        params: projectParams,
+        response: { 200: objectResponse({ enabled: { type: 'boolean' }, link: { anyOf: [{ $ref: 'GitHubLinkSummary#' }, { type: 'null' }] } }), ...errors },
+      }),
+    },
     async (request, reply) => {
       if (!(await projectExists(request.params.id))) return reply.code(404).send({ error: 'Project not found' });
       const link = client ? await getLinkForProject(request.params.id) : null;
@@ -184,7 +238,7 @@ export async function registerGitHubRoutes(app: FastifyInstance, config: AppConf
 
   app.post<{ Params: { id: string } }>(
     '/diagrams/:id/submissions',
-    { preHandler: requireDiagramAccess('edit'), schema: schema({ params: projectParams, description: 'Submits the saved diagram to GitHub for approval.' }) },
+    { preHandler: requireDiagramAccess('edit'), schema: schema({ params: projectParams, description: 'Submits the saved diagram to GitHub for approval.', response: { 200: submitResult, 201: submitResult, ...errors } }) },
     async (request, reply) => {
       try {
         const user = request.session.user!;
@@ -226,7 +280,7 @@ export async function registerGitHubRoutes(app: FastifyInstance, config: AppConf
 
   app.get<{ Params: { id: string } }>(
     '/diagrams/:id/submission',
-    { preHandler: requireDiagramAccess('view'), schema: schema({ params: projectParams }) },
+    { preHandler: requireDiagramAccess('view'), schema: schema({ params: projectParams, response: submissionStatusResponse }) },
     async (request, reply) => {
       try {
         return reply.send(await submissionStatus(request.params.id, request.session.user!.id));
@@ -239,7 +293,7 @@ export async function registerGitHubRoutes(app: FastifyInstance, config: AppConf
   // canvas-3s5.2: ask GitHub now (throttled per pull request), then answer like GET.
   app.post<{ Params: { id: string } }>(
     '/diagrams/:id/submission/refresh',
-    { preHandler: requireDiagramAccess('view'), schema: schema({ params: projectParams }) },
+    { preHandler: requireDiagramAccess('view'), schema: schema({ params: projectParams, response: submissionStatusResponse }) },
     async (request, reply) => {
       try {
         await getDiagram(request.params.id);
@@ -253,7 +307,7 @@ export async function registerGitHubRoutes(app: FastifyInstance, config: AppConf
 
   app.post<{ Params: { id: string } }>(
     '/diagrams/:id/submission/withdraw',
-    { preHandler: requireDiagramAccess('edit'), schema: schema({ params: projectParams, description: "Closes the diagram's open pull request." }) },
+    { preHandler: requireDiagramAccess('edit'), schema: schema({ params: projectParams, description: "Closes the diagram's open pull request.", response: submissionStatusResponse }) },
     async (request, reply) => {
       try {
         await getDiagram(request.params.id);
@@ -268,7 +322,7 @@ export async function registerGitHubRoutes(app: FastifyInstance, config: AppConf
 
   app.get<{ Params: { id: string } }>(
     '/diagrams/:id/submissions',
-    { preHandler: requireDiagramAccess('view'), schema: schema({ params: projectParams }) },
+    { preHandler: requireDiagramAccess('view'), schema: schema({ params: projectParams, response: { 200: listEnvelope('submissions', 'Submission'), ...errors } }) },
     async (request, reply) => {
       try {
         await getDiagram(request.params.id);
@@ -282,7 +336,13 @@ export async function registerGitHubRoutes(app: FastifyInstance, config: AppConf
   // Badges on a project's diagram list.
   app.get<{ Params: { id: string } }>(
     '/projects/:id/submission-statuses',
-    { preHandler: [requireAuth, requireProjectAccess('view', 'id')], schema: schema({ params: projectParams }) },
+    {
+      preHandler: [requireAuth, requireProjectAccess('view', 'id')],
+      schema: schema({
+        params: projectParams,
+        response: { 200: objectResponse({ statuses: { type: 'object', additionalProperties: { $ref: 'SubmissionBadge#' } } }), ...errors },
+      }),
+    },
     async (request, reply) => {
       if (!(await projectExists(request.params.id))) return reply.code(404).send({ error: 'Project not found' });
       return reply.send({ statuses: await projectSubmissionBadges(request.params.id) });

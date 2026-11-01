@@ -22,7 +22,9 @@ and user lookup (phase 3, canvas-1bty.7); diagrams, versions, presence, drafts, 
 import (phase 4, canvas-1bty.8); standards: drafts, clone, publish, retire, with the re-check of a type's
 diagrams after publish/retire as a background task (phase 5, canvas-1bty.9); export as Mermaid, SVG
 or PNG (phase 6, canvas-1bty.10; PNG with resvg-py, the same Rust renderer as the TypeScript service's
-@resvg/resvg-js) -- see `apps/api/src/python/route-groups.ts`, which the
+@resvg/resvg-js); GitHub approval: repository links, submitting a diagram as a pull request with the
+documents that embed it, status sync on demand and withdrawing (phase 7, canvas-1bty.11; the scheduled
+sync is `python -m canvas_api.github.sync_run`) -- see `apps/api/src/python/route-groups.ts`, which the
 TypeScript front door forwards. Each route's shapes are held to `apps/api/contract/openapi.json`:
 `tests/api.py`'s client checks every response a test gets against it. Routes not moved yet can't be
 called from these tests, so tests seed those rows directly (`Api.diagram`, `Api.grant`, ...).

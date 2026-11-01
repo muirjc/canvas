@@ -30,6 +30,15 @@ param keyVaultUri string
 @description('canvas-6upe: Application Insights connection string. Empty = telemetry off.')
 param appInsightsConnectionString string = ''
 
+@description('canvas-1bty.11: GITHUB_APP_ID, as canvas-api (modules/apiapp.bicep); "unset" = GitHub approval off. The private key is the github-app-private-key Key Vault secret.')
+param githubAppId string = 'unset'
+
+@description('canvas-1bty.11: GITHUB_APP_API_URL.')
+param githubApiUrl string = 'https://api.github.com'
+
+@description('canvas-1bty.11: the public URL Canvas is used at (CANVAS_PUBLIC_URL), for the links back to Canvas in pull requests.')
+param publicUrl string
+
 @description('Port uvicorn listens on (apps/api-py/Dockerfile).')
 param port int = 8000
 
@@ -70,6 +79,12 @@ resource pyApp 'Microsoft.App/containerApps@2025-01-01' = {
           keyVaultUrl: '${keyVaultUri}secrets/session-secret'
           identity: identityId
         }
+        {
+          // canvas-1bty.11: base64 of the GitHub App's PEM private key, or "unset".
+          name: 'github-app-private-key'
+          keyVaultUrl: '${keyVaultUri}secrets/github-app-private-key'
+          identity: identityId
+        }
       ]
     }
     template: {
@@ -88,6 +103,11 @@ resource pyApp 'Microsoft.App/containerApps@2025-01-01' = {
             { name: 'OTEL_SERVICE_NAME', value: 'canvas-api-py' }
             // canvas-1bty.4: the diagram-core bridge, the sidecar below (same localhost).
             { name: 'DIAGRAM_BRIDGE_URL', value: 'http://127.0.0.1:7070' }
+            // canvas-1bty.11: GitHub approval, as canvas-api.
+            { name: 'GITHUB_APP_ID', value: githubAppId }
+            { name: 'GITHUB_APP_PRIVATE_KEY', secretRef: 'github-app-private-key' }
+            { name: 'GITHUB_APP_API_URL', value: githubApiUrl }
+            { name: 'CANVAS_PUBLIC_URL', value: publicUrl }
           ]
           resources: {
             cpu: json('0.5')

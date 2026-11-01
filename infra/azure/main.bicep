@@ -170,6 +170,9 @@ module pyApiApp 'modules/pyapiapp.bicep' = {
     imageTag: apiImageTag
     keyVaultUri: keyVault.outputs.keyVaultUri
     appInsightsConnectionString: monitoring.outputs.connectionString
+    githubAppId: githubAppId
+    githubApiUrl: githubApiUrl
+    publicUrl: empty(webOrigin) ? apiPublicBaseUrl : webOrigin
   }
 }
 

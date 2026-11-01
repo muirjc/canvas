@@ -19,6 +19,35 @@ const dateTime = { type: 'string', format: 'date-time' } as const;
 const accessLevel = { type: 'string', enum: ['view', 'comment', 'edit', 'manage'] } as const;
 const role = { type: 'string', enum: ['admin', 'architect', 'viewer'] } as const;
 
+const submissionState = { type: 'string', enum: ['open', 'merged', 'closed'] } as const;
+/** canvas-1bty.11: a diagram's pull request as the editor sees it (submission.service.ts SubmissionView). */
+const submissionProperties = {
+  id: { type: 'string' },
+  state: submissionState,
+  prNumber: nullable({ type: 'integer' }),
+  prUrl: nullable({ type: 'string' }),
+  repoFullName: { type: 'string' },
+  baseBranch: { type: 'string' },
+  branch: { type: 'string' },
+  path: { type: 'string' },
+  submittedVersionSequence: nullable({ type: 'integer' }),
+  submittedBy: nullable({ type: 'string' }),
+  firstSubmittedAt: dateTime,
+  lastSubmittedAt: dateTime,
+  reviewState: { type: 'string' },
+  checksState: { type: 'string' },
+  mergedAt: nullable(dateTime),
+  mergedBy: nullable({ type: 'string' }),
+  closedAt: nullable(dateTime),
+  mergedHeadMatches: nullable({ type: 'boolean' }),
+  withdrawnAt: nullable(dateTime),
+  withdrawnBy: nullable({ type: 'string' }),
+  statusDetail: nullable({ type: 'object', additionalProperties: true }),
+  lastSyncedAt: nullable(dateTime),
+  lastSyncError: nullable({ type: 'string' }),
+} as const;
+const submissionFields = Object.keys(submissionProperties);
+
 export const contractSchemas = [
   {
     $id: 'Error',
@@ -27,10 +56,12 @@ export const contractSchemas = [
     additionalProperties: false,
     // details: a parse error list (422) or a save conflict's current version (409, code version_conflict).
     // issues: an invalid standard definition's problems (400), as { path, message }.
+    // violations: the Must fix issues that block a GitHub submission (422, code must_fix).
     properties: {
       error: { type: 'string' },
       code: { type: 'string' },
       details: {},
+      violations: { type: 'array', items: { type: 'object', additionalProperties: true } },
       issues: {
         type: 'array',
         items: {
@@ -574,6 +605,170 @@ export const contractSchemas = [
       publishedAt: nullable(dateTime),
       createdAt: dateTime,
       retiredAt: nullable(dateTime),
+    },
+  },
+  // canvas-1bty.11: GitHub approval (src/github/).
+  {
+    $id: 'GitHubInstallation',
+    type: 'object',
+    required: ['id', 'account', 'repositorySelection', 'permissions'],
+    additionalProperties: false,
+    properties: {
+      id: { type: 'integer' },
+      account: { type: 'string' },
+      repositorySelection: { type: 'string' },
+      permissions: { type: 'object', additionalProperties: { type: 'string' } },
+    },
+  },
+  {
+    $id: 'GitHubRepository',
+    type: 'object',
+    required: ['id', 'owner', 'name', 'fullName', 'defaultBranch', 'private', 'installationId'],
+    additionalProperties: false,
+    properties: {
+      id: { type: 'integer' },
+      owner: { type: 'string' },
+      name: { type: 'string' },
+      fullName: { type: 'string' },
+      defaultBranch: { type: 'string' },
+      private: { type: 'boolean' },
+      installationId: { type: 'integer' },
+    },
+  },
+  {
+    $id: 'GitHubLink',
+    type: 'object',
+    required: [
+      'id',
+      'projectId',
+      'projectName',
+      'repoId',
+      'repoOwner',
+      'repoName',
+      'repoFullName',
+      'installationId',
+      'baseBranch',
+      'folder',
+      'createdAt',
+      'updatedAt',
+      'lastCheckedAt',
+      'lastCheckError',
+    ],
+    additionalProperties: false,
+    // openSubmissionCount: only in the admin list (GET /admin/github/links).
+    properties: {
+      id: { type: 'string' },
+      projectId: { type: 'string' },
+      projectName: nullable({ type: 'string' }),
+      repoId: { type: 'integer' },
+      repoOwner: { type: 'string' },
+      repoName: { type: 'string' },
+      repoFullName: { type: 'string' },
+      installationId: { type: 'integer' },
+      baseBranch: { type: 'string' },
+      folder: { type: 'string' },
+      createdAt: dateTime,
+      updatedAt: dateTime,
+      lastCheckedAt: nullable(dateTime),
+      lastCheckError: nullable({ type: 'string' }),
+      openSubmissionCount: { type: 'integer' },
+    },
+  },
+  {
+    $id: 'GitHubLinkSummary',
+    type: 'object',
+    required: ['repoFullName', 'folder', 'baseBranch'],
+    additionalProperties: false,
+    properties: {
+      repoFullName: { type: 'string' },
+      folder: { type: 'string' },
+      baseBranch: { type: 'string' },
+    },
+  },
+  {
+    $id: 'Submission',
+    type: 'object',
+    required: [...submissionFields],
+    additionalProperties: false,
+    // pushes: only in a diagram's submission history (GET /diagrams/:id/submissions).
+    properties: {
+      ...submissionProperties,
+      pushes: {
+        type: 'array',
+        items: {
+          type: 'object',
+          required: ['versionSequence', 'commitSha', 'pushedBy', 'pushedAt', 'warningCount'],
+          additionalProperties: false,
+          properties: {
+            versionSequence: { type: 'integer' },
+            commitSha: { type: 'string' },
+            pushedBy: nullable({ type: 'string' }),
+            pushedAt: dateTime,
+            warningCount: { type: 'integer' },
+          },
+        },
+      },
+    },
+  },
+  {
+    $id: 'SubmissionStatus',
+    type: 'object',
+    required: [
+      'enabled',
+      'link',
+      'current',
+      'approved',
+      'changesSinceSubmitting',
+      'canSubmit',
+      'canWithdraw',
+    ],
+    additionalProperties: false,
+    properties: {
+      enabled: { type: 'boolean' },
+      link: nullable({ $ref: 'GitHubLinkSummary#' }),
+      current: nullable({ $ref: 'Submission#' }),
+      approved: nullable({ $ref: 'Submission#' }),
+      changesSinceSubmitting: { type: 'boolean' },
+      canSubmit: {
+        type: 'object',
+        required: ['allowed', 'reason', 'mustFixCount', 'warningCount'],
+        additionalProperties: false,
+        properties: {
+          allowed: { type: 'boolean' },
+          reason: nullable({
+            type: 'string',
+            enum: ['github_disabled', 'not_linked', 'no_edit_access', 'must_fix'],
+          }),
+          mustFixCount: { type: 'integer' },
+          warningCount: { type: 'integer' },
+        },
+      },
+      canWithdraw: { type: 'boolean' },
+    },
+  },
+  {
+    $id: 'SubmissionBadge',
+    type: 'object',
+    required: [
+      'state',
+      'prNumber',
+      'prUrl',
+      'reviewState',
+      'checksState',
+      'submittedVersionSequence',
+      'changesSinceSubmitting',
+      'withdrawn',
+    ],
+    additionalProperties: false,
+    properties: {
+      state: submissionState,
+      prNumber: nullable({ type: 'integer' }),
+      prUrl: nullable({ type: 'string' }),
+      reviewState: { type: 'string' },
+      checksState: { type: 'string' },
+      submittedVersionSequence: nullable({ type: 'integer' }),
+      changesSinceSubmitting: { type: 'boolean' },
+      withdrawn: { type: 'boolean' },
     },
   },
   {
