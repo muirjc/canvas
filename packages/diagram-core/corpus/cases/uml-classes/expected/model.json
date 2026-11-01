@@ -1,0 +1,237 @@
+{
+  "containers": [
+    {
+      "id": "Zoo",
+      "label": "Zoo",
+      "position": {
+        "x": 40,
+        "y": 40
+      },
+      "role": "namespace",
+      "size": {
+        "height": 270.8,
+        "width": 417.12
+      }
+    },
+    {
+      "id": "Zoo.Animals",
+      "label": "Animals",
+      "parentContainerId": "Zoo",
+      "position": {
+        "x": 60,
+        "y": 90
+      },
+      "role": "namespace",
+      "size": {
+        "height": 200.8,
+        "width": 377.12
+      }
+    },
+    {
+      "attachedNodeIds": [
+        "Dog"
+      ],
+      "id": "note1",
+      "label": "Good boy",
+      "position": {
+        "x": 497.12,
+        "y": 40
+      },
+      "role": "note",
+      "size": {
+        "height": 100,
+        "width": 160
+      }
+    },
+    {
+      "attachedNodeIds": [],
+      "id": "note2",
+      "label": "A general note",
+      "position": {
+        "x": 697.12,
+        "y": 40
+      },
+      "role": "note",
+      "size": {
+        "height": 100,
+        "width": 160
+      }
+    }
+  ],
+  "diagramTypeId": "uml",
+  "direction": "LR",
+  "edges": [
+    {
+      "id": "e1",
+      "sourceId": "Animal",
+      "targetId": "Dog",
+      "umlRelationKind": "inheritance"
+    },
+    {
+      "id": "e2",
+      "label": "feeds",
+      "sourceCardinality": "1",
+      "sourceId": "Keeper",
+      "targetCardinality": "*",
+      "targetId": "Animal",
+      "umlRelationKind": "association"
+    },
+    {
+      "id": "e3",
+      "sourceId": "Box",
+      "targetId": "Animal",
+      "umlRelationKind": "composition"
+    },
+    {
+      "id": "e4",
+      "sourceId": "Keeper",
+      "targetId": "Box",
+      "umlRelationKind": "aggregation"
+    },
+    {
+      "id": "e5",
+      "sourceId": "Dog",
+      "targetId": "Box",
+      "umlRelationKind": "dependency"
+    },
+    {
+      "id": "e6",
+      "sourceId": "Dog",
+      "targetId": "Animal",
+      "umlRelationKind": "realization"
+    },
+    {
+      "id": "e7",
+      "sourceId": "Keeper",
+      "targetId": "Dog",
+      "umlRelationKind": "link-solid"
+    },
+    {
+      "id": "e8",
+      "sourceId": "Box",
+      "targetId": "Keeper",
+      "umlRelationKind": "link-dashed"
+    },
+    {
+      "id": "e9",
+      "sourceId": "Foo",
+      "targetId": "Bar",
+      "umlRelationKind": "lollipop-source"
+    }
+  ],
+  "nodes": [
+    {
+      "containerId": "Zoo.Animals",
+      "id": "Animal",
+      "label": "Animal",
+      "members": [
+        {
+          "kind": "attribute",
+          "name": "name",
+          "type": "String",
+          "visibility": "+"
+        },
+        {
+          "isStatic": true,
+          "kind": "attribute",
+          "name": "age",
+          "type": "int",
+          "visibility": "-"
+        },
+        {
+          "isAbstract": true,
+          "kind": "method",
+          "name": "speak",
+          "params": "",
+          "returnType": "String",
+          "visibility": "+"
+        },
+        {
+          "kind": "method",
+          "name": "grow",
+          "params": "int years",
+          "returnType": "void",
+          "visibility": "#"
+        }
+      ],
+      "position": {
+        "x": 80,
+        "y": 140
+      },
+      "role": "class",
+      "shape": "rectangle",
+      "style": {
+        "fillColor": "#d62728",
+        "strokeColor": "#2ca02c"
+      },
+      "umlStereotype": "abstract"
+    },
+    {
+      "containerId": "Zoo.Animals",
+      "id": "Dog",
+      "label": "Dog",
+      "position": {
+        "x": 277.12,
+        "y": 140
+      },
+      "role": "class",
+      "shape": "rectangle"
+    },
+    {
+      "id": "Box",
+      "label": "Box",
+      "members": [
+        {
+          "kind": "attribute",
+          "name": "items",
+          "type": "List~T~",
+          "visibility": "+"
+        },
+        {
+          "kind": "method",
+          "name": "put",
+          "params": "T item",
+          "returnType": "void",
+          "visibility": "+"
+        }
+      ],
+      "position": {
+        "x": 897.12,
+        "y": 40
+      },
+      "role": "class",
+      "shape": "rectangle",
+      "umlGenericParameter": "T"
+    },
+    {
+      "id": "Keeper",
+      "label": "Keeper",
+      "position": {
+        "x": 40,
+        "y": 350.8
+      },
+      "role": "class",
+      "shape": "rectangle"
+    },
+    {
+      "id": "Foo",
+      "label": "Foo",
+      "position": {
+        "x": 220,
+        "y": 350.8
+      },
+      "role": "class",
+      "shape": "rectangle"
+    },
+    {
+      "id": "Bar",
+      "label": "Bar",
+      "position": {
+        "x": 400,
+        "y": 350.8
+      },
+      "role": "class",
+      "shape": "rectangle"
+    }
+  ]
+}

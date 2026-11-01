@@ -1,0 +1,105 @@
+{
+  "containers": [],
+  "diagramTypeId": "erd",
+  "direction": "LR",
+  "edges": [
+    {
+      "erSourceCardinality": "||",
+      "erTargetCardinality": "o{",
+      "id": "e1",
+      "label": "places",
+      "sourceId": "CUSTOMER",
+      "targetId": "ORDER"
+    },
+    {
+      "erSourceCardinality": "||",
+      "erTargetCardinality": "|{",
+      "id": "e2",
+      "label": "contains",
+      "sourceId": "ORDER",
+      "targetId": "LINE_ITEM"
+    }
+  ],
+  "nodes": [
+    {
+      "attributes": [
+        {
+          "keys": [
+            "PK"
+          ],
+          "name": "id",
+          "type": "string"
+        },
+        {
+          "comment": "login",
+          "keys": [
+            "UK"
+          ],
+          "name": "email",
+          "type": "string"
+        },
+        {
+          "keys": [],
+          "name": "name",
+          "type": "string"
+        }
+      ],
+      "id": "CUSTOMER",
+      "label": "Customer",
+      "position": {
+        "x": 40,
+        "y": 40
+      },
+      "role": "entity",
+      "shape": "rectangle",
+      "style": {
+        "fillColor": "#d62728",
+        "strokeColor": "#2ca02c"
+      }
+    },
+    {
+      "attributes": [
+        {
+          "keys": [
+            "PK"
+          ],
+          "name": "id",
+          "type": "string"
+        },
+        {
+          "keys": [
+            "FK"
+          ],
+          "name": "customer_id",
+          "type": "string"
+        },
+        {
+          "keys": [],
+          "name": "placed_on",
+          "type": "date"
+        }
+      ],
+      "id": "ORDER",
+      "label": "ORDER",
+      "position": {
+        "x": 240,
+        "y": 40
+      },
+      "role": "entity",
+      "shape": "rectangle",
+      "style": {
+        "fillColor": "#ff7f0e"
+      }
+    },
+    {
+      "id": "LINE_ITEM",
+      "label": "LINE_ITEM",
+      "position": {
+        "x": 440,
+        "y": 40
+      },
+      "role": "entity",
+      "shape": "rectangle"
+    }
+  ]
+}

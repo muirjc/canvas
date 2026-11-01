@@ -1,0 +1,13 @@
+architecture-beta
+  group cloud(cloud)[Cloud]
+  group private(cloud)[Private] in cloud
+  service gw(internet)[Gateway] in cloud
+  service api(server)[API] in private
+  service db(database)[Database] in private
+  service fn(logos:aws-lambda)[Function] in cloud
+  junction j1 in cloud
+  gw:R --> L:api
+  api:B -- T:db
+  api{group}:R --> L:fn
+  gw:B -- T:j1
+  align row gw api

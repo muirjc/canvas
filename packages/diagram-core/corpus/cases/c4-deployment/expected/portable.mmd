@@ -1,0 +1,10 @@
+C4Deployment
+  Deployment_Node(azure, "Azure", "Cloud") {
+    Deployment_Node(env, "Container Apps") {
+      Container(api, "API", "Node")
+    }
+    Node(pg, "Postgres server") {
+      ContainerDb(db, "Database")
+    }
+  }
+  Rel(api, db, "SQL")

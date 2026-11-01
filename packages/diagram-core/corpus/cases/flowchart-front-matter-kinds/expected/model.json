@@ -1,0 +1,58 @@
+{
+  "containers": [],
+  "diagramTypeId": "flowchart",
+  "direction": "LR",
+  "edges": [
+    {
+      "id": "e1",
+      "sourceId": "in",
+      "targetId": "ops"
+    }
+  ],
+  "nodes": [
+    {
+      "id": "in",
+      "label": "Inbound logistics",
+      "position": {
+        "x": 40,
+        "y": 40
+      },
+      "role": "primary_activity",
+      "shape": "rectangle",
+      "style": {
+        "fillColor": "#dbeafe",
+        "strokeColor": "#1e3a8a"
+      }
+    },
+    {
+      "id": "ops",
+      "label": "Operations",
+      "position": {
+        "x": 240,
+        "y": 40
+      },
+      "role": "primary_activity",
+      "shape": "rectangle"
+    },
+    {
+      "id": "hr",
+      "label": "HR management",
+      "position": {
+        "x": 140,
+        "y": 200
+      },
+      "role": "support_activity",
+      "shape": "rectangle"
+    },
+    {
+      "id": "stray",
+      "label": "Unknown kind",
+      "position": {
+        "x": 40,
+        "y": 40
+      },
+      "role": "mystery",
+      "shape": "rectangle"
+    }
+  ]
+}

@@ -1,0 +1,33 @@
+---
+canvas:
+  positions:
+    CUSTOMER:
+      x: 40
+      y: 40
+    ORDER:
+      x: 240
+      y: 40
+    LINE_ITEM:
+      x: 440
+      y: 40
+  styles:
+    CUSTOMER:
+      fillColor: "#d62728"
+      strokeColor: "#2ca02c"
+    ORDER:
+      fillColor: "#ff7f0e"
+---
+erDiagram
+direction LR
+CUSTOMER[Customer] {
+  string id PK
+  string email UK "login"
+  string name
+}
+ORDER {
+  string id PK
+  string customer_id FK
+  date placed_on
+}
+CUSTOMER ||--o{ ORDER : places
+ORDER ||--|{ LINE_ITEM : contains

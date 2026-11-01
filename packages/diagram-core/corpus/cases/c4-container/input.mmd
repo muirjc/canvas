@@ -1,0 +1,13 @@
+C4Container
+  Person(user, "User")
+  Container_Boundary(app, "Shop") {
+    Container(web, "Web app", "React", "Storefront")
+    Container(api, "API", "Fastify")
+    ContainerDb(db, "Database", "PostgreSQL")
+    ContainerQueue(q, "Orders queue")
+    ContainerDb_Ext(legacy, "Legacy DB")
+  }
+  Rel(user, web, "Uses")
+  Rel(web, api, "Calls", "JSON/HTTPS")
+  Rel(api, db, "Reads/writes")
+  Rel(api, q, "Publishes")

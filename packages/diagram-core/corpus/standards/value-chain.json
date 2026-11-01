@@ -1,0 +1,88 @@
+{
+  "allowedShapeIds": [],
+  "mandatoryShapeIds": [],
+  "allowedIconLibraryRefs": [],
+  "colorPalette": [],
+  "requireKnownKinds": true,
+  "connectorPolicy": "listed-only",
+  "elementKinds": [
+    {
+      "id": "primary_activity",
+      "label": "Primary Activity",
+      "description": "An activity that directly creates and delivers value: inbound logistics, operations, outbound logistics, marketing & sales, service. Chain them left to right in the order value flows.",
+      "shapes": [
+        "asymmetric"
+      ],
+      "approvedFills": [
+        "#dbeafe",
+        "#bfdbfe"
+      ],
+      "approvedStrokes": [
+        "#1d4ed8"
+      ],
+      "minCount": 1,
+      "requireConnection": true
+    },
+    {
+      "id": "support_activity",
+      "label": "Support Activity",
+      "description": "An activity that enables the primary activities across the whole chain: firm infrastructure, human resource management, technology development, procurement. Not connected into the primary flow.",
+      "shapes": [
+        "rectangle"
+      ],
+      "approvedFills": [
+        "#fef3c7",
+        "#fde68a"
+      ],
+      "approvedStrokes": [
+        "#b45309"
+      ],
+      "minCount": 1
+    },
+    {
+      "id": "margin",
+      "label": "Margin",
+      "description": "The value captured: exactly one, at the end of the primary activity chain.",
+      "shapes": [
+        "hexagon"
+      ],
+      "approvedFills": [
+        "#dcfce7"
+      ],
+      "approvedStrokes": [
+        "#15803d"
+      ],
+      "minCount": 1,
+      "maxCount": 1
+    }
+  ],
+  "connectorRules": [
+    {
+      "id": "flow",
+      "label": "Value flow",
+      "from": "primary_activity",
+      "to": "primary_activity",
+      "lineStyles": [
+        "solid"
+      ],
+      "arrows": [
+        "target"
+      ],
+      "maxPerSource": 1
+    },
+    {
+      "id": "to_margin",
+      "label": "Delivers margin",
+      "from": "primary_activity",
+      "to": "margin",
+      "lineStyles": [
+        "solid"
+      ],
+      "arrows": [
+        "target"
+      ],
+      "maxPerSource": 1
+    }
+  ],
+  "guidance": "Porter's value chain: primary activities in sequence left to right (typically 5: inbound logistics, operations, outbound logistics, marketing & sales, service), the last one feeding the single Margin element. Support activities (typically 4: firm infrastructure, HR management, technology development, procurement) sit as bands above the primary chain and are not connected into it."
+}

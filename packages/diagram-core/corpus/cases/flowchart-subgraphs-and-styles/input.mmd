@@ -1,0 +1,13 @@
+flowchart TB
+  subgraph outer [Outer group]
+    direction LR
+    subgraph inner [Inner]
+      a1[One<br/>Two lines] --> a2
+    end
+    a3:::hot --> a1
+  end
+  b1 --> outer
+  classDef hot fill:#ff7f0e,stroke:#d62728,stroke-width:2px
+  class b1 hot
+  style a2 fill:#1f77b4,stroke-dasharray:5 5
+  linkStyle 0 stroke:#2ca02c,stroke-width:3px

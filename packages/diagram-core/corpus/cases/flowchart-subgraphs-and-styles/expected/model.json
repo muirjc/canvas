@@ -1,0 +1,119 @@
+{
+  "containers": [
+    {
+      "direction": "LR",
+      "id": "outer",
+      "label": "Outer group",
+      "position": {
+        "x": 40,
+        "y": 40
+      },
+      "size": {
+        "height": 200,
+        "width": 580
+      }
+    },
+    {
+      "id": "inner",
+      "label": "Inner",
+      "parentContainerId": "outer",
+      "position": {
+        "x": 60,
+        "y": 90
+      },
+      "size": {
+        "height": 130,
+        "width": 360
+      }
+    }
+  ],
+  "diagramTypeId": "flowchart",
+  "direction": "TB",
+  "edges": [
+    {
+      "id": "e1",
+      "sourceId": "a1",
+      "style": {
+        "strokeColor": "#2ca02c",
+        "strokeWidth": 3
+      },
+      "targetId": "a2"
+    },
+    {
+      "id": "e2",
+      "sourceId": "a3",
+      "targetId": "a1"
+    },
+    {
+      "id": "e3",
+      "sourceId": "b1",
+      "targetId": "outer"
+    }
+  ],
+  "nodes": [
+    {
+      "containerId": "inner",
+      "id": "a1",
+      "label": "One<br/>Two lines",
+      "position": {
+        "x": 80,
+        "y": 140
+      },
+      "shape": "rectangle"
+    },
+    {
+      "containerId": "inner",
+      "id": "a2",
+      "label": "a2",
+      "position": {
+        "x": 260,
+        "y": 140
+      },
+      "shape": "rectangle",
+      "style": {
+        "fillColor": "#1f77b4",
+        "strokeDasharray": "5 5"
+      }
+    },
+    {
+      "containerId": "outer",
+      "id": "a3",
+      "label": "a3",
+      "position": {
+        "x": 460,
+        "y": 90
+      },
+      "role": "hot",
+      "shape": "rectangle",
+      "style": {
+        "fillColor": "#ff7f0e",
+        "strokeColor": "#d62728",
+        "strokeWidth": 2
+      }
+    },
+    {
+      "id": "b1",
+      "label": "b1",
+      "position": {
+        "x": 660,
+        "y": 40
+      },
+      "role": "hot",
+      "shape": "rectangle",
+      "style": {
+        "fillColor": "#ff7f0e",
+        "strokeColor": "#d62728",
+        "strokeWidth": 2
+      }
+    },
+    {
+      "id": "outer",
+      "label": "outer",
+      "position": {
+        "x": 840,
+        "y": 40
+      },
+      "shape": "rectangle"
+    }
+  ]
+}

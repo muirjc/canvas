@@ -1,0 +1,234 @@
+{
+  "containers": [
+    {
+      "attachedNodeIds": [
+        "B"
+      ],
+      "id": "pt1",
+      "label": "",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "role": "activate",
+      "sequenceOrder": 10
+    },
+    {
+      "attachedNodeIds": [
+        "B"
+      ],
+      "id": "pt2",
+      "label": "",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "role": "deactivate",
+      "sequenceOrder": 12
+    },
+    {
+      "attachedNodeIds": [
+        "C"
+      ],
+      "id": "pt3",
+      "label": "",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "role": "activate",
+      "sequenceOrder": 13
+    },
+    {
+      "attachedNodeIds": [
+        "C"
+      ],
+      "id": "pt4",
+      "label": "",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "role": "deactivate",
+      "sequenceOrder": 15
+    },
+    {
+      "attachedNodeIds": [
+        "A"
+      ],
+      "id": "note5",
+      "label": "a note",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "role": "note-right",
+      "sequenceOrder": 16,
+      "size": {
+        "height": 50,
+        "width": 100
+      }
+    },
+    {
+      "attachedNodeIds": [
+        "A",
+        "B"
+      ],
+      "id": "note6",
+      "label": "spans two",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "role": "note-over",
+      "sequenceOrder": 17,
+      "size": {
+        "height": 50,
+        "width": 100
+      }
+    }
+  ],
+  "diagramTypeId": "sequence",
+  "edges": [
+    {
+      "arrow": "none",
+      "id": "e1",
+      "label": "solid open",
+      "lineStyle": "solid",
+      "sequenceOrder": 0,
+      "sourceId": "A",
+      "targetId": "B"
+    },
+    {
+      "arrow": "none",
+      "id": "e2",
+      "label": "dotted open",
+      "lineStyle": "dotted",
+      "sequenceOrder": 1,
+      "sourceId": "A",
+      "targetId": "B"
+    },
+    {
+      "arrow": "target",
+      "id": "e3",
+      "label": "solid arrow",
+      "lineStyle": "solid",
+      "sequenceOrder": 2,
+      "sourceId": "A",
+      "targetId": "B"
+    },
+    {
+      "arrow": "target",
+      "id": "e4",
+      "label": "dotted arrow",
+      "lineStyle": "dotted",
+      "sequenceOrder": 3,
+      "sourceId": "A",
+      "targetId": "B"
+    },
+    {
+      "arrow": "cross",
+      "id": "e5",
+      "label": "solid cross",
+      "lineStyle": "solid",
+      "sequenceOrder": 4,
+      "sourceId": "A",
+      "targetId": "C"
+    },
+    {
+      "arrow": "cross",
+      "id": "e6",
+      "label": "dotted cross",
+      "lineStyle": "dotted",
+      "sequenceOrder": 5,
+      "sourceId": "A",
+      "targetId": "C"
+    },
+    {
+      "arrow": "open",
+      "id": "e7",
+      "label": "async",
+      "lineStyle": "solid",
+      "sequenceOrder": 6,
+      "sourceId": "A",
+      "targetId": "C"
+    },
+    {
+      "arrow": "open",
+      "id": "e8",
+      "label": "dotted async",
+      "lineStyle": "dotted",
+      "sequenceOrder": 7,
+      "sourceId": "A",
+      "targetId": "C"
+    },
+    {
+      "arrow": "both",
+      "id": "e9",
+      "label": "both ways",
+      "lineStyle": "solid",
+      "sequenceOrder": 8,
+      "sourceId": "A",
+      "targetId": "B"
+    },
+    {
+      "arrow": "target",
+      "id": "e10",
+      "label": "request",
+      "lineStyle": "solid",
+      "sequenceOrder": 9,
+      "sourceId": "A",
+      "targetId": "B"
+    },
+    {
+      "arrow": "target",
+      "id": "e11",
+      "label": "response",
+      "lineStyle": "dotted",
+      "sequenceOrder": 11,
+      "sourceId": "B",
+      "targetId": "A"
+    },
+    {
+      "arrow": "target",
+      "id": "e12",
+      "label": "self call",
+      "lineStyle": "solid",
+      "sequenceOrder": 14,
+      "sourceId": "C",
+      "targetId": "C"
+    }
+  ],
+  "nodes": [
+    {
+      "id": "A",
+      "label": "Alice",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "role": "participant",
+      "shape": "rectangle"
+    },
+    {
+      "id": "B",
+      "label": "Bob",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "role": "actor",
+      "shape": "person"
+    },
+    {
+      "id": "C",
+      "label": "C",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "role": "participant",
+      "shape": "rectangle"
+    }
+  ]
+}

@@ -1,0 +1,29 @@
+---
+canvas:
+  positions:
+    in:
+      x: 40
+      y: 40
+    ops:
+      x: 240
+      y: 40
+    hr:
+      x: 140
+      y: 200
+    stray:
+      x: 40
+      y: 40
+  containers: {}
+  styles:
+    in:
+      fillColor: "#dbeafe"
+      strokeColor: "#1e3a8a"
+  edgeStyles: {}
+  icons: {}
+---
+flowchart LR
+  in[Inbound logistics]:::primary_activity
+  ops[Operations]:::primary_activity
+  hr[HR management]:::support_activity
+  stray[Unknown kind]:::mystery
+  in --> ops

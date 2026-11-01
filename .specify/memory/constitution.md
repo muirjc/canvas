@@ -1,5 +1,16 @@
 <!--
 Sync Impact Report
+- Version change: 1.1.0 → 1.2.0 (MINOR: Principle IV materially expanded; Principle VI example
+  extended)
+- Modified principles: IV. Test-First for Rendering & Export — diagram-core gets a second
+  (Python, server-side) implementation during the move of the backend to Python (canvas-1bty,
+  docs/python-backend-assessment.md); the two are held equal by the golden corpus
+  (packages/diagram-core/corpus), which both MUST pass. VI. Simplicity & Incremental Delivery —
+  the query-compiler carve-out names SQLAlchemy Core (Python) alongside Kysely; the ORM line is
+  unchanged.
+- Templates requiring updates: none (the gates read this file at plan time).
+- Previous report (1.0.0 → 1.1.0) follows.
+
 - Version change: 1.0.0 → 1.1.0 (MINOR: Principle VI materially expanded)
 - Modified principles: VI. Simplicity & Incremental Delivery — adds an explicit carve-out
   distinguishing a typed SQL query-compiler (no entity/active-record layer, no own
@@ -65,9 +76,18 @@ corresponding code is written (Red-Green-Refactor). This applies to: DSL parse/s
 round-trips, per-diagram-type standard validation, and export fidelity (SVG/PNG match the
 canvas state).
 
+diagram-core has two implementations while the backend moves to Python: TypeScript (the browser,
+and today's server) and Python (the server, ported family by family). They MUST stay equal. The
+golden corpus (`packages/diagram-core/corpus`: Mermaid in; parsed model, serialized DSL, portable
+Mermaid, SVG and standard findings out) is that contract: both implementations MUST pass it in CI,
+a Python family replaces the TypeScript one on the server only once it passes, and any change to
+diagram-core's server-side behaviour MUST add or update corpus cases in the same change, with the
+test-first rule above applying to both implementations.
+
 **Rationale**: Regressions in rendering or export are the hardest class of bug to catch via
 manual QA because they are visual and often diagram-type-specific; automated contract tests are
-the only reliable guard.
+the only reliable guard. With two implementations, "same code" no longer guarantees the canvas
+and the server agree; a shared, executable corpus does.
 
 ### V. Extensible Symbol Libraries
 
@@ -98,7 +118,8 @@ and is NOT compatible with this principle absent an explicit justification in Co
 Tracking. `apps/api/src/db/` is the concrete instance of this distinction: Kysely replaced
 hand-written raw SQL strings for query building, but migrations remain plain, hand-written
 `.sql` files applied by a small, dependency-free runner (`apps/api/src/db/migrate.ts`) — not a
-generated or diffed schema.
+generated or diffed schema. The Python service (`apps/api-py`) follows the same line with
+SQLAlchemy Core — never its ORM — over the same plain `.sql` migration files.
 
 **Rationale**: A four-persona, multi-format, governance-enforcing tool has enough inherent scope;
 uncontrolled speculative abstraction is the most likely way this project fails to ship. A typed
@@ -142,4 +163,4 @@ and any command files that reference an affected principle by name. All plans an
 checked against this constitution; unjustified complexity or governance shortcuts MUST be
 rejected or escalated for an explicit, recorded exception.
 
-**Version**: 1.1.0 | **Ratified**: 2026-07-25 | **Last Amended**: 2026-10-01
+**Version**: 1.2.0 | **Ratified**: 2026-07-25 | **Last Amended**: 2026-11-01

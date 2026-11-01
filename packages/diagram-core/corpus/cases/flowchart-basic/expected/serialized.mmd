@@ -1,0 +1,29 @@
+---
+canvas:
+  positions:
+    A:
+      x: 40
+      y: 40
+    B:
+      x: 220
+      y: 40
+    C:
+      x: 400
+      y: 40
+    D:
+      x: 580
+      y: 40
+  containers: {}
+  styles: {}
+  edgeStyles: {}
+  icons: {}
+---
+flowchart TD
+  A[Start]
+  B{Decision}
+  C([Done])
+  D[[Retry]]
+  A --> B
+  B -->|Yes| C
+  B -->|No| D
+  D --> A

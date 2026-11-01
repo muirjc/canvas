@@ -1,0 +1,123 @@
+{
+  "containers": [
+    {
+      "id": "app",
+      "label": "Shop",
+      "position": {
+        "x": 40,
+        "y": 40
+      },
+      "role": "container-boundary",
+      "size": {
+        "height": 243,
+        "width": 900
+      }
+    }
+  ],
+  "diagramTypeId": "c4-container",
+  "edges": [
+    {
+      "id": "e1",
+      "label": "Uses",
+      "sourceId": "user",
+      "targetId": "web"
+    },
+    {
+      "id": "e2",
+      "label": "Calls",
+      "sourceId": "web",
+      "targetId": "api",
+      "technology": "JSON/HTTPS"
+    },
+    {
+      "id": "e3",
+      "label": "Reads/writes",
+      "sourceId": "api",
+      "targetId": "db"
+    },
+    {
+      "id": "e4",
+      "label": "Publishes",
+      "sourceId": "api",
+      "targetId": "q"
+    }
+  ],
+  "nodes": [
+    {
+      "c4TypeLabel": "Person",
+      "id": "user",
+      "label": "User",
+      "position": {
+        "x": 40,
+        "y": 323
+      },
+      "role": "person",
+      "shape": "person"
+    },
+    {
+      "c4TypeLabel": "Container",
+      "containerId": "app",
+      "description": "Storefront",
+      "id": "web",
+      "label": "Web app",
+      "position": {
+        "x": 60,
+        "y": 90
+      },
+      "role": "container",
+      "shape": "rounded-rectangle",
+      "technology": "React"
+    },
+    {
+      "c4TypeLabel": "Container",
+      "containerId": "app",
+      "id": "api",
+      "label": "API",
+      "position": {
+        "x": 300,
+        "y": 90
+      },
+      "role": "container",
+      "shape": "rounded-rectangle",
+      "technology": "Fastify"
+    },
+    {
+      "c4TypeLabel": "Container",
+      "containerId": "app",
+      "id": "db",
+      "label": "Database",
+      "position": {
+        "x": 540,
+        "y": 90
+      },
+      "role": "container",
+      "shape": "cylinder",
+      "technology": "PostgreSQL"
+    },
+    {
+      "c4TypeLabel": "Container",
+      "containerId": "app",
+      "id": "q",
+      "label": "Orders queue",
+      "position": {
+        "x": 780,
+        "y": 90
+      },
+      "role": "container",
+      "shape": "stadium"
+    },
+    {
+      "c4TypeLabel": "Container",
+      "containerId": "app",
+      "external": true,
+      "id": "legacy",
+      "label": "Legacy DB",
+      "position": {
+        "x": 60,
+        "y": 203
+      },
+      "role": "container",
+      "shape": "cylinder"
+    }
+  ]
+}

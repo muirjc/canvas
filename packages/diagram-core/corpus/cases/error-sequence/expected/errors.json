@@ -1,0 +1,14 @@
+{
+  "errors": [
+    {
+      "content": "  A->>B hello without colon ??? %%",
+      "line": 2,
+      "message": "Could not interpret line as a participant, message, or directive: \"A->>B hello without colon ???\""
+    },
+    {
+      "content": "  loop never closed",
+      "line": 3,
+      "message": "Unclosed 'loop' block opened at line 3"
+    }
+  ]
+}

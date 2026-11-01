@@ -1,0 +1,9 @@
+{
+  "errors": [
+    {
+      "content": "  A -->",
+      "line": 2,
+      "message": "Could not interpret line as a node, edge, or subgraph: \"A -->\""
+    }
+  ]
+}

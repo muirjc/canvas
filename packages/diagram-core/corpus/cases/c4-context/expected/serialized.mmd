@@ -1,0 +1,56 @@
+---
+canvas:
+  positions:
+    customer:
+      x: 780
+      y: 40
+    auditor:
+      x: 40
+      y: 293
+    ib:
+      x: 520
+      y: 90
+    mainframe:
+      x: 80
+      y: 140
+    events:
+      x: 320
+      y: 140
+    mail:
+      x: 220
+      y: 293
+  styles:
+    ib:
+      fillColor: "#d62728"
+      strokeColor: "#2ca02c"
+  edgeStyles:
+    e1:
+      strokeColor: "#ff7f0e"
+  containers:
+    bank:
+      x: 40
+      y: 40
+      width: 700
+      height: 213
+    core:
+      x: 60
+      y: 90
+      width: 420
+      height: 143
+---
+C4Context
+title Internet banking
+Enterprise_Boundary(bank, "Bank") {
+  System(ib, "Internet Banking", "Lets customers view accounts")
+System_Boundary(core, "Core") {
+  SystemDb(mainframe, "Mainframe", "Stores accounts")
+  SystemQueue(events, "Event bus")
+}
+}
+Person(customer, "Customer", "A bank customer")
+Person_Ext(auditor, "Auditor")
+System_Ext(mail, "E-mail system")
+Rel(customer, ib, "Uses", "HTTPS")
+BiRel(ib, mainframe, "Reads and writes")
+Rel(ib, mail, "Sends e-mail")
+Rel(auditor, ib, "Reviews")

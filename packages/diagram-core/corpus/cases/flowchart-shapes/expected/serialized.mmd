@@ -1,0 +1,66 @@
+---
+canvas:
+  positions:
+    r:
+      x: 40
+      y: 40
+    ro:
+      x: 220
+      y: 40
+    st:
+      x: 400
+      y: 40
+    su:
+      x: 580
+      y: 40
+    cy:
+      x: 760
+      y: 40
+    ci:
+      x: 940
+      y: 40
+    dc:
+      x: 40
+      y: 140
+    di:
+      x: 220
+      y: 140
+    hx:
+      x: 400
+      y: 140
+    pa:
+      x: 580
+      y: 140
+    tr:
+      x: 760
+      y: 140
+    as:
+      x: 940
+      y: 140
+  containers: {}
+  styles: {}
+  edgeStyles: {}
+  icons: {}
+---
+flowchart LR
+  r[Rectangle]
+  ro(Rounded)
+  st([Stadium])
+  su[[Subroutine]]
+  cy[(Cylinder)]
+  ci((Circle))
+  dc(((Double circle)))
+  di{Diamond}
+  hx{{Hexagon}}
+  pa[/Parallelogram/]
+  tr[/Trapezoid\]
+  as>Asymmetric]
+  r --> ro
+  ro --> st
+  st --> su
+  cy --> ci
+  ci --> dc
+  di --> hx
+  hx --> pa
+  pa --> tr
+  tr --> as

@@ -1,0 +1,212 @@
+{
+  "containers": [],
+  "diagramTypeId": "flowchart",
+  "direction": "LR",
+  "edges": [
+    {
+      "id": "e1",
+      "lineStyle": "dotted",
+      "sourceId": "A",
+      "targetId": "B"
+    },
+    {
+      "id": "e2",
+      "lineStyle": "thick",
+      "sourceId": "B",
+      "targetId": "C"
+    },
+    {
+      "arrow": "none",
+      "id": "e3",
+      "sourceId": "C",
+      "targetId": "D"
+    },
+    {
+      "arrow": "both",
+      "id": "e4",
+      "sourceId": "D",
+      "targetId": "E"
+    },
+    {
+      "arrow": "none",
+      "id": "e5",
+      "lineStyle": "invisible",
+      "sourceId": "E",
+      "targetId": "F"
+    },
+    {
+      "arrow": "none",
+      "id": "e6",
+      "lineStyle": "dotted",
+      "sourceId": "F",
+      "targetId": "G"
+    },
+    {
+      "arrow": "none",
+      "id": "e7",
+      "lineStyle": "thick",
+      "sourceId": "G",
+      "targetId": "H"
+    },
+    {
+      "id": "e8",
+      "label": "label text",
+      "sourceId": "A",
+      "targetId": "C"
+    },
+    {
+      "id": "e9",
+      "label": "piped label",
+      "sourceId": "A",
+      "targetId": "D"
+    },
+    {
+      "id": "e10",
+      "sourceId": "P",
+      "targetId": "Q"
+    },
+    {
+      "id": "e11",
+      "sourceId": "Q",
+      "targetId": "R"
+    },
+    {
+      "id": "e12",
+      "sourceId": "S",
+      "targetId": "T"
+    },
+    {
+      "id": "e13",
+      "sourceId": "S",
+      "targetId": "U"
+    }
+  ],
+  "nodes": [
+    {
+      "id": "A",
+      "label": "A",
+      "position": {
+        "x": 40,
+        "y": 40
+      },
+      "shape": "rectangle"
+    },
+    {
+      "id": "B",
+      "label": "B",
+      "position": {
+        "x": 220,
+        "y": 40
+      },
+      "shape": "rectangle"
+    },
+    {
+      "id": "C",
+      "label": "C",
+      "position": {
+        "x": 400,
+        "y": 40
+      },
+      "shape": "rectangle"
+    },
+    {
+      "id": "D",
+      "label": "D",
+      "position": {
+        "x": 580,
+        "y": 40
+      },
+      "shape": "rectangle"
+    },
+    {
+      "id": "E",
+      "label": "E",
+      "position": {
+        "x": 760,
+        "y": 40
+      },
+      "shape": "rectangle"
+    },
+    {
+      "id": "F",
+      "label": "F",
+      "position": {
+        "x": 940,
+        "y": 40
+      },
+      "shape": "rectangle"
+    },
+    {
+      "id": "G",
+      "label": "G",
+      "position": {
+        "x": 40,
+        "y": 140
+      },
+      "shape": "rectangle"
+    },
+    {
+      "id": "H",
+      "label": "H",
+      "position": {
+        "x": 220,
+        "y": 140
+      },
+      "shape": "rectangle"
+    },
+    {
+      "id": "P",
+      "label": "P",
+      "position": {
+        "x": 400,
+        "y": 140
+      },
+      "shape": "rectangle"
+    },
+    {
+      "id": "Q",
+      "label": "Q",
+      "position": {
+        "x": 580,
+        "y": 140
+      },
+      "shape": "rectangle"
+    },
+    {
+      "id": "R",
+      "label": "R",
+      "position": {
+        "x": 760,
+        "y": 140
+      },
+      "shape": "rectangle"
+    },
+    {
+      "id": "S",
+      "label": "S",
+      "position": {
+        "x": 940,
+        "y": 140
+      },
+      "shape": "rectangle"
+    },
+    {
+      "id": "T",
+      "label": "T",
+      "position": {
+        "x": 40,
+        "y": 240
+      },
+      "shape": "rectangle"
+    },
+    {
+      "id": "U",
+      "label": "U",
+      "position": {
+        "x": 220,
+        "y": 240
+      },
+      "shape": "rectangle"
+    }
+  ]
+}

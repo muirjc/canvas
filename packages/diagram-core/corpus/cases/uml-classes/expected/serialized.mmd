@@ -1,0 +1,78 @@
+---
+canvas:
+  positions:
+    Animal:
+      x: 80
+      y: 140
+    Dog:
+      x: 277.12
+      y: 140
+    Box:
+      x: 897.12
+      y: 40
+    Keeper:
+      x: 40
+      y: 350.8
+    Foo:
+      x: 220
+      y: 350.8
+    Bar:
+      x: 400
+      y: 350.8
+  styles:
+    Animal:
+      fillColor: "#d62728"
+      strokeColor: "#2ca02c"
+  containers:
+    Zoo:
+      x: 40
+      y: 40
+      width: 417.12
+      height: 270.8
+    Zoo.Animals:
+      x: 60
+      y: 90
+      width: 377.12
+      height: 200.8
+    note1:
+      x: 497.12
+      y: 40
+      width: 160
+      height: 100
+    note2:
+      x: 697.12
+      y: 40
+      width: 160
+      height: 100
+---
+classDiagram
+direction LR
+namespace Zoo {
+  namespace Animals {
+    class Animal <<abstract>> {
+      +String name
+      -int age$
+      +speak() String*
+      #grow(int years) void
+    }
+    class Dog
+  }
+}
+class Box~T~ {
+  +List~T~ items
+  +put(T item) void
+}
+class Keeper
+class Foo
+class Bar
+Animal <|-- Dog
+Keeper "1" --> "*" Animal : feeds
+Box *-- Animal
+Keeper o-- Box
+Dog ..> Box
+Dog ..|> Animal
+Keeper -- Dog
+Box .. Keeper
+Foo ()-- Bar
+note for Dog "Good boy"
+note "A general note"

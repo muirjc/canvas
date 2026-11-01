@@ -1,0 +1,144 @@
+{
+  "containers": [
+    {
+      "id": "bank",
+      "label": "Bank",
+      "position": {
+        "x": 40,
+        "y": 40
+      },
+      "role": "enterprise-boundary",
+      "size": {
+        "height": 213,
+        "width": 700
+      }
+    },
+    {
+      "id": "core",
+      "label": "Core",
+      "parentContainerId": "bank",
+      "position": {
+        "x": 60,
+        "y": 90
+      },
+      "role": "system-boundary",
+      "size": {
+        "height": 143,
+        "width": 420
+      }
+    }
+  ],
+  "diagramTypeId": "c4-context",
+  "edges": [
+    {
+      "id": "e1",
+      "label": "Uses",
+      "sourceId": "customer",
+      "style": {
+        "strokeColor": "#ff7f0e"
+      },
+      "targetId": "ib",
+      "technology": "HTTPS"
+    },
+    {
+      "arrow": "both",
+      "id": "e2",
+      "label": "Reads and writes",
+      "sourceId": "ib",
+      "targetId": "mainframe"
+    },
+    {
+      "id": "e3",
+      "label": "Sends e-mail",
+      "sourceId": "ib",
+      "targetId": "mail"
+    },
+    {
+      "id": "e4",
+      "label": "Reviews",
+      "sourceId": "auditor",
+      "targetId": "ib"
+    }
+  ],
+  "nodes": [
+    {
+      "c4TypeLabel": "Person",
+      "description": "A bank customer",
+      "id": "customer",
+      "label": "Customer",
+      "position": {
+        "x": 780,
+        "y": 40
+      },
+      "role": "person",
+      "shape": "person"
+    },
+    {
+      "c4TypeLabel": "Person",
+      "external": true,
+      "id": "auditor",
+      "label": "Auditor",
+      "position": {
+        "x": 40,
+        "y": 293
+      },
+      "role": "person",
+      "shape": "person"
+    },
+    {
+      "c4TypeLabel": "Software System",
+      "containerId": "bank",
+      "description": "Lets customers view accounts",
+      "id": "ib",
+      "label": "Internet Banking",
+      "position": {
+        "x": 520,
+        "y": 90
+      },
+      "role": "system",
+      "shape": "rectangle",
+      "style": {
+        "fillColor": "#d62728",
+        "strokeColor": "#2ca02c"
+      }
+    },
+    {
+      "c4TypeLabel": "Software System",
+      "containerId": "core",
+      "description": "Stores accounts",
+      "id": "mainframe",
+      "label": "Mainframe",
+      "position": {
+        "x": 80,
+        "y": 140
+      },
+      "role": "system",
+      "shape": "cylinder"
+    },
+    {
+      "c4TypeLabel": "Software System",
+      "containerId": "core",
+      "id": "events",
+      "label": "Event bus",
+      "position": {
+        "x": 320,
+        "y": 140
+      },
+      "role": "system",
+      "shape": "stadium"
+    },
+    {
+      "c4TypeLabel": "Software System",
+      "external": true,
+      "id": "mail",
+      "label": "E-mail system",
+      "position": {
+        "x": 220,
+        "y": 293
+      },
+      "role": "system",
+      "shape": "rectangle"
+    }
+  ],
+  "title": "Internet banking"
+}

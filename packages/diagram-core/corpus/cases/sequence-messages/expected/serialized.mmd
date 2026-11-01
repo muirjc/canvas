@@ -1,0 +1,22 @@
+sequenceDiagram
+participant A as Alice
+actor B as Bob
+participant C
+A->B: solid open
+A-->B: dotted open
+A->>B: solid arrow
+A-->>B: dotted arrow
+A-xC: solid cross
+A--xC: dotted cross
+A-)C: async
+A--)C: dotted async
+A<<->>B: both ways
+A->>B: request
+activate B
+B-->>A: response
+deactivate B
+activate C
+C->>C: self call
+deactivate C
+Note right of A: a note
+Note over A, B: spans two

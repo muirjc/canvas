@@ -1,0 +1,31 @@
+classDiagram
+  direction LR
+  namespace Zoo.Animals {
+    class Animal {
+      <<abstract>>
+      +String name
+      -int age$
+      +speak() String*
+      #grow(int years) void
+    }
+    class Dog
+  }
+  class Box~T~ {
+    +List~T~ items
+    +put(T item) void
+  }
+  class Keeper
+  Animal <|-- Dog
+  Keeper "1" --> "*" Animal : feeds
+  Box *-- Animal
+  Keeper o-- Box
+  Dog ..> Box
+  Dog ..|> Animal
+  Keeper -- Dog
+  Box .. Keeper
+  Foo ()-- Bar
+  note for Dog "Good boy"
+  note "A general note"
+  style Animal fill:#d62728,stroke:#2ca02c
+%% Colours for Mermaid tools outside Canvas (added on export).
+style Animal fill:#d62728,stroke:#2ca02c
