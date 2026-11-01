@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import os
 from collections.abc import Iterator
+from typing import Any
 
 import psycopg
 import pytest
@@ -54,3 +55,12 @@ def engine(settings: Settings) -> Iterator[Engine]:
 def client(settings: Settings, engine: Engine) -> Iterator[TestClient]:
     with TestClient(create_app(settings, engine)) as test_client:
         yield test_client
+
+
+@pytest.fixture()
+def api(client: TestClient, engine: Engine) -> Iterator[Any]:
+    """A clean database and a contract-checking client (tests/api.py)."""
+    from tests.api import Api, reset
+
+    reset(engine)
+    yield Api(client, engine)

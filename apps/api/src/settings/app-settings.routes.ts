@@ -1,14 +1,19 @@
 import type { FastifyInstance } from 'fastify';
 import { requireAuth, requireRole } from '../auth/middleware.js';
+import { errorResponse } from '../contract/schemas.js';
 import { clientIp, recordAudit } from '../audit/audit.service.js';
 import { getAppSettings, setAppSettings, type AppSettings } from './app-settings.service.js';
 
 /** canvas-8em: admin-controlled feature switches. Any signed-in user reads them (the client hides
  *  what's switched off); only an admin changes them, and each change is audited. */
 export async function registerAppSettingsRoutes(app: FastifyInstance): Promise<void> {
-  app.get('/app-settings', { preHandler: requireAuth, schema: { tags: ['Settings'], security: [{ cookieAuth: [] }] } }, async (_request, reply) => {
-    return reply.send(await getAppSettings());
-  });
+  app.get(
+    '/app-settings',
+    { preHandler: requireAuth, schema: { tags: ['Settings'], security: [{ cookieAuth: [] }], response: { 200: { $ref: 'AppSettings#' }, '4xx': errorResponse } } },
+    async (_request, reply) => {
+      return reply.send(await getAppSettings());
+    },
+  );
 
   app.patch<{ Body: Partial<AppSettings> }>(
     '/admin/app-settings',
@@ -23,6 +28,7 @@ export async function registerAppSettingsRoutes(app: FastifyInstance): Promise<v
           properties: { sharingEnabled: { type: 'boolean' } },
           additionalProperties: false,
         },
+        response: { 200: { $ref: 'AppSettings#' }, '4xx': errorResponse },
       },
     },
     async (request, reply) => {

@@ -30,6 +30,7 @@ import { registerCommentRoutes } from './comments/comment.routes.js';
 import { registerGitHubRoutes } from './github/github.routes.js';
 import { drainBackgroundTasks } from './background/tasks.js';
 import { registerPythonFrontDoor } from './python/front-door.js';
+import { registerContractSchemas } from './contract/schemas.js';
 
 export interface BuildAppOptions {
   config?: AppConfig;
@@ -86,6 +87,9 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
   // a signed-in user's session cookie.
   await app.register(cors, { origin: config.webOrigins, credentials: true });
 
+  // canvas-1bty.6: shared response schemas, referenced by the routes that have moved to Python.
+  registerContractSchemas(app);
+
   // Registered before every route below -- @fastify/swagger builds its document by observing
   // routes as they're added, so anything registered earlier than this would be invisible to it
   // (api-docs.routes.ts's own doc comment has the full rationale).
@@ -110,6 +114,9 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
     reply.header('Referrer-Policy', 'same-origin');
   });
   await registerSession(app, config);
+  // canvas-1bty.3/.6: what has moved to the Python service is forwarded to it. After the session
+  // plugin, before the routes (moved routes are matched by their TypeScript route pattern).
+  await registerPythonFrontDoor(app, config);
   // /auth/me and /auth/logout are needed regardless of login method (local password or SSO), so
   // they're registered unconditionally -- see registerSessionInfoRoutes's own doc comment.
   await registerSessionInfoRoutes(app);
@@ -142,9 +149,6 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
   // separately) -- security: [] is explicit, not merely omitted, so /docs shows this was
   // deliberately reviewed as public rather than simply never annotated.
   app.get('/health', { schema: { tags: ['Health'], security: [] } }, async () => ({ status: 'ok' }));
-
-  // canvas-1bty.3: route groups that have moved to the Python service are forwarded to it.
-  await registerPythonFrontDoor(app, config);
 
   // canvas-r3y: the web app, from this same origin (production image only).
   await registerWebApp(app, config.webDistDir);

@@ -3,6 +3,7 @@ import { requireProjectAccess, requireProjectOwnerOrAdmin } from '../auth/access
 import { requireAuth, requireRole } from '../auth/middleware.js';
 import { clientIp, recordAudit } from '../audit/audit.service.js';
 import { resolveProjectAccess } from './project.access.js';
+import { envelope, errorResponse, idParams, listEnvelope, noContent } from '../contract/schemas.js';
 import {
   createProject,
   deleteProject,
@@ -50,6 +51,7 @@ export async function registerProjectRoutes(app: FastifyInstance): Promise<void>
           required: ['name'],
           properties: { name: { type: 'string', minLength: 1 }, parentProjectId: { type: 'string' } },
         },
+        response: { 201: envelope('project', 'ProjectListItem'), '4xx': errorResponse },
       },
     },
     async (request, reply) => {
@@ -69,7 +71,10 @@ export async function registerProjectRoutes(app: FastifyInstance): Promise<void>
    */
   app.get(
     '/projects',
-    { preHandler: requireAuth, schema: { tags: ['Projects'], security: [{ cookieAuth: [] }] } },
+    {
+      preHandler: requireAuth,
+      schema: { tags: ['Projects'], security: [{ cookieAuth: [] }], response: { 200: listEnvelope('projects', 'ProjectListItem'), '4xx': errorResponse } },
+    },
     async (request, reply) => {
       return reply.send({ projects: await listProjectsForUser(request.session.user!.id) });
     },
@@ -79,7 +84,7 @@ export async function registerProjectRoutes(app: FastifyInstance): Promise<void>
     '/projects/:id',
     {
       preHandler: [requireAuth, requireProjectAccess('view', 'id')],
-      schema: { tags: ['Projects'], security: [{ cookieAuth: [] }] },
+      schema: { tags: ['Projects'], security: [{ cookieAuth: [] }], params: idParams, response: { 200: envelope('project', 'Project'), '4xx': errorResponse } },
     },
     async (request, reply) => {
       try {
@@ -94,7 +99,7 @@ export async function registerProjectRoutes(app: FastifyInstance): Promise<void>
     '/projects/:id/tree',
     {
       preHandler: [requireAuth, requireProjectAccess('view', 'id')],
-      schema: { tags: ['Projects'], security: [{ cookieAuth: [] }] },
+      schema: { tags: ['Projects'], security: [{ cookieAuth: [] }], params: idParams, response: { 200: envelope('tree', 'ProjectTreeNode'), '4xx': errorResponse } },
     },
     async (request, reply) => {
       try {
@@ -113,7 +118,9 @@ export async function registerProjectRoutes(app: FastifyInstance): Promise<void>
       schema: {
         tags: ['Projects'],
         security: [{ cookieAuth: [] }],
+        params: idParams,
         body: { type: 'object', required: ['name'], properties: { name: { type: 'string', minLength: 1 } } },
+        response: { 200: envelope('project', 'Project'), '4xx': errorResponse },
       },
     },
     async (request, reply) => {
@@ -179,7 +186,7 @@ export async function registerProjectRoutes(app: FastifyInstance): Promise<void>
     '/projects/:id',
     {
       preHandler: [requireAuth, requireProjectOwnerOrAdmin()],
-      schema: { tags: ['Projects'], security: [{ cookieAuth: [] }] },
+      schema: { tags: ['Projects'], security: [{ cookieAuth: [] }], params: idParams, response: { 204: noContent, '4xx': errorResponse } },
     },
     async (request, reply) => {
       try {
@@ -193,7 +200,10 @@ export async function registerProjectRoutes(app: FastifyInstance): Promise<void>
 
   app.get(
     '/admin/deleted-projects',
-    { preHandler: requireRole('admin'), schema: { tags: ['Projects'], security: [{ cookieAuth: [] }] } },
+    {
+      preHandler: requireRole('admin'),
+      schema: { tags: ['Projects'], security: [{ cookieAuth: [] }], response: { 200: listEnvelope('projects', 'DeletedProject'), '4xx': errorResponse } },
+    },
     async (_request, reply) => {
       return reply.send({ projects: await listDeletedProjects() });
     },
@@ -201,7 +211,10 @@ export async function registerProjectRoutes(app: FastifyInstance): Promise<void>
 
   app.post<{ Params: { id: string } }>(
     '/projects/:id/restore',
-    { preHandler: requireRole('admin'), schema: { tags: ['Projects'], security: [{ cookieAuth: [] }] } },
+    {
+      preHandler: requireRole('admin'),
+      schema: { tags: ['Projects'], security: [{ cookieAuth: [] }], params: idParams, response: { 200: envelope('project', 'Project'), '4xx': errorResponse } },
+    },
     async (request, reply) => {
       try {
         await restoreProject(request.params.id, request.session.user!.id);

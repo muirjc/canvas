@@ -74,6 +74,9 @@ param githubApiUrl string = 'https://api.github.com'
 @allowed(['secret', 'managed-identity'])
 param oidcClientAuth string = 'secret'
 
+@description('canvas-1bty.6: route groups canvas-api forwards to canvas-api-py (PYTHON_ROUTE_GROUPS). Empty = all moved groups; "none" = everything back on TypeScript (the fallback).')
+param pythonRouteGroups string = ''
+
 resource rg 'Microsoft.Resources/resourceGroups@2023-07-01' = {
   name: resourceGroupName
   location: location
@@ -193,6 +196,7 @@ module apiApp 'modules/apiapp.bicep' = {
     oidcClientAuth: oidcClientAuth
     identityClientId: keyVault.outputs.identityClientId
     pythonApiUrl: pyApiApp.outputs.internalUrl
+    pythonRouteGroups: pythonRouteGroups
   }
 }
 

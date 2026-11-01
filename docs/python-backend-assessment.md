@@ -92,9 +92,15 @@ export) applies to both. Principle VI's Kysely example becomes SQLAlchemy Core.
 - **One set of migrations.** The existing plain-SQL migration files stay the single source, run by
   one runner (the TypeScript one, until the migrate job moves to Python). No Alembic until TypeScript
   is gone.
-- **Same API shapes.** Today's OpenAPI document and response shapes are snapshotted (this needs
-  canvas-62y's full request/response schemas first). Every migrated route must match the snapshot, and
-  a diff runs in CI.
+- **Same API shapes.** Each route group's request and response schemas are written on the TypeScript
+  routes as the group moves (canvas-62y, done group by group rather than all ~128 routes up front) and
+  snapshotted to `apps/api/contract/openapi.json`. CI fails when a moved route's shape changes without
+  the snapshot, and the Python tests check every response against it.
+- **Forwarding by route, not prefix** (phase 2). The front door matches the route Fastify resolved
+  (`PATCH /projects/:id`) against the moved list in `apps/api/src/python/route-groups.ts`, since one
+  prefix holds routes from several phases (`/projects/:id` moves in phase 2, `/projects/:id/members`
+  in phase 3). The TypeScript routes stay registered; `PYTHON_ROUTE_GROUPS` sends a group back to
+  them without a deploy of new code.
 - **Same telemetry.** The Python service reports to the same Application Insights resource with the
   same route names, so the performance workbook and alert keep working across the move.
 
@@ -107,7 +113,7 @@ the UI, stays unchanged, and is the acceptance gate throughout.
 
 | Phase | What | Gate |
 |---|---|---|
-| 0a | API contract: full request/response schemas (canvas-62y) and an OpenAPI snapshot | Snapshot diff in CI |
+| 0a | API contract: request/response schemas (canvas-62y) and an OpenAPI snapshot, written per route group as it moves | Snapshot diff in CI |
 | 0b | Python service skeleton: FastAPI, SQLAlchemy Core (Postgres + SQLite), pydantic, uv, ruff, mypy, pytest, OpenTelemetry; CI jobs for both databases; Docker image | `/health` from Python in the container |
 | 0c | Shared sign-in spike: read `cid` sessions and verify the signature in Python | A user signed in via TypeScript calls a Python route |
 | 0d | Front door: TypeScript forwards a route prefix to the internal Python container (local compose and Azure) | One read-only route served by Python in Azure |

@@ -2,7 +2,11 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping
+from typing import Any
+
 from fastapi import FastAPI, Request
+from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 
 
@@ -14,6 +18,13 @@ class ApiError(Exception):
         self.code = code
 
 
+def _describe(error: Mapping[str, Any]) -> str:
+    """One validation error, worded like Fastify's ("body/name must ...")."""
+    loc = [str(part) for part in error.get("loc", ())]
+    where = "/".join(loc) if loc else "body"
+    return f"{where} {error.get('msg', 'is invalid')}"
+
+
 def register_error_handlers(app: FastAPI) -> None:
     @app.exception_handler(ApiError)
     async def _api_error(_request: Request, exc: ApiError) -> JSONResponse:
@@ -21,3 +32,10 @@ def register_error_handlers(app: FastAPI) -> None:
         if exc.code:
             body["code"] = exc.code
         return JSONResponse(body, status_code=exc.status)
+
+    @app.exception_handler(RequestValidationError)
+    async def _validation_error(_request: Request, exc: RequestValidationError) -> JSONResponse:
+        # Fastify answers a request that fails its schema with 400 (FastAPI's default is 422).
+        errors = exc.errors()
+        message = _describe(errors[0]) if errors else "Invalid request"
+        return JSONResponse({"error": message}, status_code=400)

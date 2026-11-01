@@ -548,10 +548,27 @@ Diagram content, prompts, emails and tokens are never recorded. Log lines carry 
 
 The backend is moving to Python (`apps/api-py`), route group by route group
 ([docs/python-backend-assessment.md](docs/python-backend-assessment.md)). While it does, `apps/api`
-stays the front door: it serves the web app and forwards the route prefixes listed in
-`PYTHON_ROUTES` (default `/py`) to `PYTHON_API_URL`. Nothing is forwarded when `PYTHON_API_URL` is
-unset. Both services read the same sessions, so they need the same `SESSION_SECRET` and the same
-database.
+stays the front door: it serves the web app and forwards to `PYTHON_API_URL`
+- the **moved route groups** listed in `apps/api/src/python/route-groups.ts` (phase 2: `projects`,
+  `diagram-types`, `libraries`, `app-settings`), matched by Fastify route (`PATCH /projects/:id`), so
+  a route under the same prefix that hasn't moved (`/projects/:id/members`) stays on TypeScript;
+- the route prefixes in `PYTHON_ROUTES` (default `/py`), which have no TypeScript routes at all.
+
+Nothing is forwarded when `PYTHON_API_URL` is unset. Both services read the same sessions, so they
+need the same `SESSION_SECRET` and the same database.
+
+**Falling back to TypeScript.** A moved group's TypeScript routes stay in place for one release.
+`PYTHON_ROUTE_GROUPS` picks which groups go to Python: unset = all, `none` = none, or a list such as
+`projects,libraries`. In Azure: `CANVAS_PYTHON_ROUTE_GROUPS=none ./deploy.sh` (set it on every deploy
+while you need it), or straight away with
+`az containerapp update -n canvas-api -g <rg> --set-env-vars PYTHON_ROUTE_GROUPS=none`.
+
+**API contract.** Each moved route's request and response shapes are in
+`apps/api/contract/openapi.json`, generated from the TypeScript routes' own schemas
+(`UPDATE_CONTRACT=1 npx vitest run tests/contract/openapi-snapshot.test.ts` in `apps/api`). The
+TypeScript test fails when a moved route's shape changes without regenerating it; the Python tests
+check every response they get against it. CI's e2e job runs with the Python service behind the
+front door, as in Azure.
 
 Locally, with the API running as usual:
 

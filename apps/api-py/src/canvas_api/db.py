@@ -5,6 +5,7 @@ Core only, never the ORM (Constitution Principle VI: a query compiler, not an OR
 
 from __future__ import annotations
 
+from fastapi import Request
 from sqlalchemy import Engine, create_engine, event
 from sqlalchemy.pool import StaticPool
 
@@ -43,3 +44,10 @@ def create_db_engine(settings: Settings) -> Engine:
 
         return engine
     return create_engine(sqlalchemy_url(settings), pool_pre_ping=True)
+
+
+def get_engine(request: Request) -> Engine:
+    """FastAPI dependency: the app's engine. Routes open their own connection or transaction with it,
+    so a write is committed before the response goes out."""
+    engine: Engine = request.app.state.db
+    return engine

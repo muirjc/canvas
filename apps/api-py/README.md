@@ -16,5 +16,11 @@ uv run ruff check . && uv run ruff format --check . && uv run mypy
 DB_CLIENT=sqlite DATABASE_URL=/tmp/canvas.db uv run uvicorn canvas_api.main:app --reload
 ```
 
+Moved so far (phase 2, canvas-1bty.6): projects (not members/ownership), diagram types, the icon
+library list and search, app settings -- see `apps/api/src/python/route-groups.ts`, which the
+TypeScript front door forwards. Each route's shapes are held to `apps/api/contract/openapi.json`:
+`tests/api.py`'s client checks every response a test gets against it. Routes not moved yet can't be
+called from these tests, so tests seed those rows directly (`Api.diagram`, `Api.grant`, ...).
+
 The schema comes from `apps/api/migrations` (plain SQL, shared by both services); there are no
 Python-specific migrations.
