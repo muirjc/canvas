@@ -138,7 +138,10 @@ export async function registerProjectRoutes(app: FastifyInstance): Promise<void>
   // the project (everyone signed in) can see who's in it; `yourAccess` says whether they may manage.
   app.get<{ Params: { id: string } }>(
     '/projects/:id/members',
-    { preHandler: [requireAuth, requireProjectAccess('view', 'id')], schema: { tags: ['Projects'], security: [{ cookieAuth: [] }] } },
+    {
+      preHandler: [requireAuth, requireProjectAccess('view', 'id')],
+      schema: { tags: ['Projects'], security: [{ cookieAuth: [] }], params: idParams, response: { 200: { $ref: 'ProjectMembers#' }, '4xx': errorResponse } },
+    },
     async (request, reply) => {
       try {
         const members = await listProjectMembers(request.params.id);
@@ -159,7 +162,9 @@ export async function registerProjectRoutes(app: FastifyInstance): Promise<void>
       schema: {
         tags: ['Projects'],
         security: [{ cookieAuth: [] }],
+        params: idParams,
         body: { type: 'object', required: ['newOwnerId'], properties: { newOwnerId: { type: 'string', minLength: 1 } } },
+        response: { 200: { $ref: 'ProjectMembers#' }, '4xx': errorResponse },
       },
     },
     async (request, reply) => {

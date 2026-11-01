@@ -1,6 +1,7 @@
 import type { FastifyInstance, FastifyReply } from 'fastify';
 import { requireDiagramAccess } from '../auth/access-control.middleware.js';
 import { getDb } from '../db/client.js';
+import { errorResponse, noContent, objectResponse } from '../contract/schemas.js';
 import {
   addComment,
   CommentForbiddenError,
@@ -41,11 +42,14 @@ const commentParams = {
   properties: { id: { type: 'string' }, commentId: { type: 'string' } },
 } as const;
 const schema = (extra: object = {}) => ({ tags: ['Comments'], security: [{ cookieAuth: [] }], ...extra });
+const threads = { type: 'array', items: { $ref: 'CommentThread#' } } as const;
+const unread = { type: 'integer', minimum: 0 } as const;
+const threadsResponse = { 200: objectResponse({ threads }), '4xx': errorResponse };
 
 export async function registerCommentRoutes(app: FastifyInstance): Promise<void> {
   app.get<{ Params: { id: string } }>(
     '/diagrams/:id/comments',
-    { preHandler: requireDiagramAccess('view'), schema: schema({ params: idParams }) },
+    { preHandler: requireDiagramAccess('view'), schema: schema({ params: idParams, response: { 200: objectResponse({ threads, unread }), '4xx': errorResponse } }) },
     async (request, reply) => {
       if (!(await liveDiagram(request.params.id))) return reply.code(404).send({ error: 'Diagram not found' });
       const userId = request.session.user!.id;
@@ -56,7 +60,7 @@ export async function registerCommentRoutes(app: FastifyInstance): Promise<void>
   // The tab's badge, without loading every thread.
   app.get<{ Params: { id: string } }>(
     '/diagrams/:id/comments/unread',
-    { preHandler: requireDiagramAccess('view'), schema: schema({ params: idParams }) },
+    { preHandler: requireDiagramAccess('view'), schema: schema({ params: idParams, response: { 200: objectResponse({ unread }), '4xx': errorResponse } }) },
     async (request, reply) => {
       if (!(await liveDiagram(request.params.id))) return reply.code(404).send({ error: 'Diagram not found' });
       return reply.send({ unread: await unreadCount(request.params.id, request.session.user!.id) });
@@ -65,7 +69,7 @@ export async function registerCommentRoutes(app: FastifyInstance): Promise<void>
 
   app.post<{ Params: { id: string } }>(
     '/diagrams/:id/comments/read',
-    { preHandler: requireDiagramAccess('view'), schema: schema({ params: idParams }) },
+    { preHandler: requireDiagramAccess('view'), schema: schema({ params: idParams, response: { 204: noContent, '4xx': errorResponse } }) },
     async (request, reply) => {
       if (!(await liveDiagram(request.params.id))) return reply.code(404).send({ error: 'Diagram not found' });
       await markRead(request.params.id, request.session.user!.id);
@@ -92,6 +96,7 @@ export async function registerCommentRoutes(app: FastifyInstance): Promise<void>
             },
           },
         },
+        response: { 201: objectResponse({ id: { type: 'string' }, threads }), '4xx': errorResponse },
       }),
     },
     async (request, reply) => {
@@ -114,6 +119,7 @@ export async function registerCommentRoutes(app: FastifyInstance): Promise<void>
       schema: schema({
         params: commentParams,
         body: { type: 'object', required: ['body'], properties: { body: { type: 'string', maxLength: MAX_COMMENT_LENGTH + 200 } } },
+        response: threadsResponse,
       }),
     },
     async (request, reply) => {
@@ -131,7 +137,7 @@ export async function registerCommentRoutes(app: FastifyInstance): Promise<void>
   // (author, diagram owner, admin) -- an owner always has edit, an admin always passes.
   app.delete<{ Params: Params }>(
     '/diagrams/:id/comments/:commentId',
-    { preHandler: requireDiagramAccess('view'), schema: schema({ params: commentParams }) },
+    { preHandler: requireDiagramAccess('view'), schema: schema({ params: commentParams, response: threadsResponse }) },
     async (request, reply) => {
       if (!(await liveDiagram(request.params.id))) return reply.code(404).send({ error: 'Diagram not found' });
       try {
@@ -154,7 +160,7 @@ export async function registerCommentRoutes(app: FastifyInstance): Promise<void>
   ] as const) {
     app.post<{ Params: Params }>(
       `/diagrams/:id/comments/:commentId/${path}`,
-      { preHandler: requireDiagramAccess('comment'), schema: schema({ params: commentParams }) },
+      { preHandler: requireDiagramAccess('comment'), schema: schema({ params: commentParams, response: threadsResponse }) },
       async (request, reply) => {
         if (!(await liveDiagram(request.params.id))) return reply.code(404).send({ error: 'Diagram not found' });
         try {

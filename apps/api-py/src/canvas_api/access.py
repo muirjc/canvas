@@ -13,6 +13,8 @@ from typing import Any, Literal
 
 from sqlalchemy import Connection, bindparam, text
 
+from canvas_api.errors import ApiError
+
 AccessLevel = Literal["view", "comment", "edit", "manage"]
 Membership = Literal["owner", "member"] | None
 
@@ -122,3 +124,63 @@ def project_access_for_user(conn: Connection, user_id: str) -> dict[str, Project
         membership: Membership = "owner" if owns else ("member" if levels else None)
         result[str(project.id)] = ProjectAccess(level or "view", membership)
     return result
+
+
+def require_project_access(conn: Connection, user_id: str, project_id: str, required: AccessLevel) -> None:
+    """access-control.middleware.ts requireProjectAccess: a missing project falls through to the
+    route's own 404 (a 403 would say it exists)."""
+    if not project_exists(conn, project_id):
+        return
+    level = resolve_project_access(conn, user_id, project_id)
+    if not access_at_least(level, required):
+        raise ApiError(
+            403,
+            f'This action requires "{required}" access, but you only have "{level}" access to this project.'
+            if level
+            else "You do not have access to this project.",
+        )
+
+
+def resolve_diagram_access(conn: Connection, user_id: str, diagram_id: str) -> AccessLevel | None:
+    """sharing.service.ts resolveDiagramAccess: the highest of open read (View), the user's access to
+    the diagram's project, a diagram share and owning it (Manage); then the viewer cap. None only when
+    the diagram doesn't exist."""
+    diagram = conn.execute(text("SELECT owner_id, project_id FROM diagrams WHERE id = :id"), {"id": diagram_id}).first()
+    if diagram is None:
+        return None
+    role = _user_role(conn, user_id)
+    grant = conn.execute(
+        text(
+            "SELECT access_level FROM share_grants WHERE subject_type = 'diagram'"
+            " AND subject_id = :id AND grantee_user_id = :uid"
+        ),
+        {"id": diagram_id, "uid": user_id},
+    ).first()
+    project_level = resolve_project_access(conn, user_id, str(diagram.project_id))
+    return cap_for_role(
+        highest_access(
+            "view",
+            project_level,
+            grant.access_level if grant else None,
+            "manage" if str(diagram.owner_id) == user_id else None,
+        ),
+        role,
+    )
+
+
+def require_diagram_access(conn: Connection, user_id: str, diagram_id: str, required: AccessLevel) -> None:
+    """access-control.middleware.ts requireDiagramAccess. A missing diagram falls through to the route's
+    own 404; someone else's unsaved draft doesn't exist for anyone else, admins included."""
+    row = conn.execute(text("SELECT owner_id, draft FROM diagrams WHERE id = :id"), {"id": diagram_id}).first()
+    if row is None:
+        return
+    if bool(row.draft) and str(row.owner_id) != user_id:
+        raise ApiError(404, "Diagram not found")
+    level = resolve_diagram_access(conn, user_id, diagram_id)
+    if not access_at_least(level, required):
+        raise ApiError(
+            403,
+            f'This action requires "{required}" access, but you only have "{level}" access to this diagram.'
+            if level
+            else "You do not have access to this diagram.",
+        )

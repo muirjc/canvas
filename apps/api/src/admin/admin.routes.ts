@@ -2,6 +2,7 @@ import type { FastifyInstance, FastifyReply } from 'fastify';
 import { requireRole } from '../auth/middleware.js';
 import { PERSONAS } from '../seed/diagram-types.seed.js';
 import { getDb } from '../db/client.js';
+import { envelope, errorResponse, listEnvelope, objectResponse } from '../contract/schemas.js';
 import { getAdminOverview, LastAdminError, listUsers, updateUser, UserNotFoundError, type UpdateUserInput } from './admin.service.js';
 import { createLocalUser, EmailInUseError, resetLocalPassword, unlockAccount, type CreateLocalUserInput } from './local-accounts.service.js';
 import { clientIp, listAuditEvents, recordAudit } from '../audit/audit.service.js';
@@ -36,7 +37,10 @@ function handleError(error: unknown, reply: FastifyReply): FastifyReply {
 export async function registerAdminRoutes(app: FastifyInstance, options: { localAccounts: boolean }): Promise<void> {
   app.get(
     '/admin/users',
-    { preHandler: requireRole('admin'), schema: { tags: ['Admin'], security: [{ cookieAuth: [] }] } },
+    {
+      preHandler: requireRole('admin'),
+      schema: { tags: ['Admin'], security: [{ cookieAuth: [] }], response: { 200: listEnvelope('users', 'AdminUser'), '4xx': errorResponse } },
+    },
     async (_request, reply) => {
       return reply.send({ users: await listUsers() });
     },
@@ -62,6 +66,7 @@ export async function registerAdminRoutes(app: FastifyInstance, options: { local
             active: { type: 'boolean' },
           },
         },
+        response: { 200: envelope('user', 'UpdatedUser'), '4xx': errorResponse },
       },
     },
     async (request, reply) => {
@@ -217,6 +222,7 @@ export async function registerAdminRoutes(app: FastifyInstance, options: { local
             userId: { type: 'string' },
           },
         },
+        response: { 200: listEnvelope('events', 'AuditEvent'), '4xx': errorResponse },
       },
     },
     async (request, reply) => {
@@ -233,7 +239,15 @@ export async function registerAdminRoutes(app: FastifyInstance, options: { local
       schema: {
         tags: ['Admin'],
         security: [{ cookieAuth: [] }],
-        params: { type: 'object', required: ['id'], properties: { id: { type: 'string' } } },
+        params: { type: 'object', required: ['id'], properties: { id: { type: 'string' } } },        response: {
+          200: objectResponse({
+            ownedProjects: { type: 'integer', minimum: 0 },
+            ownedDiagrams: { type: 'integer', minimum: 0 },
+            sharesReceived: { type: 'integer', minimum: 0 },
+            isLastActiveAdmin: { type: 'boolean' },
+          }),
+          '4xx': errorResponse,
+        },
       },
     },
     async (request, reply) => {
@@ -256,6 +270,14 @@ export async function registerAdminRoutes(app: FastifyInstance, options: { local
         security: [{ cookieAuth: [] }],
         params: { type: 'object', required: ['id'], properties: { id: { type: 'string' } } },
         body: { type: ['object', 'null'], properties: { transferToUserId: { type: 'string', minLength: 1 } } },
+        response: {
+          200: objectResponse({
+            deleted: { type: 'boolean', enum: [true] },
+            transferredProjects: { type: 'integer', minimum: 0 },
+            transferredDiagrams: { type: 'integer', minimum: 0 },
+          }),
+          '4xx': errorResponse,
+        },
       },
     },
     async (request, reply) => {
@@ -275,7 +297,24 @@ export async function registerAdminRoutes(app: FastifyInstance, options: { local
 
   app.get(
     '/admin/overview',
-    { preHandler: requireRole('admin'), schema: { tags: ['Admin'], security: [{ cookieAuth: [] }] } },
+    {
+      preHandler: requireRole('admin'),
+      schema: {
+        tags: ['Admin'],
+        security: [{ cookieAuth: [] }],
+        response: {
+          200: objectResponse({
+            overview: objectResponse({
+              userCount: { type: 'integer', minimum: 0 },
+              standardsCount: { type: 'integer', minimum: 0 },
+              publishedStandardsCount: { type: 'integer', minimum: 0 },
+              libraryCount: { type: 'integer', minimum: 0 },
+            }),
+          }),
+          '4xx': errorResponse,
+        },
+      },
+    },
     async (_request, reply) => {
       return reply.send({ overview: await getAdminOverview() });
     },

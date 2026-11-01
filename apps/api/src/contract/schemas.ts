@@ -17,6 +17,7 @@ import type { FastifyInstance } from 'fastify';
 const nullable = (schema: Record<string, unknown>) => ({ anyOf: [schema, { type: 'null' }] });
 const dateTime = { type: 'string', format: 'date-time' } as const;
 const accessLevel = { type: 'string', enum: ['view', 'comment', 'edit', 'manage'] } as const;
+const role = { type: 'string', enum: ['admin', 'architect', 'viewer'] } as const;
 
 export const contractSchemas = [
   {
@@ -116,6 +117,190 @@ export const contractSchemas = [
       assetRef: { type: 'string' },
     },
   },
+  // Phase 3 (canvas-1bty.7): comments, sharing and members, admin users, audit, user lookup.
+  {
+    $id: 'CommentAuthor',
+    type: 'object',
+    required: ['id', 'name'],
+    additionalProperties: false,
+    properties: { id: { type: 'string' }, name: { type: 'string' } },
+  },
+  {
+    $id: 'Comment',
+    type: 'object',
+    required: ['id', 'threadRootId', 'author', 'body', 'createdAt', 'editedAt', 'deleted'],
+    additionalProperties: false,
+    properties: {
+      id: { type: 'string' },
+      threadRootId: nullable({ type: 'string' }),
+      author: { $ref: 'CommentAuthor#' },
+      body: { type: 'string' },
+      createdAt: dateTime,
+      editedAt: nullable(dateTime),
+      deleted: { type: 'boolean' },
+    },
+  },
+  {
+    $id: 'CommentThread',
+    type: 'object',
+    required: ['id', 'threadRootId', 'author', 'body', 'createdAt', 'editedAt', 'deleted', 'anchor', 'resolved', 'replies'],
+    additionalProperties: false,
+    properties: {
+      id: { type: 'string' },
+      threadRootId: { type: 'null' },
+      author: { $ref: 'CommentAuthor#' },
+      body: { type: 'string' },
+      createdAt: dateTime,
+      editedAt: nullable(dateTime),
+      deleted: { type: 'boolean' },
+      anchor: nullable({
+        type: 'object',
+        required: ['type', 'id'],
+        additionalProperties: false,
+        properties: { type: { type: 'string', enum: ['node', 'edge', 'container'] }, id: { type: 'string' } },
+      }),
+      resolved: nullable({
+        type: 'object',
+        required: ['at', 'by'],
+        additionalProperties: false,
+        properties: { at: dateTime, by: nullable({ type: 'string' }) },
+      }),
+      replies: { type: 'array', items: { $ref: 'Comment#' } },
+    },
+  },
+  {
+    $id: 'ShareGrant',
+    type: 'object',
+    required: ['id', 'subjectType', 'subjectId', 'granteeUserId', 'accessLevel', 'grantedByUserId', 'createdAt'],
+    additionalProperties: false,
+    properties: {
+      id: { type: 'string' },
+      subjectType: { type: 'string', enum: ['diagram', 'project'] },
+      subjectId: { type: 'string' },
+      granteeUserId: { type: 'string' },
+      accessLevel,
+      grantedByUserId: { type: 'string' },
+      createdAt: dateTime,
+    },
+  },
+  {
+    $id: 'ListedShareGrant',
+    type: 'object',
+    required: ['id', 'subjectType', 'subjectId', 'granteeUserId', 'accessLevel', 'grantedByUserId', 'createdAt', 'granteeName', 'granteeEmail'],
+    additionalProperties: false,
+    properties: {
+      id: { type: 'string' },
+      subjectType: { type: 'string', enum: ['diagram', 'project'] },
+      subjectId: { type: 'string' },
+      granteeUserId: { type: 'string' },
+      accessLevel,
+      grantedByUserId: { type: 'string' },
+      createdAt: dateTime,
+      granteeName: nullable({ type: 'string' }),
+      granteeEmail: nullable({ type: 'string' }),
+    },
+  },
+  {
+    $id: 'SharedDiagram',
+    type: 'object',
+    required: ['diagramId', 'diagramName', 'diagramTypeId', 'projectName', 'accessLevel', 'sharedByName', 'sharedByEmail', 'sharedAt'],
+    additionalProperties: false,
+    properties: {
+      diagramId: { type: 'string' },
+      diagramName: { type: 'string' },
+      diagramTypeId: { type: 'string' },
+      projectName: { type: 'string' },
+      accessLevel,
+      sharedByName: { type: 'string' },
+      sharedByEmail: { type: 'string' },
+      sharedAt: dateTime,
+    },
+  },
+  {
+    $id: 'ProjectMembers',
+    type: 'object',
+    required: ['owner', 'members'],
+    additionalProperties: false,
+    properties: {
+      owner: {
+        type: 'object',
+        required: ['id', 'name', 'email'],
+        additionalProperties: false,
+        properties: { id: { type: 'string' }, name: nullable({ type: 'string' }), email: nullable({ type: 'string' }) },
+      },
+      members: {
+        type: 'array',
+        items: {
+          type: 'object',
+          required: ['grantId', 'userId', 'name', 'email', 'accessLevel'],
+          additionalProperties: false,
+          properties: {
+            grantId: { type: 'string' },
+            userId: { type: 'string' },
+            name: nullable({ type: 'string' }),
+            email: nullable({ type: 'string' }),
+            accessLevel,
+          },
+        },
+      },
+      // GET /projects/:id/members only: the caller's own access (may they manage?).
+      yourAccess: accessLevel,
+    },
+  },
+  {
+    $id: 'AdminUser',
+    type: 'object',
+    required: ['id', 'name', 'email', 'role', 'personas', 'active', 'hasPassword', 'locked', 'mfaEnabled'],
+    additionalProperties: false,
+    properties: {
+      id: { type: 'string' },
+      name: { type: 'string' },
+      email: { type: 'string' },
+      role,
+      personas: { type: 'array', items: { type: 'string' } },
+      active: { type: 'boolean' },
+      hasPassword: { type: 'boolean' },
+      locked: { type: 'boolean' },
+      mfaEnabled: { type: 'boolean' },
+    },
+  },
+  {
+    $id: 'UpdatedUser',
+    type: 'object',
+    required: ['id', 'name', 'email', 'role', 'personas', 'active'],
+    additionalProperties: false,
+    properties: {
+      id: { type: 'string' },
+      name: { type: 'string' },
+      email: { type: 'string' },
+      role,
+      personas: { type: 'array', items: { type: 'string' } },
+      active: { type: 'boolean' },
+    },
+  },
+  {
+    $id: 'AuditEvent',
+    type: 'object',
+    required: ['id', 'occurredAt', 'event', 'actorEmail', 'targetEmail', 'ip', 'detail'],
+    additionalProperties: false,
+    properties: {
+      id: { type: 'string' },
+      occurredAt: dateTime,
+      event: { type: 'string' },
+      actorEmail: nullable({ type: 'string' }),
+      targetEmail: nullable({ type: 'string' }),
+      ip: nullable({ type: 'string' }),
+      // Free-form per event (audit.service.ts AuditEvent).
+      detail: nullable({ type: 'object', additionalProperties: true }),
+    },
+  },
+  {
+    $id: 'UserSummary',
+    type: 'object',
+    required: ['id', 'name', 'email'],
+    additionalProperties: false,
+    properties: { id: { type: 'string' }, name: { type: 'string' }, email: { type: 'string' } },
+  },
   {
     $id: 'AppSettings',
     type: 'object',
@@ -146,4 +331,12 @@ export const listEnvelope = (key: string, ref: string) => ({
 
 export const errorResponse = { $ref: 'Error#' } as const;
 export const noContent = { type: 'null', description: 'No content' } as const;
+/** An inline object response: `{ a: <schema>, ... }`, every key required. */
+export const objectResponse = (properties: Record<string, unknown>) => ({
+  type: 'object',
+  required: Object.keys(properties),
+  additionalProperties: false,
+  properties,
+});
+
 export const idParams = { type: 'object', required: ['id'], properties: { id: { type: 'string' } } } as const;

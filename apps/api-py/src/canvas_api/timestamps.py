@@ -42,3 +42,19 @@ def to_db(value: datetime, dialect: str) -> datetime | str:
 
 def now_utc() -> datetime:
     return datetime.now(UTC)
+
+
+def parse_instant(value: object) -> datetime:
+    """A timestamp column's value as an aware datetime (apps/api's toDate())."""
+    if isinstance(value, datetime):
+        return value if value.tzinfo else value.replace(tzinfo=UTC)
+    if isinstance(value, str):
+        iso = to_api(value) or value
+        parsed = datetime.fromisoformat(iso.replace("Z", "+00:00"))
+        return parsed if parsed.tzinfo else parsed.replace(tzinfo=UTC)
+    raise TypeError(f"not a timestamp: {value!r}")
+
+
+def to_api_ms(value: object) -> str | None:
+    """`new Date(value).toISOString()`: always with milliseconds, whatever the engine stored."""
+    return None if value is None else js_iso(parse_instant(value))

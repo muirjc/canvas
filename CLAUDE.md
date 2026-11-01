@@ -93,6 +93,15 @@ tests are NON-NEGOTIABLE and must exist (and fail) before implementing any diagr
 work — see `.specify/memory/constitution.md` Principle IV.
 
 ## Recent Changes
+- `canvas-1bty.7` (Python phase 3): comments (8 routes), sharing + project members/ownership (8),
+  admin users list/edit/delete + deletion impact + audit log + overview, and user lookup/search (8)
+  now answer from `apps/api-py` (`routes/comments.py`, `sharing.py`, `admin_users.py`); groups
+  `comments`, `sharing`, `admin-users` in `route-groups.ts`. Local accounts (create with a one-time
+  password, reset password/MFA, unlock) stay TypeScript until sign-in moves (phase 9). Python gained
+  `require_diagram_access`/`resolve_diagram_access` (access.py) and `revoke_sessions`
+  (auth/session.py). Pitfall found live: SQLAlchemy Core binds str as VARCHAR and Postgres rejects
+  `uuid = varchar`, so UUID columns are queried with fixed `text()` statements (bd memory
+  `python-core-uuid-varchar`). Live parity on the dev DB: 45/45 moved GETs identical.
 - `canvas-1bty.6` (Python phase 2): projects (create/list/read/tree/rename/soft-delete/restore; NOT
   members/ownership, those are phase 3), diagram types (list + admin create/edit/hide/delete), icon
   library list/search, and app settings now answer from `apps/api-py` (`src/canvas_api/routes/`).

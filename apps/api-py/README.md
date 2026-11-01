@@ -16,11 +16,15 @@ uv run ruff check . && uv run ruff format --check . && uv run mypy
 DB_CLIENT=sqlite DATABASE_URL=/tmp/canvas.db uv run uvicorn canvas_api.main:app --reload
 ```
 
-Moved so far (phase 2, canvas-1bty.6): projects (not members/ownership), diagram types, the icon
-library list and search, app settings -- see `apps/api/src/python/route-groups.ts`, which the
+Moved so far: projects, diagram types, the icon library list and search, app settings (phase 2,
+canvas-1bty.6); comments, sharing and project members, admin users (not local accounts), the audit log
+and user lookup (phase 3, canvas-1bty.7) -- see `apps/api/src/python/route-groups.ts`, which the
 TypeScript front door forwards. Each route's shapes are held to `apps/api/contract/openapi.json`:
 `tests/api.py`'s client checks every response a test gets against it. Routes not moved yet can't be
 called from these tests, so tests seed those rows directly (`Api.diagram`, `Api.grant`, ...).
+
+Query UUID columns with fixed `text()` statements: SQLAlchemy Core binds a string as VARCHAR, which
+Postgres won't compare with a UUID.
 
 The schema comes from `apps/api/migrations` (plain SQL, shared by both services); there are no
 Python-specific migrations.
