@@ -155,6 +155,21 @@ module monitoring 'modules/monitoring.bicep' = {
   }
 }
 
+// canvas-1bty.3: the Python backend, internal only; canvas-api forwards moved routes to it.
+module pyApiApp 'modules/pyapiapp.bicep' = {
+  name: 'pyApiAppDeploy'
+  scope: rg
+  params: {
+    location: location
+    environmentId: containerAppsEnv.outputs.environmentId
+    identityId: keyVault.outputs.identityId
+    acrLoginServer: acr.outputs.loginServer
+    imageTag: apiImageTag
+    keyVaultUri: keyVault.outputs.keyVaultUri
+    appInsightsConnectionString: monitoring.outputs.connectionString
+  }
+}
+
 module apiApp 'modules/apiapp.bicep' = {
   name: 'apiAppDeploy'
   scope: rg
@@ -177,6 +192,7 @@ module apiApp 'modules/apiapp.bicep' = {
     appInsightsConnectionString: monitoring.outputs.connectionString
     oidcClientAuth: oidcClientAuth
     identityClientId: keyVault.outputs.identityClientId
+    pythonApiUrl: pyApiApp.outputs.internalUrl
   }
 }
 

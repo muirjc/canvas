@@ -76,6 +76,11 @@ export interface AppConfig {
   enableApiDocs: boolean;
   /** canvas-r3y: the built web app to serve from this origin (the container image sets it). */
   webDistDir?: string;
+  /** canvas-1bty.3: the Python service (move to Python, docs/python-backend-assessment.md). When set,
+   *  requests under pythonRoutePrefixes are forwarded there; unset = nothing is forwarded. */
+  pythonApiUrl?: string;
+  /** canvas-1bty.3: route prefixes the Python service now answers (PYTHON_ROUTES, comma-separated). */
+  pythonRoutePrefixes: string[];
   /** canvas-r3y: pause.sh sets CANVAS_PAUSED=true -- every request gets the "paused" page / a 503. */
   paused: boolean;
   /** canvas-r3y: the page shown while paused. */
@@ -203,6 +208,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
     enableApiDocs: env.ENABLE_API_DOCS === 'true',
     ...(env.WEB_DIST_DIR ? { webDistDir: env.WEB_DIST_DIR } : {}),
     paused: env.CANVAS_PAUSED === 'true',
+    ...parsePythonRouting(env),
     ...(env.PAUSED_PAGE_PATH ? { pausedPagePath: env.PAUSED_PAGE_PATH } : {}),
     sessionIdleMinutes: positiveNumber(env, 'SESSION_IDLE_MINUTES', 480),
     sessionMaxHours: positiveNumber(env, 'SESSION_MAX_HOURS', 12),
@@ -211,6 +217,29 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
 
 /** canvas-4xo: a positive number from the environment, or the fallback when unset; anything else is
  *  a startup error rather than a silently ignored setting. */
+/** canvas-1bty.3: PYTHON_API_URL (http/https) and PYTHON_ROUTES (default "/py"). Each prefix is a plain
+ *  path ("/py", "/projects") -- never "/" (that would forward everything, the web app included). */
+function parsePythonRouting(env: NodeJS.ProcessEnv): Pick<AppConfig, 'pythonApiUrl' | 'pythonRoutePrefixes'> {
+  const url = env.PYTHON_API_URL?.trim();
+  if (!url) return { pythonRoutePrefixes: [] };
+  let parsed: URL;
+  try {
+    parsed = new URL(url);
+  } catch {
+    throw new Error(`PYTHON_API_URL is not a URL (got: ${url})`);
+  }
+  if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') throw new Error('PYTHON_API_URL must be http:// or https://');
+  const prefixes = (env.PYTHON_ROUTES ?? '/py')
+    .split(',')
+    .map((p) => p.trim())
+    .filter((p) => p.length > 0)
+    .map((p) => (p === '/' ? p : p.replace(/\/+$/, '')));
+  for (const prefix of prefixes) {
+    if (!/^(\/[a-z0-9][a-z0-9-]*)+$/.test(prefix)) throw new Error(`PYTHON_ROUTES: "${prefix}" is not a route prefix like /py or /projects`);
+  }
+  return { pythonApiUrl: url.replace(/\/+$/, ''), pythonRoutePrefixes: prefixes };
+}
+
 function positiveNumber(env: NodeJS.ProcessEnv, name: string, fallback: number): number {
   const raw = env[name];
   if (raw === undefined || raw === '') return fallback;
