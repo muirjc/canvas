@@ -81,6 +81,10 @@ jobs:
       - name: validator-cli tests
         if: matrix.db-client == 'postgres'
         run: npm run test --workspace=@canvas/validator-cli
+      # canvas-1bty.4: the diagram-core bridge the Python service calls (no database).
+      - name: diagram-bridge tests
+        if: matrix.db-client == 'postgres'
+        run: npm run test --workspace=@canvas/diagram-bridge
       - name: api contract tests
         # NODE_ENV=test makes the api fall back to the canvas_test DB / a fixed dev session
         # secret (see apps/api/src/config.ts) — no DATABASE_URL/SESSION_SECRET needed here.
@@ -118,6 +122,16 @@ jobs:
         working-directory: apps/api-py
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      # canvas-1bty.4: the golden corpus runs through the diagram-core bridge (Node).
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+      - name: Build the diagram-core bridge
+        working-directory: .
+        run: |
+          npm ci
+          npm run build --workspace=@canvas/diagram-bridge
       - name: Install uv
         run: pipx install uv==0.13.1
       - run: uv python install 3.13
@@ -133,6 +147,8 @@ jobs:
       - name: Tests
         env:
           TEST_DB_CLIENT: ${{ matrix.db-client }}
+          # The corpus-through-the-bridge tests skip without the bundle; in CI they must run.
+          REQUIRE_BRIDGE: '1'
         run: uv run pytest
 
   e2e-tests:

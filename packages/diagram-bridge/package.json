@@ -1,0 +1,19 @@
+{
+  "name": "@canvas/diagram-bridge",
+  "version": "1.0.0",
+  "private": true,
+  "license": "Apache-2.0",
+  "type": "module",
+  "description": "canvas-1bty.4: diagram-core over HTTP for the Python service while it moves off TypeScript (bundled to dist/bridge.mjs).",
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "test": "vitest run",
+    "start": "node dist/bridge.mjs"
+  },
+  "devDependencies": {
+    "esbuild": "^0.28.1",
+    "typescript": "^5.7.2",
+    "vitest": "^5.0.4"
+  }
+}
