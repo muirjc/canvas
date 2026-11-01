@@ -89,6 +89,9 @@ export const PYTHON_ROUTE_GROUPS = {
     'POST /standards/:id/publish',
     'POST /standards/:id/retire',
   ],
+  // Phase 6 (canvas-1bty.10). SVG through the diagram-core bridge, PNG with resvg-py (the same Rust
+  // renderer as @resvg/resvg-js; pixel-identical output).
+  export: ['GET /diagrams/:id/export'],
 } as const satisfies Record<string, readonly string[]>;
 
 export type PythonRouteGroup = keyof typeof PYTHON_ROUTE_GROUPS;

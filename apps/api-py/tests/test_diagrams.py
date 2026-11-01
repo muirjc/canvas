@@ -11,7 +11,7 @@ Versions and edit conflicts are in test_diagram_versions.py, import in test_diag
 type's locked family in test_diagram_types.py.
 
 Left out:
-- diagrams.test.ts's three export cases (mermaid, svg, png): export hasn't moved.
+- diagrams.test.ts's export cases (mermaid, svg, png, portable style lines): in test_export.py.
 - diagram-draft.test.ts's "an abandoned draft is purged after a day": it calls the TypeScript service
   functions (findAbandonedDraftIds, purgeExpiredDiagrams), not a route; the purge job isn't ported yet.
 - standards.test.ts / standards-v2.test.ts: publishing and retiring standards (and the revalidation they

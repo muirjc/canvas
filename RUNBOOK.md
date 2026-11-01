@@ -551,7 +551,7 @@ The backend is moving to Python (`apps/api-py`), route group by route group
 stays the front door: it serves the web app and forwards to `PYTHON_API_URL`
 - the **moved route groups** listed in `apps/api/src/python/route-groups.ts` (phase 2: `projects`,
   `diagram-types`, `libraries`, `app-settings`; phase 3: `comments`, `sharing`, `admin-users`;
-  phase 4: `diagrams`; phase 5: `standards`),
+  phase 4: `diagrams`; phase 5: `standards`; phase 6: `export`),
   matched by Fastify route (`PATCH /projects/:id`), so a route under the same prefix that hasn't
   moved (`/projects/:id/diagrams`, or local accounts under `/admin/users`) stays on TypeScript;
 - the route prefixes in `PYTHON_ROUTES` (default `/py`), which have no TypeScript routes at all.

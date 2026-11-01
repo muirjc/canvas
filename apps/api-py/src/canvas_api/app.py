@@ -6,8 +6,9 @@ from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from typing import Annotated
 
-from fastapi import Depends, FastAPI
+from fastapi import Depends, FastAPI, Request, Response
 from sqlalchemy import Engine
+from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoint
 
 from canvas_api.auth.session import SessionUser, current_user
 from canvas_api.config import Settings
@@ -20,12 +21,30 @@ from canvas_api.routes import (
     comments,
     diagram_types,
     diagrams,
+    export,
     libraries,
     projects,
     sharing,
     standards,
 )
 from canvas_api.telemetry import configure_telemetry
+
+#: The headers apps/api's onSend hook puts on every response (app.ts). Behind the TypeScript front door
+#: it sets them again on forwarded responses; Python sets them itself so nothing changes when it becomes
+#: the front door (phase 10).
+SECURITY_HEADERS = {
+    "X-Content-Type-Options": "nosniff",
+    "X-Frame-Options": "DENY",
+    "Referrer-Policy": "same-origin",
+}
+
+
+class SecurityHeadersMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request: Request, call_next: RequestResponseEndpoint) -> Response:
+        response = await call_next(request)
+        for name, value in SECURITY_HEADERS.items():
+            response.headers[name] = value
+        return response
 
 
 def create_app(settings: Settings | None = None, engine: Engine | None = None) -> FastAPI:
@@ -46,10 +65,12 @@ def create_app(settings: Settings | None = None, engine: Engine | None = None) -
     app.state.db = db
     app.state.diagram_bridge = bridge
     configure_telemetry(app, settings.applicationinsights_connection_string)
+    app.add_middleware(SecurityHeadersMiddleware)
     register_error_handlers(app)
 
     # The route groups apps/api forwards here (apps/api/src/python/route-groups.ts): phase 2
-    # (canvas-1bty.6), phase 3 (canvas-1bty.7), phase 4 (canvas-1bty.8), phase 5 (canvas-1bty.9).
+    # (canvas-1bty.6), phase 3 (canvas-1bty.7), phase 4 (canvas-1bty.8), phase 5 (canvas-1bty.9),
+    # phase 6 (canvas-1bty.10).
     for group in (
         projects,
         diagram_types,
@@ -60,6 +81,7 @@ def create_app(settings: Settings | None = None, engine: Engine | None = None) -
         admin_users,
         diagrams,
         standards,
+        export,
     ):
         app.include_router(group.router)
 

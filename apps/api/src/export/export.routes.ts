@@ -3,6 +3,7 @@ import { requireAuth } from '../auth/middleware.js';
 import { requireDiagramAccess } from '../auth/access-control.middleware.js';
 import { DiagramNotFoundError, getDiagram, loadDiagramTypeDslFamily } from '../diagrams/diagram.service.js';
 import { exportMermaid, exportPng, exportSvg, UnrenderableDiagramError } from './export.service.js';
+import { errorResponse, idParams } from '../contract/schemas.js';
 
 const CONTENT_TYPES: Record<string, string> = {
   mermaid: 'text/plain; charset=utf-8',
@@ -42,6 +43,19 @@ export async function registerExportRoutes(app: FastifyInstance): Promise<void> 
         querystring: {
           type: 'object',
           properties: { format: { type: 'string', enum: ['mermaid', 'svg', 'png'] } },
+        },
+        params: idParams,
+        // canvas-1bty.10: not JSON -- the file itself, by format (with download and CSP headers).
+        response: {
+          200: {
+            description: 'The diagram as Mermaid text, SVG or PNG',
+            content: {
+              'text/plain': { schema: { type: 'string' } },
+              'image/svg+xml': { schema: { type: 'string' } },
+              'image/png': { schema: { type: 'string', format: 'binary' } },
+            },
+          },
+          '4xx': errorResponse,
         },
       },
     },

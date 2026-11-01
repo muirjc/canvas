@@ -82,7 +82,13 @@ def check_contract(response: httpx.Response) -> None:
     documented = responses.get(status) or responses.get(f"{status[0]}XX")
     where = f"{request.method} {path} -> {status}"
     assert documented is not None, f"{where} is not in the contract: {response.text}"
-    schema = (documented.get("content") or {}).get("application/json", {}).get("schema")
+    content = documented.get("content") or {}
+    media_type = response.headers.get("content-type", "").split(";")[0].strip()
+    if content and "application/json" not in content:
+        # A file, not JSON (export): its type must be one the contract lists.
+        assert media_type in content, f"{where} answered {media_type!r}, not one of {sorted(content)}"
+        return
+    schema = content.get("application/json", {}).get("schema")
     if schema is None:
         assert response.content == b"", f"{where} should have no body"
         return
