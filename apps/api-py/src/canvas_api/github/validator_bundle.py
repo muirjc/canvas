@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import threading
 from pathlib import Path
+from typing import Literal
 
 #: packages/validator-cli/dist, from src/canvas_api/github/ in apps/api-py.
 DEFAULT_DIR = Path(__file__).resolve().parents[5] / "packages" / "validator-cli" / "dist"
@@ -19,11 +20,14 @@ _cache: dict[Path, str | None] = {}
 _lock = threading.Lock()
 
 
-def _read(directory: str | None, file: str) -> str | None:
+def _read(directory: str | None, file: Literal["validator.mjs", "canvas-diagrams.yml"]) -> str | None:
+    # `directory` is CANVAS_VALIDATOR_DIR (operator configuration) and `file` one of two fixed names:
+    # nothing from a request reaches this path.
     path = (Path(directory) if directory else DEFAULT_DIR) / file
     with _lock:
         if path not in _cache:
             try:
+                # bearer:disable python_lang_path_traversal
                 _cache[path] = path.read_text(encoding="utf-8")
             except OSError:
                 _cache[path] = None
