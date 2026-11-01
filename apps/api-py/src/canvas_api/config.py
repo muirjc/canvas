@@ -35,3 +35,6 @@ class Settings(BaseSettings):
     def cookie_secure(self) -> bool:
         """SameSite=None cookies must be Secure (browsers drop them otherwise), as in apps/api."""
         return self.cookie_same_site == "none" or self.cookie_secure_setting
+
+    #: canvas-1bty.4: the diagram-core bridge (packages/diagram-bridge), a sidecar on localhost in Azure.
+    diagram_bridge_url: str | None = Field(default=None, alias="DIAGRAM_BRIDGE_URL")

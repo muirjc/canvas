@@ -569,6 +569,15 @@ zero like `canvas-api`; `pause.sh` needs no change because a paused `canvas-api`
 Tests: `uv run pytest` (Postgres, schema `canvas_py`) and `TEST_DB_CLIENT=sqlite uv run pytest`;
 see [apps/api-py/README.md](apps/api-py/README.md).
 
+The Python service reaches diagram-core (parsing, validation, SVG) through the **diagram-core
+bridge** (`packages/diagram-bridge`, canvas-1bty.4): a second container in `canvas-api-py`
+listening on `127.0.0.1:7070`, set as `DIAGRAM_BRIDGE_URL`. Locally:
+`npm run build --workspace=@canvas/diagram-bridge && npm start --workspace=@canvas/diagram-bridge`,
+then `DIAGRAM_BRIDGE_URL=http://127.0.0.1:7070` for uvicorn. Signed in, `/py/diagram-core` answers
+`{"bridge": "ok"}` when it works. The Python tests run the golden corpus
+(`packages/diagram-core/corpus`) through it; they skip without Node and the built bundle, except in
+CI.
+
 ## Known flakiness
 
 - **E2E specs run with `workers: 1`** (`apps/web/playwright.config.ts`) because every spec shares
