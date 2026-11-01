@@ -51,10 +51,7 @@ function revalidateInBackground(log: FastifyBaseLogger, diagramTypeId: string): 
     () => revalidateDiagramsForType(diagramTypeId),
     (error: unknown) => {
       // The error's name only, not the object: driver errors can carry query detail.
-      log.warn(
-        { diagramTypeId, errorName: error instanceof Error ? error.name : 'unknown' },
-        'Background standards revalidation failed',
-      );
+      log.warn({ diagramTypeId, errorName: error instanceof Error ? error.name : 'unknown' }, 'Background standards revalidation failed');
     },
   );
 }
