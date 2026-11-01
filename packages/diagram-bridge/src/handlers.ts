@@ -1,5 +1,7 @@
 import {
   checkStandardDefinition,
+  createEmptyDiagramModel,
+  getTemplateCompiler,
   detectDslFamily,
   getDslFamily,
   isParseSuccess,
@@ -58,6 +60,20 @@ export const handlers: Record<string, (body: Body) => unknown> = {
     if (!id || !found) return { family: id ?? null, errors: [{ message: 'Unrecognized diagram header' }] };
     const result = found.parse(dsl);
     return isParseSuccess(result) ? { family: id, model: result.model } : { family: id, errors: result.errors };
+  },
+
+  /** canvas-1bty.8: { family, diagramTypeId } -> { dsl }: a new diagram's starting DSL (an empty model). */
+  'empty-dsl': (body) => ({ dsl: family(body).found.serialize(createEmptyDiagramModel(str(body, 'diagramTypeId'))) }),
+
+  /**
+   * canvas-1bty.8: { diagramTypeId, template } -> { dsl } | { errors } | { unsupported: true }:
+   * a filled-in intake template compiled to DSL.
+   */
+  'compile-template': (body) => {
+    const compiler = getTemplateCompiler(str(body, 'diagramTypeId'));
+    if (!compiler) return { unsupported: true };
+    const result = compiler.compile(str(body, 'template'));
+    return 'errors' in result ? { errors: result.errors } : { dsl: result.dsl };
   },
 
   /** { model, rules } -> { violations } */

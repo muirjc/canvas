@@ -122,6 +122,12 @@ def test_the_diagnostic_route_reaches_the_bridge(
         assert client.get("/py/diagram-core").json() == {"bridge": "ok"}
 
 
-def test_the_diagnostic_route_without_a_bridge(client: Any, make_session: Any) -> None:  # noqa: F811
-    client.cookies.set("cid", make_session(_user()))
-    assert client.get("/py/diagram-core").json() == {"bridge": "not configured"}
+def test_the_diagnostic_route_without_a_bridge(settings: Any, engine: Any, make_session: Any) -> None:  # noqa: F811
+    from fastapi.testclient import TestClient
+
+    from canvas_api.app import create_app
+
+    without = settings.model_copy(update={"diagram_bridge_url": None})
+    with TestClient(create_app(without, engine)) as no_bridge:
+        no_bridge.cookies.set("cid", make_session(_user()))
+        assert no_bridge.get("/py/diagram-core").json() == {"bridge": "not configured"}

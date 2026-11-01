@@ -1,8 +1,13 @@
 import type { FastifyInstance, FastifyReply } from 'fastify';
 import { requireProjectAccess } from '../auth/access-control.middleware.js';
 import { requireAuth } from '../auth/middleware.js';
+import { envelope, errorResponse } from '../contract/schemas.js';
 import { DslValidationError } from './diagram.service.js';
-import { DiagramTypeHintMismatchError, importDiagram, UnrecognizedDslError } from './import.service.js';
+import {
+  DiagramTypeHintMismatchError,
+  importDiagram,
+  UnrecognizedDslError,
+} from './import.service.js';
 
 function handleImportError(error: unknown, reply: FastifyReply): FastifyReply {
   if (error instanceof DslValidationError) {
@@ -26,6 +31,7 @@ export async function registerImportRoutes(app: FastifyInstance): Promise<void> 
       schema: {
         tags: ['Diagrams'],
         security: [{ cookieAuth: [] }],
+        response: { 201: envelope('diagram', 'Diagram'), '4xx': errorResponse },
         body: {
           type: 'object',
           required: ['name', 'dslContent'],

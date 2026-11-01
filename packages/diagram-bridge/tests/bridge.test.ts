@@ -19,6 +19,14 @@ describe('diagram-core bridge', () => {
     return { status: res.status, json: (await res.json()) as Record<string, unknown> };
   };
 
+  it('makes a new diagram\'s starting DSL and compiles intake templates (canvas-1bty.8)', async () => {
+    const empty = (await post('empty-dsl', { family: 'c4', diagramTypeId: 'c4-context' })).json.dsl as string;
+    expect(empty).toContain('C4Context');
+    expect((await post('parse', { family: 'c4', dsl: empty })).json).toHaveProperty('model');
+    expect((await post('compile-template', { diagramTypeId: 'no-such-type', template: '# x' })).json).toEqual({ unsupported: true });
+    expect((await post('compile-template', { diagramTypeId: 'c4-context', template: 'nothing useful' })).json).toHaveProperty('errors');
+  });
+
   it('answers /health', async () => {
     expect(await (await fetch(`${base}/health`)).json()).toEqual({ status: 'ok' });
   });

@@ -11,11 +11,13 @@ from fastapi.responses import JSONResponse
 
 
 class ApiError(Exception):
-    def __init__(self, status: int, error: str, code: str | None = None) -> None:
+    def __init__(self, status: int, error: str, code: str | None = None, details: Any = None) -> None:
         super().__init__(error)
         self.status = status
         self.error = error
         self.code = code
+        #: Extra data some errors carry: a parse error list, a save conflict's current version.
+        self.details = details
 
 
 def _describe(error: Mapping[str, Any]) -> str:
@@ -29,9 +31,11 @@ def _describe(error: Mapping[str, Any]) -> str:
 def register_error_handlers(app: FastAPI) -> None:
     @app.exception_handler(ApiError)
     async def _api_error(_request: Request, exc: ApiError) -> JSONResponse:
-        body: dict[str, str] = {"error": exc.error}
+        body: dict[str, Any] = {"error": exc.error}
         if exc.code:
             body["code"] = exc.code
+        if exc.details is not None:
+            body["details"] = exc.details
         return JSONResponse(body, status_code=exc.status)
 
     @app.exception_handler(RequestValidationError)

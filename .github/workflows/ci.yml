@@ -220,8 +220,21 @@ jobs:
       # service (apps/api/src/python/route-groups.ts), so this unchanged e2e suite is each phase's gate.
       - name: Install uv
         run: pipx install uv==0.13.1
+      # canvas-1bty.8: the Python service parses and validates diagrams through the diagram-core bridge,
+      # a sidecar on 127.0.0.1:7070 in Azure; the same here.
+      - name: Start the diagram-core bridge
+        run: |
+          npm run build --workspace=@canvas/diagram-bridge
+          nohup node packages/diagram-bridge/dist/bridge.mjs > /tmp/bridge.log 2>&1 &
+          for i in $(seq 1 30); do
+            curl -sf http://127.0.0.1:7070/health > /dev/null && exit 0
+            sleep 1
+          done
+          echo "diagram-core bridge did not become healthy in time"; cat /tmp/bridge.log; exit 1
       - name: Start the Python service
         working-directory: apps/api-py
+        env:
+          DIAGRAM_BRIDGE_URL: http://127.0.0.1:7070
         run: |
           uv python install 3.13
           uv sync --frozen

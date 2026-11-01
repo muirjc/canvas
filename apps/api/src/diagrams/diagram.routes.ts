@@ -1,7 +1,11 @@
 import type { FastifyInstance, FastifyReply } from 'fastify';
 import { heartbeat, leave, HEARTBEAT_SECONDS } from './presence.service.js';
 import { requireAuth, requireRole } from '../auth/middleware.js';
-import { requireDiagramAccess, requireDiagramOwnerOrAdmin, requireProjectAccess } from '../auth/access-control.middleware.js';
+import {
+  requireDiagramAccess,
+  requireDiagramOwnerOrAdmin,
+  requireProjectAccess,
+} from '../auth/access-control.middleware.js';
 import { projectExists, resolveProjectAccess } from '../projects/project.access.js';
 import { accessAtLeast, resolveDiagramAccess } from '../sharing/sharing.service.js';
 import {
@@ -21,7 +25,29 @@ import {
   UnknownDiagramTypeError,
 } from './diagram.service.js';
 import { searchDiagrams } from './search.service.js';
-import { DiagramVersionNotFoundError, getDiagramVersion, getDiagramVersionContent, listDiagramVersions } from './version.service.js';
+import {
+  envelope,
+  errorResponse,
+  listEnvelope,
+  noContent,
+  objectResponse,
+} from '../contract/schemas.js';
+
+// canvas-1bty.8: response shapes (apps/api/src/contract/schemas.ts).
+const diagramResponse = (status: 200 | 201 = 200) => ({
+  [status]: envelope('diagram', 'Diagram'),
+  '4xx': errorResponse,
+});
+const versionPage = objectResponse({
+  versions: { type: 'array', items: { $ref: 'DiagramVersion#' } },
+  hasMore: { type: 'boolean' },
+});
+import {
+  DiagramVersionNotFoundError,
+  getDiagramVersion,
+  getDiagramVersionContent,
+  listDiagramVersions,
+} from './version.service.js';
 
 function handleServiceError(error: unknown, reply: FastifyReply): FastifyReply {
   if (error instanceof DslValidationError) {
@@ -32,7 +58,9 @@ function handleServiceError(error: unknown, reply: FastifyReply): FastifyReply {
   }
   if (error instanceof DiagramVersionConflictError) {
     // canvas-obp0: the editor shows who saved and when, and offers to load theirs or save anyway.
-    return reply.code(409).send({ error: error.message, code: 'version_conflict', details: error.conflict });
+    return reply
+      .code(409)
+      .send({ error: error.message, code: 'version_conflict', details: error.conflict });
   }
   if (error instanceof DiagramRetentionExpiredError) {
     return reply.code(409).send({ error: error.message });
@@ -55,6 +83,7 @@ export async function registerDiagramRoutes(app: FastifyInstance): Promise<void>
       schema: {
         tags: ['Diagrams'],
         security: [{ cookieAuth: [] }],
+        response: diagramResponse(201),
         body: {
           type: 'object',
           required: ['name', 'diagramTypeId'],
@@ -90,7 +119,11 @@ export async function registerDiagramRoutes(app: FastifyInstance): Promise<void>
     '/projects/:projectId/diagrams',
     {
       preHandler: [requireAuth, requireProjectAccess('view', 'projectId')],
-      schema: { tags: ['Diagrams'], security: [{ cookieAuth: [] }] },
+      schema: {
+        tags: ['Diagrams'],
+        security: [{ cookieAuth: [] }],
+        response: { 200: listEnvelope('diagrams', 'DiagramSummary'), '4xx': errorResponse },
+      },
     },
     async (request, reply) => {
       const diagrams = await searchDiagrams({
@@ -106,7 +139,7 @@ export async function registerDiagramRoutes(app: FastifyInstance): Promise<void>
     '/diagrams/:id',
     {
       preHandler: [requireAuth, requireDiagramAccess('view')],
-      schema: { tags: ['Diagrams'], security: [{ cookieAuth: [] }] },
+      schema: { tags: ['Diagrams'], security: [{ cookieAuth: [] }], response: diagramResponse() },
     },
     async (request, reply) => {
       try {
@@ -128,12 +161,16 @@ export async function registerDiagramRoutes(app: FastifyInstance): Promise<void>
       schema: {
         tags: ['Diagrams'],
         security: [{ cookieAuth: [] }],
+        response: diagramResponse(),
         // canvas-obp0: baseVersionId is the version the editor started from (the diagram's
         // currentVersionId when loaded or last saved). 409 if another save has replaced it since.
         body: {
           type: 'object',
           required: ['dslContent', 'baseVersionId'],
-          properties: { dslContent: { type: 'string' }, baseVersionId: { type: 'string', minLength: 1 } },
+          properties: {
+            dslContent: { type: 'string' },
+            baseVersionId: { type: 'string', minLength: 1 },
+          },
         },
       },
     },
@@ -166,6 +203,7 @@ export async function registerDiagramRoutes(app: FastifyInstance): Promise<void>
       schema: {
         tags: ['Diagrams'],
         security: [{ cookieAuth: [] }],
+        response: diagramResponse(),
         body: {
           type: 'object',
           required: ['name'],
@@ -198,7 +236,12 @@ export async function registerDiagramRoutes(app: FastifyInstance): Promise<void>
       schema: {
         tags: ['Diagrams'],
         security: [{ cookieAuth: [] }],
-        body: { type: 'object', required: ['description'], properties: { description: { type: 'string' } } },
+        response: diagramResponse(),
+        body: {
+          type: 'object',
+          required: ['description'],
+          properties: { description: { type: 'string' } },
+        },
       },
     },
     async (request, reply) => {
@@ -227,7 +270,12 @@ export async function registerDiagramRoutes(app: FastifyInstance): Promise<void>
       schema: {
         tags: ['Diagrams'],
         security: [{ cookieAuth: [] }],
-        body: { type: 'object', required: ['projectId'], properties: { projectId: { type: 'string', minLength: 1 } } },
+        response: diagramResponse(),
+        body: {
+          type: 'object',
+          required: ['projectId'],
+          properties: { projectId: { type: 'string', minLength: 1 } },
+        },
       },
     },
     async (request, reply) => {
@@ -252,13 +300,17 @@ export async function registerDiagramRoutes(app: FastifyInstance): Promise<void>
     },
   );
 
-  app.get<{ Params: { id: string }; Querystring: { limit?: string; q?: string; from?: string; to?: string } }>(
+  app.get<{
+    Params: { id: string };
+    Querystring: { limit?: string; q?: string; from?: string; to?: string };
+  }>(
     '/diagrams/:id/versions',
     {
       preHandler: [requireAuth, requireDiagramAccess('view')],
       schema: {
         tags: ['Diagrams'],
         security: [{ cookieAuth: [] }],
+        response: { 200: versionPage, '4xx': errorResponse },
         // canvas-zfe: from/to are instants (ISO 8601) the browser computes from a typed date in
         // the user's own time zone.
         querystring: {
@@ -287,10 +339,19 @@ export async function registerDiagramRoutes(app: FastifyInstance): Promise<void>
   // canvas-3fha: one version with its content, for the read-only preview in History.
   app.get<{ Params: { id: string; versionId: string } }>(
     '/diagrams/:id/versions/:versionId',
-    { preHandler: [requireAuth, requireDiagramAccess('view')], schema: { tags: ['Diagrams'], security: [{ cookieAuth: [] }] } },
+    {
+      preHandler: [requireAuth, requireDiagramAccess('view')],
+      schema: {
+        tags: ['Diagrams'],
+        security: [{ cookieAuth: [] }],
+        response: { 200: envelope('version', 'DiagramVersion'), '4xx': errorResponse },
+      },
+    },
     async (request, reply) => {
       try {
-        return reply.send({ version: await getDiagramVersion(request.params.id, request.params.versionId) });
+        return reply.send({
+          version: await getDiagramVersion(request.params.id, request.params.versionId),
+        });
       } catch (error) {
         return handleServiceError(error, reply);
       }
@@ -305,12 +366,20 @@ export async function registerDiagramRoutes(app: FastifyInstance): Promise<void>
       schema: {
         tags: ['Diagrams'],
         security: [{ cookieAuth: [] }],
-        body: { type: 'object', required: ['baseVersionId'], properties: { baseVersionId: { type: 'string', minLength: 1 } } },
+        response: diagramResponse(),
+        body: {
+          type: 'object',
+          required: ['baseVersionId'],
+          properties: { baseVersionId: { type: 'string', minLength: 1 } },
+        },
       },
     },
     async (request, reply) => {
       try {
-        const restoredContent = await getDiagramVersionContent(request.params.id, request.params.versionId);
+        const restoredContent = await getDiagramVersionContent(
+          request.params.id,
+          request.params.versionId,
+        );
         const diagram = await saveDiagram(request.params.id, {
           dslContent: restoredContent,
           authorId: request.session.user!.id,
@@ -334,16 +403,42 @@ export async function registerDiagramRoutes(app: FastifyInstance): Promise<void>
 
   app.put<{ Params: { id: string }; Body: { sessionId: string } }>(
     '/diagrams/:id/presence',
-    { preHandler: [requireAuth, requireDiagramAccess('edit')], schema: { tags: ['Diagrams'], security: [{ cookieAuth: [] }], body: sessionBody } },
+    {
+      preHandler: [requireAuth, requireDiagramAccess('edit')],
+      schema: {
+        tags: ['Diagrams'],
+        security: [{ cookieAuth: [] }],
+        response: {
+          200: objectResponse({
+            others: { type: 'array', items: { $ref: 'OtherEditor#' } },
+            heartbeatSeconds: { type: 'integer' },
+          }),
+          '4xx': errorResponse,
+        },
+        body: sessionBody,
+      },
+    },
     async (request, reply) => {
-      const others = await heartbeat(request.params.id, request.session.user!.id, request.body.sessionId);
+      const others = await heartbeat(
+        request.params.id,
+        request.session.user!.id,
+        request.body.sessionId,
+      );
       return reply.send({ others, heartbeatSeconds: HEARTBEAT_SECONDS });
     },
   );
 
   app.post<{ Params: { id: string }; Body: { sessionId: string } }>(
     '/diagrams/:id/presence/leave',
-    { preHandler: [requireAuth, requireDiagramAccess('edit')], schema: { tags: ['Diagrams'], security: [{ cookieAuth: [] }], body: sessionBody } },
+    {
+      preHandler: [requireAuth, requireDiagramAccess('edit')],
+      schema: {
+        tags: ['Diagrams'],
+        security: [{ cookieAuth: [] }],
+        response: { 204: noContent, '4xx': errorResponse },
+        body: sessionBody,
+      },
+    },
     async (request, reply) => {
       await leave(request.params.id, request.session.user!.id, request.body.sessionId);
       return reply.code(204).send();
@@ -352,7 +447,14 @@ export async function registerDiagramRoutes(app: FastifyInstance): Promise<void>
 
   app.delete<{ Params: { id: string } }>(
     '/diagrams/:id',
-    { preHandler: [requireAuth, requireDiagramOwnerOrAdmin()], schema: { tags: ['Diagrams'], security: [{ cookieAuth: [] }] } },
+    {
+      preHandler: [requireAuth, requireDiagramOwnerOrAdmin()],
+      schema: {
+        tags: ['Diagrams'],
+        security: [{ cookieAuth: [] }],
+        response: { 204: noContent, '4xx': errorResponse },
+      },
+    },
     async (request, reply) => {
       try {
         await deleteDiagram(request.params.id, request.session.user!.id);
@@ -365,7 +467,20 @@ export async function registerDiagramRoutes(app: FastifyInstance): Promise<void>
 
   app.get<{ Querystring: { limit?: string; q?: string } }>(
     '/admin/deleted-diagrams',
-    { preHandler: requireRole('admin'), schema: { tags: ['Diagrams'], security: [{ cookieAuth: [] }] } },
+    {
+      preHandler: requireRole('admin'),
+      schema: {
+        tags: ['Diagrams'],
+        security: [{ cookieAuth: [] }],
+        response: {
+          200: objectResponse({
+            diagrams: { type: 'array', items: { $ref: 'DeletedDiagram#' } },
+            hasMore: { type: 'boolean' },
+          }),
+          '4xx': errorResponse,
+        },
+      },
+    },
     async (request, reply) => {
       const parsedLimit = Number.parseInt(request.query.limit ?? '', 10);
       const page = await listDeletedDiagrams({
@@ -378,7 +493,10 @@ export async function registerDiagramRoutes(app: FastifyInstance): Promise<void>
 
   app.post<{ Params: { id: string } }>(
     '/diagrams/:id/restore',
-    { preHandler: requireRole('admin'), schema: { tags: ['Diagrams'], security: [{ cookieAuth: [] }] } },
+    {
+      preHandler: requireRole('admin'),
+      schema: { tags: ['Diagrams'], security: [{ cookieAuth: [] }], response: diagramResponse() },
+    },
     async (request, reply) => {
       try {
         await restoreDiagram(request.params.id, request.session.user!.id);

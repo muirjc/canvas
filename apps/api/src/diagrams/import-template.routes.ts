@@ -1,6 +1,7 @@
 import type { FastifyInstance, FastifyReply } from 'fastify';
 import { requireProjectAccess } from '../auth/access-control.middleware.js';
 import { requireAuth } from '../auth/middleware.js';
+import { envelope, errorResponse } from '../contract/schemas.js';
 import { DslValidationError } from './diagram.service.js';
 import { importTemplate, UnsupportedTemplateTypeError } from './import-template.service.js';
 
@@ -26,6 +27,7 @@ export async function registerImportTemplateRoutes(app: FastifyInstance): Promis
       schema: {
         tags: ['Diagrams'],
         security: [{ cookieAuth: [] }],
+        response: { 201: envelope('diagram', 'Diagram'), '4xx': errorResponse },
         body: {
           type: 'object',
           required: ['name', 'diagramTypeId', 'templateContent'],

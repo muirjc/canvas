@@ -5,8 +5,8 @@ diagram-core (TypeScript) over HTTP, for the Python service while the backend mo
 Transition only: it goes once diagram-core's server side is ported to Python and passes the golden
 corpus ([packages/diagram-core/corpus](../diagram-core/corpus)).
 
-One dependency-free file, `dist/bridge.mjs` (esbuild, from diagram-core's source modules, no icon
-libraries). It runs as a sidecar container next to `canvas-api-py` and listens on `127.0.0.1:7070`.
+One dependency-free file, `dist/bridge.mjs` (esbuild, from diagram-core's source modules; the only
+icon libraries in it are the manifests the architecture template compiler needs). It runs as a sidecar container next to `canvas-api-py` and listens on `127.0.0.1:7070`.
 
 | `POST /<op>` | Body | Answer |
 |---|---|---|
@@ -14,6 +14,8 @@ libraries). It runs as a sidecar container next to `canvas-api-py` and listens o
 | `parse` | `{ family, dsl }` | `{ model }` or `{ errors }` |
 | `detect-and-parse` | `{ dsl, family? }` | `{ family, model }` or `{ family, errors }` |
 | `serialize` | `{ family, model }` | `{ dsl }` |
+| `empty-dsl` | `{ family, diagramTypeId }` | `{ dsl }` (a new diagram's starting DSL) |
+| `compile-template` | `{ diagramTypeId, template }` | `{ dsl }`, `{ errors }` or `{ unsupported: true }` |
 | `validate` | `{ model, rules }` | `{ violations }` |
 | `check-standard` | `{ rules, family }` | `{ issues }` |
 | `render-svg` | `{ model, icons?, standardRules?, background? }` | `{ svg }` |
