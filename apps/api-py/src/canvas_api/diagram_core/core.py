@@ -29,6 +29,7 @@ from canvas_api.diagram_core.model import create_empty_diagram_model
 from canvas_api.diagram_core.portable import to_portable_mermaid
 from canvas_api.diagram_core.sequence import parse_sequence, serialize_sequence
 from canvas_api.diagram_core.standards import check_standard_definition, validate
+from canvas_api.diagram_core.svg_render import render_to_svg
 from canvas_api.diagram_core.uml import parse_uml, serialize_uml
 
 __all__ = ["KNOWN_FAMILIES", "NATIVE_FAMILIES", "PARSERS", "SERIALIZERS", "DiagramCore", "Mode"]
@@ -206,6 +207,25 @@ class DiagramCore:
             family,
             lambda: to_js_json(check_standard_definition(rules, family)),
             lambda: self._require_bridge("check-standard").check_standard(rules, family),
+        )
+
+    def render_svg(
+        self,
+        model: JsonObject,
+        *,
+        icons: dict[str, str] | None = None,
+        standard_rules: JsonObject | None = None,
+        background: str | None = None,
+    ) -> str:
+        """The diagram as SVG (canvas-1bty.15.4). `icons` maps "<libraryId>@<libraryVersion>@<iconId>" to the
+        artwork; `standard_rules` feeds a visible legend; `background` a solid hex colour behind it all."""
+        return self._answer(
+            "render-svg",
+            _family_of(model),
+            lambda: render_to_svg(model, icons, standard_rules=standard_rules, background=background),
+            lambda: self._require_bridge("render-svg").render_svg(
+                model, icons=icons, standard_rules=standard_rules, background=background
+            ),
         )
 
 

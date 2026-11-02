@@ -93,6 +93,17 @@ tests are NON-NEGOTIABLE and must exist (and fail) before implementing any diagr
 work — see `.specify/memory/constitution.md` Principle IV.
 
 ## Recent Changes
+- `canvas-1bty.15.4` (Python phase 11d): **drawing is native.** `diagram_core/svg_render.py` ports
+  svg-renderer.ts (every shape, table/described/icon nodes, container roles, ER crow's feet, UML markers and
+  multiplicities, anchors and `{group}` ends, links, the legend, the background), `sequence_layout.py` and
+  `legend.py`; `DiagramCore.render_svg` goes through the modes like validate, so export and GitHub submissions
+  render natively in `native` mode and are compared in `shadow`. Byte-for-byte: numbers are written as a JS
+  template literal does (`js_template`), Math.min/max keep NaN, division by zero gives Infinity, and
+  `js_hypot` is V8's Math.hypot (scaled, Kahan-summed): Python's `math.hypot` differs in the last bit on ~1/3
+  of inputs, which shows in printed edge geometry. The corpus native test now checks render.svg; a seeded
+  native-vs-bridge render fuzz (`test_diagram_core_render_fuzz.py`) covers icons, legends, links, backgrounds
+  and odd colours; `render_layout_vectors.json` (`make_render_layout_vectors.ts`) pins the sequence layout and
+  legend.
 - `canvas-1bty.15.3` (Python phase 11c): **standards are native.** `diagram_core/standards/` ports schema
   constants, authoring scope, element kinds (all of kinds.ts, incl. `kind_add_blocked_reason`/`kind_defaults` for
   11g), `validate` and `check_standard_definition`/`standard_definition_notices`; `family_capabilities.py`;
