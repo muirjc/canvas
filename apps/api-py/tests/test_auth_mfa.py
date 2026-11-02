@@ -206,7 +206,7 @@ def test_password_change_required_takes_precedence_for_a_one_time_password_user(
 
     change = env.strict.post(
         "/auth/password",
-        {"currentPassword": created["temporaryPassword"], "newPassword": "Velvet-orchard-signal-33"},
+        {"currentPassword": created["temporaryPassword"], "newPassword": "Velvet-orchard-signal-33"},  # gitleaks:allow
         cookie,
     )
     assert change.status_code == 200

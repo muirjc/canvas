@@ -165,7 +165,7 @@ def test_a_truncated_authentication_tag_is_refused() -> None:
 
 # TypeScript made this with encryptSecret('JBSWY3DPEHPK3PXP', key), key = the dev key derived from the tests'
 # session secret (sha256 of "canvas-mfa-key:" + secret, which config.ts and config.py both do).
-TS_MFA_KEY_HEX = "7d5055f0b72744476088a73aaf1c9c537ffb613c16b667ba1701c7b6cd9306c9"
+TS_MFA_KEY_HEX = "7d5055f0b72744476088a73aaf1c9c537ffb613c16b667ba1701c7b6cd9306c9"  # gitleaks:allow
 TS_MFA_CIPHERTEXT = "v1:zHgWS5fDH1dubWxM:UzB+2Dgg/drewTYko7LNBQ==:qh58z4zSEmsDJp5uaysm9g=="
 
 
@@ -306,7 +306,7 @@ def test_matches_typescripts_totp_code(step: int, expected: str) -> None:
 
 
 def test_base32_encodes_the_rfc_key_to_the_well_known_string() -> None:
-    assert RFC_SECRET == "GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ"
+    assert RFC_SECRET == "GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ"  # gitleaks:allow
 
 
 def test_base32_round_trips_and_tolerates_spaces_dashes_padding_and_lower_case() -> None:
