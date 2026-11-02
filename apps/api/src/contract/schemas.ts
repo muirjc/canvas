@@ -48,6 +48,20 @@ const submissionProperties = {
 } as const;
 const submissionFields = Object.keys(submissionProperties);
 
+/** canvas-1bty.12: token totals and the cost estimate (ai-usage.service.ts UsageTotals & CostFigures). */
+const usageTotals = {
+  requests: { type: 'integer' },
+  failedRequests: { type: 'integer' },
+  inputTokens: { type: 'integer' },
+  outputTokens: { type: 'integer' },
+  cacheReadTokens: { type: 'integer' },
+  cacheWriteTokens: { type: 'integer' },
+  totalTokens: { type: 'integer' },
+  estimatedCost: { type: 'number' },
+  unpricedTokens: { type: 'integer' },
+} as const;
+const usageTotalFields = Object.keys(usageTotals);
+
 export const contractSchemas = [
   {
     $id: 'Error',
@@ -769,6 +783,137 @@ export const contractSchemas = [
       submittedVersionSequence: nullable({ type: 'integer' }),
       changesSinceSubmitting: { type: 'boolean' },
       withdrawn: { type: 'boolean' },
+    },
+  },
+  // canvas-1bty.12: AI chat and its administration (src/ai/).
+  {
+    $id: 'AiSettings',
+    type: 'object',
+    required: [
+      'chatEnabled',
+      'showUsageToUsers',
+      'provider',
+      'modelId',
+      'defaultModelId',
+      'effectiveModelId',
+    ],
+    additionalProperties: false,
+    properties: {
+      chatEnabled: { type: 'boolean' },
+      showUsageToUsers: { type: 'boolean' },
+      provider: { type: 'string', enum: ['anthropic', 'openai', 'mock', 'unconfigured'] },
+      modelId: nullable({ type: 'string' }),
+      defaultModelId: nullable({ type: 'string' }),
+      effectiveModelId: nullable({ type: 'string' }),
+    },
+  },
+  {
+    $id: 'AiPersona',
+    type: 'object',
+    required: ['id', 'name', 'category', 'systemPrompt', 'status', 'createdAt', 'updatedAt'],
+    additionalProperties: false,
+    properties: {
+      id: { type: 'string' },
+      name: { type: 'string' },
+      category: { type: 'string' },
+      systemPrompt: { type: 'string' },
+      status: { type: 'string', enum: ['active', 'archived'] },
+      createdAt: dateTime,
+      updatedAt: dateTime,
+    },
+  },
+  {
+    $id: 'ReferenceMaterial',
+    type: 'object',
+    required: ['id', 'personaId', 'content', 'diagramFamilies', 'createdAt', 'updatedAt'],
+    additionalProperties: false,
+    properties: {
+      id: { type: 'string' },
+      personaId: { type: 'string' },
+      content: { type: 'string' },
+      diagramFamilies: { type: 'array', items: { type: 'string' } },
+      createdAt: dateTime,
+      updatedAt: dateTime,
+    },
+  },
+  {
+    $id: 'ToolCallOutcome',
+    type: 'object',
+    required: ['tool', 'applied'],
+    additionalProperties: false,
+    properties: {
+      tool: { type: 'string' },
+      applied: { type: 'boolean' },
+      reason: { type: 'string' },
+    },
+  },
+  {
+    $id: 'TokenCounts',
+    type: 'object',
+    required: ['inputTokens', 'outputTokens', 'totalTokens'],
+    additionalProperties: false,
+    properties: {
+      inputTokens: { type: 'integer' },
+      outputTokens: { type: 'integer' },
+      totalTokens: { type: 'integer' },
+    },
+  },
+  {
+    $id: 'ChatMessage',
+    type: 'object',
+    required: ['id', 'role', 'content', 'toolCalls', 'createdAt'],
+    additionalProperties: false,
+    // usage: an assistant reply's tokens, for users who may see usage.
+    properties: {
+      id: { type: 'string' },
+      role: { type: 'string', enum: ['user', 'assistant'] },
+      content: { type: 'string' },
+      toolCalls: nullable({ type: 'array', items: { $ref: 'ToolCallOutcome#' } }),
+      createdAt: dateTime,
+      usage: { $ref: 'TokenCounts#' },
+    },
+  },
+  {
+    $id: 'UsageTotals',
+    type: 'object',
+    required: [...usageTotalFields],
+    additionalProperties: false,
+    properties: usageTotals,
+  },
+  {
+    $id: 'UserUsage',
+    type: 'object',
+    required: [...usageTotalFields, 'userId', 'email', 'name', 'lastUsedAt'],
+    additionalProperties: false,
+    properties: {
+      ...usageTotals,
+      userId: nullable({ type: 'string' }),
+      email: nullable({ type: 'string' }),
+      name: nullable({ type: 'string' }),
+      lastUsedAt: dateTime,
+    },
+  },
+  {
+    $id: 'ModelPrice',
+    type: 'object',
+    required: [
+      'provider',
+      'modelId',
+      'inputPerMillion',
+      'outputPerMillion',
+      'cacheReadPerMillion',
+      'cacheWritePerMillion',
+      'updatedAt',
+    ],
+    additionalProperties: false,
+    properties: {
+      provider: { type: 'string' },
+      modelId: { type: 'string' },
+      inputPerMillion: { type: 'number' },
+      outputPerMillion: { type: 'number' },
+      cacheReadPerMillion: { type: 'number' },
+      cacheWritePerMillion: { type: 'number' },
+      updatedAt: dateTime,
     },
   },
   {

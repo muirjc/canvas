@@ -19,6 +19,7 @@ from canvas_api.errors import register_error_handlers
 from canvas_api.github.client import GitHubClient
 from canvas_api.routes import (
     admin_users,
+    ai,
     app_settings,
     comments,
     diagram_types,
@@ -78,13 +79,18 @@ def create_app(
     app.state.db = db
     app.state.diagram_bridge = bridge
     app.state.github_client = github_client
+    # canvas-1bty.12: tests replace the AI model (a callable: chosen model id -> LanguageModel) and the
+    # provider clients used to list models; None = the configured provider.
+    app.state.language_model = None
+    app.state.anthropic_client = None
+    app.state.openai_client = None
     configure_telemetry(app, settings.applicationinsights_connection_string)
     app.add_middleware(SecurityHeadersMiddleware)
     register_error_handlers(app)
 
     # The route groups apps/api forwards here (apps/api/src/python/route-groups.ts): phase 2
     # (canvas-1bty.6), phase 3 (canvas-1bty.7), phase 4 (canvas-1bty.8), phase 5 (canvas-1bty.9),
-    # phase 6 (canvas-1bty.10), phase 7 (canvas-1bty.11).
+    # phase 6 (canvas-1bty.10), phase 7 (canvas-1bty.11), phase 8 (canvas-1bty.12).
     for group in (
         projects,
         diagram_types,
@@ -97,6 +103,7 @@ def create_app(
         standards,
         export,
         github,
+        ai,
     ):
         app.include_router(group.router)
 

@@ -6,7 +6,10 @@ Transition only: it goes once diagram-core's server side is ported to Python and
 corpus ([packages/diagram-core/corpus](../diagram-core/corpus)).
 
 One dependency-free file, `dist/bridge.mjs` (esbuild, from diagram-core's source modules; the only
-icon libraries in it are the manifests the architecture template compiler needs). It runs as a sidecar container next to `canvas-api-py` and listens on `127.0.0.1:7070`.
+icon libraries in it are the manifests the architecture template compiler needs). Since
+canvas-1bty.12 it also bundles the AI chat's diagram tools from `apps/api/src/ai` (`diagram-tools.ts`,
+`diagram-type-primers.ts`, `standard-prompt.ts`, `describe-model.ts`, with zod and the AI SDK's schema
+helpers), so the Python chat offers the model exactly the tools the TypeScript one does. It runs as a sidecar container next to `canvas-api-py` and listens on `127.0.0.1:7070`.
 
 | `POST /<op>` | Body | Answer |
 |---|---|---|
@@ -21,6 +24,9 @@ icon libraries in it are the manifests the architecture template compiler needs)
 | `render-svg` | `{ model, icons?, standardRules?, background? }` | `{ svg }` |
 | `portable` | `{ dsl, stripFrontMatter? }` | `{ dsl }` |
 | `embeds` | `{ markdown, docPath, sources, only? }` | `{ markdown, changed, results }` |
+| `ai-tools` | `{ family, rules? }` | `{ tools: [{ name, description, inputSchema }] }` (JSON Schema, as the AI SDK sends providers) |
+| `ai-tool` | `{ family, rules?, model, name, input }` | `{ ok: true, model, output, outcomes }` or `{ ok: false, error }` (bad input, unknown tool or an error in the tool: the text the model gets back) |
+| `ai-prompt` | `{ family, rules?, model }` | `{ primer, standard, currentDiagram }` (the diagram-specific system prompt sections) |
 
 `GET /health` answers `{ "status": "ok" }`. Bad input is a 400 with `{ error }`; nothing is logged
 but the startup line.

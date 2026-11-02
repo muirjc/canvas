@@ -173,6 +173,7 @@ module pyApiApp 'modules/pyapiapp.bicep' = {
     githubAppId: githubAppId
     githubApiUrl: githubApiUrl
     publicUrl: empty(webOrigin) ? apiPublicBaseUrl : webOrigin
+    aiProvider: aiProvider
   }
 }
 

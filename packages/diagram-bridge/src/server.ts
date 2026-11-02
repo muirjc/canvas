@@ -53,7 +53,7 @@ export function createBridgeServer(): Server {
         return send(400, { error: 'body must be JSON' });
       }
       if (!body || typeof body !== 'object' || Array.isArray(body)) return send(400, { error: 'body must be a JSON object' });
-      return send(200, handler(body as Record<string, unknown>));
+      return send(200, await handler(body as Record<string, unknown>));
     } catch (error) {
       if (error instanceof BadRequest) return send(400, { error: error.message });
       // No stack traces or input echoed back.

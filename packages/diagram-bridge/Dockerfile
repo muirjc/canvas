@@ -9,6 +9,8 @@ COPY packages/diagram-bridge/package.json packages/diagram-bridge/
 RUN npm ci --workspace=@canvas/diagram-bridge --include-workspace-root=false
 COPY packages/diagram-core packages/diagram-core
 COPY packages/diagram-bridge packages/diagram-bridge
+# canvas-1bty.12: the AI chat's diagram tools and prompt sections, bundled from apps/api (src/ai.ts).
+COPY apps/api/src/ai/diagram-tools.ts apps/api/src/ai/diagram-type-primers.ts apps/api/src/ai/standard-prompt.ts apps/api/src/ai/describe-model.ts apps/api/src/ai/
 RUN npm run build --workspace=@canvas/diagram-bridge
 
 FROM node:22-slim AS runtime

@@ -1,4 +1,5 @@
 import type { FastifyInstance } from 'fastify';
+import { errorResponse } from '../contract/schemas.js';
 import { requireAuth, requireRole } from '../auth/middleware.js';
 import { clientIp, recordAudit } from '../audit/audit.service.js';
 import { getAiSettings, setAiSettings } from './ai-settings.service.js';
@@ -9,11 +10,34 @@ export interface AiSettingsRouteOptions {
   aiFetch?: typeof fetch;
 }
 
+// canvas-1bty.12: response shapes (src/contract/schemas.ts), so the Python service answers the same.
+const settingsResponse = { 200: { $ref: 'AiSettings#' }, '4xx': errorResponse };
+const aiModelsResponse = {
+  type: 'object',
+  required: ['provider', 'models', 'modelId', 'defaultModelId'],
+  additionalProperties: false,
+  properties: {
+    provider: { type: 'string' },
+    models: {
+      type: 'array',
+      items: {
+        type: 'object',
+        required: ['id', 'name', 'createdAt'],
+        additionalProperties: false,
+        properties: { id: { type: 'string' }, name: { type: 'string' }, createdAt: { anyOf: [{ type: 'string' }, { type: 'null' }] } },
+      },
+    },
+    modelId: { anyOf: [{ type: 'string' }, { type: 'null' }] },
+    defaultModelId: { anyOf: [{ type: 'string' }, { type: 'null' }] },
+    error: { type: 'string' },
+  },
+};
+
 export async function registerAiSettingsRoutes(app: FastifyInstance, options: AiSettingsRouteOptions = {}): Promise<void> {
   const fetchImpl = options.aiFetch ?? fetch;
 
   // canvas-tj1: the models the configured provider offers, for the admin's picker.
-  app.get('/admin/ai-models', { preHandler: requireRole('admin'), schema: { tags: ['AI'], security: [{ cookieAuth: [] }] } }, async (request, reply) => {
+  app.get('/admin/ai-models', { preHandler: requireRole('admin'), schema: { tags: ['AI'], security: [{ cookieAuth: [] }], response: { 200: aiModelsResponse, '4xx': errorResponse } } }, async (request, reply) => {
     const settings = await getAiSettings();
     try {
       const models = await listAiModels(process.env, fetchImpl);
@@ -35,7 +59,7 @@ export async function registerAiSettingsRoutes(app: FastifyInstance, options: Ai
    */
   app.get(
     '/ai-settings',
-    { preHandler: requireAuth, schema: { tags: ['AI'], security: [{ cookieAuth: [] }] } },
+    { preHandler: requireAuth, schema: { tags: ['AI'], security: [{ cookieAuth: [] }], response: settingsResponse } },
     async (_request, reply) => {
       return reply.send(await getAiSettings());
     },
@@ -43,7 +67,7 @@ export async function registerAiSettingsRoutes(app: FastifyInstance, options: Ai
 
   app.get(
     '/admin/ai-settings',
-    { preHandler: requireRole('admin'), schema: { tags: ['AI'], security: [{ cookieAuth: [] }] } },
+    { preHandler: requireRole('admin'), schema: { tags: ['AI'], security: [{ cookieAuth: [] }], response: settingsResponse } },
     async (_request, reply) => {
       return reply.send(await getAiSettings());
     },
@@ -67,6 +91,7 @@ export async function registerAiSettingsRoutes(app: FastifyInstance, options: Ai
           },
           additionalProperties: false,
         },
+        response: { ...settingsResponse, '5xx': errorResponse },
       },
     },
     async (request, reply) => {

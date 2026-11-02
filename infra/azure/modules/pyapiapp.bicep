@@ -39,6 +39,9 @@ param githubApiUrl string = 'https://api.github.com'
 @description('canvas-1bty.11: the public URL Canvas is used at (CANVAS_PUBLIC_URL), for the links back to Canvas in pull requests.')
 param publicUrl string
 
+@description('canvas-1bty.12: AI_PROVIDER, as canvas-api (modules/apiapp.bicep): mock, anthropic or openai. The keys are the anthropic-api-key / openai-api-key Key Vault secrets.')
+param aiProvider string = 'mock'
+
 @description('Port uvicorn listens on (apps/api-py/Dockerfile).')
 param port int = 8000
 
@@ -80,6 +83,17 @@ resource pyApp 'Microsoft.App/containerApps@2025-01-01' = {
           identity: identityId
         }
         {
+          // canvas-1bty.12: the AI provider keys ("unset" until deploy.sh is given one).
+          name: 'anthropic-api-key'
+          keyVaultUrl: '${keyVaultUri}secrets/anthropic-api-key'
+          identity: identityId
+        }
+        {
+          name: 'openai-api-key'
+          keyVaultUrl: '${keyVaultUri}secrets/openai-api-key'
+          identity: identityId
+        }
+        {
           // canvas-1bty.11: base64 of the GitHub App's PEM private key, or "unset".
           name: 'github-app-private-key'
           keyVaultUrl: '${keyVaultUri}secrets/github-app-private-key'
@@ -108,6 +122,10 @@ resource pyApp 'Microsoft.App/containerApps@2025-01-01' = {
             { name: 'GITHUB_APP_PRIVATE_KEY', secretRef: 'github-app-private-key' }
             { name: 'GITHUB_APP_API_URL', value: githubApiUrl }
             { name: 'CANVAS_PUBLIC_URL', value: publicUrl }
+            // canvas-1bty.12: AI chat, as canvas-api.
+            { name: 'AI_PROVIDER', value: aiProvider }
+            { name: 'ANTHROPIC_API_KEY', secretRef: 'anthropic-api-key' }
+            { name: 'OPENAI_API_KEY', secretRef: 'openai-api-key' }
           ]
           resources: {
             cpu: json('0.5')

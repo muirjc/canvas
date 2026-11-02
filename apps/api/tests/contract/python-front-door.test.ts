@@ -147,9 +147,8 @@ describe('forwarding moved routes by route pattern (canvas-1bty.6)', () => {
 
   it('only forwards the moved method and pattern, not its neighbours', async () => {
     const before = seen.length;
-    // Same prefix, routes not moved yet (AI chat moves in phase 8): TypeScript answers (401, no session).
-    expect((await app.inject({ method: 'GET', url: '/diagrams/abc/chat/messages' })).statusCode).toBe(401);
-    // Local accounts stay on TypeScript (phase 9) while the rest of /admin/users moved.
+    // Same prefix, routes not moved yet: local accounts stay on TypeScript (phase 9) while the rest of
+    // /admin/users moved.
     // (TypeScript checks this body before the role: 400 here means it answered, not Python.)
     expect((await app.inject({ method: 'POST', url: '/admin/users', payload: {} })).statusCode).toBe(400);
     expect((await app.inject({ method: 'POST', url: '/admin/users/abc/unlock' })).statusCode).toBe(401);

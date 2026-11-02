@@ -93,6 +93,23 @@ tests are NON-NEGOTIABLE and must exist (and fail) before implementing any diagr
 work — see `.specify/memory/constitution.md` Principle IV.
 
 ## Recent Changes
+- `canvas-1bty.12` (Python phase 8): AI chat and its administration answer from `apps/api-py` (group
+  `ai`, 21 routes: chat send/history, AI settings and model list, personas, reference material,
+  usage, prices, /me/ai-usage). **The diagram tools stay TypeScript** (decided with the user): the
+  bridge bundles `apps/api/src/ai/{diagram-tools,diagram-type-primers,standard-prompt,describe-model}.ts`
+  (`describeModel` moved out of diagram-chat.service.ts for this) and serves new ops `ai-tools` (each
+  tool's JSON Schema via the AI SDK's `asSchema`), `ai-tool` (runs one call; bad input/unknown
+  tool/thrown error = `{ok:false,error}` with the SDK's own messages) and `ai-prompt`; its build
+  aliases `@canvas/diagram-core` to `src/ai-core.ts` (source modules, no icon manifests). Bundle
+  ~1.4 MB (zod). Python runs the loop (`canvas_api/ai/chat.py`, generateText + stepCountIs: 1 step
+  in plan mode, 8 under a standard, else 5) behind a small `LanguageModel` interface with Anthropic
+  (`anthropic` SDK 1.x, manual tool loop, content replayed as returned), OpenAI (`openai`, Responses
+  API, as the AI SDK's default) and the mock (`mock_model.py`, port of mock-nlu.ts, same token
+  estimate). Usage rows keep the AI SDK's provider names (`anthropic.messages`, `openai.responses`,
+  `mock-provider`/`mock-model-id`) so prices still match. Tests inject `app.state.language_model`.
+  Azure: canvas-api-py gets `AI_PROVIDER` and the provider key secrets. Live parity on the dev DB
+  (mock provider): 127/128 identical (the one: FastAPI vs Fastify validation wording), including
+  ten chat turns on twin diagrams and the token estimates.
 - `canvas-1bty.11` (Python phase 7): the GitHub approval routes answer from `apps/api-py` (group
   `github`, 14 routes: admin status/repositories/workflow example/links/test, project link set/remove/
   read, submit, submission status/refresh/withdraw/history, project badges). `canvas_api/github/`

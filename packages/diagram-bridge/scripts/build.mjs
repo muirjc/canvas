@@ -12,6 +12,9 @@ await build({
   format: 'esm',
   minify: true,
   legalComments: 'none',
+  // canvas-1bty.12: the AI chat modules bundled from apps/api import diagram-core by package name;
+  // give them the source modules they need (src/ai-core.ts) instead of its package entry.
+  alias: { '@canvas/diagram-core': './src/ai-core.ts' },
   banner: {
     js: [
       '// Canvas diagram-core bridge -- generated; do not edit.',

@@ -110,6 +110,31 @@ export const PYTHON_ROUTE_GROUPS = {
     'GET /diagrams/:id/submissions',
     'GET /projects/:id/submission-statuses',
   ],
+  // Phase 8 (canvas-1bty.12). The chat loop, personas, settings and usage are Python; the diagram tools
+  // and their prompt sections stay TypeScript, served to it by the diagram-core bridge until phase 11.
+  ai: [
+    'POST /diagrams/:id/chat/messages',
+    'GET /diagrams/:id/chat/messages',
+    'GET /admin/ai-models',
+    'GET /ai-settings',
+    'GET /admin/ai-settings',
+    'PATCH /admin/ai-settings',
+    'GET /ai-personas',
+    'GET /admin/ai-personas',
+    'POST /admin/ai-personas',
+    'PATCH /admin/ai-personas/:id',
+    'POST /admin/ai-personas/:id/archive',
+    'GET /admin/ai-personas/:id/reference-material',
+    'POST /admin/ai-personas/:id/reference-material',
+    'PATCH /admin/ai-personas/:personaId/reference-material/:entryId',
+    'DELETE /admin/ai-personas/:personaId/reference-material/:entryId',
+    'GET /admin/ai-usage',
+    'GET /admin/ai-usage/users/:id',
+    'GET /admin/ai-prices',
+    'PUT /admin/ai-prices',
+    'DELETE /admin/ai-prices',
+    'GET /me/ai-usage',
+  ],
 } as const satisfies Record<string, readonly string[]>;
 
 export type PythonRouteGroup = keyof typeof PYTHON_ROUTE_GROUPS;

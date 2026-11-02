@@ -58,6 +58,14 @@ class Settings(BaseSettings):
     #: canvas-3s5.3: where the CI validator bundle is (packages/validator-cli/dist); unset = beside the repository.
     canvas_validator_dir: str | None = Field(default=None, alias="CANVAS_VALIDATOR_DIR")
 
+    # canvas-1bty.12: the AI provider (apps/api/src/ai/provider.ts): anthropic, openai or mock (the rule-based
+    # stand-in the e2e suite runs against); anything else = AI unconfigured.
+    ai_provider: str | None = Field(default=None, alias="AI_PROVIDER")
+    #: The model when the admin hasn't chosen one (Admin -> AI Personas); else each provider's default.
+    ai_model: str | None = Field(default=None, alias="AI_MODEL")
+    anthropic_api_key: str | None = Field(default=None, alias="ANTHROPIC_API_KEY", repr=False)
+    openai_api_key: str | None = Field(default=None, alias="OPENAI_API_KEY", repr=False)
+
     @property
     def canvas_public_url(self) -> str:
         url = self.canvas_public_url_setting or self.web_origins.split(",")[0]
