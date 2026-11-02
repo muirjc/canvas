@@ -1,0 +1,13 @@
+architecture-beta
+  group g(cloud)[G]
+  group h(cloud)[H]
+  service a(server)[A] in g
+  service b(server)[B] in h
+  service c(server)[C]
+  a-->b
+  a{group}--b{group}
+  b<--a
+  a:L--R:c
+  c{group}:T -- B:a
+  a --> a
+  c --> missing

@@ -1,0 +1,80 @@
+{
+  "containers": [],
+  "diagramTypeId": "uml",
+  "edges": [],
+  "nodes": [
+    {
+      "id": "A",
+      "label": "A",
+      "position": {
+        "x": 40,
+        "y": 40
+      },
+      "role": "class",
+      "shape": "rectangle",
+      "style": {
+        "fillColor": "#0f0",
+        "strokeColor": "#900",
+        "strokeWidth": 3
+      }
+    },
+    {
+      "id": "B",
+      "label": "B",
+      "position": {
+        "x": 220,
+        "y": 40
+      },
+      "role": "class",
+      "shape": "rectangle",
+      "style": {
+        "fillColor": "#f00",
+        "strokeColor": "#900",
+        "strokeWidth": null
+      }
+    },
+    {
+      "id": "C",
+      "label": "C",
+      "position": {
+        "x": 400,
+        "y": 40
+      },
+      "role": "class",
+      "shape": "rectangle",
+      "style": {
+        "fillColor": "#00f",
+        "strokeDasharray": "5 5"
+      }
+    },
+    {
+      "id": "D",
+      "label": "D",
+      "position": {
+        "x": 580,
+        "y": 40
+      },
+      "role": "class",
+      "shape": "rectangle",
+      "style": {
+        "fillColor": "#f00",
+        "strokeColor": "#900",
+        "strokeWidth": 3
+      }
+    },
+    {
+      "id": "E",
+      "label": "E",
+      "position": {
+        "x": 760,
+        "y": 40
+      },
+      "role": "class",
+      "shape": "rectangle",
+      "style": {
+        "fillColor": "#00f",
+        "strokeDasharray": "5 5"
+      }
+    }
+  ]
+}

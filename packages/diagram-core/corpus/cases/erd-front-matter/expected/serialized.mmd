@@ -1,0 +1,29 @@
+---
+canvas:
+  positions:
+    CUSTOMER:
+      x: 100
+      y: 200.5
+    ORDER:
+      x: 40
+      y: 40
+    LINE-ITEM:
+      x: 240
+      y: 40
+  styles:
+    CUSTOMER:
+      fillColor: "#abcdef"
+      strokeWidth: 2
+      strokeColor: "#000"
+  legend:
+    visible: false
+    position:
+      x: 12
+      y: 30
+    title: Key
+    labels:
+      kind:a: Alpha
+---
+erDiagram
+CUSTOMER ||--o{ ORDER : places
+ORDER ||--|{ LINE-ITEM : contains

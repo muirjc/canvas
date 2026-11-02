@@ -1,0 +1,109 @@
+{
+  "containers": [
+    {
+      "id": "ent",
+      "label": "Enterprise",
+      "position": {
+        "x": 40,
+        "y": 40
+      },
+      "role": "enterprise-boundary",
+      "size": {
+        "height": 340,
+        "width": 500
+      },
+      "tags": [
+        "org"
+      ]
+    },
+    {
+      "boundaryType": "Team",
+      "id": "b1",
+      "label": "Custom group",
+      "parentContainerId": "ent",
+      "position": {
+        "x": 60,
+        "y": 90
+      },
+      "role": "boundary",
+      "size": {
+        "height": 270,
+        "width": 260
+      },
+      "tags": [
+        "a",
+        "b"
+      ]
+    },
+    {
+      "id": "sys",
+      "label": "System",
+      "parentContainerId": "b1",
+      "position": {
+        "x": 80,
+        "y": 140
+      },
+      "role": "system-boundary",
+      "size": {
+        "height": 200,
+        "width": 220
+      }
+    },
+    {
+      "id": "cont",
+      "label": "Containers",
+      "parentContainerId": "sys",
+      "position": {
+        "x": 100,
+        "y": 190
+      },
+      "role": "container-boundary",
+      "size": {
+        "height": 130,
+        "width": 180
+      }
+    },
+    {
+      "boundaryType": "Domain",
+      "id": "b2",
+      "label": "Typed",
+      "parentContainerId": "ent",
+      "position": {
+        "x": 360,
+        "y": 90
+      },
+      "role": "boundary",
+      "size": {
+        "height": 100,
+        "width": 160
+      }
+    }
+  ],
+  "diagramTypeId": "c4-container",
+  "edges": [],
+  "nodes": [
+    {
+      "c4TypeLabel": "Container",
+      "containerId": "cont",
+      "id": "x",
+      "label": "X",
+      "position": {
+        "x": 120,
+        "y": 240
+      },
+      "role": "container",
+      "shape": "rounded-rectangle"
+    },
+    {
+      "c4TypeLabel": "Container",
+      "id": "loose",
+      "label": "Loose",
+      "position": {
+        "x": 580,
+        "y": 40
+      },
+      "role": "container",
+      "shape": "rounded-rectangle"
+    }
+  ]
+}

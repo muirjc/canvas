@@ -17,15 +17,20 @@ import time
 from collections.abc import Callable
 from typing import Any, Literal, TypeVar
 
+from canvas_api.diagram_core.architecture import parse_architecture, serialize_architecture
 from canvas_api.diagram_core.bridge import BridgeError, DiagramBridge, JsonObject, canonical_json
+from canvas_api.diagram_core.c4 import parse_c4, serialize_c4
 from canvas_api.diagram_core.detect import detect_dsl_family
+from canvas_api.diagram_core.erd import parse_erd, serialize_erd
 from canvas_api.diagram_core.flowchart import parse_flowchart, serialize_flowchart
 from canvas_api.diagram_core.jsvalues import to_js_json
 from canvas_api.diagram_core.jsyaml import YamlError
 from canvas_api.diagram_core.model import create_empty_diagram_model
 from canvas_api.diagram_core.portable import to_portable_mermaid
+from canvas_api.diagram_core.sequence import parse_sequence, serialize_sequence
+from canvas_api.diagram_core.uml import parse_uml, serialize_uml
 
-__all__ = ["KNOWN_FAMILIES", "NATIVE_FAMILIES", "DiagramCore", "Mode"]
+__all__ = ["KNOWN_FAMILIES", "NATIVE_FAMILIES", "PARSERS", "SERIALIZERS", "DiagramCore", "Mode"]
 
 Mode = Literal["native", "shadow", "bridge"]
 T = TypeVar("T")
@@ -35,9 +40,23 @@ log = logging.getLogger("canvas_api.diagram_core")
 
 #: Every family diagram-core has (dsl/registry.ts), and those ported to Python so far.
 KNOWN_FAMILIES = ("flowchart", "c4", "architecture", "sequence", "erd", "uml")
-_PARSERS: dict[str, Callable[[str], dict[str, Any]]] = {"flowchart": parse_flowchart}
-_SERIALIZERS: dict[str, Callable[[dict[str, Any]], str]] = {"flowchart": serialize_flowchart}
-NATIVE_FAMILIES = frozenset(_PARSERS)
+PARSERS: dict[str, Callable[[str], dict[str, Any]]] = {
+    "flowchart": parse_flowchart,
+    "c4": parse_c4,
+    "architecture": parse_architecture,
+    "sequence": parse_sequence,
+    "erd": parse_erd,
+    "uml": parse_uml,
+}
+SERIALIZERS: dict[str, Callable[[dict[str, Any]], str]] = {
+    "flowchart": serialize_flowchart,
+    "c4": serialize_c4,
+    "architecture": serialize_architecture,
+    "sequence": serialize_sequence,
+    "erd": serialize_erd,
+    "uml": serialize_uml,
+}
+NATIVE_FAMILIES = frozenset(PARSERS)
 
 
 class DiagramCore:
@@ -106,7 +125,7 @@ class DiagramCore:
         return self._answer(
             "parse",
             family,
-            lambda: to_js_json(_PARSERS[family](dsl)),
+            lambda: to_js_json(PARSERS[family](dsl)),
             lambda: self._require_bridge("parse").parse(family, dsl),
         )
 
@@ -116,7 +135,7 @@ class DiagramCore:
         return self._answer(
             "serialize",
             family,
-            lambda: _SERIALIZERS[family](model),
+            lambda: SERIALIZERS[family](model),
             lambda: self._require_bridge("serialize").serialize(family, model),
         )
 
@@ -125,7 +144,7 @@ class DiagramCore:
             found = family if family else detect_dsl_family(dsl)
             if not found or found not in KNOWN_FAMILIES:
                 return {"family": found, "errors": [{"message": "Unrecognized diagram header"}]}
-            result = to_js_json(_PARSERS[found](dsl))
+            result = to_js_json(PARSERS[found](dsl))
             return {"family": found, **result}
 
         target = family if family else _quiet_detect(dsl)
@@ -144,14 +163,12 @@ class DiagramCore:
         return self._answer(
             "empty-dsl",
             family,
-            lambda: _SERIALIZERS[family](create_empty_diagram_model(diagram_type_id)),
+            lambda: SERIALIZERS[family](create_empty_diagram_model(diagram_type_id)),
             lambda: self._require_bridge("empty-dsl").empty_dsl(family, diagram_type_id),
         )
 
     def portable(self, dsl: str, *, strip_front_matter: bool = False) -> str:
         family = _quiet_detect(dsl)
-        if family not in (None, *NATIVE_FAMILIES, "sequence", "architecture"):
-            return self._require_bridge("portable").portable(dsl, strip_front_matter=strip_front_matter)
 
         def native() -> str:
             out = to_portable_mermaid(dsl, strip_front_matter)

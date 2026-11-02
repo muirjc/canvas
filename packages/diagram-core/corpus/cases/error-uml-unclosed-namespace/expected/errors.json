@@ -1,0 +1,9 @@
+{
+  "errors": [
+    {
+      "content": "  namespace Outer {",
+      "line": 2,
+      "message": "Unclosed 'namespace' block opened at line 2"
+    }
+  ]
+}

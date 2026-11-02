@@ -1,0 +1,122 @@
+{
+  "containers": [],
+  "diagramTypeId": "uml",
+  "edges": [],
+  "nodes": [
+    {
+      "id": "BankAccount",
+      "label": "BankAccount",
+      "members": [
+        {
+          "kind": "attribute",
+          "name": "owner",
+          "type": "String",
+          "visibility": "+"
+        },
+        {
+          "kind": "attribute",
+          "name": "balance",
+          "type": "BigDecimal",
+          "visibility": "+"
+        },
+        {
+          "kind": "attribute",
+          "name": "history",
+          "type": "List~Transaction~",
+          "visibility": "-"
+        },
+        {
+          "kind": "attribute",
+          "name": "limits",
+          "type": "Map~string, int~",
+          "visibility": "#"
+        },
+        {
+          "kind": "attribute",
+          "name": "internalId",
+          "visibility": "~"
+        },
+        {
+          "isStatic": true,
+          "kind": "attribute",
+          "name": "count"
+        },
+        {
+          "kind": "method",
+          "name": "deposit",
+          "params": "amount",
+          "returnType": "bool",
+          "visibility": "+"
+        },
+        {
+          "kind": "method",
+          "name": "withdraw",
+          "params": "BigDecimal amount, String memo",
+          "returnType": "BigDecimal",
+          "visibility": "+"
+        },
+        {
+          "kind": "method",
+          "name": "audit",
+          "params": "",
+          "visibility": "-"
+        },
+        {
+          "isStatic": true,
+          "kind": "method",
+          "name": "create",
+          "params": "",
+          "visibility": "+"
+        },
+        {
+          "kind": "method",
+          "name": "compute",
+          "params": "",
+          "returnType": "* int",
+          "visibility": "+"
+        },
+        {
+          "isStatic": true,
+          "kind": "method",
+          "name": "staticWithType",
+          "params": "",
+          "returnType": "int",
+          "visibility": "+"
+        },
+        {
+          "isAbstract": true,
+          "kind": "method",
+          "name": "abstractThing",
+          "params": "",
+          "returnType": "void",
+          "visibility": "+"
+        },
+        {
+          "kind": "method",
+          "name": "spaced",
+          "params": "a , b",
+          "returnType": "Result",
+          "visibility": "+"
+        },
+        {
+          "isAbstract": true,
+          "kind": "attribute",
+          "name": "field"
+        },
+        {
+          "isStatic": true,
+          "kind": "attribute",
+          "name": "name",
+          "type": "Type",
+          "visibility": "+"
+        }
+      ],
+      "position": {
+        "x": 40,
+        "y": 40
+      },
+      "role": "class",
+      "shape": "rectangle"
+    }
+  ]
+}

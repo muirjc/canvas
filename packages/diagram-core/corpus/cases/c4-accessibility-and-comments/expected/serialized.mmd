@@ -1,0 +1,22 @@
+---
+canvas:
+  positions:
+    a:
+      x: 40
+      y: 40
+    b:
+      x: 220
+      y: 40
+  styles: {}
+  edgeStyles: {}
+  containers: {}
+---
+%%{init: {'theme': 'forest'}}%%
+C4Context
+title Spaced   title
+accTitle: Accessible title
+accDescr: Accessible description
+Person(a, "A")
+System(b, "B, with comma")
+Rel(a, b, "Uses")
+Rel(b, a, "Back")

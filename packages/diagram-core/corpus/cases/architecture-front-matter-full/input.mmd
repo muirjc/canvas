@@ -1,0 +1,31 @@
+---
+canvas:
+  positions:
+    api: { x: 100, y: 120 }
+    db: { x: 400, y: 120 }
+    j: { x: 300, y: 300 }
+  containers:
+    vpc: { x: 60, y: 60, width: 500, height: 300 }
+  icons:
+    api: { libraryId: azure-icons, libraryVersion: "2024.1", iconId: app-services }
+    db: { libraryId: generic, libraryVersion: "1.0.0", iconId: database }
+    vpc: { libraryId: generic, libraryVersion: "1.0.0", iconId: cloud }
+  kinds:
+    api: frontend
+    j: ignored_kind
+  styles:
+    api: { fillColor: "#ffeeaa", strokeColor: "#333" }
+  legend:
+    visible: true
+    title: Key
+    position: { x: 10, y: 20 }
+---
+architecture-beta
+  group vpc(cloud)[VPC]
+  group other(cloud)[Other]
+  service api(server)[API] in vpc
+  service db(database)[DB] in vpc
+  service late(server)[Late]
+  junction j
+  api:R --> L:db
+  db:B -- T:j

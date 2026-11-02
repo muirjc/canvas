@@ -1,0 +1,112 @@
+{
+  "containers": [
+    {
+      "id": "grp",
+      "label": "Group",
+      "position": {
+        "x": 10,
+        "y": 20
+      },
+      "role": "system-boundary",
+      "size": {
+        "height": 300,
+        "width": 600
+      }
+    },
+    {
+      "id": "other",
+      "label": "Other",
+      "parentContainerId": "grp",
+      "position": {
+        "x": 5,
+        "y": 6
+      },
+      "role": "system-boundary"
+    }
+  ],
+  "diagramTypeId": "c4-context",
+  "edges": [
+    {
+      "id": "e1",
+      "label": "styled",
+      "sourceId": "a",
+      "style": {
+        "strokeColor": "#654321"
+      },
+      "targetId": "b"
+    },
+    {
+      "id": "e2",
+      "label": "plain",
+      "sourceId": "b",
+      "targetId": "c"
+    }
+  ],
+  "legend": {
+    "position": {
+      "x": 700,
+      "y": 10
+    },
+    "title": "Key",
+    "visible": true
+  },
+  "nodes": [
+    {
+      "c4TypeLabel": "Software System",
+      "containerId": "grp",
+      "id": "a",
+      "label": "A",
+      "position": {
+        "x": 100,
+        "y": 50
+      },
+      "role": "system",
+      "shape": "rectangle",
+      "style": {
+        "fillColor": "#eeeeee",
+        "strokeColor": "#000",
+        "strokeWidth": 2
+      }
+    },
+    {
+      "c4TypeLabel": "Software System",
+      "containerId": "other",
+      "id": "b",
+      "label": "B",
+      "position": {
+        "x": 400.5,
+        "y": 50
+      },
+      "role": "system",
+      "shape": "rectangle",
+      "style": {
+        "0": "r",
+        "1": "e",
+        "2": "d",
+        "fillColor": "blue"
+      }
+    },
+    {
+      "c4TypeLabel": "Software System",
+      "id": "c",
+      "label": "C no position",
+      "position": {
+        "x": 40,
+        "y": 40
+      },
+      "role": "system",
+      "shape": "rectangle"
+    },
+    {
+      "c4TypeLabel": "Software System",
+      "id": "d",
+      "label": "D no position",
+      "position": {
+        "x": 240,
+        "y": 40
+      },
+      "role": "system",
+      "shape": "rectangle"
+    }
+  ]
+}

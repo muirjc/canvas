@@ -1,0 +1,161 @@
+{
+  "containers": [
+    {
+      "icon": {
+        "iconId": "cloud",
+        "libraryId": "mermaid-architecture",
+        "libraryVersion": "1.0.0"
+      },
+      "id": "net",
+      "label": "Network",
+      "position": {
+        "x": 208,
+        "y": 479.20000000000005
+      },
+      "size": {
+        "height": 156.4,
+        "width": 348
+      }
+    }
+  ],
+  "diagramTypeId": "cloud-infrastructure",
+  "edges": [
+    {
+      "id": "e1",
+      "sourceAnchor": "R",
+      "sourceId": "left",
+      "targetAnchor": "L",
+      "targetId": "hub"
+    },
+    {
+      "id": "e2",
+      "sourceAnchor": "R",
+      "sourceId": "hub",
+      "targetAnchor": "L",
+      "targetId": "right"
+    },
+    {
+      "id": "e3",
+      "sourceAnchor": "T",
+      "sourceId": "hub",
+      "targetAnchor": "B",
+      "targetId": "up"
+    },
+    {
+      "id": "e4",
+      "sourceAnchor": "B",
+      "sourceId": "hub",
+      "targetAnchor": "T",
+      "targetId": "down"
+    },
+    {
+      "arrow": "target",
+      "id": "e5",
+      "sourceAnchor": "R",
+      "sourceId": "j2",
+      "targetAnchor": "L",
+      "targetId": "inside"
+    },
+    {
+      "id": "e6",
+      "sourceAnchor": "B",
+      "sourceId": "down",
+      "targetAnchor": "T",
+      "targetId": "j2"
+    }
+  ],
+  "nodes": [
+    {
+      "icon": {
+        "iconId": "server",
+        "libraryId": "mermaid-architecture",
+        "libraryVersion": "1.0.0"
+      },
+      "id": "left",
+      "label": "Left",
+      "position": {
+        "x": 40,
+        "y": 186.4
+      },
+      "shape": "icon"
+    },
+    {
+      "icon": {
+        "iconId": "server",
+        "libraryId": "mermaid-architecture",
+        "libraryVersion": "1.0.0"
+      },
+      "id": "right",
+      "label": "Right",
+      "position": {
+        "x": 616,
+        "y": 186.4
+      },
+      "shape": "icon"
+    },
+    {
+      "icon": {
+        "iconId": "server",
+        "libraryId": "mermaid-architecture",
+        "libraryVersion": "1.0.0"
+      },
+      "id": "up",
+      "label": "Up",
+      "position": {
+        "x": 328,
+        "y": 40
+      },
+      "shape": "icon"
+    },
+    {
+      "icon": {
+        "iconId": "server",
+        "libraryId": "mermaid-architecture",
+        "libraryVersion": "1.0.0"
+      },
+      "id": "down",
+      "label": "Down",
+      "position": {
+        "x": 328,
+        "y": 332.8
+      },
+      "shape": "icon"
+    },
+    {
+      "id": "hub",
+      "label": "",
+      "position": {
+        "x": 312,
+        "y": 199.60000000000002
+      },
+      "role": "junction",
+      "shape": "circle"
+    },
+    {
+      "containerId": "net",
+      "id": "j2",
+      "label": "",
+      "position": {
+        "x": 228,
+        "y": 542.4000000000001
+      },
+      "role": "junction",
+      "shape": "circle"
+    },
+    {
+      "containerId": "net",
+      "icon": {
+        "iconId": "server",
+        "libraryId": "mermaid-architecture",
+        "libraryVersion": "1.0.0"
+      },
+      "id": "inside",
+      "label": "Inside",
+      "position": {
+        "x": 428,
+        "y": 529.2
+      },
+      "shape": "icon"
+    }
+  ]
+}

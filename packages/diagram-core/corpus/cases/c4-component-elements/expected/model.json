@@ -1,0 +1,119 @@
+{
+  "containers": [
+    {
+      "id": "api",
+      "label": "API Application",
+      "position": {
+        "x": 40,
+        "y": 40
+      },
+      "role": "container-boundary",
+      "size": {
+        "height": 270,
+        "width": 960
+      }
+    }
+  ],
+  "diagramTypeId": "c4-component",
+  "edges": [
+    {
+      "id": "e1",
+      "label": "Reads",
+      "sourceId": "sign",
+      "targetId": "cache",
+      "technology": "RESP"
+    },
+    {
+      "description": "only the description",
+      "id": "e2",
+      "label": "Enqueues",
+      "sourceId": "sign",
+      "targetId": "cq"
+    }
+  ],
+  "nodes": [
+    {
+      "c4TypeLabel": "Component",
+      "containerId": "api",
+      "description": "Allows users to sign in",
+      "id": "sign",
+      "label": "Sign In Controller",
+      "position": {
+        "x": 60,
+        "y": 90
+      },
+      "role": "component",
+      "shape": "rounded-rectangle",
+      "technology": "Spring MVC Rest Controller"
+    },
+    {
+      "c4TypeLabel": "Component",
+      "containerId": "api",
+      "external": true,
+      "id": "ext",
+      "label": "Shared auth",
+      "position": {
+        "x": 300,
+        "y": 90
+      },
+      "role": "component",
+      "shape": "rounded-rectangle",
+      "technology": "Library"
+    },
+    {
+      "c4TypeLabel": "Component",
+      "containerId": "api",
+      "id": "cache",
+      "label": "Cache",
+      "position": {
+        "x": 540,
+        "y": 90
+      },
+      "role": "component",
+      "shape": "cylinder",
+      "technology": "Redis"
+    },
+    {
+      "c4TypeLabel": "Component",
+      "containerId": "api",
+      "description": "Hosted elsewhere",
+      "external": true,
+      "id": "cdb",
+      "label": "Remote cache",
+      "position": {
+        "x": 780,
+        "y": 90
+      },
+      "role": "component",
+      "shape": "cylinder"
+    },
+    {
+      "c4TypeLabel": "Component",
+      "containerId": "api",
+      "description": "Jobs",
+      "id": "cq",
+      "label": "Work queue",
+      "position": {
+        "x": 60,
+        "y": 217
+      },
+      "role": "component",
+      "shape": "stadium",
+      "technology": "RabbitMQ"
+    },
+    {
+      "c4TypeLabel": "Component",
+      "containerId": "api",
+      "external": true,
+      "id": "cqx",
+      "label": "Partner queue",
+      "position": {
+        "x": 300,
+        "y": 217
+      },
+      "role": "component",
+      "shape": "stadium"
+    }
+  ],
+  "title": "Components of the API"
+}

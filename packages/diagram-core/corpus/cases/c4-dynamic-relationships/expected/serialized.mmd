@@ -1,0 +1,33 @@
+---
+canvas:
+  positions:
+    u:
+      x: 40
+      y: 40
+    a:
+      x: 220
+      y: 40
+    b:
+      x: 400
+      y: 40
+  styles: {}
+  edgeStyles: {}
+  containers: {}
+---
+C4Dynamic
+title Sign-in sequence
+Person(u, "User")
+System(a, "A")
+System(b, "B")
+Rel(u, a, "1. Submits")
+BiRel(a, b, "2. Syncs", "gRPC", "both ways")
+Rel(b, a, "3. Calls back")
+Rel(a, b, "down")
+Rel(a, b, "down long")
+Rel(a, b, "left")
+Rel(a, b, "left long")
+Rel(a, b, "right")
+Rel(a, b, "right long")
+Rel(a, b, "up")
+Rel(a, b, "up long")
+Rel(a, b, "")

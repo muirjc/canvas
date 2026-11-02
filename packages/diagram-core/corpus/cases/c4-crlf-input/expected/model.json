@@ -1,0 +1,51 @@
+{
+  "containers": [
+    {
+      "id": "g",
+      "label": "G",
+      "position": {
+        "x": 40,
+        "y": 40
+      },
+      "role": "boundary",
+      "size": {
+        "height": 130,
+        "width": 180
+      }
+    }
+  ],
+  "diagramTypeId": "c4-context",
+  "edges": [
+    {
+      "id": "e1",
+      "label": "Uses",
+      "sourceId": "a",
+      "targetId": "b"
+    }
+  ],
+  "nodes": [
+    {
+      "c4TypeLabel": "Person",
+      "id": "a",
+      "label": "A",
+      "position": {
+        "x": 260,
+        "y": 40
+      },
+      "role": "person",
+      "shape": "person"
+    },
+    {
+      "c4TypeLabel": "Software System",
+      "containerId": "g",
+      "id": "b",
+      "label": "B",
+      "position": {
+        "x": 60,
+        "y": 90
+      },
+      "role": "system",
+      "shape": "rectangle"
+    }
+  ]
+}

@@ -1,0 +1,42 @@
+---
+config:
+  theme: forest
+canvas:
+  positions:
+    A:
+      x: 100
+      y: 200
+    B:
+      y: 5
+      x: 7
+  styles:
+    A:
+      fillColor: "#abcdef"
+  containers:
+    Pkg:
+      x: 10
+      y: 20
+      width: 300
+      height: 200
+    note1:
+      x: 500
+      y: 60
+    Pkg.Sub:
+      x: 30
+      y: 70
+  legend:
+    visible: false
+    title: Classes
+---
+classDiagram
+  namespace Pkg {
+    class A
+    namespace Sub {
+      class C
+    }
+  }
+  class B
+  A --> B
+  note for B "positioned"
+  note "unpositioned"
+  class D

@@ -1,0 +1,28 @@
+---
+canvas:
+  positions:
+    api:
+      x: 40
+      y: 40
+    db:
+      x: 208
+      y: 47.199999999999996
+  containers: {}
+  icons:
+    api:
+      libraryId: mermaid-architecture
+      libraryVersion: 1.0.0
+      iconId: server
+    db:
+      libraryId: mermaid-architecture
+      libraryVersion: 1.0.0
+      iconId: database
+---
+%%{init: {"theme": "dark"}}%%
+architecture-beta
+title Payments platform
+accTitle: Payments
+accDescr: How payments flow
+service api(server)[API: v2 (public)]
+service db(database)[Primary DB]
+api:R --> L:db

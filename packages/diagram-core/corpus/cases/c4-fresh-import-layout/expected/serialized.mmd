@@ -1,0 +1,73 @@
+---
+canvas:
+  positions:
+    u1:
+      x: 40
+      y: 460
+    u2:
+      x: 220
+      y: 460
+    c1:
+      x: 260
+      y: 300
+    c2:
+      x: 440
+      y: 300
+    c3:
+      x: 620
+      y: 300
+    c4:
+      x: 80
+      y: 140
+    c5:
+      x: 260
+      y: 140
+    c6:
+      x: 440
+      y: 140
+    c7:
+      x: 620
+      y: 140
+    c8:
+      x: 800
+      y: 140
+    late:
+      x: 400
+      y: 460
+  styles: {}
+  edgeStyles: {}
+  containers:
+    outer:
+      x: 40
+      y: 40
+      width: 940
+      height: 380
+    inner:
+      x: 60
+      y: 90
+      width: 900
+      height: 170
+    empty:
+      x: 60
+      y: 300
+      width: 160
+      height: 100
+---
+C4Container
+System_Boundary(outer, "Outer") {
+  Container(c1, "C1")
+  Container(c2, "C2")
+  Container(c3, "C3")
+Container_Boundary(inner, "Inner") {
+  Container(c4, "C4")
+  Container(c5, "C5")
+  Container(c6, "C6")
+  Container(c7, "C7")
+  Container(c8, "C8")
+}
+Container_Boundary(empty, "Empty") {
+}
+}
+Person(u1, "User one redeclared")
+Person(u2, "User two with a much longer label that wraps over lines")
+System(late, "Declared after")

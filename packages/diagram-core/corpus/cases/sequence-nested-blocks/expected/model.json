@@ -1,0 +1,299 @@
+{
+  "containers": [
+    {
+      "id": "block1",
+      "label": "outer",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "role": "loop",
+      "sequenceOrder": 0
+    },
+    {
+      "id": "block2",
+      "label": "first",
+      "parentContainerId": "block1",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "role": "alt",
+      "sequenceOrder": 2
+    },
+    {
+      "id": "block3",
+      "label": "maybe",
+      "parentContainerId": "block2",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "role": "opt",
+      "sequenceOrder": 4
+    },
+    {
+      "id": "block4",
+      "label": "second",
+      "parentContainerId": "block2",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "role": "else",
+      "sequenceOrder": 6
+    },
+    {
+      "id": "block5",
+      "label": "",
+      "parentContainerId": "block2",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "role": "else",
+      "sequenceOrder": 8
+    },
+    {
+      "id": "block6",
+      "label": "",
+      "parentContainerId": "block1",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "role": "par",
+      "sequenceOrder": 10
+    },
+    {
+      "id": "block7",
+      "label": "second branch",
+      "parentContainerId": "block6",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "role": "and",
+      "sequenceOrder": 12
+    },
+    {
+      "id": "block8",
+      "label": "",
+      "parentContainerId": "block6",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "role": "and",
+      "sequenceOrder": 14
+    },
+    {
+      "id": "block9",
+      "label": "",
+      "parentContainerId": "block1",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "role": "critical",
+      "sequenceOrder": 16
+    },
+    {
+      "id": "block10",
+      "label": "timeout",
+      "parentContainerId": "block9",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "role": "option",
+      "sequenceOrder": 18
+    },
+    {
+      "id": "block11",
+      "label": "",
+      "parentContainerId": "block1",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "role": "break",
+      "sequenceOrder": 20
+    },
+    {
+      "id": "block12",
+      "label": "",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "role": "loop",
+      "sequenceOrder": 22
+    }
+  ],
+  "diagramTypeId": "sequence",
+  "edges": [
+    {
+      "arrow": "target",
+      "containerId": "block1",
+      "id": "e1",
+      "label": "one",
+      "lineStyle": "solid",
+      "sequenceOrder": 1,
+      "sourceId": "A",
+      "targetId": "B"
+    },
+    {
+      "arrow": "target",
+      "containerId": "block2",
+      "id": "e2",
+      "label": "two",
+      "lineStyle": "solid",
+      "sequenceOrder": 3,
+      "sourceId": "B",
+      "targetId": "A"
+    },
+    {
+      "arrow": "target",
+      "containerId": "block3",
+      "id": "e3",
+      "label": "three",
+      "lineStyle": "solid",
+      "sequenceOrder": 5,
+      "sourceId": "A",
+      "targetId": "C"
+    },
+    {
+      "arrow": "target",
+      "containerId": "block4",
+      "id": "e4",
+      "label": "four",
+      "lineStyle": "solid",
+      "sequenceOrder": 7,
+      "sourceId": "B",
+      "targetId": "C"
+    },
+    {
+      "arrow": "target",
+      "containerId": "block5",
+      "id": "e5",
+      "label": "five",
+      "lineStyle": "solid",
+      "sequenceOrder": 9,
+      "sourceId": "B",
+      "targetId": "A"
+    },
+    {
+      "arrow": "target",
+      "containerId": "block6",
+      "id": "e6",
+      "label": "p1",
+      "lineStyle": "solid",
+      "sequenceOrder": 11,
+      "sourceId": "A",
+      "targetId": "B"
+    },
+    {
+      "arrow": "target",
+      "containerId": "block7",
+      "id": "e7",
+      "label": "p2",
+      "lineStyle": "solid",
+      "sequenceOrder": 13,
+      "sourceId": "A",
+      "targetId": "C"
+    },
+    {
+      "arrow": "target",
+      "containerId": "block8",
+      "id": "e8",
+      "label": "p3",
+      "lineStyle": "solid",
+      "sequenceOrder": 15,
+      "sourceId": "A",
+      "targetId": "D"
+    },
+    {
+      "arrow": "target",
+      "containerId": "block9",
+      "id": "e9",
+      "label": "c",
+      "lineStyle": "solid",
+      "sequenceOrder": 17,
+      "sourceId": "A",
+      "targetId": "B"
+    },
+    {
+      "arrow": "target",
+      "containerId": "block10",
+      "id": "e10",
+      "label": "t",
+      "lineStyle": "solid",
+      "sequenceOrder": 19,
+      "sourceId": "A",
+      "targetId": "C"
+    },
+    {
+      "arrow": "target",
+      "containerId": "block11",
+      "id": "e11",
+      "label": "stop",
+      "lineStyle": "solid",
+      "sequenceOrder": 21,
+      "sourceId": "A",
+      "targetId": "B"
+    },
+    {
+      "arrow": "target",
+      "containerId": "block12",
+      "id": "e12",
+      "label": "no label",
+      "lineStyle": "solid",
+      "sequenceOrder": 23,
+      "sourceId": "A",
+      "targetId": "B"
+    }
+  ],
+  "nodes": [
+    {
+      "id": "A",
+      "label": "A",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "role": "participant",
+      "shape": "rectangle"
+    },
+    {
+      "id": "B",
+      "label": "B",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "role": "participant",
+      "shape": "rectangle"
+    },
+    {
+      "id": "C",
+      "label": "C",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "role": "participant",
+      "shape": "rectangle"
+    },
+    {
+      "id": "D",
+      "label": "D",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "role": "participant",
+      "shape": "rectangle"
+    }
+  ]
+}

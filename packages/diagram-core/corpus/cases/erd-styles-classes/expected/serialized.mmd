@@ -1,0 +1,40 @@
+---
+canvas:
+  positions:
+    CUSTOMER:
+      x: 40
+      y: 40
+    ORDER:
+      x: 240
+      y: 40
+    o:
+      x: 440
+      y: 40
+    ITEM:
+      x: 640
+      y: 40
+    BOX:
+      x: 40
+      y: 180
+  styles:
+    CUSTOMER:
+      strokeColor: "#333"
+      fillColor: "#f9f"
+      strokeWidth: 4
+    ORDER:
+      strokeDasharray: 5 5
+    o:
+      fillColor: "#ff0"
+      strokeDasharray: 5 5
+      strokeWidth: 3
+    ITEM:
+      fillColor: "#0ff"
+    BOX:
+      fillColor: "#ff0"
+      strokeDasharray: 5 5
+---
+erDiagram
+BOX[Box label]
+CUSTOMER ||--o{ ORDER : places
+o ||--|| CUSTOMER : abbreviated
+ITEM

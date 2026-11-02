@@ -1,0 +1,117 @@
+{
+  "containers": [],
+  "diagramTypeId": "uml",
+  "edges": [
+    {
+      "id": "e1",
+      "sourceId": "Square",
+      "targetId": "Shape",
+      "umlRelationKind": "realization"
+    }
+  ],
+  "nodes": [
+    {
+      "id": "Shape",
+      "label": "Shape",
+      "position": {
+        "x": 40,
+        "y": 40
+      },
+      "role": "class",
+      "shape": "rectangle",
+      "umlStereotype": "interface"
+    },
+    {
+      "id": "Animal",
+      "label": "Animal",
+      "members": [
+        {
+          "kind": "method",
+          "name": "eat",
+          "params": "",
+          "visibility": "+"
+        }
+      ],
+      "position": {
+        "x": 220,
+        "y": 40
+      },
+      "role": "class",
+      "shape": "rectangle",
+      "umlStereotype": "abstract"
+    },
+    {
+      "id": "Color",
+      "label": "Color",
+      "members": [
+        {
+          "kind": "attribute",
+          "name": "RED"
+        },
+        {
+          "kind": "attribute",
+          "name": "GREEN"
+        }
+      ],
+      "position": {
+        "x": 400,
+        "y": 40
+      },
+      "role": "class",
+      "shape": "rectangle",
+      "umlStereotype": "enumeration"
+    },
+    {
+      "id": "Later",
+      "label": "Later",
+      "position": {
+        "x": 580,
+        "y": 40
+      },
+      "role": "class",
+      "shape": "rectangle",
+      "umlStereotype": "service"
+    },
+    {
+      "id": "Late",
+      "label": "Late",
+      "members": [
+        {
+          "kind": "attribute",
+          "name": "id",
+          "visibility": "+"
+        }
+      ],
+      "position": {
+        "x": 760,
+        "y": 40
+      },
+      "role": "class",
+      "shape": "rectangle",
+      "umlStereotype": "entity"
+    },
+    {
+      "id": "Square",
+      "label": "Square",
+      "position": {
+        "x": 940,
+        "y": 40
+      },
+      "role": "class",
+      "shape": "rectangle",
+      "umlGenericParameter": "Shape",
+      "umlStereotype": "value"
+    },
+    {
+      "id": "Container",
+      "label": "Container",
+      "position": {
+        "x": 40,
+        "y": 170
+      },
+      "role": "class",
+      "shape": "rectangle",
+      "umlGenericParameter": "Key, Value"
+    }
+  ]
+}

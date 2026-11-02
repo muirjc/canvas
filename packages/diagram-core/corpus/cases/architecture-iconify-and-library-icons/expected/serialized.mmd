@@ -1,0 +1,59 @@
+---
+canvas:
+  positions:
+    lambda:
+      x: 228
+      y: 90
+    s3:
+      x: 396
+      y: 90
+    vm:
+      x: 40
+      y: 67.80000000000001
+    weird:
+      x: 584
+      y: 40
+    under:
+      x: 752
+      y: 40
+  containers:
+    aws:
+      x: 208
+      y: 40
+      width: 316
+      height: 156.4
+  icons:
+    lambda:
+      libraryId: logos
+      libraryVersion: iconify
+      iconId: aws-lambda
+    s3:
+      libraryId: LOGOS
+      libraryVersion: iconify
+      iconId: aws-s3
+    vm:
+      libraryId: generic
+      libraryVersion: 1.0.0
+      iconId: virtual-machine
+    weird:
+      libraryId: mdi
+      libraryVersion: iconify
+      iconId: server:x
+    under:
+      libraryId: generic
+      libraryVersion: 1.0.0
+      iconId: a_b:c
+    aws:
+      libraryId: logos
+      libraryVersion: iconify
+      iconId: aws
+---
+architecture-beta
+group aws(logos:aws)[AWS]
+service lambda(logos:aws-lambda)[Lambda] in aws
+service s3(LOGOS:aws-s3)[S3] in aws
+service vm(virtual-machine)[Virtual machine]
+service weird(mdi:server:x)[Two colons]
+service under(a_b:c)[Underscore prefix]
+lambda --> s3
+vm <-- lambda

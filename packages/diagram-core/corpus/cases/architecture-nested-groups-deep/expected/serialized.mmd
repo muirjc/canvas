@@ -1,0 +1,91 @@
+---
+canvas:
+  positions:
+    a:
+      x: 268
+      y: 336.4
+    b:
+      x: 436
+      y: 336.4
+    c:
+      x: 352
+      y: 140
+    d:
+      x: 644
+      y: 233.2
+    top:
+      x: 40
+      y: 218.2
+  containers:
+    outer:
+      x: 208
+      y: 40
+      width: 784
+      height: 442.8
+    middle:
+      x: 228
+      y: 90
+      width: 356
+      height: 372.8
+    inner:
+      x: 248
+      y: 286.4
+      width: 316
+      height: 156.4
+    empty:
+      x: 812
+      y: 90
+      width: 160
+      height: 100
+  icons:
+    a:
+      libraryId: mermaid-architecture
+      libraryVersion: 1.0.0
+      iconId: server
+    b:
+      libraryId: mermaid-architecture
+      libraryVersion: 1.0.0
+      iconId: database
+    c:
+      libraryId: mermaid-architecture
+      libraryVersion: 1.0.0
+      iconId: disk
+    d:
+      libraryId: mermaid-architecture
+      libraryVersion: 1.0.0
+      iconId: internet
+    top:
+      libraryId: mermaid-architecture
+      libraryVersion: 1.0.0
+      iconId: server
+    outer:
+      libraryId: mermaid-architecture
+      libraryVersion: 1.0.0
+      iconId: cloud
+    middle:
+      libraryId: mermaid-architecture
+      libraryVersion: 1.0.0
+      iconId: server
+    inner:
+      libraryId: logos
+      libraryVersion: iconify
+      iconId: aws
+    empty:
+      libraryId: mermaid-architecture
+      libraryVersion: 1.0.0
+      iconId: cloud
+---
+architecture-beta
+group outer(cloud)[Outer]
+group middle(server)[Middle] in outer
+group inner(logos:aws)[Inner] in middle
+group empty(cloud)[Empty] in outer
+service a(server)[A] in inner
+service b(database)[B] in inner
+service c(disk)[C] in middle
+service d(internet)[D] in outer
+service top(server)[Top]
+a:R --> L:b
+c:B -- T:a
+d{group}:L --> R:c{group}
+top --> d

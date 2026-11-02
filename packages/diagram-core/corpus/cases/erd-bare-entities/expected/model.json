@@ -1,0 +1,47 @@
+{
+  "containers": [],
+  "diagramTypeId": "erd",
+  "edges": [],
+  "nodes": [
+    {
+      "id": "A",
+      "label": "A",
+      "position": {
+        "x": 40,
+        "y": 40
+      },
+      "role": "entity",
+      "shape": "rectangle"
+    },
+    {
+      "id": "B-2",
+      "label": "B-2",
+      "position": {
+        "x": 240,
+        "y": 40
+      },
+      "role": "entity",
+      "shape": "rectangle"
+    },
+    {
+      "id": "_c",
+      "label": "_c",
+      "position": {
+        "x": 440,
+        "y": 40
+      },
+      "role": "entity",
+      "shape": "rectangle"
+    },
+    {
+      "id": "9",
+      "label": "9",
+      "position": {
+        "x": 640,
+        "y": 40
+      },
+      "role": "entity",
+      "shape": "rectangle"
+    }
+  ]
+}

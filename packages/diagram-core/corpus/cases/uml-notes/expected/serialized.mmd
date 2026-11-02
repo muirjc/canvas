@@ -1,0 +1,56 @@
+---
+canvas:
+  positions:
+    Duck:
+      x: 240
+      y: 40
+    Ghost:
+      x: 620
+      y: 40
+    Inside:
+      x: 260
+      y: 230
+  styles: {}
+  containers:
+    note1:
+      x: 40
+      y: 40
+      width: 160
+      height: 100
+    note2:
+      x: 420
+      y: 40
+      width: 160
+      height: 100
+    note3:
+      x: 800
+      y: 40
+      width: 160
+      height: 100
+    note4:
+      x: 40
+      y: 180
+      width: 160
+      height: 100
+    N:
+      x: 240
+      y: 180
+      width: 180
+      height: 130
+    note5:
+      x: 460
+      y: 180
+      width: 160
+      height: 100
+---
+classDiagram
+namespace N {
+  class Inside
+}
+class Duck
+class Ghost
+note for Duck "can fly<br>can swim"
+note "This is a general note"
+note for Ghost "auto-created class"
+note ""
+note for Inside "inside a namespace"

@@ -1,0 +1,122 @@
+---
+canvas:
+  positions:
+    s1:
+      x: 40
+      y: 256.4
+    s2:
+      x: 208
+      y: 256.4
+    s3:
+      x: 376
+      y: 256.4
+    s4:
+      x: 544
+      y: 256.4
+    s5:
+      x: 712
+      y: 256.4
+    s6:
+      x: 712
+      y: 402.8
+    s7:
+      x: 40
+      y: 549.2
+    s8:
+      x: 208
+      y: 549.2
+    in1:
+      x: 60
+      y: 90
+    in2:
+      x: 268
+      y: 90
+  containers:
+    g1:
+      x: 40
+      y: 40
+      width: 148
+      height: 156.4
+    g2:
+      x: 248
+      y: 40
+      width: 148
+      height: 156.4
+    g3:
+      x: 456
+      y: 40
+      width: 160
+      height: 100
+  icons:
+    s1:
+      libraryId: mermaid-architecture
+      libraryVersion: 1.0.0
+      iconId: server
+    s2:
+      libraryId: mermaid-architecture
+      libraryVersion: 1.0.0
+      iconId: server
+    s3:
+      libraryId: mermaid-architecture
+      libraryVersion: 1.0.0
+      iconId: server
+    s4:
+      libraryId: mermaid-architecture
+      libraryVersion: 1.0.0
+      iconId: server
+    s5:
+      libraryId: mermaid-architecture
+      libraryVersion: 1.0.0
+      iconId: server
+    s6:
+      libraryId: mermaid-architecture
+      libraryVersion: 1.0.0
+      iconId: server
+    s7:
+      libraryId: mermaid-architecture
+      libraryVersion: 1.0.0
+      iconId: server
+    s8:
+      libraryId: mermaid-architecture
+      libraryVersion: 1.0.0
+      iconId: server
+    in1:
+      libraryId: mermaid-architecture
+      libraryVersion: 1.0.0
+      iconId: server
+    in2:
+      libraryId: mermaid-architecture
+      libraryVersion: 1.0.0
+      iconId: server
+    g1:
+      libraryId: mermaid-architecture
+      libraryVersion: 1.0.0
+      iconId: cloud
+    g2:
+      libraryId: mermaid-architecture
+      libraryVersion: 1.0.0
+      iconId: cloud
+    g3:
+      libraryId: mermaid-architecture
+      libraryVersion: 1.0.0
+      iconId: cloud
+---
+architecture-beta
+group g1(cloud)[Group one]
+group g2(cloud)[Group two]
+group g3(cloud)[Group three]
+service s1(server)[One]
+service s2(server)[Two]
+service s3(server)[Three]
+service s4(server)[Four]
+service s5(server)[Five]
+service s6(server)[Six]
+service s7(server)[Seven with a long label that wraps across lines]
+service s8(server)[Eight]
+service in1(server)[In one] in g1
+service in2(server)[In two] in g2
+s1 -- s2
+s2 -- s3
+s3 --> s4
+s5:B -- T:s6
+in1 --> in2

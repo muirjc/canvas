@@ -1,0 +1,60 @@
+{
+  "containers": [
+    {
+      "id": "plain",
+      "label": "Plain",
+      "position": {
+        "x": 40,
+        "y": 40
+      }
+    },
+    {
+      "id": "spaced",
+      "label": "Spaced",
+      "position": {
+        "x": 220,
+        "y": 40
+      }
+    },
+    {
+      "icon": {
+        "iconId": "database",
+        "libraryId": "mermaid-architecture",
+        "libraryVersion": "1.0.0"
+      },
+      "id": "named",
+      "label": "Named",
+      "position": {
+        "x": 400,
+        "y": 40
+      }
+    },
+    {
+      "id": "none",
+      "label": "None",
+      "position": {
+        "x": 580,
+        "y": 40
+      }
+    }
+  ],
+  "diagramTypeId": "cloud-infrastructure",
+  "edges": [],
+  "nodes": [
+    {
+      "containerId": "plain",
+      "icon": {
+        "iconId": "server",
+        "libraryId": "mermaid-architecture",
+        "libraryVersion": "1.0.0"
+      },
+      "id": "a",
+      "label": "A",
+      "position": {
+        "x": 40,
+        "y": 40
+      },
+      "shape": "icon"
+    }
+  ]
+}

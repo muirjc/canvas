@@ -1,0 +1,9 @@
+{
+  "errors": [
+    {
+      "content": "  class A {",
+      "line": 2,
+      "message": "Unclosed class body for 'A' opened at line 2"
+    }
+  ]
+}

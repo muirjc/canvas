@@ -1,0 +1,26 @@
+classDiagram
+  namespace Outer {
+    class A
+    namespace Inner {
+      class B
+      class C {
+        +x
+      }
+    }
+  }
+  namespace Company.Sales.Orders {
+    class Order
+  }
+  namespace Company.Sales.Invoices["Billing"] {
+    class Invoice
+  }
+  namespace Company["Acme Corp"] {
+    class HQ
+  }
+  namespace Empty {
+  }
+  namespace Labelled["Same"] {
+    class D
+  }
+  Order --> Invoice
+  A --> B

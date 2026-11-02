@@ -1,0 +1,119 @@
+{
+  "containers": [
+    {
+      "id": "block1",
+      "label": "",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "role": "rect",
+      "sequenceOrder": 0,
+      "style": {
+        "fillColor": "rgb(191, 223, 255)"
+      }
+    },
+    {
+      "id": "block2",
+      "label": "",
+      "parentContainerId": "block1",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "role": "rect",
+      "sequenceOrder": 2,
+      "style": {
+        "fillColor": "rgba(0, 0, 255, .1)"
+      }
+    },
+    {
+      "id": "block3",
+      "label": "",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "role": "rect",
+      "sequenceOrder": 4
+    },
+    {
+      "id": "block4",
+      "label": "",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "role": "rect",
+      "sequenceOrder": 6,
+      "style": {
+        "fillColor": "#ff0000"
+      }
+    }
+  ],
+  "diagramTypeId": "sequence",
+  "edges": [
+    {
+      "arrow": "target",
+      "containerId": "block1",
+      "id": "e1",
+      "label": "blue",
+      "lineStyle": "solid",
+      "sequenceOrder": 1,
+      "sourceId": "A",
+      "targetId": "B"
+    },
+    {
+      "arrow": "target",
+      "containerId": "block2",
+      "id": "e2",
+      "label": "nested",
+      "lineStyle": "solid",
+      "sequenceOrder": 3,
+      "sourceId": "B",
+      "targetId": "A"
+    },
+    {
+      "arrow": "target",
+      "containerId": "block3",
+      "id": "e3",
+      "label": "no color",
+      "lineStyle": "solid",
+      "sequenceOrder": 5,
+      "sourceId": "A",
+      "targetId": "B"
+    },
+    {
+      "arrow": "target",
+      "containerId": "block4",
+      "id": "e4",
+      "label": "hex",
+      "lineStyle": "solid",
+      "sequenceOrder": 7,
+      "sourceId": "A",
+      "targetId": "B"
+    }
+  ],
+  "nodes": [
+    {
+      "id": "A",
+      "label": "A",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "role": "participant",
+      "shape": "rectangle"
+    },
+    {
+      "id": "B",
+      "label": "B",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "role": "participant",
+      "shape": "rectangle"
+    }
+  ]
+}

@@ -1,0 +1,9 @@
+{
+  "errors": [
+    {
+      "content": "  Rel(a, b, \"50%% done\")",
+      "line": 4,
+      "message": "Could not interpret line as a C4 element, relationship, or boundary: \"Rel(a, b, \"50\""
+    }
+  ]
+}

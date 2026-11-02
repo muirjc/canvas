@@ -1,0 +1,179 @@
+{
+  "containers": [
+    {
+      "attachedNodeIds": [
+        "Client"
+      ],
+      "id": "pt1",
+      "label": "",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "role": "activate",
+      "sequenceOrder": 0
+    },
+    {
+      "attachedNodeIds": [
+        "Server"
+      ],
+      "id": "pt2",
+      "label": "",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "role": "activate",
+      "sequenceOrder": 2
+    },
+    {
+      "attachedNodeIds": [
+        "Server"
+      ],
+      "id": "pt3",
+      "label": "",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "role": "activate",
+      "sequenceOrder": 4
+    },
+    {
+      "attachedNodeIds": [
+        "Server"
+      ],
+      "id": "pt4",
+      "label": "",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "role": "deactivate",
+      "sequenceOrder": 6
+    },
+    {
+      "attachedNodeIds": [
+        "Server"
+      ],
+      "id": "pt5",
+      "label": "",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "role": "deactivate",
+      "sequenceOrder": 8
+    },
+    {
+      "attachedNodeIds": [
+        "Client"
+      ],
+      "id": "pt6",
+      "label": "",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "role": "deactivate",
+      "sequenceOrder": 9
+    },
+    {
+      "attachedNodeIds": [
+        "Ghost"
+      ],
+      "id": "pt7",
+      "label": "",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "role": "activate",
+      "sequenceOrder": 10
+    },
+    {
+      "attachedNodeIds": [
+        "Ghost"
+      ],
+      "id": "pt8",
+      "label": "",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "role": "deactivate",
+      "sequenceOrder": 11
+    }
+  ],
+  "diagramTypeId": "sequence",
+  "edges": [
+    {
+      "arrow": "target",
+      "id": "e1",
+      "label": "request",
+      "lineStyle": "solid",
+      "sequenceOrder": 1,
+      "sourceId": "Client",
+      "targetId": "Server"
+    },
+    {
+      "arrow": "target",
+      "id": "e2",
+      "label": "nested",
+      "lineStyle": "solid",
+      "sequenceOrder": 3,
+      "sourceId": "Server",
+      "targetId": "Server"
+    },
+    {
+      "arrow": "target",
+      "id": "e3",
+      "label": "done",
+      "lineStyle": "dotted",
+      "sequenceOrder": 5,
+      "sourceId": "Server",
+      "targetId": "Server"
+    },
+    {
+      "arrow": "target",
+      "id": "e4",
+      "label": "response",
+      "lineStyle": "dotted",
+      "sequenceOrder": 7,
+      "sourceId": "Server",
+      "targetId": "Client"
+    }
+  ],
+  "nodes": [
+    {
+      "id": "Client",
+      "label": "Client",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "role": "participant",
+      "shape": "rectangle"
+    },
+    {
+      "id": "Server",
+      "label": "Server",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "role": "participant",
+      "shape": "rectangle"
+    },
+    {
+      "id": "Ghost",
+      "label": "Ghost",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "role": "participant",
+      "shape": "rectangle"
+    }
+  ]
+}

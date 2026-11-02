@@ -1,0 +1,188 @@
+{
+  "containers": [
+    {
+      "attachedNodeIds": [
+        "A"
+      ],
+      "id": "note1",
+      "label": "left note",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "role": "note-left",
+      "sequenceOrder": 0,
+      "size": {
+        "height": 50,
+        "width": 100
+      }
+    },
+    {
+      "attachedNodeIds": [
+        "B"
+      ],
+      "id": "note2",
+      "label": "right note",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "role": "note-right",
+      "sequenceOrder": 1,
+      "size": {
+        "height": 50,
+        "width": 100
+      }
+    },
+    {
+      "attachedNodeIds": [
+        "A"
+      ],
+      "id": "note3",
+      "label": "over one",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "role": "note-over",
+      "sequenceOrder": 2,
+      "size": {
+        "height": 50,
+        "width": 100
+      }
+    },
+    {
+      "attachedNodeIds": [
+        "A",
+        "B"
+      ],
+      "id": "note4",
+      "label": "over two",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "role": "note-over",
+      "sequenceOrder": 3,
+      "size": {
+        "height": 50,
+        "width": 100
+      }
+    },
+    {
+      "attachedNodeIds": [
+        "A",
+        "B",
+        "C"
+      ],
+      "id": "note5",
+      "label": "three with new C",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "role": "note-over",
+      "sequenceOrder": 4,
+      "size": {
+        "height": 50,
+        "width": 132
+      }
+    },
+    {
+      "attachedNodeIds": [
+        "B"
+      ],
+      "id": "note6",
+      "label": "",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "role": "note-over",
+      "sequenceOrder": 5,
+      "size": {
+        "height": 50,
+        "width": 100
+      }
+    },
+    {
+      "attachedNodeIds": [
+        "A"
+      ],
+      "id": "note7",
+      "label": "a much longer note text that should hit the maximum width clamp of the note size computation",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "role": "note-right",
+      "sequenceOrder": 6,
+      "size": {
+        "height": 50,
+        "width": 260
+      }
+    },
+    {
+      "id": "block8",
+      "label": "inside",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "role": "loop",
+      "sequenceOrder": 7
+    },
+    {
+      "attachedNodeIds": [
+        "A"
+      ],
+      "id": "note9",
+      "label": "nested note",
+      "parentContainerId": "block8",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "role": "note-over",
+      "sequenceOrder": 8,
+      "size": {
+        "height": 50,
+        "width": 100
+      }
+    }
+  ],
+  "diagramTypeId": "sequence",
+  "edges": [],
+  "nodes": [
+    {
+      "id": "A",
+      "label": "A",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "role": "participant",
+      "shape": "rectangle"
+    },
+    {
+      "id": "B",
+      "label": "B",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "role": "participant",
+      "shape": "rectangle"
+    },
+    {
+      "id": "C",
+      "label": "C",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "role": "participant",
+      "shape": "rectangle"
+    }
+  ]
+}

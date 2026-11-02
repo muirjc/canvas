@@ -1,0 +1,9 @@
+architecture-beta
+  group aws(logos:aws)[AWS]
+  service lambda(logos:aws-lambda)[Lambda] in aws
+  service s3(LOGOS:aws-s3)[S3] in aws
+  service vm(virtual-machine)[Virtual machine]
+  service weird(mdi:server:x)[Two colons]
+  service under(a_b:c)[Underscore prefix]
+  lambda --> s3
+  vm <-- lambda

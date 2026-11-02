@@ -1,0 +1,8 @@
+C4Container
+  Person(user, "User", $tags="customer, vip", $sprite="person")
+  Container(web, "Web", $techn="React", $descr="UI", $link="https://example.com")
+  Container(api, "API", "Node", $descr="named wins", "positional descr ignored")
+  System(s, "Sys", "positional", $descr="named overrides")
+  System(t, "Tagged", $tags="")
+  Rel(user, web, "Uses", $techn="HTTPS", $tags="sync")
+  Rel(web, api, "Calls", "JSON", $descr="named descr")

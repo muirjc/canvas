@@ -90,9 +90,9 @@ BARE_TOKEN = re.compile(f"^({TOKEN})$")
 
 SUBGRAPH_START = re.compile(f"^subgraph{S}+({ID})(?:{S}*\\[({DOT}+)\\])?$")
 SUBGRAPH_END = re.compile("^end$")
-SUBGRAPH_DIRECTION = re.compile(f"^direction{S}+(TD|LR|TB|RL|BT)$", re.IGNORECASE)
+SUBGRAPH_DIRECTION = re.compile(f"^direction{S}+(TD|LR|TB|RL|BT)$", re.IGNORECASE | re.ASCII)
 BARE_ID = re.compile(f"^({ID}){CLASS_SUFFIX_CAPTURE}$")
-HEADER = re.compile(f"^(?:flowchart|graph){S}+(TD|LR|TB|RL|BT)$", re.IGNORECASE)
+HEADER = re.compile(f"^(?:flowchart|graph){S}+(TD|LR|TB|RL|BT)$", re.IGNORECASE | re.ASCII)
 TITLE_PATTERN = re.compile(f"^title{S}+({DOT}+)$")
 ACC_TITLE_PATTERN = re.compile(f"^accTitle{S}*:{S}*({DOT}+)$")
 ACC_DESCR_PATTERN = re.compile(f"^accDescr{S}*:{S}*({DOT}+)$")
@@ -437,7 +437,7 @@ def parse_flowchart(dsl: str) -> dict[str, Any]:
                 continue
             if node.get("role") is None:
                 node["role"] = class_name
-            if class_style:
+            if class_style is not None:  # an empty classDef ({}) is truthy in JavaScript
                 node["style"] = _merge(node.get("style"), class_style)
 
     for node_id, props_raw in style_directives:
@@ -606,8 +606,8 @@ def serialize_flowchart(model: dict[str, Any]) -> str:
                     if c.get("size")
                 ]
             ),
-            "styles": _entries([(n["id"], n["style"]) for n in nodes if n.get("style")]),
-            "edgeStyles": _entries([(e["id"], e["style"]) for e in edges if e.get("style")]),
+            "styles": _entries([(n["id"], n["style"]) for n in nodes if n.get("style") is not None]),
+            "edgeStyles": _entries([(e["id"], e["style"]) for e in edges if e.get("style") is not None]),
             "icons": _entries([(n["id"], n["icon"]) for n in nodes if n.get("icon")]),
         }
     }

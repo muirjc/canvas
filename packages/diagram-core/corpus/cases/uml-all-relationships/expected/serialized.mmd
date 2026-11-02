@@ -1,0 +1,102 @@
+---
+canvas:
+  positions:
+    A:
+      x: 40
+      y: 40
+    B:
+      x: 220
+      y: 40
+    C:
+      x: 400
+      y: 40
+    D:
+      x: 580
+      y: 40
+    E:
+      x: 760
+      y: 40
+    F:
+      x: 940
+      y: 40
+    G:
+      x: 40
+      y: 140
+    H:
+      x: 220
+      y: 140
+    I:
+      x: 400
+      y: 140
+    J:
+      x: 580
+      y: 140
+    K:
+      x: 760
+      y: 140
+    L:
+      x: 940
+      y: 140
+    M:
+      x: 40
+      y: 240
+    N:
+      x: 220
+      y: 240
+    O:
+      x: 400
+      y: 240
+    P:
+      x: 580
+      y: 240
+    Q:
+      x: 760
+      y: 240
+    R:
+      x: 940
+      y: 240
+    S:
+      x: 40
+      y: 340
+    T:
+      x: 220
+      y: 340
+  styles: {}
+  containers: {}
+---
+classDiagram
+class A
+class B
+class C
+class D
+class E
+class F
+class G
+class H
+class I
+class J
+class K
+class L
+class M
+class N
+class O
+class P
+class Q
+class R
+class S
+class T
+A <|-- B
+C *-- D
+E o-- F
+G --> H
+I -- J
+K ..> L
+M ..|> N
+O .. P
+Q ()-- R
+S --() T
+A "1" --> "*" B : has many
+C "0..1" *-- D
+E o-- "many" F
+G "1" --> "2" H : tight
+I -- J : label with : colon

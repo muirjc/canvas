@@ -1,4 +1,4 @@
-"""canvas-1bty.15.1: DiagramCore's modes (native / shadow / bridge) with a fake bridge, so no Node is needed."""
+"""canvas-1bty.15.1, .15.2: DiagramCore's modes (native / shadow / bridge) with a fake bridge, so no Node is needed."""
 
 from __future__ import annotations
 
@@ -74,9 +74,8 @@ def native_answers() -> dict[str, Any]:
     }
 
 
-def test_the_families_ported_so_far() -> None:
-    assert sorted(NATIVE_FAMILIES) == ["flowchart"]
-    assert set(KNOWN_FAMILIES) >= NATIVE_FAMILIES
+def test_every_family_is_ported() -> None:
+    assert frozenset(KNOWN_FAMILIES) == NATIVE_FAMILIES
 
 
 # --- bridge mode -------------------------------------------------------------------------------------
@@ -109,24 +108,17 @@ def test_native_mode_answers_ported_operations_without_the_bridge() -> None:
     assert bridge.calls == []
 
 
-def test_native_mode_still_sends_unported_families_to_the_bridge() -> None:
-    bridge = FakeBridge(detect_and_parse={"family": "sequence", "model": {"x": 1}}, parse={"model": {"x": 2}})
+def test_native_mode_answers_every_family_without_the_bridge() -> None:
+    bridge = FakeBridge()
     core = core_with(bridge, "native")
-    assert core.parse("sequence", SEQUENCE) == {"model": {"x": 2}}
-    assert core.serialize("c4", {}) == "from the bridge"
-    assert core.detect_and_parse(SEQUENCE) == {"family": "sequence", "model": {"x": 1}}
-    assert core.detect_and_parse("whatever", "c4") == {"family": "sequence", "model": {"x": 1}}
-    assert core.empty_dsl("erd", "erd") == "from the bridge"
-    assert core.portable(C4) == "from the bridge"
-    assert bridge.calls == ["parse", "serialize", "detect_and_parse", "detect_and_parse", "empty_dsl", "portable"]
-
-
-def test_native_families_without_a_ported_serializer_do_not_exist_yet() -> None:
-    # sequence and architecture portable output is native (they are passed through), the rest is the bridge's.
-    core = DiagramCore(None)
-    assert core.portable(SEQUENCE, strip_front_matter=True).startswith("sequenceDiagram")
-    with pytest.raises(BridgeError, match="not ported"):
-        core.portable(C4)
+    assert [n["id"] for n in core.parse("sequence", SEQUENCE)["model"]["nodes"]] == ["A", "B"]
+    c4 = core.parse("c4", C4)["model"]
+    assert core.serialize("c4", c4).startswith("---\ncanvas:")
+    assert core.detect_and_parse(SEQUENCE)["family"] == "sequence"
+    assert core.detect_and_parse(C4, "c4")["family"] == "c4"
+    assert core.empty_dsl("erd", "erd").startswith("erDiagram")
+    assert core.portable(C4, strip_front_matter=True).startswith("C4Context")
+    assert bridge.calls == []
 
 
 def test_native_yaml_errors_become_bridge_errors() -> None:
@@ -218,13 +210,16 @@ def test_shadow_error_logs_never_contain_the_diagram(caplog: pytest.LogCaptureFi
         assert SECRET not in repr(record.__dict__)
 
 
-def test_shadow_mode_sends_unported_families_straight_to_the_bridge(caplog: pytest.LogCaptureFixture) -> None:
-    bridge = FakeBridge(parse={"model": {"x": 1}})
+def test_shadow_mode_compares_every_family(caplog: pytest.LogCaptureFixture) -> None:
+    native = DiagramCore(None)
+    answer = native.parse("sequence", SEQUENCE)
+    bridge = FakeBridge(parse=answer)
     core = core_with(bridge, "shadow")
     with caplog.at_level(logging.DEBUG, logger=LOGGER):
-        assert core.parse("uml", "classDiagram\n") == {"model": {"x": 1}}
+        assert core.parse("sequence", SEQUENCE) == answer
     assert bridge.calls == ["parse"]
-    assert caplog.records == []
+    assert [r.__dict__["family"] for r in caplog.records] == ["sequence"]
+    assert [r for r in caplog.records if r.levelno >= logging.WARNING] == []
 
 
 # --- no bridge ---------------------------------------------------------------------------------------
@@ -242,10 +237,6 @@ def test_without_a_bridge_the_mode_is_native(mode: Mode) -> None:
 def test_without_a_bridge_unported_operations_raise() -> None:
     core = DiagramCore(None)
     for call in (
-        lambda: core.parse("sequence", SEQUENCE),
-        lambda: core.serialize("c4", {}),
-        lambda: core.empty_dsl("erd", "erd"),
-        lambda: core.detect_and_parse(SEQUENCE),
         lambda: core.validate({}, {}),
         lambda: core.render_svg({}),
     ):

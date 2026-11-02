@@ -1,0 +1,17 @@
+---
+canvas:
+  positions:
+    CUSTOMER:
+      x: 40
+      y: 40
+    ORDER:
+      x: 240
+      y: 40
+  styles: {}
+---
+erDiagram
+direction LR
+CUSTOMER {
+  string id PK "key"
+}
+CUSTOMER ||--o{ ORDER : places

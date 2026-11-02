@@ -1,0 +1,13 @@
+C4Context
+  Person(p, "Person")
+  Person_Ext(px, "External person", "outside")
+  System(s, "System", "desc", "sprite-ignored", "tag-ignored")
+  System_Ext(sx, "External system")
+  SystemDb(sd, "System DB")
+  SystemDb_Ext(sdx, "External DB", "Stores")
+  SystemQueue(sq, "Queue")
+  SystemQueue_Ext(sqx, "External queue")
+  Container(c, "Container")
+  Container_Ext(cx, "External container", "Go")
+  ContainerQueue_Ext(cqx, "External container queue", "Kafka", "Events")
+  Rel(p, s, "Uses")

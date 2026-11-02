@@ -1,0 +1,150 @@
+{
+  "containers": [],
+  "diagramTypeId": "c4-context",
+  "edges": [
+    {
+      "id": "e1",
+      "label": "Uses",
+      "sourceId": "p",
+      "targetId": "s"
+    }
+  ],
+  "nodes": [
+    {
+      "c4TypeLabel": "Person",
+      "id": "p",
+      "label": "Person",
+      "position": {
+        "x": 40,
+        "y": 40
+      },
+      "role": "person",
+      "shape": "person"
+    },
+    {
+      "c4TypeLabel": "Person",
+      "description": "outside",
+      "external": true,
+      "id": "px",
+      "label": "External person",
+      "position": {
+        "x": 220,
+        "y": 40
+      },
+      "role": "person",
+      "shape": "person"
+    },
+    {
+      "c4TypeLabel": "Software System",
+      "description": "desc",
+      "id": "s",
+      "label": "System",
+      "position": {
+        "x": 460,
+        "y": 40
+      },
+      "role": "system",
+      "shape": "rectangle",
+      "tags": [
+        "tag-ignored"
+      ]
+    },
+    {
+      "c4TypeLabel": "Software System",
+      "external": true,
+      "id": "sx",
+      "label": "External system",
+      "position": {
+        "x": 700,
+        "y": 40
+      },
+      "role": "system",
+      "shape": "rectangle"
+    },
+    {
+      "c4TypeLabel": "Software System",
+      "id": "sd",
+      "label": "System DB",
+      "position": {
+        "x": 880,
+        "y": 40
+      },
+      "role": "system",
+      "shape": "cylinder"
+    },
+    {
+      "c4TypeLabel": "Software System",
+      "description": "Stores",
+      "external": true,
+      "id": "sdx",
+      "label": "External DB",
+      "position": {
+        "x": 40,
+        "y": 200
+      },
+      "role": "system",
+      "shape": "cylinder"
+    },
+    {
+      "c4TypeLabel": "Software System",
+      "id": "sq",
+      "label": "Queue",
+      "position": {
+        "x": 280,
+        "y": 200
+      },
+      "role": "system",
+      "shape": "stadium"
+    },
+    {
+      "c4TypeLabel": "Software System",
+      "external": true,
+      "id": "sqx",
+      "label": "External queue",
+      "position": {
+        "x": 460,
+        "y": 200
+      },
+      "role": "system",
+      "shape": "stadium"
+    },
+    {
+      "c4TypeLabel": "Container",
+      "id": "c",
+      "label": "Container",
+      "position": {
+        "x": 640,
+        "y": 200
+      },
+      "role": "container",
+      "shape": "rounded-rectangle"
+    },
+    {
+      "c4TypeLabel": "Container",
+      "external": true,
+      "id": "cx",
+      "label": "External container",
+      "position": {
+        "x": 820,
+        "y": 200
+      },
+      "role": "container",
+      "shape": "rounded-rectangle",
+      "technology": "Go"
+    },
+    {
+      "c4TypeLabel": "Container",
+      "description": "Events",
+      "external": true,
+      "id": "cqx",
+      "label": "External container queue",
+      "position": {
+        "x": 40,
+        "y": 313
+      },
+      "role": "container",
+      "shape": "stadium",
+      "technology": "Kafka"
+    }
+  ]
+}

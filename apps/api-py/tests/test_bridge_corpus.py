@@ -32,9 +32,14 @@ if _MISSING and os.environ.get("REQUIRE_BRIDGE") == "1":
 pytestmark = pytest.mark.skipif(_MISSING, reason="needs node and packages/diagram-bridge/dist/bridge.mjs")
 
 
-#: Cases whose model holds a NaN (a stroke-width that isn't a number). The native port covers them
-#: (tests/test_diagram_core_corpus_native.py); JSON over the bridge cannot carry NaN.
-NAN_CASES = {"flowchart-nan-stroke-width"}
+#: Cases whose model holds a NaN (a stroke-width that isn't a number; the YAML writes it `.nan`). The native port
+#: covers them (tests/test_diagram_core_corpus_native.py); JSON over the bridge cannot carry NaN.
+NAN_CASES = {
+    c
+    for c in CASES
+    if (CORPUS / "cases" / c / "expected" / "serialized.mmd").exists()
+    and ": .nan" in (CORPUS / "cases" / c / "expected" / "serialized.mmd").read_text("utf-8")
+}
 
 
 @pytest.fixture(scope="module")

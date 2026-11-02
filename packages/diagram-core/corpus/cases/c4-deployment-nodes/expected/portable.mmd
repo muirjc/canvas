@@ -1,0 +1,13 @@
+C4Deployment
+  title Deployment
+  Deployment_Node(cloud, "Cloud", "Azure", "Primary region", $tags="prod") {
+    Node_L(left, "Left node", "VM") {
+      Container(app, "App", "Python")
+    }
+    Node_R(right, "Right node") {
+      ContainerDb(db, "DB", "Postgres", "Data")
+    }
+    Node(n, "Plain", "", "described only") {
+    }
+  }
+  Rel(app, db, "SQL", "TLS")

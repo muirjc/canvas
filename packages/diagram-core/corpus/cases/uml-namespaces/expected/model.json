@@ -1,0 +1,213 @@
+{
+  "containers": [
+    {
+      "id": "Outer",
+      "label": "Outer",
+      "position": {
+        "x": 40,
+        "y": 40
+      },
+      "role": "namespace",
+      "size": {
+        "height": 200,
+        "width": 580
+      }
+    },
+    {
+      "id": "Outer.Inner",
+      "label": "Inner",
+      "parentContainerId": "Outer",
+      "position": {
+        "x": 60,
+        "y": 90
+      },
+      "role": "namespace",
+      "size": {
+        "height": 130,
+        "width": 360
+      }
+    },
+    {
+      "id": "Company",
+      "label": "Acme Corp",
+      "position": {
+        "x": 660,
+        "y": 40
+      },
+      "role": "namespace",
+      "size": {
+        "height": 270,
+        "width": 660
+      }
+    },
+    {
+      "id": "Company.Sales",
+      "label": "Sales",
+      "parentContainerId": "Company",
+      "position": {
+        "x": 680,
+        "y": 90
+      },
+      "role": "namespace",
+      "size": {
+        "height": 200,
+        "width": 440
+      }
+    },
+    {
+      "id": "Company.Sales.Orders",
+      "label": "Orders",
+      "parentContainerId": "Company.Sales",
+      "position": {
+        "x": 700,
+        "y": 140
+      },
+      "role": "namespace",
+      "size": {
+        "height": 130,
+        "width": 180
+      }
+    },
+    {
+      "id": "Company.Sales.Invoices",
+      "label": "Billing",
+      "parentContainerId": "Company.Sales",
+      "position": {
+        "x": 920,
+        "y": 140
+      },
+      "role": "namespace",
+      "size": {
+        "height": 130,
+        "width": 180
+      }
+    },
+    {
+      "id": "Empty",
+      "label": "Empty",
+      "position": {
+        "x": 40,
+        "y": 350
+      },
+      "role": "namespace",
+      "size": {
+        "height": 100,
+        "width": 160
+      }
+    },
+    {
+      "id": "Labelled",
+      "label": "Same",
+      "position": {
+        "x": 240,
+        "y": 350
+      },
+      "role": "namespace",
+      "size": {
+        "height": 130,
+        "width": 180
+      }
+    }
+  ],
+  "diagramTypeId": "uml",
+  "edges": [
+    {
+      "id": "e1",
+      "sourceId": "Order",
+      "targetId": "Invoice",
+      "umlRelationKind": "association"
+    },
+    {
+      "id": "e2",
+      "sourceId": "A",
+      "targetId": "B",
+      "umlRelationKind": "association"
+    }
+  ],
+  "nodes": [
+    {
+      "containerId": "Outer",
+      "id": "A",
+      "label": "A",
+      "position": {
+        "x": 460,
+        "y": 90
+      },
+      "role": "class",
+      "shape": "rectangle"
+    },
+    {
+      "containerId": "Outer.Inner",
+      "id": "B",
+      "label": "B",
+      "position": {
+        "x": 80,
+        "y": 140
+      },
+      "role": "class",
+      "shape": "rectangle"
+    },
+    {
+      "containerId": "Outer.Inner",
+      "id": "C",
+      "label": "C",
+      "members": [
+        {
+          "kind": "attribute",
+          "name": "x",
+          "visibility": "+"
+        }
+      ],
+      "position": {
+        "x": 260,
+        "y": 140
+      },
+      "role": "class",
+      "shape": "rectangle"
+    },
+    {
+      "containerId": "Company.Sales.Orders",
+      "id": "Order",
+      "label": "Order",
+      "position": {
+        "x": 720,
+        "y": 190
+      },
+      "role": "class",
+      "shape": "rectangle"
+    },
+    {
+      "containerId": "Company.Sales.Invoices",
+      "id": "Invoice",
+      "label": "Invoice",
+      "position": {
+        "x": 940,
+        "y": 190
+      },
+      "role": "class",
+      "shape": "rectangle"
+    },
+    {
+      "containerId": "Company",
+      "id": "HQ",
+      "label": "HQ",
+      "position": {
+        "x": 1160,
+        "y": 90
+      },
+      "role": "class",
+      "shape": "rectangle"
+    },
+    {
+      "containerId": "Labelled",
+      "id": "D",
+      "label": "D",
+      "position": {
+        "x": 260,
+        "y": 400
+      },
+      "role": "class",
+      "shape": "rectangle"
+    }
+  ]
+}

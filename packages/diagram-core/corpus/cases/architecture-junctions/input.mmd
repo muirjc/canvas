@@ -1,0 +1,15 @@
+architecture-beta
+  group net(cloud)[Network]
+  service left(server)[Left]
+  service right(server)[Right]
+  service up(server)[Up]
+  service down(server)[Down]
+  junction hub
+  junction j2 in net
+  service inside(server)[Inside] in net
+  left:R -- L:hub
+  hub:R -- L:right
+  hub:T -- B:up
+  hub:B -- T:down
+  j2:R --> L:inside
+  down:B -- T:j2

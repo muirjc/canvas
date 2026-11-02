@@ -1,0 +1,95 @@
+---
+canvas:
+  positions:
+    A:
+      x: 460
+      y: 90
+    B:
+      x: 80
+      y: 140
+    C:
+      x: 260
+      y: 140
+    Order:
+      x: 720
+      y: 190
+    Invoice:
+      x: 940
+      y: 190
+    HQ:
+      x: 1160
+      y: 90
+    D:
+      x: 260
+      y: 400
+  styles: {}
+  containers:
+    Outer:
+      x: 40
+      y: 40
+      width: 580
+      height: 200
+    Outer.Inner:
+      x: 60
+      y: 90
+      width: 360
+      height: 130
+    Company:
+      x: 660
+      y: 40
+      width: 660
+      height: 270
+    Company.Sales:
+      x: 680
+      y: 90
+      width: 440
+      height: 200
+    Company.Sales.Orders:
+      x: 700
+      y: 140
+      width: 180
+      height: 130
+    Company.Sales.Invoices:
+      x: 920
+      y: 140
+      width: 180
+      height: 130
+    Empty:
+      x: 40
+      y: 350
+      width: 160
+      height: 100
+    Labelled:
+      x: 240
+      y: 350
+      width: 180
+      height: 130
+---
+classDiagram
+namespace Outer {
+  class A
+  namespace Inner {
+    class B
+    class C {
+      +x
+    }
+  }
+}
+namespace Company["Acme Corp"] {
+  class HQ
+  namespace Sales {
+    namespace Orders {
+      class Order
+    }
+    namespace Invoices["Billing"] {
+      class Invoice
+    }
+  }
+}
+namespace Empty {
+}
+namespace Labelled["Same"] {
+  class D
+}
+Order --> Invoice
+A --> B

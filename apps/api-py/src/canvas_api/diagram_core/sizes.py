@@ -16,7 +16,7 @@ __all__ = ["DEFAULT_NODE_SIZE", "node_size", "split_label_lines"]
 Node = dict[str, Any]
 
 DEFAULT_NODE_SIZE = {"width": 140, "height": 60}
-_LINE_BREAK = re.compile(f"<br[{JS_WHITESPACE}]*/?>|\\r?\\n", re.IGNORECASE)
+_LINE_BREAK = re.compile(f"<br[{JS_WHITESPACE}]*/?>|\\r?\\n", re.IGNORECASE | re.ASCII)
 AVG_CHAR_WIDTH_RATIO = 0.56
 
 ICON_GLYPH_SIZE = 48

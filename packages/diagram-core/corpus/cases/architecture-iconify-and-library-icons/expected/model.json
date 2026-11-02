@@ -1,0 +1,110 @@
+{
+  "containers": [
+    {
+      "icon": {
+        "iconId": "aws",
+        "libraryId": "logos",
+        "libraryVersion": "iconify"
+      },
+      "id": "aws",
+      "label": "AWS",
+      "position": {
+        "x": 208,
+        "y": 40
+      },
+      "size": {
+        "height": 156.4,
+        "width": 316
+      }
+    }
+  ],
+  "diagramTypeId": "cloud-infrastructure",
+  "edges": [
+    {
+      "arrow": "target",
+      "id": "e1",
+      "sourceId": "lambda",
+      "targetId": "s3"
+    },
+    {
+      "arrow": "source",
+      "id": "e2",
+      "sourceId": "vm",
+      "targetId": "lambda"
+    }
+  ],
+  "nodes": [
+    {
+      "containerId": "aws",
+      "icon": {
+        "iconId": "aws-lambda",
+        "libraryId": "logos",
+        "libraryVersion": "iconify"
+      },
+      "id": "lambda",
+      "label": "Lambda",
+      "position": {
+        "x": 228,
+        "y": 90
+      },
+      "shape": "icon"
+    },
+    {
+      "containerId": "aws",
+      "icon": {
+        "iconId": "aws-s3",
+        "libraryId": "LOGOS",
+        "libraryVersion": "iconify"
+      },
+      "id": "s3",
+      "label": "S3",
+      "position": {
+        "x": 396,
+        "y": 90
+      },
+      "shape": "icon"
+    },
+    {
+      "icon": {
+        "iconId": "virtual-machine",
+        "libraryId": "generic",
+        "libraryVersion": "1.0.0"
+      },
+      "id": "vm",
+      "label": "Virtual machine",
+      "position": {
+        "x": 40,
+        "y": 67.80000000000001
+      },
+      "shape": "icon"
+    },
+    {
+      "icon": {
+        "iconId": "server:x",
+        "libraryId": "mdi",
+        "libraryVersion": "iconify"
+      },
+      "id": "weird",
+      "label": "Two colons",
+      "position": {
+        "x": 584,
+        "y": 40
+      },
+      "shape": "icon"
+    },
+    {
+      "icon": {
+        "iconId": "a_b:c",
+        "libraryId": "generic",
+        "libraryVersion": "1.0.0"
+      },
+      "id": "under",
+      "label": "Underscore prefix",
+      "position": {
+        "x": 752,
+        "y": 40
+      },
+      "shape": "icon"
+    }
+  ]
+}

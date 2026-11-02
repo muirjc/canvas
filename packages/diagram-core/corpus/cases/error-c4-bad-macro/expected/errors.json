@@ -1,0 +1,19 @@
+{
+  "errors": [
+    {
+      "content": "  UpdateElementStyle(a)",
+      "line": 3,
+      "message": "Could not interpret line as a C4 element, relationship, or boundary: \"UpdateElementStyle(a)\""
+    },
+    {
+      "content": "  Lay_X(a, b)",
+      "line": 4,
+      "message": "Could not interpret line as a C4 element, relationship, or boundary: \"Lay_X(a, b)\""
+    },
+    {
+      "content": "  Deployment_Node(x, \"X\")",
+      "line": 5,
+      "message": "Could not interpret line as a C4 element, relationship, or boundary: \"Deployment_Node(x, \"X\")\""
+    }
+  ]
+}

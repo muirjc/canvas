@@ -1,0 +1,9 @@
+{
+  "errors": [
+    {
+      "content": "  CUSTOMER {",
+      "line": 2,
+      "message": "Unclosed attribute block for entity 'CUSTOMER' opened at line 2"
+    }
+  ]
+}

@@ -1,0 +1,9 @@
+architecture-beta
+  group vpc(cloud)[VPC]
+  group other(cloud)[Other]
+  service api(server)[API] in vpc
+  service db(database)[DB] in vpc
+  service late(server)[Late]
+  junction j
+  api:R --> L:db
+  db:B -- T:j

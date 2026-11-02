@@ -1,0 +1,73 @@
+---
+canvas:
+  positions:
+    Customer:
+      x: 60
+      y: 360
+    Order:
+      x: 284
+      y: 360
+    Invoice:
+      x: 80
+      y: 140
+    Payment:
+      x: 260
+      y: 140
+    Refund:
+      x: 440
+      y: 140
+    Ledger:
+      x: 620
+      y: 140
+    Account:
+      x: 800
+      y: 140
+    Statement:
+      x: 80
+      y: 240
+    Standalone:
+      x: 240
+      y: 510
+    Another:
+      x: 420
+      y: 510
+  styles: {}
+  containers:
+    Domain:
+      x: 40
+      y: 40
+      width: 940
+      height: 430
+    Domain.Billing:
+      x: 60
+      y: 90
+      width: 900
+      height: 230
+    note1:
+      x: 40
+      y: 510
+      width: 160
+      height: 100
+---
+classDiagram
+namespace Domain {
+  class Customer {
+    +String name
+    +String email
+    +placeOrder(Order o) bool
+  }
+  class Order
+  namespace Billing {
+    class Invoice
+    class Payment
+    class Refund
+    class Ledger
+    class Account
+    class Statement
+  }
+}
+class Standalone
+class Another
+Customer --> Order
+Invoice --> Payment
+note "free note"

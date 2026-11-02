@@ -1,0 +1,29 @@
+{
+  "errors": [
+    {
+      "content": "  CUSTOMER ||--o{ ORDER",
+      "line": 2,
+      "message": "Could not interpret line as an entity, relationship, or directive: \"CUSTOMER ||--o{ ORDER\""
+    },
+    {
+      "content": "  }",
+      "line": 3,
+      "message": "Could not interpret line as an entity, relationship, or directive: \"}\""
+    },
+    {
+      "content": "    justonetoken",
+      "line": 5,
+      "message": "Could not interpret line as an entity attribute: \"justonetoken\""
+    },
+    {
+      "content": "  direction TD",
+      "line": 7,
+      "message": "Could not interpret line as an entity, relationship, or directive: \"direction TD\""
+    },
+    {
+      "content": "  this is not valid ;;",
+      "line": 8,
+      "message": "Could not interpret line as an entity, relationship, or directive: \"this is not valid ;;\""
+    }
+  ]
+}

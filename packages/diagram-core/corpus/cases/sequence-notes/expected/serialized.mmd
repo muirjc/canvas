@@ -1,0 +1,14 @@
+sequenceDiagram
+participant A
+participant B
+participant C
+Note left of A: left note
+Note right of B: right note
+Note over A: over one
+Note over A, B: over two
+Note over A, B, C: three with new C
+Note over B: 
+Note right of A: a much longer note text that should hit the maximum width clamp of the note size computation
+loop inside
+  Note over A: nested note
+end

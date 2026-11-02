@@ -1,0 +1,30 @@
+---
+canvas:
+  positions:
+    user:
+      x: 40
+      y: 40
+    web:
+      x: 220
+      y: 40
+    api:
+      x: 460
+      y: 40
+    s:
+      x: 700
+      y: 40
+    t:
+      x: 940
+      y: 40
+  styles: {}
+  edgeStyles: {}
+  containers: {}
+---
+C4Container
+Person(user, "User", $tags="customer,vip")
+Container(web, "Web", "React", "UI")
+Container(api, "API", "Node", "named wins")
+System(s, "Sys", "named overrides")
+System(t, "Tagged")
+Rel(user, web, "Uses", "HTTPS")
+Rel(web, api, "Calls", "JSON", "named descr")

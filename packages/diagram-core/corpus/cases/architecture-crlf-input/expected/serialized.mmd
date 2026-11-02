@@ -1,0 +1,35 @@
+---
+canvas:
+  positions:
+    a:
+      x: 60
+      y: 90
+    b:
+      x: 248
+      y: 75
+  containers:
+    g:
+      x: 40
+      y: 40
+      width: 148
+      height: 156.4
+  icons:
+    a:
+      libraryId: mermaid-architecture
+      libraryVersion: 1.0.0
+      iconId: server
+    b:
+      libraryId: mermaid-architecture
+      libraryVersion: 1.0.0
+      iconId: database
+    g:
+      libraryId: mermaid-architecture
+      libraryVersion: 1.0.0
+      iconId: cloud
+---
+architecture-beta
+group g(cloud)[Group]
+service a(server)[A] in g
+service b(database)[B]
+a:R --> L:b
+align row a b
