@@ -206,6 +206,9 @@ def install(app: FastAPI, settings: Settings, transport: httpx.AsyncBaseTranspor
     app.state.typescript_forwarder = forwarder
     paused_page = _DEFAULT_PAUSED_PAGE
     if settings.paused_page_path and os.path.isfile(settings.paused_page_path):
+        # PAUSED_PAGE_PATH is operator configuration (the image sets it), read once at start-up: nothing
+        # from a request reaches this path.
+        # bearer:disable python_lang_path_traversal
         paused_page = Path(settings.paused_page_path).read_text(encoding="utf-8")
 
     class FrontDoor(BaseHTTPMiddleware):
