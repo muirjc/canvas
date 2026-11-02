@@ -1,0 +1,67 @@
+{
+  "containers": [],
+  "diagramTypeId": "flowchart",
+  "direction": "LR",
+  "edges": [
+    {
+      "id": "e1",
+      "sourceId": "A",
+      "targetId": "B"
+    }
+  ],
+  "legend": {
+    "extra": [
+      {
+        "id": "e1",
+        "label": "Thing",
+        "sample": {
+          "fill": "#ffffff",
+          "kind": "shape",
+          "shape": "rectangle"
+        }
+      },
+      {
+        "id": "e2",
+        "label": "Link",
+        "sample": {
+          "arrow": "both",
+          "kind": "line"
+        }
+      }
+    ],
+    "hidden": [
+      "kind:a"
+    ],
+    "labels": {
+      "kind:a": "Kind A",
+      "kind:b": "Kind B"
+    },
+    "position": {
+      "x": 400,
+      "y": 20
+    },
+    "title": "Key",
+    "visible": true
+  },
+  "nodes": [
+    {
+      "id": "A",
+      "label": "A",
+      "position": {
+        "x": 40,
+        "y": 40
+      },
+      "role": "kind_a",
+      "shape": "rectangle"
+    },
+    {
+      "id": "B",
+      "label": "B",
+      "position": {
+        "x": 40,
+        "y": 40
+      },
+      "shape": "rectangle"
+    }
+  ]
+}

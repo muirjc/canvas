@@ -71,6 +71,10 @@ param typescriptApiUrl string = ''
 @description('canvas-1bty.14: route groups sent back to TypeScript (TYPESCRIPT_ROUTE_GROUPS): empty or "none" = none.')
 param typescriptRouteGroups string = ''
 
+@description('canvas-1bty.15: DIAGRAM_CORE_MODE -- who answers the parts of diagram-core ported to Python: shadow (the bridge answers, Python is compared and differences logged), native, or bridge.')
+@allowed(['shadow', 'native', 'bridge'])
+param diagramCoreMode string = 'shadow'
+
 @description('Port uvicorn listens on (apps/api-py/Dockerfile).')
 param port int = 8000
 
@@ -161,6 +165,7 @@ resource apiApp 'Microsoft.App/containerApps@2025-01-01' = {
             { name: 'OTEL_SERVICE_NAME', value: 'canvas-api' }
             // canvas-1bty.4: the diagram-core bridge, the sidecar below (same localhost).
             { name: 'DIAGRAM_BRIDGE_URL', value: 'http://127.0.0.1:7070' }
+            { name: 'DIAGRAM_CORE_MODE', value: diagramCoreMode }
             // canvas-1bty.11: GitHub approval.
             { name: 'GITHUB_APP_ID', value: githubAppId }
             { name: 'GITHUB_APP_PRIVATE_KEY', secretRef: 'github-app-private-key' }

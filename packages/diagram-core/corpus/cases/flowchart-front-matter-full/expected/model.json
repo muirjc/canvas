@@ -1,0 +1,77 @@
+{
+  "containers": [
+    {
+      "id": "G",
+      "label": "Group",
+      "position": {
+        "x": 20,
+        "y": 20
+      },
+      "size": {
+        "height": 260,
+        "width": 360
+      }
+    }
+  ],
+  "diagramTypeId": "flowchart",
+  "direction": "LR",
+  "edges": [
+    {
+      "id": "e1",
+      "sourceId": "A",
+      "targetId": "B"
+    },
+    {
+      "id": "e2",
+      "sourceId": "B",
+      "targetId": "C"
+    }
+  ],
+  "nodes": [
+    {
+      "containerId": "G",
+      "icon": {
+        "iconId": "ec2",
+        "libraryId": "aws-icons",
+        "libraryVersion": "2024.1"
+      },
+      "id": "A",
+      "label": "Alpha",
+      "position": {
+        "x": 40,
+        "y": 40
+      },
+      "shape": "icon",
+      "style": {
+        "fillColor": "#dbeafe",
+        "strokeColor": "#1e3a8a",
+        "strokeDasharray": "4 2",
+        "strokeWidth": 2
+      }
+    },
+    {
+      "containerId": "G",
+      "icon": {
+        "iconId": "storage-accounts",
+        "libraryId": "azure-icons",
+        "libraryVersion": "1"
+      },
+      "id": "B",
+      "label": "Beta",
+      "position": {
+        "x": 240.5,
+        "y": 40
+      },
+      "shape": "icon"
+    },
+    {
+      "id": "C",
+      "label": "Gamma",
+      "position": {
+        "x": 140,
+        "y": 200
+      },
+      "shape": "rectangle"
+    }
+  ]
+}

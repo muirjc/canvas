@@ -1,0 +1,9 @@
+{
+  "errors": [
+    {
+      "content": "  click A call handler()",
+      "line": 3,
+      "message": "\"click <id> call ...\" is not supported: executing a function named by diagram text is a security risk (code execution from untrusted, pasted-to-import content), not a parsing feature. Use \"click <id> href \\\"<url>\\\"\" instead."
+    }
+  ]
+}

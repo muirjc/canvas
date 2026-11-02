@@ -1,0 +1,14 @@
+{
+  "errors": [
+    {
+      "content": "  H & I --> J",
+      "line": 3,
+      "message": "Could not interpret line as a node, edge, or subgraph: \"H & I --> J\""
+    },
+    {
+      "content": "  K & L --> M & N",
+      "line": 4,
+      "message": "Could not interpret line as a node, edge, or subgraph: \"K & L --> M & N\""
+    }
+  ]
+}

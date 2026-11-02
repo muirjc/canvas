@@ -32,6 +32,11 @@ if _MISSING and os.environ.get("REQUIRE_BRIDGE") == "1":
 pytestmark = pytest.mark.skipif(_MISSING, reason="needs node and packages/diagram-bridge/dist/bridge.mjs")
 
 
+#: Cases whose model holds a NaN (a stroke-width that isn't a number). The native port covers them
+#: (tests/test_diagram_core_corpus_native.py); JSON over the bridge cannot carry NaN.
+NAN_CASES = {"flowchart-nan-stroke-width"}
+
+
 @pytest.fixture(scope="module")
 def bridge() -> Iterator[DiagramBridge]:
     proc = subprocess.Popen(  # noqa: S603 - fixed command, test only
@@ -50,15 +55,21 @@ def bridge() -> Iterator[DiagramBridge]:
     proc.wait(timeout=5)
 
 
+def _read(path: Path) -> str:
+    """newline="" keeps a CRLF case's line endings, as the TypeScript test reads the files."""
+    with open(path, encoding="utf-8", newline="") as f:
+        return f.read()
+
+
 def _expected(case: str) -> dict[str, str]:
     expected = CORPUS / "cases" / case / "expected"
-    return {p.name: p.read_text(encoding="utf-8") for p in expected.iterdir()}
+    return {p.name: _read(p) for p in expected.iterdir()}
 
 
 def _outputs(bridge: DiagramBridge, case: str) -> dict[str, str]:
     """What the TypeScript corpus test computes, computed through the bridge."""
     case_dir = CORPUS / "cases" / case
-    source = (case_dir / "input.mmd").read_text(encoding="utf-8")
+    source = _read(case_dir / "input.mmd")
     meta: dict[str, Any] = json.loads((case_dir / "case.json").read_text()) if (case_dir / "case.json").exists() else {}
     family = bridge.detect(source)
     if family is None:
@@ -85,6 +96,8 @@ def test_corpus_case_through_the_bridge(bridge: DiagramBridge, case: str) -> Non
     actual = _outputs(bridge, case)
     assert sorted(actual) == sorted(expected)
     for name, content in actual.items():
+        if name == "serialized.mmd" and case in NAN_CASES:
+            continue  # the model crosses the bridge as JSON, where NaN is null: it can't re-serialize as .nan
         assert content == expected[name], f"{case}/expected/{name}"
 
 

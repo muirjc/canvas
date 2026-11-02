@@ -1,0 +1,137 @@
+{
+  "containers": [],
+  "diagramTypeId": "flowchart",
+  "direction": "LR",
+  "edges": [
+    {
+      "id": "e1",
+      "sourceId": "A",
+      "targetId": "B"
+    },
+    {
+      "id": "e2",
+      "sourceId": "B",
+      "targetId": "C"
+    },
+    {
+      "id": "e3",
+      "sourceId": "C",
+      "targetId": "D"
+    },
+    {
+      "id": "e4",
+      "sourceId": "D",
+      "targetId": "E"
+    },
+    {
+      "id": "e5",
+      "sourceId": "E",
+      "targetId": "F"
+    },
+    {
+      "id": "e6",
+      "sourceId": "F",
+      "targetId": "G"
+    },
+    {
+      "id": "e7",
+      "sourceId": "G",
+      "targetId": "H"
+    }
+  ],
+  "nodes": [
+    {
+      "id": "A",
+      "label": "A",
+      "link": {
+        "href": "https://example.com/a"
+      },
+      "position": {
+        "x": 40,
+        "y": 40
+      },
+      "shape": "rectangle"
+    },
+    {
+      "id": "B",
+      "label": "B",
+      "link": {
+        "href": "https://example.com/b",
+        "tooltip": "Tooltip text"
+      },
+      "position": {
+        "x": 220,
+        "y": 40
+      },
+      "shape": "rectangle"
+    },
+    {
+      "id": "C",
+      "label": "C",
+      "link": {
+        "href": "https://example.com/c",
+        "target": "_blank",
+        "tooltip": "Tip"
+      },
+      "position": {
+        "x": 400,
+        "y": 40
+      },
+      "shape": "rectangle"
+    },
+    {
+      "id": "D",
+      "label": "D",
+      "position": {
+        "x": 580,
+        "y": 40
+      },
+      "shape": "rectangle"
+    },
+    {
+      "id": "E",
+      "label": "E",
+      "position": {
+        "x": 760,
+        "y": 40
+      },
+      "shape": "rectangle"
+    },
+    {
+      "id": "F",
+      "label": "F",
+      "link": {
+        "href": "/relative/path/again"
+      },
+      "position": {
+        "x": 940,
+        "y": 40
+      },
+      "shape": "rectangle"
+    },
+    {
+      "id": "G",
+      "label": "G",
+      "link": {
+        "href": "https://example.com:8080/path?q=1#frag"
+      },
+      "position": {
+        "x": 40,
+        "y": 140
+      },
+      "shape": "rectangle"
+    },
+    {
+      "id": "H",
+      "label": "H",
+      "link": {
+        "href": "//cdn.example.com/lib"
+      },
+      "position": {
+        "x": 220,
+        "y": 140
+      },
+      "shape": "rectangle"
+    }
+  ]
+}

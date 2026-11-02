@@ -1,0 +1,93 @@
+{
+  "containers": [],
+  "diagramTypeId": "flowchart",
+  "direction": "TD",
+  "edges": [
+    {
+      "id": "e1",
+      "label": "pipe label",
+      "sourceId": "A",
+      "targetId": "B"
+    },
+    {
+      "id": "e2",
+      "label": "inline label",
+      "sourceId": "A",
+      "targetId": "C"
+    },
+    {
+      "id": "e3",
+      "label": "dotted text",
+      "lineStyle": "dotted",
+      "sourceId": "A",
+      "targetId": "D"
+    },
+    {
+      "id": "e4",
+      "label": "thick text",
+      "lineStyle": "thick",
+      "sourceId": "A",
+      "targetId": "E"
+    },
+    {
+      "arrow": "none",
+      "id": "e5",
+      "label": "no arrow",
+      "sourceId": "B",
+      "targetId": "C"
+    },
+    {
+      "id": "e6",
+      "label": "\"quoted: label\"",
+      "sourceId": "C",
+      "targetId": "D"
+    }
+  ],
+  "nodes": [
+    {
+      "id": "A",
+      "label": "A",
+      "position": {
+        "x": 40,
+        "y": 40
+      },
+      "shape": "rectangle"
+    },
+    {
+      "id": "B",
+      "label": "B",
+      "position": {
+        "x": 220,
+        "y": 40
+      },
+      "shape": "rectangle"
+    },
+    {
+      "id": "C",
+      "label": "C",
+      "position": {
+        "x": 400,
+        "y": 40
+      },
+      "shape": "rectangle"
+    },
+    {
+      "id": "D",
+      "label": "D",
+      "position": {
+        "x": 580,
+        "y": 40
+      },
+      "shape": "rectangle"
+    },
+    {
+      "id": "E",
+      "label": "E",
+      "position": {
+        "x": 760,
+        "y": 40
+      },
+      "shape": "rectangle"
+    }
+  ]
+}

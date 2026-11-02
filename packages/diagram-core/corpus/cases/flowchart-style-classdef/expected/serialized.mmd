@@ -1,0 +1,58 @@
+---
+canvas:
+  positions:
+    a:
+      x: 40
+      y: 40
+    b:
+      x: 220
+      y: 40
+    c:
+      x: 400
+      y: 40
+    d:
+      x: 580
+      y: 40
+    e:
+      x: 760
+      y: 40
+    f:
+      x: 940
+      y: 40
+  containers: {}
+  styles:
+    a:
+      strokeDasharray: 3 3
+      strokeWidth: 4
+      fillColor: "#f9f"
+      strokeColor: "#333"
+    b:
+      strokeDasharray: 5 5
+      strokeWidth: 2
+      fillColor: "#bbf"
+    c:
+      fillColor: "#f96"
+      strokeColor: "#c00"
+    d:
+      fillColor: "#f96"
+      strokeColor: "#c00"
+    e:
+      fillColor: "#69f"
+    f:
+      fillColor: "#69f"
+      strokeDasharray: 3 3
+      strokeWidth: 2
+  edgeStyles: {}
+  icons: {}
+---
+flowchart LR
+  a[Alpha]:::dashed
+  b[Beta]:::dashed
+  c[Gamma]:::hot
+  d[Delta]:::hot
+  e[Epsilon]:::cold
+  f[f]:::cold
+  a --> b
+  b --> c
+  c --> d
+  d --> e

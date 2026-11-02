@@ -1,0 +1,78 @@
+---
+canvas:
+  positions:
+    a1:
+      x: 40
+      y: 40
+    a2:
+      x: 220
+      y: 40
+    a3:
+      x: 400
+      y: 40
+    a4:
+      x: 580
+      y: 40
+    a5:
+      x: 760
+      y: 40
+    a6:
+      x: 940
+      y: 40
+    a7:
+      x: 40
+      y: 140
+    a8:
+      x: 220
+      y: 140
+    a9:
+      x: 400
+      y: 140
+    b1:
+      x: 580
+      y: 140
+    b2:
+      x: 760
+      y: 140
+    b3:
+      x: 940
+      y: 140
+    b4:
+      x: 40
+      y: 240
+    b5:
+      x: 220
+      y: 240
+  containers: {}
+  styles: {}
+  edgeStyles: {}
+  icons: {}
+---
+flowchart BT
+  a1[Rect]
+  a2(Round)
+  a3([Stadium])
+  a4[[Sub]]
+  a5[(DB)]
+  a6((Circle))
+  a7(((Double)))
+  a8{Decision}
+  a9{{Hex}}
+  b1[/Par/]
+  b2[\Alt par\]
+  b3[/Trap\]
+  b4[\InvTrap/]
+  b5>Flag]
+  a1 --> a2
+  a2 --> a3
+  a3 --> a4
+  a4 --> a5
+  a5 --> a6
+  a6 --> a7
+  a7 --> a8
+  a8 --> a9
+  a9 --> b1
+  b1 --> b2
+  b2 --> b3
+  b3 --> b4
+  b4 --> b5

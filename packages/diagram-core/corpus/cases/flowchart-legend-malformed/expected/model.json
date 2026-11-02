@@ -1,0 +1,50 @@
+{
+  "containers": [],
+  "diagramTypeId": "flowchart",
+  "direction": "TD",
+  "edges": [
+    {
+      "id": "e1",
+      "sourceId": "A",
+      "targetId": "B"
+    }
+  ],
+  "legend": {
+    "extra": [
+      {
+        "id": "good",
+        "label": "Good",
+        "sample": {
+          "kind": "line"
+        }
+      }
+    ],
+    "hidden": [
+      "ok"
+    ],
+    "labels": {
+      "a": "fine"
+    },
+    "visible": true
+  },
+  "nodes": [
+    {
+      "id": "A",
+      "label": "A",
+      "position": {
+        "x": 40,
+        "y": 40
+      },
+      "shape": "rectangle"
+    },
+    {
+      "id": "B",
+      "label": "B",
+      "position": {
+        "x": 220,
+        "y": 40
+      },
+      "shape": "rectangle"
+    }
+  ]
+}

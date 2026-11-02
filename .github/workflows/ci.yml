@@ -250,6 +250,8 @@ jobs:
         env:
           DIAGRAM_BRIDGE_URL: http://127.0.0.1:7070
           TYPESCRIPT_API_URL: http://127.0.0.1:3001
+          # canvas-1bty.15: what's ported of diagram-core answers from Python here (Azure shadows it first).
+          DIAGRAM_CORE_MODE: native
         run: |
           uv python install 3.13
           uv sync --frozen

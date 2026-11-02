@@ -1,0 +1,50 @@
+---
+canvas:
+  positions:
+    A:
+      x: 440
+      y: 40
+    B:
+      x: 620
+      y: 40
+    C:
+      x: 800
+      y: 40
+    D:
+      x: 40
+      y: 210
+    E:
+      x: 220
+      y: 210
+    F:
+      x: 60
+      y: 90
+    G:
+      x: 240
+      y: 90
+  containers:
+    S:
+      x: 40
+      y: 40
+      width: 360
+      height: 130
+  styles: {}
+  edgeStyles: {}
+  icons: {}
+---
+flowchart TD
+subgraph S [Group with a long caption]
+  F[Inside]
+  G[Also inside]
+end
+  A[A very long label that needs to wrap over several lines of the node box]
+  B[Short]
+  C[Line one<br/>Line two<BR>Line three]
+  D["Quoted<br />label"]
+  E[One-word-that-is-extraordinarily-long-without-any-spaces-at-all]
+  A --> B
+  B --> C
+  C --> D
+  D --> E
+  F --> G
+  E --> F

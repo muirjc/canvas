@@ -1,0 +1,39 @@
+---
+canvas:
+  positions:
+    A:
+      x: 440
+      y: 40
+    B:
+      x: 620
+      y: 40
+    C:
+      x: 800
+      y: 40
+    D:
+      x: 60
+      y: 90
+    E:
+      x: 240
+      y: 90
+  containers:
+    S:
+      x: 40
+      y: 40
+      width: 360
+      height: 130
+  styles: {}
+  edgeStyles: {}
+  icons: {}
+---
+flowchart TD
+subgraph S [Group]
+  D[D]
+  E[E]
+end
+  A[Start]
+  B[End]
+  C[C]
+  A --> B
+  B --> C
+  D --> E

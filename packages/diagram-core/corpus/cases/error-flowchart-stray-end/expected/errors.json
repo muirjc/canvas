@@ -1,0 +1,9 @@
+{
+  "errors": [
+    {
+      "content": "  end",
+      "line": 3,
+      "message": "\"end\" with no matching \"subgraph\""
+    }
+  ]
+}
