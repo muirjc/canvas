@@ -1,7 +1,7 @@
 """canvas-1bty.15.1-.15.3: the golden corpus, answered by the native Python diagram-core (no Node, no bridge).
 
-Every case, in every family, must produce exactly the files the TypeScript implementation wrote under expected/ --
-except render.svg, the renderer's (not ported yet).
+Every case, in every family, must produce exactly the files the TypeScript implementation wrote under expected/,
+the drawing (render.svg) included.
 Mirrors packages/diagram-core/tests/contract/golden-corpus.test.ts.
 """
 
@@ -60,6 +60,7 @@ def _outputs(source: str, standards: list[str] | None = None) -> dict[str, str]:
         "model.json": canonical_json(parsed["model"]),
         "serialized.mmd": core.serialize(family, model),
         "portable.mmd": core.portable(source, strip_front_matter=True),
+        "render.svg": core.render_svg(model) + "\n",
     }
     for standard in standards or []:
         files[f"violations-{standard}.json"] = canonical_json(to_js_json(validate(model, STANDARDS[standard])))
@@ -77,8 +78,7 @@ def test_the_corpus_covers_every_family_and_errors() -> None:
 @pytest.mark.parametrize("case", CASES)
 def test_corpus_case_native(case: str) -> None:
     case_dir = CORPUS / "cases" / case
-    # render.svg is the renderer's: not ported yet.
-    expected = {p.name: _read(p) for p in (case_dir / "expected").iterdir() if p.name != "render.svg"}
+    expected = {p.name: _read(p) for p in (case_dir / "expected").iterdir()}
     meta = json.loads((case_dir / "case.json").read_text("utf-8")) if (case_dir / "case.json").exists() else {}
     actual = _outputs(_input(case), meta.get("standards"))
     assert sorted(actual) == sorted(expected)
