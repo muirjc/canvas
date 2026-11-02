@@ -103,6 +103,13 @@ def check_contract(response: httpx.Response) -> None:
 
 #: Children before parents, for both engines (no TRUNCATE in SQLite).
 _TABLES = (
+    "ai_usage",
+    "chat_messages",
+    "diagram_chats",
+    "ai_persona_reference_material_families",
+    "ai_persona_reference_material",
+    "ai_personas",
+    "ai_model_prices",
     "audit_events",
     "sessions",
     "diagram_comment_reads",
@@ -139,6 +146,11 @@ def reset(engine: Engine) -> None:
         for table in _TABLES:
             conn.execute(text(f"DELETE FROM {table}"))  # noqa: S608 - fixed names
         conn.execute(text("UPDATE app_settings SET sharing_enabled = :no"), {"no": False})
+        # One row, never deleted: back to the migrations' defaults (chat off, usage shown, no model chosen).
+        conn.execute(
+            text("UPDATE ai_settings SET chat_enabled = :no, show_usage_to_users = :yes, model_id = NULL"),
+            {"no": False, "yes": True},
+        )
 
 
 @dataclass(frozen=True)

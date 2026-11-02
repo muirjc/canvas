@@ -53,6 +53,107 @@
         ],
         "type": "object"
       },
+      "AiPersona": {
+        "additionalProperties": false,
+        "properties": {
+          "category": {
+            "type": "string"
+          },
+          "createdAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "active",
+              "archived"
+            ],
+            "type": "string"
+          },
+          "systemPrompt": {
+            "type": "string"
+          },
+          "updatedAt": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "category",
+          "systemPrompt",
+          "status",
+          "createdAt",
+          "updatedAt"
+        ],
+        "type": "object"
+      },
+      "AiSettings": {
+        "additionalProperties": false,
+        "properties": {
+          "chatEnabled": {
+            "type": "boolean"
+          },
+          "defaultModelId": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "effectiveModelId": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "modelId": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "provider": {
+            "enum": [
+              "anthropic",
+              "openai",
+              "mock",
+              "unconfigured"
+            ],
+            "type": "string"
+          },
+          "showUsageToUsers": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "chatEnabled",
+          "showUsageToUsers",
+          "provider",
+          "modelId",
+          "defaultModelId",
+          "effectiveModelId"
+        ],
+        "type": "object"
+      },
       "AppSettings": {
         "additionalProperties": false,
         "properties": {
@@ -128,6 +229,52 @@
           "targetEmail",
           "ip",
           "detail"
+        ],
+        "type": "object"
+      },
+      "ChatMessage": {
+        "additionalProperties": false,
+        "properties": {
+          "content": {
+            "type": "string"
+          },
+          "createdAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "role": {
+            "enum": [
+              "user",
+              "assistant"
+            ],
+            "type": "string"
+          },
+          "toolCalls": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/ToolCallOutcome"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "usage": {
+            "$ref": "#/components/schemas/TokenCounts"
+          }
+        },
+        "required": [
+          "id",
+          "role",
+          "content",
+          "toolCalls",
+          "createdAt"
         ],
         "type": "object"
       },
@@ -965,6 +1112,43 @@
         ],
         "type": "object"
       },
+      "ModelPrice": {
+        "additionalProperties": false,
+        "properties": {
+          "cacheReadPerMillion": {
+            "type": "number"
+          },
+          "cacheWritePerMillion": {
+            "type": "number"
+          },
+          "inputPerMillion": {
+            "type": "number"
+          },
+          "modelId": {
+            "type": "string"
+          },
+          "outputPerMillion": {
+            "type": "number"
+          },
+          "provider": {
+            "type": "string"
+          },
+          "updatedAt": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "provider",
+          "modelId",
+          "inputPerMillion",
+          "outputPerMillion",
+          "cacheReadPerMillion",
+          "cacheWritePerMillion",
+          "updatedAt"
+        ],
+        "type": "object"
+      },
       "OtherEditor": {
         "additionalProperties": false,
         "properties": {
@@ -1236,6 +1420,43 @@
           "name",
           "diagrams",
           "children"
+        ],
+        "type": "object"
+      },
+      "ReferenceMaterial": {
+        "additionalProperties": false,
+        "properties": {
+          "content": {
+            "type": "string"
+          },
+          "createdAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "diagramFamilies": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "id": {
+            "type": "string"
+          },
+          "personaId": {
+            "type": "string"
+          },
+          "updatedAt": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "personaId",
+          "content",
+          "diagramFamilies",
+          "createdAt",
+          "updatedAt"
         ],
         "type": "object"
       },
@@ -1852,6 +2073,45 @@
         ],
         "type": "object"
       },
+      "TokenCounts": {
+        "additionalProperties": false,
+        "properties": {
+          "inputTokens": {
+            "type": "integer"
+          },
+          "outputTokens": {
+            "type": "integer"
+          },
+          "totalTokens": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "inputTokens",
+          "outputTokens",
+          "totalTokens"
+        ],
+        "type": "object"
+      },
+      "ToolCallOutcome": {
+        "additionalProperties": false,
+        "properties": {
+          "applied": {
+            "type": "boolean"
+          },
+          "reason": {
+            "type": "string"
+          },
+          "tool": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "tool",
+          "applied"
+        ],
+        "type": "object"
+      },
       "UpdatedUser": {
         "additionalProperties": false,
         "properties": {
@@ -1892,6 +2152,50 @@
         ],
         "type": "object"
       },
+      "UsageTotals": {
+        "additionalProperties": false,
+        "properties": {
+          "cacheReadTokens": {
+            "type": "integer"
+          },
+          "cacheWriteTokens": {
+            "type": "integer"
+          },
+          "estimatedCost": {
+            "type": "number"
+          },
+          "failedRequests": {
+            "type": "integer"
+          },
+          "inputTokens": {
+            "type": "integer"
+          },
+          "outputTokens": {
+            "type": "integer"
+          },
+          "requests": {
+            "type": "integer"
+          },
+          "totalTokens": {
+            "type": "integer"
+          },
+          "unpricedTokens": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "requests",
+          "failedRequests",
+          "inputTokens",
+          "outputTokens",
+          "cacheReadTokens",
+          "cacheWriteTokens",
+          "totalTokens",
+          "estimatedCost",
+          "unpricedTokens"
+        ],
+        "type": "object"
+      },
       "UserSummary": {
         "additionalProperties": false,
         "properties": {
@@ -1911,6 +2215,88 @@
           "email"
         ],
         "type": "object"
+      },
+      "UserUsage": {
+        "additionalProperties": false,
+        "properties": {
+          "cacheReadTokens": {
+            "type": "integer"
+          },
+          "cacheWriteTokens": {
+            "type": "integer"
+          },
+          "email": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "estimatedCost": {
+            "type": "number"
+          },
+          "failedRequests": {
+            "type": "integer"
+          },
+          "inputTokens": {
+            "type": "integer"
+          },
+          "lastUsedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "outputTokens": {
+            "type": "integer"
+          },
+          "requests": {
+            "type": "integer"
+          },
+          "totalTokens": {
+            "type": "integer"
+          },
+          "unpricedTokens": {
+            "type": "integer"
+          },
+          "userId": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "requests",
+          "failedRequests",
+          "inputTokens",
+          "outputTokens",
+          "cacheReadTokens",
+          "cacheWriteTokens",
+          "totalTokens",
+          "estimatedCost",
+          "unpricedTokens",
+          "userId",
+          "email",
+          "name",
+          "lastUsedAt"
+        ],
+        "type": "object"
       }
     }
   },
@@ -1920,6 +2306,1107 @@
   },
   "openapi": "3.0.3",
   "paths": {
+    "/admin/ai-models": {
+      "get": {
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "defaultModelId": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "error": {
+                      "type": "string"
+                    },
+                    "modelId": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "models": {
+                      "items": {
+                        "additionalProperties": false,
+                        "properties": {
+                          "createdAt": {
+                            "anyOf": [
+                              {
+                                "type": "string"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "id": {
+                            "type": "string"
+                          },
+                          "name": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "name",
+                          "createdAt"
+                        ],
+                        "type": "object"
+                      },
+                      "type": "array"
+                    },
+                    "provider": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "provider",
+                    "models",
+                    "modelId",
+                    "defaultModelId"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Default Response"
+          },
+          "4XX": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        },
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ],
+        "tags": [
+          "AI"
+        ]
+      }
+    },
+    "/admin/ai-personas": {
+      "get": {
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "personas": {
+                      "items": {
+                        "$ref": "#/components/schemas/AiPersona"
+                      },
+                      "type": "array"
+                    }
+                  },
+                  "required": [
+                    "personas"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Default Response"
+          },
+          "4XX": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        },
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ],
+        "tags": [
+          "AI"
+        ]
+      },
+      "post": {
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "persona": {
+                      "$ref": "#/components/schemas/AiPersona"
+                    }
+                  },
+                  "required": [
+                    "persona"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Default Response"
+          },
+          "4XX": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        },
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ],
+        "tags": [
+          "AI"
+        ]
+      }
+    },
+    "/admin/ai-personas/{id}": {
+      "patch": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "persona": {
+                      "$ref": "#/components/schemas/AiPersona"
+                    }
+                  },
+                  "required": [
+                    "persona"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Default Response"
+          },
+          "4XX": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        },
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ],
+        "tags": [
+          "AI"
+        ]
+      }
+    },
+    "/admin/ai-personas/{id}/archive": {
+      "post": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "persona": {
+                      "$ref": "#/components/schemas/AiPersona"
+                    }
+                  },
+                  "required": [
+                    "persona"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Default Response"
+          },
+          "4XX": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        },
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ],
+        "tags": [
+          "AI"
+        ]
+      }
+    },
+    "/admin/ai-personas/{id}/reference-material": {
+      "get": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "entries": {
+                      "items": {
+                        "$ref": "#/components/schemas/ReferenceMaterial"
+                      },
+                      "type": "array"
+                    }
+                  },
+                  "required": [
+                    "entries"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Default Response"
+          },
+          "4XX": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        },
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ],
+        "tags": [
+          "AI"
+        ]
+      },
+      "post": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "entry": {
+                      "$ref": "#/components/schemas/ReferenceMaterial"
+                    }
+                  },
+                  "required": [
+                    "entry"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Default Response"
+          },
+          "4XX": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        },
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ],
+        "tags": [
+          "AI"
+        ]
+      }
+    },
+    "/admin/ai-personas/{personaId}/reference-material/{entryId}": {
+      "delete": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "personaId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "entryId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No content"
+          },
+          "4XX": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        },
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ],
+        "tags": [
+          "AI"
+        ]
+      },
+      "patch": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "personaId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "entryId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "entry": {
+                      "$ref": "#/components/schemas/ReferenceMaterial"
+                    }
+                  },
+                  "required": [
+                    "entry"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Default Response"
+          },
+          "4XX": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        },
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ],
+        "tags": [
+          "AI"
+        ]
+      }
+    },
+    "/admin/ai-prices": {
+      "delete": {
+        "parameters": [
+          {
+            "in": "query",
+            "name": "provider",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "modelId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "prices": {
+                      "items": {
+                        "$ref": "#/components/schemas/ModelPrice"
+                      },
+                      "type": "array"
+                    }
+                  },
+                  "required": [
+                    "prices"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Default Response"
+          },
+          "4XX": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        },
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ],
+        "tags": [
+          "Admin"
+        ]
+      },
+      "get": {
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "prices": {
+                      "items": {
+                        "$ref": "#/components/schemas/ModelPrice"
+                      },
+                      "type": "array"
+                    },
+                    "unpricedModels": {
+                      "items": {
+                        "additionalProperties": false,
+                        "properties": {
+                          "modelId": {
+                            "type": "string"
+                          },
+                          "provider": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "provider",
+                          "modelId"
+                        ],
+                        "type": "object"
+                      },
+                      "type": "array"
+                    }
+                  },
+                  "required": [
+                    "prices",
+                    "unpricedModels"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Default Response"
+          },
+          "4XX": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        },
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ],
+        "tags": [
+          "Admin"
+        ]
+      },
+      "put": {
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": false,
+                "properties": {
+                  "cacheReadPerMillion": {
+                    "maximum": 100000,
+                    "minimum": 0,
+                    "type": "number"
+                  },
+                  "cacheWritePerMillion": {
+                    "maximum": 100000,
+                    "minimum": 0,
+                    "type": "number"
+                  },
+                  "inputPerMillion": {
+                    "maximum": 100000,
+                    "minimum": 0,
+                    "type": "number"
+                  },
+                  "modelId": {
+                    "maxLength": 200,
+                    "minLength": 1,
+                    "type": "string"
+                  },
+                  "outputPerMillion": {
+                    "maximum": 100000,
+                    "minimum": 0,
+                    "type": "number"
+                  },
+                  "provider": {
+                    "maxLength": 100,
+                    "minLength": 1,
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "provider",
+                  "modelId",
+                  "inputPerMillion",
+                  "outputPerMillion"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "prices": {
+                      "items": {
+                        "$ref": "#/components/schemas/ModelPrice"
+                      },
+                      "type": "array"
+                    }
+                  },
+                  "required": [
+                    "prices"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Default Response"
+          },
+          "4XX": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        },
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ],
+        "tags": [
+          "Admin"
+        ]
+      }
+    },
+    "/admin/ai-settings": {
+      "get": {
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AiSettings"
+                }
+              }
+            },
+            "description": "Default Response"
+          },
+          "4XX": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        },
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ],
+        "tags": [
+          "AI"
+        ]
+      },
+      "patch": {
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": false,
+                "minProperties": 1,
+                "properties": {
+                  "chatEnabled": {
+                    "type": "boolean"
+                  },
+                  "modelId": {
+                    "anyOf": [
+                      {
+                        "maxLength": 200,
+                        "minLength": 1,
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "showUsageToUsers": {
+                    "type": "boolean"
+                  }
+                },
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AiSettings"
+                }
+              }
+            },
+            "description": "Default Response"
+          },
+          "4XX": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Default Response"
+          },
+          "5XX": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        },
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ],
+        "tags": [
+          "AI"
+        ]
+      }
+    },
+    "/admin/ai-usage": {
+      "get": {
+        "parameters": [
+          {
+            "in": "query",
+            "name": "from",
+            "required": false,
+            "schema": {
+              "format": "date-time",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "to",
+            "required": false,
+            "schema": {
+              "format": "date-time",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "from": {
+                      "format": "date-time",
+                      "type": "string"
+                    },
+                    "to": {
+                      "format": "date-time",
+                      "type": "string"
+                    },
+                    "totals": {
+                      "$ref": "#/components/schemas/UsageTotals"
+                    },
+                    "users": {
+                      "items": {
+                        "$ref": "#/components/schemas/UserUsage"
+                      },
+                      "type": "array"
+                    }
+                  },
+                  "required": [
+                    "from",
+                    "to",
+                    "users",
+                    "totals"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Default Response"
+          },
+          "4XX": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        },
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ],
+        "tags": [
+          "Admin"
+        ]
+      }
+    },
+    "/admin/ai-usage/users/{id}": {
+      "get": {
+        "parameters": [
+          {
+            "in": "query",
+            "name": "from",
+            "required": false,
+            "schema": {
+              "format": "date-time",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "to",
+            "required": false,
+            "schema": {
+              "format": "date-time",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "byDay": {
+                      "items": {
+                        "additionalProperties": false,
+                        "properties": {
+                          "cacheReadTokens": {
+                            "type": "integer"
+                          },
+                          "cacheWriteTokens": {
+                            "type": "integer"
+                          },
+                          "day": {
+                            "type": "string"
+                          },
+                          "estimatedCost": {
+                            "type": "number"
+                          },
+                          "failedRequests": {
+                            "type": "integer"
+                          },
+                          "inputTokens": {
+                            "type": "integer"
+                          },
+                          "outputTokens": {
+                            "type": "integer"
+                          },
+                          "requests": {
+                            "type": "integer"
+                          },
+                          "totalTokens": {
+                            "type": "integer"
+                          },
+                          "unpricedTokens": {
+                            "type": "integer"
+                          }
+                        },
+                        "required": [
+                          "requests",
+                          "failedRequests",
+                          "inputTokens",
+                          "outputTokens",
+                          "cacheReadTokens",
+                          "cacheWriteTokens",
+                          "totalTokens",
+                          "estimatedCost",
+                          "unpricedTokens",
+                          "day"
+                        ],
+                        "type": "object"
+                      },
+                      "type": "array"
+                    },
+                    "byModel": {
+                      "items": {
+                        "additionalProperties": false,
+                        "properties": {
+                          "cacheReadTokens": {
+                            "type": "integer"
+                          },
+                          "cacheWriteTokens": {
+                            "type": "integer"
+                          },
+                          "estimatedCost": {
+                            "type": "number"
+                          },
+                          "failedRequests": {
+                            "type": "integer"
+                          },
+                          "inputTokens": {
+                            "type": "integer"
+                          },
+                          "modelId": {
+                            "type": "string"
+                          },
+                          "outputTokens": {
+                            "type": "integer"
+                          },
+                          "priced": {
+                            "type": "boolean"
+                          },
+                          "provider": {
+                            "type": "string"
+                          },
+                          "requests": {
+                            "type": "integer"
+                          },
+                          "totalTokens": {
+                            "type": "integer"
+                          },
+                          "unpricedTokens": {
+                            "type": "integer"
+                          }
+                        },
+                        "required": [
+                          "requests",
+                          "failedRequests",
+                          "inputTokens",
+                          "outputTokens",
+                          "cacheReadTokens",
+                          "cacheWriteTokens",
+                          "totalTokens",
+                          "estimatedCost",
+                          "unpricedTokens",
+                          "provider",
+                          "modelId",
+                          "priced"
+                        ],
+                        "type": "object"
+                      },
+                      "type": "array"
+                    },
+                    "from": {
+                      "format": "date-time",
+                      "type": "string"
+                    },
+                    "to": {
+                      "format": "date-time",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "from",
+                    "to",
+                    "byDay",
+                    "byModel"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Default Response"
+          },
+          "4XX": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        },
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ],
+        "tags": [
+          "Admin"
+        ]
+      }
+    },
     "/admin/app-settings": {
       "patch": {
         "requestBody": {
@@ -3036,6 +4523,86 @@
         ]
       }
     },
+    "/ai-personas": {
+      "get": {
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "personas": {
+                      "items": {
+                        "$ref": "#/components/schemas/AiPersona"
+                      },
+                      "type": "array"
+                    }
+                  },
+                  "required": [
+                    "personas"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Default Response"
+          },
+          "4XX": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        },
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ],
+        "tags": [
+          "AI"
+        ]
+      }
+    },
+    "/ai-settings": {
+      "get": {
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AiSettings"
+                }
+              }
+            },
+            "description": "Default Response"
+          },
+          "4XX": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        },
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ],
+        "tags": [
+          "AI"
+        ]
+      }
+    },
     "/app-settings": {
       "get": {
         "responses": {
@@ -3453,6 +5020,199 @@
         ],
         "tags": [
           "Diagrams"
+        ]
+      }
+    },
+    "/diagrams/{id}/chat/messages": {
+      "get": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "messages": {
+                      "items": {
+                        "$ref": "#/components/schemas/ChatMessage"
+                      },
+                      "type": "array"
+                    },
+                    "usageTotal": {
+                      "additionalProperties": false,
+                      "properties": {
+                        "inputTokens": {
+                          "type": "integer"
+                        },
+                        "outputTokens": {
+                          "type": "integer"
+                        },
+                        "requests": {
+                          "type": "integer"
+                        },
+                        "totalTokens": {
+                          "type": "integer"
+                        }
+                      },
+                      "required": [
+                        "requests",
+                        "inputTokens",
+                        "outputTokens",
+                        "totalTokens"
+                      ],
+                      "type": "object"
+                    }
+                  },
+                  "required": [
+                    "messages"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Default Response"
+          },
+          "4XX": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        },
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ],
+        "tags": [
+          "AI"
+        ]
+      },
+      "post": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "properties": {
+                  "currentDslContent": {
+                    "minLength": 1,
+                    "type": "string"
+                  },
+                  "message": {
+                    "minLength": 1,
+                    "type": "string"
+                  },
+                  "mode": {
+                    "enum": [
+                      "plan",
+                      "build"
+                    ],
+                    "type": "string"
+                  },
+                  "personaId": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "message",
+                  "currentDslContent"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "assistantMessage": {
+                      "type": "string"
+                    },
+                    "assistantMessageId": {
+                      "type": "string"
+                    },
+                    "toolCalls": {
+                      "items": {
+                        "$ref": "#/components/schemas/ToolCallOutcome"
+                      },
+                      "type": "array"
+                    },
+                    "updatedDslContent": {
+                      "type": "string"
+                    },
+                    "usage": {
+                      "$ref": "#/components/schemas/TokenCounts"
+                    }
+                  },
+                  "required": [
+                    "assistantMessage",
+                    "assistantMessageId",
+                    "updatedDslContent",
+                    "toolCalls"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Default Response"
+          },
+          "4XX": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Default Response"
+          },
+          "5XX": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        },
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ],
+        "tags": [
+          "AI"
         ]
       }
     },
@@ -5365,6 +7125,69 @@
         ],
         "tags": [
           "Libraries"
+        ]
+      }
+    },
+    "/me/ai-usage": {
+      "get": {
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "from": {
+                      "format": "date-time",
+                      "type": "string"
+                    },
+                    "inputTokens": {
+                      "type": "integer"
+                    },
+                    "outputTokens": {
+                      "type": "integer"
+                    },
+                    "requests": {
+                      "type": "integer"
+                    },
+                    "to": {
+                      "format": "date-time",
+                      "type": "string"
+                    },
+                    "totalTokens": {
+                      "type": "integer"
+                    },
+                    "visible": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "visible"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Default Response"
+          },
+          "4XX": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        },
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ],
+        "tags": [
+          "AI"
         ]
       }
     },

@@ -1,4 +1,5 @@
 import type { FastifyInstance, FastifyReply } from 'fastify';
+import { envelope, errorResponse, listEnvelope, noContent } from '../contract/schemas.js';
 import { requireRole } from '../auth/middleware.js';
 import { getPersona } from './persona.service.js';
 import {
@@ -25,7 +26,7 @@ function handleError(error: unknown, reply: FastifyReply): FastifyReply {
 export async function registerPersonaReferenceMaterialRoutes(app: FastifyInstance): Promise<void> {
   app.get<{ Params: { id: string } }>(
     '/admin/ai-personas/:id/reference-material',
-    { preHandler: requireRole('admin'), schema: { tags: ['AI'], security: [{ cookieAuth: [] }] } },
+    { preHandler: requireRole('admin'), schema: { tags: ['AI'], security: [{ cookieAuth: [] }], response: { 200: listEnvelope('entries', 'ReferenceMaterial'), '4xx': errorResponse } } },
     async (request, reply) => {
       if (!(await getPersona(request.params.id))) {
         return reply.code(404).send({ error: 'Persona not found' });
@@ -36,7 +37,7 @@ export async function registerPersonaReferenceMaterialRoutes(app: FastifyInstanc
 
   app.post<{ Params: { id: string }; Body: { content: string; diagramFamilies?: string[] } }>(
     '/admin/ai-personas/:id/reference-material',
-    { preHandler: requireRole('admin'), schema: { tags: ['AI'], security: [{ cookieAuth: [] }] } },
+    { preHandler: requireRole('admin'), schema: { tags: ['AI'], security: [{ cookieAuth: [] }], response: { 201: envelope('entry', 'ReferenceMaterial'), '4xx': errorResponse } } },
     async (request, reply) => {
       if (!(await getPersona(request.params.id))) {
         return reply.code(404).send({ error: 'Persona not found' });
@@ -52,7 +53,7 @@ export async function registerPersonaReferenceMaterialRoutes(app: FastifyInstanc
 
   app.patch<{ Params: { personaId: string; entryId: string }; Body: { content?: string; diagramFamilies?: string[] } }>(
     '/admin/ai-personas/:personaId/reference-material/:entryId',
-    { preHandler: requireRole('admin'), schema: { tags: ['AI'], security: [{ cookieAuth: [] }] } },
+    { preHandler: requireRole('admin'), schema: { tags: ['AI'], security: [{ cookieAuth: [] }], response: { 200: envelope('entry', 'ReferenceMaterial'), '4xx': errorResponse } } },
     async (request, reply) => {
       try {
         const entry = await updateReferenceMaterial(request.params.personaId, request.params.entryId, request.body);
@@ -68,7 +69,7 @@ export async function registerPersonaReferenceMaterialRoutes(app: FastifyInstanc
 
   app.delete<{ Params: { personaId: string; entryId: string } }>(
     '/admin/ai-personas/:personaId/reference-material/:entryId',
-    { preHandler: requireRole('admin'), schema: { tags: ['AI'], security: [{ cookieAuth: [] }] } },
+    { preHandler: requireRole('admin'), schema: { tags: ['AI'], security: [{ cookieAuth: [] }], response: { 204: noContent, '4xx': errorResponse } } },
     async (request, reply) => {
       const deleted = await deleteReferenceMaterial(request.params.personaId, request.params.entryId);
       if (!deleted) {

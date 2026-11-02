@@ -175,7 +175,8 @@ jobs:
       WEB_ORIGINS: http://localhost:5173
       PORT: '3000'
       # The AI chat E2E specs drive the real HTTP/tool-execution/persistence pipeline against a
-      # rule-based fake NLU (apps/api/src/ai/mock-nlu.ts) instead of a live provider, so CI needs
+      # rule-based fake NLU (apps/api-py's canvas_api/ai/mock_model.py since canvas-1bty.12; the
+      # TypeScript fallback's apps/api/src/ai/mock-nlu.ts) instead of a live provider, so CI needs
       # no API key and makes no network call. Without this the API server starts unconfigured and
       # every AI request fails at provider resolution.
       AI_PROVIDER: mock

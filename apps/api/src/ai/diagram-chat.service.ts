@@ -3,7 +3,8 @@ import { trace } from '@opentelemetry/api';
 import { withSpan } from '../telemetry/telemetry.js';
 import { generateText, stepCountIs, type LanguageModel } from 'ai';
 import { recordAiUsage, usageForMessages, type TokenCounts } from './ai-usage.service.js';
-import { getDslFamily, isParseSuccess, validate, type DiagramModel, type StandardRules } from '@canvas/diagram-core';
+import { getDslFamily, isParseSuccess, type DiagramModel, type StandardRules } from '@canvas/diagram-core';
+import { describeModel } from './describe-model.js';
 import { getActiveStandard } from '../standards/standard.service.js';
 import { buildStandardPrompt } from './standard-prompt.js';
 import { getDb } from '../db/client.js';
@@ -94,27 +95,6 @@ export async function getChatMessages(diagramId: string, options: { withUsage?: 
     // something newly introduced by converting this one query to Kysely.
     createdAt: r.created_at as unknown as string,
   }));
-}
-
-/** A short textual summary of the current diagram, given to the model each turn so it can
- * reference existing shapes/connectors by id (e.g. to remove or rename one). canvas-tfr: under a
- * standard it also shows each element's kind and the violations the diagram currently has. */
-function describeModel(model: DiagramModel, rules?: StandardRules): string {
-  const nodes =
-    model.nodes
-      .map((n) => `- ${n.id}: "${n.label}" (${n.shape}${rules && n.role ? `, kind: ${n.role}${n.external ? ' external' : ''}` : ''})`)
-      .join('\n') || '(none yet)';
-  const edges =
-    model.edges.map((e) => `- ${e.id}: ${e.sourceId} -> ${e.targetId}${e.label ? ` ("${e.label}")` : ''}`).join('\n') ||
-    '(none yet)';
-  let summary = `Current shapes:\n${nodes}\n\nCurrent connectors:\n${edges}`;
-  if (rules) {
-    const violations = validate(model, rules).slice(0, 10);
-    if (violations.length > 0) {
-      summary += `\n\nCurrent standard violations:\n${violations.map((v) => `- [${v.severity}] ${v.elementId}: ${v.message}`).join('\n')}`;
-    }
-  }
-  return summary;
 }
 
 /** canvas-rfv: replies show in a narrow chat panel, which lists the edits made separately. */

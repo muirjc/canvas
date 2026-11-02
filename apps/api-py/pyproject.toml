@@ -4,10 +4,12 @@ version = "0.1.0"
 description = "Canvas backend, Python (canvas-1bty: incremental move from apps/api, see docs/python-backend-assessment.md)"
 requires-python = ">=3.13,<3.14"
 dependencies = [
+    "anthropic>=1.15.0",
     "azure-monitor-opentelemetry>=1.8.11",
     "cryptography>=46",
     "fastapi>=0.143.3",
     "httpx>=0.28.1",
+    "openai>=3.35.1",
     "psycopg[binary]>=3.3.6",
     "pydantic>=2.14.1",
     "pydantic-settings>=2.16.0",

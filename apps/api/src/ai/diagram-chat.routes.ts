@@ -1,4 +1,5 @@
 import type { FastifyInstance, FastifyReply } from 'fastify';
+import { errorResponse } from '../contract/schemas.js';
 import type { LanguageModel } from 'ai';
 import { requireDiagramAccess } from '../auth/access-control.middleware.js';
 import { canSeeUsage, getAiSettings } from './ai-settings.service.js';
@@ -52,6 +53,24 @@ export async function registerDiagramChatRoutes(
             mode: { type: 'string', enum: ['plan', 'build'] },
           },
         },
+        // canvas-1bty.12: response shapes (src/contract/schemas.ts), so the Python service answers the same.
+        response: {
+          200: {
+            type: 'object',
+            required: ['assistantMessage', 'assistantMessageId', 'updatedDslContent', 'toolCalls'],
+            additionalProperties: false,
+            // usage: only for users who may see token counts.
+            properties: {
+              assistantMessage: { type: 'string' },
+              assistantMessageId: { type: 'string' },
+              usage: { $ref: 'TokenCounts#' },
+              updatedDslContent: { type: 'string' },
+              toolCalls: { type: 'array', items: { $ref: 'ToolCallOutcome#' } },
+            },
+          },
+          '4xx': errorResponse,
+          '5xx': errorResponse,
+        },
       },
     },
     async (request, reply) => {
@@ -89,7 +108,36 @@ export async function registerDiagramChatRoutes(
 
   app.get<{ Params: { id: string } }>(
     '/diagrams/:id/chat/messages',
-    { preHandler: requireDiagramAccess('edit'), schema: { tags: ['AI'], security: [{ cookieAuth: [] }] } },
+    {
+      preHandler: requireDiagramAccess('edit'),
+      schema: {
+        tags: ['AI'],
+        security: [{ cookieAuth: [] }],
+        response: {
+          200: {
+            type: 'object',
+            required: ['messages'],
+            additionalProperties: false,
+            // usageTotal: only for users who may see token counts.
+            properties: {
+              messages: { type: 'array', items: { $ref: 'ChatMessage#' } },
+              usageTotal: {
+                type: 'object',
+                required: ['requests', 'inputTokens', 'outputTokens', 'totalTokens'],
+                additionalProperties: false,
+                properties: {
+                  requests: { type: 'integer' },
+                  inputTokens: { type: 'integer' },
+                  outputTokens: { type: 'integer' },
+                  totalTokens: { type: 'integer' },
+                },
+              },
+            },
+          },
+          '4xx': errorResponse,
+        },
+      },
+    },
     async (request, reply) => {
       const withUsage = await canSeeUsage(request.session.user?.role);
       const messages = await getChatMessages(request.params.id, { withUsage });

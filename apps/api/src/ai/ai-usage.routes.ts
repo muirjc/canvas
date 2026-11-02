@@ -1,4 +1,5 @@
 import type { FastifyInstance } from 'fastify';
+import { errorResponse, objectResponse } from '../contract/schemas.js';
 import { requireAuth, requireRole } from '../auth/middleware.js';
 import { clientIp, recordAudit } from '../audit/audit.service.js';
 import { canSeeUsage } from './ai-settings.service.js';
@@ -21,11 +22,46 @@ const periodQuery = {
   properties: { from: { type: 'string', format: 'date-time' }, to: { type: 'string', format: 'date-time' } },
 } as const;
 
+// canvas-1bty.12: response shapes (src/contract/schemas.ts), so the Python service answers the same.
+const periodFields = { from: { type: 'string', format: 'date-time' }, to: { type: 'string', format: 'date-time' } } as const;
+const pricesList = { type: 'array', items: { $ref: 'ModelPrice#' } } as const;
+/** A usage total row (UsageTotals & CostFigures) plus what it is grouped by. */
+function usageRow(by: Record<string, unknown>) {
+  return {
+    type: 'object',
+    required: ['requests', 'failedRequests', 'inputTokens', 'outputTokens', 'cacheReadTokens', 'cacheWriteTokens', 'totalTokens', 'estimatedCost', 'unpricedTokens', ...Object.keys(by)],
+    additionalProperties: false,
+    properties: {
+      requests: { type: 'integer' },
+      failedRequests: { type: 'integer' },
+      inputTokens: { type: 'integer' },
+      outputTokens: { type: 'integer' },
+      cacheReadTokens: { type: 'integer' },
+      cacheWriteTokens: { type: 'integer' },
+      totalTokens: { type: 'integer' },
+      estimatedCost: { type: 'number' },
+      unpricedTokens: { type: 'integer' },
+      ...by,
+    },
+  };
+}
+
 /** canvas-9af: AI token usage for admins -- by user over a period, and one user's breakdown. */
 export async function registerAiUsageRoutes(app: FastifyInstance): Promise<void> {
   app.get<{ Querystring: { from?: string; to?: string } }>(
     '/admin/ai-usage',
-    { preHandler: requireRole('admin'), schema: { tags: ['Admin'], security: [{ cookieAuth: [] }], querystring: periodQuery } },
+    {
+      preHandler: requireRole('admin'),
+      schema: {
+        tags: ['Admin'],
+        security: [{ cookieAuth: [] }],
+        querystring: periodQuery,
+        response: {
+          200: objectResponse({ ...periodFields, users: { type: 'array', items: { $ref: 'UserUsage#' } }, totals: { $ref: 'UsageTotals#' } }),
+          '4xx': errorResponse,
+        },
+      },
+    },
     async (request, reply) => {
       const { from, to } = period(request.query);
       if (from >= to) return reply.code(400).send({ error: '`from` must be before `to`.' });
@@ -42,6 +78,14 @@ export async function registerAiUsageRoutes(app: FastifyInstance): Promise<void>
         security: [{ cookieAuth: [] }],
         params: { type: 'object', required: ['id'], properties: { id: { type: 'string' } } },
         querystring: periodQuery,
+        response: {
+          200: objectResponse({
+            ...periodFields,
+            byDay: { type: 'array', items: usageRow({ day: { type: 'string' } }) },
+            byModel: { type: 'array', items: usageRow({ provider: { type: 'string' }, modelId: { type: 'string' }, priced: { type: 'boolean' } }) },
+          }),
+          '4xx': errorResponse,
+        },
       },
     },
     async (request, reply) => {
@@ -54,7 +98,23 @@ export async function registerAiUsageRoutes(app: FastifyInstance): Promise<void>
   // canvas-zs0: the price table behind the estimated cost (admin only, like the cost itself).
   app.get(
     '/admin/ai-prices',
-    { preHandler: requireRole('admin'), schema: { tags: ['Admin'], security: [{ cookieAuth: [] }] } },
+    {
+      preHandler: requireRole('admin'),
+      schema: {
+        tags: ['Admin'],
+        security: [{ cookieAuth: [] }],
+        response: {
+          200: objectResponse({
+            prices: pricesList,
+            unpricedModels: {
+              type: 'array',
+              items: objectResponse({ provider: { type: 'string' }, modelId: { type: 'string' } }),
+            },
+          }),
+          '4xx': errorResponse,
+        },
+      },
+    },
     async (_request, reply) => reply.send({ prices: await listModelPrices(), unpricedModels: await modelsWithoutPrice() }),
   );
 
@@ -79,6 +139,7 @@ export async function registerAiUsageRoutes(app: FastifyInstance): Promise<void>
             cacheWritePerMillion: price,
           },
         },
+        response: { 200: objectResponse({ prices: pricesList }), '4xx': errorResponse },
       },
     },
     async (request, reply) => {
@@ -101,6 +162,7 @@ export async function registerAiUsageRoutes(app: FastifyInstance): Promise<void>
           required: ['provider', 'modelId'],
           properties: { provider: { type: 'string' }, modelId: { type: 'string' } },
         },
+        response: { 200: objectResponse({ prices: pricesList }), '4xx': errorResponse },
       },
     },
     async (request, reply) => {
@@ -115,7 +177,31 @@ export async function registerAiUsageRoutes(app: FastifyInstance): Promise<void>
   // only, never cost; hidden when an admin has turned usage display off for non-admins.
   app.get(
     '/me/ai-usage',
-    { preHandler: requireAuth, schema: { tags: ['AI'], security: [{ cookieAuth: [] }] } },
+    {
+      preHandler: requireAuth,
+      schema: {
+        tags: ['AI'],
+        security: [{ cookieAuth: [] }],
+        response: {
+          // { visible: false } when the user may not see usage.
+          200: {
+            type: 'object',
+            required: ['visible'],
+            additionalProperties: false,
+            properties: {
+              visible: { type: 'boolean' },
+              from: { type: 'string', format: 'date-time' },
+              to: { type: 'string', format: 'date-time' },
+              requests: { type: 'integer' },
+              inputTokens: { type: 'integer' },
+              outputTokens: { type: 'integer' },
+              totalTokens: { type: 'integer' },
+            },
+          },
+          '4xx': errorResponse,
+        },
+      },
+    },
     async (request, reply) => {
       const user = request.session.user!;
       if (!(await canSeeUsage(user.role))) return reply.send({ visible: false });

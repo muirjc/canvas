@@ -162,3 +162,35 @@ def github(
     with TestClient(app) as test_client:
         yield GH(Api(test_client, engine), app, fake_github, engine, tmp_path, needs_bridge)
     reset_cache()
+
+
+@pytest.fixture()
+def scripted(client: TestClient) -> Any:
+    """The AI chat's language model replaced by a scripted one (tests/ai_helpers.py); needs the bridge for the tools."""
+    from tests.ai_helpers import ScriptedModel
+
+    model = ScriptedModel()
+    client.app.state.language_model = model.factory  # type: ignore[attr-defined]
+    return model
+
+
+@pytest.fixture()
+def ai_env(client: TestClient, settings: Settings) -> Any:
+    """Switches the app's AI provider settings (like setting AI_PROVIDER and friends in the environment).
+
+    Starts unconfigured (no provider, key or model), whatever the machine's environment says; call it with
+    keyword arguments (`ai_provider="anthropic", anthropic_api_key=...`) to change them.
+    """
+    from canvas_api.ai.model_list import clear_cache
+
+    blank = {"ai_provider": None, "ai_model": None, "anthropic_api_key": None, "openai_api_key": None}
+
+    def use(**changes: Any) -> Settings:
+        current: Settings = settings.model_copy(update={**blank, **changes})
+        client.app.state.settings = current  # type: ignore[attr-defined]
+        return current
+
+    clear_cache()
+    use()
+    yield use
+    clear_cache()
