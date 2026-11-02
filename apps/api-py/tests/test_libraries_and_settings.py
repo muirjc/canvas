@@ -110,7 +110,8 @@ def test_an_admin_turns_sharing_on_and_off_and_each_change_is_audited(api: Api, 
         "/admin/app-settings",
         admin,
         json={"sharingEnabled": True},
-        headers={"x-canvas-client-ip": "203.0.113.9"},
+        # The front door reads the address Azure's ingress appended (the last X-Forwarded-For entry).
+        headers={"x-forwarded-for": "6.6.6.6, 203.0.113.9"},
     )
     assert on.status_code == 200
     assert on.json() == {"sharingEnabled": True}

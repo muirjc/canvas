@@ -44,9 +44,10 @@ echo "  Postgres is Ready."
 echo
 echo "== Bringing the web site back =="
 if [[ "$(az containerapp show --name canvas-api --resource-group "$RESOURCE_GROUP" \
-  --query "properties.template.containers[0].env[?name=='CANVAS_PAUSED'] | length(@)" -o tsv)" != "0" ]]; then
+  --query "properties.template.containers[?name=='api'].env[] | [?name=='CANVAS_PAUSED'] | length(@)" -o tsv)" != "0" ]]; then
+  # --container-name api: canvas-api runs the Python API and the diagram-core bridge (canvas-1bty.14).
   retry "Updating canvas-api" az containerapp update --name canvas-api --resource-group "$RESOURCE_GROUP" \
-    --remove-env-vars CANVAS_PAUSED --output none
+    --container-name api --remove-env-vars CANVAS_PAUSED --output none
   echo "  The app is back."
 else
   echo "  Not in paused mode -- nothing to restore."

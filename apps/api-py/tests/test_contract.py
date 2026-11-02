@@ -10,6 +10,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from canvas_api.catalog import BUILTIN_DIAGRAM_TYPE_IDS, DSL_FAMILIES, PERSONAS, RULE_IDS
+from canvas_api.front_door.route_groups import ROUTE_GROUPS
 from canvas_api.telemetry import route_template
 from tests.api import CONTRACT, CONTRACT_DIR, check_contract
 
@@ -23,6 +24,15 @@ def test_catalog_values_match_the_typescript_service() -> None:
     assert list(PERSONAS) == constants["personas"]
     assert list(BUILTIN_DIAGRAM_TYPE_IDS) == constants["builtinDiagramTypeIds"]
     assert list(RULE_IDS) == constants["ruleIds"]
+
+
+def test_route_groups_match_the_typescript_services() -> None:
+    """The front door's table of routes by group (for the fallback to TypeScript) is the TypeScript service's own
+    (apps/api/src/python/route-groups.ts, written to constants.json). The file lists groups alphabetically,
+    Python's in the order they moved; each group's routes are in the same order in both."""
+    constants = json.loads((CONTRACT_DIR / "constants.json").read_text(encoding="utf-8"))
+    assert {group: list(routes) for group, routes in ROUTE_GROUPS.items()} == constants["routeGroups"]
+    assert sorted(ROUTE_GROUPS) == list(constants["routeGroups"])
 
 
 def _python_routes(client: TestClient) -> set[str]:

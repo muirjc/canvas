@@ -2,6 +2,7 @@ import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import type { IconShapeLibraryManifest } from '@canvas/diagram-core';
 import { requireRole } from '../auth/middleware.js';
 import { clientIp, recordAudit } from '../audit/audit.service.js';
+import { errorResponse, listEnvelope, noContent, objectResponse } from '../contract/schemas.js';
 import {
   addSvgIcons,
   deleteIcon,
@@ -57,16 +58,23 @@ const uploadedIcons = {
     },
   },
 } as const;
-const schema = (extra: object = {}) => ({ tags: ['Libraries'], security: [{ cookieAuth: [] }], ...extra });
+// canvas-1bty.14: every route's response shapes are in the contract (they moved to Python).
+const schema = (extra: object = {}, response: Record<string, unknown> = { 204: noContent }) => ({
+  tags: ['Libraries'],
+  security: [{ cookieAuth: [] }],
+  response: { ...response, '4xx': errorResponse },
+  ...extra,
+});
+const rejected = { type: 'array', items: { $ref: 'RejectedIcon#' } };
 
 export async function registerLibraryAdminRoutes(app: FastifyInstance): Promise<void> {
   const admin = requireRole('admin');
   const audit = (request: FastifyRequest, detail: Record<string, unknown>) =>
     recordAudit({ event: 'icon_library_changed', actorUserId: request.session.user?.id, ip: clientIp(request), detail });
 
-  app.get('/admin/libraries', { preHandler: admin, schema: schema() }, async (_request, reply) => reply.send({ libraries: await listAdminLibraries() }));
+  app.get('/admin/libraries', { preHandler: admin, schema: schema({}, { 200: listEnvelope('libraries', 'AdminLibrary') }) }, async (_request, reply) => reply.send({ libraries: await listAdminLibraries() }));
 
-  app.get<{ Params: Lib }>('/admin/libraries/:id/:version/icons', { preHandler: admin, schema: schema({ params: libParams }) }, async (request, reply) => {
+  app.get<{ Params: Lib }>('/admin/libraries/:id/:version/icons', { preHandler: admin, schema: schema({ params: libParams }, { 200: listEnvelope('icons', 'AdminIcon') }) }, async (request, reply) => {
     try {
       return reply.send({ icons: await listAdminIcons(request.params.id, request.params.version) });
     } catch (error) {
@@ -76,7 +84,10 @@ export async function registerLibraryAdminRoutes(app: FastifyInstance): Promise<
 
   app.get<{ Params: Lib; Querystring: { iconId?: string } }>(
     '/admin/libraries/:id/:version/usage',
-    { preHandler: admin, schema: schema({ params: libParams, querystring: { type: 'object', properties: { iconId: { type: 'string' } } } }) },
+    {
+      preHandler: admin,
+      schema: schema({ params: libParams, querystring: { type: 'object', properties: { iconId: { type: 'string' } } } }, { 200: listEnvelope('diagrams', 'DiagramUsage') }),
+    },
     async (request, reply) => {
       try {
         return reply.send({ diagrams: await libraryUsage(request.params.id, request.params.version, request.query.iconId) });
@@ -97,7 +108,7 @@ export async function registerLibraryAdminRoutes(app: FastifyInstance): Promise<
           required: ['name', 'icons'],
           properties: { name: { type: 'string', maxLength: 120 }, license: { type: 'string', maxLength: 2000 }, icons: uploadedIcons },
         },
-      }),
+      }, { 201: objectResponse({ library: { $ref: 'AdminLibrary#' }, rejected }) }),
     },
     async (request, reply) => {
       try {
@@ -115,7 +126,10 @@ export async function registerLibraryAdminRoutes(app: FastifyInstance): Promise<
     {
       preHandler: admin,
       bodyLimit: UPLOAD_BODY_LIMIT,
-      schema: schema({ body: { type: 'object', required: ['manifest'], properties: { name: { type: 'string', maxLength: 120 }, manifest: { type: 'object' } } } }),
+      schema: schema(
+        { body: { type: 'object', required: ['manifest'], properties: { name: { type: 'string', maxLength: 120 }, manifest: { type: 'object' } } } },
+        { 201: objectResponse({ library: { $ref: 'AdminLibrary#' } }) },
+      ),
     },
     async (request, reply) => {
       try {
@@ -154,7 +168,7 @@ export async function registerLibraryAdminRoutes(app: FastifyInstance): Promise<
 
   app.post<{ Params: Lib; Body: { icons: UploadedIcon[] } }>(
     '/admin/libraries/:id/:version/icons',
-    { preHandler: admin, bodyLimit: UPLOAD_BODY_LIMIT, schema: schema({ params: libParams, body: { type: 'object', required: ['icons'], properties: { icons: uploadedIcons } } }) },
+    { preHandler: admin, bodyLimit: UPLOAD_BODY_LIMIT, schema: schema({ params: libParams, body: { type: 'object', required: ['icons'], properties: { icons: uploadedIcons } } }, { 201: objectResponse({ added: { type: 'array', items: { type: 'string' } }, rejected }) }) },
     async (request, reply) => {
       try {
         const result = await addSvgIcons(request.params.id, request.params.version, request.body.icons);

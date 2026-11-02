@@ -93,6 +93,27 @@ tests are NON-NEGOTIABLE and must exist (and fail) before implementing any diagr
 work — see `.specify/memory/constitution.md` Principle IV.
 
 ## Recent Changes
+- `canvas-1bty.14` (Python phase 10): **Python is the front door.** First the last TypeScript-only group
+  moved: the icon-library admin (group `library-admin`, 16 routes incl. POST /libraries;
+  `routes/library_admin.py`), with new bridge ops `svg-prepare`, `svg-sanitize-strict`, `load-library`,
+  `icon-refs` (batched, chunked under the bridge's 10 MB limit; a refused file doesn't take its icon id,
+  as in TypeScript). Then `canvas_api/front_door/`: serves `WEB_DIST_DIR` (files present at start-up
+  only; /assets immutable, the rest no-cache; .br/.gz; ETag/304), the paused page (`CANVAS_PAUSED`,
+  `PAUSED_PAGE_PATH`), CORS for `WEB_ORIGINS`, Fastify's 404 body for unknown routes, security headers
+  outermost on every response, and sends a group named in `TYPESCRIPT_ROUTE_GROUPS` (default none, the
+  one-release fallback) plus `/docs` to `TYPESCRIPT_API_URL`. Python holds the route table
+  (`front_door/route_groups.py`, held equal to `constants.json` `routeGroups`); routes match like
+  find-my-way (static segment beats a parameter). **Client IP**: Python no longer trusts
+  `X-Canvas-Client-IP` unless `TRUST_CLIENT_IP_HEADER=true`; it reads the last X-Forwarded-For entry.
+  TypeScript behind Python sets `TRUST_CLIENT_IP_HEADER=true` to read the header Python sends. **Azure**:
+  `canvas-api` (same name, so same address/allow-list/Entra redirect URI) runs the Python image (now
+  with the web app built in, `apps/api-py/Dockerfile` web stage) plus the bridge sidecar, container
+  `api` first (pause.sh/resume.sh use `--container-name api`); the TypeScript API is internal
+  `canvas-api-ts` (`modules/tsapiapp.bicep`); `pyapiapp.bicep` is gone and deploy.sh deletes the old
+  `canvas-api-py` app. `CANVAS_TYPESCRIPT_ROUTE_GROUPS` replaces `CANVAS_PYTHON_ROUTE_GROUPS` (refused).
+  CI e2e: Python on :3000, TypeScript on :3001. Also fixed: StandardsAdminPage ignores a stale
+  standards list (a slower answer for the previous type overwrote the clicked one); Python's slower
+  standards list filed as `canvas-y3qt`.
 - `canvas-1bty.13` (Python phase 9): sign-in answers from `apps/api-py` (group `auth`, 15 routes:
   /auth/config, session-check, me, logout, local/login, password, mfa/verify, mfa/enroll(/confirm),
   Entra /auth/login + /auth/callback, and the admin's POST /admin/users, reset-password, reset-mfa,

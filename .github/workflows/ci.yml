@@ -217,8 +217,9 @@ jobs:
             sleep 1
           done
           echo "fake GitHub did not become healthy in time"; cat /tmp/fake-github.log; exit 1
-      # canvas-1bty.6: as in Azure, the API forwards the route groups that have moved to the Python
-      # service (apps/api/src/python/route-groups.ts), so this unchanged e2e suite is each phase's gate.
+      # canvas-1bty.14: as in Azure, the Python service is the front door (port 3000, which the web app and
+      # Playwright call) and the TypeScript API runs behind it (port 3001) as the fallback for route groups
+      # sent back with TYPESCRIPT_ROUTE_GROUPS. This unchanged e2e suite is the gate.
       - name: Install uv
         run: pipx install uv==0.13.1
       # canvas-1bty.8: the Python service parses and validates diagrams through the diagram-core bridge,
@@ -232,38 +233,39 @@ jobs:
             sleep 1
           done
           echo "diagram-core bridge did not become healthy in time"; cat /tmp/bridge.log; exit 1
-      - name: Start the Python service
+      - name: Start the TypeScript API (behind the Python front door)
+        working-directory: apps/api
+        env:
+          PORT: '3001'
+          TRUST_CLIENT_IP_HEADER: 'true'
+        run: |
+          nohup npm run dev > /tmp/api.log 2>&1 &
+          for i in $(seq 1 30); do
+            curl -sf http://localhost:3001/health > /dev/null && exit 0
+            sleep 1
+          done
+          echo "TypeScript API did not become healthy in time"; cat /tmp/api.log; exit 1
+      - name: Start the Python service (the front door)
         working-directory: apps/api-py
         env:
           DIAGRAM_BRIDGE_URL: http://127.0.0.1:7070
+          TYPESCRIPT_API_URL: http://127.0.0.1:3001
         run: |
           uv python install 3.13
           uv sync --frozen
-          nohup uv run uvicorn canvas_api.main:app --host 127.0.0.1 --port 8000 > /tmp/api-py.log 2>&1 &
+          nohup uv run uvicorn canvas_api.main:app --host 0.0.0.0 --port 3000 > /tmp/api-py.log 2>&1 &
           for i in $(seq 1 30); do
-            if curl -sf http://127.0.0.1:8000/health > /dev/null; then
-              echo "PYTHON_API_URL=http://127.0.0.1:8000" >> "$GITHUB_ENV"
-              exit 0
+            if curl -sf http://localhost:3000/health > /dev/null; then
+              # /py/me exists only in Python (401 signed out).
+              status=$(curl -s -o /dev/null -w '%{http_code}' http://localhost:3000/py/me)
+              [ "$status" = "401" ] && exit 0
+              echo "Port 3000 is up but isn't the Python service (/py/me -> $status)"; cat /tmp/api-py.log; exit 1
             fi
             sleep 1
           done
           echo "Python service did not become healthy in time"; cat /tmp/api-py.log; exit 1
-      - name: Start API server
-        working-directory: apps/api
-        run: |
-          nohup npm run dev > /tmp/api.log 2>&1 &
-          for i in $(seq 1 30); do
-            if curl -sf http://localhost:3000/health > /dev/null; then
-              # Forwarding is on: /py/me exists only in Python (401 signed out; 404 would mean not forwarded).
-              status=$(curl -s -o /dev/null -w '%{http_code}' http://localhost:3000/py/me)
-              [ "$status" = "401" ] && exit 0
-              echo "API is up but not forwarding to Python (/py/me -> $status)"; cat /tmp/api.log; exit 1
-            fi
-            sleep 1
-          done
-          echo "API server did not become healthy in time"; cat /tmp/api.log; exit 1
       # Playwright's own webServer config (apps/web/playwright.config.ts) starts the Vite dev
-      # server automatically, so only the API needs to be started manually above.
+      # server automatically, so only the API services need to be started manually above.
       - name: Run Playwright E2E tests
         working-directory: apps/web
         run: npx playwright test

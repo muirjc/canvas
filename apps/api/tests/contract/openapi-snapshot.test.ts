@@ -173,6 +173,8 @@ describe('API contract snapshot for the routes moved to Python (canvas-1bty.6)',
         personas: [...PERSONAS],
         // canvas-1bty.9: the rule ids a standard's severityOverrides may name.
         ruleIds: [...RULE_IDS],
+        // canvas-1bty.14: every route by group, for the Python front door's fallback to TypeScript.
+        routeGroups: PYTHON_ROUTE_GROUPS as unknown as Json,
       }),
     );
   });

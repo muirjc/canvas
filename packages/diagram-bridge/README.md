@@ -9,7 +9,7 @@ One dependency-free file, `dist/bridge.mjs` (esbuild, from diagram-core's source
 icon libraries in it are the manifests the architecture template compiler needs). Since
 canvas-1bty.12 it also bundles the AI chat's diagram tools from `apps/api/src/ai` (`diagram-tools.ts`,
 `diagram-type-primers.ts`, `standard-prompt.ts`, `describe-model.ts`, with zod and the AI SDK's schema
-helpers), so the Python chat offers the model exactly the tools the TypeScript one does. It runs as a sidecar container next to `canvas-api-py` and listens on `127.0.0.1:7070`.
+helpers), so the Python chat offers the model exactly the tools the TypeScript one does. It runs as a sidecar container next to the Python API in `canvas-api` and listens on `127.0.0.1:7070`.
 
 | `POST /<op>` | Body | Answer |
 |---|---|---|
@@ -27,6 +27,10 @@ helpers), so the Python chat offers the model exactly the tools the TypeScript o
 | `ai-tools` | `{ family, rules? }` | `{ tools: [{ name, description, inputSchema }] }` (JSON Schema, as the AI SDK sends providers) |
 | `ai-tool` | `{ family, rules?, model, name, input }` | `{ ok: true, model, output, outcomes }` or `{ ok: false, error }` (bad input, unknown tool or an error in the tool: the text the model gets back) |
 | `ai-prompt` | `{ family, rules?, model }` | `{ primer, standard, currentDiagram }` (the diagram-specific system prompt sections) |
+| `svg-prepare` | `{ items: [{ svg, idPrefix }] }` | `{ results: [{ ok: true, assetRef } or { ok: false, error }] }` (uploaded SVG files as icon artwork) |
+| `svg-sanitize-strict` | same | same (a custom manifest's artwork, checked strictly) |
+| `load-library` | `{ manifest }` | `{ ok: true, library }` (validated, artwork sanitized) or `{ ok: false, error }` |
+| `icon-refs` | `{ diagrams: [{ family, dsl }] }` | `{ refs: [IconRef[] or null] }` (each diagram's icon references; null when it doesn't parse) |
 
 `GET /health` answers `{ "status": "ok" }`. Bad input is a 400 with `{ error }`; nothing is logged
 but the startup line.

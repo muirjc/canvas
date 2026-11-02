@@ -127,7 +127,7 @@ the UI, stays unchanged, and is the acceptance gate throughout.
 | 7 | GitHub App: link, submit, status sync, document embeds; github-sync job | as above, against the fake GitHub |
 | 8 | AI chat and tools (Anthropic/OpenAI SDKs) | as above, mock provider |
 | 9 | Auth last: local accounts, TOTP, Entra OIDC; re-prove canvas-haz's 15 security contract cases in pytest | All 15 cases fail when the hardening is removed, as today |
-| 10 | Swap the front door to Python (can happen any time after about phase 5) | |
+| 10 | Move the icon-library admin (the last group), then swap the front door to Python: `canvas-api` runs Python, TypeScript runs internal as `canvas-api-ts` for the fallback (`TYPESCRIPT_ROUTE_GROUPS`) | e2e green with Python in front |
 | 11 | Port diagram-core's server side to Python family by family against the corpus; retire the sidecar | Corpus green on Python for every family |
 | 12 | Jobs (migrate, seed, purge, bootstrap-admin), Dockerfile, CI, infra, RUNBOOK/README/CLAUDE.md, licence notices (pip packages too); delete `apps/api` TypeScript | No TypeScript or Node in the backend image |
 

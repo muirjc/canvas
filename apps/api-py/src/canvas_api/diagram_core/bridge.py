@@ -128,3 +128,21 @@ class DiagramBridge:
     def ai_prompt(self, family: str, rules: JsonObject | None, model: JsonObject) -> JsonObject:
         """{primer, standard, currentDiagram}: the diagram-specific system prompt sections."""
         return self._post("ai-prompt", {"family": family, "rules": rules, "model": model})
+
+    # canvas-1bty.14: the library admin (packages/diagram-bridge/src/handlers.ts).
+
+    def svg_prepare(self, items: list[JsonObject]) -> list[JsonObject]:
+        """Uploaded SVG files -> icon artwork: [{ok: true, assetRef} | {ok: false, error}], one per item."""
+        return cast(list[JsonObject], self._post("svg-prepare", {"items": items})["results"])
+
+    def svg_sanitize_strict(self, items: list[JsonObject]) -> list[JsonObject]:
+        """A custom manifest's artwork, checked strictly: same shape as svg_prepare."""
+        return cast(list[JsonObject], self._post("svg-sanitize-strict", {"items": items})["results"])
+
+    def load_library(self, manifest: Any) -> JsonObject:
+        """{ok: true, library} (validated, artwork sanitized) or {ok: false, error}."""
+        return self._post("load-library", {"manifest": manifest})
+
+    def icon_refs(self, diagrams: list[JsonObject]) -> list[list[JsonObject] | None]:
+        """Each diagram's icon references (None when it doesn't parse)."""
+        return cast(list[list[JsonObject] | None], self._post("icon-refs", {"diagrams": diagrams})["refs"])

@@ -439,7 +439,7 @@ Setup for admins is in `docs/admin-guide/github.md`; the design is in `docs/gith
   both are cached in `infra/azure/.secrets/`. The key goes to Key Vault as `github-app-private-key`.
 - **Rotating the key:** generate a new private key in the App's settings, re-run deploy.sh with
   `CANVAS_GITHUB_APP_PRIVATE_KEY_FILE` pointing at it (the secret-refresh step restarts canvas-api
-  and canvas-api-py and updates the sync job), then delete the old key in GitHub.
+  and canvas-api-ts and updates the sync job), then delete the old key in GitHub.
 - **Status sync:** the `canvas-github-sync` job runs `python -m canvas_api.github.sync_run` in the
   canvas-api-py image every 15 minutes (only deployed when an App id is set). Run it now with
   `az containerapp job start --name canvas-github-sync --resource-group canvas-rg`; locally,
@@ -551,30 +551,32 @@ Diagram content, prompts, emails and tokens are never recorded. Log lines carry 
 
 ## Python service (canvas-1bty)
 
-The backend is moving to Python (`apps/api-py`), route group by route group
-([docs/python-backend-assessment.md](docs/python-backend-assessment.md)). While it does, `apps/api`
-stays the front door: it serves the web app and forwards to `PYTHON_API_URL`
-- the **moved route groups** listed in `apps/api/src/python/route-groups.ts` (phase 2: `projects`,
-  `diagram-types`, `libraries`, `app-settings`; phase 3: `comments`, `sharing`, `admin-users`;
-  phase 4: `diagrams`; phase 5: `standards`; phase 6: `export`; phase 7: `github`; phase 8: `ai`;
-  phase 9: `auth`, sign-in, sessions, two-step verification and the admin's local-account actions),
-  matched by Fastify route (`PATCH /projects/:id`), so a route under the same prefix that hasn't
-  moved stays on TypeScript;
-- the route prefixes in `PYTHON_ROUTES` (default `/py`), which have no TypeScript routes at all.
+The backend has moved to Python (`apps/api-py`), route group by route group
+([docs/python-backend-assessment.md](docs/python-backend-assessment.md)). Since phase 10
+(canvas-1bty.14) **the Python service is the front door**: the public `canvas-api` container app runs
+it, so the address, IP allow-list and Entra redirect URI are unchanged. It serves the web app
+(`WEB_DIST_DIR`, built into its image), the paused page (`CANVAS_PAUSED`, `PAUSED_PAGE_PATH`) and
+every API route, and allows credentialed cross-origin calls from `WEB_ORIGINS` only (the Vite dev
+server). The TypeScript API (`apps/api`) runs internal-only as `canvas-api-ts` until phase 12 deletes
+it; it gets the route groups sent back to it (below) and `/docs`, and reads the client's address from
+the `X-Canvas-Client-IP` header Python sets (`TRUST_CLIENT_IP_HEADER=true`, never set on a public
+service). Both read the same sessions and need the same `SESSION_SECRET`, database and sign-in
+settings (`modules/apiapp.bicep`, `modules/tsapiapp.bicep`).
 
-Nothing is forwarded when `PYTHON_API_URL` is unset. Both services read the same sessions, so they
-need the same `SESSION_SECRET` and the same database. Since phase 9 they also need the same sign-in
-settings (`AUTH_MODE`, `ALLOW_LOCAL_AUTH`, `OIDC_*`, `AZURE_CLIENT_ID`, `MFA_ENCRYPTION_KEY`,
-`MFA_REQUIRED`, `LOGIN_RATE_LIMIT`, `WEB_ORIGINS`): canvas-api forwards a sign-in route only if it
-registered that route itself (`modules/pyapiapp.bicep` passes them all). For a request it forwards,
-canvas-api leaves the session alone and Python owns it, so the new cookie set at sign-in is the only
-one the browser gets.
+The route groups are listed in `apps/api/src/python/route-groups.ts` (phase 2: `projects`,
+`diagram-types`, `libraries`, `app-settings`; phase 3: `comments`, `sharing`, `admin-users`; phase 4:
+`diagrams`; phase 5: `standards`; phase 6: `export`; phase 7: `github`; phase 8: `ai`; phase 9:
+`auth`; phase 10: `library-admin`, the icon-library admin). Python keeps a copy
+(`canvas_api/front_door/route_groups.py`) held equal to the contract's `constants.json`.
 
-**Falling back to TypeScript.** A moved group's TypeScript routes stay in place for one release.
-`PYTHON_ROUTE_GROUPS` picks which groups go to Python: unset = all, `none` = none, or a list such as
-`projects,libraries`. In Azure: `CANVAS_PYTHON_ROUTE_GROUPS=none ./deploy.sh` (set it on every deploy
-while you need it), or straight away with
-`az containerapp update -n canvas-api -g <rg> --set-env-vars PYTHON_ROUTE_GROUPS=none`.
+**Falling back to TypeScript.** Every TypeScript route is still in place for one release.
+`TYPESCRIPT_ROUTE_GROUPS` on canvas-api names groups to send back to `TYPESCRIPT_API_URL`
+(canvas-api-ts): unset or `none` = none, or a list such as `projects,library-admin`. In Azure:
+`CANVAS_TYPESCRIPT_ROUTE_GROUPS=projects ./deploy.sh` (set it on every deploy while you need it), or
+straight away with
+`az containerapp update -n canvas-api -g <rg> --container-name api --set-env-vars TYPESCRIPT_ROUTE_GROUPS=projects`.
+(`CANVAS_PYTHON_ROUTE_GROUPS`, the old switch, is refused.) The first deploy of phase 10 removes the
+old `canvas-api-py` app.
 
 **API contract.** Each moved route's request and response shapes are in
 `apps/api/contract/openapi.json`, generated from the TypeScript routes' own schemas
@@ -583,24 +585,25 @@ TypeScript test fails when a moved route's shape changes without regenerating it
 check every response they get against it. CI's e2e job runs with the Python service behind the
 front door, as in Azure.
 
-Locally, with the API running as usual:
+Locally, as CI's e2e job runs it (the web app's Vite dev server calls `http://localhost:3000`):
 
 ```bash
-cd apps/api-py && uv sync
-DATABASE_URL=<same as apps/api/.env> SESSION_SECRET=<same as apps/api/.env> \
-  uv run uvicorn canvas_api.main:app --port 8000
-# apps/api/.env: PYTHON_API_URL=http://localhost:8000, then restart the API.
-# http://localhost:3000/py/me answers from Python with your session.
+# The TypeScript API behind it (only needed for groups sent back to it):
+cd apps/api && PORT=3001 TRUST_CLIENT_IP_HEADER=true npm run dev
+# The bridge, then the Python front door on port 3000 with apps/api/.env's settings:
+npm run build --workspace=@canvas/diagram-bridge && npm start --workspace=@canvas/diagram-bridge
+cd apps/api-py && uv sync && DIAGRAM_BRIDGE_URL=http://127.0.0.1:7070 \
+  uv run --env-file ../api/.env uvicorn canvas_api.main:app --port 3000
 ```
 
-In Azure, `deploy.sh` builds both images with the same tag. `canvas-api-py` is an internal-only
-container app (no public address); `canvas-api` reaches it as `http://canvas-api-py`. It scales to
-zero like `canvas-api`; `pause.sh` needs no change because a paused `canvas-api` forwards nothing.
+In Azure, `deploy.sh` builds the `canvas-api-py` (Python, with the web app), `canvas-api` (TypeScript)
+and `canvas-diagram-bridge` images with the same tag. `pause.sh`/`resume.sh` set and clear
+`CANVAS_PAUSED` on canvas-api's `api` container.
 Tests: `uv run pytest` (Postgres, schema `canvas_py`) and `TEST_DB_CLIENT=sqlite uv run pytest`;
 see [apps/api-py/README.md](apps/api-py/README.md).
 
 The Python service reaches diagram-core (parsing, validation, SVG) through the **diagram-core
-bridge** (`packages/diagram-bridge`, canvas-1bty.4): a second container in `canvas-api-py`
+bridge** (`packages/diagram-bridge`, canvas-1bty.4): a second container in `canvas-api`
 listening on `127.0.0.1:7070`, set as `DIAGRAM_BRIDGE_URL`. Locally:
 `npm run build --workspace=@canvas/diagram-bridge && npm start --workspace=@canvas/diagram-bridge`,
 then `DIAGRAM_BRIDGE_URL=http://127.0.0.1:7070` for uvicorn. Since phase 4 (canvas-1bty.8) the bridge

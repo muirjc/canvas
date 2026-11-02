@@ -170,12 +170,14 @@ describe('forwarding moved routes by route pattern (canvas-1bty.6)', () => {
   });
 
   it('only forwards the moved method and pattern, not its neighbours', async () => {
+    // Every route has moved since canvas-1bty.14, so neighbours are checked with only the `libraries`
+    // group forwarded: POST /libraries (group `library-admin`) stays on TypeScript while GET /libraries
+    // goes to Python, and so does the rest of /admin/libraries.
     const before = seen.length;
-    // Same /admin prefix, not moved yet: the library admin stays on TypeScript while /admin/users moved.
-    expect((await app.inject({ method: 'GET', url: '/admin/libraries' })).statusCode).toBe(401);
-    // POST /libraries stays on TypeScript while GET /libraries moved.
-    expect((await app.inject({ method: 'POST', url: '/libraries', payload: {} })).statusCode).toBe(401);
+    expect((await fallbackApp.inject({ method: 'POST', url: '/libraries', payload: {} })).statusCode).toBe(401);
+    expect((await fallbackApp.inject({ method: 'GET', url: '/admin/libraries' })).statusCode).toBe(401);
     expect(seen.length).toBe(before);
+    expect((await fallbackApp.inject({ method: 'GET', url: '/libraries' })).json()).toMatchObject({ service: 'python' });
   });
 
   it('a group left out of PYTHON_ROUTE_GROUPS falls back to the TypeScript route', async () => {

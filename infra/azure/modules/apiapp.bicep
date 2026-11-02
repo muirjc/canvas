@@ -1,17 +1,12 @@
-// API container app (canvas-ycu, mirrors ADP's infra/azure/modules/apiapp.bicep) -- the one
-// component the public actually reaches. Managed identity gets Key Vault Secrets User AND AcrPull
-// (both from modules/keyvault.bicep, which owns the identity itself) -- RBAC role assignments are
-// scope-based and additive, so that one AcrPull grant already covers every container app using
-// this same identity, this one included. This module used to declare its own separate
-// (functionally redundant) AcrPull grant; removed after a real deploy failure
-// (RoleAssignmentExists) proved that redeploying an already-existing role assignment resource is
-// not reliably idempotent even when its principalId is provably unchanged -- one authoritative
-// declaration avoids the whole class of conflict rather than trying to make a second one
-// re-deploy cleanly. /health has no auth guard and is wired as the liveness/readiness probe
-// (apps/api/src/app.ts).
+// canvas-1bty.14: canvas-api, the one component the public reaches -- since phase 10 the Python backend
+// (apps/api-py) with the diagram-core bridge as a sidecar. Same name, so the same address, IP allow-list
+// and Entra redirect URI as when it ran the TypeScript API. It serves the web app (built into its image),
+// the paused page (CANVAS_PAUSED, pause.sh/resume.sh), and every API route; a route group named in
+// TYPESCRIPT_ROUTE_GROUPS (the one-release fallback) and /docs go to the internal TypeScript service,
+// canvas-api-ts (modules/tsapiapp.bicep).
 //
-// minReplicas=0: a Node/Fastify cold start is a couple of seconds, not disruptive, so
-// scale-to-zero when idle is a real cost saving -- this app costs ~$0 while nothing is using it.
+// The managed identity's AcrPull and Key Vault grants live in modules/keyvault.bicep. /health has no auth
+// guard and is the liveness/readiness probe. minReplicas=0 (cold starts accepted, canvas-aots).
 
 @description('Azure region.')
 param location string
@@ -25,64 +20,59 @@ param identityId string
 @description('ACR login server.')
 param acrLoginServer string
 
-@description('Tag of the API image (repo-root Dockerfile), already built+pushed to ACR by deploy.sh before this runs.')
-param apiImageTag string
+@description('Tag of the canvas-api-py image (apps/api-py/Dockerfile) and canvas-diagram-bridge, built and pushed by deploy.sh.')
+param imageTag string
 
 @description('Key Vault URI (used to build secret references).')
 param keyVaultUri string
 
-@description('canvas-r3y: the public URL Canvas is used at -- this app\'s own URL, since it serves the web app too. Becomes WEB_ORIGINS and CANVAS_PUBLIC_URL.')
-param webOrigin string
-
-@description('Port the API listens on inside the container (matches apps/api/src/config.ts PORT).')
-param apiPort int = 3000
-
-@description('canvas-haz: this deployment authenticates via Microsoft Entra ID, so local email/password auth is no longer the only way to sign in -- defaults to false, requiring SSO + whatever Conditional Access/MFA policy the tenant enforces for this app. Kept as a param, not hardcoded, purely as an emergency break-glass switch (e.g. the Entra tenant itself is unreachable) -- flip it back to true only for that, never as a standing configuration, or MFA becomes silently bypassable.')
-param allowLocalAuth bool = false
-
-@description('canvas-ez1.1: AUTH_MODE -- "entra" (Entra ID sign-in) or "local" (Canvas-managed email + password accounts only; the OIDC_* values below are then ignored by the API). deploy.sh refuses "local" without an IP allow-list (docs/ip-allowlist-security-plan.md, option B).')
-@allowed(['entra', 'local'])
-param authMode string = 'entra'
-
-@description('canvas-cng: the IP allow-list, as [{ cidr, description }]. When non-empty, ingress only accepts these ranges -- once one Allow rule exists, Container Apps denies all other traffic. Entra sign-in still applies on top (docs/ip-allowlist-security-plan.md, option A). deploy.sh supplies it from infra/azure/.secrets/allowed-ips and refuses an empty list unless CANVAS_ALLOW_PUBLIC=1.')
-param allowedIpRanges array = []
-
-@description('AI_PROVIDER value -- "mock" keeps AI chat on the deterministic fake NLU (no real API calls, no cost) until a real key is provided via Key Vault; switch to anthropic/openai once ANTHROPIC_API_KEY/OPENAI_API_KEY are set as real Key Vault secret values.')
-param aiProvider string = 'mock'
-
-@description('canvas-haz: Entra ID tenant ID this app authenticates against (RUNBOOK.md\'s "Entra ID SSO" section). OIDC_ISSUER_URL is derived from this plus the v2.0 endpoint suffix apps/api/src/config.ts\'s own validateOidcIssuerUrl() requires.')
-param entraTenantId string
-
-@description('canvas-haz: the "canvas-azure" Entra app registration\'s Application (client) ID.')
-param entraClientId string
-
-@description('This app\'s own OIDC callback URL: https://<this-api-fqdn>/auth/callback -- computed in main.bicep from this app\'s own predictable Container Apps FQDN (not knowable from within its own resource definition, hence computed one level up).')
-param oidcRedirectUri string
-
-@description('canvas-3s5.1: GITHUB_APP_ID -- the GitHub App diagrams are submitted for approval with; "unset" = off. The private key is the github-app-private-key Key Vault secret ("unset" until deploy.sh is given one).')
-param githubAppId string = 'unset'
-
-@description('canvas-3s5.1: GITHUB_APP_API_URL.')
-param githubApiUrl string = 'https://api.github.com'
-
-@description('canvas-haz.9: how the API authenticates to Entra -- "secret" (OIDC_CLIENT_SECRET) or "managed-identity" (a federated credential on the app registration trusts this app\'s managed identity; no secret).')
-@allowed(['secret', 'managed-identity'])
-param oidcClientAuth string = 'secret'
-
-@description('canvas-haz.9: client id of the user-assigned managed identity (used for the federated credential).')
-param identityClientId string = ''
-
 @description('canvas-6upe: Application Insights connection string. Empty = telemetry off.')
 param appInsightsConnectionString string = ''
 
-@description('canvas-1bty.3: the Python service canvas-api forwards moved routes to (PYTHON_API_URL). Empty = nothing forwarded.')
-param pythonApiUrl string = ''
+@description('canvas-1bty.11: GITHUB_APP_ID; "unset" = GitHub approval off. The private key is the github-app-private-key Key Vault secret.')
+param githubAppId string = 'unset'
 
-@description('canvas-1bty.3: route prefixes the Python service answers (PYTHON_ROUTES, comma-separated).')
-param pythonRoutes string = '/py'
+@description('canvas-1bty.11: GITHUB_APP_API_URL.')
+param githubApiUrl string = 'https://api.github.com'
 
-@description('canvas-1bty.6: moved route groups forwarded to Python (PYTHON_ROUTE_GROUPS). Empty = all; "none" = none.')
-param pythonRouteGroups string = ''
+@description('The public URL Canvas is used at -- this app\'s own URL, since it serves the web app. Becomes WEB_ORIGINS and CANVAS_PUBLIC_URL.')
+param webOrigin string
+
+@description('canvas-1bty.12: AI_PROVIDER: mock, anthropic or openai. The keys are the anthropic-api-key / openai-api-key Key Vault secrets.')
+param aiProvider string = 'mock'
+
+@description('canvas-1bty.13: AUTH_MODE: entra or local.')
+param authMode string = 'entra'
+
+@description('canvas-1bty.13: ALLOW_LOCAL_AUTH.')
+param allowLocalAuth bool = false
+
+@description('canvas-1bty.13: Entra tenant id.')
+param entraTenantId string
+
+@description('canvas-1bty.13: Entra app registration (client) id.')
+param entraClientId string
+
+@description('canvas-1bty.13: the Entra redirect URI (this app\'s public /auth/callback).')
+param oidcRedirectUri string
+
+@description('canvas-1bty.13: OIDC_CLIENT_AUTH: secret or managed-identity.')
+param oidcClientAuth string = 'secret'
+
+@description('canvas-1bty.13: the managed identity\'s client id (AZURE_CLIENT_ID), for managed-identity sign-in.')
+param identityClientId string = ''
+
+@description('canvas-cng: the IP allow-list, as [{ cidr, description }]. When non-empty, ingress only accepts these ranges -- once one Allow rule exists, Container Apps denies all other traffic. deploy.sh supplies it from infra/azure/.secrets/allowed-ips and refuses an empty list unless CANVAS_ALLOW_PUBLIC=1.')
+param allowedIpRanges array = []
+
+@description('canvas-1bty.14: the internal TypeScript service (TYPESCRIPT_API_URL); empty = none.')
+param typescriptApiUrl string = ''
+
+@description('canvas-1bty.14: route groups sent back to TypeScript (TYPESCRIPT_ROUTE_GROUPS): empty or "none" = none.')
+param typescriptRouteGroups string = ''
+
+@description('Port uvicorn listens on (apps/api-py/Dockerfile).')
+param port int = 8000
 
 resource apiApp 'Microsoft.App/containerApps@2025-01-01' = {
   name: 'canvas-api'
@@ -99,7 +89,7 @@ resource apiApp 'Microsoft.App/containerApps@2025-01-01' = {
       activeRevisionsMode: 'Single'
       ingress: {
         external: true
-        targetPort: apiPort
+        targetPort: port
         transport: 'auto'
         ipSecurityRestrictions: [for (range, i) in allowedIpRanges: {
           name: 'allowed-ip-${i + 1}'
@@ -126,12 +116,7 @@ resource apiApp 'Microsoft.App/containerApps@2025-01-01' = {
           identity: identityId
         }
         {
-          // canvas-ez1.5: encrypts stored two-step-verification secrets (deploy.sh generates it).
-          name: 'mfa-encryption-key'
-          keyVaultUrl: '${keyVaultUri}secrets/mfa-encryption-key'
-          identity: identityId
-        }
-        {
+          // canvas-1bty.12: the AI provider keys ("unset" until deploy.sh is given one).
           name: 'anthropic-api-key'
           keyVaultUrl: '${keyVaultUri}secrets/anthropic-api-key'
           identity: identityId
@@ -142,9 +127,9 @@ resource apiApp 'Microsoft.App/containerApps@2025-01-01' = {
           identity: identityId
         }
         {
-          // canvas-3s5.1: base64 of the GitHub App's PEM private key, or "unset".
-          name: 'github-app-private-key'
-          keyVaultUrl: '${keyVaultUri}secrets/github-app-private-key'
+          // canvas-1bty.13: sign-in.
+          name: 'mfa-encryption-key'
+          keyVaultUrl: '${keyVaultUri}secrets/mfa-encryption-key'
           identity: identityId
         }
         {
@@ -152,61 +137,53 @@ resource apiApp 'Microsoft.App/containerApps@2025-01-01' = {
           keyVaultUrl: '${keyVaultUri}secrets/oidc-client-secret'
           identity: identityId
         }
+        {
+          // canvas-1bty.11: base64 of the GitHub App's PEM private key, or "unset".
+          name: 'github-app-private-key'
+          keyVaultUrl: '${keyVaultUri}secrets/github-app-private-key'
+          identity: identityId
+        }
       ]
     }
     template: {
       containers: [
         {
+          // 'api' and first: pause.sh/resume.sh set CANVAS_PAUSED on this container.
           name: 'api'
-          image: '${acrLoginServer}/canvas-api:${apiImageTag}'
+          image: '${acrLoginServer}/canvas-api-py:${imageTag}'
           env: [
-            { name: 'PORT', value: string(apiPort) }
-            // canvas-6upe: OpenTelemetry -> Application Insights (off when empty).
-            { name: 'APPLICATIONINSIGHTS_CONNECTION_STRING', value: appInsightsConnectionString }
-            // NOT string(allowLocalAuth) -- Bicep/ARM's string() on a bool produces "True"/
-            // "False" (capitalized), but apps/api/src/config.ts checks
-            // `env.ALLOW_LOCAL_AUTH === 'true'` as an exact lowercase string match. string(true)
-            // would silently evaluate to false with no error anywhere -- caught via `az
-            // deployment sub what-if`'s actual rendered output, not by inspection alone.
-            { name: 'ALLOW_LOCAL_AUTH', value: allowLocalAuth ? 'true' : 'false' }
-            { name: 'AUTH_MODE', value: authMode }
-            // canvas-r3y: the web app is served from this same origin, so the session cookie is
-            // first-party: SameSite=Lax (was None, a third-party cookie that Safari/iOS and private
-            // windows block, so sign-in "succeeded" and the next request was a 401).
-            { name: 'COOKIE_SECURE', value: 'true' }
-            { name: 'COOKIE_SAME_SITE', value: 'lax' }
-            { name: 'WEB_ORIGINS', value: webOrigin }
-            { name: 'AI_PROVIDER', value: aiProvider }
-            // canvas-haz: Entra's issuer is always public -- no internal/public split, no reverse
-            // proxy, no customFetch rewrite needed the way the self-hosted Keycloak this replaced
-            // required. environment().authentication.loginEndpoint already ends in '/' (it's
-            // 'https://login.microsoftonline.com/' in the public cloud, a different host entirely
-            // in sovereign clouds like Azure Government/China) -- using it rather than hardcoding
-            // the public-cloud hostname keeps this correct if this subscription is ever deployed
-            // into one of those. The /v2.0 suffix is REQUIRED -- apps/api/src/config.ts's own
-            // validateOidcIssuerUrl() fails fast at startup without it (a bare tenant path or the
-            // v1 endpoint produces a different claims shape, e.g. no flat top-level `roles` claim).
-            { name: 'OIDC_ISSUER_URL', value: '${environment().authentication.loginEndpoint}${entraTenantId}/v2.0' }
-            { name: 'OIDC_CLIENT_ID', value: entraClientId }
-            { name: 'OIDC_CLIENT_SECRET', secretRef: 'oidc-client-secret' }
-            // canvas-haz.9: in managed-identity mode the secret above is unused ("unset").
-            { name: 'OIDC_CLIENT_AUTH', value: oidcClientAuth }
-            { name: 'AZURE_CLIENT_ID', value: identityClientId }
-            { name: 'OIDC_REDIRECT_URI', value: oidcRedirectUri }
+            { name: 'DB_CLIENT', value: 'postgres' }
             { name: 'DATABASE_URL', secretRef: 'database-url' }
             { name: 'SESSION_SECRET', secretRef: 'session-secret' }
-            { name: 'MFA_ENCRYPTION_KEY', secretRef: 'mfa-encryption-key' }
-            { name: 'ANTHROPIC_API_KEY', secretRef: 'anthropic-api-key' }
-            { name: 'OPENAI_API_KEY', secretRef: 'openai-api-key' }
+            { name: 'COOKIE_SECURE', value: 'true' }
+            { name: 'COOKIE_SAME_SITE', value: 'lax' }
+            { name: 'APPLICATIONINSIGHTS_CONNECTION_STRING', value: appInsightsConnectionString }
+            { name: 'OTEL_SERVICE_NAME', value: 'canvas-api' }
+            // canvas-1bty.4: the diagram-core bridge, the sidecar below (same localhost).
+            { name: 'DIAGRAM_BRIDGE_URL', value: 'http://127.0.0.1:7070' }
+            // canvas-1bty.11: GitHub approval.
             { name: 'GITHUB_APP_ID', value: githubAppId }
             { name: 'GITHUB_APP_PRIVATE_KEY', secretRef: 'github-app-private-key' }
             { name: 'GITHUB_APP_API_URL', value: githubApiUrl }
-            // Links in pull requests point back at the web app.
             { name: 'CANVAS_PUBLIC_URL', value: webOrigin }
-            // canvas-1bty.3: route groups that have moved to Python (modules/pyapiapp.bicep).
-            { name: 'PYTHON_API_URL', value: pythonApiUrl }
-            { name: 'PYTHON_ROUTES', value: pythonRoutes }
-            { name: 'PYTHON_ROUTE_GROUPS', value: pythonRouteGroups }
+            // canvas-1bty.12: AI chat.
+            { name: 'AI_PROVIDER', value: aiProvider }
+            { name: 'ANTHROPIC_API_KEY', secretRef: 'anthropic-api-key' }
+            { name: 'OPENAI_API_KEY', secretRef: 'openai-api-key' }
+            // canvas-1bty.13: sign-in (lowercase 'true'/'false': the settings compare exactly).
+            { name: 'AUTH_MODE', value: authMode }
+            { name: 'ALLOW_LOCAL_AUTH', value: allowLocalAuth ? 'true' : 'false' }
+            { name: 'WEB_ORIGINS', value: webOrigin }
+            { name: 'OIDC_ISSUER_URL', value: '${environment().authentication.loginEndpoint}${entraTenantId}/v2.0' }
+            { name: 'OIDC_CLIENT_ID', value: entraClientId }
+            { name: 'OIDC_CLIENT_SECRET', secretRef: 'oidc-client-secret' }
+            { name: 'OIDC_CLIENT_AUTH', value: oidcClientAuth }
+            { name: 'AZURE_CLIENT_ID', value: identityClientId }
+            { name: 'OIDC_REDIRECT_URI', value: oidcRedirectUri }
+            { name: 'MFA_ENCRYPTION_KEY', secretRef: 'mfa-encryption-key' }
+            // canvas-1bty.14: the fallback to the internal TypeScript service (modules/tsapiapp.bicep).
+            { name: 'TYPESCRIPT_API_URL', value: typescriptApiUrl }
+            { name: 'TYPESCRIPT_ROUTE_GROUPS', value: typescriptRouteGroups }
           ]
           resources: {
             cpu: json('0.5')
@@ -217,21 +194,37 @@ resource apiApp 'Microsoft.App/containerApps@2025-01-01' = {
               type: 'Liveness'
               httpGet: {
                 path: '/health'
-                port: apiPort
+                port: port
               }
-              initialDelaySeconds: 10
+              initialDelaySeconds: 5
               periodSeconds: 30
             }
             {
               type: 'Readiness'
               httpGet: {
                 path: '/health'
-                port: apiPort
+                port: port
               }
-              initialDelaySeconds: 5
+              initialDelaySeconds: 3
               periodSeconds: 10
             }
           ]
+        }
+        {
+          // canvas-1bty.4: diagram-core (TypeScript) for the Python service until it is ported
+          // (packages/diagram-bridge). Shares the app's network: listens on 127.0.0.1 only, so
+          // nothing outside this replica can reach it.
+          name: 'diagram-bridge'
+          image: '${acrLoginServer}/canvas-diagram-bridge:${imageTag}'
+          env: [
+            { name: 'BRIDGE_HOST', value: '127.0.0.1' }
+            { name: 'BRIDGE_PORT', value: '7070' }
+          ]
+          // 0.5 + 0.25 CPU / 1 + 0.5 Gi: a valid Container Apps combination (0.75 / 1.5Gi).
+          resources: {
+            cpu: json('0.25')
+            memory: '0.5Gi'
+          }
         }
       ]
       scale: {
@@ -240,11 +233,6 @@ resource apiApp 'Microsoft.App/containerApps@2025-01-01' = {
       }
     }
   }
-  // No explicit dependsOn for the AcrPull grant needed here (see this file's own header comment --
-  // that grant lives in modules/keyvault.bicep): this module already consumes
-  // keyVault.outputs.identityId/keyVaultUri (identityId/keyVaultUri params above), which gives
-  // Bicep an implicit dependency on the keyVault module completing -- including its AcrPull role
-  // assignment -- before this one deploys.
 }
 
 output fqdn string = apiApp.properties.configuration.ingress.fqdn
