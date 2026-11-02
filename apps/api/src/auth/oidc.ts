@@ -7,6 +7,7 @@ import type { AppConfig } from '../config.js';
 import type { SessionUser, UserRole } from './types.js';
 import { startAuthenticatedSession } from './session.js';
 import { ManagedIdentityAssertion } from './managed-identity.js';
+import { errorResponse, objectResponse, redirect } from '../contract/schemas.js';
 
 declare module '@fastify/session' {
   interface FastifySessionObject {
@@ -179,7 +180,20 @@ export async function registerOidcRoutes(app: FastifyInstance, config: AppConfig
   app.get(
     '/auth/config',
     // canvas-lfc: no preHandler enforces auth -- deliberately public (see the comment above).
-    { schema: { tags: ['Auth'], security: [] } },
+    {
+      schema: {
+        tags: ['Auth'],
+        security: [],
+        response: {
+          200: objectResponse({
+            authMode: { type: 'string', enum: ['entra', 'local'] },
+            oidcEnabled: { type: 'boolean' },
+            localAuthEnabled: { type: 'boolean' },
+            mfaRequired: { type: 'boolean' },
+          }),
+        },
+      },
+    },
     // canvas-ez1.1: authMode too, so the sign-in page and operators can see which model is live.
     async () => ({ authMode: config.authMode, oidcEnabled, localAuthEnabled: config.allowLocalAuth, mfaRequired: config.allowLocalAuth && config.mfaRequired }),
   );
@@ -253,7 +267,7 @@ export async function registerOidcRoutes(app: FastifyInstance, config: AppConfig
     '/auth/login',
     // canvas-lfc: no preHandler enforces auth -- this route starts a fresh login, so a caller
     // can't be authenticated yet.
-    { schema: { tags: ['Auth'], security: [] } },
+    { schema: { tags: ['Auth'], security: [], response: { 302: redirect } } },
     async (request, reply) => {
       const codeVerifier = client.randomPKCECodeVerifier();
       const codeChallenge = await client.calculatePKCECodeChallenge(codeVerifier);
@@ -281,7 +295,7 @@ export async function registerOidcRoutes(app: FastifyInstance, config: AppConfig
     '/auth/callback',
     // canvas-lfc: no preHandler enforces auth -- this route IS what establishes the session, and
     // its own pending-state check (below) is a business rule, not a canvas cookieAuth check.
-    { schema: { tags: ['Auth'], security: [] } },
+    { schema: { tags: ['Auth'], security: [], response: { 302: redirect, '4xx': errorResponse } } },
     async (request, reply) => {
       const { oidcCodeVerifier, oidcState, oidcNonce } = request.session;
       if (!oidcCodeVerifier || !oidcState || !oidcNonce) {

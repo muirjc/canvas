@@ -5,6 +5,7 @@ import type { AppConfig } from '../config.js';
 import { DbSessionStore } from './session-store.js';
 import { getDb } from '../db/client.js';
 import { getUserPersonas } from '../db/array-columns.js';
+import { envelope, errorResponse, noContent, objectResponse } from '../contract/schemas.js';
 
 /**
  * canvas-4xo: sessions used to run on every @fastify/session default -- the in-memory store (lost
@@ -114,7 +115,7 @@ export async function registerSessionInfoRoutes(app: FastifyInstance): Promise<v
     '/auth/logout',
     // canvas-lfc: no preHandler enforces auth -- calling this with no active session is a no-op
     // 204, not an error (see the body below), so it's genuinely public, not merely unannotated.
-    { schema: { tags: ['Auth'], security: [] } },
+    { schema: { tags: ['Auth'], security: [], response: { 200: objectResponse({ logoutUrl: { type: 'string' } }), 204: noContent } } },
     async (request, reply) => {
       // canvas-252: destroying the local session was ALL this route ever did -- Keycloak's own SSO
       // session cookie was never touched, so the very next SSO login silently re-authenticated the
@@ -143,7 +144,13 @@ export async function registerSessionInfoRoutes(app: FastifyInstance): Promise<v
   // creates a session.
   app.get(
     '/auth/session-check',
-    { schema: { tags: ['Auth'], security: [] } },
+    {
+      schema: {
+        tags: ['Auth'],
+        security: [],
+        response: { 200: objectResponse({ session: { type: 'string', enum: ['signed-in', 'pending-mfa', 'none'] } }) },
+      },
+    },
     async (request, reply) => {
       const state = request.session.user ? 'signed-in' : request.session.mfaPending ? 'pending-mfa' : 'none';
       return reply.send({ session: state });
@@ -156,7 +163,7 @@ export async function registerSessionInfoRoutes(app: FastifyInstance): Promise<v
     // handler itself (below), not a preHandler rejection, so security: [] reflects Fastify's
     // actual enforcement mechanism rather than the practical "you need a session to get anything
     // useful back" intent alone.
-    { schema: { tags: ['Auth'], security: [] } },
+    { schema: { tags: ['Auth'], security: [], response: { 200: envelope('user', 'SessionUser'), '4xx': errorResponse } } },
     async (request, reply) => {
       if (!request.session.user) {
         return reply.code(401).send({ error: 'Not authenticated' });

@@ -1,5 +1,6 @@
 import Fastify from 'fastify';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { registerContractSchemas } from '../../src/contract/schemas.js';
 import {
   buildEndSessionUrl,
   extractEntraRoles,
@@ -208,6 +209,8 @@ describe('registerOidcRoutes() buildOidcLogoutUrl decoration (canvas-252)', () =
     });
 
     const app = Fastify();
+
+    registerContractSchemas(app); // canvas-1bty.13: the auth routes' response schemas
     await registerOidcRoutes(app, oidcConfig());
     await app.ready();
 
@@ -226,6 +229,8 @@ describe('registerOidcRoutes() buildOidcLogoutUrl decoration (canvas-252)', () =
     discoveryMock.mockResolvedValue({ serverMetadata: () => ({}) });
 
     const app = Fastify();
+
+    registerContractSchemas(app); // canvas-1bty.13: the auth routes' response schemas
     await registerOidcRoutes(app, oidcConfig());
     await app.ready();
 
@@ -239,6 +244,8 @@ describe('registerOidcRoutes() buildOidcLogoutUrl decoration (canvas-252)', () =
     discoveryMock.mockResolvedValue({});
 
     const app = Fastify();
+
+    registerContractSchemas(app); // canvas-1bty.13: the auth routes' response schemas
     await expect(registerOidcRoutes(app, oidcConfig())).resolves.toBeUndefined();
     await expect(app.ready()).resolves.toBeDefined();
 
@@ -255,6 +262,8 @@ describe('registerOidcRoutes() buildOidcLogoutUrl decoration (canvas-252)', () =
     });
 
     const app = Fastify();
+
+    registerContractSchemas(app); // canvas-1bty.13: the auth routes' response schemas
     await expect(registerOidcRoutes(app, oidcConfig())).resolves.toBeUndefined();
     await expect(app.ready()).resolves.toBeDefined();
 

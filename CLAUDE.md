@@ -93,6 +93,27 @@ tests are NON-NEGOTIABLE and must exist (and fail) before implementing any diagr
 work — see `.specify/memory/constitution.md` Principle IV.
 
 ## Recent Changes
+- `canvas-1bty.13` (Python phase 9): sign-in answers from `apps/api-py` (group `auth`, 15 routes:
+  /auth/config, session-check, me, logout, local/login, password, mfa/verify, mfa/enroll(/confirm),
+  Entra /auth/login + /auth/callback, and the admin's POST /admin/users, reset-password, reset-mfa,
+  unlock). Python now WRITES sessions too, in @fastify/session's row format (`auth/session.py`:
+  start/save/end, new id + old one revoked at sign-in, expired rows pruned), so a session made by
+  either service works on the other. **Front door**: for a forwarded request it sets
+  `request.session = null`, leaving the session to Python -- otherwise @fastify/session re-saved the
+  old session and sent its cookie after Python's new one, signing the user straight back out
+  (`python-front-door.test.ts` fails without it). Ported: scrypt passwords (same params/hex salt as
+  Node), policy, one-time passwords, 3-strike lockout, per-IP rate limit, TOTP, AES-256-GCM secrets,
+  recovery codes (`auth/accounts.py`, `passwords.py`, `totp.py`, `mfa_crypto.py`); Entra OIDC with
+  PKCE in `auth/oidc.py` (httpx + PyJWT, new dependency): state, iss param, ID-token signature
+  against the JWKS by kid, iss/aud/azp/exp/iat (30 s leeway)/nonce, Entra `?error=` -> 403,
+  client_secret_post or the managed-identity client assertion; discovery lazy at first use. The 15
+  canvas-haz cases are in `tests/test_auth_oidc.py` (fake IdP via `create_app(oidc_transport=)`),
+  each shown to fail with its check removed. Cross-service vectors (hashes, ciphertexts, TOTP,
+  recovery-code hashes) in `tests/test_auth_units.py`. Both services need the same sign-in env
+  (AUTH_MODE, ALLOW_LOCAL_AUTH, OIDC_*, AZURE_CLIENT_ID, MFA_*, LOGIN_RATE_LIMIT, WEB_ORIGINS):
+  the front door only forwards a sign-in route it registered itself; `pyapiapp.bicep` passes them.
+  Bootstrap-admin stays TypeScript (phase 12). Live parity on the dev DB: 62/62 identical, including
+  sessions and authenticators set up on one service used on the other, both ways.
 - `canvas-1bty.12` (Python phase 8): AI chat and its administration answer from `apps/api-py` (group
   `ai`, 21 routes: chat send/history, AI settings and model list, personas, reference material,
   usage, prices, /me/ai-usage). **The diagram tools stay TypeScript** (decided with the user): the

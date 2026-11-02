@@ -106,6 +106,10 @@ export async function registerAdminRoutes(app: FastifyInstance, options: { local
               personas: PERSONAS_SCHEMA,
             },
           },
+          response: {
+            201: objectResponse({ user: { $ref: 'UpdatedUser#' }, temporaryPassword: { type: 'string' } }),
+            '4xx': errorResponse,
+          },
         },
       },
       async (request, reply) => {
@@ -133,6 +137,7 @@ export async function registerAdminRoutes(app: FastifyInstance, options: { local
           tags: ['Admin'],
           security: [{ cookieAuth: [] }],
           params: { type: 'object', required: ['id'], properties: { id: { type: 'string' } } },
+          response: { 200: objectResponse({ temporaryPassword: { type: 'string' } }), '4xx': errorResponse },
         },
       },
       async (request, reply) => {
@@ -160,6 +165,7 @@ export async function registerAdminRoutes(app: FastifyInstance, options: { local
           tags: ['Admin'],
           security: [{ cookieAuth: [] }],
           params: { type: 'object', required: ['id'], properties: { id: { type: 'string' } } },
+          response: { 200: objectResponse({ reset: { type: 'boolean' } }), '4xx': errorResponse },
         },
       },
       async (request, reply) => {
@@ -188,6 +194,7 @@ export async function registerAdminRoutes(app: FastifyInstance, options: { local
           tags: ['Admin'],
           security: [{ cookieAuth: [] }],
           params: { type: 'object', required: ['id'], properties: { id: { type: 'string' } } },
+          response: { 200: objectResponse({ unlocked: { type: 'boolean' } }), '4xx': errorResponse },
         },
       },
       async (request, reply) => {

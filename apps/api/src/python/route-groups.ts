@@ -135,6 +135,25 @@ export const PYTHON_ROUTE_GROUPS = {
     'DELETE /admin/ai-prices',
     'GET /me/ai-usage',
   ],
+  // Phase 9 (canvas-1bty.13): sign-in, sessions, two-step verification and the admin's local-account
+  // actions. Python then owns the session on these, start to end (front-door.ts).
+  auth: [
+    'GET /auth/config',
+    'GET /auth/session-check',
+    'GET /auth/me',
+    'POST /auth/logout',
+    'POST /auth/local/login',
+    'POST /auth/password',
+    'POST /auth/mfa/verify',
+    'POST /auth/mfa/enroll',
+    'POST /auth/mfa/enroll/confirm',
+    'GET /auth/login',
+    'GET /auth/callback',
+    'POST /admin/users',
+    'POST /admin/users/:id/reset-password',
+    'POST /admin/users/:id/reset-mfa',
+    'POST /admin/users/:id/unlock',
+  ],
 } as const satisfies Record<string, readonly string[]>;
 
 export type PythonRouteGroup = keyof typeof PYTHON_ROUTE_GROUPS;

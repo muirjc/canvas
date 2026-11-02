@@ -17,7 +17,7 @@ DB_CLIENT=sqlite DATABASE_URL=/tmp/canvas.db uv run uvicorn canvas_api.main:app 
 ```
 
 Moved so far: projects, diagram types, the icon library list and search, app settings (phase 2,
-canvas-1bty.6); comments, sharing and project members, admin users (not local accounts), the audit log
+canvas-1bty.6); comments, sharing and project members, admin users, the audit log
 and user lookup (phase 3, canvas-1bty.7); diagrams, versions, presence, drafts, import and template
 import (phase 4, canvas-1bty.8); standards: drafts, clone, publish, retire, with the re-check of a type's
 diagrams after publish/retire as a background task (phase 5, canvas-1bty.9); export as Mermaid, SVG
@@ -27,7 +27,11 @@ documents that embed it, status sync on demand and withdrawing (phase 7, canvas-
 sync is `python -m canvas_api.github.sync_run`); AI chat (the conversation loop with the Anthropic/OpenAI
 SDKs or the rule-based mock, personas and reference material, AI settings, token usage and prices; the
 diagram tools themselves come from the bridge's `ai-tools`/`ai-tool` ops until phase 11) (phase 8,
-canvas-1bty.12) -- see `apps/api/src/python/route-groups.ts`, which the
+canvas-1bty.12); sign-in: sessions (now written here too, in @fastify/session's format), Canvas
+passwords with lockout and one-time passwords, two-step verification (TOTP and recovery codes), the
+admin's local-account actions, and Entra ID (OIDC code flow with PKCE; the ID token's signature,
+issuer, audience, expiry and nonce checked with PyJWT against the issuer's keys) (phase 9,
+canvas-1bty.13; `auth/`, `routes/auth.py`) -- see `apps/api/src/python/route-groups.ts`, which the
 TypeScript front door forwards. Each route's shapes are held to `apps/api/contract/openapi.json`:
 `tests/api.py`'s client checks every response a test gets against it. Routes not moved yet can't be
 called from these tests, so tests seed those rows directly (`Api.diagram`, `Api.grant`, ...).

@@ -556,13 +556,19 @@ The backend is moving to Python (`apps/api-py`), route group by route group
 stays the front door: it serves the web app and forwards to `PYTHON_API_URL`
 - the **moved route groups** listed in `apps/api/src/python/route-groups.ts` (phase 2: `projects`,
   `diagram-types`, `libraries`, `app-settings`; phase 3: `comments`, `sharing`, `admin-users`;
-  phase 4: `diagrams`; phase 5: `standards`; phase 6: `export`; phase 7: `github`; phase 8: `ai`),
+  phase 4: `diagrams`; phase 5: `standards`; phase 6: `export`; phase 7: `github`; phase 8: `ai`;
+  phase 9: `auth`, sign-in, sessions, two-step verification and the admin's local-account actions),
   matched by Fastify route (`PATCH /projects/:id`), so a route under the same prefix that hasn't
-  moved (`/projects/:id/diagrams`, or local accounts under `/admin/users`) stays on TypeScript;
+  moved stays on TypeScript;
 - the route prefixes in `PYTHON_ROUTES` (default `/py`), which have no TypeScript routes at all.
 
 Nothing is forwarded when `PYTHON_API_URL` is unset. Both services read the same sessions, so they
-need the same `SESSION_SECRET` and the same database.
+need the same `SESSION_SECRET` and the same database. Since phase 9 they also need the same sign-in
+settings (`AUTH_MODE`, `ALLOW_LOCAL_AUTH`, `OIDC_*`, `AZURE_CLIENT_ID`, `MFA_ENCRYPTION_KEY`,
+`MFA_REQUIRED`, `LOGIN_RATE_LIMIT`, `WEB_ORIGINS`): canvas-api forwards a sign-in route only if it
+registered that route itself (`modules/pyapiapp.bicep` passes them all). For a request it forwards,
+canvas-api leaves the session alone and Python owns it, so the new cookie set at sign-in is the only
+one the browser gets.
 
 **Falling back to TypeScript.** A moved group's TypeScript routes stay in place for one release.
 `PYTHON_ROUTE_GROUPS` picks which groups go to Python: unset = all, `none` = none, or a list such as
