@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any -- a one-off generator writing loosely typed JSON vectors. */
 // Regenerates layout_vectors.json: what the TypeScript diagram-core computes for nodeSize, splitLabelLines and
 // computeContainmentLayout, for tests/test_diagram_core_layout.py. It imports diagram-core's source, so it runs
 // inside that package's vitest: copy it to packages/diagram-core/tests/zz-tmp-gen.test.ts, then from

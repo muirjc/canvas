@@ -225,12 +225,22 @@ class _Ctx:
         self.force_block_indent = False
         self.all_null_values = False
 
-    def copy(self, **changes: Any) -> _Ctx:
+    def copy(
+        self,
+        *,
+        indent: str | None = None,
+        implicit_key: bool | None = None,
+        in_flow: bool | None = None,
+        all_null_values: bool | None = None,
+    ) -> _Ctx:
+        """Object.assign({}, ctx, changes) for the fields the writer changes."""
         out = _Ctx()
-        for name in self.__slots__:
-            setattr(out, name, getattr(self, name))
-        for name, value in changes.items():
-            setattr(out, name, value)
+        out.indent = self.indent if indent is None else indent
+        out.implicit_key = self.implicit_key if implicit_key is None else implicit_key
+        out.in_flow = self.in_flow if in_flow is None else in_flow
+        out.indent_at_start = self.indent_at_start
+        out.force_block_indent = self.force_block_indent
+        out.all_null_values = self.all_null_values if all_null_values is None else all_null_values
         return out
 
 
