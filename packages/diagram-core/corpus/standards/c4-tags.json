@@ -1,0 +1,22 @@
+{
+  "allowedShapeIds": [],
+  "mandatoryShapeIds": [],
+  "allowedIconLibraryRefs": [],
+  "colorPalette": [],
+  "requireKnownKinds": true,
+  "elementKinds": [
+    { "id": "new_system", "label": "New System", "match": { "role": "system" }, "shapes": ["rectangle"], "approvedFills": ["#1168BD"] },
+    { "id": "legacy_system", "label": "Legacy System", "match": { "role": "system", "external": false }, "shapes": ["rectangle", "cylinder"], "approvedFills": ["#666666"], "approvedStrokes": ["#1864ad"] },
+    { "id": "partner", "label": "Partner", "match": { "role": "system", "external": true }, "shapes": [], "approvedFills": [] },
+    { "id": "user", "label": "  ", "match": { "role": "person" }, "shapes": ["person"], "approvedFills": [], "requireConnection": true }
+  ],
+  "kindGroups": [
+    { "id": "systems", "label": "System", "kindIds": ["new_system", "legacy_system", "partner"], "minCount": 1, "maxCount": 1 }
+  ],
+  "connectorRules": [
+    { "id": "uses", "label": "Uses", "from": "user", "to": "*", "requireLabel": true, "maxPerSource": 1, "approvedStrokes": ["#0000FF"] },
+    { "id": "integrates", "label": "Integrates", "from": "new_system", "to": "partner", "arrows": ["both"] }
+  ],
+  "containers": { "allowed": true, "allowedRoles": ["system-boundary"] },
+  "severityOverrides": { "unknown-kind": "info", "connector-style": "error" }
+}

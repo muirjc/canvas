@@ -1,0 +1,76 @@
+[
+  {
+    "elementId": "gw",
+    "message": "Shape \"icon\" is not in the approved shape list for this diagram type (rectangle, diamond, rounded-rectangle).",
+    "rule": "allowed-shapes",
+    "severity": "warning"
+  },
+  {
+    "elementId": "api",
+    "message": "Shape \"icon\" is not in the approved shape list for this diagram type (rectangle, diamond, rounded-rectangle).",
+    "rule": "allowed-shapes",
+    "severity": "warning"
+  },
+  {
+    "elementId": "db",
+    "message": "Shape \"icon\" is not in the approved shape list for this diagram type (rectangle, diamond, rounded-rectangle).",
+    "rule": "allowed-shapes",
+    "severity": "warning"
+  },
+  {
+    "elementId": "fn",
+    "message": "Shape \"icon\" is not in the approved shape list for this diagram type (rectangle, diamond, rounded-rectangle).",
+    "rule": "allowed-shapes",
+    "severity": "warning"
+  },
+  {
+    "elementId": "j1",
+    "message": "Shape \"circle\" is not in the approved shape list for this diagram type (rectangle, diamond, rounded-rectangle).",
+    "rule": "allowed-shapes",
+    "severity": "warning"
+  },
+  {
+    "elementId": "(diagram)",
+    "message": "This diagram type requires at least one \"diamond\" shape, but none was found.",
+    "rule": "mandatory-shapes",
+    "severity": "error"
+  },
+  {
+    "elementId": "gw",
+    "message": "Icons from \"mermaid-architecture\" aren't approved for this diagram type (azure-icons).",
+    "rule": "allowed-icon-libraries",
+    "severity": "warning"
+  },
+  {
+    "elementId": "api",
+    "message": "Icons from \"mermaid-architecture\" aren't approved for this diagram type (azure-icons).",
+    "rule": "allowed-icon-libraries",
+    "severity": "warning"
+  },
+  {
+    "elementId": "db",
+    "message": "Icons from \"mermaid-architecture\" aren't approved for this diagram type (azure-icons).",
+    "rule": "allowed-icon-libraries",
+    "severity": "warning"
+  },
+  {
+    "elementId": "fn",
+    "message": "Icons from \"logos\" aren't approved for this diagram type (azure-icons).",
+    "rule": "allowed-icon-libraries",
+    "severity": "warning"
+  },
+  {
+    "elementId": "cloud",
+    "elementType": "container",
+    "message": "\"Cloud\" is a plain grouping; allowed: boundary, system-boundary.",
+    "rule": "container-not-allowed",
+    "severity": "warning"
+  },
+  {
+    "elementId": "private",
+    "elementType": "container",
+    "message": "\"Private\" is a plain grouping; allowed: boundary, system-boundary.",
+    "rule": "container-not-allowed",
+    "severity": "warning"
+  }
+]

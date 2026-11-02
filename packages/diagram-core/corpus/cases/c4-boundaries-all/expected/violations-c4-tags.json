@@ -1,0 +1,51 @@
+[
+  {
+    "elementId": "x",
+    "elementType": "node",
+    "message": "\"X\" is a \"container\", which isn't one of this standard's element kinds (New System, Legacy System, Partner,   ).",
+    "rule": "unknown-kind",
+    "severity": "info"
+  },
+  {
+    "elementId": "loose",
+    "elementType": "node",
+    "message": "\"Loose\" is a \"container\", which isn't one of this standard's element kinds (New System, Legacy System, Partner,   ).",
+    "rule": "unknown-kind",
+    "severity": "info"
+  },
+  {
+    "elementId": "(diagram)",
+    "elementType": "diagram",
+    "message": "Needs at least 1 System (New System, Legacy System or Partner); found 0.",
+    "rule": "kind-group-min-count",
+    "severity": "error"
+  },
+  {
+    "elementId": "ent",
+    "elementType": "container",
+    "message": "\"Enterprise\" is a enterprise-boundary grouping; allowed: system-boundary.",
+    "rule": "container-not-allowed",
+    "severity": "warning"
+  },
+  {
+    "elementId": "b1",
+    "elementType": "container",
+    "message": "\"Custom group\" is a boundary grouping; allowed: system-boundary.",
+    "rule": "container-not-allowed",
+    "severity": "warning"
+  },
+  {
+    "elementId": "cont",
+    "elementType": "container",
+    "message": "\"Containers\" is a container-boundary grouping; allowed: system-boundary.",
+    "rule": "container-not-allowed",
+    "severity": "warning"
+  },
+  {
+    "elementId": "b2",
+    "elementType": "container",
+    "message": "\"Typed\" is a boundary grouping; allowed: system-boundary.",
+    "rule": "container-not-allowed",
+    "severity": "warning"
+  }
+]

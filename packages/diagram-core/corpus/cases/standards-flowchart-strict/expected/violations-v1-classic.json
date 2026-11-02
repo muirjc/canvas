@@ -1,0 +1,51 @@
+[
+  {
+    "elementId": "s",
+    "message": "Shape \"stadium\" is not in the approved shape list for this diagram type (rectangle, diamond, rounded-rectangle).",
+    "rule": "allowed-shapes",
+    "severity": "warning"
+  },
+  {
+    "elementId": "s2",
+    "message": "Shape \"circle\" is not in the approved shape list for this diagram type (rectangle, diamond, rounded-rectangle).",
+    "rule": "allowed-shapes",
+    "severity": "warning"
+  },
+  {
+    "elementId": "db",
+    "message": "Shape \"cylinder\" is not in the approved shape list for this diagram type (rectangle, diamond, rounded-rectangle).",
+    "rule": "allowed-shapes",
+    "severity": "warning"
+  },
+  {
+    "elementId": "hex",
+    "message": "Shape \"hexagon\" is not in the approved shape list for this diagram type (rectangle, diamond, rounded-rectangle).",
+    "rule": "allowed-shapes",
+    "severity": "warning"
+  },
+  {
+    "elementId": "s",
+    "message": "Font \"Arial\" is not the approved font \"Inter\" for this diagram type.",
+    "rule": "font-family",
+    "severity": "warning"
+  },
+  {
+    "elementId": "s",
+    "message": "Font size 8 is below the minimum approved size 10.",
+    "rule": "font-size",
+    "severity": "warning"
+  },
+  {
+    "elementId": "a",
+    "message": "Font size 24 exceeds the maximum approved size 20.",
+    "rule": "font-size",
+    "severity": "warning"
+  },
+  {
+    "elementId": "grp",
+    "elementType": "container",
+    "message": "\"Group\" is a plain grouping; allowed: boundary, system-boundary.",
+    "rule": "container-not-allowed",
+    "severity": "warning"
+  }
+]

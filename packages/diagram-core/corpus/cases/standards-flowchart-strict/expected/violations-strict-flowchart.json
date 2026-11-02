@@ -1,0 +1,155 @@
+[
+  {
+    "elementId": "s2",
+    "elementType": "node",
+    "kindId": "start",
+    "message": "Start \"Again\" is filled #ffffff; approved: #DCFCE7.",
+    "rule": "kind-fill",
+    "severity": "warning"
+  },
+  {
+    "elementId": "s2",
+    "elementType": "node",
+    "kindId": "start",
+    "message": "Start \"Again\" has border #333333; approved: #166534.",
+    "rule": "kind-stroke",
+    "severity": "info"
+  },
+  {
+    "elementId": "x",
+    "elementType": "node",
+    "message": "\"Loose\" is a \"primary_activity\", which isn't one of this standard's element kinds (Start, Step, Decision, Data store).",
+    "rule": "unknown-kind",
+    "severity": "error"
+  },
+  {
+    "elementId": "y",
+    "elementType": "node",
+    "message": "\"Thing\" is a \"mystery\", which isn't one of this standard's element kinds (Start, Step, Decision, Data store).",
+    "rule": "unknown-kind",
+    "severity": "error"
+  },
+  {
+    "elementId": "g1",
+    "elementType": "node",
+    "kindId": "step",
+    "message": "Step \"Inside\" isn't connected to anything.",
+    "rule": "kind-unconnected",
+    "severity": "info"
+  },
+  {
+    "elementId": "hex",
+    "elementType": "node",
+    "message": "\"Hexagon\" has no element kind; this standard expects one of: Start, Step, Decision, Data store.",
+    "rule": "unknown-kind",
+    "severity": "error"
+  },
+  {
+    "elementId": "(diagram)",
+    "elementType": "diagram",
+    "kindId": "start",
+    "message": "Allows at most 1 Start; found 2.",
+    "rule": "kind-max-count",
+    "severity": "error"
+  },
+  {
+    "elementId": "(diagram)",
+    "elementType": "diagram",
+    "kindId": "step",
+    "message": "Allows at most 3 Step elements; found 4.",
+    "rule": "kind-max-count",
+    "severity": "error"
+  },
+  {
+    "elementId": "(diagram)",
+    "elementType": "diagram",
+    "kindId": "decision",
+    "message": "Needs at least 2 Decision elements; found 1.",
+    "rule": "kind-min-count",
+    "severity": "error"
+  },
+  {
+    "elementId": "(diagram)",
+    "elementType": "diagram",
+    "message": "Allows at most 2 Flow element elements (Start or Step); found 6.",
+    "rule": "kind-group-max-count",
+    "severity": "info"
+  },
+  {
+    "elementId": "(diagram)",
+    "elementType": "diagram",
+    "message": "Needs at least 10 Item elements (Step, Decision or Data store); found 6.",
+    "rule": "kind-group-min-count",
+    "severity": "error"
+  },
+  {
+    "elementId": "(diagram)",
+    "elementType": "diagram",
+    "message": "Allows at most 0 Entry elements (Start); found 2.",
+    "rule": "kind-group-max-count",
+    "severity": "info"
+  },
+  {
+    "elementId": "e2",
+    "elementType": "edge",
+    "message": "Sequence connector uses color #ff0000 (approved: #333333).",
+    "rule": "connector-style",
+    "severity": "warning"
+  },
+  {
+    "elementId": "e3",
+    "elementType": "edge",
+    "message": "A Step may have at most 1 Sequence connection.",
+    "rule": "connector-max-per-source",
+    "severity": "warning"
+  },
+  {
+    "elementId": "e4",
+    "elementType": "edge",
+    "message": "Sequence connector uses line \"dotted\" (allowed: solid).",
+    "rule": "connector-style",
+    "severity": "warning"
+  },
+  {
+    "elementId": "e6",
+    "elementType": "edge",
+    "message": "Branch connections from Decision to Step need a label.",
+    "rule": "connector-label-required",
+    "severity": "warning"
+  },
+  {
+    "elementId": "e7",
+    "elementType": "edge",
+    "message": "A Decision may have at most 2 Branch connections.",
+    "rule": "connector-max-per-source",
+    "severity": "warning"
+  },
+  {
+    "elementId": "e10",
+    "elementType": "edge",
+    "message": "Save connector uses line \"solid\" (allowed: dotted).",
+    "rule": "connector-style",
+    "severity": "warning"
+  },
+  {
+    "elementId": "e10",
+    "elementType": "edge",
+    "message": "Save connections from Step to Data store need a label.",
+    "rule": "connector-label-required",
+    "severity": "warning"
+  },
+  {
+    "elementId": "e11",
+    "elementType": "edge",
+    "message": "This standard doesn't allow a connection from unclassified element to unclassified element.",
+    "rule": "connector-not-allowed",
+    "severity": "error"
+  },
+  {
+    "elementId": "grp",
+    "elementType": "container",
+    "message": "This standard doesn't use groupings, but \"Group\" is one.",
+    "rule": "container-not-allowed",
+    "severity": "warning"
+  }
+]

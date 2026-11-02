@@ -1,0 +1,55 @@
+[
+  {
+    "elementId": "U",
+    "message": "Shape \"person\" is not in the approved shape list for this diagram type (rectangle, diamond, rounded-rectangle).",
+    "rule": "allowed-shapes",
+    "severity": "warning"
+  },
+  {
+    "elementId": "(diagram)",
+    "message": "This diagram type requires at least one \"circle\" shape, but none was found.",
+    "rule": "mandatory-shapes",
+    "severity": "error"
+  },
+  {
+    "elementId": "(diagram)",
+    "message": "This diagram type requires at least one \"diamond\" shape, but none was found.",
+    "rule": "mandatory-shapes",
+    "severity": "error"
+  },
+  {
+    "elementId": "box1",
+    "elementType": "container",
+    "message": "\"Frontend team\" is a box grouping; allowed: boundary, system-boundary.",
+    "rule": "container-not-allowed",
+    "severity": "warning"
+  },
+  {
+    "elementId": "box2",
+    "elementType": "container",
+    "message": "\"\" is a box grouping; allowed: boundary, system-boundary.",
+    "rule": "container-not-allowed",
+    "severity": "warning"
+  },
+  {
+    "elementId": "box3",
+    "elementType": "container",
+    "message": "\"Aqua Backend\" is a box grouping; allowed: boundary, system-boundary.",
+    "rule": "container-not-allowed",
+    "severity": "warning"
+  },
+  {
+    "elementId": "box4",
+    "elementType": "container",
+    "message": "\"\" is a box grouping; allowed: boundary, system-boundary.",
+    "rule": "container-not-allowed",
+    "severity": "warning"
+  },
+  {
+    "elementId": "box5",
+    "elementType": "container",
+    "message": "\"\" is a box grouping; allowed: boundary, system-boundary.",
+    "rule": "container-not-allowed",
+    "severity": "warning"
+  }
+]

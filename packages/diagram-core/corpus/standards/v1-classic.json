@@ -1,0 +1,14 @@
+{
+  "allowedShapeIds": ["rectangle", "diamond", "rounded-rectangle"],
+  "mandatoryShapeIds": ["circle", "diamond"],
+  "allowedIconLibraryRefs": [{ "libraryId": "azure-icons", "libraryVersion": "1.0.0" }],
+  "colorPalette": [
+    { "role": "primary_activity", "colorHex": "#DBEAFE" },
+    { "role": "person", "colorHex": "#08427b" },
+    { "role": "system", "colorHex": "#000000" },
+    { "role": "entity", "colorHex": "" }
+  ],
+  "fontConstraints": { "family": "Inter", "minSize": 10, "maxSize": 20 },
+  "containers": { "allowed": true, "allowedRoles": ["boundary", "system-boundary"] },
+  "severityOverrides": { "mandatory-shapes": "error" }
+}

@@ -1,0 +1,29 @@
+[
+  {
+    "elementId": "(diagram)",
+    "message": "This diagram type requires at least one \"icon\" shape, but none was found.",
+    "rule": "mandatory-shapes",
+    "severity": "warning"
+  },
+  {
+    "elementId": "CUSTOMER",
+    "elementType": "node",
+    "message": "\"Customer\" is a \"entity\", which isn't one of this standard's element kinds (API, Store).",
+    "rule": "unknown-kind",
+    "severity": "error"
+  },
+  {
+    "elementId": "ORDER",
+    "elementType": "node",
+    "message": "\"ORDER\" is a \"entity\", which isn't one of this standard's element kinds (API, Store).",
+    "rule": "unknown-kind",
+    "severity": "error"
+  },
+  {
+    "elementId": "LINE_ITEM",
+    "elementType": "node",
+    "message": "\"LINE_ITEM\" is a \"entity\", which isn't one of this standard's element kinds (API, Store).",
+    "rule": "unknown-kind",
+    "severity": "error"
+  }
+]

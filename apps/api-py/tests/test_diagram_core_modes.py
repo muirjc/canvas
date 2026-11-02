@@ -57,6 +57,12 @@ class FakeBridge:
     def validate(self, model: dict[str, Any], rules: dict[str, Any]) -> list[dict[str, Any]]:
         return self._answer("validate", [])  # type: ignore[no-any-return]
 
+    def check_standard(self, rules: dict[str, Any], family: str) -> list[dict[str, Any]]:
+        return self._answer("check_standard", [])  # type: ignore[no-any-return]
+
+    def render_svg(self, model: dict[str, Any]) -> str:
+        return self._answer("render_svg", "<svg/>")  # type: ignore[no-any-return]
+
 
 def core_with(bridge: FakeBridge | None, mode: Mode) -> DiagramCore:
     return DiagramCore(bridge, mode)  # type: ignore[arg-type]
@@ -236,18 +242,77 @@ def test_without_a_bridge_the_mode_is_native(mode: Mode) -> None:
 
 def test_without_a_bridge_unported_operations_raise() -> None:
     core = DiagramCore(None)
-    for call in (
-        lambda: core.validate({}, {}),
-        lambda: core.render_svg({}),
-    ):
+    for call in (lambda: core.render_svg({}),):
         with pytest.raises(BridgeError, match="not ported to Python yet and no bridge"):
             call()
 
 
 def test_everything_else_is_delegated_to_the_bridge_and_close_and_health_too() -> None:
-    bridge = FakeBridge(validate=[{"ruleId": "x"}], health=False)
+    bridge = FakeBridge(render_svg="<svg>x</svg>", health=False)
     core = core_with(bridge, "shadow")
-    assert core.validate({}, {}) == [{"ruleId": "x"}]
+    assert core.render_svg({}) == "<svg>x</svg>"
     assert core.health() is False
     core.close()
     assert bridge.closed
+
+
+# --- standards (canvas-1bty.15.3) --------------------------------------------------------------------------------
+
+RULES: dict[str, Any] = {
+    "allowedShapeIds": ["rectangle"],
+    "mandatoryShapeIds": [],
+    "allowedIconLibraryRefs": [],
+    "colorPalette": [],
+}
+BAD_KIND_RULES: dict[str, Any] = {
+    **RULES,
+    "elementKinds": [{"id": "End", "label": "x", "shapes": [], "approvedFills": []}],
+}
+
+
+def test_validate_and_check_standard_answer_natively_without_a_bridge() -> None:
+    core = DiagramCore(None)
+    model = core.parse("flowchart", "flowchart TD\n  A((Start)) --> B\n")["model"]
+    [violation] = core.validate(model, RULES)
+    assert (violation["elementId"], violation["rule"], violation["severity"]) == ("A", "allowed-shapes", "warning")
+    assert core.check_standard(RULES, "flowchart") == []
+    [issue] = core.check_standard(BAD_KIND_RULES, "flowchart")
+    assert issue["path"] == "elementKinds[0].id"
+
+
+def test_shadow_mode_compares_validate_and_logs_a_mismatch(caplog: pytest.LogCaptureFixture) -> None:
+    model = DiagramCore(None).parse("flowchart", FLOWCHART)["model"]
+    bridge = FakeBridge(validate=[{"elementId": "A", "rule": "made-up"}], check_standard=[])
+    core = core_with(bridge, "shadow")
+    with caplog.at_level(logging.DEBUG, logger=LOGGER):
+        assert core.validate(model, RULES) == [{"elementId": "A", "rule": "made-up"}]
+        assert core.check_standard(RULES, "flowchart") == []
+    warnings = [r for r in caplog.records if r.levelno == logging.WARNING]
+    assert [(r.__dict__["op"], r.__dict__["family"]) for r in warnings] == [("validate", "flowchart")]
+    assert [r.__dict__["op"] for r in caplog.records if r.levelno == logging.DEBUG] == ["check-standard"]
+    for record in caplog.records:
+        assert SECRET not in repr(record.__dict__)
+
+
+def test_a_standard_missing_a_field_is_a_bridge_error_natively_as_in_typescript() -> None:
+    core = DiagramCore(None)
+    with pytest.raises(BridgeError, match="diagram-core validate: KeyError"):
+        core.validate({"nodes": [], "edges": [], "containers": []}, {"elementKinds": []})
+
+
+def test_shadow_mode_never_fails_a_request_on_an_unexpected_native_error(
+    caplog: pytest.LogCaptureFixture, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    def boom(*_args: Any) -> Any:
+        raise ValueError(f"could not handle {SECRET}")
+
+    monkeypatch.setattr("canvas_api.diagram_core.core.validate", boom)
+    core = core_with(FakeBridge(validate=[]), "shadow")
+    with caplog.at_level(logging.DEBUG, logger=LOGGER):
+        assert core.validate({"diagramTypeId": "flowchart", "nodes": []}, RULES) == []
+    [record] = [r for r in caplog.records if r.levelno == logging.WARNING]
+    assert (record.__dict__["native"], record.__dict__["detail"]) == ("error", "ValueError")
+    assert SECRET not in repr(record.__dict__)
+    # native mode lets it through (a bug in the port should be loud there)
+    with pytest.raises(ValueError):
+        core_with(FakeBridge(), "native").validate({"nodes": []}, RULES)

@@ -1,0 +1,26 @@
+C4Context
+  title Tagged kinds
+  Person(u, "User")
+  Person(u2, "Other user", $tags="user")
+  Person_Ext(pe, "Guest")
+  System(s1, "Core", $tags="legacy_system")
+  System(s2, "New core")
+  SystemDb(s3, "Ledger", $tags="partner")
+  System_Ext(p1, "Bank", $tags="new_system")
+  Container(c1, "API")
+  System_Boundary(b1, "Boundary") {
+    System(s4, "Inner")
+  }
+  Enterprise_Boundary(e1, "Corp") {
+    Person(u3, "Staff")
+  }
+  Rel(u, s1, "Uses")
+  Rel(u, s2, " ")
+  Rel(u2, s1, "Reads")
+  BiRel(s2, p1, "Syncs")
+  Rel(s2, p1, "Pushes")
+  UpdateElementStyle(s2, $bgColor="#1168bd")
+  UpdateRelStyle(u, s1, $lineColor="#ff0000")
+%% Colours for Mermaid tools outside Canvas (added on export).
+UpdateElementStyle(s2, $bgColor="#1168bd")
+UpdateRelStyle(u, s1, $lineColor="#ff0000")

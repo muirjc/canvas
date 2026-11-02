@@ -1,0 +1,42 @@
+[
+  {
+    "elementId": "(diagram)",
+    "message": "This diagram type requires at least one \"circle\" shape, but none was found.",
+    "rule": "mandatory-shapes",
+    "severity": "error"
+  },
+  {
+    "elementId": "(diagram)",
+    "message": "This diagram type requires at least one \"diamond\" shape, but none was found.",
+    "rule": "mandatory-shapes",
+    "severity": "error"
+  },
+  {
+    "elementId": "Zoo",
+    "elementType": "container",
+    "message": "\"Zoo\" is a namespace grouping; allowed: boundary, system-boundary.",
+    "rule": "container-not-allowed",
+    "severity": "warning"
+  },
+  {
+    "elementId": "Zoo.Animals",
+    "elementType": "container",
+    "message": "\"Animals\" is a namespace grouping; allowed: boundary, system-boundary.",
+    "rule": "container-not-allowed",
+    "severity": "warning"
+  },
+  {
+    "elementId": "note1",
+    "elementType": "container",
+    "message": "\"Good boy\" is a note grouping; allowed: boundary, system-boundary.",
+    "rule": "container-not-allowed",
+    "severity": "warning"
+  },
+  {
+    "elementId": "note2",
+    "elementType": "container",
+    "message": "\"A general note\" is a note grouping; allowed: boundary, system-boundary.",
+    "rule": "container-not-allowed",
+    "severity": "warning"
+  }
+]

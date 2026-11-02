@@ -1,0 +1,49 @@
+[
+  {
+    "elementId": "j",
+    "message": "Shape \"circle\" is not in the approved shape list for this diagram type (icon, rectangle).",
+    "rule": "allowed-shapes",
+    "severity": "warning"
+  },
+  {
+    "elementId": "api",
+    "message": "Icons from \"azure-icons\" aren't approved for this diagram type (mermaid-architecture).",
+    "rule": "allowed-icon-libraries",
+    "severity": "warning"
+  },
+  {
+    "elementId": "api",
+    "elementType": "node",
+    "message": "\"API\" is a \"frontend\", which isn't one of this standard's element kinds (API, Store).",
+    "rule": "unknown-kind",
+    "severity": "error"
+  },
+  {
+    "elementId": "db",
+    "elementType": "node",
+    "message": "\"DB\" has no element kind; this standard expects one of: API, Store.",
+    "rule": "unknown-kind",
+    "severity": "error"
+  },
+  {
+    "elementId": "late",
+    "elementType": "node",
+    "message": "\"Late\" has no element kind; this standard expects one of: API, Store.",
+    "rule": "unknown-kind",
+    "severity": "error"
+  },
+  {
+    "elementId": "vpc",
+    "elementType": "container",
+    "message": "\"VPC\" is a plain grouping; allowed: .",
+    "rule": "container-not-allowed",
+    "severity": "warning"
+  },
+  {
+    "elementId": "other",
+    "elementType": "container",
+    "message": "\"Other\" is a plain grouping; allowed: .",
+    "rule": "container-not-allowed",
+    "severity": "warning"
+  }
+]

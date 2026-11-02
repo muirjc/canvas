@@ -24,7 +24,7 @@ from canvas_api.diagram_core.front_matter import (
 from canvas_api.diagram_core.model import create_empty_diagram_model
 from canvas_api.github.jstext import JS_WHITESPACE, js_trim
 
-__all__ = ["C4_BOUNDARY_ROLES", "C4_ELEMENT_ROLES", "parse_c4", "serialize_c4"]
+__all__ = ["C4_BOUNDARY_ROLES", "C4_ELEMENT_ROLES", "C4_ROLE_SHAPES", "parse_c4", "serialize_c4"]
 
 S = f"[{JS_WHITESPACE}]"  # JavaScript's \s
 DOT = "[^\\n\\r\\u2028\\u2029]"  # JavaScript's .
@@ -140,6 +140,19 @@ def _shape_for(kind: str) -> str:
 
 
 ELEMENT_TO_SHAPE = {kind: _shape_for(kind) for kind in ELEMENT_KINDS}
+
+
+def _role_shapes() -> dict[str, tuple[str, ...]]:
+    by_role: dict[str, list[str]] = {}
+    for keyword, role in ELEMENT_TO_ROLE.items():
+        shapes = by_role.setdefault(role, [])
+        if ELEMENT_TO_SHAPE[keyword] not in shapes:
+            shapes.append(ELEMENT_TO_SHAPE[keyword])
+    return {role: tuple(shapes) for role, shapes in by_role.items()}
+
+
+#: canvas-syd: every shape each C4 role can be drawn as, in the macros' order (C4_ROLE_SHAPES in dsl/c4.ts).
+C4_ROLE_SHAPES = _role_shapes()
 
 NAMED_MACRO_ARG = re.compile(f'^\\$([A-Za-z0-9_]+){S}*={S}*"([^"]*)"\\Z')
 POSITIONAL_MACRO_ARG = re.compile('^"([^"]*)"\\Z')

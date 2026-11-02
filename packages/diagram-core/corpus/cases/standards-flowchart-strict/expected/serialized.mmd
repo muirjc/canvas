@@ -1,0 +1,89 @@
+---
+canvas:
+  positions:
+    s:
+      x: 260
+      y: 40
+    a:
+      x: 440
+      y: 40
+    b:
+      x: 620
+      y: 40
+    c:
+      x: 800
+      y: 40
+    d:
+      x: 40
+      y: 210
+    s2:
+      x: 220
+      y: 210
+    db:
+      x: 400
+      y: 210
+    x:
+      x: 580
+      y: 210
+    y:
+      x: 760
+      y: 210
+    g1:
+      x: 60
+      y: 90
+    hex:
+      x: 940
+      y: 210
+  containers:
+    grp:
+      x: 40
+      y: 40
+      width: 180
+      height: 130
+  styles:
+    s:
+      fillColor: "#dcfce7"
+      strokeColor: "#166534"
+      fontFamily: Arial
+      fontSize: 8
+    a:
+      fillColor: "#F1F5F9"
+      fontSize: 24
+      fontFamily: Inter
+    d:
+      fillColor: "#dbeafe"
+    db:
+      fillColor: "#FEF3C7"
+      strokeColor: "#b45309"
+  edgeStyles:
+    e2:
+      strokeColor: "#ff0000"
+    e4:
+      strokeColor: "#333333"
+  icons: {}
+---
+flowchart TD
+subgraph grp [Group]
+  g1[Inside]:::step
+end
+  s([Start]):::start
+  a[Validate]:::step
+  b(Approve):::step
+  c[Reject]:::step
+  d{OK?}:::decision
+  s2((Again)):::start
+  db[(Orders)]:::store
+  x[Loose]:::primary_activity
+  y[Thing]:::mystery
+  hex{{Hexagon}}
+  s --> a
+  a --> b
+  a --> c
+  b -.-> c
+  d -->|yes| a
+  d --> b
+  d -->|no| c
+  s2 <--> a
+  a -.->|save| db
+  b --> db
+  x --> y

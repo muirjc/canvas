@@ -1,0 +1,32 @@
+[
+  {
+    "elementId": "api",
+    "message": "This diagram type doesn't use icons (\"mermaid-architecture\"); use one of its element kinds.",
+    "rule": "allowed-icon-libraries",
+    "severity": "warning"
+  },
+  {
+    "elementId": "api2",
+    "message": "This diagram type doesn't use icons (\"mermaid-architecture\"); use one of its element kinds.",
+    "rule": "allowed-icon-libraries",
+    "severity": "warning"
+  },
+  {
+    "elementId": "db",
+    "message": "This diagram type doesn't use icons (\"mermaid-architecture\"); use one of its element kinds.",
+    "rule": "allowed-icon-libraries",
+    "severity": "warning"
+  },
+  {
+    "elementId": "db2",
+    "message": "This diagram type doesn't use icons (\"logos\"); use one of its element kinds.",
+    "rule": "allowed-icon-libraries",
+    "severity": "warning"
+  },
+  {
+    "elementId": "q",
+    "message": "This diagram type doesn't use icons (\"mermaid-architecture\"); use one of its element kinds.",
+    "rule": "allowed-icon-libraries",
+    "severity": "warning"
+  }
+]

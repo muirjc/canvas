@@ -1,0 +1,48 @@
+[
+  {
+    "elementId": "pe",
+    "elementType": "node",
+    "kindId": "external_person",
+    "message": "External Person \"Guest\" isn't connected to anything.",
+    "rule": "kind-unconnected",
+    "severity": "warning"
+  },
+  {
+    "elementId": "s3",
+    "elementType": "node",
+    "kindId": "software_system",
+    "message": "Software System \"Ledger\" isn't connected to anything.",
+    "rule": "kind-unconnected",
+    "severity": "warning"
+  },
+  {
+    "elementId": "c1",
+    "elementType": "node",
+    "message": "\"API\" is a \"container\", which isn't one of this standard's element kinds (Person, External Person, Software System, External System).",
+    "rule": "unknown-kind",
+    "severity": "error"
+  },
+  {
+    "elementId": "s4",
+    "elementType": "node",
+    "kindId": "software_system",
+    "message": "Software System \"Inner\" isn't connected to anything.",
+    "rule": "kind-unconnected",
+    "severity": "warning"
+  },
+  {
+    "elementId": "u3",
+    "elementType": "node",
+    "kindId": "person",
+    "message": "Person \"Staff\" isn't connected to anything.",
+    "rule": "kind-unconnected",
+    "severity": "warning"
+  },
+  {
+    "elementId": "e2",
+    "elementType": "edge",
+    "message": "Relationship connections from Person to Software System need a label.",
+    "rule": "connector-label-required",
+    "severity": "warning"
+  }
+]

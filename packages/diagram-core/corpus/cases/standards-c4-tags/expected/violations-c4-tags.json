@@ -1,0 +1,84 @@
+[
+  {
+    "elementId": "pe",
+    "elementType": "node",
+    "kindId": "user",
+    "message": "   \"Guest\" isn't connected to anything.",
+    "rule": "kind-unconnected",
+    "severity": "info"
+  },
+  {
+    "elementId": "s1",
+    "elementType": "node",
+    "kindId": "legacy_system",
+    "message": "Legacy System \"Core\" is filled #1168bd; approved: #666666.",
+    "rule": "kind-fill",
+    "severity": "warning"
+  },
+  {
+    "elementId": "s3",
+    "elementType": "node",
+    "kindId": "new_system",
+    "message": "New System \"Ledger\" uses shape \"cylinder\"; allowed: rectangle.",
+    "rule": "kind-shape",
+    "severity": "warning"
+  },
+  {
+    "elementId": "p1",
+    "elementType": "node",
+    "kindId": "new_system",
+    "message": "New System \"Bank\" is filled #999999; approved: #1168BD.",
+    "rule": "kind-fill",
+    "severity": "warning"
+  },
+  {
+    "elementId": "c1",
+    "elementType": "node",
+    "message": "\"API\" is a \"container\", which isn't one of this standard's element kinds (New System, Legacy System, Partner,   ).",
+    "rule": "unknown-kind",
+    "severity": "info"
+  },
+  {
+    "elementId": "u3",
+    "elementType": "node",
+    "kindId": "user",
+    "message": "   \"Staff\" isn't connected to anything.",
+    "rule": "kind-unconnected",
+    "severity": "info"
+  },
+  {
+    "elementId": "(diagram)",
+    "elementType": "diagram",
+    "message": "Allows at most 1 System (New System, Legacy System or Partner); found 5.",
+    "rule": "kind-group-max-count",
+    "severity": "error"
+  },
+  {
+    "elementId": "e1",
+    "elementType": "edge",
+    "message": "Uses connector uses color #ff0000 (approved: #0000FF).",
+    "rule": "connector-style",
+    "severity": "error"
+  },
+  {
+    "elementId": "e2",
+    "elementType": "edge",
+    "message": "Uses connections from    to New System need a label.",
+    "rule": "connector-label-required",
+    "severity": "warning"
+  },
+  {
+    "elementId": "e2",
+    "elementType": "edge",
+    "message": "A    may have at most 1 Uses connection.",
+    "rule": "connector-max-per-source",
+    "severity": "warning"
+  },
+  {
+    "elementId": "e1",
+    "elementType": "container",
+    "message": "\"Corp\" is a enterprise-boundary grouping; allowed: system-boundary.",
+    "rule": "container-not-allowed",
+    "severity": "warning"
+  }
+]

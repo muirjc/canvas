@@ -1,0 +1,151 @@
+[
+  {
+    "elementId": "U",
+    "elementType": "node",
+    "message": "\"User\" is a \"actor\", which isn't one of this standard's element kinds (Start, Step, Decision, Data store).",
+    "rule": "unknown-kind",
+    "severity": "error"
+  },
+  {
+    "elementId": "W",
+    "elementType": "node",
+    "message": "\"W\" is a \"participant\", which isn't one of this standard's element kinds (Start, Step, Decision, Data store).",
+    "rule": "unknown-kind",
+    "severity": "error"
+  },
+  {
+    "elementId": "X",
+    "elementType": "node",
+    "message": "\"X\" is a \"participant\", which isn't one of this standard's element kinds (Start, Step, Decision, Data store).",
+    "rule": "unknown-kind",
+    "severity": "error"
+  },
+  {
+    "elementId": "API",
+    "elementType": "node",
+    "message": "\"The API\" is a \"participant\", which isn't one of this standard's element kinds (Start, Step, Decision, Data store).",
+    "rule": "unknown-kind",
+    "severity": "error"
+  },
+  {
+    "elementId": "Y",
+    "elementType": "node",
+    "message": "\"Y\" is a \"participant\", which isn't one of this standard's element kinds (Start, Step, Decision, Data store).",
+    "rule": "unknown-kind",
+    "severity": "error"
+  },
+  {
+    "elementId": "Z",
+    "elementType": "node",
+    "message": "\"Z\" is a \"participant\", which isn't one of this standard's element kinds (Start, Step, Decision, Data store).",
+    "rule": "unknown-kind",
+    "severity": "error"
+  },
+  {
+    "elementId": "(diagram)",
+    "elementType": "diagram",
+    "kindId": "start",
+    "message": "Needs at least 1 Start; found 0.",
+    "rule": "kind-min-count",
+    "severity": "error"
+  },
+  {
+    "elementId": "(diagram)",
+    "elementType": "diagram",
+    "kindId": "decision",
+    "message": "Needs at least 2 Decision elements; found 0.",
+    "rule": "kind-min-count",
+    "severity": "error"
+  },
+  {
+    "elementId": "(diagram)",
+    "elementType": "diagram",
+    "message": "Needs at least 10 Item elements (Step, Decision or Data store); found 0.",
+    "rule": "kind-group-min-count",
+    "severity": "error"
+  },
+  {
+    "elementId": "(diagram)",
+    "elementType": "diagram",
+    "message": "Needs at least 1 Entry (Start); found 0.",
+    "rule": "kind-group-min-count",
+    "severity": "error"
+  },
+  {
+    "elementId": "(diagram)",
+    "elementType": "diagram",
+    "message": "Needs at least 1 Mystery (ghost or Data store); found 0.",
+    "rule": "kind-group-min-count",
+    "severity": "error"
+  },
+  {
+    "elementId": "e1",
+    "elementType": "edge",
+    "message": "This standard doesn't allow a connection from unclassified element to unclassified element.",
+    "rule": "connector-not-allowed",
+    "severity": "error"
+  },
+  {
+    "elementId": "e2",
+    "elementType": "edge",
+    "message": "This standard doesn't allow a connection from unclassified element to unclassified element.",
+    "rule": "connector-not-allowed",
+    "severity": "error"
+  },
+  {
+    "elementId": "e3",
+    "elementType": "edge",
+    "message": "This standard doesn't allow a connection from unclassified element to unclassified element.",
+    "rule": "connector-not-allowed",
+    "severity": "error"
+  },
+  {
+    "elementId": "e4",
+    "elementType": "edge",
+    "message": "This standard doesn't allow a connection from unclassified element to unclassified element.",
+    "rule": "connector-not-allowed",
+    "severity": "error"
+  },
+  {
+    "elementId": "e5",
+    "elementType": "edge",
+    "message": "This standard doesn't allow a connection from unclassified element to unclassified element.",
+    "rule": "connector-not-allowed",
+    "severity": "error"
+  },
+  {
+    "elementId": "box1",
+    "elementType": "container",
+    "message": "This standard doesn't use groupings, but \"Frontend team\" is one.",
+    "rule": "container-not-allowed",
+    "severity": "warning"
+  },
+  {
+    "elementId": "box2",
+    "elementType": "container",
+    "message": "This standard doesn't use groupings, but \"\" is one.",
+    "rule": "container-not-allowed",
+    "severity": "warning"
+  },
+  {
+    "elementId": "box3",
+    "elementType": "container",
+    "message": "This standard doesn't use groupings, but \"Aqua Backend\" is one.",
+    "rule": "container-not-allowed",
+    "severity": "warning"
+  },
+  {
+    "elementId": "box4",
+    "elementType": "container",
+    "message": "This standard doesn't use groupings, but \"\" is one.",
+    "rule": "container-not-allowed",
+    "severity": "warning"
+  },
+  {
+    "elementId": "box5",
+    "elementType": "container",
+    "message": "This standard doesn't use groupings, but \"\" is one.",
+    "rule": "container-not-allowed",
+    "severity": "warning"
+  }
+]

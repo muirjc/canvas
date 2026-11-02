@@ -1,0 +1,11 @@
+{
+  "allowedShapeIds": [],
+  "mandatoryShapeIds": [],
+  "allowedIconLibraryRefs": [],
+  "colorPalette": [],
+  "elementKinds": [
+    { "id": "primary_activity", "label": "Primary", "shapes": [], "approvedFills": [] },
+    { "id": "person", "label": "Person", "shapes": [], "approvedFills": [], "requireConnection": true }
+  ],
+  "authoring": { "shapes": "none", "icons": "none" }
+}

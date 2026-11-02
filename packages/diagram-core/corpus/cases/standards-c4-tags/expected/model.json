@@ -1,0 +1,199 @@
+{
+  "containers": [
+    {
+      "id": "b1",
+      "label": "Boundary",
+      "position": {
+        "x": 40,
+        "y": 40
+      },
+      "role": "system-boundary",
+      "size": {
+        "height": 130,
+        "width": 180
+      }
+    },
+    {
+      "id": "e1",
+      "label": "Corp",
+      "position": {
+        "x": 440,
+        "y": 40
+      },
+      "role": "enterprise-boundary",
+      "size": {
+        "height": 177,
+        "width": 180
+      }
+    }
+  ],
+  "diagramTypeId": "c4-context",
+  "edges": [
+    {
+      "id": "e1",
+      "label": "Uses",
+      "sourceId": "u",
+      "style": {
+        "strokeColor": "#ff0000"
+      },
+      "targetId": "s1"
+    },
+    {
+      "id": "e2",
+      "label": " ",
+      "sourceId": "u",
+      "targetId": "s2"
+    },
+    {
+      "id": "e3",
+      "label": "Reads",
+      "sourceId": "u2",
+      "targetId": "s1"
+    },
+    {
+      "arrow": "both",
+      "id": "e4",
+      "label": "Syncs",
+      "sourceId": "s2",
+      "targetId": "p1"
+    },
+    {
+      "id": "e5",
+      "label": "Pushes",
+      "sourceId": "s2",
+      "targetId": "p1"
+    }
+  ],
+  "nodes": [
+    {
+      "c4TypeLabel": "Person",
+      "id": "u",
+      "label": "User",
+      "position": {
+        "x": 260,
+        "y": 40
+      },
+      "role": "person",
+      "shape": "person"
+    },
+    {
+      "c4TypeLabel": "Person",
+      "id": "u2",
+      "label": "Other user",
+      "position": {
+        "x": 660,
+        "y": 40
+      },
+      "role": "person",
+      "shape": "person",
+      "tags": [
+        "user"
+      ]
+    },
+    {
+      "c4TypeLabel": "Person",
+      "external": true,
+      "id": "pe",
+      "label": "Guest",
+      "position": {
+        "x": 840,
+        "y": 40
+      },
+      "role": "person",
+      "shape": "person"
+    },
+    {
+      "c4TypeLabel": "Software System",
+      "id": "s1",
+      "label": "Core",
+      "position": {
+        "x": 40,
+        "y": 257
+      },
+      "role": "system",
+      "shape": "rectangle",
+      "tags": [
+        "legacy_system"
+      ]
+    },
+    {
+      "c4TypeLabel": "Software System",
+      "id": "s2",
+      "label": "New core",
+      "position": {
+        "x": 220,
+        "y": 257
+      },
+      "role": "system",
+      "shape": "rectangle",
+      "style": {
+        "fillColor": "#1168bd"
+      }
+    },
+    {
+      "c4TypeLabel": "Software System",
+      "id": "s3",
+      "label": "Ledger",
+      "position": {
+        "x": 400,
+        "y": 257
+      },
+      "role": "system",
+      "shape": "cylinder",
+      "tags": [
+        "partner"
+      ]
+    },
+    {
+      "c4TypeLabel": "Software System",
+      "external": true,
+      "id": "p1",
+      "label": "Bank",
+      "position": {
+        "x": 580,
+        "y": 257
+      },
+      "role": "system",
+      "shape": "rectangle",
+      "tags": [
+        "new_system"
+      ]
+    },
+    {
+      "c4TypeLabel": "Container",
+      "id": "c1",
+      "label": "API",
+      "position": {
+        "x": 760,
+        "y": 257
+      },
+      "role": "container",
+      "shape": "rounded-rectangle"
+    },
+    {
+      "c4TypeLabel": "Software System",
+      "containerId": "b1",
+      "id": "s4",
+      "label": "Inner",
+      "position": {
+        "x": 60,
+        "y": 90
+      },
+      "role": "system",
+      "shape": "rectangle"
+    },
+    {
+      "c4TypeLabel": "Person",
+      "containerId": "e1",
+      "id": "u3",
+      "label": "Staff",
+      "position": {
+        "x": 460,
+        "y": 90
+      },
+      "role": "person",
+      "shape": "person"
+    }
+  ],
+  "title": "Tagged kinds"
+}

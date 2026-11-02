@@ -1,0 +1,191 @@
+{
+  "containers": [
+    {
+      "id": "cloud",
+      "label": "Cloud",
+      "position": {
+        "x": 40,
+        "y": 186.4
+      },
+      "size": {
+        "height": 226.4,
+        "width": 356
+      }
+    },
+    {
+      "icon": {
+        "iconId": "server",
+        "libraryId": "mermaid-architecture",
+        "libraryVersion": "1.0.0"
+      },
+      "id": "inner",
+      "label": "Inner",
+      "parentContainerId": "cloud",
+      "position": {
+        "x": 228,
+        "y": 236.4
+      },
+      "size": {
+        "height": 156.4,
+        "width": 148
+      }
+    }
+  ],
+  "diagramTypeId": "cloud-infrastructure",
+  "edges": [
+    {
+      "arrow": "target",
+      "id": "e1",
+      "sourceAnchor": "R",
+      "sourceId": "api",
+      "targetAnchor": "L",
+      "targetId": "db"
+    },
+    {
+      "arrow": "target",
+      "id": "e2",
+      "sourceAnchor": "B",
+      "sourceId": "api",
+      "targetAnchor": "T",
+      "targetId": "db2"
+    },
+    {
+      "id": "e3",
+      "sourceAnchor": "R",
+      "sourceId": "db2",
+      "targetAnchor": "L",
+      "targetId": "api2"
+    },
+    {
+      "arrow": "source",
+      "id": "e4",
+      "sourceAnchor": "L",
+      "sourceId": "q",
+      "targetAnchor": "R",
+      "targetId": "j1"
+    },
+    {
+      "arrow": "target",
+      "id": "e5",
+      "sourceAnchor": "B",
+      "sourceId": "j1",
+      "targetAnchor": "T",
+      "targetId": "api"
+    },
+    {
+      "arrow": "target",
+      "id": "e6",
+      "sourceAnchor": "T",
+      "sourceId": "plain",
+      "targetAnchor": "B",
+      "targetId": "api"
+    }
+  ],
+  "nodes": [
+    {
+      "containerId": "cloud",
+      "icon": {
+        "iconId": "server",
+        "libraryId": "mermaid-architecture",
+        "libraryVersion": "1.0.0"
+      },
+      "id": "api",
+      "label": "API",
+      "position": {
+        "x": 60,
+        "y": 271.4
+      },
+      "role": "api",
+      "shape": "icon"
+    },
+    {
+      "icon": {
+        "iconId": "internet",
+        "libraryId": "mermaid-architecture",
+        "libraryVersion": "1.0.0"
+      },
+      "id": "api2",
+      "label": "API 2",
+      "position": {
+        "x": 456,
+        "y": 472.79999999999995
+      },
+      "role": "api",
+      "shape": "icon"
+    },
+    {
+      "containerId": "inner",
+      "icon": {
+        "iconId": "database",
+        "libraryId": "mermaid-architecture",
+        "libraryVersion": "1.0.0"
+      },
+      "id": "db",
+      "label": "DB",
+      "position": {
+        "x": 248,
+        "y": 286.4
+      },
+      "role": "store",
+      "shape": "icon",
+      "style": {
+        "fillColor": "#ffffff",
+        "strokeColor": "#333333"
+      }
+    },
+    {
+      "icon": {
+        "iconId": "aws-s3",
+        "libraryId": "logos",
+        "libraryVersion": "iconify"
+      },
+      "id": "db2",
+      "label": "Bucket",
+      "position": {
+        "x": 164,
+        "y": 472.79999999999995
+      },
+      "role": "store",
+      "shape": "icon"
+    },
+    {
+      "icon": {
+        "iconId": "disk",
+        "libraryId": "mermaid-architecture",
+        "libraryVersion": "1.0.0"
+      },
+      "id": "q",
+      "label": "Queue",
+      "position": {
+        "x": 456,
+        "y": 40
+      },
+      "role": "mystery",
+      "shape": "icon"
+    },
+    {
+      "icon": {
+        "iconId": "virtual-machine",
+        "libraryId": "generic",
+        "libraryVersion": "1.0.0"
+      },
+      "id": "plain",
+      "label": "VM",
+      "position": {
+        "x": 164,
+        "y": 619.1999999999999
+      },
+      "shape": "icon"
+    },
+    {
+      "id": "j1",
+      "label": "",
+      "position": {
+        "x": 148,
+        "y": 53.2
+      },
+      "role": "junction",
+      "shape": "circle"
+    }
+  ]
+}

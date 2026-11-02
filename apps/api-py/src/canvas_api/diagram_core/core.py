@@ -28,6 +28,7 @@ from canvas_api.diagram_core.jsyaml import YamlError
 from canvas_api.diagram_core.model import create_empty_diagram_model
 from canvas_api.diagram_core.portable import to_portable_mermaid
 from canvas_api.diagram_core.sequence import parse_sequence, serialize_sequence
+from canvas_api.diagram_core.standards import check_standard_definition, validate
 from canvas_api.diagram_core.uml import parse_uml, serialize_uml
 
 __all__ = ["KNOWN_FAMILIES", "NATIVE_FAMILIES", "PARSERS", "SERIALIZERS", "DiagramCore", "Mode"]
@@ -97,10 +98,16 @@ class DiagramCore:
         started = time.perf_counter()
         try:
             mine = _native(op, native)
-        except BridgeError as error:
+        except Exception as error:  # the shadow must never fail a request the bridge answered
             log.warning(
                 "diagram-core shadow mismatch",
-                extra={"op": op, "family": family, "native": "error", "detail": _first_line(error)},
+                # An unexpected error's message could quote the diagram: only its type is logged.
+                extra={
+                    "op": op,
+                    "family": family,
+                    "native": "error",
+                    "detail": _first_line(error) if isinstance(error, BridgeError) else type(error).__name__,
+                },
             )
             return answer
         if _comparable(mine) != _comparable(answer):
@@ -183,14 +190,41 @@ class DiagramCore:
             lambda: self._require_bridge("portable").portable(dsl, strip_front_matter=strip_front_matter),
         )
 
+    def validate(self, model: JsonObject, rules: JsonObject) -> list[JsonObject]:
+        """The standard's violations for the model (canvas-1bty.15.3). The model's family doesn't matter."""
+        return self._answer(
+            "validate",
+            _family_of(model),
+            lambda: to_js_json(validate(model, rules)),
+            lambda: self._require_bridge("validate").validate(model, rules),
+        )
+
+    def check_standard(self, rules: JsonObject, family: str) -> list[JsonObject]:
+        """Problems with a standard's own definition for a family ([] = it can be saved)."""
+        return self._answer(
+            "check-standard",
+            family,
+            lambda: to_js_json(check_standard_definition(rules, family)),
+            lambda: self._require_bridge("check-standard").check_standard(rules, family),
+        )
+
 
 def _native(op: str, compute: Callable[[], Any]) -> Any:
-    """A native answer; the TypeScript code throws where these raise (bad YAML front matter), which the bridge
-    reported as an error, so they become BridgeError for the routes."""
+    """A native answer; the TypeScript code throws where these raise (bad YAML front matter, a standard or model
+    missing a field the code reads), which the bridge reported as an error, so they become BridgeError for the
+    routes."""
     try:
         return compute()
     except YamlError as error:
         raise BridgeError(f"diagram-core {op}: {error}") from error
+    except (KeyError, TypeError, AttributeError) as error:
+        raise BridgeError(f"diagram-core {op}: {type(error).__name__}") from error
+
+
+def _family_of(model: JsonObject) -> str | None:
+    """For the shadow log only: the diagram type id (a family is not part of the model)."""
+    value = model.get("diagramTypeId") if isinstance(model, dict) else None
+    return value if isinstance(value, str) else None
 
 
 def _first_line(error: Exception) -> str:

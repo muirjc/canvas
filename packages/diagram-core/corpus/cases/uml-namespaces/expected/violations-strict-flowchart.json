@@ -1,0 +1,158 @@
+[
+  {
+    "elementId": "A",
+    "elementType": "node",
+    "message": "\"A\" is a \"class\", which isn't one of this standard's element kinds (Start, Step, Decision, Data store).",
+    "rule": "unknown-kind",
+    "severity": "error"
+  },
+  {
+    "elementId": "B",
+    "elementType": "node",
+    "message": "\"B\" is a \"class\", which isn't one of this standard's element kinds (Start, Step, Decision, Data store).",
+    "rule": "unknown-kind",
+    "severity": "error"
+  },
+  {
+    "elementId": "C",
+    "elementType": "node",
+    "message": "\"C\" is a \"class\", which isn't one of this standard's element kinds (Start, Step, Decision, Data store).",
+    "rule": "unknown-kind",
+    "severity": "error"
+  },
+  {
+    "elementId": "Order",
+    "elementType": "node",
+    "message": "\"Order\" is a \"class\", which isn't one of this standard's element kinds (Start, Step, Decision, Data store).",
+    "rule": "unknown-kind",
+    "severity": "error"
+  },
+  {
+    "elementId": "Invoice",
+    "elementType": "node",
+    "message": "\"Invoice\" is a \"class\", which isn't one of this standard's element kinds (Start, Step, Decision, Data store).",
+    "rule": "unknown-kind",
+    "severity": "error"
+  },
+  {
+    "elementId": "HQ",
+    "elementType": "node",
+    "message": "\"HQ\" is a \"class\", which isn't one of this standard's element kinds (Start, Step, Decision, Data store).",
+    "rule": "unknown-kind",
+    "severity": "error"
+  },
+  {
+    "elementId": "D",
+    "elementType": "node",
+    "message": "\"D\" is a \"class\", which isn't one of this standard's element kinds (Start, Step, Decision, Data store).",
+    "rule": "unknown-kind",
+    "severity": "error"
+  },
+  {
+    "elementId": "(diagram)",
+    "elementType": "diagram",
+    "kindId": "start",
+    "message": "Needs at least 1 Start; found 0.",
+    "rule": "kind-min-count",
+    "severity": "error"
+  },
+  {
+    "elementId": "(diagram)",
+    "elementType": "diagram",
+    "kindId": "decision",
+    "message": "Needs at least 2 Decision elements; found 0.",
+    "rule": "kind-min-count",
+    "severity": "error"
+  },
+  {
+    "elementId": "(diagram)",
+    "elementType": "diagram",
+    "message": "Needs at least 10 Item elements (Step, Decision or Data store); found 0.",
+    "rule": "kind-group-min-count",
+    "severity": "error"
+  },
+  {
+    "elementId": "(diagram)",
+    "elementType": "diagram",
+    "message": "Needs at least 1 Entry (Start); found 0.",
+    "rule": "kind-group-min-count",
+    "severity": "error"
+  },
+  {
+    "elementId": "(diagram)",
+    "elementType": "diagram",
+    "message": "Needs at least 1 Mystery (ghost or Data store); found 0.",
+    "rule": "kind-group-min-count",
+    "severity": "error"
+  },
+  {
+    "elementId": "e1",
+    "elementType": "edge",
+    "message": "This standard doesn't allow a connection from unclassified element to unclassified element.",
+    "rule": "connector-not-allowed",
+    "severity": "error"
+  },
+  {
+    "elementId": "e2",
+    "elementType": "edge",
+    "message": "This standard doesn't allow a connection from unclassified element to unclassified element.",
+    "rule": "connector-not-allowed",
+    "severity": "error"
+  },
+  {
+    "elementId": "Outer",
+    "elementType": "container",
+    "message": "This standard doesn't use groupings, but \"Outer\" is one.",
+    "rule": "container-not-allowed",
+    "severity": "warning"
+  },
+  {
+    "elementId": "Outer.Inner",
+    "elementType": "container",
+    "message": "This standard doesn't use groupings, but \"Inner\" is one.",
+    "rule": "container-not-allowed",
+    "severity": "warning"
+  },
+  {
+    "elementId": "Company",
+    "elementType": "container",
+    "message": "This standard doesn't use groupings, but \"Acme Corp\" is one.",
+    "rule": "container-not-allowed",
+    "severity": "warning"
+  },
+  {
+    "elementId": "Company.Sales",
+    "elementType": "container",
+    "message": "This standard doesn't use groupings, but \"Sales\" is one.",
+    "rule": "container-not-allowed",
+    "severity": "warning"
+  },
+  {
+    "elementId": "Company.Sales.Orders",
+    "elementType": "container",
+    "message": "This standard doesn't use groupings, but \"Orders\" is one.",
+    "rule": "container-not-allowed",
+    "severity": "warning"
+  },
+  {
+    "elementId": "Company.Sales.Invoices",
+    "elementType": "container",
+    "message": "This standard doesn't use groupings, but \"Billing\" is one.",
+    "rule": "container-not-allowed",
+    "severity": "warning"
+  },
+  {
+    "elementId": "Empty",
+    "elementType": "container",
+    "message": "This standard doesn't use groupings, but \"Empty\" is one.",
+    "rule": "container-not-allowed",
+    "severity": "warning"
+  },
+  {
+    "elementId": "Labelled",
+    "elementType": "container",
+    "message": "This standard doesn't use groupings, but \"Same\" is one.",
+    "rule": "container-not-allowed",
+    "severity": "warning"
+  }
+]

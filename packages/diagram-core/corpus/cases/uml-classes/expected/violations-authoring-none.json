@@ -1,0 +1,38 @@
+[
+  {
+    "elementId": "Animal",
+    "message": "This diagram type doesn't use generic shapes (\"rectangle\"); use one of its element kinds.",
+    "rule": "allowed-shapes",
+    "severity": "warning"
+  },
+  {
+    "elementId": "Dog",
+    "message": "This diagram type doesn't use generic shapes (\"rectangle\"); use one of its element kinds.",
+    "rule": "allowed-shapes",
+    "severity": "warning"
+  },
+  {
+    "elementId": "Box",
+    "message": "This diagram type doesn't use generic shapes (\"rectangle\"); use one of its element kinds.",
+    "rule": "allowed-shapes",
+    "severity": "warning"
+  },
+  {
+    "elementId": "Keeper",
+    "message": "This diagram type doesn't use generic shapes (\"rectangle\"); use one of its element kinds.",
+    "rule": "allowed-shapes",
+    "severity": "warning"
+  },
+  {
+    "elementId": "Foo",
+    "message": "This diagram type doesn't use generic shapes (\"rectangle\"); use one of its element kinds.",
+    "rule": "allowed-shapes",
+    "severity": "warning"
+  },
+  {
+    "elementId": "Bar",
+    "message": "This diagram type doesn't use generic shapes (\"rectangle\"); use one of its element kinds.",
+    "rule": "allowed-shapes",
+    "severity": "warning"
+  }
+]

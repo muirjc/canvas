@@ -1,0 +1,72 @@
+---
+canvas:
+  positions:
+    u:
+      x: 260
+      y: 40
+    u2:
+      x: 660
+      y: 40
+    pe:
+      x: 840
+      y: 40
+    s1:
+      x: 40
+      y: 257
+    s2:
+      x: 220
+      y: 257
+    s3:
+      x: 400
+      y: 257
+    p1:
+      x: 580
+      y: 257
+    c1:
+      x: 760
+      y: 257
+    s4:
+      x: 60
+      y: 90
+    u3:
+      x: 460
+      y: 90
+  styles:
+    s2:
+      fillColor: "#1168bd"
+  edgeStyles:
+    e1:
+      strokeColor: "#ff0000"
+  containers:
+    b1:
+      x: 40
+      y: 40
+      width: 180
+      height: 130
+    e1:
+      x: 440
+      y: 40
+      width: 180
+      height: 177
+---
+C4Context
+title Tagged kinds
+System_Boundary(b1, "Boundary") {
+  System(s4, "Inner")
+}
+Enterprise_Boundary(e1, "Corp") {
+  Person(u3, "Staff")
+}
+Person(u, "User")
+Person(u2, "Other user", $tags="user")
+Person_Ext(pe, "Guest")
+System(s1, "Core", $tags="legacy_system")
+System(s2, "New core")
+SystemDb(s3, "Ledger", $tags="partner")
+System_Ext(p1, "Bank", $tags="new_system")
+Container(c1, "API")
+Rel(u, s1, "Uses")
+Rel(u, s2, " ")
+Rel(u2, s1, "Reads")
+BiRel(s2, p1, "Syncs")
+Rel(s2, p1, "Pushes")

@@ -1,0 +1,65 @@
+{
+  "allowedShapeIds": [],
+  "mandatoryShapeIds": [],
+  "allowedIconLibraryRefs": [],
+  "colorPalette": [],
+  "requireKnownKinds": true,
+  "connectorPolicy": "listed-only",
+  "elementKinds": [
+    {
+      "id": "start",
+      "label": "Start",
+      "shapes": ["stadium", "circle"],
+      "approvedFills": ["#DCFCE7"],
+      "approvedStrokes": ["#166534"],
+      "minCount": 1,
+      "maxCount": 1,
+      "requireConnection": true
+    },
+    {
+      "id": "step",
+      "label": "Step",
+      "shapes": ["rectangle", "rounded-rectangle"],
+      "approvedFills": ["#ffffff", "#F1F5F9"],
+      "maxCount": 3,
+      "requireConnection": true
+    },
+    {
+      "id": "decision",
+      "label": "Decision",
+      "shapes": ["diamond"],
+      "approvedFills": [],
+      "minCount": 2
+    },
+    {
+      "id": "store",
+      "label": "Data store",
+      "shapes": [],
+      "approvedFills": ["#fef3c7"],
+      "approvedStrokes": ["#92400e", "#B45309"]
+    }
+  ],
+  "kindGroups": [
+    { "id": "flow", "label": "Flow element", "kindIds": ["start", "step"], "maxCount": 2 },
+    { "id": "all_items", "label": "Item", "kindIds": ["step", "decision", "store"], "minCount": 10 },
+    { "id": "one_start", "label": "Entry", "kindIds": ["start"], "minCount": 1, "maxCount": 0 },
+    { "id": "unknowns", "label": "Mystery", "kindIds": ["ghost", "store"], "minCount": 1 }
+  ],
+  "connectorRules": [
+    {
+      "id": "seq",
+      "label": "Sequence",
+      "from": "step",
+      "to": "step",
+      "lineStyles": ["solid"],
+      "arrows": ["target"],
+      "approvedStrokes": ["#333333"],
+      "maxPerSource": 1
+    },
+    { "id": "branch", "label": "Branch", "from": "decision", "to": "*", "requireLabel": true, "maxPerSource": 2 },
+    { "id": "kickoff", "label": "Kick-off", "from": "start", "to": "*", "arrows": ["target", "both"], "lineStyles": [] },
+    { "id": "into_store", "label": "Save", "from": "*", "to": "store", "lineStyles": ["dotted"], "requireLabel": true }
+  ],
+  "containers": { "allowed": false },
+  "severityOverrides": { "kind-shape": "error", "connector-style": "warning", "kind-group-max-count": "info" }
+}

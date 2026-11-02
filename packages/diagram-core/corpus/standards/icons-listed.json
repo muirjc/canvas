@@ -1,0 +1,17 @@
+{
+  "allowedShapeIds": ["icon", "rectangle"],
+  "mandatoryShapeIds": ["icon"],
+  "allowedIconLibraryRefs": [{ "libraryId": "mermaid-architecture", "libraryVersion": "1.0.0" }],
+  "colorPalette": [],
+  "authoring": { "shapes": "listed", "icons": "listed" },
+  "requireKnownKinds": true,
+  "elementKinds": [
+    { "id": "api", "label": "API", "shapes": ["icon"], "approvedFills": [], "requireConnection": true, "maxCount": 1 },
+    { "id": "store", "label": "Store", "shapes": ["icon"], "approvedFills": ["#FFFFFF"], "approvedStrokes": ["#333"] }
+  ],
+  "connectorRules": [
+    { "id": "calls", "label": "Calls", "from": "*", "to": "api", "arrows": ["target"], "requireLabel": true },
+    { "id": "reads", "label": "Reads", "from": "api", "to": "store", "lineStyles": ["dashed"], "maxPerSource": 0 }
+  ],
+  "containers": { "allowed": true, "allowedRoles": [] }
+}

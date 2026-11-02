@@ -1,0 +1,158 @@
+[
+  {
+    "elementId": "ro",
+    "message": "Shape \"rounded-rectangle\" is not in the approved shape list for this diagram type (icon, rectangle).",
+    "rule": "allowed-shapes",
+    "severity": "warning"
+  },
+  {
+    "elementId": "st",
+    "message": "Shape \"stadium\" is not in the approved shape list for this diagram type (icon, rectangle).",
+    "rule": "allowed-shapes",
+    "severity": "warning"
+  },
+  {
+    "elementId": "su",
+    "message": "Shape \"subroutine\" is not in the approved shape list for this diagram type (icon, rectangle).",
+    "rule": "allowed-shapes",
+    "severity": "warning"
+  },
+  {
+    "elementId": "cy",
+    "message": "Shape \"cylinder\" is not in the approved shape list for this diagram type (icon, rectangle).",
+    "rule": "allowed-shapes",
+    "severity": "warning"
+  },
+  {
+    "elementId": "ci",
+    "message": "Shape \"circle\" is not in the approved shape list for this diagram type (icon, rectangle).",
+    "rule": "allowed-shapes",
+    "severity": "warning"
+  },
+  {
+    "elementId": "dc",
+    "message": "Shape \"double-circle\" is not in the approved shape list for this diagram type (icon, rectangle).",
+    "rule": "allowed-shapes",
+    "severity": "warning"
+  },
+  {
+    "elementId": "di",
+    "message": "Shape \"diamond\" is not in the approved shape list for this diagram type (icon, rectangle).",
+    "rule": "allowed-shapes",
+    "severity": "warning"
+  },
+  {
+    "elementId": "hx",
+    "message": "Shape \"hexagon\" is not in the approved shape list for this diagram type (icon, rectangle).",
+    "rule": "allowed-shapes",
+    "severity": "warning"
+  },
+  {
+    "elementId": "pa",
+    "message": "Shape \"parallelogram\" is not in the approved shape list for this diagram type (icon, rectangle).",
+    "rule": "allowed-shapes",
+    "severity": "warning"
+  },
+  {
+    "elementId": "tr",
+    "message": "Shape \"trapezoid\" is not in the approved shape list for this diagram type (icon, rectangle).",
+    "rule": "allowed-shapes",
+    "severity": "warning"
+  },
+  {
+    "elementId": "as",
+    "message": "Shape \"asymmetric\" is not in the approved shape list for this diagram type (icon, rectangle).",
+    "rule": "allowed-shapes",
+    "severity": "warning"
+  },
+  {
+    "elementId": "(diagram)",
+    "message": "This diagram type requires at least one \"icon\" shape, but none was found.",
+    "rule": "mandatory-shapes",
+    "severity": "warning"
+  },
+  {
+    "elementId": "r",
+    "elementType": "node",
+    "message": "\"Rectangle\" has no element kind; this standard expects one of: API, Store.",
+    "rule": "unknown-kind",
+    "severity": "error"
+  },
+  {
+    "elementId": "ro",
+    "elementType": "node",
+    "message": "\"Rounded\" has no element kind; this standard expects one of: API, Store.",
+    "rule": "unknown-kind",
+    "severity": "error"
+  },
+  {
+    "elementId": "st",
+    "elementType": "node",
+    "message": "\"Stadium\" has no element kind; this standard expects one of: API, Store.",
+    "rule": "unknown-kind",
+    "severity": "error"
+  },
+  {
+    "elementId": "su",
+    "elementType": "node",
+    "message": "\"Subroutine\" has no element kind; this standard expects one of: API, Store.",
+    "rule": "unknown-kind",
+    "severity": "error"
+  },
+  {
+    "elementId": "cy",
+    "elementType": "node",
+    "message": "\"Cylinder\" has no element kind; this standard expects one of: API, Store.",
+    "rule": "unknown-kind",
+    "severity": "error"
+  },
+  {
+    "elementId": "ci",
+    "elementType": "node",
+    "message": "\"Circle\" has no element kind; this standard expects one of: API, Store.",
+    "rule": "unknown-kind",
+    "severity": "error"
+  },
+  {
+    "elementId": "dc",
+    "elementType": "node",
+    "message": "\"Double circle\" has no element kind; this standard expects one of: API, Store.",
+    "rule": "unknown-kind",
+    "severity": "error"
+  },
+  {
+    "elementId": "di",
+    "elementType": "node",
+    "message": "\"Diamond\" has no element kind; this standard expects one of: API, Store.",
+    "rule": "unknown-kind",
+    "severity": "error"
+  },
+  {
+    "elementId": "hx",
+    "elementType": "node",
+    "message": "\"Hexagon\" has no element kind; this standard expects one of: API, Store.",
+    "rule": "unknown-kind",
+    "severity": "error"
+  },
+  {
+    "elementId": "pa",
+    "elementType": "node",
+    "message": "\"Parallelogram\" has no element kind; this standard expects one of: API, Store.",
+    "rule": "unknown-kind",
+    "severity": "error"
+  },
+  {
+    "elementId": "tr",
+    "elementType": "node",
+    "message": "\"Trapezoid\" has no element kind; this standard expects one of: API, Store.",
+    "rule": "unknown-kind",
+    "severity": "error"
+  },
+  {
+    "elementId": "as",
+    "elementType": "node",
+    "message": "\"Asymmetric\" has no element kind; this standard expects one of: API, Store.",
+    "rule": "unknown-kind",
+    "severity": "error"
+  }
+]

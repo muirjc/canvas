@@ -1,0 +1,26 @@
+[
+  {
+    "elementId": "A",
+    "message": "This diagram type doesn't use generic shapes (\"rectangle\"); use one of its element kinds.",
+    "rule": "allowed-shapes",
+    "severity": "warning"
+  },
+  {
+    "elementId": "B",
+    "message": "This diagram type doesn't use generic shapes (\"diamond\"); use one of its element kinds.",
+    "rule": "allowed-shapes",
+    "severity": "warning"
+  },
+  {
+    "elementId": "C",
+    "message": "This diagram type doesn't use generic shapes (\"stadium\"); use one of its element kinds.",
+    "rule": "allowed-shapes",
+    "severity": "warning"
+  },
+  {
+    "elementId": "D",
+    "message": "This diagram type doesn't use generic shapes (\"subroutine\"); use one of its element kinds.",
+    "rule": "allowed-shapes",
+    "severity": "warning"
+  }
+]

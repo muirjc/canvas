@@ -1,0 +1,31 @@
+[
+  {
+    "elementId": "x",
+    "elementType": "node",
+    "message": "\"X\" is a \"container\", which isn't one of this standard's element kinds (Person, External Person, Software System, External System).",
+    "rule": "unknown-kind",
+    "severity": "error"
+  },
+  {
+    "elementId": "loose",
+    "elementType": "node",
+    "message": "\"Loose\" is a \"container\", which isn't one of this standard's element kinds (Person, External Person, Software System, External System).",
+    "rule": "unknown-kind",
+    "severity": "error"
+  },
+  {
+    "elementId": "(diagram)",
+    "elementType": "diagram",
+    "kindId": "software_system",
+    "message": "Needs at least 1 Software System; found 0.",
+    "rule": "kind-min-count",
+    "severity": "error"
+  },
+  {
+    "elementId": "cont",
+    "elementType": "container",
+    "message": "\"Containers\" is a container-boundary grouping; allowed: enterprise-boundary, system-boundary, boundary.",
+    "rule": "container-not-allowed",
+    "severity": "warning"
+  }
+]
