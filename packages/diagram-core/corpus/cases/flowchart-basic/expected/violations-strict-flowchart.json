@@ -1,0 +1,95 @@
+[
+  {
+    "elementId": "A",
+    "elementType": "node",
+    "message": "\"Start\" has no element kind; this standard expects one of: Start, Step, Decision, Data store.",
+    "rule": "unknown-kind",
+    "severity": "error"
+  },
+  {
+    "elementId": "B",
+    "elementType": "node",
+    "message": "\"Decision\" has no element kind; this standard expects one of: Start, Step, Decision, Data store.",
+    "rule": "unknown-kind",
+    "severity": "error"
+  },
+  {
+    "elementId": "C",
+    "elementType": "node",
+    "message": "\"Done\" has no element kind; this standard expects one of: Start, Step, Decision, Data store.",
+    "rule": "unknown-kind",
+    "severity": "error"
+  },
+  {
+    "elementId": "D",
+    "elementType": "node",
+    "message": "\"Retry\" has no element kind; this standard expects one of: Start, Step, Decision, Data store.",
+    "rule": "unknown-kind",
+    "severity": "error"
+  },
+  {
+    "elementId": "(diagram)",
+    "elementType": "diagram",
+    "kindId": "start",
+    "message": "Needs at least 1 Start; found 0.",
+    "rule": "kind-min-count",
+    "severity": "error"
+  },
+  {
+    "elementId": "(diagram)",
+    "elementType": "diagram",
+    "kindId": "decision",
+    "message": "Needs at least 2 Decision elements; found 0.",
+    "rule": "kind-min-count",
+    "severity": "error"
+  },
+  {
+    "elementId": "(diagram)",
+    "elementType": "diagram",
+    "message": "Needs at least 10 Item elements (Step, Decision or Data store); found 0.",
+    "rule": "kind-group-min-count",
+    "severity": "error"
+  },
+  {
+    "elementId": "(diagram)",
+    "elementType": "diagram",
+    "message": "Needs at least 1 Entry (Start); found 0.",
+    "rule": "kind-group-min-count",
+    "severity": "error"
+  },
+  {
+    "elementId": "(diagram)",
+    "elementType": "diagram",
+    "message": "Needs at least 1 Mystery (ghost or Data store); found 0.",
+    "rule": "kind-group-min-count",
+    "severity": "error"
+  },
+  {
+    "elementId": "e1",
+    "elementType": "edge",
+    "message": "This standard doesn't allow a connection from unclassified element to unclassified element.",
+    "rule": "connector-not-allowed",
+    "severity": "error"
+  },
+  {
+    "elementId": "e2",
+    "elementType": "edge",
+    "message": "This standard doesn't allow a connection from unclassified element to unclassified element.",
+    "rule": "connector-not-allowed",
+    "severity": "error"
+  },
+  {
+    "elementId": "e3",
+    "elementType": "edge",
+    "message": "This standard doesn't allow a connection from unclassified element to unclassified element.",
+    "rule": "connector-not-allowed",
+    "severity": "error"
+  },
+  {
+    "elementId": "e4",
+    "elementType": "edge",
+    "message": "This standard doesn't allow a connection from unclassified element to unclassified element.",
+    "rule": "connector-not-allowed",
+    "severity": "error"
+  }
+]

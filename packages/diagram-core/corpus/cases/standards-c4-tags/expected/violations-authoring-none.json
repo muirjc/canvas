@@ -1,0 +1,54 @@
+[
+  {
+    "elementId": "s1",
+    "message": "This diagram type doesn't use generic shapes (\"rectangle\"); use one of its element kinds.",
+    "rule": "allowed-shapes",
+    "severity": "warning"
+  },
+  {
+    "elementId": "s2",
+    "message": "This diagram type doesn't use generic shapes (\"rectangle\"); use one of its element kinds.",
+    "rule": "allowed-shapes",
+    "severity": "warning"
+  },
+  {
+    "elementId": "s3",
+    "message": "This diagram type doesn't use generic shapes (\"cylinder\"); use one of its element kinds.",
+    "rule": "allowed-shapes",
+    "severity": "warning"
+  },
+  {
+    "elementId": "p1",
+    "message": "This diagram type doesn't use generic shapes (\"rectangle\"); use one of its element kinds.",
+    "rule": "allowed-shapes",
+    "severity": "warning"
+  },
+  {
+    "elementId": "c1",
+    "message": "This diagram type doesn't use generic shapes (\"rounded-rectangle\"); use one of its element kinds.",
+    "rule": "allowed-shapes",
+    "severity": "warning"
+  },
+  {
+    "elementId": "s4",
+    "message": "This diagram type doesn't use generic shapes (\"rectangle\"); use one of its element kinds.",
+    "rule": "allowed-shapes",
+    "severity": "warning"
+  },
+  {
+    "elementId": "pe",
+    "elementType": "node",
+    "kindId": "person",
+    "message": "Person \"Guest\" isn't connected to anything.",
+    "rule": "kind-unconnected",
+    "severity": "info"
+  },
+  {
+    "elementId": "u3",
+    "elementType": "node",
+    "kindId": "person",
+    "message": "Person \"Staff\" isn't connected to anything.",
+    "rule": "kind-unconnected",
+    "severity": "info"
+  }
+]

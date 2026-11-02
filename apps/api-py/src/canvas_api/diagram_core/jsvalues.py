@@ -7,9 +7,9 @@ import math
 import re
 from typing import Any
 
-from canvas_api.github.jstext import JS_WHITESPACE, js_trim
+from canvas_api.github.jstext import JS_WHITESPACE, js_number, js_trim
 
-__all__ = ["js_number_value", "js_parse_float", "js_parse_int", "to_js_json"]
+__all__ = ["js_number_value", "js_parse_float", "js_parse_int", "js_template", "js_truthy", "to_js_json"]
 
 _LEADING_SPACE = re.compile(f"^[{JS_WHITESPACE}]+")
 _DECIMAL_PREFIX = re.compile(r"^[+-]?(?:Infinity|(?:[0-9]+(?:\.[0-9]*)?|\.[0-9]+)(?:[eE][+-]?[0-9]+)?)")
@@ -75,6 +75,36 @@ def _js_string(value: Any) -> str:
         return "true" if value else "false"
     if isinstance(value, list):
         return ",".join(_js_string(v) for v in value)
+    if isinstance(value, dict):
+        return "[object Object]"
+    return str(value)
+
+
+def js_truthy(value: Any) -> bool:
+    """JavaScript truthiness: an empty object or array is truthy, NaN is falsy."""
+    if isinstance(value, dict | list):
+        return True
+    if isinstance(value, float) and value != value:
+        return False
+    return bool(value)
+
+
+def js_template(value: Any) -> str:
+    """`${value}` in a JavaScript template literal, for a value that came from JSON: None is null (pass
+    UNDEFINED_TEXT yourself where the field was absent), numbers as JavaScript writes them."""
+    if value is None:
+        return "null"
+    if isinstance(value, bool):
+        return "true" if value else "false"
+    if isinstance(value, int | float):
+        number = float(value)
+        if number != number:
+            return "NaN"
+        if number in (math.inf, -math.inf):
+            return "Infinity" if number > 0 else "-Infinity"
+        return js_number(number)
+    if isinstance(value, list):
+        return ",".join("" if v is None else js_template(v) for v in value)
     if isinstance(value, dict):
         return "[object Object]"
     return str(value)

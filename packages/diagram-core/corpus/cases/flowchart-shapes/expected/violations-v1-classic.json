@@ -1,0 +1,56 @@
+[
+  {
+    "elementId": "st",
+    "message": "Shape \"stadium\" is not in the approved shape list for this diagram type (rectangle, diamond, rounded-rectangle).",
+    "rule": "allowed-shapes",
+    "severity": "warning"
+  },
+  {
+    "elementId": "su",
+    "message": "Shape \"subroutine\" is not in the approved shape list for this diagram type (rectangle, diamond, rounded-rectangle).",
+    "rule": "allowed-shapes",
+    "severity": "warning"
+  },
+  {
+    "elementId": "cy",
+    "message": "Shape \"cylinder\" is not in the approved shape list for this diagram type (rectangle, diamond, rounded-rectangle).",
+    "rule": "allowed-shapes",
+    "severity": "warning"
+  },
+  {
+    "elementId": "ci",
+    "message": "Shape \"circle\" is not in the approved shape list for this diagram type (rectangle, diamond, rounded-rectangle).",
+    "rule": "allowed-shapes",
+    "severity": "warning"
+  },
+  {
+    "elementId": "dc",
+    "message": "Shape \"double-circle\" is not in the approved shape list for this diagram type (rectangle, diamond, rounded-rectangle).",
+    "rule": "allowed-shapes",
+    "severity": "warning"
+  },
+  {
+    "elementId": "hx",
+    "message": "Shape \"hexagon\" is not in the approved shape list for this diagram type (rectangle, diamond, rounded-rectangle).",
+    "rule": "allowed-shapes",
+    "severity": "warning"
+  },
+  {
+    "elementId": "pa",
+    "message": "Shape \"parallelogram\" is not in the approved shape list for this diagram type (rectangle, diamond, rounded-rectangle).",
+    "rule": "allowed-shapes",
+    "severity": "warning"
+  },
+  {
+    "elementId": "tr",
+    "message": "Shape \"trapezoid\" is not in the approved shape list for this diagram type (rectangle, diamond, rounded-rectangle).",
+    "rule": "allowed-shapes",
+    "severity": "warning"
+  },
+  {
+    "elementId": "as",
+    "message": "Shape \"asymmetric\" is not in the approved shape list for this diagram type (rectangle, diamond, rounded-rectangle).",
+    "rule": "allowed-shapes",
+    "severity": "warning"
+  }
+]

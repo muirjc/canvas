@@ -1,0 +1,35 @@
+[
+  {
+    "elementId": "(diagram)",
+    "message": "This diagram type requires at least one \"circle\" shape, but none was found.",
+    "rule": "mandatory-shapes",
+    "severity": "error"
+  },
+  {
+    "elementId": "(diagram)",
+    "message": "This diagram type requires at least one \"diamond\" shape, but none was found.",
+    "rule": "mandatory-shapes",
+    "severity": "error"
+  },
+  {
+    "elementId": "outer",
+    "elementType": "container",
+    "message": "\"Outer group\" is a plain grouping; allowed: boundary, system-boundary.",
+    "rule": "container-not-allowed",
+    "severity": "warning"
+  },
+  {
+    "elementId": "middle",
+    "elementType": "container",
+    "message": "\"Middle\" is a plain grouping; allowed: boundary, system-boundary.",
+    "rule": "container-not-allowed",
+    "severity": "warning"
+  },
+  {
+    "elementId": "inner",
+    "elementType": "container",
+    "message": "\"Inner\" is a plain grouping; allowed: boundary, system-boundary.",
+    "rule": "container-not-allowed",
+    "severity": "warning"
+  }
+]

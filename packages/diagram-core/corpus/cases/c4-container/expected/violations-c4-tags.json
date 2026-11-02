@@ -1,0 +1,51 @@
+[
+  {
+    "elementId": "web",
+    "elementType": "node",
+    "message": "\"Web app\" is a \"container\", which isn't one of this standard's element kinds (New System, Legacy System, Partner,   ).",
+    "rule": "unknown-kind",
+    "severity": "info"
+  },
+  {
+    "elementId": "api",
+    "elementType": "node",
+    "message": "\"API\" is a \"container\", which isn't one of this standard's element kinds (New System, Legacy System, Partner,   ).",
+    "rule": "unknown-kind",
+    "severity": "info"
+  },
+  {
+    "elementId": "db",
+    "elementType": "node",
+    "message": "\"Database\" is a \"container\", which isn't one of this standard's element kinds (New System, Legacy System, Partner,   ).",
+    "rule": "unknown-kind",
+    "severity": "info"
+  },
+  {
+    "elementId": "q",
+    "elementType": "node",
+    "message": "\"Orders queue\" is a \"container\", which isn't one of this standard's element kinds (New System, Legacy System, Partner,   ).",
+    "rule": "unknown-kind",
+    "severity": "info"
+  },
+  {
+    "elementId": "legacy",
+    "elementType": "node",
+    "message": "\"Legacy DB\" is a \"container\", which isn't one of this standard's element kinds (New System, Legacy System, Partner,   ).",
+    "rule": "unknown-kind",
+    "severity": "info"
+  },
+  {
+    "elementId": "(diagram)",
+    "elementType": "diagram",
+    "message": "Needs at least 1 System (New System, Legacy System or Partner); found 0.",
+    "rule": "kind-group-min-count",
+    "severity": "error"
+  },
+  {
+    "elementId": "app",
+    "elementType": "container",
+    "message": "\"Shop\" is a container-boundary grouping; allowed: system-boundary.",
+    "rule": "container-not-allowed",
+    "severity": "warning"
+  }
+]

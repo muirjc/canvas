@@ -1,12 +1,13 @@
-"""canvas-1bty.15.1, .15.2: the golden corpus, answered by the native Python diagram-core (no Node, no bridge).
+"""canvas-1bty.15.1-.15.3: the golden corpus, answered by the native Python diagram-core (no Node, no bridge).
 
 Every case, in every family, must produce exactly the files the TypeScript implementation wrote under expected/ --
-except render.svg and violations-*.json, the renderer's and the validator's (not ported yet).
+except render.svg, the renderer's (not ported yet).
 Mirrors packages/diagram-core/tests/contract/golden-corpus.test.ts.
 """
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 from typing import Any
 
@@ -15,9 +16,13 @@ import pytest
 from canvas_api.diagram_core import DiagramCore, canonical_json
 from canvas_api.diagram_core.core import KNOWN_FAMILIES, PARSERS, SERIALIZERS
 from canvas_api.diagram_core.jsvalues import to_js_json
+from canvas_api.diagram_core.standards import validate
 
 CORPUS = Path(__file__).resolve().parents[3] / "packages" / "diagram-core" / "corpus"
 CASES = sorted(p.name for p in (CORPUS / "cases").iterdir() if p.is_dir())
+STANDARDS: dict[str, dict[str, Any]] = {
+    p.stem: json.loads(p.read_text("utf-8")) for p in (CORPUS / "standards").iterdir() if p.suffix == ".json"
+}
 core = DiagramCore(None)
 
 
@@ -41,20 +46,24 @@ def _as_parsed(value: Any) -> Any:
     return value
 
 
-def _outputs(source: str) -> dict[str, str]:
+def _outputs(source: str, standards: list[str] | None = None) -> dict[str, str]:
     family = core.detect(source)
     if family is None:
         return {"errors.json": canonical_json({"errors": [{"message": "Unrecognized diagram header"}]})}
     parsed = core.parse(family, source)
     if "model" not in parsed:
         return {"family.txt": f"{family}\n", "errors.json": canonical_json(parsed)}
-    # Serialize the model as the parser built it (a NaN stays NaN; as JSON it would be null).
-    return {
+    # Serialize and validate the model as the parser built it (a NaN stays NaN; as JSON it would be null).
+    model = _as_parsed(PARSERS[family](source)["model"])
+    files = {
         "family.txt": f"{family}\n",
         "model.json": canonical_json(parsed["model"]),
-        "serialized.mmd": core.serialize(family, _as_parsed(PARSERS[family](source)["model"])),
+        "serialized.mmd": core.serialize(family, model),
         "portable.mmd": core.portable(source, strip_front_matter=True),
     }
+    for standard in standards or []:
+        files[f"violations-{standard}.json"] = canonical_json(to_js_json(validate(model, STANDARDS[standard])))
+    return files
 
 
 def test_the_corpus_covers_every_family_and_errors() -> None:
@@ -67,14 +76,11 @@ def test_the_corpus_covers_every_family_and_errors() -> None:
 
 @pytest.mark.parametrize("case", CASES)
 def test_corpus_case_native(case: str) -> None:
-    expected_dir = CORPUS / "cases" / case / "expected"
-    # render.svg is the renderer's and violations-*.json the validator's: neither is ported yet.
-    expected = {
-        p.name: _read(p)
-        for p in expected_dir.iterdir()
-        if p.name != "render.svg" and not p.name.startswith("violations-")
-    }
-    actual = _outputs(_input(case))
+    case_dir = CORPUS / "cases" / case
+    # render.svg is the renderer's: not ported yet.
+    expected = {p.name: _read(p) for p in (case_dir / "expected").iterdir() if p.name != "render.svg"}
+    meta = json.loads((case_dir / "case.json").read_text("utf-8")) if (case_dir / "case.json").exists() else {}
+    actual = _outputs(_input(case), meta.get("standards"))
     assert sorted(actual) == sorted(expected)
     for name, content in actual.items():
         assert content == expected[name], f"{case}/expected/{name}"

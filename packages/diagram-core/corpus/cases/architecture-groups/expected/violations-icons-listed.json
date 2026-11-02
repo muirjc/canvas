@@ -1,0 +1,56 @@
+[
+  {
+    "elementId": "j1",
+    "message": "Shape \"circle\" is not in the approved shape list for this diagram type (icon, rectangle).",
+    "rule": "allowed-shapes",
+    "severity": "warning"
+  },
+  {
+    "elementId": "fn",
+    "message": "Icons from \"logos\" aren't approved for this diagram type (mermaid-architecture).",
+    "rule": "allowed-icon-libraries",
+    "severity": "warning"
+  },
+  {
+    "elementId": "gw",
+    "elementType": "node",
+    "message": "\"Gateway\" has no element kind; this standard expects one of: API, Store.",
+    "rule": "unknown-kind",
+    "severity": "error"
+  },
+  {
+    "elementId": "api",
+    "elementType": "node",
+    "message": "\"API\" has no element kind; this standard expects one of: API, Store.",
+    "rule": "unknown-kind",
+    "severity": "error"
+  },
+  {
+    "elementId": "db",
+    "elementType": "node",
+    "message": "\"Database\" has no element kind; this standard expects one of: API, Store.",
+    "rule": "unknown-kind",
+    "severity": "error"
+  },
+  {
+    "elementId": "fn",
+    "elementType": "node",
+    "message": "\"Function\" has no element kind; this standard expects one of: API, Store.",
+    "rule": "unknown-kind",
+    "severity": "error"
+  },
+  {
+    "elementId": "cloud",
+    "elementType": "container",
+    "message": "\"Cloud\" is a plain grouping; allowed: .",
+    "rule": "container-not-allowed",
+    "severity": "warning"
+  },
+  {
+    "elementId": "private",
+    "elementType": "container",
+    "message": "\"Private\" is a plain grouping; allowed: .",
+    "rule": "container-not-allowed",
+    "severity": "warning"
+  }
+]

@@ -1,0 +1,91 @@
+---
+canvas:
+  positions:
+    api:
+      x: 60
+      y: 271.4
+    api2:
+      x: 456
+      y: 472.79999999999995
+    db:
+      x: 248
+      y: 286.4
+    db2:
+      x: 164
+      y: 472.79999999999995
+    q:
+      x: 456
+      y: 40
+    plain:
+      x: 164
+      y: 619.1999999999999
+    j1:
+      x: 148
+      y: 53.2
+  containers:
+    cloud:
+      x: 40
+      y: 186.4
+      width: 356
+      height: 226.4
+    inner:
+      x: 228
+      y: 236.4
+      width: 148
+      height: 156.4
+  icons:
+    api:
+      libraryId: mermaid-architecture
+      libraryVersion: 1.0.0
+      iconId: server
+    api2:
+      libraryId: mermaid-architecture
+      libraryVersion: 1.0.0
+      iconId: internet
+    db:
+      libraryId: mermaid-architecture
+      libraryVersion: 1.0.0
+      iconId: database
+    db2:
+      libraryId: logos
+      libraryVersion: iconify
+      iconId: aws-s3
+    q:
+      libraryId: mermaid-architecture
+      libraryVersion: 1.0.0
+      iconId: disk
+    plain:
+      libraryId: generic
+      libraryVersion: 1.0.0
+      iconId: virtual-machine
+    inner:
+      libraryId: mermaid-architecture
+      libraryVersion: 1.0.0
+      iconId: server
+  kinds:
+    api: api
+    api2: api
+    db: store
+    db2: store
+    q: mystery
+  styles:
+    db:
+      fillColor: "#ffffff"
+      strokeColor: "#333333"
+---
+architecture-beta
+group cloud(cloud)[Cloud]
+group inner(server)[Inner] in cloud
+service api(server)[API] in cloud
+service api2(internet)[API 2]
+service db(database)[DB] in inner
+service db2(logos:aws-s3)[Bucket]
+service q(disk)[Queue]
+service plain(virtual-machine)[VM]
+junction j1
+api:R --> L:db
+api:B --> T:db2
+db2:R -- L:api2
+q:L <-- R:j1
+j1:B --> T:api
+plain:T --> B:api

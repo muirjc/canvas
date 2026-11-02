@@ -214,8 +214,13 @@ test('turning the setting off hides counts from the architect but not from the a
 
   // Restore (the afterAll does too, in case an assertion above failed).
   await admin.goto('/?admin=ai-personas');
+  const restoreToggle = admin.getByTestId('ai-show-usage-toggle');
+  // Wait for the settings to load (the box is disabled and unchecked until then), or the loaded state can
+  // land after the click and undo it.
+  await expect(restoreToggle).toBeEnabled();
+  await expect(restoreToggle).not.toBeChecked();
   const restored = admin.waitForResponse((r) => r.url().endsWith('/admin/ai-settings') && r.request().method() !== 'GET' && r.ok());
-  await admin.getByTestId('ai-show-usage-toggle').check();
+  await restoreToggle.check();
   await restored;
   await architect.goto('/?account=password');
   await expect(architect.getByTestId('my-ai-usage')).toBeVisible();

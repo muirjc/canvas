@@ -1,0 +1,70 @@
+[
+  {
+    "elementId": "(diagram)",
+    "message": "This diagram type requires at least one \"circle\" shape, but none was found.",
+    "rule": "mandatory-shapes",
+    "severity": "error"
+  },
+  {
+    "elementId": "(diagram)",
+    "message": "This diagram type requires at least one \"diamond\" shape, but none was found.",
+    "rule": "mandatory-shapes",
+    "severity": "error"
+  },
+  {
+    "elementId": "Outer",
+    "elementType": "container",
+    "message": "\"Outer\" is a namespace grouping; allowed: boundary, system-boundary.",
+    "rule": "container-not-allowed",
+    "severity": "warning"
+  },
+  {
+    "elementId": "Outer.Inner",
+    "elementType": "container",
+    "message": "\"Inner\" is a namespace grouping; allowed: boundary, system-boundary.",
+    "rule": "container-not-allowed",
+    "severity": "warning"
+  },
+  {
+    "elementId": "Company",
+    "elementType": "container",
+    "message": "\"Acme Corp\" is a namespace grouping; allowed: boundary, system-boundary.",
+    "rule": "container-not-allowed",
+    "severity": "warning"
+  },
+  {
+    "elementId": "Company.Sales",
+    "elementType": "container",
+    "message": "\"Sales\" is a namespace grouping; allowed: boundary, system-boundary.",
+    "rule": "container-not-allowed",
+    "severity": "warning"
+  },
+  {
+    "elementId": "Company.Sales.Orders",
+    "elementType": "container",
+    "message": "\"Orders\" is a namespace grouping; allowed: boundary, system-boundary.",
+    "rule": "container-not-allowed",
+    "severity": "warning"
+  },
+  {
+    "elementId": "Company.Sales.Invoices",
+    "elementType": "container",
+    "message": "\"Billing\" is a namespace grouping; allowed: boundary, system-boundary.",
+    "rule": "container-not-allowed",
+    "severity": "warning"
+  },
+  {
+    "elementId": "Empty",
+    "elementType": "container",
+    "message": "\"Empty\" is a namespace grouping; allowed: boundary, system-boundary.",
+    "rule": "container-not-allowed",
+    "severity": "warning"
+  },
+  {
+    "elementId": "Labelled",
+    "elementType": "container",
+    "message": "\"Same\" is a namespace grouping; allowed: boundary, system-boundary.",
+    "rule": "container-not-allowed",
+    "severity": "warning"
+  }
+]

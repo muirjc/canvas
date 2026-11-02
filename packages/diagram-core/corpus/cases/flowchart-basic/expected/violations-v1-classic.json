@@ -1,0 +1,20 @@
+[
+  {
+    "elementId": "C",
+    "message": "Shape \"stadium\" is not in the approved shape list for this diagram type (rectangle, diamond, rounded-rectangle).",
+    "rule": "allowed-shapes",
+    "severity": "warning"
+  },
+  {
+    "elementId": "D",
+    "message": "Shape \"subroutine\" is not in the approved shape list for this diagram type (rectangle, diamond, rounded-rectangle).",
+    "rule": "allowed-shapes",
+    "severity": "warning"
+  },
+  {
+    "elementId": "(diagram)",
+    "message": "This diagram type requires at least one \"circle\" shape, but none was found.",
+    "rule": "mandatory-shapes",
+    "severity": "error"
+  }
+]

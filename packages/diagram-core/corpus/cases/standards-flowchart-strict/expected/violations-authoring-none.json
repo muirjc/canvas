@@ -1,0 +1,62 @@
+[
+  {
+    "elementId": "s",
+    "message": "This diagram type doesn't use generic shapes (\"stadium\"); use one of its element kinds.",
+    "rule": "allowed-shapes",
+    "severity": "warning"
+  },
+  {
+    "elementId": "a",
+    "message": "This diagram type doesn't use generic shapes (\"rectangle\"); use one of its element kinds.",
+    "rule": "allowed-shapes",
+    "severity": "warning"
+  },
+  {
+    "elementId": "b",
+    "message": "This diagram type doesn't use generic shapes (\"rounded-rectangle\"); use one of its element kinds.",
+    "rule": "allowed-shapes",
+    "severity": "warning"
+  },
+  {
+    "elementId": "c",
+    "message": "This diagram type doesn't use generic shapes (\"rectangle\"); use one of its element kinds.",
+    "rule": "allowed-shapes",
+    "severity": "warning"
+  },
+  {
+    "elementId": "d",
+    "message": "This diagram type doesn't use generic shapes (\"diamond\"); use one of its element kinds.",
+    "rule": "allowed-shapes",
+    "severity": "warning"
+  },
+  {
+    "elementId": "s2",
+    "message": "This diagram type doesn't use generic shapes (\"circle\"); use one of its element kinds.",
+    "rule": "allowed-shapes",
+    "severity": "warning"
+  },
+  {
+    "elementId": "db",
+    "message": "This diagram type doesn't use generic shapes (\"cylinder\"); use one of its element kinds.",
+    "rule": "allowed-shapes",
+    "severity": "warning"
+  },
+  {
+    "elementId": "y",
+    "message": "This diagram type doesn't use generic shapes (\"rectangle\"); use one of its element kinds.",
+    "rule": "allowed-shapes",
+    "severity": "warning"
+  },
+  {
+    "elementId": "g1",
+    "message": "This diagram type doesn't use generic shapes (\"rectangle\"); use one of its element kinds.",
+    "rule": "allowed-shapes",
+    "severity": "warning"
+  },
+  {
+    "elementId": "hex",
+    "message": "This diagram type doesn't use generic shapes (\"hexagon\"); use one of its element kinds.",
+    "rule": "allowed-shapes",
+    "severity": "warning"
+  }
+]

@@ -1,0 +1,96 @@
+[
+  {
+    "elementId": "a",
+    "elementType": "node",
+    "message": "\"Alpha\" is a \"dashed\", which isn't one of this standard's element kinds (Primary Activity, Support Activity, Margin).",
+    "rule": "unknown-kind",
+    "severity": "error"
+  },
+  {
+    "elementId": "b",
+    "elementType": "node",
+    "message": "\"Beta\" is a \"dashed\", which isn't one of this standard's element kinds (Primary Activity, Support Activity, Margin).",
+    "rule": "unknown-kind",
+    "severity": "error"
+  },
+  {
+    "elementId": "c",
+    "elementType": "node",
+    "message": "\"Gamma\" is a \"hot\", which isn't one of this standard's element kinds (Primary Activity, Support Activity, Margin).",
+    "rule": "unknown-kind",
+    "severity": "error"
+  },
+  {
+    "elementId": "d",
+    "elementType": "node",
+    "message": "\"Delta\" is a \"hot\", which isn't one of this standard's element kinds (Primary Activity, Support Activity, Margin).",
+    "rule": "unknown-kind",
+    "severity": "error"
+  },
+  {
+    "elementId": "e",
+    "elementType": "node",
+    "message": "\"Epsilon\" is a \"cold\", which isn't one of this standard's element kinds (Primary Activity, Support Activity, Margin).",
+    "rule": "unknown-kind",
+    "severity": "error"
+  },
+  {
+    "elementId": "f",
+    "elementType": "node",
+    "message": "\"f\" is a \"cold\", which isn't one of this standard's element kinds (Primary Activity, Support Activity, Margin).",
+    "rule": "unknown-kind",
+    "severity": "error"
+  },
+  {
+    "elementId": "(diagram)",
+    "elementType": "diagram",
+    "kindId": "primary_activity",
+    "message": "Needs at least 1 Primary Activity; found 0.",
+    "rule": "kind-min-count",
+    "severity": "error"
+  },
+  {
+    "elementId": "(diagram)",
+    "elementType": "diagram",
+    "kindId": "support_activity",
+    "message": "Needs at least 1 Support Activity; found 0.",
+    "rule": "kind-min-count",
+    "severity": "error"
+  },
+  {
+    "elementId": "(diagram)",
+    "elementType": "diagram",
+    "kindId": "margin",
+    "message": "Needs at least 1 Margin; found 0.",
+    "rule": "kind-min-count",
+    "severity": "error"
+  },
+  {
+    "elementId": "e1",
+    "elementType": "edge",
+    "message": "This standard doesn't allow a connection from unclassified element to unclassified element.",
+    "rule": "connector-not-allowed",
+    "severity": "error"
+  },
+  {
+    "elementId": "e2",
+    "elementType": "edge",
+    "message": "This standard doesn't allow a connection from unclassified element to unclassified element.",
+    "rule": "connector-not-allowed",
+    "severity": "error"
+  },
+  {
+    "elementId": "e3",
+    "elementType": "edge",
+    "message": "This standard doesn't allow a connection from unclassified element to unclassified element.",
+    "rule": "connector-not-allowed",
+    "severity": "error"
+  },
+  {
+    "elementId": "e4",
+    "elementType": "edge",
+    "message": "This standard doesn't allow a connection from unclassified element to unclassified element.",
+    "rule": "connector-not-allowed",
+    "severity": "error"
+  }
+]

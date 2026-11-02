@@ -93,6 +93,19 @@ tests are NON-NEGOTIABLE and must exist (and fail) before implementing any diagr
 work — see `.specify/memory/constitution.md` Principle IV.
 
 ## Recent Changes
+- `canvas-1bty.15.3` (Python phase 11c): **standards are native.** `diagram_core/standards/` ports schema
+  constants, authoring scope, element kinds (all of kinds.ts, incl. `kind_add_blocked_reason`/`kind_defaults` for
+  11g), `validate` and `check_standard_definition`/`standard_definition_notices`; `family_capabilities.py`;
+  `colors.py` (`resolve_node_fill_stroke` + C4 colour tables, for the 11d renderer too); `c4.C4_ROLE_SHAPES`.
+  `DiagramCore.validate`/`check_standard` go through the modes like parse. Shadow mode now survives ANY native
+  exception (logs only its type, since a message could quote the diagram); `KeyError`/`TypeError`/
+  `AttributeError` become BridgeError, as TypeScript throws there too. JSON semantics: an absent key is undefined,
+  a present None is null (`!== undefined` = key present; `??`/`<` treat null as nullish/0). Corpus: 5 new
+  standards (`strict-flowchart`, `v1-classic`, `authoring-none`, `icons-listed`, `c4-tags`; every rule id fires),
+  3 `standards-*` cases + `case.json` on 15 existing cases across families; the native corpus test now compares
+  violations. `tests/data/standards_vectors.json` (`make_standards_vectors.ts`) for the definition check, kind
+  helpers, authoring and validate on hand-made models (fonts, nulls); seeded bridge fuzz
+  (`test_diagram_core_standards_fuzz.py`).
 - `canvas-1bty.15.2` (Python phase 11b): **every family's parse/serialize is native.** `diagram_core/` gained
   `c4.py`, `erd.py`, `uml.py`, `sequence.py`, `architecture.py` (+ `architecture_layout.py`, computeArchitectureLayout,
   checked against TS vectors in `tests/data/architecture_layout_vectors.json`); `core.py` exposes `PARSERS`/

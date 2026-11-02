@@ -1,0 +1,31 @@
+flowchart TD
+  s([Start]):::start --> a[Validate]:::step
+  a --> b(Approve):::step
+  a --> c[Reject]:::step
+  b -.-> c
+  d{OK?}:::decision -->|yes| a
+  d --> b
+  d -- no --> c
+  s2((Again)):::start
+  s2 <--> a
+  db[(Orders)]:::store
+  a -.->|save| db
+  b --> db
+  x[Loose]
+  y[Thing]:::mystery
+  x --> y
+  subgraph grp [Group]
+    g1[Inside]:::step
+  end
+  hex{{Hexagon}}
+  linkStyle 1 stroke:#ff0000
+  linkStyle 3 stroke:#333333
+  style d fill:#dbeafe
+  class x primary_activity
+  %% Colours for Mermaid tools outside Canvas (added on export).
+  style s fill:#dcfce7,stroke:#166534
+  style a fill:#F1F5F9
+  style d fill:#dbeafe
+  style db fill:#FEF3C7,stroke:#b45309
+  linkStyle 1 stroke:#ff0000
+  linkStyle 3 stroke:#333333

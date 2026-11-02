@@ -1,0 +1,217 @@
+{
+  "containers": [
+    {
+      "id": "grp",
+      "label": "Group",
+      "position": {
+        "x": 40,
+        "y": 40
+      },
+      "size": {
+        "height": 130,
+        "width": 180
+      }
+    }
+  ],
+  "diagramTypeId": "flowchart",
+  "direction": "TD",
+  "edges": [
+    {
+      "id": "e1",
+      "sourceId": "s",
+      "targetId": "a"
+    },
+    {
+      "id": "e2",
+      "sourceId": "a",
+      "style": {
+        "strokeColor": "#ff0000"
+      },
+      "targetId": "b"
+    },
+    {
+      "id": "e3",
+      "sourceId": "a",
+      "targetId": "c"
+    },
+    {
+      "id": "e4",
+      "lineStyle": "dotted",
+      "sourceId": "b",
+      "style": {
+        "strokeColor": "#333333"
+      },
+      "targetId": "c"
+    },
+    {
+      "id": "e5",
+      "label": "yes",
+      "sourceId": "d",
+      "targetId": "a"
+    },
+    {
+      "id": "e6",
+      "sourceId": "d",
+      "targetId": "b"
+    },
+    {
+      "id": "e7",
+      "label": "no",
+      "sourceId": "d",
+      "targetId": "c"
+    },
+    {
+      "arrow": "both",
+      "id": "e8",
+      "sourceId": "s2",
+      "targetId": "a"
+    },
+    {
+      "id": "e9",
+      "label": "save",
+      "lineStyle": "dotted",
+      "sourceId": "a",
+      "targetId": "db"
+    },
+    {
+      "id": "e10",
+      "sourceId": "b",
+      "targetId": "db"
+    },
+    {
+      "id": "e11",
+      "sourceId": "x",
+      "targetId": "y"
+    }
+  ],
+  "nodes": [
+    {
+      "id": "s",
+      "label": "Start",
+      "position": {
+        "x": 260,
+        "y": 40
+      },
+      "role": "start",
+      "shape": "stadium",
+      "style": {
+        "fillColor": "#dcfce7",
+        "fontFamily": "Arial",
+        "fontSize": 8,
+        "strokeColor": "#166534"
+      }
+    },
+    {
+      "id": "a",
+      "label": "Validate",
+      "position": {
+        "x": 440,
+        "y": 40
+      },
+      "role": "step",
+      "shape": "rectangle",
+      "style": {
+        "fillColor": "#F1F5F9",
+        "fontFamily": "Inter",
+        "fontSize": 24
+      }
+    },
+    {
+      "id": "b",
+      "label": "Approve",
+      "position": {
+        "x": 620,
+        "y": 40
+      },
+      "role": "step",
+      "shape": "rounded-rectangle"
+    },
+    {
+      "id": "c",
+      "label": "Reject",
+      "position": {
+        "x": 800,
+        "y": 40
+      },
+      "role": "step",
+      "shape": "rectangle"
+    },
+    {
+      "id": "d",
+      "label": "OK?",
+      "position": {
+        "x": 40,
+        "y": 210
+      },
+      "role": "decision",
+      "shape": "diamond",
+      "style": {
+        "fillColor": "#dbeafe"
+      }
+    },
+    {
+      "id": "s2",
+      "label": "Again",
+      "position": {
+        "x": 220,
+        "y": 210
+      },
+      "role": "start",
+      "shape": "circle"
+    },
+    {
+      "id": "db",
+      "label": "Orders",
+      "position": {
+        "x": 400,
+        "y": 210
+      },
+      "role": "store",
+      "shape": "cylinder",
+      "style": {
+        "fillColor": "#FEF3C7",
+        "strokeColor": "#b45309"
+      }
+    },
+    {
+      "id": "x",
+      "label": "Loose",
+      "position": {
+        "x": 580,
+        "y": 210
+      },
+      "role": "primary_activity",
+      "shape": "rectangle"
+    },
+    {
+      "id": "y",
+      "label": "Thing",
+      "position": {
+        "x": 760,
+        "y": 210
+      },
+      "role": "mystery",
+      "shape": "rectangle"
+    },
+    {
+      "containerId": "grp",
+      "id": "g1",
+      "label": "Inside",
+      "position": {
+        "x": 60,
+        "y": 90
+      },
+      "role": "step",
+      "shape": "rectangle"
+    },
+    {
+      "id": "hex",
+      "label": "Hexagon",
+      "position": {
+        "x": 940,
+        "y": 210
+      },
+      "shape": "hexagon"
+    }
+  ]
+}
