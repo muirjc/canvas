@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import base64
+import hashlib
 import re
 from dataclasses import dataclass, field
 from typing import Literal
@@ -66,6 +67,92 @@ class Settings(BaseSettings):
     anthropic_api_key: str | None = Field(default=None, alias="ANTHROPIC_API_KEY", repr=False)
     openai_api_key: str | None = Field(default=None, alias="OPENAI_API_KEY", repr=False)
 
+    # canvas-1bty.13: sign-in (apps/api's loadConfig). Booleans are "true" or not, as there.
+    node_env: str | None = Field(default=None, alias="NODE_ENV")
+    auth_mode_setting: str = Field(default="entra", alias="AUTH_MODE")
+    allow_local_auth_setting: str | None = Field(default=None, alias="ALLOW_LOCAL_AUTH")
+    login_rate_limit_setting: str | None = Field(default=None, alias="LOGIN_RATE_LIMIT")
+    mfa_required_setting: str | None = Field(default=None, alias="MFA_REQUIRED")
+    #: 32 bytes, base64: the AES-256-GCM key for stored authenticator secrets.
+    mfa_encryption_key_setting: str | None = Field(default=None, alias="MFA_ENCRYPTION_KEY", repr=False)
+    oidc_issuer_url: str | None = Field(default=None, alias="OIDC_ISSUER_URL")
+    oidc_client_id: str | None = Field(default=None, alias="OIDC_CLIENT_ID")
+    oidc_client_secret: str | None = Field(default=None, alias="OIDC_CLIENT_SECRET", repr=False)
+    oidc_redirect_uri: str | None = Field(default=None, alias="OIDC_REDIRECT_URI")
+    #: "managed-identity": sign in to Entra with the managed identity's token instead of a client secret.
+    oidc_client_auth_setting: str | None = Field(default=None, alias="OIDC_CLIENT_AUTH")
+    #: The user-assigned managed identity's client id.
+    azure_client_id: str | None = Field(default=None, alias="AZURE_CLIENT_ID")
+
+    @property
+    def auth_mode(self) -> Literal["entra", "local"]:
+        if self.auth_mode_setting not in ("entra", "local"):
+            raise ValueError(f'AUTH_MODE must be "entra" or "local" (got: {self.auth_mode_setting})')
+        return "local" if self.auth_mode_setting == "local" else "entra"
+
+    @property
+    def allow_local_auth(self) -> bool:
+        """Canvas email + password sign-in: always in local mode, opt-in (dev) with Entra."""
+        return self.auth_mode == "local" or self.allow_local_auth_setting == "true"
+
+    @property
+    def mfa_required(self) -> bool:
+        if not self.mfa_required_setting:
+            return self.auth_mode == "local"
+        return self.mfa_required_setting == "true"
+
+    @property
+    def login_rate_limit_per_minute(self) -> int:
+        """Password sign-in attempts per client address per minute; 0 = no limit."""
+        value = self.login_rate_limit_setting
+        if not value:
+            return 20 if self.auth_mode == "local" else 0
+        if not re.fullmatch(r"[0-9]+", value):
+            raise ValueError(f"LOGIN_RATE_LIMIT must be a whole number, 0 or more (got: {value})")
+        return int(value)
+
+    @property
+    def mfa_encryption_key(self) -> bytes:
+        if self.mfa_encryption_key_setting:
+            try:
+                key = base64.b64decode(self.mfa_encryption_key_setting)
+            except ValueError:
+                key = b""
+            if len(key) != 32:
+                raise ValueError(
+                    "MFA_ENCRYPTION_KEY must be 32 bytes, base64-encoded (e.g. `openssl rand -base64 32`)."
+                )
+            return key
+        if self.auth_mode == "local" and self.node_env == "production":
+            raise ValueError("MFA_ENCRYPTION_KEY is required with AUTH_MODE=local in production.")
+        # Dev/test: derived from the session secret, so nothing extra has to be configured.
+        return hashlib.sha256(f"canvas-mfa-key:{self.session_secret}".encode()).digest()
+
+    @property
+    def oidc(self) -> OidcConfig | None:
+        """Entra sign-in settings, or None when it's off (local mode, or OIDC_* not all set)."""
+        if self.auth_mode == "local":
+            return None
+        validate_oidc_issuer_url(self.oidc_issuer_url)
+        if not (self.oidc_issuer_url and self.oidc_client_id and self.oidc_redirect_uri):
+            return None
+        managed = self.oidc_client_auth_setting == "managed-identity"
+        if managed and not self.azure_client_id:
+            raise ValueError(
+                "OIDC_CLIENT_AUTH=managed-identity needs AZURE_CLIENT_ID (the managed identity's client id)."
+            )
+        return OidcConfig(
+            issuer_url=self.oidc_issuer_url,
+            client_id=self.oidc_client_id,
+            client_secret=self.oidc_client_secret,
+            redirect_uri=self.oidc_redirect_uri,
+            managed_identity_client_id=self.azure_client_id if managed else None,
+        )
+
+    @property
+    def web_origin_list(self) -> list[str]:
+        return [origin.strip() for origin in self.web_origins.split(",")]
+
     @property
     def canvas_public_url(self) -> str:
         url = self.canvas_public_url_setting or self.web_origins.split(",")[0]
@@ -75,6 +162,40 @@ class Settings(BaseSettings):
     def github(self) -> GitHubAppConfig | None:
         """The GitHub App settings, or None when the integration is off. A bad key or URL raises."""
         return parse_github_config(self.github_app_id, self.github_app_private_key, self.github_app_api_url)
+
+
+@dataclass(frozen=True)
+class OidcConfig:
+    issuer_url: str
+    client_id: str
+    client_secret: str | None = field(repr=False)
+    redirect_uri: str
+    #: Set: authenticate with this managed identity's token (a federated credential), not the secret.
+    managed_identity_client_id: str | None = None
+
+
+def validate_oidc_issuer_url(issuer_url: str | None) -> None:
+    """Catches the two usual Entra issuer mistakes at startup (apps/api's validateOidcIssuerUrl); any
+    other identity provider's issuer is left alone."""
+    if not issuer_url:
+        return
+    parts = urlsplit(issuer_url)
+    if not parts.scheme or not parts.netloc:
+        raise ValueError(f'OIDC_ISSUER_URL is not a valid URL: "{issuer_url}"')
+    if parts.hostname != "login.microsoftonline.com":
+        return
+    segments = [s for s in parts.path.split("/") if s]
+    tenant = segments[0] if segments else None
+    if tenant in ("common", "organizations", "consumers"):
+        raise ValueError(
+            f'OIDC_ISSUER_URL uses Entra\'s multi-tenant alias "/{tenant}/..." -- this app needs a real tenant ID'
+            " in the issuer path instead: https://login.microsoftonline.com/<tenant-id>/v2.0"
+        )
+    if not segments or segments[-1] != "v2.0":
+        raise ValueError(
+            f'OIDC_ISSUER_URL must end in "/v2.0" (got: "{issuer_url}") -- use'
+            " https://login.microsoftonline.com/<tenant-id>/v2.0"
+        )
 
 
 @dataclass(frozen=True)

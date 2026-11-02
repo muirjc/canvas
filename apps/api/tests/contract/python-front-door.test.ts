@@ -7,6 +7,8 @@ import { loadConfig } from '../../src/config.js';
 import { runMigrations } from '../../src/db/migrate.js';
 import { closeTestDb } from '../helpers/setup.js';
 import { PYTHON_ROUTE_GROUP_NAMES } from '../../src/python/route-groups.js';
+import { Signer } from '@fastify/cookie';
+import { DbSessionStore } from '../../src/auth/session-store.js';
 
 /**
  * canvas-1bty.3: this service stays the front door while the backend moves to Python, forwarding the
@@ -26,6 +28,7 @@ describe('forwarding moved routes to the Python service (canvas-1bty.3)', () => 
   let upstreamUrl = '';
   const seen: Seen[] = [];
   let app: FastifyInstance;
+  let sessionSecret = '';
 
   beforeAll(async () => {
     upstream = createServer((req, res) => {
@@ -47,6 +50,7 @@ describe('forwarding moved routes to the Python service (canvas-1bty.3)', () => 
     process.env.NODE_ENV = 'test';
     await runMigrations();
     const config = { ...loadConfig({ ...process.env, NODE_ENV: 'test', PYTHON_API_URL: upstreamUrl, PYTHON_ROUTES: '/py' }), allowLocalAuth: true };
+    sessionSecret = config.sessionSecret;
     app = await buildApp({ config, logger: false });
   });
 
@@ -63,9 +67,29 @@ describe('forwarding moved routes to the Python service (canvas-1bty.3)', () => 
     const last = seen.at(-1)!;
     expect(last.headers.cookie).toBe('cid=abc.def%2Fg');
     expect(last.headers['x-forwarded-proto']).toBe('http');
-    // Python's cookies come back as they were. (This service's own session handling also runs on
-    // forwarded routes: here it clears the made-up cid; with a real session both refresh the same value.)
+    // Python's cookies come back as they were; this service leaves the session to Python (canvas-1bty.13).
     expect(res.headers['set-cookie']).toEqual(expect.arrayContaining(['cid=rolled; Path=/; HttpOnly', 'other=1; Path=/']));
+  });
+
+  // canvas-1bty.13: at sign-in Python replaces the session and sends the new cookie. This service must not
+  // save the old session on the way back and send its cookie after Python's -- the browser keeps the last
+  // one, which would sign the user straight out again.
+  it('leaves a live session to Python: the only session cookie in the response is Python\'s', async () => {
+    const id = `front-door-${Date.now()}`;
+    const session = {
+      cookie: { expires: new Date(Date.now() + 60_000), originalMaxAge: 60_000, path: '/', httpOnly: true, secure: false, sameSite: 'lax', domain: null },
+      user: { id: '00000000-0000-0000-0000-000000000001', email: 'a@example.com', name: 'A', role: 'viewer', personas: [] },
+      authenticatedAt: Date.now(),
+    };
+    await new Promise<void>((resolve, reject) =>
+      new DbSessionStore(60_000).set(id, session as never, (error) => (error ? reject(error) : resolve())),
+    );
+    const cookie = `cid=${encodeURIComponent(new Signer(sessionSecret).sign(id))}`;
+    const res = await app.inject({ method: 'GET', url: '/py/me', headers: { cookie } });
+    expect(res.statusCode).toBe(200);
+    expect(seen.at(-1)!.headers.cookie).toBe(cookie);
+    const cookies = ([] as string[]).concat(res.headers['set-cookie'] ?? []).filter((c) => c.startsWith('cid='));
+    expect(cookies).toEqual(['cid=rolled; Path=/; HttpOnly']);
   });
 
   it('forwards a JSON body byte for byte', async () => {
@@ -147,11 +171,8 @@ describe('forwarding moved routes by route pattern (canvas-1bty.6)', () => {
 
   it('only forwards the moved method and pattern, not its neighbours', async () => {
     const before = seen.length;
-    // Same prefix, routes not moved yet: local accounts stay on TypeScript (phase 9) while the rest of
-    // /admin/users moved.
-    // (TypeScript checks this body before the role: 400 here means it answered, not Python.)
-    expect((await app.inject({ method: 'POST', url: '/admin/users', payload: {} })).statusCode).toBe(400);
-    expect((await app.inject({ method: 'POST', url: '/admin/users/abc/unlock' })).statusCode).toBe(401);
+    // Same /admin prefix, not moved yet: the library admin stays on TypeScript while /admin/users moved.
+    expect((await app.inject({ method: 'GET', url: '/admin/libraries' })).statusCode).toBe(401);
     // POST /libraries stays on TypeScript while GET /libraries moved.
     expect((await app.inject({ method: 'POST', url: '/libraries', payload: {} })).statusCode).toBe(401);
     expect(seen.length).toBe(before);

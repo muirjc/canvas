@@ -100,6 +100,27 @@ def client(settings: Settings, engine: Engine) -> Iterator[TestClient]:
 
 
 @pytest.fixture()
+def make_site(settings: Settings, engine: Engine) -> Iterator[Any]:
+    """A clean database and a factory for apps with their own sign-in settings (tests/auth_helpers.py): what the
+    TypeScript tests do by building an app per config. `make_site(allow_local_auth_setting="true")`, or
+    `oidc_transport=` to answer the identity provider in-process."""
+    from tests.api import reset
+    from tests.auth_helpers import Site
+
+    reset(engine)
+    sites: list[Site] = []
+
+    def make(oidc_transport: Any = None, **changes: Any) -> Site:
+        site = Site(settings.model_copy(update=changes), engine, oidc_transport)
+        sites.append(site)
+        return site
+
+    yield make
+    for site in sites:
+        site.close()
+
+
+@pytest.fixture()
 def api(client: TestClient, engine: Engine) -> Iterator[Any]:
     """A clean database and a contract-checking client (tests/api.py)."""
     from tests.api import Api, reset

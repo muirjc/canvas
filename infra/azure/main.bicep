@@ -174,6 +174,12 @@ module pyApiApp 'modules/pyapiapp.bicep' = {
     githubApiUrl: githubApiUrl
     publicUrl: empty(webOrigin) ? apiPublicBaseUrl : webOrigin
     aiProvider: aiProvider
+    authMode: authMode
+    entraTenantId: entraTenantId
+    entraClientId: entraClientId
+    oidcRedirectUri: oidcRedirectUri
+    oidcClientAuth: oidcClientAuth
+    identityClientId: keyVault.outputs.identityClientId
   }
 }
 

@@ -2,8 +2,8 @@
 (phase 3, canvas-1bty.7; apps/api/src/admin/admin.routes.ts, admin.service.ts, user-deletion.service.ts,
 user-lookup.routes.ts).
 
-Local accounts (create with a one-time password, reset password or two-step verification, unlock) stay
-in TypeScript until sign-in moves (phase 9).
+Local accounts (create with a one-time password, reset password or two-step verification, unlock) came
+with sign-in (phase 9, canvas-1bty.13); they exist only when Canvas passwords are in use.
 """
 
 from __future__ import annotations
@@ -18,6 +18,8 @@ from pydantic import BaseModel, Field, StrictBool, StrictStr
 from sqlalchemy import Connection, Engine, bindparam, text
 
 from canvas_api.audit import client_ip, record_audit
+from canvas_api.auth import accounts
+from canvas_api.auth.passwords import generate_one_time_password
 from canvas_api.auth.roles import AdminUser, CurrentUser
 from canvas_api.auth.session import revoke_sessions
 from canvas_api.db import get_engine
@@ -39,6 +41,13 @@ class UpdateUserBody(BaseModel):
     #: A user's personas decide which diagram types they're offered first -- only the four, once each.
     personas: list[Persona] | None = Field(default=None, max_length=4)
     active: StrictBool | None = None
+
+
+class CreateLocalUserBody(BaseModel):
+    email: StrictStr = Field(pattern=r"^\s*[^@\s]+@[^@\s]+\.[^@\s]+\s*$", max_length=320)
+    name: StrictStr = Field(max_length=200)
+    role: Role
+    personas: list[Persona] | None = Field(default=None, max_length=4)
 
 
 class DeleteUserBody(BaseModel):
@@ -388,3 +397,80 @@ def search_users(_user: CurrentUser, db: Db, q: Annotated[str, Query(min_length=
     with db.connect() as conn:
         rows = conn.execute(_SEARCH, {"yes": True, "pattern": pattern}).all()
     return {"users": [{"id": str(r.id), "name": r.name, "email": r.email} for r in rows]}
+
+
+# --- local accounts (canvas-ez1.2/.4/.5) --------------------------------------------------------------
+
+
+def _require_local_accounts(request: Request) -> None:
+    """With Entra, users are created at their first sign-in and have no Canvas password to reset. A route
+    dependency, so it answers before sign-in is checked: the routes don't exist, as in apps/api."""
+    if not request.app.state.settings.allow_local_auth:
+        raise ApiError(404, f"Route {request.method}:{request.url.path} not found")
+
+
+@router.post("/admin/users", status_code=201, dependencies=[Depends(_require_local_accounts)])
+def create_local_user(request: Request, admin: AdminUser, db: Db, body: CreateLocalUserBody) -> dict[str, Any]:
+    """The temporary password is shown once to the admin and stored only as a hash; the user changes it at
+    their next sign-in."""
+    personas = body.personas or []
+    if len(set(personas)) != len(personas):
+        raise ApiError(400, "body/personas must NOT have duplicate items")
+    temporary_password = generate_one_time_password()
+    with db.begin() as conn:
+        try:
+            user = accounts.create_local_user(
+                conn, body.email, body.name, body.role, list(personas), temporary_password
+            )
+        except accounts.EmailInUseError as error:
+            raise ApiError(409, str(error)) from error
+        record_audit(
+            conn,
+            "user_created",
+            actor_user_id=admin.id,
+            target_user_id=user["id"],
+            ip=client_ip(request),
+            detail={"role": user["role"]},
+        )
+    return {"user": user, "temporaryPassword": temporary_password}
+
+
+@router.post("/admin/users/{id}/reset-password", dependencies=[Depends(_require_local_accounts)])
+def reset_password(id: str, request: Request, admin: AdminUser, db: Db) -> dict[str, str]:
+    """A new one-time password; signs the user out everywhere and unlocks them."""
+    if id == admin.id:
+        raise ApiError(400, "Use Change password for your own account.")
+    temporary_password = generate_one_time_password()
+    with db.begin() as conn:
+        try:
+            accounts.set_one_time_password(conn, id, temporary_password)
+        except accounts.UserNotFoundError as error:
+            raise ApiError(404, str(error)) from error
+        record_audit(conn, "password_reset", actor_user_id=admin.id, target_user_id=id, ip=client_ip(request))
+    return {"temporaryPassword": temporary_password}
+
+
+@router.post("/admin/users/{id}/reset-mfa", dependencies=[Depends(_require_local_accounts)])
+def reset_mfa(id: str, request: Request, admin: AdminUser, db: Db) -> dict[str, bool]:
+    """A lost phone: removes two-step verification and signs the user out; they set it up again next time."""
+    if id == admin.id:
+        raise ApiError(400, "You can't reset your own two-step verification.")
+    with db.begin() as conn:
+        if _active_user(conn, id) is None:
+            raise ApiError(404, f"No user with id {id}")
+        accounts.reset_mfa(conn, id)
+        record_audit(conn, "mfa_reset", actor_user_id=admin.id, target_user_id=id, ip=client_ip(request))
+    return {"reset": True}
+
+
+@router.post("/admin/users/{id}/unlock", dependencies=[Depends(_require_local_accounts)])
+def unlock(id: str, request: Request, admin: AdminUser, db: Db) -> dict[str, bool]:
+    """The only way out of a lockout besides a password reset (no time-based unlock)."""
+    with db.begin() as conn:
+        try:
+            unlocked = accounts.unlock_account(conn, id)
+        except accounts.UserNotFoundError as error:
+            raise ApiError(404, str(error)) from error
+        if unlocked:
+            record_audit(conn, "account_unlocked", actor_user_id=admin.id, target_user_id=id, ip=client_ip(request))
+    return {"unlocked": unlocked}

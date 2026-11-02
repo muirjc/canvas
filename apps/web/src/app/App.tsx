@@ -203,6 +203,9 @@ export function App() {
    * up a level (design §2); `replace` for redirects that shouldn't be returnable to.
    */
   const navigate = (to: Location, options: { replace?: boolean; force?: boolean } = {}) => {
+    // Any navigation settles where the user is, so a landing still waiting on the project list must
+    // not move them afterwards (a quick click on Projects lost to it, canvas-1bty.13's e2e run).
+    landingPending.current = false;
     const from = locationRef.current;
     if (!options.force && from.screen === 'diagram' && !sameLocation(from, to) && diagramEditorRef.current?.hasUnsavedChanges()) {
       setPendingNav({ to, viaHistory: false, draft: Boolean(diagramEditorRef.current?.isUnsavedDraft()) });
@@ -224,6 +227,7 @@ export function App() {
   // dirty editor this way puts the editor's address back and asks; confirming goes back again.
   useEffect(() => {
     const onPopState = () => {
+      landingPending.current = false;
       const to = parseLocation(window.location.search);
       const from = locationRef.current;
       if (skipGuardOnce.current) {

@@ -36,6 +36,11 @@ export async function registerPythonFrontDoor(
     // A moved route is forwarded before its body is parsed: hand reply-from the raw stream, so the
     // body goes through byte for byte (GET and HEAD carry none).
     if (request.body === undefined && request.method !== 'GET' && request.method !== 'HEAD') request.body = request.raw;
+    // canvas-1bty.13: the Python service owns the session of a request it answers -- it rolls it, and at
+    // sign-in replaces it with a new one and sends the new cookie. Without this, @fastify/session would
+    // save the old session here too and send its cookie after Python's, and the browser would keep that
+    // one: signed out again straight after signing in.
+    (request as { session: unknown }).session = null;
     return reply.from(request.url, {
       rewriteRequestHeaders: (_req, headers) => ({
         ...headers,

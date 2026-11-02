@@ -31,6 +31,7 @@ import {
   verifySecondFactor,
 } from './mfa.service.js';
 import { otpauthUri } from './totp.js';
+import { envelope, errorResponse, objectResponse } from '../contract/schemas.js';
 
 export const DEACTIVATED_MESSAGE = 'This account has been deactivated. Ask an admin to reactivate it.';
 
@@ -80,7 +81,21 @@ export async function registerLocalAuthRoutes(
     '/auth/local/login',
     // canvas-lfc: no preHandler enforces auth here -- this route IS the login -- so security: []
     // is explicit, not merely omitted.
-    { schema: { tags: ['Auth'], security: [] } },
+    // canvas-1bty.13: either the signed-in user, or { mfaRequired: true } when a second step follows.
+    {
+      schema: {
+        tags: ['Auth'],
+        security: [],
+        response: {
+          200: {
+            type: 'object',
+            additionalProperties: false,
+            properties: { user: { $ref: 'SessionUser#' }, mfaRequired: { type: 'boolean' } },
+          },
+          '4xx': errorResponse,
+        },
+      },
+    },
     async (request, reply) => {
       const { email, password } = request.body;
       if (!email || !password) {
@@ -168,6 +183,7 @@ export async function registerLocalAuthRoutes(
           required: ['currentPassword', 'newPassword'],
           properties: { currentPassword: { type: 'string' }, newPassword: { type: 'string' } },
         },
+        response: { 200: envelope('user', 'SessionUser'), '4xx': errorResponse },
       },
     },
     async (request, reply) => {
@@ -212,6 +228,15 @@ export async function registerLocalAuthRoutes(
         tags: ['Auth'],
         security: [],
         body: { type: 'object', required: ['code'], properties: { code: { type: 'string', maxLength: 64 } } },
+        response: {
+          200: {
+            type: 'object',
+            required: ['user'],
+            additionalProperties: false,
+            properties: { user: { $ref: 'SessionUser#' }, recoveryCodesRemaining: { type: 'integer' } },
+          },
+          '4xx': errorResponse,
+        },
       },
     },
     async (request, reply) => {
@@ -271,7 +296,14 @@ export async function registerLocalAuthRoutes(
   // returns the recovery codes, shown once.
   app.post(
     '/auth/mfa/enroll',
-    { preHandler: requireAuth, schema: { tags: ['Auth'], security: [{ cookieAuth: [] }] } },
+    {
+      preHandler: requireAuth,
+      schema: {
+        tags: ['Auth'],
+        security: [{ cookieAuth: [] }],
+        response: { 200: objectResponse({ secret: { type: 'string' }, otpauthUri: { type: 'string' } }), '4xx': errorResponse },
+      },
+    },
     async (request, reply) => {
       const user = request.session.user!;
       if (!user.localAccount) return reply.code(400).send({ error: 'This account signs in with single sign-on.' });
@@ -293,6 +325,10 @@ export async function registerLocalAuthRoutes(
         tags: ['Auth'],
         security: [{ cookieAuth: [] }],
         body: { type: 'object', required: ['code'], properties: { code: { type: 'string', maxLength: 64 } } },
+        response: {
+          200: objectResponse({ user: { $ref: 'SessionUser#' }, recoveryCodes: { type: 'array', items: { type: 'string' } } }),
+          '4xx': errorResponse,
+        },
       },
     },
     async (request, reply) => {

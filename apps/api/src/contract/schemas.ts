@@ -916,6 +916,24 @@ export const contractSchemas = [
       updatedAt: dateTime,
     },
   },
+  // Phase 9 (canvas-1bty.13): sign-in. The session's user (auth/types.ts SessionUser).
+  {
+    $id: 'SessionUser',
+    type: 'object',
+    required: ['id', 'email', 'name', 'role', 'personas'],
+    additionalProperties: false,
+    properties: {
+      id: { type: 'string' },
+      email: { type: 'string' },
+      name: { type: 'string' },
+      role,
+      personas: { type: 'array', items: { type: 'string' } },
+      localAccount: { type: 'boolean' },
+      mustChangePassword: { type: 'boolean' },
+      mustEnrollMfa: { type: 'boolean' },
+      mfaEnabled: { type: 'boolean' },
+    },
+  },
   {
     $id: 'AppSettings',
     type: 'object',
@@ -946,6 +964,8 @@ export const listEnvelope = (key: string, ref: string) => ({
 
 export const errorResponse = { $ref: 'Error#' } as const;
 export const noContent = { type: 'null', description: 'No content' } as const;
+/** canvas-1bty.13: a redirect (no body). */
+export const redirect = { type: 'null', description: 'Redirect (Location header)' } as const;
 /** An inline object response: `{ a: <schema>, ... }`, every key required. */
 export const objectResponse = (properties: Record<string, unknown>) => ({
   type: 'object',

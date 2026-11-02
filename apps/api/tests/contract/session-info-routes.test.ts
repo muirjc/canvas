@@ -1,5 +1,6 @@
 import Fastify, { type FastifyInstance } from 'fastify';
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
+import { registerContractSchemas } from '../../src/contract/schemas.js';
 import { buildApp } from '../../src/app.js';
 import { loadConfig } from '../../src/config.js';
 import { closeTestDb, resetDatabase } from '../helpers/setup.js';
@@ -108,6 +109,7 @@ describe('POST /auth/logout with an SSO-established session (canvas-252)', () =>
     buildOidcLogoutUrlMock: ReturnType<typeof vi.fn> | undefined;
   }> {
     const app = Fastify();
+    registerContractSchemas(app); // canvas-1bty.13: the auth routes' response schemas
     await registerSession(app, testConfig());
     let buildOidcLogoutUrlMock: ReturnType<typeof vi.fn> | undefined;
     if (decorateLogoutUrl) {

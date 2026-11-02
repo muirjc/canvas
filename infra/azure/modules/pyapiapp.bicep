@@ -42,6 +42,29 @@ param publicUrl string
 @description('canvas-1bty.12: AI_PROVIDER, as canvas-api (modules/apiapp.bicep): mock, anthropic or openai. The keys are the anthropic-api-key / openai-api-key Key Vault secrets.')
 param aiProvider string = 'mock'
 
+// canvas-1bty.13: sign-in moved here, so every sign-in setting must match canvas-api's
+// (modules/apiapp.bicep): canvas-api only forwards a sign-in route it has registered itself.
+@description('canvas-1bty.13: AUTH_MODE, as canvas-api: entra or local.')
+param authMode string = 'entra'
+
+@description('canvas-1bty.13: ALLOW_LOCAL_AUTH, as canvas-api.')
+param allowLocalAuth bool = false
+
+@description('canvas-1bty.13: Entra tenant id, as canvas-api.')
+param entraTenantId string
+
+@description('canvas-1bty.13: Entra app registration (client) id, as canvas-api.')
+param entraClientId string
+
+@description('canvas-1bty.13: the Entra redirect URI, as canvas-api (its public /auth/callback).')
+param oidcRedirectUri string
+
+@description('canvas-1bty.13: OIDC_CLIENT_AUTH, as canvas-api: secret or managed-identity.')
+param oidcClientAuth string = 'secret'
+
+@description('canvas-1bty.13: the managed identity\'s client id (AZURE_CLIENT_ID), for managed-identity sign-in.')
+param identityClientId string = ''
+
 @description('Port uvicorn listens on (apps/api-py/Dockerfile).')
 param port int = 8000
 
@@ -94,6 +117,17 @@ resource pyApp 'Microsoft.App/containerApps@2025-01-01' = {
           identity: identityId
         }
         {
+          // canvas-1bty.13: sign-in, as canvas-api.
+          name: 'mfa-encryption-key'
+          keyVaultUrl: '${keyVaultUri}secrets/mfa-encryption-key'
+          identity: identityId
+        }
+        {
+          name: 'oidc-client-secret'
+          keyVaultUrl: '${keyVaultUri}secrets/oidc-client-secret'
+          identity: identityId
+        }
+        {
           // canvas-1bty.11: base64 of the GitHub App's PEM private key, or "unset".
           name: 'github-app-private-key'
           keyVaultUrl: '${keyVaultUri}secrets/github-app-private-key'
@@ -126,6 +160,17 @@ resource pyApp 'Microsoft.App/containerApps@2025-01-01' = {
             { name: 'AI_PROVIDER', value: aiProvider }
             { name: 'ANTHROPIC_API_KEY', secretRef: 'anthropic-api-key' }
             { name: 'OPENAI_API_KEY', secretRef: 'openai-api-key' }
+            // canvas-1bty.13: sign-in, as canvas-api (same lowercase 'true'/'false' as there).
+            { name: 'AUTH_MODE', value: authMode }
+            { name: 'ALLOW_LOCAL_AUTH', value: allowLocalAuth ? 'true' : 'false' }
+            { name: 'WEB_ORIGINS', value: publicUrl }
+            { name: 'OIDC_ISSUER_URL', value: '${environment().authentication.loginEndpoint}${entraTenantId}/v2.0' }
+            { name: 'OIDC_CLIENT_ID', value: entraClientId }
+            { name: 'OIDC_CLIENT_SECRET', secretRef: 'oidc-client-secret' }
+            { name: 'OIDC_CLIENT_AUTH', value: oidcClientAuth }
+            { name: 'AZURE_CLIENT_ID', value: identityClientId }
+            { name: 'OIDC_REDIRECT_URI', value: oidcRedirectUri }
+            { name: 'MFA_ENCRYPTION_KEY', secretRef: 'mfa-encryption-key' }
           ]
           resources: {
             cpu: json('0.5')

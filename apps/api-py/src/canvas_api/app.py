@@ -11,6 +11,8 @@ from fastapi import Depends, FastAPI, Request, Response
 from sqlalchemy import Engine
 from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoint
 
+from canvas_api.auth.oidc import OidcClient
+from canvas_api.auth.rate_limit import LoginRateLimiter
 from canvas_api.auth.session import SessionUser, current_user
 from canvas_api.config import Settings
 from canvas_api.db import create_db_engine
@@ -21,6 +23,7 @@ from canvas_api.routes import (
     admin_users,
     ai,
     app_settings,
+    auth,
     comments,
     diagram_types,
     diagrams,
@@ -55,11 +58,17 @@ def create_app(
     settings: Settings | None = None,
     engine: Engine | None = None,
     github_transport: httpx.BaseTransport | None = None,
+    oidc_transport: httpx.BaseTransport | None = None,
 ) -> FastAPI:
-    """`github_transport`: tests answer GitHub's API in-process (tests/fake_github.py)."""
+    """`github_transport`, `oidc_transport`: tests answer GitHub's API and the identity provider in-process
+    (tests/fake_github.py)."""
     settings = settings or Settings()  # type: ignore[call-arg]  # read from the environment
     # canvas-1bty.11: a bad GitHub App key or URL fails startup here, not at first use.
     github_config = settings.github
+    # canvas-1bty.13: so do bad sign-in settings (AUTH_MODE, the Entra issuer, the MFA key, LOGIN_RATE_LIMIT).
+    oidc_config = settings.oidc
+    _ = settings.mfa_encryption_key
+    oidc_client = OidcClient(oidc_config, settings.web_origin_list[0], oidc_transport) if oidc_config else None
     db = engine or create_db_engine(settings)
     bridge = DiagramBridge(settings.diagram_bridge_url) if settings.diagram_bridge_url else None
     github_client = GitHubClient(github_config, github_transport) if github_config else None
@@ -71,6 +80,8 @@ def create_app(
             bridge.close()
         if github_client is not None:
             github_client.close()
+        if oidc_client is not None:
+            oidc_client.close()
         if engine is None:
             db.dispose()
 
@@ -79,6 +90,8 @@ def create_app(
     app.state.db = db
     app.state.diagram_bridge = bridge
     app.state.github_client = github_client
+    app.state.oidc_client = oidc_client
+    app.state.login_rate_limiter = LoginRateLimiter(settings.login_rate_limit_per_minute)
     # canvas-1bty.12: tests replace the AI model (a callable: chosen model id -> LanguageModel) and the
     # provider clients used to list models; None = the configured provider.
     app.state.language_model = None
@@ -90,8 +103,9 @@ def create_app(
 
     # The route groups apps/api forwards here (apps/api/src/python/route-groups.ts): phase 2
     # (canvas-1bty.6), phase 3 (canvas-1bty.7), phase 4 (canvas-1bty.8), phase 5 (canvas-1bty.9),
-    # phase 6 (canvas-1bty.10), phase 7 (canvas-1bty.11), phase 8 (canvas-1bty.12).
+    # phase 6 (canvas-1bty.10), phase 7 (canvas-1bty.11), phase 8 (canvas-1bty.12), phase 9 (canvas-1bty.13).
     for group in (
+        auth,
         projects,
         diagram_types,
         libraries,

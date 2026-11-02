@@ -538,7 +538,8 @@ refresh_kv_secret_refs() {
   identity_id="$(az identity show --resource-group "$RESOURCE_GROUP" --name canvas-identity --query id -o tsv)"
   kv_uri="$(az keyvault show --name "$KEY_VAULT_NAME" --query properties.vaultUri -o tsv)"
   # canvas-api-py (canvas-1bty.3) shares canvas-api's database-url and session-secret, and since
-  # canvas-1bty.11/.12 its github-app-private-key and AI provider keys.
+  # canvas-1bty.11/.12 its github-app-private-key and AI provider keys, and since canvas-1bty.13 the
+  # sign-in secrets (mfa-encryption-key, oidc-client-secret).
   for target in "app:canvas-api" "app:canvas-api-py" "job:$MIGRATION_JOB" "job:$SEED_JOB" "job:$CATALOG_SEED_JOB" "job:$BOOTSTRAP_JOB" "job:$GITHUB_SYNC_JOB"; do
     kind="${target%%:*}"; name="${target#*:}"
     [[ -n "$name" ]] || continue  # a job this auth mode doesn't deploy (canvas-ez1.3)

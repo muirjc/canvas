@@ -18,3 +18,10 @@ a3344adf564e06f453f06251797a446575e14d82:packages/diagram-core/tests/contract/se
 # (local-user-management.spec.ts), confirmed via a local gitleaks run. The live lines now carry
 # gitleaks:allow; this entry covers the already-pushed commit.
 0785d1b3c0ca4c73472bcf732ed7b01615b43d26:apps/web/tests/e2e/local-user-management.spec.ts:generic-api-key:21
+
+# canvas-1bty.13: generic-api-key false positives in the Python sign-in tests -- a made-up test
+# password, the dev-only MFA key derived from the tests' session secret, and the RFC 6238 test
+# secret. The live lines carry gitleaks:allow; these entries cover the already-pushed commit.
+55f5176cc193cb275ba40ee7b8c136a63d4a3537:apps/api-py/tests/test_auth_mfa.py:generic-api-key:209
+55f5176cc193cb275ba40ee7b8c136a63d4a3537:apps/api-py/tests/test_auth_units.py:generic-api-key:168
+55f5176cc193cb275ba40ee7b8c136a63d4a3537:apps/api-py/tests/test_auth_units.py:generic-api-key:309

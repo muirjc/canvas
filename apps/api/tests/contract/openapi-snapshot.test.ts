@@ -3,7 +3,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { FastifyInstance } from 'fastify';
 import { dslFamilies, RULE_IDS } from '@canvas/diagram-core';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { buildApp } from '../../src/app.js';
 import { loadConfig } from '../../src/config.js';
 import { runMigrations } from '../../src/db/migrate.js';
@@ -87,12 +87,34 @@ describe('API contract snapshot for the routes moved to Python (canvas-1bty.6)',
   beforeAll(async () => {
     process.env.NODE_ENV = 'test';
     await runMigrations();
-    app = await buildApp({ config: { ...loadConfig(), enableApiDocs: true }, logger: false });
+    // canvas-1bty.13: every sign-in route registered -- Canvas passwords on, and Entra with a stub
+    // discovery document (the routes are only built after discovery succeeds).
+    const issuer = 'https://login.microsoftonline.com/11111111-1111-1111-1111-111111111111/v2.0';
+    vi.stubGlobal('fetch', async () =>
+      new Response(
+        JSON.stringify({
+          issuer,
+          authorization_endpoint: `${issuer}/authorize`,
+          token_endpoint: `${issuer}/token`,
+          jwks_uri: `${issuer}/keys`,
+          response_types_supported: ['code'],
+        }),
+        { status: 200, headers: { 'content-type': 'application/json' } },
+      ),
+    );
+    const config = {
+      ...loadConfig(),
+      enableApiDocs: true,
+      allowLocalAuth: true,
+      oidc: { issuerUrl: issuer, clientId: 'contract', clientSecret: 'contract', redirectUri: 'http://localhost:3000/auth/callback' },
+    };
+    app = await buildApp({ config, logger: false });
     await app.ready();
     document = app.swagger() as unknown as typeof document;
   });
 
   afterAll(async () => {
+    vi.unstubAllGlobals();
     await app.close();
     await closeTestDb();
   });
@@ -104,12 +126,13 @@ describe('API contract snapshot for the routes moved to Python (canvas-1bty.6)',
     const operation = document.paths[path]?.[method] as
       { responses?: Record<string, { content?: unknown; description?: string }> } | undefined;
     expect(operation, `${route} is not in the OpenAPI document`).toBeDefined();
-    const success = Object.entries(operation!.responses ?? {}).filter(([status]) =>
-      status.startsWith('2'),
+    // A redirect (GET /auth/login, /auth/callback) is that route's success, with no body.
+    const success = Object.entries(operation!.responses ?? {}).filter(
+      ([status]) => status.startsWith('2') || status.startsWith('3'),
     );
     expect(success.length, `${route} has no 2xx response schema`).toBeGreaterThan(0);
     for (const [status, response] of success) {
-      if (status !== '204')
+      if (status !== '204' && !status.startsWith('3'))
         expect(response.content, `${route} ${status} has no body schema`).toBeDefined();
     }
   });
