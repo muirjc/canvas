@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { api, ApiError, type DiagramTypeDto, type StandardDto } from '../app/api';
 import { ConfirmDialog } from '../canvas/ConfirmDialog';
 import { Modal } from '../ui/Modal';
@@ -35,9 +35,15 @@ export function StandardsAdminPage() {
     });
   }, []);
 
+  // The type whose standards are wanted now: a slower answer for a type the admin has already moved
+  // away from must not replace the list (it did, behind a slower API, in canvas-1bty.14's e2e run).
+  const wantedTypeId = useRef(selectedId);
+  wantedTypeId.current = selectedId;
   const refresh = useCallback(() => {
     if (!selectedId) return Promise.resolve();
-    return api.listStandards(selectedId).then(({ standards }) => setStandards(standards));
+    return api.listStandards(selectedId).then(({ standards }) => {
+      if (wantedTypeId.current === selectedId) setStandards(standards);
+    });
   }, [selectedId]);
 
   useEffect(() => {

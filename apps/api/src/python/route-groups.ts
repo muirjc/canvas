@@ -154,6 +154,25 @@ export const PYTHON_ROUTE_GROUPS = {
     'POST /admin/users/:id/reset-mfa',
     'POST /admin/users/:id/unlock',
   ],
+  // Phase 10 (canvas-1bty.14): the icon-library admin, the last group, moved before the front door swap.
+  'library-admin': [
+    'POST /libraries',
+    'GET /admin/libraries',
+    'GET /admin/libraries/:id/:version/icons',
+    'GET /admin/libraries/:id/:version/usage',
+    'POST /admin/libraries/import-svg',
+    'POST /admin/libraries/import-manifest',
+    'PATCH /admin/libraries/:id/:version',
+    'POST /admin/libraries/:id/:version/icons',
+    'PATCH /admin/libraries/:id/:version/icons/:iconId',
+    'POST /admin/libraries/:id/:version/retire',
+    'POST /admin/libraries/:id/:version/restore',
+    'POST /admin/libraries/:id/:version/icons/:iconId/retire',
+    'POST /admin/libraries/:id/:version/icons/:iconId/restore',
+    'DELETE /admin/libraries/:id/:version',
+    'DELETE /admin/libraries/:id/:version/icons/:iconId',
+    'PUT /admin/libraries/:id/diagram-types',
+  ],
 } as const satisfies Record<string, readonly string[]>;
 
 export type PythonRouteGroup = keyof typeof PYTHON_ROUTE_GROUPS;

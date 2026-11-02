@@ -33,6 +33,168 @@
     "Solution",
     "Technical"
   ],
+  "routeGroups": {
+    "admin-users": [
+      "GET /admin/users",
+      "PATCH /admin/users/:id",
+      "GET /admin/users/:id/deletion-impact",
+      "DELETE /admin/users/:id",
+      "GET /admin/audit",
+      "GET /admin/overview",
+      "GET /users/lookup",
+      "GET /users/search"
+    ],
+    "ai": [
+      "POST /diagrams/:id/chat/messages",
+      "GET /diagrams/:id/chat/messages",
+      "GET /admin/ai-models",
+      "GET /ai-settings",
+      "GET /admin/ai-settings",
+      "PATCH /admin/ai-settings",
+      "GET /ai-personas",
+      "GET /admin/ai-personas",
+      "POST /admin/ai-personas",
+      "PATCH /admin/ai-personas/:id",
+      "POST /admin/ai-personas/:id/archive",
+      "GET /admin/ai-personas/:id/reference-material",
+      "POST /admin/ai-personas/:id/reference-material",
+      "PATCH /admin/ai-personas/:personaId/reference-material/:entryId",
+      "DELETE /admin/ai-personas/:personaId/reference-material/:entryId",
+      "GET /admin/ai-usage",
+      "GET /admin/ai-usage/users/:id",
+      "GET /admin/ai-prices",
+      "PUT /admin/ai-prices",
+      "DELETE /admin/ai-prices",
+      "GET /me/ai-usage"
+    ],
+    "app-settings": [
+      "GET /app-settings",
+      "PATCH /admin/app-settings"
+    ],
+    "auth": [
+      "GET /auth/config",
+      "GET /auth/session-check",
+      "GET /auth/me",
+      "POST /auth/logout",
+      "POST /auth/local/login",
+      "POST /auth/password",
+      "POST /auth/mfa/verify",
+      "POST /auth/mfa/enroll",
+      "POST /auth/mfa/enroll/confirm",
+      "GET /auth/login",
+      "GET /auth/callback",
+      "POST /admin/users",
+      "POST /admin/users/:id/reset-password",
+      "POST /admin/users/:id/reset-mfa",
+      "POST /admin/users/:id/unlock"
+    ],
+    "comments": [
+      "GET /diagrams/:id/comments",
+      "GET /diagrams/:id/comments/unread",
+      "POST /diagrams/:id/comments/read",
+      "POST /diagrams/:id/comments",
+      "PATCH /diagrams/:id/comments/:commentId",
+      "DELETE /diagrams/:id/comments/:commentId",
+      "POST /diagrams/:id/comments/:commentId/resolve",
+      "POST /diagrams/:id/comments/:commentId/reopen"
+    ],
+    "diagram-types": [
+      "GET /diagram-types",
+      "POST /admin/diagram-types",
+      "PATCH /admin/diagram-types/:id",
+      "DELETE /admin/diagram-types/:id"
+    ],
+    "diagrams": [
+      "POST /projects/:projectId/diagrams",
+      "GET /projects/:projectId/diagrams",
+      "POST /projects/:projectId/diagrams/import",
+      "POST /projects/:projectId/diagrams/import-template",
+      "GET /diagrams/:id",
+      "PATCH /diagrams/:id",
+      "PATCH /diagrams/:id/name",
+      "PATCH /diagrams/:id/description",
+      "PATCH /diagrams/:id/project",
+      "GET /diagrams/:id/versions",
+      "GET /diagrams/:id/versions/:versionId",
+      "POST /diagrams/:id/versions/:versionId/restore",
+      "PUT /diagrams/:id/presence",
+      "POST /diagrams/:id/presence/leave",
+      "DELETE /diagrams/:id",
+      "GET /admin/deleted-diagrams",
+      "POST /diagrams/:id/restore"
+    ],
+    "export": [
+      "GET /diagrams/:id/export"
+    ],
+    "github": [
+      "GET /admin/github/status",
+      "GET /admin/github/repositories",
+      "GET /admin/github/workflow-example",
+      "GET /admin/github/links",
+      "POST /admin/github/links/:id/test",
+      "PUT /projects/:id/github-link",
+      "DELETE /projects/:id/github-link",
+      "GET /projects/:id/github-link",
+      "POST /diagrams/:id/submissions",
+      "GET /diagrams/:id/submission",
+      "POST /diagrams/:id/submission/refresh",
+      "POST /diagrams/:id/submission/withdraw",
+      "GET /diagrams/:id/submissions",
+      "GET /projects/:id/submission-statuses"
+    ],
+    "libraries": [
+      "GET /libraries",
+      "GET /libraries/:id/versions/:version/icons",
+      "GET /icons/search"
+    ],
+    "library-admin": [
+      "POST /libraries",
+      "GET /admin/libraries",
+      "GET /admin/libraries/:id/:version/icons",
+      "GET /admin/libraries/:id/:version/usage",
+      "POST /admin/libraries/import-svg",
+      "POST /admin/libraries/import-manifest",
+      "PATCH /admin/libraries/:id/:version",
+      "POST /admin/libraries/:id/:version/icons",
+      "PATCH /admin/libraries/:id/:version/icons/:iconId",
+      "POST /admin/libraries/:id/:version/retire",
+      "POST /admin/libraries/:id/:version/restore",
+      "POST /admin/libraries/:id/:version/icons/:iconId/retire",
+      "POST /admin/libraries/:id/:version/icons/:iconId/restore",
+      "DELETE /admin/libraries/:id/:version",
+      "DELETE /admin/libraries/:id/:version/icons/:iconId",
+      "PUT /admin/libraries/:id/diagram-types"
+    ],
+    "projects": [
+      "POST /projects",
+      "GET /projects",
+      "GET /projects/:id",
+      "GET /projects/:id/tree",
+      "PATCH /projects/:id",
+      "DELETE /projects/:id",
+      "GET /admin/deleted-projects",
+      "POST /projects/:id/restore"
+    ],
+    "sharing": [
+      "POST /diagrams/:id/shares",
+      "GET /diagrams/:id/shares",
+      "POST /projects/:id/shares",
+      "GET /projects/:id/shares",
+      "GET /shared-diagrams",
+      "DELETE /shares/:id",
+      "GET /projects/:id/members",
+      "POST /projects/:id/owner"
+    ],
+    "standards": [
+      "GET /diagram-types/:id/standard",
+      "GET /diagram-types/:id/standards",
+      "POST /diagram-types/:id/standards",
+      "PUT /standards/:id",
+      "POST /standards/:id/clone",
+      "POST /standards/:id/publish",
+      "POST /standards/:id/retire"
+    ]
+  },
   "ruleIds": [
     "allowed-shapes",
     "mandatory-shapes",

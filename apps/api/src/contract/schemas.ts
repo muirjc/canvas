@@ -71,11 +71,14 @@ export const contractSchemas = [
     // details: a parse error list (422) or a save conflict's current version (409, code version_conflict).
     // issues: an invalid standard definition's problems (400), as { path, message }.
     // violations: the Must fix issues that block a GitHub submission (422, code must_fix).
+    // diagrams: what still uses a library or icon an admin tried to delete (409, code in_use).
     properties: {
       error: { type: 'string' },
       code: { type: 'string' },
       details: {},
       violations: { type: 'array', items: { type: 'object', additionalProperties: true } },
+      // canvas-1bty.14: the diagrams using a library or icon an admin tried to delete (409, code in_use).
+      diagrams: { type: 'array', items: { $ref: 'DiagramUsage#' } },
       issues: {
         type: 'array',
         items: {
@@ -933,6 +936,62 @@ export const contractSchemas = [
       mustEnrollMfa: { type: 'boolean' },
       mfaEnabled: { type: 'boolean' },
     },
+  },
+  // canvas-1bty.14: the library admin (libraries/library-admin.service.ts).
+  {
+    $id: 'DiagramUsage',
+    type: 'object',
+    required: ['id', 'name', 'projectId'],
+    additionalProperties: false,
+    properties: { id: { type: 'string' }, name: { type: 'string' }, projectId: { type: 'string' } },
+  },
+  {
+    $id: 'AdminLibrary',
+    type: 'object',
+    required: ['id', 'version', 'name', 'origin', 'license', 'iconCount', 'retiredIconCount', 'retiredAt', 'diagramTypes', 'usedByDiagramCount'],
+    additionalProperties: false,
+    properties: {
+      id: { type: 'string' },
+      version: { type: 'string' },
+      name: { type: 'string' },
+      origin: { type: 'string', enum: ['builtin', 'custom'] },
+      license: nullable({ type: 'string' }),
+      iconCount: { type: 'integer' },
+      retiredIconCount: { type: 'integer' },
+      retiredAt: nullable(dateTime),
+      diagramTypes: {
+        type: 'array',
+        items: {
+          type: 'object',
+          required: ['id', 'name'],
+          additionalProperties: false,
+          properties: { id: { type: 'string' }, name: { type: 'string' } },
+        },
+      },
+      usedByDiagramCount: { type: 'integer' },
+    },
+  },
+  {
+    $id: 'AdminIcon',
+    type: 'object',
+    required: ['id', 'displayName', 'category', 'keywords', 'assetRef', 'retiredAt', 'usedByDiagramCount'],
+    additionalProperties: false,
+    properties: {
+      id: { type: 'string' },
+      displayName: { type: 'string' },
+      category: { type: 'string' },
+      keywords: { type: 'array', items: { type: 'string' } },
+      assetRef: { type: 'string' },
+      retiredAt: nullable(dateTime),
+      usedByDiagramCount: { type: 'integer' },
+    },
+  },
+  {
+    $id: 'RejectedIcon',
+    type: 'object',
+    required: ['fileName', 'reason'],
+    additionalProperties: false,
+    properties: { fileName: { type: 'string' }, reason: { type: 'string' } },
   },
   {
     $id: 'AppSettings',

@@ -1,8 +1,10 @@
 # Canvas API (Python)
 
-The backend is moving here from `apps/api` (TypeScript), route group by route group. Plan, phases
+The backend has moved here from `apps/api` (TypeScript), route group by route group. Plan, phases
 and decisions: [docs/python-backend-assessment.md](../../docs/python-backend-assessment.md)
-(epic canvas-1bty). Until a route group moves, `apps/api` still serves it.
+(epic canvas-1bty). Since phase 10 (canvas-1bty.14) this service is the front door (Azure's
+`canvas-api`): it serves the web app and the paused page and answers every route, sending a group back
+to the internal TypeScript service only when `TYPESCRIPT_ROUTE_GROUPS` names it (`canvas_api/front_door/`).
 
 Stack: Python 3.13, FastAPI, SQLAlchemy Core (Postgres or SQLite, never the ORM), pydantic, uv,
 ruff, mypy, pytest.
@@ -14,6 +16,8 @@ uv run pytest                             # Postgres: schema canvas_py in canvas
 TEST_DB_CLIENT=sqlite uv run pytest       # SQLite, in memory
 uv run ruff check . && uv run ruff format --check . && uv run mypy
 DB_CLIENT=sqlite DATABASE_URL=/tmp/canvas.db uv run uvicorn canvas_api.main:app --reload
+# As the front door, with apps/api/.env's settings (RUNBOOK.md "Python service"):
+uv run --env-file ../api/.env uvicorn canvas_api.main:app --port 3000
 ```
 
 Moved so far: projects, diagram types, the icon library list and search, app settings (phase 2,
@@ -31,7 +35,8 @@ canvas-1bty.12); sign-in: sessions (now written here too, in @fastify/session's 
 passwords with lockout and one-time passwords, two-step verification (TOTP and recovery codes), the
 admin's local-account actions, and Entra ID (OIDC code flow with PKCE; the ID token's signature,
 issuer, audience, expiry and nonce checked with PyJWT against the issuer's keys) (phase 9,
-canvas-1bty.13; `auth/`, `routes/auth.py`) -- see `apps/api/src/python/route-groups.ts`, which the
+canvas-1bty.13; `auth/`, `routes/auth.py`); the icon-library admin, SVG import through the bridge's
+`svg-prepare` (phase 10, canvas-1bty.14; `routes/library_admin.py`) -- see `apps/api/src/python/route-groups.ts`, which the
 TypeScript front door forwards. Each route's shapes are held to `apps/api/contract/openapi.json`:
 `tests/api.py`'s client checks every response a test gets against it. Routes not moved yet can't be
 called from these tests, so tests seed those rows directly (`Api.diagram`, `Api.grant`, ...).

@@ -69,6 +69,12 @@ export async function recordAudit(entry: AuditEntry, db: Kysely<DB> = getDb()): 
  * client can set to anything -- so the rate limiter and the audit log both use this instead.
  */
 export function clientIp(request: FastifyRequest): string {
+  // canvas-1bty.14: behind the Python front door (internal only, TRUST_CLIENT_IP_HEADER=true), the address
+  // it worked out. Never read otherwise: a client could send the header itself.
+  if (process.env.TRUST_CLIENT_IP_HEADER === 'true') {
+    const fromFrontDoor = request.headers['x-canvas-client-ip'];
+    if (typeof fromFrontDoor === 'string' && fromFrontDoor) return fromFrontDoor;
+  }
   const forwarded = request.headers['x-forwarded-for'];
   const header = Array.isArray(forwarded) ? forwarded.join(',') : forwarded;
   const last = header?.split(',').pop()?.trim();

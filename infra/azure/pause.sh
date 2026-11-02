@@ -36,8 +36,9 @@ source "$SCRIPT_DIR/lib.sh"
 # a 503 (API calls) while CANVAS_PAUSED=true. Set together with the scale settings below: one
 # revision. resume.sh removes it once the database is back.
 echo "== Making canvas-api eligible to scale to zero =="
+# --container-name api: canvas-api runs two containers (the Python API and the diagram-core bridge).
 retry "Updating canvas-api" az containerapp update --name canvas-api --resource-group "$RESOURCE_GROUP" \
-  --min-replicas 0 --max-replicas 1 --set-env-vars CANVAS_PAUSED=true --output none
+  --container-name api --min-replicas 0 --max-replicas 1 --set-env-vars CANVAS_PAUSED=true --output none
 echo "  The site now shows 'Canvas is paused'."
 echo "  Set to min=0/max=1. Actual replica count drops to 0 after the environment's cooldown"
 echo "  period (~5 min) once traffic stops -- not instant. Confirm with:"

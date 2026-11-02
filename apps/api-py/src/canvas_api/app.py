@@ -18,6 +18,7 @@ from canvas_api.config import Settings
 from canvas_api.db import create_db_engine
 from canvas_api.diagram_core import BridgeError, DiagramBridge
 from canvas_api.errors import register_error_handlers
+from canvas_api.front_door import install as install_front_door
 from canvas_api.github.client import GitHubClient
 from canvas_api.routes import (
     admin_users,
@@ -30,6 +31,7 @@ from canvas_api.routes import (
     export,
     github,
     libraries,
+    library_admin,
     projects,
     sharing,
     standards,
@@ -59,15 +61,18 @@ def create_app(
     engine: Engine | None = None,
     github_transport: httpx.BaseTransport | None = None,
     oidc_transport: httpx.BaseTransport | None = None,
+    typescript_transport: httpx.AsyncBaseTransport | None = None,
 ) -> FastAPI:
-    """`github_transport`, `oidc_transport`: tests answer GitHub's API and the identity provider in-process
-    (tests/fake_github.py)."""
+    """`github_transport`, `oidc_transport`, `typescript_transport`: tests answer GitHub's API, the identity
+    provider and the TypeScript service in-process (tests/fake_github.py)."""
     settings = settings or Settings()  # type: ignore[call-arg]  # read from the environment
     # canvas-1bty.11: a bad GitHub App key or URL fails startup here, not at first use.
     github_config = settings.github
     # canvas-1bty.13: so do bad sign-in settings (AUTH_MODE, the Entra issuer, the MFA key, LOGIN_RATE_LIMIT).
     oidc_config = settings.oidc
     _ = settings.mfa_encryption_key
+    # canvas-1bty.14: and bad front-door settings (TYPESCRIPT_API_URL, TYPESCRIPT_ROUTE_GROUPS).
+    _ = settings.typescript_route_groups
     oidc_client = OidcClient(oidc_config, settings.web_origin_list[0], oidc_transport) if oidc_config else None
     db = engine or create_db_engine(settings)
     bridge = DiagramBridge(settings.diagram_bridge_url) if settings.diagram_bridge_url else None
@@ -82,6 +87,8 @@ def create_app(
             github_client.close()
         if oidc_client is not None:
             oidc_client.close()
+        if app.state.typescript_forwarder is not None:
+            await app.state.typescript_forwarder.close()
         if engine is None:
             db.dispose()
 
@@ -98,12 +105,12 @@ def create_app(
     app.state.anthropic_client = None
     app.state.openai_client = None
     configure_telemetry(app, settings.applicationinsights_connection_string)
-    app.add_middleware(SecurityHeadersMiddleware)
     register_error_handlers(app)
 
     # The route groups apps/api forwards here (apps/api/src/python/route-groups.ts): phase 2
     # (canvas-1bty.6), phase 3 (canvas-1bty.7), phase 4 (canvas-1bty.8), phase 5 (canvas-1bty.9),
-    # phase 6 (canvas-1bty.10), phase 7 (canvas-1bty.11), phase 8 (canvas-1bty.12), phase 9 (canvas-1bty.13).
+    # phase 6 (canvas-1bty.10), phase 7 (canvas-1bty.11), phase 8 (canvas-1bty.12), phase 9 (canvas-1bty.13),
+    # phase 10 (canvas-1bty.14).
     for group in (
         auth,
         projects,
@@ -118,6 +125,7 @@ def create_app(
         export,
         github,
         ai,
+        library_admin,
     ):
         app.include_router(group.router)
 
@@ -144,4 +152,10 @@ def create_app(
             return {"bridge": "unreachable"}
         return {"bridge": "ok" if "model" in parsed else "error"}
 
+    # canvas-1bty.14: the front door's jobs (the web app, paused mode, CORS, the fallback to TypeScript),
+    # after every route so the web app's files never shadow one.
+    install_front_door(app, settings, typescript_transport)
+    # Outermost, so every response carries them: the front door's own (web files, 404s, the paused page),
+    # CORS preflights and forwarded ones too, as apps/api's onSend hook did.
+    app.add_middleware(SecurityHeadersMiddleware)
     return app

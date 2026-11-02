@@ -14,5 +14,9 @@ export { validate } from '../../diagram-core/src/standards/validator.js';
 export { checkStandardDefinition } from '../../diagram-core/src/standards/definition-check.js';
 export { renderToSvg } from '../../diagram-core/src/render/svg-renderer.js';
 export { updateEmbeds, type EmbedSource } from '../../diagram-core/src/embeds/markdown-embeds.js';
+// canvas-1bty.14: the library admin (uploaded SVGs, manifests, which diagrams use an icon).
+export { prepareUploadedSvg, sanitizeIconMarkupStrict, SvgImportError } from '../../diagram-core/src/libraries/svg-import.js';
+export { loadLibrary } from '../../diagram-core/src/libraries/library-loader.js';
+export type { IconShapeLibraryManifest } from '../../diagram-core/src/libraries/library-loader.js';
 export type { DiagramModel } from '../../diagram-core/src/model/diagram-model.js';
 export type { StandardRules } from '../../diagram-core/src/standards/schema.js';

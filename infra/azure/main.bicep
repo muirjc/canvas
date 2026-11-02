@@ -74,8 +74,8 @@ param githubApiUrl string = 'https://api.github.com'
 @allowed(['secret', 'managed-identity'])
 param oidcClientAuth string = 'secret'
 
-@description('canvas-1bty.6: route groups canvas-api forwards to canvas-api-py (PYTHON_ROUTE_GROUPS). Empty = all moved groups; "none" = everything back on TypeScript (the fallback).')
-param pythonRouteGroups string = ''
+@description('canvas-1bty.14: route groups canvas-api (Python) sends back to canvas-api-ts (TYPESCRIPT_ROUTE_GROUPS), the one-release fallback. Empty or "none" = none; or names from apps/api/src/python/route-groups.ts, comma-separated.')
+param typescriptRouteGroups string = ''
 
 resource rg 'Microsoft.Resources/resourceGroups@2023-07-01' = {
   name: resourceGroupName
@@ -158,33 +158,9 @@ module monitoring 'modules/monitoring.bicep' = {
   }
 }
 
-// canvas-1bty.3: the Python backend, internal only; canvas-api forwards moved routes to it.
-module pyApiApp 'modules/pyapiapp.bicep' = {
-  name: 'pyApiAppDeploy'
-  scope: rg
-  params: {
-    location: location
-    environmentId: containerAppsEnv.outputs.environmentId
-    identityId: keyVault.outputs.identityId
-    acrLoginServer: acr.outputs.loginServer
-    imageTag: apiImageTag
-    keyVaultUri: keyVault.outputs.keyVaultUri
-    appInsightsConnectionString: monitoring.outputs.connectionString
-    githubAppId: githubAppId
-    githubApiUrl: githubApiUrl
-    publicUrl: empty(webOrigin) ? apiPublicBaseUrl : webOrigin
-    aiProvider: aiProvider
-    authMode: authMode
-    entraTenantId: entraTenantId
-    entraClientId: entraClientId
-    oidcRedirectUri: oidcRedirectUri
-    oidcClientAuth: oidcClientAuth
-    identityClientId: keyVault.outputs.identityClientId
-  }
-}
-
-module apiApp 'modules/apiapp.bicep' = {
-  name: 'apiAppDeploy'
+// canvas-1bty.14: the TypeScript API, internal only: the fallback for route groups canvas-api sends back.
+module tsApiApp 'modules/tsapiapp.bicep' = {
+  name: 'tsApiAppDeploy'
   scope: rg
   params: {
     location: location
@@ -198,15 +174,41 @@ module apiApp 'modules/apiapp.bicep' = {
     entraClientId: entraClientId
     oidcRedirectUri: oidcRedirectUri
     aiProvider: aiProvider
-    allowedIpRanges: allowedIpRanges
     authMode: authMode
     githubAppId: githubAppId
     githubApiUrl: githubApiUrl
     appInsightsConnectionString: monitoring.outputs.connectionString
     oidcClientAuth: oidcClientAuth
     identityClientId: keyVault.outputs.identityClientId
-    pythonApiUrl: pyApiApp.outputs.internalUrl
-    pythonRouteGroups: pythonRouteGroups
+  }
+}
+
+// canvas-1bty.14: the front door, Python (apps/api-py) with the diagram-core bridge: the public address,
+// the web app and every API route.
+module apiApp 'modules/apiapp.bicep' = {
+  name: 'apiAppDeploy'
+  scope: rg
+  params: {
+    location: location
+    environmentId: containerAppsEnv.outputs.environmentId
+    identityId: keyVault.outputs.identityId
+    acrLoginServer: acr.outputs.loginServer
+    imageTag: apiImageTag
+    keyVaultUri: keyVault.outputs.keyVaultUri
+    appInsightsConnectionString: monitoring.outputs.connectionString
+    githubAppId: githubAppId
+    githubApiUrl: githubApiUrl
+    webOrigin: empty(webOrigin) ? apiPublicBaseUrl : webOrigin
+    aiProvider: aiProvider
+    authMode: authMode
+    entraTenantId: entraTenantId
+    entraClientId: entraClientId
+    oidcRedirectUri: oidcRedirectUri
+    oidcClientAuth: oidcClientAuth
+    identityClientId: keyVault.outputs.identityClientId
+    allowedIpRanges: allowedIpRanges
+    typescriptApiUrl: tsApiApp.outputs.internalUrl
+    typescriptRouteGroups: typescriptRouteGroups
   }
 }
 

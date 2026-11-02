@@ -1,7 +1,7 @@
 import type { FastifyInstance } from 'fastify';
 import type { IconShapeLibraryManifest } from '@canvas/diagram-core';
 import { requireAuth, requireRole } from '../auth/middleware.js';
-import { errorResponse, listEnvelope } from '../contract/schemas.js';
+import { errorResponse, listEnvelope, objectResponse } from '../contract/schemas.js';
 import { ingestLibrary, listLibraries, searchIconsForDiagramType, searchIconsInLibrary } from './library.service.js';
 
 export async function registerLibraryRoutes(app: FastifyInstance): Promise<void> {
@@ -21,7 +21,14 @@ export async function registerLibraryRoutes(app: FastifyInstance): Promise<void>
   // sanitizes strictly and keeps built-in ids reserved.
   app.post<{ Body: IconShapeLibraryManifest }>(
     '/libraries',
-    { preHandler: requireRole('admin'), schema: { tags: ['Libraries'], security: [{ cookieAuth: [] }] } },
+    {
+      preHandler: requireRole('admin'),
+      schema: {
+        tags: ['Libraries'],
+        security: [{ cookieAuth: [] }],
+        response: { 201: objectResponse({ status: { type: 'string' }, id: { type: 'string' }, version: { type: 'string' } }), '4xx': errorResponse },
+      },
+    },
     async (request, reply) => {
       try {
         await ingestLibrary(request.body);

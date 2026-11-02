@@ -136,11 +136,16 @@ case "$AUTH_MODE" in
   *) echo "ERROR: CANVAS_AUTH_MODE must be entra or local (got: $AUTH_MODE)." >&2; exit 1 ;;
 esac
 
-# canvas-1bty.6: which moved route groups canvas-api forwards to the Python service. Unset = all of them;
-# CANVAS_PYTHON_ROUTE_GROUPS=none sends everything back to the TypeScript routes (kept one release as the
-# fallback), or name the groups to keep on Python (apps/api/src/python/route-groups.ts). Not remembered
-# between runs: set it on each deploy while you need it.
-PYTHON_ROUTE_GROUPS="${CANVAS_PYTHON_ROUTE_GROUPS:-}"
+# canvas-1bty.14: canvas-api runs the Python service; CANVAS_TYPESCRIPT_ROUTE_GROUPS names route groups it
+# sends back to the internal TypeScript service, canvas-api-ts (the one-release fallback): unset or "none" =
+# none, or groups from apps/api/src/python/route-groups.ts, comma-separated. Not remembered between runs:
+# set it on each deploy while you need it.
+if [[ -n "${CANVAS_PYTHON_ROUTE_GROUPS:-}" ]]; then
+  echo "ERROR: CANVAS_PYTHON_ROUTE_GROUPS is gone since the front door moved to Python (canvas-1bty.14):" >&2
+  echo "       name the groups to send back to TypeScript in CANVAS_TYPESCRIPT_ROUTE_GROUPS instead." >&2
+  exit 1
+fi
+TYPESCRIPT_ROUTE_GROUPS="${CANVAS_TYPESCRIPT_ROUTE_GROUPS:-}"
 
 # canvas-haz.9: CANVAS_OIDC_CLIENT_AUTH=managed-identity signs in to Entra with the API's managed
 # identity through a federated credential on the app registration -- no client secret at all.
@@ -434,9 +439,10 @@ fi
 if [[ "$WHAT_IF_ONLY" == true ]]; then
   :
 elif [[ -n "$EXISTING_ACR" ]]; then
+  # canvas-1bty.14: the TypeScript API now runs internal-only as canvas-api-ts (and in the jobs).
   echo "== Building API image (repo root Dockerfile) to $EXISTING_ACR, tag $API_IMAGE_TAG =="
   az acr build --registry "$EXISTING_ACR" --image "canvas-api:${API_IMAGE_TAG}" "$REPO_ROOT" --output none
-  # canvas-1bty.3: the Python backend (internal container), same tag.
+  # canvas-1bty.14: the Python backend, which canvas-api runs (the front door, with the web app built in).
   echo "== Building Python API image (apps/api-py/Dockerfile) to $EXISTING_ACR, tag $API_IMAGE_TAG =="
   az acr build --registry "$EXISTING_ACR" --image "canvas-api-py:${API_IMAGE_TAG}" --file "$REPO_ROOT/apps/api-py/Dockerfile" "$REPO_ROOT" --output none
   # canvas-1bty.4: the diagram-core bridge, the Python service's sidecar, same tag.
@@ -456,7 +462,7 @@ az deployment sub what-if \
     webOrigin="$WEB_ORIGIN" grantAcrPull="$GRANT_ACR_PULL" \
     entraTenantId="$ENTRA_TENANT_ID" entraClientId="$ENTRA_CLIENT_ID" aiProvider="$AI_PROVIDER" \
     allowedIpRanges="$ALLOWED_IPS_JSON" authMode="$AUTH_MODE" adminEmail="$ADMIN_EMAIL" oidcClientAuth="$OIDC_CLIENT_AUTH" \
-    githubAppId="$GITHUB_APP_ID" pythonRouteGroups="$PYTHON_ROUTE_GROUPS"
+    githubAppId="$GITHUB_APP_ID" typescriptRouteGroups="$TYPESCRIPT_ROUTE_GROUPS"
 
 echo
 if [[ "$WHAT_IF_ONLY" == true ]]; then
@@ -483,7 +489,7 @@ az deployment sub create \
     webOrigin="$WEB_ORIGIN" grantAcrPull="$GRANT_ACR_PULL" \
     entraTenantId="$ENTRA_TENANT_ID" entraClientId="$ENTRA_CLIENT_ID" aiProvider="$AI_PROVIDER" \
     allowedIpRanges="$ALLOWED_IPS_JSON" authMode="$AUTH_MODE" adminEmail="$ADMIN_EMAIL" oidcClientAuth="$OIDC_CLIENT_AUTH" \
-    githubAppId="$GITHUB_APP_ID" pythonRouteGroups="$PYTHON_ROUTE_GROUPS" \
+    githubAppId="$GITHUB_APP_ID" typescriptRouteGroups="$TYPESCRIPT_ROUTE_GROUPS" \
   --output table
 
 STORAGE_ACCOUNT="$(az deployment sub show --name "canvas-foundation" --query "properties.outputs.storageAccountName.value" -o tsv)"
@@ -522,7 +528,7 @@ CATALOG_SEED_JOB="$(az deployment sub show --name "canvas-foundation" --query "p
 BOOTSTRAP_JOB="$(az deployment sub show --name "canvas-foundation" --query "properties.outputs.bootstrapAdminJobName.value" -o tsv)"
 GITHUB_SYNC_JOB="$(az deployment sub show --name "canvas-foundation" --query "properties.outputs.githubSyncJobName.value" -o tsv 2>/dev/null || true)"
 
-# canvas-28j: force canvas-api, canvas-api-py and the jobs to refetch any KV secret this (or an earlier,
+# canvas-28j: force canvas-api, canvas-api-ts and the jobs to refetch any KV secret this (or an earlier,
 # interrupted) run changed -- see PENDING_REFRESH_FILE above. Re-setting a secret with its same
 # keyvaultref makes Container Apps re-read it from Key Vault; canvas-api's running replicas then
 # need a revision restart to see it (a secret change creates no new revision), while a job's next
@@ -537,10 +543,8 @@ refresh_kv_secret_refs() {
   echo "== Refreshing rotated Key Vault secret references: ${changed//$'\n'/ } =="
   identity_id="$(az identity show --resource-group "$RESOURCE_GROUP" --name canvas-identity --query id -o tsv)"
   kv_uri="$(az keyvault show --name "$KEY_VAULT_NAME" --query properties.vaultUri -o tsv)"
-  # canvas-api-py (canvas-1bty.3) shares canvas-api's database-url and session-secret, and since
-  # canvas-1bty.11/.12 its github-app-private-key and AI provider keys, and since canvas-1bty.13 the
-  # sign-in secrets (mfa-encryption-key, oidc-client-secret).
-  for target in "app:canvas-api" "app:canvas-api-py" "job:$MIGRATION_JOB" "job:$SEED_JOB" "job:$CATALOG_SEED_JOB" "job:$BOOTSTRAP_JOB" "job:$GITHUB_SYNC_JOB"; do
+  # canvas-api (Python since canvas-1bty.14) and canvas-api-ts share the same Key Vault secrets.
+  for target in "app:canvas-api" "app:canvas-api-ts" "job:$MIGRATION_JOB" "job:$SEED_JOB" "job:$CATALOG_SEED_JOB" "job:$BOOTSTRAP_JOB" "job:$GITHUB_SYNC_JOB"; do
     kind="${target%%:*}"; name="${target#*:}"
     [[ -n "$name" ]] || continue  # a job this auth mode doesn't deploy (canvas-ez1.3)
     local -a cmd=(az containerapp)
@@ -565,6 +569,13 @@ refresh_kv_secret_refs() {
   rm -f "$PENDING_REFRESH_FILE"
 }
 refresh_kv_secret_refs
+
+# canvas-1bty.14: before the front door moved, the Python service ran as its own internal app, canvas-api-py.
+# canvas-api runs it now, so the old app goes (Bicep never deletes a resource it no longer declares).
+if az containerapp show --name canvas-api-py --resource-group "$RESOURCE_GROUP" --output none 2>/dev/null; then
+  echo "== Removing canvas-api-py (the Python service now runs as canvas-api) =="
+  az containerapp delete --name canvas-api-py --resource-group "$RESOURCE_GROUP" --yes --output none
+fi
 
 # canvas-r3y: the web app is built into the canvas-api image and served from its URL. The old
 # Storage static website now only holds a page that sends old bookmarks (deep links included) to

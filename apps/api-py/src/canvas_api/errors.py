@@ -19,6 +19,7 @@ class ApiError(Exception):
         details: Any = None,
         issues: Any = None,
         violations: Any = None,
+        diagrams: Any = None,
     ) -> None:
         super().__init__(error)
         self.status = status
@@ -30,6 +31,8 @@ class ApiError(Exception):
         self.issues = issues
         #: The Must fix issues blocking a GitHub submission (422, code must_fix).
         self.violations = violations
+        #: What still uses a library or icon an admin tried to delete (409, code in_use).
+        self.diagrams = diagrams
 
 
 def _describe(error: Mapping[str, Any]) -> str:
@@ -52,6 +55,8 @@ def register_error_handlers(app: FastAPI) -> None:
             body["issues"] = exc.issues
         if exc.violations is not None:
             body["violations"] = exc.violations
+        if exc.diagrams is not None:
+            body["diagrams"] = exc.diagrams
         return JSONResponse(body, status_code=exc.status)
 
     @app.exception_handler(RequestValidationError)

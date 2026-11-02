@@ -1,7 +1,7 @@
 """Icon libraries: the list and icon search (phase 2, canvas-1bty.6).
 
 Ported from apps/api/src/libraries/library.routes.ts and library.service.ts. Loading a library
-(POST /libraries) stays in TypeScript with library admin, since it validates through diagram-core.
+(POST /libraries) is in routes/library_admin.py with the library admin (phase 10).
 Retired icons and libraries are never offered (they still render).
 """
 
