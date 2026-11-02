@@ -1,0 +1,14 @@
+{
+  "errors": [
+    {
+      "content": "  this is not valid ;;",
+      "line": 3,
+      "message": "Could not interpret line as a node, edge, or subgraph: \"this is not valid ;;\""
+    },
+    {
+      "content": "  another bad line (",
+      "line": 5,
+      "message": "Could not interpret line as a node, edge, or subgraph: \"another bad line (\""
+    }
+  ]
+}

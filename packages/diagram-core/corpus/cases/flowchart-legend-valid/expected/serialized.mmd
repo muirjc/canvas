@@ -1,0 +1,41 @@
+---
+canvas:
+  positions:
+    A:
+      x: 40
+      y: 40
+    B:
+      x: 40
+      y: 40
+  containers: {}
+  styles: {}
+  edgeStyles: {}
+  icons: {}
+  legend:
+    visible: true
+    position:
+      x: 400
+      y: 20
+    title: Key
+    hidden:
+      - kind:a
+    labels:
+      kind:a: Kind A
+      kind:b: Kind B
+    extra:
+      - id: e1
+        label: Thing
+        sample:
+          kind: shape
+          shape: rectangle
+          fill: "#ffffff"
+      - id: e2
+        label: Link
+        sample:
+          kind: line
+          arrow: both
+---
+flowchart LR
+  A[A]:::kind_a
+  B[B]
+  A --> B

@@ -1,0 +1,262 @@
+"""canvas-1bty.15.1: DiagramCore's modes (native / shadow / bridge) with a fake bridge, so no Node is needed."""
+
+from __future__ import annotations
+
+import logging
+from typing import Any
+
+import pytest
+
+from canvas_api.diagram_core import BridgeError, DiagramCore
+from canvas_api.diagram_core.core import KNOWN_FAMILIES, NATIVE_FAMILIES, Mode
+
+LOGGER = "canvas_api.diagram_core"
+SECRET = "Confidential-Payroll-Gateway"  # gitleaks:allow
+FLOWCHART = f"flowchart TD\n  A[{SECRET}] --> B\n"
+BAD_FRONT_MATTER = f"---\ncanvas: [{SECRET}\n---\nflowchart TD\n  A --> B\n"
+SEQUENCE = "sequenceDiagram\n  A->>B: hi\n"
+C4 = 'C4Context\n  Person(a, "A")\n'
+
+
+class FakeBridge:
+    """Stands in for DiagramBridge: records the calls it gets and answers from `answers`, else with a marker."""
+
+    def __init__(self, **answers: Any) -> None:
+        self.answers = answers
+        self.calls: list[str] = []
+        self.closed = False
+
+    def _answer(self, op: str, default: Any) -> Any:
+        self.calls.append(op)
+        return self.answers.get(op, default)
+
+    def health(self) -> bool:
+        return self.answers.get("health", True)  # type: ignore[no-any-return]
+
+    def close(self) -> None:
+        self.closed = True
+
+    def detect(self, dsl: str) -> str | None:
+        return self._answer("detect", "bridge-family")  # type: ignore[no-any-return]
+
+    def parse(self, family: str, dsl: str) -> dict[str, Any]:
+        return self._answer("parse", {"model": {"from": "bridge"}})  # type: ignore[no-any-return]
+
+    def serialize(self, family: str, model: dict[str, Any]) -> str:
+        return self._answer("serialize", "from the bridge")  # type: ignore[no-any-return]
+
+    def detect_and_parse(self, dsl: str, family: str | None = None) -> dict[str, Any]:
+        return self._answer("detect_and_parse", {"family": "bridge", "model": {}})  # type: ignore[no-any-return]
+
+    def empty_dsl(self, family: str, diagram_type_id: str) -> str:
+        return self._answer("empty_dsl", "from the bridge")  # type: ignore[no-any-return]
+
+    def portable(self, dsl: str, *, strip_front_matter: bool = False) -> str:
+        return self._answer("portable", "from the bridge")  # type: ignore[no-any-return]
+
+    def validate(self, model: dict[str, Any], rules: dict[str, Any]) -> list[dict[str, Any]]:
+        return self._answer("validate", [])  # type: ignore[no-any-return]
+
+
+def core_with(bridge: FakeBridge | None, mode: Mode) -> DiagramCore:
+    return DiagramCore(bridge, mode)  # type: ignore[arg-type]
+
+
+def native_answers() -> dict[str, Any]:
+    """What native alone says for FLOWCHART, to build a bridge that agrees with it."""
+    native = DiagramCore(None)
+    parsed = native.parse("flowchart", FLOWCHART)
+    return {
+        "detect": "flowchart",
+        "parse": parsed,
+        "serialize": native.serialize("flowchart", parsed["model"]),
+        "portable": native.portable(FLOWCHART),
+    }
+
+
+def test_the_families_ported_so_far() -> None:
+    assert sorted(NATIVE_FAMILIES) == ["flowchart"]
+    assert set(KNOWN_FAMILIES) >= NATIVE_FAMILIES
+
+
+# --- bridge mode -------------------------------------------------------------------------------------
+
+
+def test_bridge_mode_answers_everything_from_the_bridge() -> None:
+    bridge = FakeBridge()
+    core = core_with(bridge, "bridge")
+    assert core.detect(FLOWCHART) == "bridge-family"
+    assert core.parse("flowchart", FLOWCHART) == {"model": {"from": "bridge"}}
+    assert core.serialize("flowchart", {}) == "from the bridge"
+    assert core.empty_dsl("flowchart", "flowchart") == "from the bridge"
+    assert core.portable(FLOWCHART) == "from the bridge"
+    assert core.detect_and_parse(FLOWCHART) == {"family": "bridge", "model": {}}
+
+
+# --- native mode -------------------------------------------------------------------------------------
+
+
+def test_native_mode_answers_ported_operations_without_the_bridge() -> None:
+    bridge = FakeBridge()
+    core = core_with(bridge, "native")
+    assert core.detect(FLOWCHART) == "flowchart"
+    parsed = core.parse("flowchart", FLOWCHART)
+    assert [n["id"] for n in parsed["model"]["nodes"]] == ["A", "B"]
+    assert core.serialize("flowchart", parsed["model"]).startswith("---\ncanvas:")
+    assert core.portable(FLOWCHART).startswith("flowchart TD")
+    assert core.detect_and_parse(FLOWCHART)["family"] == "flowchart"
+    assert core.empty_dsl("flowchart", "flowchart").startswith("flowchart")
+    assert bridge.calls == []
+
+
+def test_native_mode_still_sends_unported_families_to_the_bridge() -> None:
+    bridge = FakeBridge(detect_and_parse={"family": "sequence", "model": {"x": 1}}, parse={"model": {"x": 2}})
+    core = core_with(bridge, "native")
+    assert core.parse("sequence", SEQUENCE) == {"model": {"x": 2}}
+    assert core.serialize("c4", {}) == "from the bridge"
+    assert core.detect_and_parse(SEQUENCE) == {"family": "sequence", "model": {"x": 1}}
+    assert core.detect_and_parse("whatever", "c4") == {"family": "sequence", "model": {"x": 1}}
+    assert core.empty_dsl("erd", "erd") == "from the bridge"
+    assert core.portable(C4) == "from the bridge"
+    assert bridge.calls == ["parse", "serialize", "detect_and_parse", "detect_and_parse", "empty_dsl", "portable"]
+
+
+def test_native_families_without_a_ported_serializer_do_not_exist_yet() -> None:
+    # sequence and architecture portable output is native (they are passed through), the rest is the bridge's.
+    core = DiagramCore(None)
+    assert core.portable(SEQUENCE, strip_front_matter=True).startswith("sequenceDiagram")
+    with pytest.raises(BridgeError, match="not ported"):
+        core.portable(C4)
+
+
+def test_native_yaml_errors_become_bridge_errors() -> None:
+    core = core_with(FakeBridge(), "native")
+    with pytest.raises(BridgeError, match="diagram-core parse"):
+        core.parse("flowchart", BAD_FRONT_MATTER)
+    with pytest.raises(BridgeError, match="diagram-core detect-and-parse"):
+        core.detect_and_parse(BAD_FRONT_MATTER, "flowchart")
+
+
+def test_a_diagram_that_does_not_parse_is_an_answer_not_an_error() -> None:
+    result = core_with(None, "native").parse("flowchart", "flowchart TD\n  A -->\n")
+    assert "errors" in result
+    assert result["errors"][0]["line"] == 2
+
+
+def test_detect_and_parse_reports_an_unrecognized_header() -> None:
+    core = core_with(FakeBridge(), "native")
+    assert core.detect_and_parse("not a diagram") == {
+        "family": None,
+        "errors": [{"message": "Unrecognized diagram header"}],
+    }
+    assert core.detect_and_parse(FLOWCHART, "gantt") == {
+        "family": "gantt",
+        "errors": [{"message": "Unrecognized diagram header"}],
+    }
+
+
+# --- shadow mode -------------------------------------------------------------------------------------
+
+
+def test_shadow_mode_returns_the_bridges_answer_and_is_quiet_when_they_agree(caplog: pytest.LogCaptureFixture) -> None:
+    answers = native_answers()
+    core = core_with(FakeBridge(**answers), "shadow")
+    with caplog.at_level(logging.DEBUG, logger=LOGGER):
+        assert core.detect(FLOWCHART) == "flowchart"
+        assert core.parse("flowchart", FLOWCHART) == answers["parse"]
+        assert core.serialize("flowchart", answers["parse"]["model"]) == answers["serialize"]
+        assert core.portable(FLOWCHART) == answers["portable"]
+    assert [r for r in caplog.records if r.levelno >= logging.WARNING] == []
+    assert {r.__dict__["op"] for r in caplog.records} == {"detect", "parse", "serialize", "portable"}
+
+
+def test_shadow_mode_logs_a_mismatch_and_still_returns_the_bridges_answer(caplog: pytest.LogCaptureFixture) -> None:
+    other = {"model": {"nodes": [], "edges": [], "containers": [], "diagramTypeId": "flowchart"}}
+    core = core_with(FakeBridge(parse=other), "shadow")
+    with caplog.at_level(logging.DEBUG, logger=LOGGER):
+        assert core.parse("flowchart", FLOWCHART) == other
+    [record] = [r for r in caplog.records if r.levelno == logging.WARNING]
+    assert record.name == LOGGER
+    assert record.getMessage() == "diagram-core shadow mismatch"
+    assert (record.__dict__["op"], record.__dict__["family"], record.__dict__["native"]) == (
+        "parse",
+        "flowchart",
+        "different",
+    )
+
+
+def test_shadow_mismatch_logs_never_contain_the_diagram(caplog: pytest.LogCaptureFixture) -> None:
+    core = core_with(FakeBridge(parse={"model": {}}, serialize="x", detect="sequence", portable="x"), "shadow")
+    with caplog.at_level(logging.DEBUG, logger=LOGGER):
+        core.parse("flowchart", FLOWCHART)
+        core.serialize("flowchart", core.parse("flowchart", FLOWCHART)["model"])
+        core.detect(FLOWCHART)
+        core.portable(FLOWCHART)
+    assert [r for r in caplog.records if r.levelno == logging.WARNING]
+    for record in caplog.records:
+        assert SECRET not in record.getMessage()
+        assert SECRET not in repr(record.__dict__)
+
+
+def test_shadow_mode_logs_a_native_error_without_failing_the_request(caplog: pytest.LogCaptureFixture) -> None:
+    bridge_answer = {"errors": [{"message": "bridge says no"}]}
+    core = core_with(FakeBridge(parse=bridge_answer), "shadow")
+    with caplog.at_level(logging.DEBUG, logger=LOGGER):
+        assert core.parse("flowchart", BAD_FRONT_MATTER) == bridge_answer
+    [record] = [r for r in caplog.records if r.levelno == logging.WARNING]
+    assert record.__dict__["native"] == "error"
+    assert record.__dict__["op"] == "parse"
+
+
+def test_shadow_error_logs_never_contain_the_diagram(caplog: pytest.LogCaptureFixture) -> None:
+    """The YAML error for broken front matter can quote the text around the problem."""
+    core = core_with(FakeBridge(parse={"errors": []}), "shadow")
+    with caplog.at_level(logging.DEBUG, logger=LOGGER):
+        core.parse("flowchart", BAD_FRONT_MATTER)
+    for record in caplog.records:
+        assert SECRET not in record.getMessage()
+        assert SECRET not in repr(record.__dict__)
+
+
+def test_shadow_mode_sends_unported_families_straight_to_the_bridge(caplog: pytest.LogCaptureFixture) -> None:
+    bridge = FakeBridge(parse={"model": {"x": 1}})
+    core = core_with(bridge, "shadow")
+    with caplog.at_level(logging.DEBUG, logger=LOGGER):
+        assert core.parse("uml", "classDiagram\n") == {"model": {"x": 1}}
+    assert bridge.calls == ["parse"]
+    assert caplog.records == []
+
+
+# --- no bridge ---------------------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize("mode", ["shadow", "bridge", "native"])
+def test_without_a_bridge_the_mode_is_native(mode: Mode) -> None:
+    core = core_with(None, mode)
+    assert core.mode == "native"
+    assert core.detect(FLOWCHART) == "flowchart"
+    assert core.health() is True
+    core.close()
+
+
+def test_without_a_bridge_unported_operations_raise() -> None:
+    core = DiagramCore(None)
+    for call in (
+        lambda: core.parse("sequence", SEQUENCE),
+        lambda: core.serialize("c4", {}),
+        lambda: core.empty_dsl("erd", "erd"),
+        lambda: core.detect_and_parse(SEQUENCE),
+        lambda: core.validate({}, {}),
+        lambda: core.render_svg({}),
+    ):
+        with pytest.raises(BridgeError, match="not ported to Python yet and no bridge"):
+            call()
+
+
+def test_everything_else_is_delegated_to_the_bridge_and_close_and_health_too() -> None:
+    bridge = FakeBridge(validate=[{"ruleId": "x"}], health=False)
+    core = core_with(bridge, "shadow")
+    assert core.validate({}, {}) == [{"ruleId": "x"}]
+    assert core.health() is False
+    core.close()
+    assert bridge.closed

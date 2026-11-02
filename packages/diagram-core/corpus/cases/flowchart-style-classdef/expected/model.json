@@ -1,0 +1,116 @@
+{
+  "containers": [],
+  "diagramTypeId": "flowchart",
+  "direction": "LR",
+  "edges": [
+    {
+      "id": "e1",
+      "sourceId": "a",
+      "targetId": "b"
+    },
+    {
+      "id": "e2",
+      "sourceId": "b",
+      "targetId": "c"
+    },
+    {
+      "id": "e3",
+      "sourceId": "c",
+      "targetId": "d"
+    },
+    {
+      "id": "e4",
+      "sourceId": "d",
+      "targetId": "e"
+    }
+  ],
+  "nodes": [
+    {
+      "id": "a",
+      "label": "Alpha",
+      "position": {
+        "x": 40,
+        "y": 40
+      },
+      "role": "dashed",
+      "shape": "rectangle",
+      "style": {
+        "fillColor": "#f9f",
+        "strokeColor": "#333",
+        "strokeDasharray": "3 3",
+        "strokeWidth": 4
+      }
+    },
+    {
+      "id": "b",
+      "label": "Beta",
+      "position": {
+        "x": 220,
+        "y": 40
+      },
+      "role": "dashed",
+      "shape": "rectangle",
+      "style": {
+        "fillColor": "#bbf",
+        "strokeDasharray": "5 5",
+        "strokeWidth": 2
+      }
+    },
+    {
+      "id": "c",
+      "label": "Gamma",
+      "position": {
+        "x": 400,
+        "y": 40
+      },
+      "role": "hot",
+      "shape": "rectangle",
+      "style": {
+        "fillColor": "#f96",
+        "strokeColor": "#c00"
+      }
+    },
+    {
+      "id": "d",
+      "label": "Delta",
+      "position": {
+        "x": 580,
+        "y": 40
+      },
+      "role": "hot",
+      "shape": "rectangle",
+      "style": {
+        "fillColor": "#f96",
+        "strokeColor": "#c00"
+      }
+    },
+    {
+      "id": "e",
+      "label": "Epsilon",
+      "position": {
+        "x": 760,
+        "y": 40
+      },
+      "role": "cold",
+      "shape": "rectangle",
+      "style": {
+        "fillColor": "#69f"
+      }
+    },
+    {
+      "id": "f",
+      "label": "f",
+      "position": {
+        "x": 940,
+        "y": 40
+      },
+      "role": "cold",
+      "shape": "rectangle",
+      "style": {
+        "fillColor": "#69f",
+        "strokeDasharray": "3 3",
+        "strokeWidth": 2
+      }
+    }
+  ]
+}

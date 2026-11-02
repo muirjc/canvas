@@ -1,0 +1,47 @@
+{
+  "containers": [],
+  "diagramTypeId": "flowchart",
+  "direction": "TD",
+  "edges": [
+    {
+      "id": "e1",
+      "sourceId": "A",
+      "targetId": "B"
+    },
+    {
+      "id": "e2",
+      "sourceId": "B",
+      "targetId": "C"
+    }
+  ],
+  "mermaidConfigDirective": "%%{init: {'theme': 'dark', 'flowchart': {'curve': 'basis'}}}%%",
+  "nodes": [
+    {
+      "id": "A",
+      "label": "Start",
+      "position": {
+        "x": 40,
+        "y": 40
+      },
+      "shape": "rectangle"
+    },
+    {
+      "id": "B",
+      "label": "End",
+      "position": {
+        "x": 220,
+        "y": 40
+      },
+      "shape": "rectangle"
+    },
+    {
+      "id": "C",
+      "label": "C",
+      "position": {
+        "x": 400,
+        "y": 40
+      },
+      "shape": "rectangle"
+    }
+  ]
+}

@@ -1,0 +1,47 @@
+{
+  "containers": [
+    {
+      "id": "S",
+      "label": "S",
+      "position": {
+        "x": 40,
+        "y": 40
+      },
+      "size": {
+        "height": 130,
+        "width": 360
+      }
+    }
+  ],
+  "diagramTypeId": "flowchart",
+  "direction": "TD",
+  "edges": [
+    {
+      "id": "e1",
+      "sourceId": "A",
+      "targetId": "B"
+    }
+  ],
+  "nodes": [
+    {
+      "containerId": "S",
+      "id": "A",
+      "label": "A",
+      "position": {
+        "x": 60,
+        "y": 90
+      },
+      "shape": "rectangle"
+    },
+    {
+      "containerId": "S",
+      "id": "B",
+      "label": "B",
+      "position": {
+        "x": 240,
+        "y": 90
+      },
+      "shape": "rectangle"
+    }
+  ]
+}

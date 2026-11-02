@@ -1,0 +1,172 @@
+{
+  "containers": [],
+  "diagramTypeId": "flowchart",
+  "direction": "LR",
+  "edges": [
+    {
+      "id": "e1",
+      "sourceId": "A",
+      "targetId": "B"
+    },
+    {
+      "arrow": "none",
+      "id": "e2",
+      "sourceId": "A",
+      "targetId": "C"
+    },
+    {
+      "id": "e3",
+      "lineStyle": "dotted",
+      "sourceId": "A",
+      "targetId": "D"
+    },
+    {
+      "arrow": "none",
+      "id": "e4",
+      "lineStyle": "dotted",
+      "sourceId": "A",
+      "targetId": "E"
+    },
+    {
+      "id": "e5",
+      "lineStyle": "thick",
+      "sourceId": "A",
+      "targetId": "F"
+    },
+    {
+      "arrow": "none",
+      "id": "e6",
+      "lineStyle": "thick",
+      "sourceId": "A",
+      "targetId": "G"
+    },
+    {
+      "arrow": "both",
+      "id": "e7",
+      "sourceId": "A",
+      "targetId": "H"
+    },
+    {
+      "arrow": "both",
+      "id": "e8",
+      "lineStyle": "dotted",
+      "sourceId": "A",
+      "targetId": "I"
+    },
+    {
+      "arrow": "both",
+      "id": "e9",
+      "lineStyle": "thick",
+      "sourceId": "A",
+      "targetId": "J"
+    },
+    {
+      "arrow": "none",
+      "id": "e10",
+      "lineStyle": "invisible",
+      "sourceId": "A",
+      "targetId": "K"
+    }
+  ],
+  "nodes": [
+    {
+      "id": "A",
+      "label": "A",
+      "position": {
+        "x": 40,
+        "y": 40
+      },
+      "shape": "rectangle"
+    },
+    {
+      "id": "B",
+      "label": "B",
+      "position": {
+        "x": 220,
+        "y": 40
+      },
+      "shape": "rectangle"
+    },
+    {
+      "id": "C",
+      "label": "C",
+      "position": {
+        "x": 400,
+        "y": 40
+      },
+      "shape": "rectangle"
+    },
+    {
+      "id": "D",
+      "label": "D",
+      "position": {
+        "x": 580,
+        "y": 40
+      },
+      "shape": "rectangle"
+    },
+    {
+      "id": "E",
+      "label": "E",
+      "position": {
+        "x": 760,
+        "y": 40
+      },
+      "shape": "rectangle"
+    },
+    {
+      "id": "F",
+      "label": "F",
+      "position": {
+        "x": 940,
+        "y": 40
+      },
+      "shape": "rectangle"
+    },
+    {
+      "id": "G",
+      "label": "G",
+      "position": {
+        "x": 40,
+        "y": 140
+      },
+      "shape": "rectangle"
+    },
+    {
+      "id": "H",
+      "label": "H",
+      "position": {
+        "x": 220,
+        "y": 140
+      },
+      "shape": "rectangle"
+    },
+    {
+      "id": "I",
+      "label": "I",
+      "position": {
+        "x": 400,
+        "y": 140
+      },
+      "shape": "rectangle"
+    },
+    {
+      "id": "J",
+      "label": "J",
+      "position": {
+        "x": 580,
+        "y": 140
+      },
+      "shape": "rectangle"
+    },
+    {
+      "id": "K",
+      "label": "K",
+      "position": {
+        "x": 760,
+        "y": 140
+      },
+      "shape": "rectangle"
+    }
+  ]
+}

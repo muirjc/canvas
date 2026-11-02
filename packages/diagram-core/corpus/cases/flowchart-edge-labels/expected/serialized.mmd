@@ -1,0 +1,35 @@
+---
+canvas:
+  positions:
+    A:
+      x: 40
+      y: 40
+    B:
+      x: 220
+      y: 40
+    C:
+      x: 400
+      y: 40
+    D:
+      x: 580
+      y: 40
+    E:
+      x: 760
+      y: 40
+  containers: {}
+  styles: {}
+  edgeStyles: {}
+  icons: {}
+---
+flowchart TD
+  A[A]
+  B[B]
+  C[C]
+  D[D]
+  E[E]
+  A -->|pipe label| B
+  A -->|inline label| C
+  A -.->|dotted text| D
+  A ==>|thick text| E
+  B ---|no arrow| C
+  C -->|"quoted: label"| D

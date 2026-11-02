@@ -1,0 +1,71 @@
+{
+  "containers": [],
+  "diagramTypeId": "flowchart",
+  "direction": "LR",
+  "edges": [
+    {
+      "id": "e1",
+      "sourceId": "10",
+      "targetId": "2"
+    },
+    {
+      "id": "e2",
+      "sourceId": "2",
+      "targetId": "1"
+    },
+    {
+      "id": "e3",
+      "sourceId": "1",
+      "targetId": "b"
+    },
+    {
+      "id": "e4",
+      "sourceId": "b",
+      "targetId": "10"
+    }
+  ],
+  "nodes": [
+    {
+      "id": "10",
+      "label": "10",
+      "position": {
+        "x": 100,
+        "y": 40
+      },
+      "shape": "rectangle",
+      "style": {
+        "fillColor": "#fff"
+      }
+    },
+    {
+      "id": "2",
+      "label": "2",
+      "position": {
+        "x": 200,
+        "y": 40
+      },
+      "shape": "rectangle",
+      "style": {
+        "fillColor": "#000"
+      }
+    },
+    {
+      "id": "1",
+      "label": "1",
+      "position": {
+        "x": 300,
+        "y": 40
+      },
+      "shape": "rectangle"
+    },
+    {
+      "id": "b",
+      "label": "b",
+      "position": {
+        "x": 400,
+        "y": 40
+      },
+      "shape": "rectangle"
+    }
+  ]
+}

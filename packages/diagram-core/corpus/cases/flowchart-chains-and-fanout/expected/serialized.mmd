@@ -1,0 +1,54 @@
+---
+canvas:
+  positions:
+    A:
+      x: 40
+      y: 40
+    B:
+      x: 220
+      y: 40
+    C:
+      x: 400
+      y: 40
+    D:
+      x: 580
+      y: 40
+    E:
+      x: 760
+      y: 40
+    F:
+      x: 940
+      y: 40
+    G:
+      x: 40
+      y: 140
+    X:
+      x: 220
+      y: 140
+    Z:
+      x: 400
+      y: 140
+  containers: {}
+  styles: {}
+  edgeStyles: {}
+  icons: {}
+---
+flowchart LR
+  A[A]
+  B[B]
+  C[C]
+  D[D]
+  E[E]
+  F[F]
+  G[G]
+  X[X]
+  Z[Z]
+  A --> B
+  B --> C
+  C --> D
+  A --> E
+  A --> F
+  A --> G
+  B -.-> C
+  C ==> D
+  X -->|yes| Y -->|no| Z

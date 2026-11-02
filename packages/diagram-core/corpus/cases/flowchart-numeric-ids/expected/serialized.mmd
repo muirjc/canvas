@@ -1,0 +1,33 @@
+---
+canvas:
+  positions:
+    "1":
+      x: 300
+      y: 40
+    "2":
+      x: 200
+      y: 40
+    "10":
+      x: 100
+      y: 40
+    b:
+      x: 400
+      y: 40
+  containers: {}
+  styles:
+    "2":
+      fillColor: "#000"
+    "10":
+      fillColor: "#fff"
+  edgeStyles: {}
+  icons: {}
+---
+flowchart LR
+  10[10]
+  2[2]
+  1[1]
+  b[b]
+  10 --> 2
+  2 --> 1
+  1 --> b
+  b --> 10

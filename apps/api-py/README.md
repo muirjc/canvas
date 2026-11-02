@@ -41,6 +41,11 @@ TypeScript front door forwards. Each route's shapes are held to `apps/api/contra
 `tests/api.py`'s client checks every response a test gets against it. Routes not moved yet can't be
 called from these tests, so tests seed those rows directly (`Api.diagram`, `Api.grant`, ...).
 
+diagram-core is being ported here (phase 11, canvas-1bty.15; `canvas_api/diagram_core/`): `DiagramCore` (core.py)
+answers natively what's ported -- family detection, flowchart parse/serialize, portable Mermaid (11a) -- and
+sends the rest to the bridge; `DIAGRAM_CORE_MODE` (native/shadow/bridge) decides who answers the ported parts.
+Front matter is YAML written byte for byte as the `yaml` npm package writes it (`jsyaml.py`).
+
 Diagram routes parse and validate through the diagram-core bridge; the tests start it once per run
 (`bridge_url` in tests/conftest.py, `npm run build --workspace=@canvas/diagram-bridge` first) and skip
 the tests that need it when Node or the bundle is missing.

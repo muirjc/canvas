@@ -146,6 +146,13 @@ if [[ -n "${CANVAS_PYTHON_ROUTE_GROUPS:-}" ]]; then
   exit 1
 fi
 TYPESCRIPT_ROUTE_GROUPS="${CANVAS_TYPESCRIPT_ROUTE_GROUPS:-}"
+# canvas-1bty.15: who answers the parts of diagram-core ported to Python -- shadow (default: the bridge answers,
+# Python's answer is compared and differences logged), native, or bridge. Not remembered between runs.
+DIAGRAM_CORE_MODE="${CANVAS_DIAGRAM_CORE_MODE:-shadow}"
+case "$DIAGRAM_CORE_MODE" in
+  shadow|native|bridge) ;;
+  *) echo "ERROR: CANVAS_DIAGRAM_CORE_MODE must be shadow, native or bridge (got: $DIAGRAM_CORE_MODE)." >&2; exit 1 ;;
+esac
 
 # canvas-haz.9: CANVAS_OIDC_CLIENT_AUTH=managed-identity signs in to Entra with the API's managed
 # identity through a federated credential on the app registration -- no client secret at all.
@@ -462,7 +469,7 @@ az deployment sub what-if \
     webOrigin="$WEB_ORIGIN" grantAcrPull="$GRANT_ACR_PULL" \
     entraTenantId="$ENTRA_TENANT_ID" entraClientId="$ENTRA_CLIENT_ID" aiProvider="$AI_PROVIDER" \
     allowedIpRanges="$ALLOWED_IPS_JSON" authMode="$AUTH_MODE" adminEmail="$ADMIN_EMAIL" oidcClientAuth="$OIDC_CLIENT_AUTH" \
-    githubAppId="$GITHUB_APP_ID" typescriptRouteGroups="$TYPESCRIPT_ROUTE_GROUPS"
+    githubAppId="$GITHUB_APP_ID" typescriptRouteGroups="$TYPESCRIPT_ROUTE_GROUPS" diagramCoreMode="$DIAGRAM_CORE_MODE"
 
 echo
 if [[ "$WHAT_IF_ONLY" == true ]]; then
@@ -489,7 +496,7 @@ az deployment sub create \
     webOrigin="$WEB_ORIGIN" grantAcrPull="$GRANT_ACR_PULL" \
     entraTenantId="$ENTRA_TENANT_ID" entraClientId="$ENTRA_CLIENT_ID" aiProvider="$AI_PROVIDER" \
     allowedIpRanges="$ALLOWED_IPS_JSON" authMode="$AUTH_MODE" adminEmail="$ADMIN_EMAIL" oidcClientAuth="$OIDC_CLIENT_AUTH" \
-    githubAppId="$GITHUB_APP_ID" typescriptRouteGroups="$TYPESCRIPT_ROUTE_GROUPS" \
+    githubAppId="$GITHUB_APP_ID" typescriptRouteGroups="$TYPESCRIPT_ROUTE_GROUPS" diagramCoreMode="$DIAGRAM_CORE_MODE" \
   --output table
 
 STORAGE_ACCOUNT="$(az deployment sub show --name "canvas-foundation" --query "properties.outputs.storageAccountName.value" -o tsv)"

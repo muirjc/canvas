@@ -93,6 +93,20 @@ tests are NON-NEGOTIABLE and must exist (and fail) before implementing any diagr
 work — see `.specify/memory/constitution.md` Principle IV.
 
 ## Recent Changes
+- `canvas-1bty.15.1` (Python phase 11a, first slice of porting diagram-core to Python): `apps/api-py/src/
+  canvas_api/diagram_core/` answers natively family detection, flowchart parse/serialize, a new diagram's empty
+  DSL and portable Mermaid for flowchart/sequence/architecture; everything else still goes to the bridge.
+  `DiagramCore` (core.py, same methods as DiagramBridge, wraps it in app.py) picks by `DIAGRAM_CORE_MODE`:
+  `shadow` (default in Azure: bridge answers, native compared, `diagram-core shadow mismatch` logged via stdlib
+  logging -> App Insights, op/family only, never diagram text), `native` (CI e2e), `bridge`. Bicep param
+  `diagramCoreMode`, deploy.sh `CANVAS_DIAGRAM_CORE_MODE`. Front matter YAML: `jsyaml.py` ports the `yaml` npm
+  stringifier byte for byte (quoting, 80-col folding, block scalars, JS key order: array-index keys first) and
+  reads YAML 1.2 core schema on PyYAML (now a direct dependency) with tabs in plain scalars allowed and NEL/LS/PS
+  not line breaks. Python-vs-JS pitfalls handled: Python `$` also matches before a final newline (use `\Z`),
+  `\s`/`.`/`\d` differ (spelled out), `None` = undefined inside parsers but JSON null after `to_js_json`
+  (NaN -> null kept), integral floats written as ints. Link check (`model.py`) follows the WHATWG URL parser,
+  checked against Node on 439 hrefs. Tests: native golden corpus (27 new flowchart cases), YAML vectors (868),
+  link vectors, layout vectors, seeded native-vs-bridge fuzz, DiagramCore modes.
 - `canvas-1bty.14` (Python phase 10): **Python is the front door.** First the last TypeScript-only group
   moved: the icon-library admin (group `library-admin`, 16 routes incl. POST /libraries;
   `routes/library_admin.py`), with new bridge ops `svg-prepare`, `svg-sanitize-strict`, `load-library`,

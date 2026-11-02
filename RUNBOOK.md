@@ -602,6 +602,18 @@ and `canvas-diagram-bridge` images with the same tag. `pause.sh`/`resume.sh` set
 Tests: `uv run pytest` (Postgres, schema `canvas_py`) and `TEST_DB_CLIENT=sqlite uv run pytest`;
 see [apps/api-py/README.md](apps/api-py/README.md).
 
+**diagram-core in Python (phase 11, canvas-1bty.15).** diagram-core's server side is being ported to Python
+part by part (`apps/api-py/src/canvas_api/diagram_core/`); each part must match TypeScript on the golden corpus
+and on generated diagrams before it's used. `DIAGRAM_CORE_MODE` on canvas-api decides who answers what's ported:
+`shadow` (the default in Azure: the bridge answers, Python's answer is computed alongside and any difference is
+logged as `diagram-core shadow mismatch` -- the op and family, never the diagram's text), `native` (Python
+answers; CI's e2e job runs this way) or `bridge` (the bridge answers everything, the switch back). Set it with
+`CANVAS_DIAGRAM_CORE_MODE=native ./deploy.sh`, or straight away with
+`az containerapp update -n canvas-api -g <rg> --container-name api --set-env-vars DIAGRAM_CORE_MODE=bridge`.
+Ported so far: family detection, flowchart parse and serialize, a new diagram's starting DSL, portable Mermaid
+for flowchart/sequence/architecture (11a). To look for mismatches in Application Insights:
+`traces | where message has "diagram-core shadow mismatch" | summarize count() by tostring(customDimensions.op), tostring(customDimensions.family)`.
+
 The Python service reaches diagram-core (parsing, validation, SVG) through the **diagram-core
 bridge** (`packages/diagram-bridge`, canvas-1bty.4): a second container in `canvas-api`
 listening on `127.0.0.1:7070`, set as `DIAGRAM_BRIDGE_URL`. Locally:

@@ -1,0 +1,14 @@
+{
+  "errors": [
+    {
+      "content": "  A --o L",
+      "line": 3,
+      "message": "Could not interpret line as a node, edge, or subgraph: \"A --o L\""
+    },
+    {
+      "content": "  A --x M",
+      "line": 4,
+      "message": "Could not interpret line as a node, edge, or subgraph: \"A --x M\""
+    }
+  ]
+}

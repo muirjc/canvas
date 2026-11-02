@@ -77,6 +77,10 @@ param oidcClientAuth string = 'secret'
 @description('canvas-1bty.14: route groups canvas-api (Python) sends back to canvas-api-ts (TYPESCRIPT_ROUTE_GROUPS), the one-release fallback. Empty or "none" = none; or names from apps/api/src/python/route-groups.ts, comma-separated.')
 param typescriptRouteGroups string = ''
 
+@description('canvas-1bty.15: DIAGRAM_CORE_MODE on canvas-api: shadow (default), native or bridge.')
+@allowed(['shadow', 'native', 'bridge'])
+param diagramCoreMode string = 'shadow'
+
 resource rg 'Microsoft.Resources/resourceGroups@2023-07-01' = {
   name: resourceGroupName
   location: location
@@ -209,6 +213,7 @@ module apiApp 'modules/apiapp.bicep' = {
     allowedIpRanges: allowedIpRanges
     typescriptApiUrl: tsApiApp.outputs.internalUrl
     typescriptRouteGroups: typescriptRouteGroups
+    diagramCoreMode: diagramCoreMode
   }
 }
 

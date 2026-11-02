@@ -28,7 +28,8 @@ export default tseslint.config(
   {
     // Standalone Node tooling scripts (e.g. apps/web/scripts/check-contrast.mjs) run under Node,
     // not in the browser, so they legitimately use process/console/URL/fetch/URLSearchParams.
-    files: ['**/scripts/**/*.mjs'],
+    // canvas-1bty.15: also the test-vector generators beside the Python tests (apps/api-py/tests/data).
+    files: ['**/scripts/**/*.mjs', 'apps/api-py/tests/data/*.mjs'],
     languageOptions: {
       globals: {
         process: 'readonly',

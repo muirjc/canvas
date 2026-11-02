@@ -1,0 +1,26 @@
+flowchart LR
+  a[Alpha]
+  b[Beta]
+  c[Gamma]:::hot
+  d[Delta]:::hot,cold
+  e[Epsilon]
+  f
+  a --> b --> c
+  c --> d --> e
+  style a fill:#f9f,stroke:#333,stroke-width:4px
+  style b fill:#bbf,stroke-dasharray: 5 5
+  classDef hot fill:#f96,stroke:#c00
+  classDef cold fill:#69f
+  classDef dashed stroke-dasharray:3 3,stroke-width:2px;
+  class a,b dashed
+  class e,f cold
+  f:::dashed
+  style missing fill:#000
+  classDef unused color:#fff,font-weight:bold
+  %% Colours for Mermaid tools outside Canvas (added on export).
+  style a fill:#f9f,stroke:#333,stroke-width:4px,stroke-dasharray:3 3
+  style b fill:#bbf,stroke-width:2px,stroke-dasharray:5 5
+  style c fill:#f96,stroke:#c00
+  style d fill:#f96,stroke:#c00
+  style e fill:#69f
+  style f fill:#69f,stroke-width:2px,stroke-dasharray:3 3

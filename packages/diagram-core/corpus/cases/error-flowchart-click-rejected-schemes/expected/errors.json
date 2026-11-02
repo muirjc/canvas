@@ -1,0 +1,34 @@
+{
+  "errors": [
+    {
+      "content": "  click B href \"javascript:alert(1)\"",
+      "line": 4,
+      "message": "click href must use \"http://\", \"https://\", or a relative path -- \"javascript:\" is not an allowed scheme."
+    },
+    {
+      "content": "  click C href \" javascript:alert(2)\"",
+      "line": 5,
+      "message": "click href must use \"http://\", \"https://\", or a relative path -- \"javascript:\" is not an allowed scheme."
+    },
+    {
+      "content": "  click D href \"JaVaScRiPt:alert(3)\"",
+      "line": 6,
+      "message": "click href must use \"http://\", \"https://\", or a relative path -- \"javascript:\" is not an allowed scheme."
+    },
+    {
+      "content": "  click E href \"mailto:someone@example.com\"",
+      "line": 7,
+      "message": "click href must use \"http://\", \"https://\", or a relative path -- \"mailto:\" is not an allowed scheme."
+    },
+    {
+      "content": "  click A href \"data:text/html,<script>alert(1)</script>\"",
+      "line": 8,
+      "message": "click href must use \"http://\", \"https://\", or a relative path -- \"data:\" is not an allowed scheme."
+    },
+    {
+      "content": "  click B href \"vbscript:x\"",
+      "line": 9,
+      "message": "click href must use \"http://\", \"https://\", or a relative path -- \"vbscript:\" is not an allowed scheme."
+    }
+  ]
+}

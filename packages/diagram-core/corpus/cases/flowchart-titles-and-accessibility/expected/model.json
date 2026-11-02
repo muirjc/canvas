@@ -1,0 +1,35 @@
+{
+  "accDescr": "A longer accessible description",
+  "accTitle": "Accessible title",
+  "containers": [],
+  "diagramTypeId": "flowchart",
+  "direction": "TD",
+  "edges": [
+    {
+      "id": "e1",
+      "sourceId": "A",
+      "targetId": "B"
+    }
+  ],
+  "nodes": [
+    {
+      "id": "A",
+      "label": "A",
+      "position": {
+        "x": 40,
+        "y": 40
+      },
+      "shape": "rectangle"
+    },
+    {
+      "id": "B",
+      "label": "B",
+      "position": {
+        "x": 220,
+        "y": 40
+      },
+      "shape": "rectangle"
+    }
+  ],
+  "title": "Body title"
+}

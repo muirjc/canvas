@@ -1,0 +1,93 @@
+{
+  "containers": [],
+  "diagramTypeId": "flowchart",
+  "direction": "TD",
+  "edges": [
+    {
+      "id": "e1",
+      "sourceId": "A",
+      "style": {
+        "strokeColor": "#f00",
+        "strokeWidth": 3
+      },
+      "targetId": "B"
+    },
+    {
+      "id": "e2",
+      "sourceId": "B",
+      "style": {
+        "strokeColor": "#0a0",
+        "strokeDasharray": "4 2",
+        "strokeWidth": 1
+      },
+      "targetId": "C"
+    },
+    {
+      "id": "e3",
+      "sourceId": "C",
+      "style": {
+        "strokeColor": "#0a0",
+        "strokeDasharray": "4 2",
+        "strokeWidth": 1
+      },
+      "targetId": "D"
+    },
+    {
+      "id": "e4",
+      "sourceId": "D",
+      "style": {
+        "fillColor": "none",
+        "strokeColor": "#abc",
+        "strokeWidth": 1
+      },
+      "targetId": "E"
+    }
+  ],
+  "nodes": [
+    {
+      "id": "A",
+      "label": "A",
+      "position": {
+        "x": 40,
+        "y": 40
+      },
+      "shape": "rectangle"
+    },
+    {
+      "id": "B",
+      "label": "B",
+      "position": {
+        "x": 220,
+        "y": 40
+      },
+      "shape": "rectangle"
+    },
+    {
+      "id": "C",
+      "label": "C",
+      "position": {
+        "x": 400,
+        "y": 40
+      },
+      "shape": "rectangle"
+    },
+    {
+      "id": "D",
+      "label": "D",
+      "position": {
+        "x": 580,
+        "y": 40
+      },
+      "shape": "rectangle"
+    },
+    {
+      "id": "E",
+      "label": "E",
+      "position": {
+        "x": 760,
+        "y": 40
+      },
+      "shape": "rectangle"
+    }
+  ]
+}
