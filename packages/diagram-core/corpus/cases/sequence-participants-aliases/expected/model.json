@@ -1,0 +1,76 @@
+{
+  "containers": [],
+  "diagramTypeId": "sequence",
+  "edges": [
+    {
+      "arrow": "target",
+      "id": "e1",
+      "label": "hi",
+      "lineStyle": "solid",
+      "sequenceOrder": 0,
+      "sourceId": "A",
+      "targetId": "B"
+    },
+    {
+      "arrow": "target",
+      "id": "e2",
+      "label": "implicit participant",
+      "lineStyle": "solid",
+      "sequenceOrder": 1,
+      "sourceId": "B",
+      "targetId": "E"
+    }
+  ],
+  "nodes": [
+    {
+      "id": "A",
+      "label": "Alice Smith",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "role": "participant",
+      "shape": "rectangle"
+    },
+    {
+      "id": "B",
+      "label": "Bob",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "role": "actor",
+      "shape": "person"
+    },
+    {
+      "id": "C",
+      "label": "Carol",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "role": "actor",
+      "shape": "person"
+    },
+    {
+      "id": "D",
+      "label": "D",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "role": "actor",
+      "shape": "person"
+    },
+    {
+      "id": "E",
+      "label": "Eve",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "role": "participant",
+      "shape": "rectangle"
+    }
+  ]
+}

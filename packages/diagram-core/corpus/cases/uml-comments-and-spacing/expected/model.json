@@ -1,0 +1,68 @@
+{
+  "containers": [],
+  "diagramTypeId": "uml",
+  "edges": [
+    {
+      "id": "e1",
+      "sourceId": "A",
+      "targetId": "B",
+      "umlRelationKind": "association"
+    },
+    {
+      "id": "e2",
+      "label": "spaced label",
+      "sourceId": "A",
+      "targetId": "C",
+      "umlRelationKind": "inheritance"
+    }
+  ],
+  "nodes": [
+    {
+      "id": "A",
+      "label": "A",
+      "position": {
+        "x": 40,
+        "y": 40
+      },
+      "role": "class",
+      "shape": "rectangle"
+    },
+    {
+      "id": "B",
+      "label": "B",
+      "members": [
+        {
+          "kind": "attribute",
+          "name": "x",
+          "visibility": "+"
+        }
+      ],
+      "position": {
+        "x": 220,
+        "y": 40
+      },
+      "role": "class",
+      "shape": "rectangle"
+    },
+    {
+      "id": "C",
+      "label": "C",
+      "position": {
+        "x": 400,
+        "y": 40
+      },
+      "role": "class",
+      "shape": "rectangle"
+    },
+    {
+      "id": "Tabbed",
+      "label": "Tabbed",
+      "position": {
+        "x": 580,
+        "y": 40
+      },
+      "role": "class",
+      "shape": "rectangle"
+    }
+  ]
+}

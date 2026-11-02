@@ -1,0 +1,23 @@
+---
+canvas:
+  positions:
+    a:
+      x: 40
+      y: 40
+  containers: {}
+  icons:
+    a:
+      libraryId: mermaid-architecture
+      libraryVersion: 1.0.0
+      iconId: server
+    named:
+      libraryId: mermaid-architecture
+      libraryVersion: 1.0.0
+      iconId: database
+---
+architecture-beta
+group plain(cloud)[Plain]
+group spaced(cloud)[Spaced]
+group named(database)[Named]
+group none(cloud)[None]
+service a(server)[A] in plain

@@ -1,0 +1,76 @@
+{
+  "containers": [],
+  "diagramTypeId": "c4-context",
+  "edges": [
+    {
+      "id": "e1",
+      "label": "ab",
+      "sourceId": "a",
+      "style": {
+        "strokeColor": "blue"
+      },
+      "targetId": "b"
+    },
+    {
+      "id": "e2",
+      "label": "ab again",
+      "sourceId": "a",
+      "style": {
+        "strokeColor": "blue"
+      },
+      "targetId": "b"
+    },
+    {
+      "id": "e3",
+      "label": "bc",
+      "sourceId": "b",
+      "targetId": "c"
+    }
+  ],
+  "nodes": [
+    {
+      "c4TypeLabel": "Software System",
+      "id": "a",
+      "label": "A",
+      "position": {
+        "x": 40,
+        "y": 40
+      },
+      "role": "system",
+      "shape": "rectangle",
+      "style": {
+        "fillColor": "#ff0000",
+        "strokeColor": "#000000"
+      }
+    },
+    {
+      "c4TypeLabel": "Software System",
+      "id": "b",
+      "label": "B",
+      "position": {
+        "x": 220,
+        "y": 40
+      },
+      "role": "system",
+      "shape": "rectangle",
+      "style": {
+        "fillColor": "grey",
+        "strokeColor": "black"
+      }
+    },
+    {
+      "c4TypeLabel": "Software System",
+      "id": "c",
+      "label": "C",
+      "position": {
+        "x": 400,
+        "y": 40
+      },
+      "role": "system",
+      "shape": "rectangle",
+      "style": {
+        "fillColor": "a, b"
+      }
+    }
+  ]
+}

@@ -1,0 +1,48 @@
+{
+  "accDescr": "How payments flow",
+  "accTitle": "Payments",
+  "containers": [],
+  "diagramTypeId": "cloud-infrastructure",
+  "edges": [
+    {
+      "arrow": "target",
+      "id": "e1",
+      "sourceAnchor": "R",
+      "sourceId": "api",
+      "targetAnchor": "L",
+      "targetId": "db"
+    }
+  ],
+  "mermaidConfigDirective": "%%{init: {\"theme\": \"dark\"}}%%",
+  "nodes": [
+    {
+      "icon": {
+        "iconId": "server",
+        "libraryId": "mermaid-architecture",
+        "libraryVersion": "1.0.0"
+      },
+      "id": "api",
+      "label": "API: v2 (public)",
+      "position": {
+        "x": 40,
+        "y": 40
+      },
+      "shape": "icon"
+    },
+    {
+      "icon": {
+        "iconId": "database",
+        "libraryId": "mermaid-architecture",
+        "libraryVersion": "1.0.0"
+      },
+      "id": "db",
+      "label": "Primary DB",
+      "position": {
+        "x": 208,
+        "y": 47.199999999999996
+      },
+      "shape": "icon"
+    }
+  ],
+  "title": "Payments platform"
+}

@@ -1,0 +1,122 @@
+{
+  "containers": [],
+  "diagramTypeId": "cloud-infrastructure",
+  "edges": [
+    {
+      "id": "e1",
+      "sourceAnchor": "T",
+      "sourceId": "center",
+      "targetAnchor": "B",
+      "targetId": "north"
+    },
+    {
+      "arrow": "target",
+      "id": "e2",
+      "sourceAnchor": "B",
+      "sourceId": "center",
+      "targetAnchor": "T",
+      "targetId": "south"
+    },
+    {
+      "arrow": "source",
+      "id": "e3",
+      "sourceAnchor": "R",
+      "sourceId": "center",
+      "targetAnchor": "L",
+      "targetId": "east"
+    },
+    {
+      "id": "e4",
+      "sourceAnchor": "R",
+      "sourceId": "west",
+      "targetAnchor": "L",
+      "targetId": "center"
+    },
+    {
+      "arrow": "target",
+      "id": "e5",
+      "sourceAnchor": "L",
+      "sourceId": "north",
+      "targetId": "west"
+    },
+    {
+      "arrow": "target",
+      "id": "e6",
+      "sourceId": "south",
+      "targetAnchor": "R",
+      "targetId": "east"
+    }
+  ],
+  "nodes": [
+    {
+      "icon": {
+        "iconId": "server",
+        "libraryId": "mermaid-architecture",
+        "libraryVersion": "1.0.0"
+      },
+      "id": "center",
+      "label": "Center",
+      "position": {
+        "x": 208,
+        "y": 186.4
+      },
+      "shape": "icon"
+    },
+    {
+      "icon": {
+        "iconId": "database",
+        "libraryId": "mermaid-architecture",
+        "libraryVersion": "1.0.0"
+      },
+      "id": "north",
+      "label": "North",
+      "position": {
+        "x": 208,
+        "y": 40
+      },
+      "shape": "icon"
+    },
+    {
+      "icon": {
+        "iconId": "disk",
+        "libraryId": "mermaid-architecture",
+        "libraryVersion": "1.0.0"
+      },
+      "id": "south",
+      "label": "South",
+      "position": {
+        "x": 208,
+        "y": 332.8
+      },
+      "shape": "icon"
+    },
+    {
+      "icon": {
+        "iconId": "internet",
+        "libraryId": "mermaid-architecture",
+        "libraryVersion": "1.0.0"
+      },
+      "id": "east",
+      "label": "East",
+      "position": {
+        "x": 376,
+        "y": 186.4
+      },
+      "shape": "icon"
+    },
+    {
+      "icon": {
+        "iconId": "cloud",
+        "libraryId": "mermaid-architecture",
+        "libraryVersion": "1.0.0"
+      },
+      "id": "west",
+      "label": "West",
+      "position": {
+        "x": 40,
+        "y": 186.4
+      },
+      "shape": "icon"
+    }
+  ]
+}

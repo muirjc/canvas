@@ -1,0 +1,191 @@
+{
+  "containers": [
+    {
+      "id": "Domain",
+      "label": "Domain",
+      "position": {
+        "x": 40,
+        "y": 40
+      },
+      "role": "namespace",
+      "size": {
+        "height": 430,
+        "width": 940
+      }
+    },
+    {
+      "id": "Domain.Billing",
+      "label": "Billing",
+      "parentContainerId": "Domain",
+      "position": {
+        "x": 60,
+        "y": 90
+      },
+      "role": "namespace",
+      "size": {
+        "height": 230,
+        "width": 900
+      }
+    },
+    {
+      "attachedNodeIds": [],
+      "id": "note1",
+      "label": "free note",
+      "position": {
+        "x": 40,
+        "y": 510
+      },
+      "role": "note",
+      "size": {
+        "height": 100,
+        "width": 160
+      }
+    }
+  ],
+  "diagramTypeId": "uml",
+  "edges": [
+    {
+      "id": "e1",
+      "sourceId": "Customer",
+      "targetId": "Order",
+      "umlRelationKind": "association"
+    },
+    {
+      "id": "e2",
+      "sourceId": "Invoice",
+      "targetId": "Payment",
+      "umlRelationKind": "association"
+    }
+  ],
+  "nodes": [
+    {
+      "containerId": "Domain",
+      "id": "Customer",
+      "label": "Customer",
+      "members": [
+        {
+          "kind": "attribute",
+          "name": "name",
+          "type": "String",
+          "visibility": "+"
+        },
+        {
+          "kind": "attribute",
+          "name": "email",
+          "type": "String",
+          "visibility": "+"
+        },
+        {
+          "kind": "method",
+          "name": "placeOrder",
+          "params": "Order o",
+          "returnType": "bool",
+          "visibility": "+"
+        }
+      ],
+      "position": {
+        "x": 60,
+        "y": 360
+      },
+      "role": "class",
+      "shape": "rectangle"
+    },
+    {
+      "containerId": "Domain",
+      "id": "Order",
+      "label": "Order",
+      "position": {
+        "x": 284,
+        "y": 360
+      },
+      "role": "class",
+      "shape": "rectangle"
+    },
+    {
+      "containerId": "Domain.Billing",
+      "id": "Invoice",
+      "label": "Invoice",
+      "position": {
+        "x": 80,
+        "y": 140
+      },
+      "role": "class",
+      "shape": "rectangle"
+    },
+    {
+      "containerId": "Domain.Billing",
+      "id": "Payment",
+      "label": "Payment",
+      "position": {
+        "x": 260,
+        "y": 140
+      },
+      "role": "class",
+      "shape": "rectangle"
+    },
+    {
+      "containerId": "Domain.Billing",
+      "id": "Refund",
+      "label": "Refund",
+      "position": {
+        "x": 440,
+        "y": 140
+      },
+      "role": "class",
+      "shape": "rectangle"
+    },
+    {
+      "containerId": "Domain.Billing",
+      "id": "Ledger",
+      "label": "Ledger",
+      "position": {
+        "x": 620,
+        "y": 140
+      },
+      "role": "class",
+      "shape": "rectangle"
+    },
+    {
+      "containerId": "Domain.Billing",
+      "id": "Account",
+      "label": "Account",
+      "position": {
+        "x": 800,
+        "y": 140
+      },
+      "role": "class",
+      "shape": "rectangle"
+    },
+    {
+      "containerId": "Domain.Billing",
+      "id": "Statement",
+      "label": "Statement",
+      "position": {
+        "x": 80,
+        "y": 240
+      },
+      "role": "class",
+      "shape": "rectangle"
+    },
+    {
+      "id": "Standalone",
+      "label": "Standalone",
+      "position": {
+        "x": 240,
+        "y": 510
+      },
+      "role": "class",
+      "shape": "rectangle"
+    },
+    {
+      "id": "Another",
+      "label": "Another",
+      "position": {
+        "x": 420,
+        "y": 510
+      },
+      "role": "class",
+      "shape": "rectangle"
+    }
+  ]
+}

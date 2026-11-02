@@ -1,0 +1,12 @@
+architecture-beta
+    service center(server)[Center]
+    service north(database)[North]
+    service south(disk)[South]
+    service east(internet)[East]
+    service west(cloud)[West]
+    center:T -- B:north
+    center:B --> T:south
+    center:R <-- L:east
+    west:R -- L:center
+    north:L --> west
+    south --> R:east

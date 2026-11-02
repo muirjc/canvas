@@ -1,0 +1,135 @@
+{
+  "containers": [],
+  "diagramTypeId": "erd",
+  "edges": [
+    {
+      "erSourceCardinality": "||",
+      "erTargetCardinality": "||",
+      "id": "e1",
+      "label": "one-to-one",
+      "sourceId": "A",
+      "targetId": "B"
+    },
+    {
+      "erSourceCardinality": "||",
+      "erTargetCardinality": "o{",
+      "id": "e2",
+      "label": "one to zero, or many",
+      "sourceId": "A",
+      "targetId": "C"
+    },
+    {
+      "erSourceCardinality": "|o",
+      "erTargetCardinality": "|{",
+      "id": "e3",
+      "label": "maybe",
+      "sourceId": "A",
+      "targetId": "D"
+    },
+    {
+      "erSourceCardinality": "}|",
+      "erTargetCardinality": "o|",
+      "id": "e4",
+      "label": "many",
+      "sourceId": "B",
+      "targetId": "C"
+    },
+    {
+      "erSourceCardinality": "}o",
+      "erTargetCardinality": "||",
+      "id": "e5",
+      "label": "non-identifying",
+      "lineStyle": "dotted",
+      "sourceId": "B",
+      "targetId": "D"
+    },
+    {
+      "erSourceCardinality": "}o",
+      "erTargetCardinality": "o{",
+      "id": "e6",
+      "label": "quoted",
+      "lineStyle": "dotted",
+      "sourceId": "C",
+      "targetId": "D"
+    },
+    {
+      "erSourceCardinality": "||",
+      "erTargetCardinality": "|{",
+      "id": "e7",
+      "label": "x",
+      "lineStyle": "dotted",
+      "sourceId": "D",
+      "targetId": "E"
+    },
+    {
+      "erSourceCardinality": "o|",
+      "erTargetCardinality": "||",
+      "id": "e8",
+      "label": "odd",
+      "sourceId": "E",
+      "targetId": "F"
+    }
+  ],
+  "nodes": [
+    {
+      "id": "A",
+      "label": "A",
+      "position": {
+        "x": 40,
+        "y": 40
+      },
+      "role": "entity",
+      "shape": "rectangle"
+    },
+    {
+      "id": "B",
+      "label": "B",
+      "position": {
+        "x": 240,
+        "y": 40
+      },
+      "role": "entity",
+      "shape": "rectangle"
+    },
+    {
+      "id": "C",
+      "label": "C",
+      "position": {
+        "x": 440,
+        "y": 40
+      },
+      "role": "entity",
+      "shape": "rectangle"
+    },
+    {
+      "id": "D",
+      "label": "D",
+      "position": {
+        "x": 640,
+        "y": 40
+      },
+      "role": "entity",
+      "shape": "rectangle"
+    },
+    {
+      "id": "E",
+      "label": "E",
+      "position": {
+        "x": 40,
+        "y": 180
+      },
+      "role": "entity",
+      "shape": "rectangle"
+    },
+    {
+      "id": "F",
+      "label": "F",
+      "position": {
+        "x": 240,
+        "y": 180
+      },
+      "role": "entity",
+      "shape": "rectangle"
+    }
+  ]
+}

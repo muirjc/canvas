@@ -1,0 +1,22 @@
+{
+  "accDescr": "A description",
+  "accTitle": "Accessible title",
+  "containers": [],
+  "diagramTypeId": "uml",
+  "direction": "RL",
+  "edges": [],
+  "mermaidConfigDirective": "%%{init: {\"theme\": \"dark\"}}%%",
+  "nodes": [
+    {
+      "id": "A",
+      "label": "A",
+      "position": {
+        "x": 40,
+        "y": 40
+      },
+      "role": "class",
+      "shape": "rectangle"
+    }
+  ],
+  "title": "My classes"
+}

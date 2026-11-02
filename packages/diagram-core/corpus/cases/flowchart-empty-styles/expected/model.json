@@ -1,0 +1,50 @@
+{
+  "containers": [],
+  "diagramTypeId": "flowchart",
+  "direction": "LR",
+  "edges": [
+    {
+      "id": "e1",
+      "sourceId": "A",
+      "targetId": "B"
+    },
+    {
+      "id": "e2",
+      "sourceId": "B",
+      "style": {},
+      "targetId": "C"
+    }
+  ],
+  "nodes": [
+    {
+      "id": "A",
+      "label": "Alpha",
+      "position": {
+        "x": 40,
+        "y": 40
+      },
+      "role": "quiet",
+      "shape": "rectangle",
+      "style": {}
+    },
+    {
+      "id": "B",
+      "label": "Beta",
+      "position": {
+        "x": 220,
+        "y": 40
+      },
+      "shape": "rectangle",
+      "style": {}
+    },
+    {
+      "id": "C",
+      "label": "C",
+      "position": {
+        "x": 400,
+        "y": 40
+      },
+      "shape": "rectangle"
+    }
+  ]
+}

@@ -1,0 +1,14 @@
+{
+  "errors": [
+    {
+      "content": "  end",
+      "line": 3,
+      "message": "\"end\" with no matching loop/alt/opt/par/critical/break/rect/box block"
+    },
+    {
+      "content": "  else orphan",
+      "line": 4,
+      "message": "Could not interpret line as a participant, message, or directive: \"else orphan\""
+    }
+  ]
+}

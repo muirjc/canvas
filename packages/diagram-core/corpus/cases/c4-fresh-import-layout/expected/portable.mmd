@@ -1,0 +1,19 @@
+C4Container
+  Person(u1, "User one")
+  Person(u2, "User two with a much longer label that wraps over lines")
+  System_Boundary(outer, "Outer") {
+    Container(c1, "C1")
+    Container(c2, "C2")
+    Container(c3, "C3")
+    Container_Boundary(inner, "Inner") {
+      Container(c4, "C4")
+      Container(c5, "C5")
+      Container(c6, "C6")
+      Container(c7, "C7")
+      Container(c8, "C8")
+    }
+    Container_Boundary(empty, "Empty") {
+    }
+  }
+  System(late, "Declared after")
+  Person(u1, "User one redeclared")

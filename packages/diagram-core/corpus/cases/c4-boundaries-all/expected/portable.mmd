@@ -1,0 +1,13 @@
+C4Container
+  Enterprise_Boundary(ent, "Enterprise", $tags="org") {
+    Boundary(b1, "Custom group", "Team", $tags="a,b") {
+      System_Boundary(sys, "System") {
+        Container_Boundary(cont, "Containers") {
+          Container(x, "X")
+        }
+      }
+    }
+    Boundary(b2, "Typed", "Domain") {
+    }
+  }
+  Container(loose, "Loose")

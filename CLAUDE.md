@@ -93,6 +93,17 @@ tests are NON-NEGOTIABLE and must exist (and fail) before implementing any diagr
 work — see `.specify/memory/constitution.md` Principle IV.
 
 ## Recent Changes
+- `canvas-1bty.15.2` (Python phase 11b): **every family's parse/serialize is native.** `diagram_core/` gained
+  `c4.py`, `erd.py`, `uml.py`, `sequence.py`, `architecture.py` (+ `architecture_layout.py`, computeArchitectureLayout,
+  checked against TS vectors in `tests/data/architecture_layout_vectors.json`); `core.py` exposes `PARSERS`/
+  `SERIALIZERS` for all six, so detect/parse/serialize/empty DSL/portable Mermaid (C4/ER/class style lines included)
+  no longer need the bridge (validate, render, templates, AI tools, library ops still do: 11c-11g). Golden corpus
+  +73 cases (every family now has >= 13); `test_diagram_core_corpus_native.py` runs all of them; per-family test
+  files add a seeded native-vs-bridge fuzz. Fixed in the flowchart port: an empty `style`/`classDef` (`{}`) is
+  truthy in JavaScript and is kept (was dropped), and case-insensitive regexes use `re.ASCII` (JS `/i` folds ASCII
+  only; Python also folds the Kelvin sign, long s, dotless i). Pitfall: a parser's None = undefined, but YAML dumps
+  None as `null`, so a test serializing a freshly parsed model strips None fields first (`_as_parsed`). Known gap,
+  all families: ids like `constructor`/`toString` read Object.prototype in TS front-matter lookups (`canvas-1bty.15.9`).
 - `canvas-1bty.15.1` (Python phase 11a, first slice of porting diagram-core to Python): `apps/api-py/src/
   canvas_api/diagram_core/` answers natively family detection, flowchart parse/serialize, a new diagram's empty
   DSL and portable Mermaid for flowchart/sequence/architecture; everything else still goes to the bridge.

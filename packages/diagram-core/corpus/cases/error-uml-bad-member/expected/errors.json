@@ -1,0 +1,29 @@
+{
+  "errors": [
+    {
+      "content": "    +broken(",
+      "line": 3,
+      "message": "Could not interpret line as a class member: \"+broken(\""
+    },
+    {
+      "content": "    -",
+      "line": 4,
+      "message": "Could not interpret line as a class member: \"-\""
+    },
+    {
+      "content": "    +(noName)",
+      "line": 5,
+      "message": "Could not interpret line as a class member: \"+(noName)\""
+    },
+    {
+      "content": "  A ==> B",
+      "line": 7,
+      "message": "Could not interpret line as a class, relationship, or directive: \"A ==> B\""
+    },
+    {
+      "content": "  }",
+      "line": 8,
+      "message": "Could not interpret line as a class, relationship, or directive: \"}\""
+    }
+  ]
+}

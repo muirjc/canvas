@@ -1,0 +1,29 @@
+---
+canvas:
+  positions:
+    CUSTOMER:
+      x: 40
+      y: 40
+    ORDER:
+      x: 240
+      y: 40
+    p:
+      x: 440
+      y: 40
+    q:
+      x: 640
+      y: 40
+    INVOICE:
+      x: 40
+      y: 180
+  styles: {}
+---
+erDiagram
+ORDER[Renamed Order] {
+  string id PK
+}
+CUSTOMER[The Customer]
+p[Person]
+q[Lonely]
+CUSTOMER ||--o{ ORDER : places
+ORDER ||--|| INVOICE : billed

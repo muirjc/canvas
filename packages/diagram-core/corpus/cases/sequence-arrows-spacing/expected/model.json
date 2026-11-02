@@ -1,0 +1,181 @@
+{
+  "containers": [
+    {
+      "attachedNodeIds": [
+        "B"
+      ],
+      "id": "pt1",
+      "label": "",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "role": "activate",
+      "sequenceOrder": 12
+    },
+    {
+      "attachedNodeIds": [
+        "B"
+      ],
+      "id": "pt2",
+      "label": "",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "role": "deactivate",
+      "sequenceOrder": 14
+    }
+  ],
+  "diagramTypeId": "sequence",
+  "edges": [
+    {
+      "arrow": "none",
+      "id": "e1",
+      "label": "solid open",
+      "lineStyle": "solid",
+      "sequenceOrder": 0,
+      "sourceId": "A",
+      "targetId": "B"
+    },
+    {
+      "arrow": "none",
+      "id": "e2",
+      "label": "dotted open",
+      "lineStyle": "dotted",
+      "sequenceOrder": 1,
+      "sourceId": "A",
+      "targetId": "B"
+    },
+    {
+      "arrow": "target",
+      "id": "e3",
+      "label": "solid arrow",
+      "lineStyle": "solid",
+      "sequenceOrder": 2,
+      "sourceId": "A",
+      "targetId": "B"
+    },
+    {
+      "arrow": "target",
+      "id": "e4",
+      "label": "dotted arrow",
+      "lineStyle": "dotted",
+      "sequenceOrder": 3,
+      "sourceId": "A",
+      "targetId": "B"
+    },
+    {
+      "arrow": "cross",
+      "id": "e5",
+      "label": "x",
+      "lineStyle": "solid",
+      "sequenceOrder": 4,
+      "sourceId": "A",
+      "targetId": "B"
+    },
+    {
+      "arrow": "cross",
+      "id": "e6",
+      "label": "dx",
+      "lineStyle": "dotted",
+      "sequenceOrder": 5,
+      "sourceId": "A",
+      "targetId": "B"
+    },
+    {
+      "arrow": "open",
+      "id": "e7",
+      "label": "o",
+      "lineStyle": "solid",
+      "sequenceOrder": 6,
+      "sourceId": "A",
+      "targetId": "B"
+    },
+    {
+      "arrow": "open",
+      "id": "e8",
+      "label": "do",
+      "lineStyle": "dotted",
+      "sequenceOrder": 7,
+      "sourceId": "A",
+      "targetId": "B"
+    },
+    {
+      "arrow": "both",
+      "id": "e9",
+      "label": "both",
+      "lineStyle": "solid",
+      "sequenceOrder": 8,
+      "sourceId": "A",
+      "targetId": "B"
+    },
+    {
+      "arrow": "both",
+      "id": "e10",
+      "label": "dotted both",
+      "lineStyle": "dotted",
+      "sequenceOrder": 9,
+      "sourceId": "A",
+      "targetId": "B"
+    },
+    {
+      "arrow": "target",
+      "id": "e11",
+      "label": "self",
+      "lineStyle": "solid",
+      "sequenceOrder": 10,
+      "sourceId": "A",
+      "targetId": "A"
+    },
+    {
+      "arrow": "target",
+      "id": "e12",
+      "label": "spaced plus",
+      "lineStyle": "solid",
+      "sequenceOrder": 11,
+      "sourceId": "A",
+      "targetId": "B"
+    },
+    {
+      "arrow": "target",
+      "id": "e13",
+      "label": "spaced minus",
+      "lineStyle": "dotted",
+      "sequenceOrder": 13,
+      "sourceId": "B",
+      "targetId": "A"
+    },
+    {
+      "arrow": "target",
+      "id": "e14",
+      "label": "label with: colons and",
+      "lineStyle": "solid",
+      "sequenceOrder": 15,
+      "sourceId": "A",
+      "targetId": "B"
+    }
+  ],
+  "nodes": [
+    {
+      "id": "A",
+      "label": "A",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "role": "participant",
+      "shape": "rectangle"
+    },
+    {
+      "id": "B",
+      "label": "B",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "role": "participant",
+      "shape": "rectangle"
+    }
+  ]
+}

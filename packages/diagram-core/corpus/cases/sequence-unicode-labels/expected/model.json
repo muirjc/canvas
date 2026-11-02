@@ -1,0 +1,55 @@
+{
+  "containers": [
+    {
+      "attachedNodeIds": [
+        "A"
+      ],
+      "id": "note1",
+      "label": "日本語のノート 🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "role": "note-over",
+      "sequenceOrder": 1,
+      "size": {
+        "height": 50,
+        "width": 260
+      }
+    }
+  ],
+  "diagramTypeId": "sequence",
+  "edges": [
+    {
+      "arrow": "target",
+      "id": "e1",
+      "label": "émoji 🎨 message",
+      "lineStyle": "solid",
+      "sequenceOrder": 0,
+      "sourceId": "A",
+      "targetId": "B"
+    }
+  ],
+  "nodes": [
+    {
+      "id": "A",
+      "label": "Ünïcödé 🎨 name",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "role": "participant",
+      "shape": "rectangle"
+    },
+    {
+      "id": "B",
+      "label": "B",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "role": "participant",
+      "shape": "rectangle"
+    }
+  ]
+}

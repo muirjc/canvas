@@ -1,0 +1,18 @@
+classDiagram
+  class Shape <<interface>>
+  class Animal {
+    <<abstract>>
+    +eat()
+  }
+  <<enumeration>> Color
+  class Color {
+    RED
+    GREEN
+  }
+  <<service>> Later
+  class Late <<entity>> {
+    +id
+  }
+  class Square~Shape~ <<value>>
+  class Container~Key, Value~
+  Square ..|> Shape

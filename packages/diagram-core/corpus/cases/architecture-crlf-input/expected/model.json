@@ -1,0 +1,72 @@
+{
+  "architectureAlignments": [
+    {
+      "axis": "row",
+      "ids": [
+        "a",
+        "b"
+      ]
+    }
+  ],
+  "containers": [
+    {
+      "icon": {
+        "iconId": "cloud",
+        "libraryId": "mermaid-architecture",
+        "libraryVersion": "1.0.0"
+      },
+      "id": "g",
+      "label": "Group",
+      "position": {
+        "x": 40,
+        "y": 40
+      },
+      "size": {
+        "height": 156.4,
+        "width": 148
+      }
+    }
+  ],
+  "diagramTypeId": "cloud-infrastructure",
+  "edges": [
+    {
+      "arrow": "target",
+      "id": "e1",
+      "sourceAnchor": "R",
+      "sourceId": "a",
+      "targetAnchor": "L",
+      "targetId": "b"
+    }
+  ],
+  "nodes": [
+    {
+      "containerId": "g",
+      "icon": {
+        "iconId": "server",
+        "libraryId": "mermaid-architecture",
+        "libraryVersion": "1.0.0"
+      },
+      "id": "a",
+      "label": "A",
+      "position": {
+        "x": 60,
+        "y": 90
+      },
+      "shape": "icon"
+    },
+    {
+      "icon": {
+        "iconId": "database",
+        "libraryId": "mermaid-architecture",
+        "libraryVersion": "1.0.0"
+      },
+      "id": "b",
+      "label": "B",
+      "position": {
+        "x": 248,
+        "y": 75
+      },
+      "shape": "icon"
+    }
+  ]
+}

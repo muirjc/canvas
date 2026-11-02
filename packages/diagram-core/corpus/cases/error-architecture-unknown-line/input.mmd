@@ -1,0 +1,6 @@
+architecture-beta
+  service a(server)[A]
+  service b(server)[B]
+  a -> b
+  group g(cloud)
+  a:X -- Y:b

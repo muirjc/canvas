@@ -1,0 +1,41 @@
+---
+canvas:
+  positions:
+    X:
+      x: 100
+      y: 190
+    Y:
+      x: 280
+      y: 190
+    Z:
+      x: 480
+      y: 140
+  styles: {}
+  containers:
+    A:
+      x: 40
+      y: 40
+      width: 620
+      height: 270
+    A.B:
+      x: 60
+      y: 90
+      width: 580
+      height: 200
+    A.B.C:
+      x: 80
+      y: 140
+      width: 360
+      height: 130
+---
+classDiagram
+namespace A {
+  namespace B {
+    class Z
+    namespace C {
+      class X
+      class Y
+    }
+  }
+}
+X --> Y

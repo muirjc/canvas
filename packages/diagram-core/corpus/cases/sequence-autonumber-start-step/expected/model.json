@@ -1,0 +1,50 @@
+{
+  "containers": [],
+  "diagramTypeId": "sequence",
+  "edges": [
+    {
+      "arrow": "target",
+      "id": "e1",
+      "label": "one",
+      "lineStyle": "solid",
+      "sequenceOrder": 0,
+      "sourceId": "A",
+      "targetId": "B"
+    },
+    {
+      "arrow": "target",
+      "id": "e2",
+      "label": "two",
+      "lineStyle": "solid",
+      "sequenceOrder": 1,
+      "sourceId": "B",
+      "targetId": "A"
+    }
+  ],
+  "nodes": [
+    {
+      "id": "A",
+      "label": "A",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "role": "participant",
+      "shape": "rectangle"
+    },
+    {
+      "id": "B",
+      "label": "B",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "role": "participant",
+      "shape": "rectangle"
+    }
+  ],
+  "sequenceAutonumber": {
+    "start": 10,
+    "step": 5
+  }
+}

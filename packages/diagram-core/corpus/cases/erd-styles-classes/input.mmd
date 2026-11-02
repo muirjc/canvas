@@ -1,0 +1,15 @@
+erDiagram
+  CUSTOMER ||--o{ ORDER : places
+  o ||--|| CUSTOMER : abbreviated
+  style o stroke-width:3
+  style CUSTOMER fill:#f9f,stroke:#333,stroke-width:4px,color:#fff
+  classDef warm fill:#ff0,stroke-dasharray: 5 5;
+  classDef cool fill:#0ff
+  class ORDER,o warm
+  class CUSTOMER later
+  classDef later stroke:#00f
+  ITEM:::cool
+  BOX[Box label]:::warm, cool
+  style MISSING fill:#000
+  class GHOST warm
+  style ORDER fill

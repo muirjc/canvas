@@ -1,0 +1,27 @@
+---
+canvas:
+  positions:
+    A:
+      x: 40
+      y: 40
+    B:
+      x: 220
+      y: 40
+    C:
+      x: 400
+      y: 40
+    Tabbed:
+      x: 580
+      y: 40
+  styles: {}
+  containers: {}
+---
+classDiagram
+class A
+class B {
+  +x
+}
+class C
+class Tabbed
+A --> B
+A <|-- C : spaced label

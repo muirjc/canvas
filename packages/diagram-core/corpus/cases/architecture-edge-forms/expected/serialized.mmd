@@ -1,0 +1,58 @@
+---
+canvas:
+  positions:
+    a:
+      x: 228
+      y: 90
+    b:
+      x: 436
+      y: 90
+    c:
+      x: 40
+      y: 75
+  containers:
+    g:
+      x: 208
+      y: 40
+      width: 148
+      height: 156.4
+    h:
+      x: 416
+      y: 40
+      width: 148
+      height: 156.4
+  icons:
+    a:
+      libraryId: mermaid-architecture
+      libraryVersion: 1.0.0
+      iconId: server
+    b:
+      libraryId: mermaid-architecture
+      libraryVersion: 1.0.0
+      iconId: server
+    c:
+      libraryId: mermaid-architecture
+      libraryVersion: 1.0.0
+      iconId: server
+    g:
+      libraryId: mermaid-architecture
+      libraryVersion: 1.0.0
+      iconId: cloud
+    h:
+      libraryId: mermaid-architecture
+      libraryVersion: 1.0.0
+      iconId: cloud
+---
+architecture-beta
+group g(cloud)[G]
+group h(cloud)[H]
+service a(server)[A] in g
+service b(server)[B] in h
+service c(server)[C]
+a --> b
+a{group} -- b{group}
+b <-- a
+a:L -- R:c
+c{group}:T -- B:a
+a --> a
+c --> missing

@@ -1,0 +1,42 @@
+---
+canvas:
+  positions:
+    sign:
+      x: 60
+      y: 90
+    ext:
+      x: 300
+      y: 90
+    cache:
+      x: 540
+      y: 90
+    cdb:
+      x: 780
+      y: 90
+    cq:
+      x: 60
+      y: 217
+    cqx:
+      x: 300
+      y: 217
+  styles: {}
+  edgeStyles: {}
+  containers:
+    api:
+      x: 40
+      y: 40
+      width: 960
+      height: 270
+---
+C4Component
+title Components of the API
+Container_Boundary(api, "API Application") {
+  Component(sign, "Sign In Controller", "Spring MVC Rest Controller", "Allows users to sign in")
+  Component_Ext(ext, "Shared auth", "Library")
+  ComponentDb(cache, "Cache", "Redis")
+  ComponentDb_Ext(cdb, "Remote cache", "", "Hosted elsewhere")
+  ComponentQueue(cq, "Work queue", "RabbitMQ", "Jobs")
+  ComponentQueue_Ext(cqx, "Partner queue")
+}
+Rel(sign, cache, "Reads", "RESP")
+Rel(sign, cq, "Enqueues", "", "only the description")

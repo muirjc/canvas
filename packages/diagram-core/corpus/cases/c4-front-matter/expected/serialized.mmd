@@ -1,0 +1,55 @@
+---
+canvas:
+  positions:
+    a:
+      x: 100
+      y: 50
+    b:
+      x: 400.5
+      y: 50
+    c:
+      x: 40
+      y: 40
+    d:
+      x: 240
+      y: 40
+  styles:
+    a:
+      fillColor: "#eeeeee"
+      strokeWidth: 2
+      strokeColor: "#000"
+    b:
+      "0": r
+      "1": e
+      "2": d
+      fillColor: blue
+  edgeStyles:
+    e1:
+      strokeColor: "#654321"
+  containers:
+    grp:
+      x: 10
+      y: 20
+      width: 600
+      height: 300
+    other:
+      x: 5
+      y: 6
+  legend:
+    visible: true
+    position:
+      x: 700
+      y: 10
+    title: Key
+---
+C4Context
+System_Boundary(grp, "Group") {
+  System(a, "A")
+System_Boundary(other, "Other") {
+  System(b, "B")
+}
+}
+System(c, "C no position")
+System(d, "D no position")
+Rel(a, b, "styled")
+Rel(b, c, "plain")

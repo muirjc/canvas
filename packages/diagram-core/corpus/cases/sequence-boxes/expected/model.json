@@ -1,0 +1,173 @@
+{
+  "containers": [
+    {
+      "id": "box1",
+      "label": "Frontend team",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "role": "box",
+      "style": {
+        "fillColor": "rgb(33,66,99)"
+      }
+    },
+    {
+      "id": "box2",
+      "label": "",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "role": "box",
+      "style": {
+        "fillColor": "transparent"
+      }
+    },
+    {
+      "id": "box3",
+      "label": "Aqua Backend",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "role": "box"
+    },
+    {
+      "id": "box4",
+      "label": "",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "role": "box"
+    },
+    {
+      "id": "box5",
+      "label": "",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "role": "box",
+      "style": {
+        "fillColor": "rgba(1, 2, 3, 0.5)"
+      }
+    }
+  ],
+  "diagramTypeId": "sequence",
+  "edges": [
+    {
+      "arrow": "target",
+      "id": "e1",
+      "label": "click",
+      "lineStyle": "solid",
+      "sequenceOrder": 0,
+      "sourceId": "U",
+      "targetId": "W"
+    },
+    {
+      "arrow": "target",
+      "id": "e2",
+      "label": "call",
+      "lineStyle": "solid",
+      "sequenceOrder": 1,
+      "sourceId": "W",
+      "targetId": "API"
+    },
+    {
+      "arrow": "target",
+      "id": "e3",
+      "label": "store",
+      "lineStyle": "solid",
+      "sequenceOrder": 2,
+      "sourceId": "API",
+      "targetId": "X"
+    },
+    {
+      "arrow": "target",
+      "id": "e4",
+      "label": "log",
+      "lineStyle": "solid",
+      "sequenceOrder": 3,
+      "sourceId": "X",
+      "targetId": "Y"
+    },
+    {
+      "arrow": "target",
+      "id": "e5",
+      "label": "done",
+      "lineStyle": "solid",
+      "sequenceOrder": 4,
+      "sourceId": "Y",
+      "targetId": "Z"
+    }
+  ],
+  "nodes": [
+    {
+      "containerId": "box1",
+      "id": "U",
+      "label": "User",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "role": "actor",
+      "shape": "person"
+    },
+    {
+      "containerId": "box1",
+      "id": "W",
+      "label": "W",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "role": "participant",
+      "shape": "rectangle"
+    },
+    {
+      "containerId": "box2",
+      "id": "X",
+      "label": "X",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "role": "participant",
+      "shape": "rectangle"
+    },
+    {
+      "containerId": "box3",
+      "id": "API",
+      "label": "The API",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "role": "participant",
+      "shape": "rectangle"
+    },
+    {
+      "containerId": "box5",
+      "id": "Y",
+      "label": "Y",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "role": "participant",
+      "shape": "rectangle"
+    },
+    {
+      "id": "Z",
+      "label": "Z",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "role": "participant",
+      "shape": "rectangle"
+    }
+  ]
+}

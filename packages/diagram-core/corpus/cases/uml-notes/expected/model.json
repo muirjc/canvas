@@ -1,0 +1,128 @@
+{
+  "containers": [
+    {
+      "attachedNodeIds": [
+        "Duck"
+      ],
+      "id": "note1",
+      "label": "can fly<br>can swim",
+      "position": {
+        "x": 40,
+        "y": 40
+      },
+      "role": "note",
+      "size": {
+        "height": 100,
+        "width": 160
+      }
+    },
+    {
+      "attachedNodeIds": [],
+      "id": "note2",
+      "label": "This is a general note",
+      "position": {
+        "x": 420,
+        "y": 40
+      },
+      "role": "note",
+      "size": {
+        "height": 100,
+        "width": 160
+      }
+    },
+    {
+      "attachedNodeIds": [
+        "Ghost"
+      ],
+      "id": "note3",
+      "label": "auto-created class",
+      "position": {
+        "x": 800,
+        "y": 40
+      },
+      "role": "note",
+      "size": {
+        "height": 100,
+        "width": 160
+      }
+    },
+    {
+      "attachedNodeIds": [],
+      "id": "note4",
+      "label": "",
+      "position": {
+        "x": 40,
+        "y": 180
+      },
+      "role": "note",
+      "size": {
+        "height": 100,
+        "width": 160
+      }
+    },
+    {
+      "id": "N",
+      "label": "N",
+      "position": {
+        "x": 240,
+        "y": 180
+      },
+      "role": "namespace",
+      "size": {
+        "height": 130,
+        "width": 180
+      }
+    },
+    {
+      "attachedNodeIds": [
+        "Inside"
+      ],
+      "id": "note5",
+      "label": "inside a namespace",
+      "position": {
+        "x": 460,
+        "y": 180
+      },
+      "role": "note",
+      "size": {
+        "height": 100,
+        "width": 160
+      }
+    }
+  ],
+  "diagramTypeId": "uml",
+  "edges": [],
+  "nodes": [
+    {
+      "id": "Duck",
+      "label": "Duck",
+      "position": {
+        "x": 240,
+        "y": 40
+      },
+      "role": "class",
+      "shape": "rectangle"
+    },
+    {
+      "id": "Ghost",
+      "label": "Ghost",
+      "position": {
+        "x": 620,
+        "y": 40
+      },
+      "role": "class",
+      "shape": "rectangle"
+    },
+    {
+      "containerId": "N",
+      "id": "Inside",
+      "label": "Inside",
+      "position": {
+        "x": 260,
+        "y": 230
+      },
+      "role": "class",
+      "shape": "rectangle"
+    }
+  ]
+}

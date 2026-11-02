@@ -1,0 +1,71 @@
+---
+canvas:
+  positions:
+    left:
+      x: 40
+      y: 186.4
+    right:
+      x: 616
+      y: 186.4
+    up:
+      x: 328
+      y: 40
+    down:
+      x: 328
+      y: 332.8
+    hub:
+      x: 312
+      y: 199.60000000000002
+    j2:
+      x: 228
+      y: 542.4000000000001
+    inside:
+      x: 428
+      y: 529.2
+  containers:
+    net:
+      x: 208
+      y: 479.20000000000005
+      width: 348
+      height: 156.4
+  icons:
+    left:
+      libraryId: mermaid-architecture
+      libraryVersion: 1.0.0
+      iconId: server
+    right:
+      libraryId: mermaid-architecture
+      libraryVersion: 1.0.0
+      iconId: server
+    up:
+      libraryId: mermaid-architecture
+      libraryVersion: 1.0.0
+      iconId: server
+    down:
+      libraryId: mermaid-architecture
+      libraryVersion: 1.0.0
+      iconId: server
+    inside:
+      libraryId: mermaid-architecture
+      libraryVersion: 1.0.0
+      iconId: server
+    net:
+      libraryId: mermaid-architecture
+      libraryVersion: 1.0.0
+      iconId: cloud
+---
+architecture-beta
+group net(cloud)[Network]
+service left(server)[Left]
+service right(server)[Right]
+service up(server)[Up]
+service down(server)[Down]
+junction hub
+junction j2 in net
+service inside(server)[Inside] in net
+left:R -- L:hub
+hub:R -- L:right
+hub:T -- B:up
+hub:B -- T:down
+j2:R --> L:inside
+down:B -- T:j2

@@ -1,0 +1,87 @@
+{
+  "containers": [],
+  "diagramTypeId": "c4-container",
+  "edges": [
+    {
+      "id": "e1",
+      "label": "Uses",
+      "sourceId": "user",
+      "targetId": "web",
+      "technology": "HTTPS"
+    },
+    {
+      "description": "named descr",
+      "id": "e2",
+      "label": "Calls",
+      "sourceId": "web",
+      "targetId": "api",
+      "technology": "JSON"
+    }
+  ],
+  "nodes": [
+    {
+      "c4TypeLabel": "Person",
+      "id": "user",
+      "label": "User",
+      "position": {
+        "x": 40,
+        "y": 40
+      },
+      "role": "person",
+      "shape": "person",
+      "tags": [
+        "customer",
+        "vip"
+      ]
+    },
+    {
+      "c4TypeLabel": "Container",
+      "description": "UI",
+      "id": "web",
+      "label": "Web",
+      "position": {
+        "x": 220,
+        "y": 40
+      },
+      "role": "container",
+      "shape": "rounded-rectangle",
+      "technology": "React"
+    },
+    {
+      "c4TypeLabel": "Container",
+      "description": "named wins",
+      "id": "api",
+      "label": "API",
+      "position": {
+        "x": 460,
+        "y": 40
+      },
+      "role": "container",
+      "shape": "rounded-rectangle",
+      "technology": "Node"
+    },
+    {
+      "c4TypeLabel": "Software System",
+      "description": "named overrides",
+      "id": "s",
+      "label": "Sys",
+      "position": {
+        "x": 700,
+        "y": 40
+      },
+      "role": "system",
+      "shape": "rectangle"
+    },
+    {
+      "c4TypeLabel": "Software System",
+      "id": "t",
+      "label": "Tagged",
+      "position": {
+        "x": 940,
+        "y": 40
+      },
+      "role": "system",
+      "shape": "rectangle"
+    }
+  ]
+}

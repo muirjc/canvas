@@ -1,0 +1,163 @@
+{
+  "containers": [
+    {
+      "attachedNodeIds": [
+        "B"
+      ],
+      "id": "pt1",
+      "label": "",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "role": "create",
+      "sequenceOrder": 0
+    },
+    {
+      "attachedNodeIds": [
+        "C"
+      ],
+      "id": "pt2",
+      "label": "",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "role": "create",
+      "sequenceOrder": 2
+    },
+    {
+      "id": "block3",
+      "label": "again",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "role": "loop",
+      "sequenceOrder": 4
+    },
+    {
+      "attachedNodeIds": [
+        "D"
+      ],
+      "id": "pt4",
+      "label": "",
+      "parentContainerId": "block3",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "role": "create",
+      "sequenceOrder": 5
+    },
+    {
+      "attachedNodeIds": [
+        "D"
+      ],
+      "id": "pt5",
+      "label": "",
+      "parentContainerId": "block3",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "role": "destroy",
+      "sequenceOrder": 7
+    },
+    {
+      "attachedNodeIds": [
+        "C"
+      ],
+      "id": "pt6",
+      "label": "",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "role": "destroy",
+      "sequenceOrder": 8
+    }
+  ],
+  "diagramTypeId": "sequence",
+  "edges": [
+    {
+      "arrow": "target",
+      "id": "e1",
+      "label": "hello",
+      "lineStyle": "solid",
+      "sequenceOrder": 1,
+      "sourceId": "A",
+      "targetId": "B"
+    },
+    {
+      "arrow": "target",
+      "id": "e2",
+      "label": "make",
+      "lineStyle": "solid",
+      "sequenceOrder": 3,
+      "sourceId": "B",
+      "targetId": "C"
+    },
+    {
+      "arrow": "target",
+      "containerId": "block3",
+      "id": "e3",
+      "label": "hi",
+      "lineStyle": "solid",
+      "sequenceOrder": 6,
+      "sourceId": "C",
+      "targetId": "D"
+    },
+    {
+      "arrow": "cross",
+      "id": "e4",
+      "label": "gone",
+      "lineStyle": "solid",
+      "sequenceOrder": 9,
+      "sourceId": "A",
+      "targetId": "C"
+    }
+  ],
+  "nodes": [
+    {
+      "id": "A",
+      "label": "A",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "role": "participant",
+      "shape": "rectangle"
+    },
+    {
+      "id": "B",
+      "label": "Bobby",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "role": "actor",
+      "shape": "person"
+    },
+    {
+      "id": "C",
+      "label": "C",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "role": "participant",
+      "shape": "rectangle"
+    },
+    {
+      "id": "D",
+      "label": "Dee",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "role": "participant",
+      "shape": "rectangle"
+    }
+  ]
+}

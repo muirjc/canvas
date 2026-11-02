@@ -1,0 +1,15 @@
+erDiagram
+  CAR {
+    string registrationNumber PK "the plate"
+    string make
+    string model "e.g. Civic"
+    int    year
+    string ownerId FK, UK "owner"
+    string vin pk,uk
+    string other PK , XX , fk
+    string comment_only ""
+    varchar(255) note
+  }
+  PERSON {
+  }
+  CAR }o--|| PERSON : "owned by"

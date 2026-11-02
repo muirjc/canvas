@@ -1,0 +1,25 @@
+---
+canvas:
+  positions:
+    CUSTOMER:
+      x: 100
+      y: 200.5
+    ORDER: null
+  styles:
+    CUSTOMER:
+      fillColor: "#abcdef"
+      strokeWidth: 2
+  legend:
+    visible: false
+    title: Key
+    position:
+      x: "12"
+      y: 30
+    labels:
+      kind:a: Alpha
+---
+erDiagram
+  CUSTOMER ||--o{ ORDER : places
+  LINE-ITEM
+  ORDER ||--|{ LINE-ITEM : contains
+  style CUSTOMER stroke:#000

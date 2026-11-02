@@ -1,0 +1,13 @@
+sequenceDiagram
+participant A
+create actor B as Bobby
+A->>B: hello
+create participant C
+B->>C: make
+loop again
+  create participant D as Dee
+  C->>D: hi
+  destroy D
+end
+destroy C
+A-xC: gone

@@ -1,0 +1,76 @@
+{
+  "containers": [
+    {
+      "attachedNodeIds": [
+        "A",
+        "B"
+      ],
+      "id": "note1",
+      "label": "crlf",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "role": "note-over",
+      "sequenceOrder": 1,
+      "size": {
+        "height": 50,
+        "width": 100
+      }
+    },
+    {
+      "id": "block2",
+      "label": "x",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "role": "loop",
+      "sequenceOrder": 2
+    }
+  ],
+  "diagramTypeId": "sequence",
+  "edges": [
+    {
+      "arrow": "target",
+      "id": "e1",
+      "label": "hi",
+      "lineStyle": "solid",
+      "sequenceOrder": 0,
+      "sourceId": "A",
+      "targetId": "B"
+    },
+    {
+      "arrow": "target",
+      "containerId": "block2",
+      "id": "e2",
+      "label": "back",
+      "lineStyle": "dotted",
+      "sequenceOrder": 3,
+      "sourceId": "B",
+      "targetId": "A"
+    }
+  ],
+  "nodes": [
+    {
+      "id": "A",
+      "label": "Alice",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "role": "participant",
+      "shape": "rectangle"
+    },
+    {
+      "id": "B",
+      "label": "B",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "role": "participant",
+      "shape": "rectangle"
+    }
+  ]
+}

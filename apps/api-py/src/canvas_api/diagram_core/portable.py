@@ -1,7 +1,6 @@
 """Portable Mermaid for tools outside Canvas (packages/diagram-core/src/dsl/portable-mermaid.ts): the colours
 kept in the canvas front matter added as plain Mermaid style lines, and optionally the canvas front matter
-removed. Native for flowcharts (and the families that get no style lines); C4, ER and class diagrams need their
-parsers, so `portable` returns None for them until those are ported and the caller asks the bridge."""
+removed. Every family is native (canvas-1bty.15.2 ported the C4, ER and class parsers the style lines need)."""
 
 from __future__ import annotations
 
@@ -18,8 +17,8 @@ from canvas_api.github.jstext import JS_WHITESPACE, js_number
 __all__ = ["NATIVE_PORTABLE_FAMILIES", "to_portable_mermaid"]
 
 COMMENT = "%% Colours for Mermaid tools outside Canvas (added on export)."
-#: Families whose portable form needs no parser beyond the flowchart's (sequence and architecture get none).
-NATIVE_PORTABLE_FAMILIES = {"flowchart", "sequence", "architecture", None}
+#: Families with a native portable form: all of them (sequence and architecture get no style lines).
+NATIVE_PORTABLE_FAMILIES = {"flowchart", "c4", "erd", "uml", "sequence", "architecture", None}
 _TRAILING_SPACE = re.compile(f"[{JS_WHITESPACE}]+\\Z")
 
 
@@ -45,22 +44,74 @@ def _remove_canvas_front_matter(dsl: str) -> str:
 
 
 def _with_style_lines(dsl: str, family: str | None) -> str:
-    lines = _flowchart_lines(parse_flowchart(dsl)) if family == "flowchart" else []
+    # Imported here: the family modules import nothing from this one, but keeping them out of the module's
+    # import time keeps `detect`-only callers light.
+    from canvas_api.diagram_core.c4 import parse_c4
+    from canvas_api.diagram_core.erd import parse_erd
+    from canvas_api.diagram_core.uml import parse_uml
+
+    if family == "flowchart":
+        lines = _flowchart_lines(parse_flowchart(dsl))
+    elif family == "c4":
+        lines = _c4_lines(parse_c4(dsl))
+    elif family == "erd":
+        lines = _node_style_lines(parse_erd(dsl), "")
+    elif family == "uml":
+        lines = _node_style_lines(parse_uml(dsl), "")
+    else:
+        lines = []
     if not lines:
         return dsl
+    # Flowcharts are written indented; the other families' serializers write flush left.
+    indent = "  " if family == "flowchart" else ""
     trimmed = _TRAILING_SPACE.sub("", dsl)
-    return f"{trimmed}\n  {COMMENT}\n" + "\n".join(lines) + "\n"
+    return f"{trimmed}\n{indent}{COMMENT}\n" + "\n".join(lines) + "\n"
+
+
+def _node_style_lines(result: dict[str, Any], indent: str) -> list[str]:
+    """`style <id> ...` per coloured node: flowchart, ER and class diagrams share this grammar."""
+    if "model" not in result:
+        return []
+    lines = []
+    for node in result["model"]["nodes"]:
+        props = _style_props(node.get("style"))
+        if props:
+            lines.append(f"{indent}style {node['id']} {props}")
+    return lines
+
+
+def _c4_lines(result: dict[str, Any]) -> list[str]:
+    """C4's own macros carry only colours. UpdateRelStyle colours every rel between a pair, so it's written only
+    when they all share one colour."""
+    if "model" not in result:
+        return []
+    model = result["model"]
+    lines = []
+    for node in model["nodes"]:
+        style = node.get("style") or {}
+        args = [
+            f'$bgColor="{style["fillColor"]}"' if style.get("fillColor") else None,
+            f'$borderColor="{style["strokeColor"]}"' if style.get("strokeColor") else None,
+        ]
+        present = [a for a in args if a]
+        if present:
+            lines.append(f"UpdateElementStyle({node['id']}, {', '.join(present)})")
+    by_pair: dict[tuple[str, str], list[dict[str, Any]]] = {}
+    for edge in model["edges"]:
+        by_pair.setdefault((edge["sourceId"], edge["targetId"]), []).append(edge)
+    for first, *rest in by_pair.values():
+        colour = (first.get("style") or {}).get("strokeColor")
+        if not colour or any((edge.get("style") or {}).get("strokeColor") != colour for edge in rest):
+            continue
+        lines.append(f'UpdateRelStyle({first["sourceId"]}, {first["targetId"]}, $lineColor="{colour}")')
+    return lines
 
 
 def _flowchart_lines(result: dict[str, Any]) -> list[str]:
     if "model" not in result:
         return []
     model = result["model"]
-    lines = []
-    for node in model["nodes"]:
-        props = _style_props(node.get("style"))
-        if props:
-            lines.append(f"  style {node['id']} {props}")
+    lines = _node_style_lines(result, "  ")
     for index, edge in enumerate(model["edges"]):
         props = _style_props(edge.get("style"))
         if props:

@@ -1,0 +1,22 @@
+sequenceDiagram
+box rgb(33,66,99) Frontend team
+  actor U as User
+  participant W
+end
+box transparent
+  participant X
+end
+box Aqua Backend
+  participant API as The API
+end
+box
+end
+box rgba(1, 2, 3, 0.5)
+  participant Y
+end
+participant Z
+U->>W: click
+W->>API: call
+API->>X: store
+X->>Y: log
+Y->>Z: done

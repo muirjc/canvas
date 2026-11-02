@@ -11,7 +11,7 @@ __all__ = ["detect_dsl_family"]
 
 _S = f"[{JS_WHITESPACE}]"
 HEADER_TO_FAMILY: list[tuple[re.Pattern[str], str]] = [
-    (re.compile(f"^(?:flowchart|graph){_S}+(TD|LR|TB|RL|BT)$", re.IGNORECASE), "flowchart"),
+    (re.compile(f"^(?:flowchart|graph){_S}+(TD|LR|TB|RL|BT)$", re.IGNORECASE | re.ASCII), "flowchart"),
     (re.compile("^C4(Context|Container|Component|Dynamic|Deployment)$"), "c4"),
     (re.compile("^sequenceDiagram$"), "sequence"),
     (re.compile("^erDiagram$"), "erd"),

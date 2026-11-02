@@ -1,0 +1,46 @@
+---
+canvas:
+  positions:
+    app:
+      x: 80
+      y: 140
+    db:
+      x: 360
+      y: 140
+  styles: {}
+  edgeStyles: {}
+  containers:
+    cloud:
+      x: 40
+      y: 40
+      width: 760
+      height: 213
+    left:
+      x: 60
+      y: 90
+      width: 240
+      height: 130
+    right:
+      x: 340
+      y: 90
+      width: 240
+      height: 143
+    n:
+      x: 620
+      y: 90
+      width: 160
+      height: 100
+---
+C4Deployment
+title Deployment
+Deployment_Node(cloud, "Cloud", "Azure", "Primary region", $tags="prod") {
+Deployment_Node(left, "Left node", "VM") {
+  Container(app, "App", "Python")
+}
+Deployment_Node(right, "Right node") {
+  ContainerDb(db, "DB", "Postgres", "Data")
+}
+Deployment_Node(n, "Plain", "", "described only") {
+}
+}
+Rel(app, db, "SQL", "TLS")

@@ -1,0 +1,89 @@
+{
+  "containers": [
+    {
+      "id": "A",
+      "label": "A",
+      "position": {
+        "x": 40,
+        "y": 40
+      },
+      "role": "namespace",
+      "size": {
+        "height": 270,
+        "width": 620
+      }
+    },
+    {
+      "id": "A.B",
+      "label": "B",
+      "parentContainerId": "A",
+      "position": {
+        "x": 60,
+        "y": 90
+      },
+      "role": "namespace",
+      "size": {
+        "height": 200,
+        "width": 580
+      }
+    },
+    {
+      "id": "A.B.C",
+      "label": "C",
+      "parentContainerId": "A.B",
+      "position": {
+        "x": 80,
+        "y": 140
+      },
+      "role": "namespace",
+      "size": {
+        "height": 130,
+        "width": 360
+      }
+    }
+  ],
+  "diagramTypeId": "uml",
+  "edges": [
+    {
+      "id": "e1",
+      "sourceId": "X",
+      "targetId": "Y",
+      "umlRelationKind": "association"
+    }
+  ],
+  "nodes": [
+    {
+      "containerId": "A.B.C",
+      "id": "X",
+      "label": "X",
+      "position": {
+        "x": 100,
+        "y": 190
+      },
+      "role": "class",
+      "shape": "rectangle"
+    },
+    {
+      "containerId": "A.B.C",
+      "id": "Y",
+      "label": "Y",
+      "position": {
+        "x": 280,
+        "y": 190
+      },
+      "role": "class",
+      "shape": "rectangle"
+    },
+    {
+      "containerId": "A.B",
+      "id": "Z",
+      "label": "Z",
+      "position": {
+        "x": 480,
+        "y": 140
+      },
+      "role": "class",
+      "shape": "rectangle"
+    }
+  ]
+}

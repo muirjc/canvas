@@ -1,0 +1,18 @@
+C4Context
+  System_Boundary(grp, "Group") {
+    System(a, "A")
+    System_Boundary(other, "Other") {
+      System(b, "B")
+    }
+  }
+  System(c, "C no position")
+  System(d, "D no position")
+  Rel(a, b, "styled")
+  Rel(b, c, "plain")
+  UpdateElementStyle(a, $borderColor="#000")
+  UpdateElementStyle(b, $bgColor="blue")
+  UpdateRelStyle(a, b, $lineColor="#654321")
+%% Colours for Mermaid tools outside Canvas (added on export).
+UpdateElementStyle(a, $bgColor="#eeeeee", $borderColor="#000")
+UpdateElementStyle(b, $bgColor="blue")
+UpdateRelStyle(a, b, $lineColor="#654321")

@@ -1,0 +1,19 @@
+architecture-beta
+  service s1(server)[One]
+  service s2(server)[Two]
+  service s3(server)[Three]
+  service s4(server)[Four]
+  service s5(server)[Five]
+  service s6(server)[Six]
+  service s7(server)[Seven with a long label that wraps across lines]
+  service s8(server)[Eight]
+  group g1(cloud)[Group one]
+  group g2(cloud)[Group two]
+  group g3(cloud)[Group three]
+  service in1(server)[In one] in g1
+  service in2(server)[In two] in g2
+  s1 -- s2
+  s2 -- s3
+  s3 --> s4
+  s5:B -- T:s6
+  in1 --> in2

@@ -1,0 +1,35 @@
+---
+canvas:
+  positions:
+    a:
+      x: 40
+      y: 40
+    b:
+      x: 220
+      y: 40
+    c:
+      x: 400
+      y: 40
+  styles:
+    a:
+      fillColor: "#ff0000"
+      strokeColor: "#000000"
+    b:
+      fillColor: grey
+      strokeColor: black
+    c:
+      fillColor: a, b
+  edgeStyles:
+    e1:
+      strokeColor: blue
+    e2:
+      strokeColor: blue
+  containers: {}
+---
+C4Context
+System(a, "A")
+System(b, "B")
+System(c, "C")
+Rel(a, b, "ab")
+Rel(a, b, "ab again")
+Rel(b, c, "bc")

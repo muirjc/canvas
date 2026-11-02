@@ -1,0 +1,19 @@
+{
+  "errors": [
+    {
+      "content": "  a -> b",
+      "line": 4,
+      "message": "Could not interpret line as a group, service, junction, align, or edge: \"a -> b\""
+    },
+    {
+      "content": "  group g(cloud)",
+      "line": 5,
+      "message": "Could not interpret line as a group, service, junction, align, or edge: \"group g(cloud)\""
+    },
+    {
+      "content": "  a:X -- Y:b",
+      "line": 6,
+      "message": "Could not interpret line as a group, service, junction, align, or edge: \"a:X -- Y:b\""
+    }
+  ]
+}

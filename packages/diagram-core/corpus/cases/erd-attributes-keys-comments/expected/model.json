@@ -1,0 +1,97 @@
+{
+  "containers": [],
+  "diagramTypeId": "erd",
+  "edges": [
+    {
+      "erSourceCardinality": "}o",
+      "erTargetCardinality": "||",
+      "id": "e1",
+      "label": "owned by",
+      "sourceId": "CAR",
+      "targetId": "PERSON"
+    }
+  ],
+  "nodes": [
+    {
+      "attributes": [
+        {
+          "comment": "the plate",
+          "keys": [
+            "PK"
+          ],
+          "name": "registrationNumber",
+          "type": "string"
+        },
+        {
+          "keys": [],
+          "name": "make",
+          "type": "string"
+        },
+        {
+          "comment": "e.g. Civic",
+          "keys": [],
+          "name": "model",
+          "type": "string"
+        },
+        {
+          "keys": [],
+          "name": "year",
+          "type": "int"
+        },
+        {
+          "comment": "owner",
+          "keys": [
+            "FK",
+            "UK"
+          ],
+          "name": "ownerId",
+          "type": "string"
+        },
+        {
+          "keys": [
+            "PK",
+            "UK"
+          ],
+          "name": "vin",
+          "type": "string"
+        },
+        {
+          "keys": [
+            "PK",
+            "FK"
+          ],
+          "name": "other",
+          "type": "string"
+        },
+        {
+          "keys": [],
+          "name": "comment_only",
+          "type": "string"
+        },
+        {
+          "keys": [],
+          "name": "note",
+          "type": "varchar(255)"
+        }
+      ],
+      "id": "CAR",
+      "label": "CAR",
+      "position": {
+        "x": 40,
+        "y": 40
+      },
+      "role": "entity",
+      "shape": "rectangle"
+    },
+    {
+      "id": "PERSON",
+      "label": "PERSON",
+      "position": {
+        "x": 240,
+        "y": 40
+      },
+      "role": "entity",
+      "shape": "rectangle"
+    }
+  ]
+}

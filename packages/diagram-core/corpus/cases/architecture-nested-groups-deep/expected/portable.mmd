@@ -1,0 +1,14 @@
+architecture-beta
+  group outer(cloud)[Outer]
+  group middle(server)[Middle] in outer
+  group inner(logos:aws)[Inner] in middle
+  group empty(cloud)[Empty] in outer
+  service a(server)[A] in inner
+  service b(database)[B] in inner
+  service c(disk)[C] in middle
+  service d(internet)[D] in outer
+  service top(server)[Top]
+  a:R --> L:b
+  c:B -- T:a
+  d{group}:L --> R:c{group}
+  top --> d

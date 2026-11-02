@@ -1,0 +1,32 @@
+---
+canvas:
+  positions:
+    a: { x: 100, y: 50 }
+    b: { x: 400.5, y: 50 }
+  styles:
+    a: { fillColor: "#eeeeee", strokeWidth: 2 }
+    b: "red"
+  edgeStyles:
+    e1: { strokeColor: "#123456" }
+  containers:
+    grp: { x: 10, y: 20, width: 600, height: 300 }
+    other: { x: 5, y: 6 }
+  legend:
+    visible: true
+    title: Key
+    position: { x: 700, y: 10 }
+---
+C4Context
+  System_Boundary(grp, "Group") {
+    System(a, "A")
+    System_Boundary(other, "Other") {
+      System(b, "B")
+    }
+  }
+  System(c, "C no position")
+  System(d, "D no position")
+  Rel(a, b, "styled")
+  Rel(b, c, "plain")
+  UpdateElementStyle(a, $borderColor="#000")
+  UpdateElementStyle(b, $bgColor="blue")
+  UpdateRelStyle(a, b, $lineColor="#654321")

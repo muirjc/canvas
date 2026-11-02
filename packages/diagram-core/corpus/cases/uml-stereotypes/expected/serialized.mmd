@@ -1,0 +1,43 @@
+---
+canvas:
+  positions:
+    Shape:
+      x: 40
+      y: 40
+    Animal:
+      x: 220
+      y: 40
+    Color:
+      x: 400
+      y: 40
+    Later:
+      x: 580
+      y: 40
+    Late:
+      x: 760
+      y: 40
+    Square:
+      x: 940
+      y: 40
+    Container:
+      x: 40
+      y: 170
+  styles: {}
+  containers: {}
+---
+classDiagram
+class Shape <<interface>>
+class Animal <<abstract>> {
+  +eat()
+}
+class Color <<enumeration>> {
+  RED
+  GREEN
+}
+class Later <<service>>
+class Late <<entity>> {
+  +id
+}
+class Square~Shape~ <<value>>
+class Container~Key, Value~
+Square ..|> Shape

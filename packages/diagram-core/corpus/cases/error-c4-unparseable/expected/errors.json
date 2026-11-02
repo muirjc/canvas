@@ -1,0 +1,24 @@
+{
+  "errors": [
+    {
+      "content": "  Person(b)",
+      "line": 3,
+      "message": "Could not interpret line as a C4 element, relationship, or boundary: \"Person(b)\""
+    },
+    {
+      "content": "  Rel(a, \"B\", \"bad\")",
+      "line": 4,
+      "message": "Could not interpret line as a C4 element, relationship, or boundary: \"Rel(a, \"B\", \"bad\")\""
+    },
+    {
+      "content": "  }",
+      "line": 5,
+      "message": "\"}\" with no matching boundary"
+    },
+    {
+      "content": "  title",
+      "line": 7,
+      "message": "Could not interpret line as a C4 element, relationship, or boundary: \"title\""
+    }
+  ]
+}

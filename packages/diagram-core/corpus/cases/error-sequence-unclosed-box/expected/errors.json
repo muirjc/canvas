@@ -1,0 +1,24 @@
+{
+  "errors": [
+    {
+      "content": "    A->>B: not allowed in box",
+      "line": 7,
+      "message": "Could not interpret line as a participant/actor inside a \"box\" block: \"A->>B: not allowed in box\""
+    },
+    {
+      "content": "  loop outer",
+      "line": 2,
+      "message": "Unclosed 'loop' block opened at line 2"
+    },
+    {
+      "content": "    alt inner",
+      "line": 3,
+      "message": "Unclosed 'alt' block opened at line 3"
+    },
+    {
+      "content": "  box Team",
+      "line": 5,
+      "message": "Unclosed 'box' block opened at line 5"
+    }
+  ]
+}
