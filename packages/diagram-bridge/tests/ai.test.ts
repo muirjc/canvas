@@ -37,6 +37,7 @@ describe('diagram-core bridge: AI ops', () => {
 
   const post = async (op: string, body: unknown) => {
     const res = await fetch(`${base}/${op}`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- loosely typed bridge responses
     return { status: res.status, json: (await res.json()) as Record<string, any> };
   };
   const parse = async (family: string, dsl: string) => (await post('parse', { family, dsl })).json.model;
