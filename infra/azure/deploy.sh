@@ -136,16 +136,12 @@ case "$AUTH_MODE" in
   *) echo "ERROR: CANVAS_AUTH_MODE must be entra or local (got: $AUTH_MODE)." >&2; exit 1 ;;
 esac
 
-# canvas-1bty.14: canvas-api runs the Python service; CANVAS_TYPESCRIPT_ROUTE_GROUPS names route groups it
-# sends back to the internal TypeScript service, canvas-api-ts (the one-release fallback): unset or "none" =
-# none, or groups from apps/api/src/python/route-groups.ts, comma-separated. Not remembered between runs:
-# set it on each deploy while you need it.
-if [[ -n "${CANVAS_PYTHON_ROUTE_GROUPS:-}" ]]; then
-  echo "ERROR: CANVAS_PYTHON_ROUTE_GROUPS is gone since the front door moved to Python (canvas-1bty.14):" >&2
-  echo "       name the groups to send back to TypeScript in CANVAS_TYPESCRIPT_ROUTE_GROUPS instead." >&2
+# canvas-1bty.16: the TypeScript API is gone, and with it the fallback that sent route groups back to it.
+if [[ -n "${CANVAS_PYTHON_ROUTE_GROUPS:-}${CANVAS_TYPESCRIPT_ROUTE_GROUPS:-}" ]]; then
+  echo "ERROR: CANVAS_PYTHON_ROUTE_GROUPS / CANVAS_TYPESCRIPT_ROUTE_GROUPS are gone: the TypeScript API was" >&2
+  echo "       removed (canvas-1bty.16) and the Python service answers every route. Unset them." >&2
   exit 1
 fi
-TYPESCRIPT_ROUTE_GROUPS="${CANVAS_TYPESCRIPT_ROUTE_GROUPS:-}"
 # canvas-1bty.15.8: diagram-core is native Python; the bridge sidecar and its shadow/bridge modes are gone.
 if [[ -n "${CANVAS_DIAGRAM_CORE_MODE:-}" ]]; then
   echo "ERROR: CANVAS_DIAGRAM_CORE_MODE is gone: diagram-core always answers natively in Python since the" >&2
@@ -185,7 +181,7 @@ OIDC_CLIENT_SECRET="$(cat "$OIDC_CLIENT_SECRET_FILE")"
 
 # canvas-brq: AI provider + keys. Previously AI_PROVIDER was hardwired to mock (main.bicep never
 # forwarded apiapp.bicep's aiProvider param) and the keys were read from a repo-root .env that
-# doesn't exist in this repo (the real dev key lives in apps/api/.env), so Key Vault only ever got
+# doesn't exist in this repo (the real dev key lives in apps/api-py/.env), so Key Vault only ever got
 # the "unset" placeholder. Same caching shape as ENTRA_CLIENT_SECRET above: an env var, if set, is
 # written to .secrets/ so it only has to be supplied once; the provider choice is cached too, so a
 # routine re-run without CANVAS_AI_PROVIDER doesn't silently flip a live environment back to mock.
@@ -268,7 +264,7 @@ if [[ "$AUTH_MODE" == local ]]; then
     exit 1
   fi
   if [[ ! -f "$BOOTSTRAP_PASSWORD_FILE" ]]; then
-    # 20 alphanumerics (~119 bits); passes the password policy (apps/api/src/auth/password-policy.ts).
+    # 20 alphanumerics (~119 bits); passes the password policy (apps/api-py/src/canvas_api/auth/passwords.py).
     openssl rand -base64 48 | tr -dc 'A-Za-z0-9' | head -c 20 > "$BOOTSTRAP_PASSWORD_FILE"
     chmod 600 "$BOOTSTRAP_PASSWORD_FILE"
   fi
@@ -445,10 +441,7 @@ fi
 if [[ "$WHAT_IF_ONLY" == true ]]; then
   :
 elif [[ -n "$EXISTING_ACR" ]]; then
-  # canvas-1bty.14: the TypeScript API now runs internal-only as canvas-api-ts (and in the jobs).
-  echo "== Building API image (repo root Dockerfile) to $EXISTING_ACR, tag $API_IMAGE_TAG =="
-  az acr build --registry "$EXISTING_ACR" --image "canvas-api:${API_IMAGE_TAG}" "$REPO_ROOT" --output none
-  # canvas-1bty.14: the Python backend, which canvas-api runs (the front door, with the web app built in).
+  # The one image: the Python backend with the web app built in, which canvas-api and every job run.
   echo "== Building Python API image (apps/api-py/Dockerfile) to $EXISTING_ACR, tag $API_IMAGE_TAG =="
   az acr build --registry "$EXISTING_ACR" --image "canvas-api-py:${API_IMAGE_TAG}" --file "$REPO_ROOT/apps/api-py/Dockerfile" "$REPO_ROOT" --output none
 else
@@ -465,7 +458,7 @@ az deployment sub what-if \
     webOrigin="$WEB_ORIGIN" grantAcrPull="$GRANT_ACR_PULL" \
     entraTenantId="$ENTRA_TENANT_ID" entraClientId="$ENTRA_CLIENT_ID" aiProvider="$AI_PROVIDER" \
     allowedIpRanges="$ALLOWED_IPS_JSON" authMode="$AUTH_MODE" adminEmail="$ADMIN_EMAIL" oidcClientAuth="$OIDC_CLIENT_AUTH" \
-    githubAppId="$GITHUB_APP_ID" typescriptRouteGroups="$TYPESCRIPT_ROUTE_GROUPS"
+    githubAppId="$GITHUB_APP_ID"
 
 echo
 if [[ "$WHAT_IF_ONLY" == true ]]; then
@@ -492,7 +485,7 @@ az deployment sub create \
     webOrigin="$WEB_ORIGIN" grantAcrPull="$GRANT_ACR_PULL" \
     entraTenantId="$ENTRA_TENANT_ID" entraClientId="$ENTRA_CLIENT_ID" aiProvider="$AI_PROVIDER" \
     allowedIpRanges="$ALLOWED_IPS_JSON" authMode="$AUTH_MODE" adminEmail="$ADMIN_EMAIL" oidcClientAuth="$OIDC_CLIENT_AUTH" \
-    githubAppId="$GITHUB_APP_ID" typescriptRouteGroups="$TYPESCRIPT_ROUTE_GROUPS" \
+    githubAppId="$GITHUB_APP_ID" \
   --output table
 
 STORAGE_ACCOUNT="$(az deployment sub show --name "canvas-foundation" --query "properties.outputs.storageAccountName.value" -o tsv)"
@@ -531,7 +524,7 @@ CATALOG_SEED_JOB="$(az deployment sub show --name "canvas-foundation" --query "p
 BOOTSTRAP_JOB="$(az deployment sub show --name "canvas-foundation" --query "properties.outputs.bootstrapAdminJobName.value" -o tsv)"
 GITHUB_SYNC_JOB="$(az deployment sub show --name "canvas-foundation" --query "properties.outputs.githubSyncJobName.value" -o tsv 2>/dev/null || true)"
 
-# canvas-28j: force canvas-api, canvas-api-ts and the jobs to refetch any KV secret this (or an earlier,
+# canvas-28j: force canvas-api and the jobs to refetch any KV secret this (or an earlier,
 # interrupted) run changed -- see PENDING_REFRESH_FILE above. Re-setting a secret with its same
 # keyvaultref makes Container Apps re-read it from Key Vault; canvas-api's running replicas then
 # need a revision restart to see it (a secret change creates no new revision), while a job's next
@@ -546,8 +539,7 @@ refresh_kv_secret_refs() {
   echo "== Refreshing rotated Key Vault secret references: ${changed//$'\n'/ } =="
   identity_id="$(az identity show --resource-group "$RESOURCE_GROUP" --name canvas-identity --query id -o tsv)"
   kv_uri="$(az keyvault show --name "$KEY_VAULT_NAME" --query properties.vaultUri -o tsv)"
-  # canvas-api (Python since canvas-1bty.14) and canvas-api-ts share the same Key Vault secrets.
-  for target in "app:canvas-api" "app:canvas-api-ts" "job:$MIGRATION_JOB" "job:$SEED_JOB" "job:$CATALOG_SEED_JOB" "job:$BOOTSTRAP_JOB" "job:$GITHUB_SYNC_JOB"; do
+  for target in "app:canvas-api" "job:$MIGRATION_JOB" "job:$SEED_JOB" "job:$CATALOG_SEED_JOB" "job:$BOOTSTRAP_JOB" "job:$GITHUB_SYNC_JOB"; do
     kind="${target%%:*}"; name="${target#*:}"
     [[ -n "$name" ]] || continue  # a job this auth mode doesn't deploy (canvas-ez1.3)
     local -a cmd=(az containerapp)
@@ -578,6 +570,11 @@ refresh_kv_secret_refs
 if az containerapp show --name canvas-api-py --resource-group "$RESOURCE_GROUP" --output none 2>/dev/null; then
   echo "== Removing canvas-api-py (the Python service now runs as canvas-api) =="
   az containerapp delete --name canvas-api-py --resource-group "$RESOURCE_GROUP" --yes --output none
+fi
+# canvas-1bty.16: the TypeScript API ran internal-only as canvas-api-ts, the one-release fallback; it's gone.
+if az containerapp show --name canvas-api-ts --resource-group "$RESOURCE_GROUP" --output none 2>/dev/null; then
+  echo "== Removing canvas-api-ts (the TypeScript API was retired) =="
+  az containerapp delete --name canvas-api-ts --resource-group "$RESOURCE_GROUP" --yes --output none
 fi
 
 # canvas-r3y: the web app is built into the canvas-api image and served from its URL. The old
@@ -687,7 +684,7 @@ echo "seeded (canvas-seed-catalog, above) -- the environment is usable as-is. To
 echo "throwaway dev/demo content (one default project, one admin login) on top of that, run:"
 echo "  az containerapp job start --name $SEED_JOB --resource-group $RESOURCE_GROUP"
 echo "NOT run automatically -- it creates a demo admin account with a published local password"
-echo "(apps/api/src/seed/run.ts), appropriate for a throwaway/demo environment, not unprompted"
+echo "(apps/api-py/src/canvas_api/jobs/seed_demo.py), appropriate for a throwaway/demo environment, not unprompted"
 echo "on every deploy of something meant to hold real data."
 echo
 echo "== Entra app registration -- action required =="
@@ -717,6 +714,6 @@ if [[ "$OIDC_CLIENT_AUTH" == managed-identity ]]; then
   echo "Then delete the app registration's old client secret(s) -- nothing uses them any more."
   echo
 fi
-echo "App roles (admin/architect/viewer -- apps/api/src/auth/types.ts's UserRole) and user/group"
+echo "App roles (admin/architect/viewer -- apps/api-py/src/canvas_api/auth/roles.py's Role) and user/group"
 echo "assignment are also managed entirely in the Entra portal; see RUNBOOK.md for the full"
 echo "one-time app-registration setup this environment depends on."

@@ -43,23 +43,25 @@ formats — edits to the DSL update the canvas, and canvas edits regenerate the 
 
 ## Tech stack
 
-TypeScript end-to-end, as an npm-workspaces monorepo:
+An npm-workspaces monorepo for the frontend and shared packages, plus a Python backend:
 
 ```text
-apps/web/src/{canvas,palette,standards,admin,projects,app}   # React + Vite frontend
-apps/api/src/{diagrams,standards,libraries,projects,sharing,admin,export,auth}  # Fastify backend
-packages/diagram-core/src/{model,dsl,standards,libraries}    # shared Mermaid parser/serializer/validator
+apps/web/src/{canvas,palette,standards,admin,projects,app}   # React + Vite frontend (TypeScript)
+apps/api-py/src/canvas_api/                                  # FastAPI backend (Python 3.13, uv)
+packages/diagram-core/src/{model,dsl,standards,libraries}    # Mermaid parser/serializer/validator (TypeScript)
 ```
 
-`diagram-core` is used identically by both the frontend (validating/rendering as you edit) and the
-backend (parsing on import/save) — see `specs/001-diagramming-platform/plan.md`. Diagrams persist
-to PostgreSQL (default) or SQLite — see "Getting started" below — via Kysely, a typed SQL query
-compiler, not an ORM; icon/shape library assets live in a blob store.
+The browser runs `packages/diagram-core` as you edit. The backend runs a Python port of it
+(`canvas_api/diagram_core/`) for import, save, validation, export and the AI tools; tests keep the
+two identical. Diagrams persist to PostgreSQL (default) or SQLite through SQLAlchemy Core (a query
+builder, not the ORM). The backend also serves the built web app in production. The TypeScript
+backend (`apps/api`) was removed in November 2026; its last version is at tag `typescript-api-final`.
 
 ## Getting started
 
-Requirements: Node.js 22 LTS, npm, and **either** Docker (for PostgreSQL, the default) **or**
-nothing extra at all (SQLite, bundled via `better-sqlite3` — no server process to run).
+Requirements: Node.js 22 LTS and npm (for the web app), [uv](https://docs.astral.sh/uv/) (it
+installs Python 3.13 for you), and **either** Docker (for PostgreSQL, the default) **or** nothing
+extra (SQLite).
 
 ```bash
 git clone https://github.com/muirjc/canvas.git
@@ -69,39 +71,40 @@ npm install
 # Start PostgreSQL (host port 5433, to avoid colliding with a local Postgres on 5432)
 docker compose up -d
 
-# Build the shared package first — apps/api and apps/web resolve it via its built dist/ output
+# Build the shared package first: apps/web resolves it via its built dist/ output
 npm run build --workspace=@canvas/diagram-core
 
-cp apps/api/.env.example apps/api/.env
-# then edit apps/api/.env: set ALLOW_LOCAL_AUTH=true for local dev/demo login
+cd apps/api-py
+uv sync
+cp .env.example .env        # local defaults; ALLOW_LOCAL_AUTH=true for the demo logins
+uv run --env-file .env python -m canvas_api.jobs.seed_demo   # migrates, seeds; prints logins + a project id
+uv run --env-file .env uvicorn canvas_api.main:app --port 3000 --reload   # http://localhost:3000
 
-npm run migrate --workspace=@canvas/api
-npm run seed --workspace=@canvas/api    # prints the seeded admin login + a demo project id
-
-npm run dev --workspace=@canvas/api     # http://localhost:3000
+# In another terminal, from the repository root:
 npm run dev --workspace=@canvas/web     # http://localhost:5173
 ```
 
-Then open `http://localhost:5173/?projectId=<the id printed by seed>` and sign in with the printed
-admin credentials.
+Then open `http://localhost:5173/?projectId=<the id printed by seed_demo>` and sign in with the
+printed admin credentials.
 
-**No Docker/Postgres at all?** Set `DB_CLIENT=sqlite` and point `DATABASE_URL` at a local file
-instead (e.g. `DATABASE_URL=./data/canvas.db`) in `apps/api/.env`, skip the `docker compose up -d`
-step above, and run the same `migrate`/`seed`/`dev` commands — see `RUNBOOK.md`'s "Database engine"
-section for the SQLite vs. PostgreSQL trade-off.
+**No Docker/Postgres at all?** In `apps/api-py/.env` set `DB_CLIENT=sqlite` and
+`DATABASE_URL=./data/canvas.db` (run `mkdir -p data` in `apps/api-py` first), skip
+`docker compose up -d`, and run the same commands. See `RUNBOOK.md`'s "Database engine" section for
+the SQLite vs. PostgreSQL trade-off.
 
 See **[RUNBOOK.md](RUNBOOK.md)** for day-to-day operational commands, troubleshooting, Entra ID
 SSO setup, and environment variable reference, and `specs/*/quickstart.md` for a step-by-step
-manual walkthrough of each feature.
+manual walkthrough of each feature (older ones cite the removed `apps/api` npm scripts).
 
 ## Deployment
 
 **[infra/azure/README.md](infra/azure/README.md)** has a reproducible Bicep IaC deployment to
-Azure — resource group, private VNet-integrated Postgres, Key Vault-backed secrets, a Container App
-for the API, and a Storage static site for the frontend, plus pause/resume/destroy lifecycle
-scripts for cost control. An IP allow-list restricts both to your networks.
+Azure — resource group, private VNet-integrated Postgres, Key Vault-backed secrets, and one
+Container App that serves both the API and the web app, plus pause/resume/destroy lifecycle
+scripts for cost control. An IP allow-list restricts it to your networks.
 
 Two sign-in models:
+
 - **Microsoft Entra ID** (default) — `ENTRA_CLIENT_ID=<app id> ./deploy.sh`.
 - **Canvas-managed accounts** (no Entra tenant needed) — email + password plus an authenticator app
   (TOTP) for everyone, account lockout and an audit log:
@@ -116,22 +119,23 @@ Two sign-in models:
   its cost, the audit log, recovery). Screenshots are regenerated with
   `npm run docs:screenshots --workspace=@canvas/web` against a local app with demo data.
 - **[docs/business-requirements.md](docs/business-requirements.md)** — the business rationale,
-  objectives, and requirements (the *why*).
+  objectives, and requirements (the _why_).
 - **[docs/solution-architecture-document.md](docs/solution-architecture-document.md)** — the
-  technical architecture: stack, data model, security, AI integration, deployment (the *how*).
+  technical architecture: stack, data model, security, AI integration, deployment (the _how_).
 - **[docs/technology-stack.md](docs/technology-stack.md)** — the complete dependency manifest:
-  every package and pinned version across all four workspaces, plus runtime/infra requirements.
-- **API reference** — a live OpenAPI/Swagger UI at `/docs` on the API server (opt-in; see
-  `RUNBOOK.md`'s environment variable table for `ENABLE_API_DOCS`).
+  every npm and Python package and its version, plus runtime/infra requirements.
+- **API reference** — FastAPI's Swagger UI at `/docs` (JSON at `/openapi.json`) on the API server
+  (opt-in; see `ENABLE_API_DOCS` in `RUNBOOK.md`). The frozen API contract is
+  `apps/api-py/contract/openapi.json`.
 
 ## Testing
 
 ```bash
-npm run build --workspace=@canvas/diagram-core   # required before api/web tests — see above
+npm run build --workspace=@canvas/diagram-core   # required before web tests — see above
 npm run test --workspace=@canvas/diagram-core     # parser/serializer/validator contract tests
-npm run test --workspace=@canvas/api              # API contract tests (needs Postgres running by default)
-TEST_DB_CLIENT=sqlite npm run test --workspace=@canvas/api   # same suite against SQLite — no Postgres needed
-npm run test:e2e --workspace=@canvas/web          # Playwright E2E (needs api + web dev servers running)
+(cd apps/api-py && uv run pytest)                 # API tests (Postgres: needs the canvas_test database, see RUNBOOK)
+(cd apps/api-py && TEST_DB_CLIENT=sqlite uv run pytest)   # same suite against SQLite — no Postgres needed
+npm run test:e2e --workspace=@canvas/web          # Playwright E2E (needs the API and web dev servers running)
 ```
 
 `diagram-core`'s round-trip and standards-validation contract tests are non-negotiable — they
@@ -141,8 +145,9 @@ exist (and must fail before implementation) for every new diagram type or export
 ## CI
 
 GitHub Actions (`.github/workflows/ci.yml`) runs on every push to `main` and every PR: lint +
-build, a third-party licence check (see [License](#license)), the `diagram-core`/`api` test suites as a `db-client: [postgres, sqlite]` matrix (so both
-supported database engines are continuously verified, not just Postgres), and the full Playwright
+build, a third-party licence check (see [License](#license)), the Python API suite (with ruff and
+mypy) as a `db-client: [postgres, sqlite]` matrix, so both supported database engines are tested,
+plus the TypeScript packages' tests, and the full Playwright
 E2E suite (Postgres only — see `docs/solution-architecture-document.md` §14). `main` is protected
 — changes land via PR once CI is green.
 
@@ -159,9 +164,9 @@ Canvas is licensed under the [Apache License 2.0](LICENSE). Third-party icon art
 generated for the icon libraries (e.g. Microsoft Azure Architecture Icons) remains under its
 owners' own terms — see each library manifest's `license` field.
 
-[THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md) lists every production npm package Canvas ships,
-with its licence text, plus the icon artwork terms. It ships in the API image (next to `LICENSE`)
-and in the web build (`/third-party-notices.txt`, `/license.txt`). After changing dependencies, run
+[THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md) lists every production npm and Python package
+Canvas ships, with its licence text, plus the icon artwork terms. It ships in the web build
+(`/third-party-notices.txt`, `/license.txt`). After changing dependencies (npm or `uv`), run
 `npm run licenses` and commit the regenerated file. CI's `npm run licenses:check` fails if the file
 is out of date or if a dependency's licence isn't on the allow-list in
 `scripts/third-party-notices.mjs` (MIT, ISC, Apache-2.0, BSD, 0BSD, BlueOak, MPL-2.0, ...); add a

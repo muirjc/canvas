@@ -1595,7 +1595,7 @@ export function Canvas({ model: modelProp, onChange: onChangeProp, dslFamily, to
   // icon-bearing service to role: 'junction' would produce a state architecture.ts's own parser
   // could never itself produce (a junction is always shape: 'circle' with no icon, dsl/
   // architecture.ts:123-137). addNode + updateNodeRole is the same two-step composition
-  // NODE_ROLE_OPTIONS.architecture's own doc comment (apps/api/src/ai/diagram-tools.ts) describes
+  // NODE_ROLE_OPTIONS.architecture's own doc comment (apps/api-py/src/canvas_api/diagram_core/ai/tools.py) describes
   // for the AI-tool side of this same gap.
   const handleAddJunction = () => {
     const withNode = addNode(model, { shape: 'circle' });

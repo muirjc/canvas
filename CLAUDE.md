@@ -71,13 +71,16 @@ Auto-generated from all feature plans. Last updated: 2026-10-02
 
 ```text
 apps/web/src/{canvas,palette,standards,admin,projects,app}   # frontend
-apps/api/src/{diagrams,standards,libraries,projects,sharing,admin,export,auth}  # backend
-packages/diagram-core/src/{model,dsl,standards,libraries}    # shared parser/serializer/validator
+apps/api-py/src/canvas_api/{routes,auth,ai,github,jobs,seed,diagram_core,front_door}  # backend (Python)
+apps/api-py/{migrations,contract}                            # schema (Postgres + sqlite/), frozen API contract
+packages/diagram-core/src/{model,dsl,standards,libraries}    # parser/serializer/validator (browser, validator CLI)
+packages/diagram-bridge                                      # test-only TS reference for the Python port
 ```
 
 ## Commands
 
-npm run test --workspace=@canvas/diagram-core && npm run test --workspace=@canvas/api && npm run test --workspace=@canvas/web
+npm run test --workspace=@canvas/diagram-core && npm run test --workspace=@canvas/web
+cd apps/api-py && uv run ruff check . && uv run mypy && TEST_DB_CLIENT=sqlite uv run pytest   # and =postgres
 
 ## User and admin guides
 
@@ -93,6 +96,21 @@ tests are NON-NEGOTIABLE and must exist (and fail) before implementing any diagr
 work — see `.specify/memory/constitution.md` Principle IV.
 
 ## Recent Changes
+- `canvas-1bty.16` part 2 (Python phase 12b): **the TypeScript API is gone.** `apps/api` deleted (tag
+  `typescript-api-final` is the last commit with it; comments citing `apps/api/...` mean that tag), with the
+  repo-root Dockerfile, `infra/azure/modules/tsapiapp.bicep` and the `canvas-api-ts` app (deploy.sh deletes it).
+  Moved: migrations to `apps/api-py/migrations`, the contract (`openapi.json`, `constants.json`, now frozen and
+  edited by hand with the route; `routeGroups` dropped) to `apps/api-py/contract`. Removed from Python: the
+  TypeScript fallback (`TYPESCRIPT_API_URL`/`TYPESCRIPT_ROUTE_GROUPS`, `front_door/route_groups.py`,
+  `match_route`), `TRUST_CLIENT_IP_HEADER` (a client-sent `X-Canvas-Client-IP` is ignored), `/py/me`; deploy.sh
+  refuses `CANVAS_TYPESCRIPT_ROUTE_GROUPS`. `/docs` is FastAPI's Swagger page and `/openapi.json` its document,
+  both only with `ENABLE_API_DOCS=true` (before, /openapi.json was always served). The bridge lost its AI ops
+  (they bundled apps/api's AI code; `tests/data/ai_tools_vectors.json` stays as fixed data); tests that ran
+  TypeScript at test time (seed parity, Python-made hashes/ciphertexts/TOTP checked in Node) are gone, the
+  TypeScript-made vectors stay. CI: `unit-tests (postgres|sqlite)` (required checks) now run the Python suite
+  plus the TS packages' tests, so a red Python suite blocks merging (it didn't, #303); e2e starts only Python.
+  Licence notices cover the Python packages (`npm run licenses`). Local settings: `apps/api-py/.env`
+  (`uv run --env-file .env ...`; `.env.example`).
 - `canvas-1bty.16` part 1 (Python phase 12a): **the jobs are Python.** `apps/api-py/src/canvas_api/jobs/`:
   `migrate`, `seed_catalog`, `seed_demo`, `bootstrap_admin`, `purge` (`--dry-run`), `e2e_reset`, each run as
   `python -m canvas_api.jobs.<name>` (env: `DB_CLIENT`, `DATABASE_URL`, `SESSION_SECRET`, plus each job's own, same

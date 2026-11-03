@@ -3,8 +3,7 @@
 //
 // Manual-trigger, one-off job running `python -m canvas_api.jobs.migrate` (a dependency-free
 // numbered-.sql-file runner, canvas_api/migrations.py) in the same canvas-api-py image the app
-// runs, rather than running migrations on container boot. Python since canvas-1bty.16 (was the
-// TypeScript apps/api/src/db/migrate.ts; same schema_migrations bookkeeping).
+// runs, rather than running migrations on container boot. The .sql files are apps/api-py/migrations.
 
 @description('Azure region.')
 param location string

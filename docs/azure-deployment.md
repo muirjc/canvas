@@ -9,20 +9,20 @@
 > `az group delete`.
 
 A minimal, no-Dockerfile path to a working Canvas deployment on Azure: PostgreSQL Flexible
-Server, an App Service (Linux, Node) for `apps/api`, and static-website hosting (Azure Storage)
-for the built `apps/web` SPA. This is the split-origin topology — the frontend and API are on
-different hostnames — which is why `COOKIE_SECURE`/`COOKIE_SAME_SITE` (see `RUNBOOK.md`) exist at
-all; a same-origin deployment (both served from one host) doesn't need them.
+Server and one App Service (Linux, Python 3.13) that runs the API (`apps/api-py`) and serves the
+built web app from the same address, as the `infra/azure/` deployment does. One origin means the
+default cookie settings work; `COOKIE_SECURE`/`COOKIE_SAME_SITE` (see `RUNBOOK.md`) stay unset.
 
 This is a demo/throwaway-friendly path, not a hardened production topology. It has no CI/CD
 wiring, no custom domain/TLS cert, and uses the platform's built-in free HTTPS on
-`*.azurewebsites.net`.
+`*.azurewebsites.net`. It has not been run end to end since the backend became Python (phase 12 of
+canvas-1bty); expect to adjust a step.
 
 ## Prerequisites
 
 - `az` CLI installed and logged in (`az login`) with a subscription that has Contributor access.
-- Node 22 and Docker are not required on the deploying machine beyond what the repo's own
-  `README.md` "Getting started" section already needs to build locally.
+- Node 22 and uv on the deploying machine, as in the repo's `README.md` "Getting started" section.
+  Docker is not needed.
 
 ## 1. Resource group
 
@@ -34,7 +34,7 @@ If you hit `ERROR: The location is restricted from performing this operation` or
 error on later steps, your subscription may have zero compute quota in that region — this is
 common on subscriptions that have never requested a quota increase. Try `eastus2`, `westus2`,
 `centralus`, or `westus3` for the compute-bearing resources (App Service Plan) specifically;
-region choice for Postgres and the storage account is unaffected by this and doesn't need to
+region choice for Postgres is unaffected by this and doesn't need to
 match.
 
 ## 2. PostgreSQL
@@ -74,19 +74,36 @@ az postgres flexible-server parameter set \
   --name azure.extensions --value pgcrypto
 ```
 
-Then run this repo's own migrate/seed scripts against it directly (`sslmode=require` is
+Then run the migration and demo seed jobs against it from `apps/api-py` (`sslmode=require` is
 mandatory — Azure Flexible Server rejects unencrypted connections):
 
 ```bash
-DATABASE_URL="postgres://canvasadmin:<password>@canvas-demo-pg-<unique-suffix>.postgres.database.azure.com:5432/canvas?sslmode=require" \
-SESSION_SECRET="<any real secret, >=32 chars>" \
-npm run migrate --workspace=@canvas/api
-
-DATABASE_URL="..." SESSION_SECRET="..." ALLOW_LOCAL_AUTH=true \
-npm run seed --workspace=@canvas/api   # prints the seeded admin login + a project id
+cd apps/api-py && uv sync
+export DATABASE_URL="postgres://canvasadmin:<password>@canvas-demo-pg-<unique-suffix>.postgres.database.azure.com:5432/canvas?sslmode=require"
+export SESSION_SECRET="<any real secret, >=32 chars>"
+uv run python -m canvas_api.jobs.migrate
+uv run python -m canvas_api.jobs.seed_demo   # prints the seeded admin login + a project id
 ```
 
-## 3. API — App Service
+## 3. Build the package
+
+The App Service runs the Python service from a zip: the service's source and migrations, a
+`requirements.txt` exported from `uv.lock` (App Service installs from it during deployment), and
+the built web app.
+
+```bash
+npm ci
+npm run build --workspace=@canvas/diagram-core
+VITE_API_BASE_URL= npm run build --workspace=@canvas/web   # relative API URLs: same origin
+
+rm -rf deploy && mkdir deploy
+cp -r apps/api-py/src apps/api-py/migrations deploy/
+cp -r apps/web/dist deploy/web
+(cd apps/api-py && uv export --frozen --no-dev --no-emit-project --no-hashes -o ../../deploy/requirements.txt)
+(cd deploy && zip -r ../api-deploy.zip .)
+```
+
+## 4. App Service
 
 ```bash
 az appservice plan create \
@@ -98,108 +115,41 @@ az appservice plan create \
 az webapp create \
   --resource-group canvas-demo-rg \
   --plan canvas-demo-plan \
-  --name canvas-demo-api-<unique-suffix> \
-  --runtime "NODE:22-lts"
-```
+  --name canvas-demo-<unique-suffix> \
+  --runtime "PYTHON:3.13"
 
-App settings — **this is the split-origin cookie configuration** (see `RUNBOOK.md`):
-
-```bash
 az webapp config appsettings set \
   --resource-group canvas-demo-rg \
-  --name canvas-demo-api-<unique-suffix> \
+  --name canvas-demo-<unique-suffix> \
   --settings \
     DATABASE_URL="postgres://canvasadmin:<password>@canvas-demo-pg-<unique-suffix>.postgres.database.azure.com:5432/canvas?sslmode=require" \
     SESSION_SECRET="<the same secret used for migrate/seed>" \
     ALLOW_LOCAL_AUTH=true \
-    COOKIE_SECURE=true \
-    COOKIE_SAME_SITE=none \
-    WEB_ORIGINS="https://<your-static-site-hostname>" \
-    SCM_DO_BUILD_DURING_DEPLOYMENT=false \
-    PORT=3000
-```
+    WEB_ORIGINS="https://canvas-demo-<unique-suffix>.azurewebsites.net" \
+    WEB_DIST_DIR=web \
+    SCM_DO_BUILD_DURING_DEPLOYMENT=true
 
-`WEB_ORIGINS` needs the real static-site URL from step 4 — App Service app settings can be
-updated any time after creation, so it's fine to set a placeholder now and correct it once that
-URL is known (`az webapp restart` afterward to pick up the change).
-
-**Build and deploy** — this is an npm-workspaces monorepo where `diagram-core` must build before
-`api`; App Service's default Node buildpack doesn't know that, so this deploys pre-built output
-instead of relying on a remote build:
-
-```bash
-npm ci
-npm run build --workspace=@canvas/diagram-core
-npm run build --workspace=@canvas/api
-
-# Zip the whole repo (minus .git and dev-only artifacts) — simplest way to get real,
-# non-symlinked node_modules/@canvas/diagram-core content into the package without hand-pruning
-# what an npm workspace needs. `zip -r -y` (dereferencing symlinks) or an equivalent archiver
-# that resolves the workspace symlink to real files both work.
-zip -r -y api-deploy.zip . -x ".git/*" -x "apps/web/test-results/*" -x "apps/web/playwright-report/*"
+az webapp config set \
+  --resource-group canvas-demo-rg \
+  --name canvas-demo-<unique-suffix> \
+  --startup-file "uvicorn --app-dir src canvas_api.main:app --host 0.0.0.0 --port 8000 --proxy-headers --forwarded-allow-ips '*'"
 
 az webapp deploy \
   --resource-group canvas-demo-rg \
-  --name canvas-demo-api-<unique-suffix> \
+  --name canvas-demo-<unique-suffix> \
   --src-path api-deploy.zip --type zip
-
-# The deployed zip is the whole repo, not just apps/api, so there's no root "start" script for
-# App Service to find by default -- point it at the real entry point explicitly.
-az webapp config set \
-  --resource-group canvas-demo-rg \
-  --name canvas-demo-api-<unique-suffix> \
-  --startup-file "node apps/api/dist/server.js"
-
-az webapp restart --resource-group canvas-demo-rg --name canvas-demo-api-<unique-suffix>
 ```
 
-Verify: `curl https://canvas-demo-api-<unique-suffix>.azurewebsites.net/health` → `{"status":"ok"}`.
-**Use `https://`, not `http://`, everywhere this URL is used** — App Service gives free HTTPS by
-default, and the static-hosted frontend (step 4) will refuse to call a plain-HTTP API as mixed
-content once it's loaded over HTTPS itself.
+`WEB_DIST_DIR=web` and `--app-dir src` are relative to the folder the app runs from (the zip's
+root). The service only serves web files that exist when it starts.
 
-## 4. Frontend — Storage static website
-
-```bash
-az storage account create \
-  --resource-group canvas-demo-rg \
-  --name canvasdemoweb<uniquesuffix> \
-  --location westus2 --sku Standard_LRS --kind StorageV2 --allow-blob-public-access true
-
-az storage blob service-properties update \
-  --account-name canvasdemoweb<uniquesuffix> \
-  --static-website --index-document index.html --404-document index.html \
-  --auth-mode login   # falls back to --auth-mode key below if you lack a data-plane RBAC role
-
-VITE_API_BASE_URL="https://canvas-demo-api-<unique-suffix>.azurewebsites.net" \
-npm run build --workspace=@canvas/web
-
-az storage blob upload-batch \
-  --account-name canvasdemoweb<uniquesuffix> \
-  --destination '$web' --source apps/web/dist \
-  --auth-mode key --overwrite
-
-az storage account show \
-  --resource-group canvas-demo-rg --name canvasdemoweb<uniquesuffix> \
-  --query "primaryEndpoints.web" -o tsv
-```
-
-If `--auth-mode login` fails with a permissions error, your account lacks a "Storage Blob Data
-Contributor"-equivalent RBAC role on the storage account — `--auth-mode key` (uses the account's
-access key, available to anyone with Contributor on the resource) works around this without
-needing that role assignment.
-
-Update the API's `WEB_ORIGINS` app setting (step 3) to this real URL, then
-`az webapp restart` the API once more.
+Verify: `curl https://canvas-demo-<unique-suffix>.azurewebsites.net/health` → `{"status":"ok"}`.
 
 ## 5. Verify end to end
 
-Open the static site URL from step 4 in a browser and sign in with the admin credentials `seed`
-printed in step 2. If login appears to succeed but the app immediately reports "Authentication
-required" on the next screen, the session cookie isn't making it back to the API — check that
-`COOKIE_SAME_SITE=none` and `COOKIE_SECURE=true` are actually set (step 3) and that the API URL
-used to build the frontend was `https://`, not `http://` (mixed content is silently blocked by
-the browser with no error surfaced in the app itself — check the browser console).
+Open `https://canvas-demo-<unique-suffix>.azurewebsites.net` in a browser and sign in with the
+admin credentials the seed printed in step 2. If the page loads but API calls fail, check that the
+web app was built with an empty `VITE_API_BASE_URL` (step 3), so it calls its own origin.
 
 ## Teardown
 
@@ -207,4 +157,4 @@ the browser with no error surfaced in the app itself — check the browser conso
 az group delete --name canvas-demo-rg --yes --no-wait
 ```
 
-Deletes every resource created above (Postgres, App Service, storage account) in one shot.
+Deletes every resource created above (Postgres, App Service) in one shot.

@@ -2,7 +2,7 @@ import { expect, test, type Page } from '@playwright/test';
 import { ensureCustomDiagramType, hideCustomDiagramType } from './diagram-type-helpers';
 import { API_BASE_URL, PROJECT_ID, addKind, applyDsl, login, readDsl } from './standards-v2-helpers';
 
-test.skip(!PROJECT_ID, 'E2E_PROJECT_ID env var not set — run `npm run seed` and export it first');
+test.skip(!PROJECT_ID, 'E2E_PROJECT_ID env var not set — run the demo seed (python -m canvas_api.jobs.seed_demo) and export it first');
 
 /**
  * jmuir-dtu.28: a standard's element kinds now also drive architecture-beta diagrams. A service's

@@ -3,7 +3,7 @@ import { expectSignedIn } from './auth-helpers';
 import { ensureCustomDiagramType } from './diagram-type-helpers';
 import { ADMIN_EMAIL, ADMIN_PASSWORD, API_BASE_URL, PROJECT_ID } from './standards-v2-helpers';
 
-test.skip(!PROJECT_ID, 'E2E_PROJECT_ID env var not set — run `npm run seed` and export it first');
+test.skip(!PROJECT_ID, 'E2E_PROJECT_ID env var not set — run the demo seed (python -m canvas_api.jobs.seed_demo) and export it first');
 
 /**
  * canvas-9ff: admins can hide any diagram type and delete an unused custom type from the Standards

@@ -1,6 +1,6 @@
 import { createHmac } from 'node:crypto';
 
-/** RFC 6238 (SHA-1, 6 digits, 30s) for e2e specs -- deliberately independent of apps/api's code. */
+/** RFC 6238 (SHA-1, 6 digits, 30s) for e2e specs -- deliberately independent of the API's code. */
 const ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';
 
 function base32Decode(text: string): Buffer {
@@ -31,11 +31,15 @@ export function totp(secret: string, step: number): string {
 /** Waits until at least `seconds` remain in the current 30s step, so a code can't expire mid-request. */
 export async function waitForSafeWindow(seconds = 3): Promise<void> {
   const remaining = 30_000 - (Date.now() % 30_000);
-  if (remaining < seconds * 1000) await new Promise((resolve) => setTimeout(resolve, remaining + 200));
+  if (remaining < seconds * 1000)
+    await new Promise((resolve) => setTimeout(resolve, remaining + 200));
 }
 
 /** A code the server will accept: never one at or before `lastUsedStep` (replay protection). */
-export async function nextCode(secret: string, lastUsedStep: number): Promise<{ code: string; step: number }> {
+export async function nextCode(
+  secret: string,
+  lastUsedStep: number,
+): Promise<{ code: string; step: number }> {
   await waitForSafeWindow();
   const step = Math.max(currentStep(), lastUsedStep + 1);
   return { code: totp(secret, step), step };

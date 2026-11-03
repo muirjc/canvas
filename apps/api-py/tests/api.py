@@ -1,8 +1,8 @@
 """Helpers for the route tests: a clean database, seeded rows, signed-in users, and a client that holds
-every response to the API contract (apps/api/contract/openapi.json, written by the TypeScript tests).
+every response to the API contract (apps/api-py/contract/openapi.json).
 
-Routes that haven't moved to Python yet (standards, export, AI chat) aren't callable here, so tests
-seed those rows directly -- the cases come from apps/api/tests/contract, the setup doesn't.
+Most cases come from the TypeScript API's tests (tag typescript-api-final); some seed rows directly, as written
+before every route had moved here.
 """
 
 from __future__ import annotations
@@ -26,7 +26,7 @@ from canvas_api.auth.cookie_signer import sign
 from canvas_api.timestamps import to_db
 from tests.conftest import TEST_SESSION_SECRET
 
-CONTRACT_DIR = Path(__file__).resolve().parents[2] / "api" / "contract"
+CONTRACT_DIR = Path(__file__).resolve().parents[1] / "contract"
 CONTRACT: dict[str, Any] = json.loads((CONTRACT_DIR / "openapi.json").read_text(encoding="utf-8"))
 ALL_PERSONAS = ["Business", "Enterprise", "Solution", "Technical"]
 MISSING_ID = "00000000-0000-0000-0000-000000000000"
@@ -75,7 +75,7 @@ def check_contract(response: httpx.Response) -> None:
     request = response.request
     found = contract_operation(request.method, urlsplit(str(request.url)).path)
     if found is None:
-        return  # not a moved route (e.g. /py/me)
+        return  # a route outside the contract (/health)
     path, operation = found
     responses = operation["responses"]
     status = str(response.status_code)

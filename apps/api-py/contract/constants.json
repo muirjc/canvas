@@ -1,0 +1,58 @@
+{
+  "builtinDiagramTypeIds": [
+    "flowchart",
+    "c4-context",
+    "c4-container",
+    "c4-component",
+    "c4-code",
+    "c4-deployment",
+    "business-capability-map",
+    "value-chain",
+    "value-stream",
+    "application-landscape",
+    "roadmap",
+    "solution-architecture",
+    "sequence",
+    "network",
+    "deployment",
+    "cloud-infrastructure",
+    "erd",
+    "uml"
+  ],
+  "dslFamilies": [
+    "flowchart",
+    "c4",
+    "architecture",
+    "sequence",
+    "erd",
+    "uml"
+  ],
+  "personas": [
+    "Business",
+    "Enterprise",
+    "Solution",
+    "Technical"
+  ],
+  "ruleIds": [
+    "allowed-shapes",
+    "mandatory-shapes",
+    "allowed-icon-libraries",
+    "color-palette",
+    "font-family",
+    "font-size",
+    "unknown-kind",
+    "kind-shape",
+    "kind-fill",
+    "kind-stroke",
+    "kind-min-count",
+    "kind-max-count",
+    "kind-group-min-count",
+    "kind-group-max-count",
+    "kind-unconnected",
+    "connector-not-allowed",
+    "connector-style",
+    "connector-label-required",
+    "connector-max-per-source",
+    "container-not-allowed"
+  ]
+}

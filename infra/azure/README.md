@@ -14,20 +14,22 @@ see each module's own comment for exactly what was mirrored and what was adapted
 
 One resource group (`canvas-rg` by default), from `main.bicep`:
 
-| Resource | Module | Notes |
-|---|---|---|
-| Container Registry | `modules/acr.bicep` | Admin user disabled — images pulled via managed identity. |
-| VNet + 2 delegated subnets + private DNS zone | `modules/network.bicep` | Postgres has **no public endpoint at all**. |
-| Postgres Flexible Server | `modules/postgres.bicep` | Private/VNet-integrated, Burstable B1ms, 32GB, `pgcrypto` allow-listed. |
-| Key Vault + user-assigned managed identity | `modules/keyvault.bicep` | RBAC-authorized. Secret *values* are set by `deploy.sh`, never in the template. |
-| Container Apps environment | `modules/containerappsenv.bicep` | VNet-integrated, Log Analytics-backed. |
-| API container app | `modules/apiapp.bicep` | External ingress **limited to the IP allow-list**, scale-to-zero (`min=0/max=1`). |
-| DB migration job | `modules/migrationjob.bicep` | Manual-trigger, one-shot, same image as the API app. |
-| Dev/demo seed job | `modules/seedjob.bicep` | Manual-trigger, **not run automatically** — creates a demo admin login. Not deployed in local mode (`AUTH_MODE=local`). |
-| First-admin job (local mode only) | `modules/bootstrapadminjob.bicep` | `canvas-bootstrap-admin`: run by `deploy.sh` to create `CANVAS_ADMIN_EMAIL` with a one-time password from `.secrets/bootstrap-admin-password`; `reset-admin.sh` runs it in reset mode to recover a lone admin (RUNBOOK "Local accounts"). |
-| Application Insights + workbook + alert | `modules/monitoring.bicep` | `canvas-insights` on `canvas-logs`: the API's OpenTelemetry traces (canvas-6upe). Workbook **Canvas performance**; hourly p95 alert `canvas-key-route-p95` emails `adminEmail` when set. RUNBOOK "Performance telemetry". |
-| Nightly purge job | `modules/purgejob.bicep` | `canvas-purge`: scheduled 03:00 UTC, runs `node apps/api/dist/purge/run.js` -- removes diagrams/projects deleted over 30 days ago and unsaved drafts abandoned over 24 hours. `pause.sh` parks its schedule at once a year; `resume.sh` restores it. Run it now with `az containerapp job start --name canvas-purge --resource-group canvas-rg`. |
-| Storage account (old web address) | `modules/storage.bicep` | canvas-r3y: the web app is now served by `canvas-api` itself, from its own URL. The Storage static website only holds a page that redirects the old address (deep links included) to it. **Storage firewall limited to the IP allow-list.** |
+| Resource                                      | Module                            | Notes                                                                                                                                                                                                                                                                                                                                            |
+| --------------------------------------------- | --------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Container Registry                            | `modules/acr.bicep`               | Admin user disabled — images pulled via managed identity.                                                                                                                                                                                                                                                                                        |
+| VNet + 2 delegated subnets + private DNS zone | `modules/network.bicep`           | Postgres has **no public endpoint at all**.                                                                                                                                                                                                                                                                                                      |
+| Postgres Flexible Server                      | `modules/postgres.bicep`          | Private/VNet-integrated, Burstable B1ms, 32GB, `pgcrypto` allow-listed.                                                                                                                                                                                                                                                                          |
+| Key Vault + user-assigned managed identity    | `modules/keyvault.bicep`          | RBAC-authorized. Secret _values_ are set by `deploy.sh`, never in the template.                                                                                                                                                                                                                                                                  |
+| Container Apps environment                    | `modules/containerappsenv.bicep`  | VNet-integrated, Log Analytics-backed.                                                                                                                                                                                                                                                                                                           |
+| API container app                             | `modules/apiapp.bicep`            | `canvas-api`: the Python API (`apps/api-py`, image `canvas-api-py`), which also serves the web app. External ingress **limited to the IP allow-list**, scale-to-zero (`min=0/max=1`).                                                                                                                                                            |
+| DB migration job                              | `modules/migrationjob.bicep`      | `canvas-migrate`: manual-trigger, one-shot, `python -m canvas_api.jobs.migrate`.                                                                                                                                                                                                                                                                 |
+| Catalog seed job                              | `modules/catalogseedjob.bicep`    | `canvas-seed-catalog`: run by every `deploy.sh`, `python -m canvas_api.jobs.seed_catalog` (diagram types, starter standards, icon libraries, AI personas; idempotent).                                                                                                                                                                           |
+| Dev/demo seed job                             | `modules/seedjob.bicep`           | `canvas-seed`: manual-trigger, **not run automatically** — `python -m canvas_api.jobs.seed_demo` creates a demo admin login. Not deployed in local mode (`AUTH_MODE=local`).                                                                                                                                                                     |
+| First-admin job (local mode only)             | `modules/bootstrapadminjob.bicep` | `canvas-bootstrap-admin`: run by `deploy.sh` to create `CANVAS_ADMIN_EMAIL` with a one-time password from `.secrets/bootstrap-admin-password` (`python -m canvas_api.jobs.bootstrap_admin`); `reset-admin.sh` runs it in reset mode to recover a lone admin (RUNBOOK "Local accounts").                                                          |
+| Application Insights + workbook + alert       | `modules/monitoring.bicep`        | `canvas-insights` on `canvas-logs`: the API's OpenTelemetry traces (canvas-6upe). Workbook **Canvas performance**; hourly p95 alert `canvas-key-route-p95` emails `adminEmail` when set. RUNBOOK "Performance telemetry".                                                                                                                        |
+| Nightly purge job                             | `modules/purgejob.bicep`          | `canvas-purge`: scheduled 03:00 UTC, runs `python -m canvas_api.jobs.purge` -- removes diagrams/projects deleted over 30 days ago and unsaved drafts abandoned over 24 hours. `pause.sh` parks its schedule at once a year; `resume.sh` restores it. Run it now with `az containerapp job start --name canvas-purge --resource-group canvas-rg`. |
+| GitHub status sync job                        | `modules/githubsyncjob.bicep`     | `canvas-github-sync`: every 15 minutes, `python -m canvas_api.github.sync_run`. Only deployed when a GitHub App is configured.                                                                                                                                                                                                                   |
+| Storage account (old web address)             | `modules/storage.bicep`           | canvas-r3y: the web app is now served by `canvas-api` itself, from its own URL. The Storage static website only holds a page that redirects the old address (deep links included) to it. **Storage firewall limited to the IP allow-list.**                                                                                                      |
 
 ### Entra ID SSO / MFA (canvas-haz)
 
@@ -41,7 +43,7 @@ Log for the full rationale.
 - **No in-environment IdP resource at all.** Entra's issuer (`login.microsoftonline.com`) is
   always public, unlike the self-hosted Keycloak this replaced (internal-ingress-only, needing its
   own Postgres database, a `canvas-api` `/idp/*` reverse proxy, and an internal/public issuer split
-  in `apps/api/src/auth/oidc.ts` just to make a browser able to reach it at all). `apiapp.bicep`
+  in the API's OIDC code just to make a browser able to reach it at all). `apiapp.bicep`
   only needs a tenant ID and a client ID/secret to talk to Entra directly.
 - **App registration setup is deliberately NOT part of this IaC.** Entra app registrations aren't
   Bicep/ARM resources this subscription's deployment identity should necessarily have permission to
@@ -64,7 +66,7 @@ Log for the full rationale.
   param, not hardcoded, purely as an emergency break-glass switch (e.g. the tenant itself is
   unreachable); flipping it back to `true` should never be a standing configuration.
 - **Real user/role provisioning** (which user gets which of `admin`/`architect`/`viewer`,
-  `apps/api/src/auth/types.ts`'s `UserRole`, matched 1:1 by the app registration's own App Roles)
+  `Role` in `apps/api-py/src/canvas_api/auth/roles.py`, matched 1:1 by the app registration's own App Roles)
   happens entirely in the Entra portal — assigning a user or group an app role, and requiring
   "Assignment required = Yes" on the Enterprise Application for fail-closed authorization. No
   provisioning script or Container Apps Job exists for this (replacing the former
@@ -75,7 +77,7 @@ Log for the full rationale.
 ## Architecture decisions (and why)
 
 - **One container, one origin (canvas-r3y).** Like ADP, the web app is built into the API image
-  and served by the API (`apps/api/src/web/web-app.ts`: hashed assets cached for a year, Brotli/
+  and served by the API (`apps/api-py/src/canvas_api/front_door/`: hashed assets cached for a year, Brotli/
   gzip copies made at build time, `index.html` always revalidated). One origin means a first-party
   `SameSite=Lax` session cookie (sign-in works in Safari/iOS and private windows, which block
   third-party cookies), no CORS preflight before each API call, and one IP allow-list rule. It
@@ -144,27 +146,30 @@ Setting it up, managing people, a locked-out lone admin (`./reset-admin.sh`), ro
 and switching back: [RUNBOOK.md → Local accounts](../../RUNBOOK.md#local-accounts-canvas-ez1-option-b).
 
 This is a **two-pass bootstrap** on a genuine from-scratch environment, same shape ADP's own
-`deploy.sh` documents: Key Vault doesn't exist yet on run 1, so secret *values* can't be
+`deploy.sh` documents: Key Vault doesn't exist yet on run 1, so secret _values_ can't be
 pre-seeded into it, so the API container app module (which references those secrets by name at
 provisioning time) fails that first run. **This is expected** — re-run `./deploy.sh` once Key
 Vault exists and it completes normally.
 
 `deploy.sh`:
+
 1. Generates + locally caches (`infra/azure/.secrets/`, gitignored, chmod 600) the Postgres admin
    password and `SESSION_SECRET` on first run (the Entra client secret is cached the same way, but
    supplied by you via `ENTRA_CLIENT_SECRET`, not generated — Entra creates it, not this script),
    so re-running doesn't rotate credentials out from under an already-running server.
-2. Pre-seeds Key Vault secret *values* (never in the Bicep template/deployment parameters).
-3. Builds + pushes the API image to ACR, tagged with the git short SHA — **not** a floating
+2. Pre-seeds Key Vault secret _values_ (never in the Bicep template/deployment parameters).
+3. Builds + pushes the one image, `canvas-api-py` (`apps/api-py/Dockerfile`), to ACR, tagged with the git short SHA — **not** a floating
    `:latest`, which Container Apps' revision diffing treats as a no-op even when the underlying
    digest changed (a real gotcha ADP hit).
 4. Runs `az deployment sub what-if` (dry run) and asks for confirmation before applying
    (`--what-if-only` stops here; `--yes` skips the prompt).
-5. Builds the image — API **and** web app (`VITE_API_BASE_URL` empty, so the app calls its own
-   origin) — in ACR (canvas-r3y).
+5. The image holds the API **and** the web app (`VITE_API_BASE_URL` empty, so the app calls its
+   own origin; canvas-r3y). `canvas-api` and every job run it. A leftover `canvas-api-ts` (the
+   retired TypeScript API) or `canvas-api-py` app is deleted. Old images in the `canvas-api` ACR
+   repository are left in place, unused.
 6. Puts a redirect page on the old Storage static website address, sending old bookmarks (deep
    links included) to Canvas's address.
-7. Starts the migration job.
+7. Starts the migration job, then the catalog seed job.
 8. Prints the exact redirect URIs to register on the `canvas-azure` app registration (see the
    Entra ID SSO section above) — a manual step this script deliberately doesn't automate.
 
@@ -229,7 +234,7 @@ permission rules, so add these by hand once (`.claude/settings.local.json` at th
 
 (The last two cover a local-mode environment, whose deploys need no `ENTRA_CLIENT_ID`.) Then a
 deploy is: resume, `--what-if-only` (Claude shows you the plan), your approval in chat,
-`--yes`, pause. `deploy.sh` runs `npm ci` locally, which stops a running local API dev server.
+`--yes`, pause.
 
 ## Full teardown (destroys ALL data)
 

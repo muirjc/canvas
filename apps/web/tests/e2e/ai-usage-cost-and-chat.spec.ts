@@ -11,7 +11,7 @@ const ARCHITECT_PASSWORD = 'architect-dev-password';
 const MOCK_PROVIDER = 'mock-provider';
 const MOCK_MODEL = 'mock-model-id';
 
-test.skip(!PROJECT_ID, 'E2E_PROJECT_ID env var not set — run `npm run seed` and export it first');
+test.skip(!PROJECT_ID, 'E2E_PROJECT_ID env var not set — run the demo seed (python -m canvas_api.jobs.seed_demo) and export it first');
 
 /**
  * canvas-zs0 (estimated cost + price editor, admin only) and canvas-4k9 (token counts in the chat

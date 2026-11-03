@@ -6,11 +6,11 @@ const ADMIN_EMAIL = 'admin@example.com';
 const ADMIN_PASSWORD = 'admin-dev-password';
 const API_BASE_URL = process.env.VITE_API_BASE_URL ?? 'http://localhost:3000';
 
-test.skip(!PROJECT_ID, 'E2E_PROJECT_ID env var not set — run `npm run seed` and export it first');
+test.skip(!PROJECT_ID, 'E2E_PROJECT_ID env var not set — run the demo seed (python -m canvas_api.jobs.seed_demo) and export it first');
 
 /**
  * canvas-ltm: "Create with AI" follow-up questions. Written against the API's AI_PROVIDER=mock
- * rule-based NLU (apps/api/src/ai/mock-nlu.ts): a vague "Create a ... diagram" request gets a
+ * rule-based NLU (apps/api-py/src/canvas_api/ai/mock_model.py): a vague "Create a ... diagram" request gets a
  * question instead of tool calls; "Add a shape called X" is played back. canvas-s3o: every dialog
  * turn is a planning turn (no tools), so nothing is drawn -- and the editor does not open -- until
  * the user clicks "Create diagram" (ai-create-build).
@@ -40,13 +40,17 @@ async function startConversation(page: Page, name: string) {
   await expect(page.getByTestId('diagram-canvas')).toHaveCount(0);
 }
 
-test('a vague request gets a question; the answer is played back; Create diagram draws and opens the Chat tab, not saved until Save', async ({ page }) => {
+test('a vague request gets a question; the answer is played back; Create diagram draws and opens the Chat tab, not saved until Save', async ({
+  page,
+}) => {
   const name = `Clarify ${Date.now()}`;
   await startConversation(page, name);
 
   await page.getByTestId('ai-create-answer').fill('Add a shape called Order Received');
   await page.getByTestId('ai-create-answer-send').click();
-  await expect(page.getByTestId('create-chat-assistant').last()).toContainText("Here's what I'll build");
+  await expect(page.getByTestId('create-chat-assistant').last()).toContainText(
+    "Here's what I'll build",
+  );
   await expect(page.getByTestId('create-chat-assistant').last()).toContainText('Order Received');
   // Still planning: nothing drawn, no editor yet.
   await expect(page.getByTestId('diagram-canvas')).toHaveCount(0);
@@ -57,7 +61,9 @@ test('a vague request gets a question; the answer is played back; Create diagram
   await expect(page.getByTestId('rail-tab-chat')).toHaveAttribute('aria-selected', 'true');
   // description, answer, and the Create diagram message
   await expect(page.locator('[data-testid="chat-message-user"]')).toHaveCount(3);
-  await expect(page.locator('[data-testid="chat-message-assistant"]').first()).toContainText(QUESTION);
+  await expect(page.locator('[data-testid="chat-message-assistant"]').first()).toContainText(
+    QUESTION,
+  );
   await expect(page.locator('[data-testid^="node-"]')).toHaveCount(1);
 
   // canvas-j6v: nothing is saved for the user -- the drawing is theirs to save or discard.
@@ -73,14 +79,20 @@ test('a vague request gets a question; the answer is played back; Create diagram
   // Reopen from the project browser: once saved, the node was persisted.
   await page.getByTestId('back-to-diagrams').click();
   await expect(page.getByTestId('project-browser')).toBeVisible();
-  await page.locator('li', { hasText: name }).locator('[data-testid^="open-diagram-"]').first().click();
+  await page
+    .locator('li', { hasText: name })
+    .locator('[data-testid^="open-diagram-"]')
+    .first()
+    .click();
   await expect(page.getByTestId('diagram-canvas')).toBeVisible();
   await expect(page.locator('[data-testid^="node-"]')).toHaveCount(1);
   await page.getByTestId('rail-tab-dsl').click();
   await expect(page.getByTestId('dsl-panel')).toContainText('Order Received');
 });
 
-test('a concrete description is played back in the dialog; the editor opens only after Create diagram', async ({ page }) => {
+test('a concrete description is played back in the dialog; the editor opens only after Create diagram', async ({
+  page,
+}) => {
   await openDialog(page, `Concrete ${Date.now()}`);
   await page.getByTestId('ai-create-persona').selectOption({ label: 'Business Architect' });
   await page.getByTestId('ai-create-type').selectOption('flowchart');
@@ -111,7 +123,9 @@ test('cancelling mid-conversation removes the empty diagram', async ({ page }) =
   await expect(page.getByText(name)).toHaveCount(0);
 });
 
-test('the type picker creates a Value Chain diagram (after Create diagram), with the standard\'s element kind', async ({ page }) => {
+test("the type picker creates a Value Chain diagram (after Create diagram), with the standard's element kind", async ({
+  page,
+}) => {
   await openDialog(page, `VC ${Date.now()}`);
   await page.getByTestId('ai-create-persona').selectOption({ label: 'Business Architect' });
   await page.getByTestId('ai-create-type').selectOption('value-chain');
@@ -144,8 +158,10 @@ test('discarding an AI drawing that was never saved deletes it', async ({ page }
   expect(diagramId).toBeTruthy();
 
   await page.getByTestId('back-to-diagrams').click();
-  await expect(page.getByTestId('home-nav-confirm')).toContainText("hasn’t been saved");
-  const deleted = page.waitForResponse((r) => r.url().endsWith(`/diagrams/${diagramId}`) && r.request().method() === 'DELETE');
+  await expect(page.getByTestId('home-nav-confirm')).toContainText('hasn’t been saved');
+  const deleted = page.waitForResponse(
+    (r) => r.url().endsWith(`/diagrams/${diagramId}`) && r.request().method() === 'DELETE',
+  );
   await page.getByTestId('confirm-home-nav').click();
   expect((await deleted).status()).toBe(204);
   await expect(page.getByTestId('project-browser')).toBeVisible();

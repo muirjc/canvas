@@ -4,7 +4,7 @@ import { saveDsl } from './save-helpers';
 
 /**
  * canvas-3s5.1 + canvas-3s5.2: the GitHub approval flow, end to end -- the real web app and real API
- * against the fake GitHub run as its own process (apps/api/tests/helpers/fake-github-server.ts).
+ * against the fake GitHub run as its own process (apps/api-py/tests/fake_github_server.py).
  *
  * Needs the API started with GITHUB_APP_ID / GITHUB_APP_PRIVATE_KEY / GITHUB_APP_API_URL pointing at that
  * fake (CI does; locally see the header of that helper). Skips, with the reason, when GitHub is off or the API is
@@ -48,14 +48,20 @@ async function fakeGet<T>(path: string): Promise<T> {
 }
 
 async function fakePost(path: string, body: unknown = {}): Promise<void> {
-  const res = await fetch(`${FAKE}${path}`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
+  const res = await fetch(`${FAKE}${path}`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(body),
+  });
   expect(res.status, `fake ${path}`).toBe(200);
 }
 
 const fakePulls = async () => (await fakeGet<{ pulls: FakePull[] }>('/_fake/pulls')).pulls;
 
 async function createDiagram(name: string, dsl = DSL): Promise<string> {
-  const created = await page.request.post(`${API}/projects/${projectId}/diagrams`, { data: { name, diagramTypeId: 'flowchart' } });
+  const created = await page.request.post(`${API}/projects/${projectId}/diagrams`, {
+    data: { name, diagramTypeId: 'flowchart' },
+  });
   expect(created.status()).toBe(201);
   const id = (await created.json()).diagram.id as string;
   expect((await saveDsl(page.request, API, id, dsl)).status()).toBe(200);
@@ -107,7 +113,8 @@ test.beforeAll(async ({ browser }) => {
   }
   const body = await status.json();
   if (!body.enabled) {
-    skipReason = 'GitHub is not configured on the API (set GITHUB_APP_ID / GITHUB_APP_PRIVATE_KEY / GITHUB_APP_API_URL pointing at the fake GitHub)';
+    skipReason =
+      'GitHub is not configured on the API (set GITHUB_APP_ID / GITHUB_APP_PRIVATE_KEY / GITHUB_APP_API_URL pointing at the fake GitHub)';
     return;
   }
   if (body.apiUrl !== FAKE) {
@@ -121,7 +128,9 @@ test.beforeAll(async ({ browser }) => {
     return;
   }
 
-  const project = await page.request.post(`${API}/projects`, { data: { name: `GitHub approval ${RUN}` } });
+  const project = await page.request.post(`${API}/projects`, {
+    data: { name: `GitHub approval ${RUN}` },
+  });
   expect(project.status()).toBe(201);
   projectId = (await project.json()).project.id;
 });
@@ -133,7 +142,8 @@ test.afterAll(async () => {
 
 test.beforeEach(() => {
   // CI starts the fake and points the API at it, so a skip there would silently hide this coverage.
-  if (process.env.CI && skipReason) throw new Error(`The GitHub approval spec can't run in CI: ${skipReason}`);
+  if (process.env.CI && skipReason)
+    throw new Error(`The GitHub approval spec can't run in CI: ${skipReason}`);
   test.skip(skipReason !== null, skipReason ?? '');
 });
 
@@ -167,7 +177,9 @@ test('submit, update, review, merge: the diagram ends up approved', async () => 
   // Submit for approval -> a pull request on the fake, with the files on its branch.
   await page.getByTestId('submission-submit').click();
   await expect(page.getByTestId('submission-confirm-repo')).toHaveText(REPO);
-  await expect(page.getByTestId('submission-confirm-action')).toContainText('opens a new pull request');
+  await expect(page.getByTestId('submission-confirm-action')).toContainText(
+    'opens a new pull request',
+  );
   await page.getByTestId('submission-confirm-submit').click();
   await expect(page.getByTestId('submission-result')).toContainText('Created pull request');
   const href = (await page.getByTestId('submission-result-link').getAttribute('href')) ?? '';
@@ -179,11 +191,20 @@ test('submit, update, review, merge: the diagram ends up approved', async () => 
 
   const pull = (await fakePulls()).find((p) => p.number === prNumber)!;
   expect(pull.state).toBe('open');
-  const filesOf = async () => (await fakeGet<{ files: Record<string, string> }>(`/_fake/files?branch=${encodeURIComponent(pull.head)}`)).files;
+  const filesOf = async () =>
+    (
+      await fakeGet<{ files: Record<string, string> }>(
+        `/_fake/files?branch=${encodeURIComponent(pull.head)}`,
+      )
+    ).files;
   let files = await filesOf();
-  const source = Object.keys(files).find((p) => p.startsWith(`${FOLDER}/`) && p.endsWith('.canvas.mmd'));
+  const source = Object.keys(files).find(
+    (p) => p.startsWith(`${FOLDER}/`) && p.endsWith('.canvas.mmd'),
+  );
   expect(source, `files on the PR branch: ${Object.keys(files).join(', ')}`).toBeTruthy();
-  expect(Object.keys(files).some((p) => p.startsWith(`${FOLDER}/`) && p.endsWith('/README.md'))).toBe(true);
+  expect(
+    Object.keys(files).some((p) => p.startsWith(`${FOLDER}/`) && p.endsWith('/README.md')),
+  ).toBe(true);
   expect(files[source!]).toContain('Alpha');
   expect(files[source!]).not.toContain('Gamma');
 
@@ -199,9 +220,13 @@ test('submit, update, review, merge: the diagram ends up approved', async () => 
 
   // Push update -> the same pull request, a new commit.
   await page.getByTestId('submission-submit').click();
-  await expect(page.getByTestId('submission-confirm-action')).toContainText(`open pull request #${prNumber}`);
+  await expect(page.getByTestId('submission-confirm-action')).toContainText(
+    `open pull request #${prNumber}`,
+  );
   await page.getByTestId('submission-confirm-submit').click();
-  await expect(page.getByTestId('submission-result')).toContainText(`Updated pull request #${prNumber}`);
+  await expect(page.getByTestId('submission-result')).toContainText(
+    `Updated pull request #${prNumber}`,
+  );
   await closeResult();
   await expect(page.getByTestId('submission-chip')).toHaveAttribute('data-state', 'in-review');
   const open = (await fakePulls()).filter((p) => p.state === 'open' && p.head === pull.head);
@@ -211,20 +236,31 @@ test('submit, update, review, merge: the diagram ends up approved', async () => 
 
   // A review and a passing check on GitHub show up in the Approval tab after a refresh.
   await fakePost(`/_fake/pulls/${prNumber}/reviews`, { login: 'reviewer-one', state: 'APPROVED' });
-  await fakePost(`/_fake/pulls/${prNumber}/check-runs`, { name: 'validate-diagram', conclusion: 'success' });
+  await fakePost(`/_fake/pulls/${prNumber}/check-runs`, {
+    name: 'validate-diagram',
+    conclusion: 'success',
+  });
   await page.getByTestId('rail-tab-approval').click();
   await expect(page.getByTestId('approval-panel')).toBeVisible();
   await expect(page.getByTestId('approval-pr-state')).toHaveText('open');
   await refreshUntil(async () => {
-    await expect(page.getByTestId('approval-review-reviewer-one')).toContainText('Approved', { timeout: 1_000 });
-    await expect(page.getByTestId('approval-check-validate-diagram')).toHaveAttribute('data-state', 'success', { timeout: 1_000 });
+    await expect(page.getByTestId('approval-review-reviewer-one')).toContainText('Approved', {
+      timeout: 1_000,
+    });
+    await expect(page.getByTestId('approval-check-validate-diagram')).toHaveAttribute(
+      'data-state',
+      'success',
+      { timeout: 1_000 },
+    );
   });
   await expect(page.getByTestId('approval-review-summary')).toHaveText('Approved');
 
   // Merge on GitHub -> approved, with the version that was last pushed.
   await fakePost(`/_fake/pulls/${prNumber}/merge`, { by: 'reviewer-one' });
   await refreshUntil(async () => {
-    await expect(page.getByTestId('submission-chip')).toHaveAttribute('data-state', 'approved', { timeout: 1_000 });
+    await expect(page.getByTestId('submission-chip')).toHaveAttribute('data-state', 'approved', {
+      timeout: 1_000,
+    });
   });
   await expect(page.getByTestId('submission-chip')).toHaveText(/^Approved \(version \d+\)$/);
   await expect(page.getByTestId('approval-approved')).toContainText('merged by @reviewer-one');
@@ -244,7 +280,9 @@ test('withdrawing a submission closes the pull request', async () => {
   await submitThroughDialog();
   await closeResult();
   await expect(page.getByTestId('submission-chip')).toHaveAttribute('data-state', 'in-review');
-  const prNumber = Number((await page.getByTestId('submission-chip').textContent())?.match(/PR #(\d+)/)?.[1]);
+  const prNumber = Number(
+    (await page.getByTestId('submission-chip').textContent())?.match(/PR #(\d+)/)?.[1],
+  );
 
   await page.getByTestId('rail-tab-approval').click();
   await page.getByTestId('approval-withdraw').click();

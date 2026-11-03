@@ -4,8 +4,8 @@ const PROJECT_ID = process.env.E2E_PROJECT_ID;
 
 // canvas-cpa: matches every other spec's skip guard for consistency, even though this file never
 // navigates into a project -- the login screen itself needs no project id, only a running,
-// seeded API (which `npm run seed` also guarantees).
-test.skip(!PROJECT_ID, 'E2E_PROJECT_ID env var not set — run `npm run seed` and export it first');
+// seeded API (which the `seed_demo` job also guarantees).
+test.skip(!PROJECT_ID, 'E2E_PROJECT_ID env var not set — run the demo seed (python -m canvas_api.jobs.seed_demo) and export it first');
 
 /**
  * Stubs GET /auth/config's response before the app's first request to it (LoginForm's mount-time
@@ -15,7 +15,11 @@ test.skip(!PROJECT_ID, 'E2E_PROJECT_ID env var not set — run `npm run seed` an
  * Azure's default) can only be exercised by controlling the response directly, not by changing
  * server config per test.
  */
-async function stubAuthConfig(page: Page, oidcEnabled: boolean, localAuthEnabled: boolean): Promise<void> {
+async function stubAuthConfig(
+  page: Page,
+  oidcEnabled: boolean,
+  localAuthEnabled: boolean,
+): Promise<void> {
   await page.route('**/auth/config', (route) =>
     route.fulfill({
       status: 200,
@@ -66,7 +70,9 @@ test.describe('login screen respects /auth/config (canvas-cpa)', () => {
     await expect(page.getByTestId('sign-out')).toBeVisible();
   });
 
-  test('both local auth and SSO off: shows the login-unavailable message instead of any form', async ({ page }) => {
+  test('both local auth and SSO off: shows the login-unavailable message instead of any form', async ({
+    page,
+  }) => {
     await stubAuthConfig(page, false, false);
     await page.goto('/');
 

@@ -7,7 +7,7 @@ const ADMIN_PASSWORD = 'admin-dev-password';
 const ARCHITECT_EMAIL = 'architect@example.com';
 const ARCHITECT_PASSWORD = 'architect-dev-password';
 
-test.skip(!PROJECT_ID, 'E2E_PROJECT_ID env var not set — run `npm run seed` and export it first');
+test.skip(!PROJECT_ID, 'E2E_PROJECT_ID env var not set — run the demo seed (python -m canvas_api.jobs.seed_demo) and export it first');
 
 /**
  * canvas-228.2. Covers soft-deleting an empty project from the Projects screen
@@ -15,7 +15,7 @@ test.skip(!PROJECT_ID, 'E2E_PROJECT_ID env var not set — run `npm run seed` an
  * Delete button rule (only a diagram-free project may be deleted), the confirm-dialog flow
  * (reusing the same `ConfirmDialog` diagram-delete already uses), the current-project fallback
  * when the deleted project was the active one, and the admin-only restore path. Backend contract
- * coverage already exists (`apps/api/tests/contract/project-delete-restore.test.ts`) — this only
+ * coverage already exists (`apps/api-py/tests/test_projects.py`) — this only
  * exercises the UI wiring.
  */
 
@@ -64,10 +64,15 @@ test('Delete is disabled with an explanatory title for a project with a diagram,
   const nonEmptyDelete = page.getByTestId(`projects-page-delete-${nonEmptyId}`);
   await expect(nonEmptyDelete).toBeVisible();
   await expect(nonEmptyDelete).toBeDisabled();
-  await expect(nonEmptyDelete).toHaveAttribute('title', 'Only a project with no diagrams can be deleted.');
+  await expect(nonEmptyDelete).toHaveAttribute(
+    'title',
+    'Only a project with no diagrams can be deleted.',
+  );
 });
 
-test('deleting an empty project via the confirm dialog removes it from the Projects screen list', async ({ page }) => {
+test('deleting an empty project via the confirm dialog removes it from the Projects screen list', async ({
+  page,
+}) => {
   await signIn(page, ADMIN_EMAIL, ADMIN_PASSWORD, `/?projectId=${PROJECT_ID}`);
   const name = `Delete Confirm ${Date.now()}`;
   const projectId = await createProject(page, name);
@@ -119,7 +124,9 @@ test('deleting a project the user last opened keeps them on the Projects list wi
   // Opening the project by address records it as the last-opened landing hint.
   await page.goto(`/?projectId=${activeId}`);
   await expect(page.getByTestId('new-diagram')).toBeVisible();
-  await expect.poll(() => page.evaluate(() => localStorage.getItem('canvas.lastProjectId'))).toBe(activeId);
+  await expect
+    .poll(() => page.evaluate(() => localStorage.getItem('canvas.lastProjectId')))
+    .toBe(activeId);
 
   await page.getByTestId('nav-projects').click();
   await page.getByTestId(`projects-page-delete-${activeId}`).click();

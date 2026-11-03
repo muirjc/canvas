@@ -2,7 +2,7 @@ import { expect, test, type Page } from '@playwright/test';
 
 const PROJECT_ID = process.env.E2E_PROJECT_ID;
 
-test.skip(!PROJECT_ID, 'E2E_PROJECT_ID env var not set — run `npm run seed` and export it first');
+test.skip(!PROJECT_ID, 'E2E_PROJECT_ID env var not set — run the demo seed (python -m canvas_api.jobs.seed_demo) and export it first');
 
 /** A new flowchart saved twice more: v1 = one shape, v2 = two, v3 = three. */
 async function diagramWithThreeVersions(page: Page) {

@@ -10,7 +10,7 @@ const GUEST_PASSWORD = 'guest-dev-password';
  * Feature 008. Neither existing fixture user can represent this feature's own primary scenario —
  * a user with a diagram-level grant and NO project access at all. `admin` owns a project; the
  * seeded `architect` (project-visibility.spec.ts, sharing.spec.ts) is deliberately given a
- * permanent project-level grant by apps/api/src/seed/run.ts. `guest@example.com` is seeded
+ * permanent project-level grant by apps/api-py/src/canvas_api/jobs/seed_demo.py. `guest@example.com` is seeded
  * specifically for this suite with zero ownership and zero project-level grant (research.md §5),
  * so it must not be given either anywhere in this file.
  *
@@ -46,8 +46,14 @@ async function createDiagram(page: Page, projectId: string, name: string): Promi
  * guest's state for every test that runs later (including this file's own first test, which
  * asserts guest has nothing shared).
  */
-async function shareWithGuest(page: Page, diagramId: string, accessLevel: 'view' | 'comment' | 'edit'): Promise<string> {
-  const lookup = await page.request.get(`${API_BASE_URL}/users/lookup?email=${encodeURIComponent(GUEST_EMAIL)}`);
+async function shareWithGuest(
+  page: Page,
+  diagramId: string,
+  accessLevel: 'view' | 'comment' | 'edit',
+): Promise<string> {
+  const lookup = await page.request.get(
+    `${API_BASE_URL}/users/lookup?email=${encodeURIComponent(GUEST_EMAIL)}`,
+  );
   const { user } = await lookup.json();
   const response = await page.request.post(`${API_BASE_URL}/diagrams/${diagramId}/shares`, {
     data: { granteeUserId: user.id, accessLevel },
@@ -62,7 +68,9 @@ async function revokeGuestShare(page: Page, grantId: string): Promise<void> {
 
 // canvas-2h2w.1: with open read, a user with no projects of their own still sees everyone's,
 // read-only, instead of the empty "create your first project" invitation.
-test('a user with nothing shared and no projects of their own sees every project read-only', async ({ browser }) => {
+test('a user with nothing shared and no projects of their own sees every project read-only', async ({
+  browser,
+}) => {
   const guestContext = await browser.newContext();
   const guestPage = await guestContext.newPage();
 
@@ -74,7 +82,9 @@ test('a user with nothing shared and no projects of their own sees every project
   await guestContext.close();
 });
 
-test('a user with a diagram-level grant and no project access finds and opens it', async ({ browser }) => {
+test('a user with a diagram-level grant and no project access finds and opens it', async ({
+  browser,
+}) => {
   const adminContext = await browser.newContext();
   const guestContext = await browser.newContext();
   const adminPage = await adminContext.newPage();
@@ -89,7 +99,9 @@ test('a user with a diagram-level grant and no project access finds and opens it
   try {
     await signIn(guestPage, GUEST_EMAIL, GUEST_PASSWORD);
     await expect(guestPage.getByTestId(`shared-diagram-${diagramId}`)).toBeVisible();
-    await expect(guestPage.getByTestId(`shared-diagram-project-${diagramId}`)).toContainText('Shared Access Source');
+    await expect(guestPage.getByTestId(`shared-diagram-project-${diagramId}`)).toContainText(
+      'Shared Access Source',
+    );
 
     // Regression guard (feature 007's FR-013a, narrowed): the project name must be inert text, not
     // a disguised link — the natural instinct is wrong here, since every other project reference in
@@ -117,12 +129,18 @@ test('a shared-diagram row identifies who granted access', async ({ browser }) =
 
   await signIn(adminPage, ADMIN_EMAIL, ADMIN_PASSWORD);
   const projectId = await createProject(adminPage, `Sharer Identity Source ${Date.now()}`);
-  const diagramId = await createDiagram(adminPage, projectId, `Sharer Identity Diagram ${Date.now()}`);
+  const diagramId = await createDiagram(
+    adminPage,
+    projectId,
+    `Sharer Identity Diagram ${Date.now()}`,
+  );
   const grantId = await shareWithGuest(adminPage, diagramId, 'view');
 
   try {
     await signIn(guestPage, GUEST_EMAIL, GUEST_PASSWORD);
-    await expect(guestPage.getByTestId(`shared-diagram-shared-by-${diagramId}`)).toContainText('Admin');
+    await expect(guestPage.getByTestId(`shared-diagram-shared-by-${diagramId}`)).toContainText(
+      'Admin',
+    );
   } finally {
     await revokeGuestShare(adminPage, grantId);
     await adminContext.close();
@@ -130,7 +148,9 @@ test('a shared-diagram row identifies who granted access', async ({ browser }) =
   }
 });
 
-test('the open action on a shared-diagram row is reachable and operable by keyboard alone', async ({ browser }) => {
+test('the open action on a shared-diagram row is reachable and operable by keyboard alone', async ({
+  browser,
+}) => {
   const adminContext = await browser.newContext();
   const guestContext = await browser.newContext();
   const adminPage = await adminContext.newPage();
@@ -138,7 +158,11 @@ test('the open action on a shared-diagram row is reachable and operable by keybo
 
   await signIn(adminPage, ADMIN_EMAIL, ADMIN_PASSWORD);
   const projectId = await createProject(adminPage, `Keyboard Reach ${Date.now()}`);
-  const diagramId = await createDiagram(adminPage, projectId, `Keyboard Reach Diagram ${Date.now()}`);
+  const diagramId = await createDiagram(
+    adminPage,
+    projectId,
+    `Keyboard Reach Diagram ${Date.now()}`,
+  );
   const grantId = await shareWithGuest(adminPage, diagramId, 'view');
 
   try {
@@ -151,7 +175,10 @@ test('the open action on a shared-diagram row is reachable and operable by keybo
     let reached = false;
     for (let i = 0; i < 30 && !reached; i += 1) {
       await guestPage.keyboard.press('Tab');
-      reached = await guestPage.evaluate((testId) => document.activeElement?.getAttribute('data-testid') === testId, openTestId);
+      reached = await guestPage.evaluate(
+        (testId) => document.activeElement?.getAttribute('data-testid') === testId,
+        openTestId,
+      );
     }
     expect(reached).toBe(true);
 
@@ -174,7 +201,11 @@ test('a user with a shared diagram and no projects no longer sees the false "no 
 
   await signIn(adminPage, ADMIN_EMAIL, ADMIN_PASSWORD);
   const projectId = await createProject(adminPage, `Invitation Suppression Source ${Date.now()}`);
-  const diagramId = await createDiagram(adminPage, projectId, `Invitation Suppression Diagram ${Date.now()}`);
+  const diagramId = await createDiagram(
+    adminPage,
+    projectId,
+    `Invitation Suppression Diagram ${Date.now()}`,
+  );
   const grantId = await shareWithGuest(adminPage, diagramId, 'view');
 
   try {

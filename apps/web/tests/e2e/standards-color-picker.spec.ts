@@ -2,7 +2,7 @@ import { expect, test } from '@playwright/test';
 import { deleteCustomDiagramType } from './diagram-type-helpers';
 import { API_BASE_URL, PROJECT_ID, login } from './standards-v2-helpers';
 
-test.skip(!PROJECT_ID, 'E2E_PROJECT_ID env var not set — run `npm run seed` and export it first');
+test.skip(!PROJECT_ID, 'E2E_PROJECT_ID env var not set — run the demo seed (python -m canvas_api.jobs.seed_demo) and export it first');
 
 /**
  * canvas-lti: choosing a colour in the standards editor's colour picker only set a local draft; it

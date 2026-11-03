@@ -2,7 +2,7 @@ import { expect, test, type Page } from '@playwright/test';
 import { openStandardsAdmin } from './standards-admin-helpers';
 import { PROJECT_ID, addKind, newDiagram } from './standards-v2-helpers';
 
-test.skip(!PROJECT_ID, 'E2E_PROJECT_ID env var not set — run `npm run seed` and export it first');
+test.skip(!PROJECT_ID, 'E2E_PROJECT_ID env var not set — run the demo seed (python -m canvas_api.jobs.seed_demo) and export it first');
 
 /** canvas-chq: every built-in type has a published starter standard that can be viewed and revised. */
 

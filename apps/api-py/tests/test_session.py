@@ -12,16 +12,17 @@ from __future__ import annotations
 import json
 import time
 from collections.abc import Iterator
-from typing import Any
+from typing import Annotated, Any
 from urllib.parse import quote
 from uuid import uuid4
 
 import pytest
+from fastapi import Depends, FastAPI
 from fastapi.testclient import TestClient
 from sqlalchemy import Engine, text
 
 from canvas_api.auth.cookie_signer import sign, unsign
-from canvas_api.auth.session import load_session, signed_in_user
+from canvas_api.auth.session import SessionUser, current_user, load_session, signed_in_user
 from canvas_api.config import Settings
 from tests.conftest import TEST_SESSION_SECRET
 
@@ -128,21 +129,38 @@ def make_session(engine: Engine) -> Iterator[Any]:
     yield make
 
 
+PROBE = "/_test/session-user"
+
+
+@pytest.fixture()
+def client(client: TestClient) -> TestClient:
+    """The app with a probe route (outside the API and its schema) that answers who current_user says is
+    signed in -- the dependency every signed-in route uses."""
+    app: FastAPI = client.app  # type: ignore[assignment]
+    if not any(getattr(route, "path", None) == PROBE for route in app.routes):
+
+        @app.get(PROBE, include_in_schema=False)
+        def probe(user: Annotated[SessionUser, Depends(current_user)]) -> dict[str, str]:
+            return {"id": user.id, "email": user.email, "role": user.role}
+
+    return client
+
+
 def _me(client: TestClient, cookie: str | None) -> Any:
     if cookie is not None:
         client.cookies.set("cid", cookie)
-    return client.get("/py/me")
+    return client.get(PROBE)
 
 
 def test_a_session_signed_in_through_typescript_works_here(client: TestClient, make_session: Any) -> None:
     user = _user(role="admin")
     res = _me(client, make_session(user))
     assert res.status_code == 200, res.text
-    assert res.json() == {"id": user["id"], "email": user["email"], "role": "admin", "service": "python"}
+    assert res.json() == {"id": user["id"], "email": user["email"], "role": "admin"}
 
 
 def test_no_cookie_is_401_in_the_typescript_shape(client: TestClient) -> None:
-    res = client.get("/py/me")
+    res = client.get(PROBE)
     assert res.status_code == 401
     assert res.json() == {"error": "Authentication required"}
 

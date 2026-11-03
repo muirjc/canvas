@@ -1,10 +1,11 @@
 """Expected outputs of the TypeScript originals for the cases in tests/github_parity_cases.py (a string over
-300 UTF-16 code units is {"sha256", "len"}; shorter is {"v"}). GENERATED -- do not edit by hand.
+300 UTF-16 code units is {"sha256", "len"}; shorter is {"v"}). Generated from the TypeScript API, now frozen:
+GitHub holds files Canvas committed this way, and an unchanged resubmission must still be "up to date".
 
-Regenerate (after changing a case, or the TypeScript originals in apps/api/src/github/submission-files.ts or
-folder-path.ts on purpose) by running each case through `buildSubmissionFiles`/`buildPrBody`/`buildPrTitle`/
+They were made by running each case through `buildSubmissionFiles`/`buildPrBody`/`buildPrTitle`/
 `buildCommitMessage`/`escapeMarkdown`/`oneLine`/`submissionFingerprint`/`slugify`/`normalizeFolder`/
-`assertSafeRepoPath`/`JSON.stringify` with `npx tsx` from apps/api, mapping each result to the shape above.
+`assertSafeRepoPath`/`JSON.stringify` (apps/api/src/github/submission-files.ts and folder-path.ts at tag
+typescript-api-final), with `npx tsx`. Change one on purpose only with a reason, by hand.
 """
 
 # ruff: noqa: E501

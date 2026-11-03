@@ -35,7 +35,7 @@ param postgresAdminPassword string
 @description('Object ID of the principal running this deployment (az ad signed-in-user show), granted Key Vault Secrets Officer.')
 param deployerPrincipalId string
 
-@description('Tag of the API image (repo-root Dockerfile), already built+pushed to ACR by deploy.sh before this runs. No default -- deploy.sh always supplies a unique tag (git short SHA) so a rebuild reliably produces a new revision, unlike a floating :latest tag (a real gotcha ADP hit: Container Apps revision diffing treats a same-tag image as a no-op even when the digest changed).')
+@description('Tag of the canvas-api-py image (apps/api-py/Dockerfile), already built+pushed to ACR by deploy.sh before this runs. No default -- deploy.sh always supplies a unique tag (git short SHA) so a rebuild reliably produces a new revision, unlike a floating :latest tag (a real gotcha ADP hit: Container Apps revision diffing treats a same-tag image as a no-op even when the digest changed).')
 param apiImageTag string
 
 @description('canvas-r3y: the web app is served by canvas-api itself, so the public URL is the API\'s own (computed below). Kept as a parameter only to override it (e.g. a custom domain); empty = the API\'s URL.')
@@ -73,9 +73,6 @@ param githubApiUrl string = 'https://api.github.com'
 @description('canvas-haz.9: "secret" or "managed-identity" (federated credential, no client secret).')
 @allowed(['secret', 'managed-identity'])
 param oidcClientAuth string = 'secret'
-
-@description('canvas-1bty.14: route groups canvas-api (Python) sends back to canvas-api-ts (TYPESCRIPT_ROUTE_GROUPS), the one-release fallback. Empty or "none" = none; or names from apps/api/src/python/route-groups.ts, comma-separated.')
-param typescriptRouteGroups string = ''
 
 resource rg 'Microsoft.Resources/resourceGroups@2023-07-01' = {
   name: resourceGroupName
@@ -158,31 +155,6 @@ module monitoring 'modules/monitoring.bicep' = {
   }
 }
 
-// canvas-1bty.14: the TypeScript API, internal only: the fallback for route groups canvas-api sends back.
-module tsApiApp 'modules/tsapiapp.bicep' = {
-  name: 'tsApiAppDeploy'
-  scope: rg
-  params: {
-    location: location
-    environmentId: containerAppsEnv.outputs.environmentId
-    identityId: keyVault.outputs.identityId
-    acrLoginServer: acr.outputs.loginServer
-    apiImageTag: apiImageTag
-    keyVaultUri: keyVault.outputs.keyVaultUri
-    webOrigin: empty(webOrigin) ? apiPublicBaseUrl : webOrigin
-    entraTenantId: entraTenantId
-    entraClientId: entraClientId
-    oidcRedirectUri: oidcRedirectUri
-    aiProvider: aiProvider
-    authMode: authMode
-    githubAppId: githubAppId
-    githubApiUrl: githubApiUrl
-    appInsightsConnectionString: monitoring.outputs.connectionString
-    oidcClientAuth: oidcClientAuth
-    identityClientId: keyVault.outputs.identityClientId
-  }
-}
-
 // canvas-1bty.14: the front door, Python (apps/api-py): the public address,
 // the web app and every API route.
 module apiApp 'modules/apiapp.bicep' = {
@@ -207,8 +179,6 @@ module apiApp 'modules/apiapp.bicep' = {
     oidcClientAuth: oidcClientAuth
     identityClientId: keyVault.outputs.identityClientId
     allowedIpRanges: allowedIpRanges
-    typescriptApiUrl: tsApiApp.outputs.internalUrl
-    typescriptRouteGroups: typescriptRouteGroups
   }
 }
 

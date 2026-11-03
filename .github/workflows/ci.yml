@@ -22,29 +22,31 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run lint
+      # The licence check reads the Python packages' licences from the API's production environment.
+      - name: Install uv
+        run: pipx install uv==0.13.1
+      - run: uv python install 3.13
+      - run: uv sync --frozen --no-dev
+        working-directory: apps/api-py
       # canvas-qrvn: every production dependency's licence is on the allow-list, and the committed
-      # THIRD-PARTY-NOTICES.md matches package-lock.json (run `npm run licenses` to regenerate).
+      # THIRD-PARTY-NOTICES.md matches package-lock.json and apps/api-py/uv.lock (run
+      # `npm run licenses` to regenerate).
       - run: npm run licenses:check
-      # diagram-core must build first — api and web resolve it as a workspace dependency via its
+      # diagram-core must build first — web resolves it as a workspace dependency via its
       # built dist/ output (see packages/diagram-core/package.json "main"), not its TS source.
       - run: npm run build --workspace=@canvas/diagram-core
-      - run: npm run build --workspace=@canvas/api
       - run: npm run build --workspace=@canvas/web
       # canvas-3s5.3: the CI validator Canvas commits to GitHub repositories (one bundled file).
       - run: npm run typecheck --workspace=@canvas/validator-cli
       - run: npm run build --workspace=@canvas/validator-cli
 
+  # The backend (apps/api-py, Python since canvas-1bty.16) on both databases it supports, and the TypeScript
+  # packages' own tests (no database) on the postgres leg. The Python Postgres tests use their own schema
+  # (canvas_py) in the test database; on the sqlite leg the postgres service is simply never touched (GitHub
+  # Actions can't omit a service per matrix leg). Named unit-tests so the required checks keep their names.
   unit-tests:
     runs-on: ubuntu-latest
     needs: lint-and-build
-    # canvas-jtm.8: apps/api's db layer is engine-agnostic (Postgres + SQLite, canvas-jtm epic) —
-    # this matrix runs the identical test suite against both, so dialect parity is actually CI-
-    # enforced, not just locally checked once. The postgres service container is declared
-    # unconditionally (GitHub Actions has no clean way to omit a service per matrix leg within one
-    # job) rather than split into two jobs — the sqlite leg simply never touches it. That costs a
-    # few seconds of unused container startup on the sqlite leg, a small addition on top of the
-    # roughly-doubled job count this matrix already, deliberately, costs (see the epic's plan's own
-    # "Risks" section) — not worth two near-duplicate jobs to avoid.
     strategy:
       fail-fast: false
       matrix:
@@ -71,9 +73,6 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run build --workspace=@canvas/diagram-core
-      # diagram-core has no database coupling at all (see CLAUDE.md's "Active Technologies") — one
-      # run is enough, not per db-client, so it only runs on the postgres leg to avoid a pointless
-      # duplicate.
       - name: diagram-core contract/unit tests
         if: matrix.db-client == 'postgres'
         run: npm run test --workspace=@canvas/diagram-core
@@ -81,73 +80,29 @@ jobs:
       - name: validator-cli tests
         if: matrix.db-client == 'postgres'
         run: npm run test --workspace=@canvas/validator-cli
-      # canvas-1bty.4: the diagram-core bridge the Python service calls (no database).
+      # canvas-1bty.15.8: the TypeScript diagram-core bridge, the reference the Python tests compare against
+      # (the browser runs the TypeScript diagram-core); the app itself doesn't use it.
       - name: diagram-bridge tests
         if: matrix.db-client == 'postgres'
         run: npm run test --workspace=@canvas/diagram-bridge
-      - name: api contract tests
-        # NODE_ENV=test makes the api fall back to the canvas_test DB / a fixed dev session
-        # secret (see apps/api/src/config.ts) — no DATABASE_URL/SESSION_SECRET needed here.
-        # TEST_DB_CLIENT selects the dialect (apps/api/src/config.ts); on the sqlite leg this runs
-        # entirely against an in-memory database and never touches the postgres service above.
-        env:
-          TEST_DB_CLIENT: ${{ matrix.db-client }}
-        run: npm run test --workspace=@canvas/api
-
-  # canvas-1bty.1: the Python backend (apps/api-py), moving here from apps/api route group by route
-  # group (docs/python-backend-assessment.md). Same Postgres/SQLite matrix as the TypeScript suite;
-  # its Postgres tests use their own schema (canvas_py) in the same test database.
-  python-tests:
-    runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        db-client: [postgres, sqlite]
-    services:
-      postgres:
-        image: postgres:16-alpine
-        env:
-          POSTGRES_USER: canvas
-          POSTGRES_PASSWORD: canvas_dev_password
-          POSTGRES_DB: canvas_test
-        ports:
-          - 5433:5432
-        options: >-
-          --health-cmd="pg_isready -U canvas"
-          --health-interval=10s
-          --health-timeout=5s
-          --health-retries=5
-    defaults:
-      run:
-        working-directory: apps/api-py
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      # canvas-1bty.15.8: the TypeScript diagram-core bridge is the reference the Python tests compare against
-      # (the browser still runs the TypeScript diagram-core); the app itself no longer uses it.
-      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
-        with:
-          node-version: ${{ env.NODE_VERSION }}
-          cache: npm
-      # diagram-core too: test_jobs_seed_parity.py runs the TypeScript catalog seed, which imports its dist.
-      - name: Build diagram-core and the bridge
-        working-directory: .
-        run: |
-          npm ci
-          npm run build --workspace=@canvas/diagram-core
-          npm run build --workspace=@canvas/diagram-bridge
+      - run: npm run build --workspace=@canvas/diagram-bridge
       - name: Install uv
         run: pipx install uv==0.13.1
       - run: uv python install 3.13
       - run: uv sync --frozen
-      - name: Lint and format
+        working-directory: apps/api-py
+      - name: Python lint and format
         if: matrix.db-client == 'postgres'
+        working-directory: apps/api-py
         run: |
           uv run ruff check .
           uv run ruff format --check .
-      - name: Type check
+      - name: Python type check
         if: matrix.db-client == 'postgres'
+        working-directory: apps/api-py
         run: uv run mypy
-      - name: Tests
+      - name: Python tests
+        working-directory: apps/api-py
         env:
           TEST_DB_CLIENT: ${{ matrix.db-client }}
           # The corpus-through-the-bridge tests skip without the bundle; in CI they must run.
@@ -178,8 +133,7 @@ jobs:
       WEB_ORIGINS: http://localhost:5173
       PORT: '3000'
       # The AI chat E2E specs drive the real HTTP/tool-execution/persistence pipeline against a
-      # rule-based fake NLU (apps/api-py's canvas_api/ai/mock_model.py since canvas-1bty.12; the
-      # TypeScript fallback's apps/api/src/ai/mock-nlu.ts) instead of a live provider, so CI needs
+      # rule-based fake NLU (apps/api-py's canvas_api/ai/mock_model.py) instead of a live provider, so CI needs
       # no API key and makes no network call. Without this the API server starts unconfigured and
       # every AI request fails at provider resolution.
       AI_PROVIDER: mock
@@ -227,48 +181,25 @@ jobs:
             sleep 1
           done
           echo "fake GitHub did not become healthy in time"; cat /tmp/fake-github.log; exit 1
-      # canvas-1bty.14: as in Azure, the Python service is the front door (port 3000, which the web app and
-      # Playwright call) and the TypeScript API runs behind it (port 3001) as the fallback for route groups
-      # sent back with TYPESCRIPT_ROUTE_GROUPS. This unchanged e2e suite is the gate.
-      - name: Start the TypeScript API (behind the Python front door)
-        working-directory: apps/api
-        env:
-          PORT: '3001'
-          TRUST_CLIENT_IP_HEADER: 'true'
-        run: |
-          nohup npm run dev > /tmp/api.log 2>&1 &
-          for i in $(seq 1 30); do
-            curl -sf http://localhost:3001/health > /dev/null && exit 0
-            sleep 1
-          done
-          echo "TypeScript API did not become healthy in time"; cat /tmp/api.log; exit 1
-      - name: Start the Python service (the front door)
+      # As in Azure, the Python service is the API and serves port 3000, which the web app and Playwright call.
+      - name: Start the API
         working-directory: apps/api-py
-        env:
-          # canvas-1bty.15.8: no DIAGRAM_BRIDGE_URL, as in Azure: diagram-core answers natively.
-          TYPESCRIPT_API_URL: http://127.0.0.1:3001
         run: |
           nohup uv run uvicorn canvas_api.main:app --host 0.0.0.0 --port 3000 > /tmp/api-py.log 2>&1 &
           for i in $(seq 1 30); do
-            if curl -sf http://localhost:3000/health > /dev/null; then
-              # /py/me exists only in Python (401 signed out).
-              status=$(curl -s -o /dev/null -w '%{http_code}' http://localhost:3000/py/me)
-              [ "$status" = "401" ] && exit 0
-              echo "Port 3000 is up but isn't the Python service (/py/me -> $status)"; cat /tmp/api-py.log; exit 1
-            fi
+            curl -sf http://localhost:3000/health > /dev/null && exit 0
             sleep 1
           done
-          echo "Python service did not become healthy in time"; cat /tmp/api-py.log; exit 1
+          echo "The API did not become healthy in time"; cat /tmp/api-py.log; exit 1
       # Playwright's own webServer config (apps/web/playwright.config.ts) starts the Vite dev
       # server automatically, so only the API services need to be started manually above.
       - name: Run Playwright E2E tests
         working-directory: apps/web
         run: npx playwright test
-      - name: Show API, Python service and fake GitHub logs
+      - name: Show API and fake GitHub logs
         if: failure()
         run: |
-          echo "--- API (last 200 lines) ---"; tail -n 200 /tmp/api.log || true
-          echo "--- Python service (last 200 lines) ---"; tail -n 200 /tmp/api-py.log || true
+          echo "--- API (last 200 lines) ---"; tail -n 200 /tmp/api-py.log || true
           echo "--- fake GitHub ---"; tail -n 100 /tmp/fake-github.log || true
       - name: Upload Playwright report
         if: failure()

@@ -2,9 +2,8 @@
 // (apps/api-py), diagram-core native in Python (canvas-1bty.15; the TypeScript bridge sidecar was removed in
 // 11h, canvas-1bty.15.8). Same name, so the same address, IP allow-list
 // and Entra redirect URI as when it ran the TypeScript API. It serves the web app (built into its image),
-// the paused page (CANVAS_PAUSED, pause.sh/resume.sh), and every API route; a route group named in
-// TYPESCRIPT_ROUTE_GROUPS (the one-release fallback) and /docs go to the internal TypeScript service,
-// canvas-api-ts (modules/tsapiapp.bicep).
+// the paused page (CANVAS_PAUSED, pause.sh/resume.sh), and every API route. The TypeScript API it replaced
+// is gone (canvas-1bty.16; tag typescript-api-final).
 //
 // The managed identity's AcrPull and Key Vault grants live in modules/keyvault.bicep. /health has no auth
 // guard and is the liveness/readiness probe. minReplicas=0 (cold starts accepted, canvas-aots).
@@ -65,12 +64,6 @@ param identityClientId string = ''
 
 @description('canvas-cng: the IP allow-list, as [{ cidr, description }]. When non-empty, ingress only accepts these ranges -- once one Allow rule exists, Container Apps denies all other traffic. deploy.sh supplies it from infra/azure/.secrets/allowed-ips and refuses an empty list unless CANVAS_ALLOW_PUBLIC=1.')
 param allowedIpRanges array = []
-
-@description('canvas-1bty.14: the internal TypeScript service (TYPESCRIPT_API_URL); empty = none.')
-param typescriptApiUrl string = ''
-
-@description('canvas-1bty.14: route groups sent back to TypeScript (TYPESCRIPT_ROUTE_GROUPS): empty or "none" = none.')
-param typescriptRouteGroups string = ''
 
 @description('Port uvicorn listens on (apps/api-py/Dockerfile).')
 param port int = 8000
@@ -180,9 +173,6 @@ resource apiApp 'Microsoft.App/containerApps@2025-01-01' = {
             { name: 'AZURE_CLIENT_ID', value: identityClientId }
             { name: 'OIDC_REDIRECT_URI', value: oidcRedirectUri }
             { name: 'MFA_ENCRYPTION_KEY', secretRef: 'mfa-encryption-key' }
-            // canvas-1bty.14: the fallback to the internal TypeScript service (modules/tsapiapp.bicep).
-            { name: 'TYPESCRIPT_API_URL', value: typescriptApiUrl }
-            { name: 'TYPESCRIPT_ROUTE_GROUPS', value: typescriptRouteGroups }
           ]
           // canvas-1bty.15.8: what the bridge sidecar had (0.25 / 0.5Gi) moved here with diagram-core.
           resources: {

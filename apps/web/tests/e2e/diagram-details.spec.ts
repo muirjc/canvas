@@ -6,7 +6,7 @@ const OWNER_EMAIL = 'architect@example.com';
 const OWNER_PASSWORD = 'architect-dev-password';
 const OWNER_NAME = 'Architect';
 
-test.skip(!PROJECT_ID, 'E2E_PROJECT_ID env var not set — run `npm run seed` and export it first');
+test.skip(!PROJECT_ID, 'E2E_PROJECT_ID env var not set — run the demo seed (python -m canvas_api.jobs.seed_demo) and export it first');
 
 /**
  * canvas-hbk: the doc-bar's new "Diagram details" dialog (`DiagramEditor.tsx`) — owner/created
@@ -14,7 +14,7 @@ test.skip(!PROJECT_ID, 'E2E_PROJECT_ID env var not set — run `npm run seed` an
  * explicit-Save pattern as `PersonaAdminPage.tsx`'s prompt editor (canvas-ddx), whose
  * `ai-persona-admin.spec.ts` coverage of that same status-indicator behavior is this spec's
  * closest style precedent. Backend contract coverage already exists
- * (`apps/api/tests/contract/diagram-description.test.ts`) — this only exercises the UI wiring.
+ * (`apps/api-py/tests/test_diagrams.py`) — this only exercises the UI wiring.
  */
 
 async function signIn(page: Page, email: string, password: string, url = '/'): Promise<void> {
@@ -88,7 +88,9 @@ test('typing a description and clicking Save persists it — still there after c
   await page.keyboard.press('Escape');
   await expect(dialog).toHaveCount(0);
   await page.getByTestId('open-diagram-details').click();
-  await expect(page.getByTestId('diagram-details').getByTestId('diagram-description-input')).toHaveValue(description);
+  await expect(
+    page.getByTestId('diagram-details').getByTestId('diagram-description-input'),
+  ).toHaveValue(description);
 
   // Persisted server-side, not just local React state — confirmed via a full page reload. A
   // reload always lands back on ProjectBrowser (there is no diagram id in the URL to restore),
@@ -97,13 +99,17 @@ test('typing a description and clicking Save persists it — still there after c
   await expect(page.getByTestId('sign-out')).toBeVisible();
   await openDiagram(page, PROJECT_ID!, diagramId);
   await page.getByTestId('open-diagram-details').click();
-  await expect(page.getByTestId('diagram-details').getByTestId('diagram-description-input')).toHaveValue(description);
+  await expect(
+    page.getByTestId('diagram-details').getByTestId('diagram-description-input'),
+  ).toHaveValue(description);
 
   const getResponse = await page.request.get(`${API_BASE_URL}/diagrams/${diagramId}`);
   expect((await getResponse.json()).diagram.description).toBe(description);
 });
 
-test('the Unsaved changes / Saved status indicator tracks dirty state correctly', async ({ page }) => {
+test('the Unsaved changes / Saved status indicator tracks dirty state correctly', async ({
+  page,
+}) => {
   await signIn(page, OWNER_EMAIL, OWNER_PASSWORD);
   const name = `Details Status ${Date.now()}`;
   const diagramId = await createDiagram(page, PROJECT_ID!, name);
@@ -167,7 +173,9 @@ test('Escape closes the dialog but keeps the in-progress unsaved draft — it is
   expect((await getResponse.json()).diagram.description).toBeNull();
 });
 
-test('canvas-96h: the details dialog has a Close button, and an unsaved description draft survives closing', async ({ page }) => {
+test('canvas-96h: the details dialog has a Close button, and an unsaved description draft survives closing', async ({
+  page,
+}) => {
   await signIn(page, OWNER_EMAIL, OWNER_PASSWORD);
   const diagramId = await createDiagram(page, PROJECT_ID!, `Details Close ${Date.now()}`);
   await openDiagram(page, PROJECT_ID!, diagramId);
@@ -187,7 +195,9 @@ test('canvas-96h: the details dialog has a Close button, and an unsaved descript
   await expect(page.getByTestId('diagram-description-status')).toHaveText('Unsaved changes');
 });
 
-test('canvas-08d: the save status reads in plain words, never the raw request state', async ({ page }) => {
+test('canvas-08d: the save status reads in plain words, never the raw request state', async ({
+  page,
+}) => {
   await signIn(page, OWNER_EMAIL, OWNER_PASSWORD);
   const diagramId = await createDiagram(page, PROJECT_ID!, `Save Words ${Date.now()}`);
   await openDiagram(page, PROJECT_ID!, diagramId);

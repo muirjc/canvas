@@ -12,7 +12,7 @@ const RUN = Date.now();
 const GRANTEE_EMAIL = `e2e-user-${RUN}-grantee@example.com`;
 const GRANTEE_PASSWORD = 'Lantern-orchid-basalt-31'; // gitleaks:allow
 
-test.skip(!PROJECT_ID, 'E2E_PROJECT_ID env var not set — run `npm run seed` and export it first');
+test.skip(!PROJECT_ID, 'E2E_PROJECT_ID env var not set — run the demo seed (python -m canvas_api.jobs.seed_demo) and export it first');
 
 /**
  * User Story 6 end-to-end: the owner shares a diagram at "view" access — the recipient can open

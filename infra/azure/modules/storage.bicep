@@ -1,11 +1,6 @@
-// Storage account for the frontend static website (canvas-ycu). No ADP equivalent -- ADP builds
-// its frontend into the SAME container as the API and serves it via FastAPI's StaticFiles mount
-// (see its root Dockerfile), a same-origin architecture with no CORS/cookie complexity at all.
-// canvas deliberately keeps its EXISTING split-origin topology instead (frontend and API on
-// different hosts) -- docs/azure-deployment.md's COOKIE_SECURE/COOKIE_SAME_SITE=none path
-// already implements and documents exactly this, tested and working; merging the two into one
-// container would be a much larger, riskier change than this bead's own scope (see canvas-ycu's
-// design notes on this trade-off).
+// Storage account for the old web address (canvas-ycu). The web app is served by canvas-api itself
+// (apps/api-py's front door, canvas-r3y); this static website only holds a page that redirects the
+// old address, deep links included, to Canvas's address.
 //
 // Static website hosting itself (the `$web` container + index/error document config) has no
 // first-class ARM/Bicep resource -- it's a data-plane setting, not a control-plane one. This

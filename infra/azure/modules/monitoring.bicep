@@ -1,5 +1,5 @@
 // canvas-6upe: API performance telemetry. Application Insights (workspace-based, on canvas-logs)
-// receives the API's OpenTelemetry traces and metrics (apps/api/src/telemetry/register.ts). A
+// receives the API's OpenTelemetry traces (apps/api-py/src/canvas_api/telemetry.py). A
 // workbook shows per-route timings, slowest queries and AI calls over time; an hourly alert emails
 // the admin when a key route's p95 goes over budget. Pay-per-GB ingestion; nothing is sent while
 // the environment is paused.

@@ -1,4 +1,4 @@
-"""Sessions, shared with the TypeScript service (apps/api/src/auth/session.ts, session-store.ts).
+"""Sessions, in the row format the TypeScript service wrote (apps/api/src/auth/session.ts, session-store.ts).
 
 A browser signed in through either service is signed in to both: same cookie (`cid`), same signature,
 same `sessions` rows, written in @fastify/session's format. The rules match the TypeScript side:

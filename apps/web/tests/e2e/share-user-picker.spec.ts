@@ -6,7 +6,7 @@ import { expectSignedIn } from './auth-helpers';
 const PROJECT_ID = process.env.E2E_PROJECT_ID;
 const API_BASE_URL = process.env.VITE_API_BASE_URL ?? 'http://localhost:3000';
 
-test.skip(!PROJECT_ID, 'E2E_PROJECT_ID env var not set — run `npm run seed` and export it first');
+test.skip(!PROJECT_ID, 'E2E_PROJECT_ID env var not set — run the demo seed (python -m canvas_api.jobs.seed_demo) and export it first');
 
 /** canvas-cyt: the Share dialog's people picker (combobox) over GET /users/search. Shares only with
  *  throwaway users it creates -- the seeded Guest/Architect accounts are other specs' fixtures

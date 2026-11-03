@@ -7,7 +7,7 @@
  * Unlike scripts/generate-azure-icons.mjs, the output is NOT committed: this repo is public and
  * AWS's published terms only explicitly cover using the icons to create architecture diagrams, not
  * redistributing them inside a tool's source. So each deployment generates the library from its own
- * copy of the package; the API's catalog seed (apps/api/src/seed/libraries.seed.ts) loads the
+ * copy of the package; the API's catalog seed (apps/api-py/src/canvas_api/seed/libraries.py) loads the
  * generated JSON when present and falls back to the placeholders otherwise.
  *
  * Every 48px service icon is included. The artwork is only uniformly scaled into the renderer's
@@ -45,7 +45,24 @@ export const LEGACY_AWS_ICON_IDS = {
 };
 
 /** Words AWS writes in a fixed case, restored in display names ("Amazon Ec2" -> "Amazon EC2"). */
-const UPPERCASE_WORDS = new Set(['EC2', 'RDS', 'IAM', 'VPC', 'S3', 'IoT', 'API', 'SQS', 'SNS', 'EKS', 'ECS', 'ECR', 'EFS', 'EMR', 'MQ', 'DB']);
+const UPPERCASE_WORDS = new Set([
+  'EC2',
+  'RDS',
+  'IAM',
+  'VPC',
+  'S3',
+  'IoT',
+  'API',
+  'SQS',
+  'SNS',
+  'EKS',
+  'ECS',
+  'ECR',
+  'EFS',
+  'EMR',
+  'MQ',
+  'DB',
+]);
 
 function parseViewBox(svg) {
   const match = svg.match(/viewBox="([-\d.\s]+)"/);
@@ -137,11 +154,15 @@ export function buildAwsIconsManifest(sourceRoot) {
   for (const folder of folders) {
     const dir = resolve(sourceRoot, folder, '48');
     if (!existsSync(dir)) continue;
-    for (const file of readdirSync(dir).filter((f) => /^Arch_.*_48\.svg$/.test(f)).sort()) {
+    for (const file of readdirSync(dir)
+      .filter((f) => /^Arch_.*_48\.svg$/.test(f))
+      .sort()) {
       entries.push({ folder, file, stem: file.replace(/^Arch_/, '').replace(/_48\.svg$/, '') });
     }
   }
-  entries.sort((a, b) => Number(!(b.stem in LEGACY_AWS_ICON_IDS)) - Number(!(a.stem in LEGACY_AWS_ICON_IDS)));
+  entries.sort(
+    (a, b) => Number(!(b.stem in LEGACY_AWS_ICON_IDS)) - Number(!(a.stem in LEGACY_AWS_ICON_IDS)),
+  );
   for (const { folder, file, stem } of entries) {
     const id = toId(stem, usedIds);
     const category = toCategory(folder);
@@ -154,7 +175,9 @@ export function buildAwsIconsManifest(sourceRoot) {
       assetRef: normalize(readFileSync(resolve(sourceRoot, folder, '48', file), 'utf-8'), id),
     });
   }
-  icons.sort((a, b) => a.category.localeCompare(b.category) || a.displayName.localeCompare(b.displayName));
+  icons.sort(
+    (a, b) => a.category.localeCompare(b.category) || a.displayName.localeCompare(b.displayName),
+  );
   return {
     id: 'aws-icons',
     version: AWS_ICONS_VERSION,
@@ -169,7 +192,9 @@ export function buildAwsIconsManifest(sourceRoot) {
 function main() {
   const [source, output = DEFAULT_OUTPUT] = process.argv.slice(2);
   if (!source) {
-    console.error('Usage: node generate-aws-icons.mjs <path-to-Architecture-Service-Icons_*> [output.json]');
+    console.error(
+      'Usage: node generate-aws-icons.mjs <path-to-Architecture-Service-Icons_*> [output.json]',
+    );
     process.exitCode = 1;
     return;
   }

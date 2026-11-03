@@ -1,7 +1,7 @@
 [project]
 name = "canvas-api"
 version = "0.1.0"
-description = "Canvas backend, Python (canvas-1bty: incremental move from apps/api, see docs/python-backend-assessment.md)"
+description = "Canvas backend: the API, its jobs and the front door that serves the web app"
 requires-python = ">=3.13,<3.14"
 dependencies = [
     "anthropic>=1.15.0",

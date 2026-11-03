@@ -2,7 +2,7 @@ import { expect, test } from '@playwright/test';
 import { connectShapes } from './helpers/connect';
 import { PROJECT_ID, addKind, login, newDiagram, readDsl } from './standards-v2-helpers';
 
-test.skip(!PROJECT_ID, 'E2E_PROJECT_ID env var not set — run `npm run seed` and export it first');
+test.skip(!PROJECT_ID, 'E2E_PROJECT_ID env var not set — run the demo seed (python -m canvas_api.jobs.seed_demo) and export it first');
 
 /** Standards v2 DRAW channel, against the seeded Value Chain reference standard. */
 test('value chain: kind toolbar, live issues, kind styling, connector policy, selection, persistence', async ({ page }) => {

@@ -10,8 +10,8 @@ export default defineConfig({
   // Every spec shares one seeded project (E2E_PROJECT_ID) and asserts on its diagram count —
   // running spec files in parallel workers races those counts against each other (e.g. one
   // worker's diagram creation lands between another worker's "before" and "after" count
-  // assertions). Sequential is correct here, not a performance workaround, mirroring
-  // apps/api/vitest.config.ts's fileParallelism: false for the same reason.
+  // assertions). Sequential is correct here, not a performance workaround, as the API's pytest
+  // suite also runs serially against its one shared test database.
   workers: 1,
   // CI already has an "Upload Playwright report" step pointing at playwright-report/, but nothing
   // was producing that directory — the default reporter writes no HTML. With this, the artifact

@@ -6,7 +6,7 @@ import type { NodeShape } from './diagram-model.js';
  * actor); `c4` elements use whichever shape their role maps to (`ELEMENT_TO_SHAPE` in dsl/c4.ts);
  * `architecture` services are 'icon'-shaped plus 'circle' for junctions.
  *
- * canvas-tfr: moved here from apps/api/src/ai/diagram-tools.ts so the AI tool enums, the
+ * canvas-tfr: moved here from the old TypeScript API's ai/diagram-tools.ts so the AI tool enums, the
  * standards definition check, and the standards admin editor's shape pickers all read one list.
  * An unrecognized family should fall back to the flowchart set.
  */
@@ -37,7 +37,11 @@ export const FAMILY_NODE_SHAPES: Record<string, readonly [NodeShape, ...NodeShap
 /** canvas-tfr: families whose DSL can carry an element kind (flowchart via `:::kind`, C4 via its
  *  own role + `_Ext`, architecture via front-matter `canvas.kinds` -- jmuir-dtu.28, since
  *  architecture-beta has no class/tag syntax). Other families support only the v1 standard rules. */
-export const FAMILY_SUPPORTS_ELEMENT_KINDS: ReadonlySet<string> = new Set(['flowchart', 'c4', 'architecture']);
+export const FAMILY_SUPPORTS_ELEMENT_KINDS: ReadonlySet<string> = new Set([
+  'flowchart',
+  'c4',
+  'architecture',
+]);
 
 /** jmuir-dtu.28: the shapes an element kind may use, where that differs from FAMILY_NODE_SHAPES.
  *  Architecture kinds classify services only -- a junction (the 'circle') is its own role and is

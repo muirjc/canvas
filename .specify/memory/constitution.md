@@ -1,5 +1,11 @@
 <!--
 Sync Impact Report
+- Version change: 1.2.0 → 1.2.1 (PATCH: factual notes only, no principle changed)
+- Notes added under IV and VI: the backend move to Python is complete (canvas-1bty phase 12); the
+  TypeScript backend (apps/api) is removed, its last version at tag typescript-api-final.
+- Templates requiring updates: none.
+- Previous report (1.1.0 → 1.2.0) follows.
+
 - Version change: 1.1.0 → 1.2.0 (MINOR: Principle IV materially expanded; Principle VI example
   extended)
 - Modified principles: IV. Test-First for Rendering & Export — diagram-core gets a second
@@ -89,6 +95,10 @@ manual QA because they are visual and often diagram-type-specific; automated con
 the only reliable guard. With two implementations, "same code" no longer guarantees the canvas
 and the server agree; a shared, executable corpus does.
 
+_Note (1.2.1):_ the move is complete. The server runs only the Python implementation
+(`apps/api-py/src/canvas_api/diagram_core/`); the browser runs the TypeScript one
+(`packages/diagram-core`). The rule above still holds for both.
+
 ### V. Extensible Symbol Libraries
 
 Icon and shape libraries (Azure, AWS, C4 notation, UML, generic flowchart/ERD shapes, and any
@@ -120,6 +130,10 @@ hand-written raw SQL strings for query building, but migrations remain plain, ha
 `.sql` files applied by a small, dependency-free runner (`apps/api/src/db/migrate.ts`) — not a
 generated or diffed schema. The Python service (`apps/api-py`) follows the same line with
 SQLAlchemy Core — never its ORM — over the same plain `.sql` migration files.
+
+_Note (1.2.1):_ `apps/api` (TypeScript, Kysely) has been removed (tag `typescript-api-final`). The
+backend is `apps/api-py` only: SQLAlchemy Core, with the plain `.sql` migrations in
+`apps/api-py/migrations` applied by `canvas_api/migrations.py`.
 
 **Rationale**: A four-persona, multi-format, governance-enforcing tool has enough inherent scope;
 uncontrolled speculative abstraction is the most likely way this project fails to ship. A typed
@@ -163,4 +177,4 @@ and any command files that reference an affected principle by name. All plans an
 checked against this constitution; unjustified complexity or governance shortcuts MUST be
 rejected or escalated for an explicit, recorded exception.
 
-**Version**: 1.2.0 | **Ratified**: 2026-07-25 | **Last Amended**: 2026-11-01
+**Version**: 1.2.1 | **Ratified**: 2026-07-25 | **Last Amended**: 2026-11-03

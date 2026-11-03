@@ -21,7 +21,9 @@ To generate it:
    ```
 
    This writes `vendor-icons/aws-icons.json`.
-3. Run the catalog seed (`npm run seed:catalog --workspace=@canvas/api`) to load it locally. On
+
+3. Run the catalog seed to load it locally: in `apps/api-py`,
+   `uv run --env-file .env python -m canvas_api.jobs.seed_catalog`. On
    Azure, `deploy.sh` builds the API image from the working tree, which copies this folder, and its
    catalog-seed job loads the file.
 

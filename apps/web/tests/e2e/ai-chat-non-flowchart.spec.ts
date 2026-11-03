@@ -7,18 +7,20 @@ const ADMIN_EMAIL = 'admin@example.com';
 const ADMIN_PASSWORD = 'admin-dev-password';
 const API_BASE_URL = process.env.VITE_API_BASE_URL ?? 'http://localhost:3000';
 
-test.skip(!PROJECT_ID, 'E2E_PROJECT_ID env var not set — run `npm run seed` and export it first');
+test.skip(!PROJECT_ID, 'E2E_PROJECT_ID env var not set — run the demo seed (python -m canvas_api.jobs.seed_demo) and export it first');
 
 /**
  * 010-ai-diagram-knowledge, T010 (User Story 1): before this feature, `diagram-chat.service.ts`
  * hardcoded `getDslFamily('flowchart')` regardless of the diagram's real type — a confirmed live
  * bug (research.md §1) — so sending a chat message against any non-flowchart diagram threw a 422
  * and the request failed outright, even though the chat panel was shown for every diagram type.
- * This test exercises the real dev-server + mock-NLU pipeline (apps/api/src/ai/mock-nlu.ts,
+ * This test exercises the real dev-server + mock-NLU pipeline (apps/api-py/src/canvas_api/ai/mock_model.py,
  * AI_PROVIDER=mock) against an ER diagram specifically, using only the pre-existing, already
  * diagram-type-agnostic rename rule — no mock-nlu changes needed for this story.
  */
-test('renames an entity via chat on an ER diagram without error or corruption', async ({ page }) => {
+test('renames an entity via chat on an ER diagram without error or corruption', async ({
+  page,
+}) => {
   await page.goto(`/?projectId=${PROJECT_ID}`);
   await page.getByTestId('login-email').fill(ADMIN_EMAIL);
   await page.getByTestId('login-password').fill(ADMIN_PASSWORD);
@@ -32,7 +34,11 @@ test('renames an entity via chat on an ER diagram without error or corruption', 
   await page.getByTestId('confirm-new-diagram').click();
   await expect(page.getByTestId('diagram-canvas')).toBeVisible();
 
-  await page.getByTestId('dsl-panel').fill('erDiagram\n  CUSTOMER {\n    string name\n  }\n  ORDER {\n    string id\n  }\n  CUSTOMER ||--o{ ORDER : places\n');
+  await page
+    .getByTestId('dsl-panel')
+    .fill(
+      'erDiagram\n  CUSTOMER {\n    string name\n  }\n  ORDER {\n    string id\n  }\n  CUSTOMER ||--o{ ORDER : places\n',
+    );
   await page.getByTestId('apply-dsl').click();
   await expect(page.locator('[data-testid^="node-"]')).toHaveCount(2);
 
@@ -57,7 +63,7 @@ test('renames an entity via chat on an ER diagram without error or corruption', 
  * 010-ai-diagram-knowledge, T022 (User Story 2): the six spec acceptance scenarios, each pre-
  * authoring its diagram's DSL directly (mirroring the T010 test above), sending exactly one chat
  * message that should trigger exactly one of the new family-scoped AI tools
- * (apps/api/src/ai/diagram-tools.ts), then asserting the resulting DSL shows the real,
+ * (apps/api-py/src/canvas_api/diagram_core/ai/tools.py), then asserting the resulting DSL shows the real,
  * family-correct structure — not a generic labeled box.
  */
 
@@ -106,14 +112,18 @@ test('adds a UML class member and sets a relationship kind via chat', async ({ p
   await page.getByTestId('confirm-new-diagram').click();
   await expect(page.getByTestId('diagram-canvas')).toBeVisible();
 
-  await page.getByTestId('dsl-panel').fill('classDiagram\n  class Order\n  class Customer\n  Order --> Customer\n');
+  await page
+    .getByTestId('dsl-panel')
+    .fill('classDiagram\n  class Order\n  class Customer\n  Order --> Customer\n');
   await page.getByTestId('apply-dsl').click();
   await expect(page.locator('[data-testid^="node-"]')).toHaveCount(2);
 
   await page.getByTestId('rail-tab-chat').click();
   const assistantMessages = page.locator('[data-testid="chat-message-assistant"]');
 
-  await page.getByTestId('chat-input').fill('Give Order a private string id attribute and a public place method');
+  await page
+    .getByTestId('chat-input')
+    .fill('Give Order a private string id attribute and a public place method');
   await page.getByTestId('chat-send').click();
   await expect(assistantMessages).toHaveCount(1);
 
@@ -123,7 +133,9 @@ test('adds a UML class member and sets a relationship kind via chat', async ({ p
   expect(dsl).toMatch(/\+place\(\)/);
 
   await page.getByTestId('rail-tab-chat').click();
-  await page.getByTestId('chat-input').fill('Make the connector between Order and Customer a composition');
+  await page
+    .getByTestId('chat-input')
+    .fill('Make the connector between Order and Customer a composition');
   await page.getByTestId('chat-send').click();
   await expect(assistantMessages).toHaveCount(2);
 
@@ -140,9 +152,14 @@ test('sets a C4 element role via chat', async ({ page }) => {
   // diagram-tools-standard tests). This spec exercises the generic role tool, which only a type
   // WITHOUT a standard still offers -- so use a fresh admin-created custom C4-family type (never
   // has a standard) instead of a built-in one.
-  const customTypeId = await ensureCustomDiagramType(page.request, { name: 'E2E C4 No Standard', dslFamily: 'c4' });
+  const customTypeId = await ensureCustomDiagramType(page.request, {
+    name: 'E2E C4 No Standard',
+    dslFamily: 'c4',
+  });
   // The reused type must never gain a standard (it would swap setNodeRole for setElementKind).
-  const standardCheck = await page.request.get(`${API_BASE_URL}/diagram-types/${customTypeId}/standard`);
+  const standardCheck = await page.request.get(
+    `${API_BASE_URL}/diagram-types/${customTypeId}/standard`,
+  );
   expect(standardCheck.status()).toBe(404);
   await page.reload();
   await page.getByTestId('new-diagram').click();
@@ -177,7 +194,9 @@ test('activates a sequence participant via chat', async ({ page }) => {
   await page.getByTestId('confirm-new-diagram').click();
   await expect(page.getByTestId('diagram-canvas')).toBeVisible();
 
-  await page.getByTestId('dsl-panel').fill('sequenceDiagram\n  participant Alice\n  participant Bob\n');
+  await page
+    .getByTestId('dsl-panel')
+    .fill('sequenceDiagram\n  participant Alice\n  participant Bob\n');
   await page.getByTestId('apply-dsl').click();
   await expect(page.locator('[data-testid^="node-"]')).toHaveCount(2);
 
@@ -200,7 +219,9 @@ test('groups architecture services into a container via chat', async ({ page }) 
   await page.getByTestId('confirm-new-diagram').click();
   await expect(page.getByTestId('diagram-canvas')).toBeVisible();
 
-  await page.getByTestId('dsl-panel').fill('architecture-beta\n  service api(cloud)[API]\n  service db(cloud)[DB]\n');
+  await page
+    .getByTestId('dsl-panel')
+    .fill('architecture-beta\n  service api(cloud)[API]\n  service db(cloud)[DB]\n');
   await page.getByTestId('apply-dsl').click();
   await expect(page.locator('[data-testid^="node-"]')).toHaveCount(2);
 
@@ -219,7 +240,9 @@ test('groups architecture services into a container via chat', async ({ page }) 
   expect(dsl).toMatch(new RegExp(`service db\\(cloud\\)\\[DB\\] in ${groupId}`));
 });
 
-test('declines a UML-only edit request on a flowchart diagram (no equivalent tool offered)', async ({ page }) => {
+test('declines a UML-only edit request on a flowchart diagram (no equivalent tool offered)', async ({
+  page,
+}) => {
   await loginAndEnableChat(page);
 
   await page.getByTestId('new-diagram').click();
@@ -237,7 +260,9 @@ test('declines a UML-only edit request on a flowchart diagram (no equivalent too
   // Same phrasing as the UML relationship-kind scenario above — but `setRelationshipKind` isn't
   // offered for the flowchart family, so there's no tool call this rule can return (FR-004): the
   // mock model falls through to its plain decline text, not a tool that silently ran and no-oped.
-  await page.getByTestId('chat-input').fill('Make the connector between Alpha and Beta a composition');
+  await page
+    .getByTestId('chat-input')
+    .fill('Make the connector between Alpha and Beta a composition');
   await page.getByTestId('chat-send').click();
   await expect(assistantMessages).toHaveCount(1);
   await expect(assistantMessages.first()).toContainText("I'm not sure how to help with that.");

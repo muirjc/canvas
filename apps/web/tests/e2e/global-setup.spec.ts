@@ -8,7 +8,7 @@ const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 /**
  * canvas-i86 regression: `global-setup.ts` runs once per `npx playwright test` invocation, before
  * any spec, and resolves `process.env.E2E_PROJECT_ID` automatically (via an idempotent
- * `npm run seed`) whenever nothing has already set it — so it self-heals if the seeded "Smoke
+ * `seed_demo` job run) whenever nothing has already set it — so it self-heals if the seeded "Smoke
  * Test" project is ever deleted again, instead of every other spec's `test.skip(!PROJECT_ID, ...)`
  * silently skipping forever on a stale, manually-copied id.
  *
@@ -28,7 +28,9 @@ test('E2E_PROJECT_ID is resolved by global setup even when nothing set it before
  * pattern every other spec in this directory uses (see style-affordance.spec.ts,
  * editor-back-navigation.spec.ts).
  */
-test('the resolved E2E_PROJECT_ID corresponds to a project the app can actually open', async ({ page }) => {
+test('the resolved E2E_PROJECT_ID corresponds to a project the app can actually open', async ({
+  page,
+}) => {
   const projectId = process.env.E2E_PROJECT_ID;
 
   await page.goto(`/?projectId=${projectId}`);

@@ -1,7 +1,7 @@
-"""Applies the plain-SQL migrations in apps/api/migrations, recording them in `schema_migrations`.
+"""Applies the plain-SQL migrations in apps/api-py/migrations, recording them in `schema_migrations`.
 
-A port of apps/api/src/db/migrate.ts: same table and same bookkeeping, so either runner can pick up where the
-other left off. Postgres reads apps/api/migrations/*.sql, SQLite the squashed apps/api/migrations/sqlite/*.sql;
+A port of the TypeScript API's migrate.ts (tag typescript-api-final): same table and same bookkeeping, so a
+database it migrated carries on here. Postgres reads migrations/*.sql, SQLite the squashed migrations/sqlite/*.sql;
 files apply in name order, each in its own transaction together with its schema_migrations row (a file that
 fails leaves nothing behind). The migrate job (canvas_api.jobs.migrate) is the command-line front end; the
 tests and the other jobs call run_migrations directly.
@@ -13,15 +13,15 @@ from pathlib import Path
 
 from sqlalchemy import Engine, text
 
-#: The one place the migrations' location is written (they move under apps/api-py with phase 12b).
-MIGRATIONS_ROOT = Path(__file__).resolve().parents[3] / "api" / "migrations"
+#: The one place the migrations' location is written: apps/api-py/migrations (in the image too).
+MIGRATIONS_ROOT = Path(__file__).resolve().parents[2] / "migrations"
 
 
 class MigrationError(RuntimeError):
     """A migration file failed; nothing of it was applied."""
 
 
-# The bookkeeping table, as apps/api/src/db/migrate.ts creates it on each engine. Fixed statements:
+# The bookkeeping table, as the TypeScript migrate.ts created it on each engine. Fixed statements:
 # nothing from outside ever reaches this SQL.
 _CREATE_TABLE = {
     "postgresql": text(

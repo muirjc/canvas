@@ -3,7 +3,7 @@ import { ensureCustomDiagramType, hideCustomDiagramType } from './diagram-type-h
 import { publishFromEditor } from './standards-admin-helpers';
 import { API_BASE_URL, PROJECT_ID, login, newDiagram, readDsl } from './standards-v2-helpers';
 
-test.skip(!PROJECT_ID, 'E2E_PROJECT_ID env var not set — run `npm run seed` and export it first');
+test.skip(!PROJECT_ID, 'E2E_PROJECT_ID env var not set — run the demo seed (python -m canvas_api.jobs.seed_demo) and export it first');
 
 /**
  * canvas-7ewa / canvas-wid / canvas-8hi9: a standard's "What authors can add" decides which shapes,

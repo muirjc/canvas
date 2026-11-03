@@ -1,7 +1,7 @@
 // canvas-3s5.2: scheduled Container Apps Job that syncs open GitHub pull requests Canvas opened
 // (merged = approved, closed = rejected, open = review/check state) -- `python -m
-// canvas_api.github.sync_run` in the canvas-api-py image (canvas-1bty.11; it was `node
-// apps/api/dist/github/sync-run.js` in canvas-api before). Polling rather than webhooks: the API's IP allow-list keeps
+// canvas_api.github.sync_run` in the canvas-api-py image (apps/api-py/src/canvas_api/github/sync_run.py).
+// Polling rather than webhooks: the API's IP allow-list keeps
 // GitHub's webhook deliveries out. Deployed only when a GitHub App is configured (main.bicep).
 // pause.sh moves the schedule to once a year (the CLI can't suspend a scheduled job); resume.sh
 // and deploy.sh put it back.
