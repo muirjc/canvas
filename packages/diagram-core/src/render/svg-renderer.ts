@@ -1015,6 +1015,12 @@ function wrapNodeLink(node: DiagramNode, markup: string): string {
   return `<a href="${escapeXml(node.link.href)}"${targetAttr}>${titleMarkup}${markup}</a>`;
 }
 
+/** canvas-1bty.20: icon artwork inside its own 48x48 box (the icon space), clipped there, so a library icon's
+ *  shapes can't paint over -- or pass for -- the rest of the diagram. */
+export function clipIconArtwork(markup: string): string {
+  return `<svg x="0" y="0" width="48" height="48" viewBox="0 0 48 48" overflow="hidden">${markup}</svg>`;
+}
+
 function renderNode(node: DiagramNode, resolveIcon?: IconResolver, diagramTypeId?: string): string {
   const { x, y } = node.position;
   const { width, height } = nodeSize(node);
@@ -1035,7 +1041,7 @@ function renderNode(node: DiagramNode, resolveIcon?: IconResolver, diagramTypeId
       [
         `<g data-node-id="${escapeXml(node.id)}">`,
         renderNodeShape(node, diagramTypeId),
-        `<g transform="translate(${layout.iconX}, ${layout.iconY}) scale(${layout.iconSize / 48})">${iconMarkup}</g>`,
+        `<g transform="translate(${layout.iconX}, ${layout.iconY}) scale(${layout.iconSize / 48})">${clipIconArtwork(iconMarkup)}</g>`,
         renderLabelText(layout.labelX, layout.labelY, node.label, layout.labelFontSize, false, layout.labelMaxWidth),
         '</g>',
       ].join(''),
@@ -1196,7 +1202,7 @@ export function containerHeaderLayout(
 
 function renderContainerIcon(layout: ContainerHeaderLayout, iconMarkup: string | undefined): string {
   if (!iconMarkup) return '';
-  return `<g transform="translate(${layout.iconX}, ${layout.iconY}) scale(${layout.iconSize / 48})">${iconMarkup}</g>`;
+  return `<g transform="translate(${layout.iconX}, ${layout.iconY}) scale(${layout.iconSize / 48})">${clipIconArtwork(iconMarkup)}</g>`;
 }
 
 function renderContainer(

@@ -35,7 +35,7 @@ from canvas_api.diagram_core.sizes import (
 )
 from canvas_api.github.jstext import JS_WHITESPACE, js_len
 
-__all__ = ["IconResolver", "compute_bounds", "contrast_text_color", "render_to_svg"]
+__all__ = ["IconResolver", "clip_icon_artwork", "compute_bounds", "contrast_text_color", "render_to_svg"]
 
 Node = dict[str, Any]
 Container = dict[str, Any]
@@ -786,6 +786,12 @@ def _resolve(resolve_icon: IconResolver | None, icon: Any) -> str | None:
 _BOLD = ' font-weight="bold"'
 
 
+def clip_icon_artwork(markup: str) -> str:
+    """canvas-1bty.20: icon artwork inside its own 48x48 box (the icon space), clipped there, so a library icon's
+    shapes can't paint over -- or pass for -- the rest of the diagram."""
+    return f'<svg x="0" y="0" width="48" height="48" viewBox="0 0 48 48" overflow="hidden">{markup}</svg>'
+
+
 def _render_node(node: Node, resolve_icon: IconResolver | None = None, diagram_type_id: Any = None) -> str:
     x = node["position"]["x"]
     size = node_size(node)
@@ -802,7 +808,7 @@ def _render_node(node: Node, resolve_icon: IconResolver | None = None, diagram_t
             open_g
             + _render_node_shape(node, diagram_type_id)
             + f'<g transform="translate({_t(layout["iconX"])}, {_t(layout["iconY"])}) '
-            f'scale({_t(layout["iconSize"] / 48)})">{_t(icon_markup)}</g>'
+            f'scale({_t(layout["iconSize"] / 48)})">{clip_icon_artwork(_t(icon_markup))}</g>'
             + _render_label_text(
                 layout["labelX"],
                 layout["labelY"],
@@ -939,7 +945,7 @@ def _render_container(
     header = _container_header_layout(container, header_band, js_truthy(icon_markup))
     icon_part = (
         f'<g transform="translate({_t(header["iconX"])}, {_t(header["iconY"])}) '
-        f'scale({_t(header["iconSize"] / 48)})">{_t(icon_markup)}</g>'
+        f'scale({_t(header["iconSize"] / 48)})">{clip_icon_artwork(_t(icon_markup))}</g>'
         if js_truthy(icon_markup)
         else ""
     )

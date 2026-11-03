@@ -332,3 +332,21 @@ def test_hypot_is_v8s(dx: float, dy: float, v8: float) -> None:
 def test_contrast_text_color(fill: str, text: str) -> None:
     """ "red" reads as hex "rreedd": "rr" is NaN, so the luminance is NaN and the text white, as in TypeScript."""
     assert contrast_text_color(fill) == text
+
+
+def test_icon_artwork_is_clipped_to_its_box() -> None:
+    """canvas-1bty.20: artwork reaching outside the 48x48 icon space can't paint over the rest of the diagram
+    (resvg clips the nested svg too: the PNG export draws it only inside the icon's box)."""
+    art = '<rect x="-500" y="-500" width="2000" height="2000" fill="red" />'
+    clipped = f'<svg x="0" y="0" width="48" height="48" viewBox="0 0 48 48" overflow="hidden">{art}</svg>'
+    icon = {"libraryId": "l", "libraryVersion": "1", "iconId": "i"}
+    node_model = {
+        "diagramTypeId": "flowchart",
+        "nodes": [{"id": "A", "label": "A", "shape": "icon", "position": {"x": 0, "y": 0}, "icon": icon}],
+        "edges": [],
+        "containers": [],
+    }
+    group = {"id": "g", "label": "G", "position": {"x": 0, "y": 0}, "size": {"width": 300, "height": 200}, "icon": icon}
+    group_model = {"diagramTypeId": "architecture", "nodes": [], "edges": [], "containers": [group]}
+    for model in (node_model, group_model):
+        assert render_to_svg(model, {"l@1@i": art}).count(clipped) == 1

@@ -1903,3 +1903,36 @@ describe('renderToSvg background option', () => {
     expect(svg).not.toContain('<rect width="100%"');
   });
 });
+
+describe('icon artwork is clipped to its box (canvas-1bty.20)', () => {
+  // Artwork that tries to paint far outside the 48x48 icon space, over the rest of the diagram.
+  const resolveIcon = () => '<rect x="-500" y="-500" width="2000" height="2000" fill="red" />';
+  const clipped = '<svg x="0" y="0" width="48" height="48" viewBox="0 0 48 48" overflow="hidden"><rect x="-500" y="-500" width="2000" height="2000" fill="red" /></svg>';
+
+  it('wraps a node icon in a clipping 48x48 svg', () => {
+    const svg = renderToSvg(
+      {
+        diagramTypeId: 'flowchart',
+        nodes: [{ id: 'A', label: 'A', shape: 'icon', position: { x: 0, y: 0 }, icon: { libraryId: 'l', libraryVersion: '1', iconId: 'i' } }],
+        edges: [],
+        containers: [],
+      },
+      resolveIcon,
+    );
+    expect(svg).toMatch(new RegExp(`<g transform="translate\\([^)]*\\) scale\\([^)]*\\)">${clipped.replace(/[()]/g, '\\$&')}</g>`));
+    expect(svg.split(clipped).length).toBe(2);
+  });
+
+  it('wraps a group icon in a clipping 48x48 svg', () => {
+    const svg = renderToSvg(
+      {
+        diagramTypeId: 'architecture',
+        nodes: [],
+        edges: [],
+        containers: [{ id: 'g', label: 'G', position: { x: 0, y: 0 }, size: { width: 300, height: 200 }, icon: { libraryId: 'l', libraryVersion: '1', iconId: 'i' } }],
+      },
+      resolveIcon,
+    );
+    expect(svg.split(clipped).length).toBe(2);
+  });
+});
