@@ -44,7 +44,7 @@ def at(value: str) -> datetime:
 
 
 @pytest.fixture()
-def w(api: Api, scripted: ScriptedModel, needs_bridge: str) -> World:
+def w(api: Api, scripted: ScriptedModel) -> World:
     return chat_world(api)
 
 

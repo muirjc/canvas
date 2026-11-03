@@ -23,7 +23,7 @@ CASES = sorted(p.name for p in (CORPUS / "cases").iterdir() if p.is_dir())
 STANDARDS: dict[str, dict[str, Any]] = {
     p.stem: json.loads(p.read_text("utf-8")) for p in (CORPUS / "standards").iterdir() if p.suffix == ".json"
 }
-core = DiagramCore(None)
+core = DiagramCore()
 
 
 def _read(path: Path) -> str:

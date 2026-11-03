@@ -43,12 +43,6 @@ class Settings(BaseSettings):
         """SameSite=None cookies must be Secure (browsers drop them otherwise), as in apps/api."""
         return self.cookie_same_site == "none" or self.cookie_secure_setting
 
-    #: canvas-1bty.4: the diagram-core bridge (packages/diagram-bridge), a sidecar on localhost in Azure.
-    diagram_bridge_url: str | None = Field(default=None, alias="DIAGRAM_BRIDGE_URL")
-    #: canvas-1bty.15: who answers the parts of diagram-core ported to Python -- "native", "shadow" (the bridge
-    #: answers, Python's answer is compared and differences logged) or "bridge" (canvas_api/diagram_core/core.py).
-    diagram_core_mode: Literal["native", "shadow", "bridge"] = Field(default="shadow", alias="DIAGRAM_CORE_MODE")
-
     # canvas-1bty.11: the GitHub App diagrams are submitted for approval with (apps/api's
     # parseGitHubConfig). Both GITHUB_APP_ID and GITHUB_APP_PRIVATE_KEY needed; "unset" counts as missing.
     github_app_id: str | None = Field(default=None, alias="GITHUB_APP_ID")

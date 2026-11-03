@@ -44,7 +44,7 @@ class Message:
 class ToolSpec:
     name: str
     description: str
-    #: JSON Schema, as the AI SDK sends it (from the bridge's ai-tools op).
+    #: JSON Schema, as the AI SDK sends it (diagram-core's list_tools).
     input_schema: dict[str, Any]
 
 

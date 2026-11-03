@@ -18,8 +18,8 @@ from typing import Any
 
 import pytest
 
-from canvas_api.diagram_core import DiagramBridge
 from canvas_api.diagram_core.svg_render import contrast_text_color, js_hypot, render_to_svg
+from tests.diagram_bridge import DiagramBridge
 
 CORPUS = Path(__file__).resolve().parents[3] / "packages" / "diagram-core" / "corpus"
 CORPUS_MODELS = [json.loads(p.read_text("utf-8")) for p in sorted((CORPUS / "cases").glob("*/expected/model.json"))]

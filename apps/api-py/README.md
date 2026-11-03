@@ -48,9 +48,8 @@ chat's tools. Front matter is YAML written byte for byte as the `yaml` npm packa
 The TypeScript diagram-core bridge (`packages/diagram-bridge`) is no longer deployed (canvas-1bty.15.8) but stays
 the tests' reference, since the browser still runs the TypeScript diagram-core: the tests start it once per run
 (`bridge_url` in tests/conftest.py, `npm run build --workspace=@canvas/diagram-bridge` first) and compare Python
-with it; they skip those comparisons when Node or the bundle is missing (never in CI: `REQUIRE_BRIDGE=1`). With
-`DIAGRAM_BRIDGE_URL` set, `DIAGRAM_CORE_MODE` (shadow/bridge) can still route answers through it; without it,
-diagram-core always answers natively.
+with it; they skip those comparisons when Node or the bundle is missing (never in CI: `REQUIRE_BRIDGE=1`). The app itself
+never calls it (`tests/diagram_bridge.py` is the client).
 
 Query UUID columns with fixed `text()` statements: SQLAlchemy Core binds a string as VARCHAR, which
 Postgres won't compare with a UUID.

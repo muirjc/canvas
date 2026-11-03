@@ -279,7 +279,7 @@ def test_follows_a_repository_that_was_renamed_on_github(github: GH) -> None:
 
 
 @pytest.fixture()
-def off(api: Any, needs_bridge: str) -> tuple[Api, Any, str, str]:
+def off(api: Any) -> tuple[Api, Any, str, str]:
     """A signed-in admin with a project and a diagram, on an app with no GitHub App configured."""
     admin = api.user("admin@example.com", "admin", "Adam Admin")
     api.diagram_type("flowchart")

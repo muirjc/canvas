@@ -83,7 +83,7 @@ VALUE_CHAIN_STANDARD: dict[str, Any] = {
 
 
 @pytest.fixture()
-def w(api: Api, ai_env: Callable[..., Settings], needs_bridge: str) -> World:
+def w(api: Api, ai_env: Callable[..., Settings]) -> World:
     ai_env(ai_provider="mock")
     api.diagram_type(TYPE_ID, "flowchart", name="Value Chain Test")
     admin = api.user("admin@example.com", "admin")

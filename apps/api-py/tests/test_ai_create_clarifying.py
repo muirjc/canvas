@@ -20,7 +20,7 @@ QUESTION = "Before I draw this, what are the main steps or elements you want inc
 
 
 @pytest.fixture()
-def w(api: Api, ai_env: Callable[..., Settings], needs_bridge: str) -> World:
+def w(api: Api, ai_env: Callable[..., Settings]) -> World:
     ai_env(ai_provider="mock")
     return chat_world(api)
 

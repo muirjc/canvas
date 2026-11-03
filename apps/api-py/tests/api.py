@@ -428,7 +428,7 @@ class Api:
         *,
         draft: bool | None = None,
     ) -> dict[str, Any]:
-        """A diagram made through POST /projects/:id/diagrams, so it has a real first version (needs_bridge)."""
+        """A diagram made through POST /projects/:id/diagrams, so it has a real first version."""
         payload: dict[str, Any] = {"name": name, "diagramTypeId": diagram_type_id}
         if dsl is not None:
             payload["initialDslContent"] = dsl

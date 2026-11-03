@@ -1,8 +1,8 @@
 """Diagrams: create, read, save, rename, describe, move, versions, presence, delete and restore, import
 and template import (phase 4, canvas-1bty.8; apps/api/src/diagrams/*.ts).
 
-Parsing, validation, a new diagram's starting DSL and template compiling go through the diagram-core
-bridge. Saves are compare-and-set: a save names the version it started from and loses (409, nothing
+Parsing, validation, a new diagram's starting DSL and template compiling are diagram-core's
+(native Python). Saves are compare-and-set: a save names the version it started from and loses (409, nothing
 written) if another save replaced it first.
 """
 
@@ -30,7 +30,7 @@ from canvas_api.auth.roles import AdminUser, CurrentUser
 from canvas_api.auth.session import SessionUser
 from canvas_api.catalog import DSL_FAMILIES
 from canvas_api.db import get_engine
-from canvas_api.diagram_core import DiagramBridge
+from canvas_api.diagram_core import DiagramCore
 from canvas_api.errors import ApiError
 from canvas_api.standards import get_active_standard
 from canvas_api.timestamps import now_utc, parse_instant, to_api, to_api_ms, to_db
@@ -112,11 +112,9 @@ class ImportTemplateBody(BaseModel):
 # --- diagram-core -------------------------------------------------------------------------------------
 
 
-def _bridge(request: Request) -> DiagramBridge:
-    bridge: DiagramBridge | None = request.app.state.diagram_bridge
-    if bridge is None:
-        raise ApiError(503, "The diagram-core bridge is not configured (DIAGRAM_BRIDGE_URL).")
-    return bridge
+def _diagram_core(request: Request) -> DiagramCore:
+    diagram_core: DiagramCore = request.app.state.diagram_core
+    return diagram_core
 
 
 def _family_of(conn: Connection, diagram_type_id: str) -> str:
@@ -128,8 +126,8 @@ def _family_of(conn: Connection, diagram_type_id: str) -> str:
     return str(row.dsl_family)
 
 
-def _parse_or_fail(bridge: DiagramBridge, family: str, dsl: str) -> dict[str, Any]:
-    result = bridge.parse(family, dsl)
+def _parse_or_fail(core: DiagramCore, family: str, dsl: str) -> dict[str, Any]:
+    result = core.parse(family, dsl)
     if "model" not in result:
         raise ApiError(422, "DSL could not be parsed", details=result.get("errors", []))
     model: dict[str, Any] = result["model"]
@@ -137,13 +135,13 @@ def _parse_or_fail(bridge: DiagramBridge, family: str, dsl: str) -> dict[str, An
 
 
 def _validation(
-    conn: Connection, bridge: DiagramBridge, diagram_type_id: str, model: dict[str, Any]
+    conn: Connection, core: DiagramCore, diagram_type_id: str, model: dict[str, Any]
 ) -> tuple[list[Any], int | None]:
     """Soft-flag only: a save is never blocked on the result."""
     standard = get_active_standard(conn, diagram_type_id)
     if standard is None:
         return [], None
-    return bridge.validate(model, standard.rules), standard.version
+    return core.validate(model, standard.rules), standard.version
 
 
 # --- records ------------------------------------------------------------------------------------------
@@ -218,7 +216,7 @@ def _record_version(
 
 def create_diagram(
     conn: Connection,
-    bridge: DiagramBridge,
+    core: DiagramCore,
     *,
     name: str,
     diagram_type_id: str,
@@ -230,9 +228,9 @@ def create_diagram(
     """A new diagram with its first version. Without initial DSL it starts as the family's empty diagram
     (never a hard-coded flowchart, which wouldn't parse for the other families)."""
     family = _family_of(conn, diagram_type_id)
-    dsl = initial_dsl if initial_dsl is not None else bridge.empty_dsl(family, diagram_type_id)
-    model = _parse_or_fail(bridge, family, dsl)
-    violations, standard_version = _validation(conn, bridge, diagram_type_id, model)
+    dsl = initial_dsl if initial_dsl is not None else core.empty_dsl(family, diagram_type_id)
+    model = _parse_or_fail(core, family, dsl)
+    violations, standard_version = _validation(conn, core, diagram_type_id, model)
     diagram_id = str(uuid4())
     conn.execute(
         text(
@@ -260,7 +258,7 @@ def create_diagram(
 
 def _save(
     conn: Connection,
-    bridge: DiagramBridge,
+    core: DiagramCore,
     diagram_id: str,
     *,
     dsl: str,
@@ -271,8 +269,8 @@ def _save(
     """Saves a new version, compare-and-set on the base version. Never blocked by standards."""
     existing = get_diagram(conn, diagram_id)
     family = _family_of(conn, existing["diagramTypeId"])
-    model = _parse_or_fail(bridge, family, dsl)
-    violations, standard_version = _validation(conn, bridge, existing["diagramTypeId"], model)
+    model = _parse_or_fail(core, family, dsl)
+    violations, standard_version = _validation(conn, core, existing["diagramTypeId"], model)
     version_id = _record_version(conn, diagram_id, dsl, author_id, restored_from)
     updated = conn.execute(
         text(
@@ -333,13 +331,13 @@ def _live_diagram_or_404(conn: Connection, diagram_id: str) -> None:
 
 @router.post("/projects/{projectId}/diagrams", status_code=201)
 def create(projectId: str, request: Request, user: CurrentUser, db: Db, body: NewDiagram) -> dict[str, Any]:
-    bridge = _bridge(request)
+    core = _diagram_core(request)
     with db.begin() as conn:
         require_project_access(conn, user.id, projectId, "edit")
         _live_project_or_404(conn, projectId)
         diagram = create_diagram(
             conn,
-            bridge,
+            core,
             name=body.name,
             diagram_type_id=body.diagramTypeId,
             project_id=projectId,
@@ -407,13 +405,11 @@ def read(id: str, user: CurrentUser, db: Db) -> dict[str, Any]:
 
 @router.patch("/diagrams/{id}")
 def save(id: str, request: Request, user: CurrentUser, db: Db, body: SaveBody) -> dict[str, Any]:
-    bridge = _bridge(request)
+    core = _diagram_core(request)
     with db.begin() as conn:
         require_diagram_access(conn, user.id, id, "edit")
         return {
-            "diagram": _save(
-                conn, bridge, id, dsl=body.dslContent, author_id=user.id, base_version_id=body.baseVersionId
-            )
+            "diagram": _save(conn, core, id, dsl=body.dslContent, author_id=user.id, base_version_id=body.baseVersionId)
         }
 
 
@@ -577,7 +573,7 @@ def restore_version(
     body: RestoreVersionBody,
 ) -> dict[str, Any]:
     """Restoring saves the old content as a new version (a conflict like any other save)."""
-    bridge = _bridge(request)
+    core = _diagram_core(request)
     with db.begin() as conn:
         require_diagram_access(conn, user.id, id, "edit")
         row = conn.execute(
@@ -588,7 +584,7 @@ def restore_version(
             raise ApiError(404, f"No version {versionId} for diagram {id}")
         diagram = _save(
             conn,
-            bridge,
+            core,
             id,
             dsl=row.dsl_content,
             author_id=user.id,
@@ -788,11 +784,11 @@ def restore(id: str, admin: AdminUser, db: Db) -> dict[str, Any]:
 def import_dsl(projectId: str, request: Request, user: CurrentUser, db: Db, body: ImportBody) -> dict[str, Any]:
     """Raw Mermaid as a new diagram. The type comes from the hint, else the type the header names, else
     the family's generic type, else any type of the family."""
-    bridge = _bridge(request)
+    core = _diagram_core(request)
     with db.begin() as conn:
         require_project_access(conn, user.id, projectId, "edit")
         _live_project_or_404(conn, projectId)
-        family = bridge.detect(body.dslContent)
+        family = core.detect(body.dslContent)
         if family is None:
             raise ApiError(
                 422,
@@ -814,10 +810,10 @@ def import_dsl(projectId: str, request: Request, user: CurrentUser, db: Db, body
                 )
             type_id = body.diagramTypeHint
         else:
-            type_id = _type_without_hint(conn, bridge, body.dslContent, family)
+            type_id = _type_without_hint(conn, core, body.dslContent, family)
         diagram = create_diagram(
             conn,
-            bridge,
+            core,
             name=body.name,
             diagram_type_id=type_id,
             project_id=projectId,
@@ -828,7 +824,7 @@ def import_dsl(projectId: str, request: Request, user: CurrentUser, db: Db, body
     return {"diagram": diagram}
 
 
-def _type_without_hint(conn: Connection, bridge: DiagramBridge, dsl: str, family: str) -> str:
+def _type_without_hint(conn: Connection, core: DiagramCore, dsl: str, family: str) -> str:
     registered = [
         r.id
         for r in conn.execute(
@@ -837,7 +833,7 @@ def _type_without_hint(conn: Connection, bridge: DiagramBridge, dsl: str, family
     ]
     if not registered:
         raise ApiError(422, f'No diagram type is registered for the "{family}" DSL family.')
-    parsed = bridge.parse(family, dsl)
+    parsed = core.parse(family, dsl)
     # A parse failure is reported properly when the diagram is created; it just can't name a type here.
     from_header = (parsed.get("model") or {}).get("diagramTypeId")
     if from_header in registered:
@@ -857,18 +853,18 @@ def import_template(
     body: ImportTemplateBody,
 ) -> dict[str, Any]:
     """A filled-in Markdown intake template, compiled to DSL, as a new diagram of the given type."""
-    bridge = _bridge(request)
+    core = _diagram_core(request)
     with db.begin() as conn:
         require_project_access(conn, user.id, projectId, "edit")
         _live_project_or_404(conn, projectId)
-        compiled = bridge.compile_template(body.diagramTypeId, body.templateContent)
+        compiled = core.compile_template(body.diagramTypeId, body.templateContent)
         if compiled.get("unsupported"):
             raise ApiError(422, f'No template importer is available for diagram type "{body.diagramTypeId}".')
         if "errors" in compiled:
             raise ApiError(422, "Template could not be compiled", details=compiled["errors"])
         diagram = create_diagram(
             conn,
-            bridge,
+            core,
             name=body.name,
             diagram_type_id=body.diagramTypeId,
             project_id=projectId,

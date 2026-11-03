@@ -357,7 +357,7 @@ def test_the_estimate_counts_utf16_units_like_javascript() -> None:
 
 
 @pytest.fixture()
-def mock_world(api: Api, ai_env: Callable[..., Settings], needs_bridge: str) -> Any:
+def mock_world(api: Api, ai_env: Callable[..., Settings]) -> Any:
     ai_env(ai_provider="mock")
     return chat_world(api)
 

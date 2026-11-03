@@ -1,6 +1,6 @@
 """Export (phase 6, canvas-1bty.10): GET /diagrams/:id/export as Mermaid, SVG or PNG. Every response is also
 checked against the API contract (tests/api.py), including that a file's content type is one the contract
-lists. Mermaid and SVG go through the diagram-core bridge (`needs_bridge`), PNG is rasterised by resvg-py.
+lists. Mermaid and SVG come from diagram-core, PNG is rasterised by resvg-py.
 
 Covers apps/api/tests/contract: export-legend, export-icon-artwork, export-architecture-builtin-icons, the
 export cases of diagrams (portable style lines; mermaid, svg and png), the export step at the end of import
@@ -72,7 +72,7 @@ def seed_library(
 
 
 @pytest.fixture()
-def owner(api: Api, needs_bridge: str) -> User:
+def owner(api: Api) -> User:
     api.diagram_type("flowchart", name="Generic Flowchart")
     return api.user("owner@example.com")
 

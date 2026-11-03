@@ -18,7 +18,7 @@ from sqlalchemy.exc import IntegrityError
 
 from canvas_api.audit import record_audit
 from canvas_api.catalog import DSL_FAMILIES
-from canvas_api.diagram_core import DiagramBridge
+from canvas_api.diagram_core import DiagramCore
 from canvas_api.github.client import (
     SUBMIT_PERMISSIONS,
     GitHubApiError,
@@ -246,10 +246,10 @@ def project_submission_badges(conn: Connection, project_id: str) -> dict[str, di
 
 
 def check_submittable(
-    conn: Connection, bridge: DiagramBridge, diagram_type_id: str, dsl_family: str, dsl_content: str
+    conn: Connection, core: DiagramCore, diagram_type_id: str, dsl_family: str, dsl_content: str
 ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
     """Validates the saved diagram against the current standard: (Must fix issues, the rest)."""
-    parsed = bridge.parse(dsl_family, dsl_content) if dsl_family in DSL_FAMILIES else {}
+    parsed = core.parse(dsl_family, dsl_content) if dsl_family in DSL_FAMILIES else {}
     if "model" not in parsed:
         blocking = {
             "elementId": "diagram",
@@ -260,7 +260,7 @@ def check_submittable(
         }
         return [blocking], []
     standard = get_active_standard(conn, diagram_type_id)
-    violations = bridge.validate(parsed["model"], standard.rules) if standard else []
+    violations = core.validate(parsed["model"], standard.rules) if standard else []
     return [v for v in violations if v.get("severity") == "error"], [
         v for v in violations if v.get("severity") != "error"
     ]
@@ -442,7 +442,7 @@ def _find_unrecorded_pull(
 
 def submit_diagram(
     client: GitHubClient,
-    bridge: DiagramBridge,
+    core: DiagramCore,
     db: Engine,
     diagram: dict[str, Any],
     submitter: Submitter,
@@ -460,7 +460,7 @@ def submit_diagram(
                 "This diagram's project is not linked to a GitHub repository. Ask an admin to link it."
             )
         blocking, warnings = check_submittable(
-            conn, bridge, diagram["diagramTypeId"], diagram["dslFamily"], diagram["dslContent"]
+            conn, core, diagram["diagramTypeId"], diagram["dslFamily"], diagram["dslContent"]
         )
     if blocking:
         raise SubmissionBlockedError(blocking)
@@ -560,7 +560,7 @@ def submit_diagram(
             diagram_type_name=type_name or diagram["diagramTypeId"],
             dsl_family=diagram["dslFamily"],
             dsl_content=diagram["dslContent"],
-            portable_mermaid=bridge.portable(diagram["dslContent"], strip_front_matter=True),
+            portable_mermaid=core.portable(diagram["dslContent"], strip_front_matter=True),
             svg=svg,
             version_sequence=version_sequence,
             standard=(
@@ -591,7 +591,7 @@ def submit_diagram(
         # canvas-finl: documents that embed this diagram are updated in the same commit.
         embeds = document_embed_updates(
             client,
-            bridge,
+            core,
             token,
             target,
             parent_tree,

@@ -17,9 +17,10 @@ from typing import Any
 
 import pytest
 
-from canvas_api.diagram_core import DiagramBridge, canonical_json
+from canvas_api.diagram_core import canonical_json
 from canvas_api.diagram_core.jsvalues import to_js_json
 from canvas_api.diagram_core.standards import check_standard_definition, validate
+from tests.diagram_bridge import DiagramBridge
 
 CORPUS = Path(__file__).resolve().parents[3] / "packages" / "diagram-core" / "corpus" / "cases"
 CORPUS_MODELS = [json.loads(p.read_text("utf-8")) for p in sorted(CORPUS.glob("*/expected/model.json"))]

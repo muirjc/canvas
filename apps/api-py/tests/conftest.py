@@ -40,7 +40,8 @@ def _fresh_postgres() -> str:
     return f"{PG_DATABASE}?options=-csearch_path%3D{PG_SCHEMA}"
 
 
-#: canvas-1bty.8: the diagram-core bridge (packages/diagram-bridge), for routes that parse or validate.
+#: The TypeScript diagram-core bridge (packages/diagram-bridge, tests/diagram_bridge.py): no longer used by the app
+#: (canvas-1bty.15.8), it is the reference the diagram-core comparison tests check the native Python against.
 BRIDGE_BUNDLE = Path(__file__).resolve().parents[3] / "packages" / "diagram-bridge" / "dist" / "bridge.mjs"
 BRIDGE_AVAILABLE = shutil.which("node") is not None and BRIDGE_BUNDLE.exists()
 if not BRIDGE_AVAILABLE and os.environ.get("REQUIRE_BRIDGE") == "1":
@@ -70,16 +71,16 @@ def bridge_url() -> Iterator[str | None]:
 
 @pytest.fixture()
 def needs_bridge(bridge_url: str | None) -> str:
-    """Skips a test that needs the bridge when it isn't available (never in CI: REQUIRE_BRIDGE=1)."""
+    """Skips a comparison test when the bridge isn't available (never in CI: REQUIRE_BRIDGE=1)."""
     if bridge_url is None:
         pytest.skip("needs node and packages/diagram-bridge/dist/bridge.mjs")
     return bridge_url
 
 
 @pytest.fixture(scope="session")
-def settings(bridge_url: str | None) -> Settings:
+def settings() -> Settings:
     client = os.environ.get("TEST_DB_CLIENT", "postgres")
-    common = {"SESSION_SECRET": TEST_SESSION_SECRET, **({"DIAGRAM_BRIDGE_URL": bridge_url} if bridge_url else {})}
+    common = {"SESSION_SECRET": TEST_SESSION_SECRET}
     if client == "sqlite":
         return Settings(DB_CLIENT="sqlite", DATABASE_URL=":memory:", **common)
     return Settings(DB_CLIENT="postgres", DATABASE_URL=_fresh_postgres(), **common)
@@ -166,9 +167,7 @@ def github_engine(settings: Settings, engine: Engine, tmp_path_factory: pytest.T
 
 
 @pytest.fixture()
-def github(
-    settings: Settings, github_engine: Engine, fake_github: FakeGitHub, tmp_path: Path, needs_bridge: str
-) -> Iterator[Any]:
+def github(settings: Settings, github_engine: Engine, fake_github: FakeGitHub, tmp_path: Path) -> Iterator[Any]:
     """A clean database and an app wired to the fake GitHub, with its installation, two repositories and users."""
     from tests.api import Api, reset
     from tests.github_helpers import GH
@@ -181,13 +180,13 @@ def github(
     reset_cache()
     app = create_app(github_settings(settings, fake_github, empty), engine, fake_github.transport())
     with TestClient(app) as test_client:
-        yield GH(Api(test_client, engine), app, fake_github, engine, tmp_path, needs_bridge)
+        yield GH(Api(test_client, engine), app, fake_github, engine, tmp_path)
     reset_cache()
 
 
 @pytest.fixture()
 def scripted(client: TestClient) -> Any:
-    """The AI chat's language model replaced by a scripted one (tests/ai_helpers.py); needs the bridge for the tools."""
+    """The AI chat's language model replaced by a scripted one (tests/ai_helpers.py)."""
     from tests.ai_helpers import ScriptedModel
 
     model = ScriptedModel()

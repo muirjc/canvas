@@ -46,7 +46,7 @@ from canvas_api.audit import client_ip, record_audit
 from canvas_api.auth.roles import AdminUser, CurrentUser
 from canvas_api.config import Settings
 from canvas_api.db import get_engine
-from canvas_api.diagram_core import DiagramBridge
+from canvas_api.diagram_core import DiagramCore
 from canvas_api.errors import ApiError
 from canvas_api.routes.diagrams import get_diagram
 from canvas_api.timestamps import js_iso, now_utc
@@ -108,11 +108,9 @@ def _settings(request: Request) -> Settings:
     return settings
 
 
-def _bridge(request: Request) -> DiagramBridge:
-    bridge: DiagramBridge | None = request.app.state.diagram_bridge
-    if bridge is None:
-        raise ApiError(503, "The diagram-core bridge is not configured (DIAGRAM_BRIDGE_URL).")
-    return bridge
+def _diagram_core(request: Request) -> DiagramCore:
+    diagram_core: DiagramCore = request.app.state.diagram_core
+    return diagram_core
 
 
 def _models(request: Request) -> list[dict[str, Any]]:
@@ -139,7 +137,7 @@ def chat_send(id: str, body: ChatBody, request: Request, user: CurrentUser, db: 
     try:
         result = send_chat_message(
             db,
-            _bridge(request),
+            _diagram_core(request),
             settings,
             diagram=diagram,
             message=body.message,

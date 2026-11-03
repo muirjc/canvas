@@ -20,7 +20,7 @@ from typing import Any
 
 import pytest
 
-from canvas_api.diagram_core import DiagramBridge, DiagramCore
+from canvas_api.diagram_core import DiagramCore
 from canvas_api.diagram_core.libraries import load_library
 from canvas_api.diagram_core.svg_import import (
     MAX_ICON_DEPTH,
@@ -31,9 +31,10 @@ from canvas_api.diagram_core.svg_import import (
     sanitize_icon_markup_strict,
     sanitize_svg_fragment,
 )
+from tests.diagram_bridge import DiagramBridge
 
 CORPUS = Path(__file__).resolve().parents[3] / "packages" / "diagram-core" / "corpus" / "cases"
-native = DiagramCore(None, mode="native")
+native = DiagramCore()
 
 # --- the TypeScript contract cases ----------------------------------------------------------------------------
 

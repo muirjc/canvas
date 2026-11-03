@@ -3,7 +3,7 @@
 Structure only: unknown keys are dropped at every level, list fields default to empty, optional fields
 left out stay out (in the TypeScript schema's field order). Whether the rules make sense for the
 diagram family (kind ids, shapes, hex colours, connector references) is diagram-core's
-checkStandardDefinition, called through the bridge, exactly as in TypeScript.
+checkStandardDefinition (ported to Python), exactly as in TypeScript.
 """
 
 from __future__ import annotations

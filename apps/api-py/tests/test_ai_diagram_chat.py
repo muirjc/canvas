@@ -11,7 +11,7 @@ from typing import Any
 import pytest
 
 from canvas_api.ai.chat import REPLY_STYLE
-from canvas_api.diagram_core import DiagramBridge
+from canvas_api.diagram_core.ai.primers import primer_for
 from tests.ai_helpers import (
     Call,
     ScriptedModel,
@@ -27,7 +27,7 @@ from tests.api import Api
 
 
 @pytest.fixture()
-def w(api: Api, scripted: ScriptedModel, needs_bridge: str) -> World:
+def w(api: Api, scripted: ScriptedModel) -> World:
     scripted.reply("Okay, done.")
     return chat_world(api)
 
@@ -193,16 +193,14 @@ def erd_chat(w: World, diagram_id: str, persona_id: str) -> Any:
     )
 
 
-def erd_primer(bridge_url: str) -> str:
-    with DiagramBridge(bridge_url) as bridge:
-        model = bridge.parse("erd", "erDiagram\n")["model"]
-        primer = bridge.ai_prompt("erd", None, model)["primer"]
+def erd_primer() -> str:
+    primer = primer_for("erd")
     assert isinstance(primer, str)
     return primer
 
 
 def test_includes_family_scoped_and_unscoped_material_excludes_other_families_and_orders_the_sections(
-    w: World, scripted: ScriptedModel, erd: str, needs_bridge: str
+    w: World, scripted: ScriptedModel, erd: str
 ) -> None:
     erd_marker, c4_marker, unscoped = "ERD-SCOPED-MARKER-a1b2c3", "C4-SCOPED-MARKER-x9y8z7", "UNSCOPED-MARKER-q5w4e3"
     prompt = "PERSONA-SYSTEM-PROMPT-m1n2o3"
@@ -218,7 +216,7 @@ def test_includes_family_scoped_and_unscoped_material_excludes_other_families_an
     assert unscoped in system
     assert c4_marker not in system
 
-    primer = erd_primer(needs_bridge)
+    primer = erd_primer()
     persona_at, primer_at = system.index(prompt), system.index(primer)
     erd_at, unscoped_at, summary_at = system.index(erd_marker), system.index(unscoped), system.index("Current shapes:")
     assert persona_at >= 0
@@ -230,7 +228,7 @@ def test_includes_family_scoped_and_unscoped_material_excludes_other_families_an
 
 
 def test_behaves_as_before_for_a_persona_with_no_reference_material_entries(
-    w: World, scripted: ScriptedModel, erd: str, needs_bridge: str
+    w: World, scripted: ScriptedModel, erd: str
 ) -> None:
     prompt = "PERSONA-WITH-NO-REFERENCE-MATERIAL"
     persona_id = persona(w.api, "Ref Material Persona", "Business", prompt)
@@ -239,7 +237,7 @@ def test_behaves_as_before_for_a_persona_with_no_reference_material_entries(
     expected = "\n\n".join(
         [
             prompt,
-            f"## Diagram type\n\n{erd_primer(needs_bridge)}",
+            f"## Diagram type\n\n{erd_primer()}",
             f"## Reply style\n\n{REPLY_STYLE}",
             "## Current diagram\n\nCurrent shapes:\n(none yet)\n\nCurrent connectors:\n(none yet)",
         ]

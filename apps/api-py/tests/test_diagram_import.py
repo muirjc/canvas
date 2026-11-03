@@ -1,13 +1,13 @@
 """Importing diagrams (phase 4, canvas-1bty.8): raw Mermaid and filled-in Markdown intake templates, the cases of
 apps/api/tests/contract/import and import-template, and the import cases of project-access. Every response is
-also checked against the API contract (tests/api.py). Detection, parsing and template compiling go through the
-diagram-core bridge (`needs_bridge`).
+also checked against the API contract (tests/api.py). Detection, parsing and template compiling go through
+diagram-core.
 
 Left out:
 - import.test.ts's last case ends by exporting the imported diagram as SVG: that step is in test_export.py
   (the case here keeps the import and the save).
 - docs/*-template.md files other than the C4 context one: the TypeScript test only sends that template, and
-  compiling the others is diagram-core's own tests (and the bridge corpus), not this route's.
+  compiling the others is diagram-core's own tests (and the golden corpus), not this route's.
 """
 
 from __future__ import annotations
@@ -62,7 +62,7 @@ VALID_TEMPLATE = "\n".join(
 
 
 @pytest.fixture()
-def architect(api: Api, needs_bridge: str) -> User:
+def architect(api: Api) -> User:
     api.diagram_type("flowchart", name="Generic Flowchart")
     api.diagram_type("c4-context", "c4", name="C4 Context", personas=["Technical"], palette=["c4-notation"])
     api.diagram_type("sequence", "sequence", name="Sequence Diagram", personas=["Solution", "Technical"])

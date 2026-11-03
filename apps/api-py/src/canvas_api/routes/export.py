@@ -1,7 +1,7 @@
 """Export a diagram as Mermaid, SVG or PNG (phase 6, canvas-1bty.10; apps/api/src/export/*.ts).
 
-- Mermaid: the saved DSL made portable (plain style/linkStyle lines), through the diagram-core bridge.
-- SVG: rendered by the bridge, with the icon artwork the diagram uses (looked up here) and, when the
+- Mermaid: the saved DSL made portable (plain style/linkStyle lines), by diagram-core.
+- SVG: rendered by diagram-core, with the icon artwork the diagram uses (looked up here) and, when the
   diagram shows a legend, its type's active standard for the legend's automatic entries.
 - PNG: that SVG rasterised by resvg-py, the same Rust renderer as the TypeScript service's
   @resvg/resvg-js, with system fonts off as there, so a PNG doesn't depend on the host's fonts.
@@ -23,7 +23,7 @@ from canvas_api.access import require_diagram_access
 from canvas_api.auth.roles import CurrentUser
 from canvas_api.catalog import DSL_FAMILIES
 from canvas_api.db import get_engine
-from canvas_api.diagram_core import DiagramBridge
+from canvas_api.diagram_core import DiagramCore
 from canvas_api.errors import ApiError
 from canvas_api.routes.diagrams import get_diagram
 from canvas_api.standards import get_active_standard
@@ -46,11 +46,9 @@ _ICON_CANDIDATES = text(
 ).bindparams(bindparam("libraries", expanding=True), bindparam("ids", expanding=True))
 
 
-def _bridge(request: Request) -> DiagramBridge:
-    bridge: DiagramBridge | None = request.app.state.diagram_bridge
-    if bridge is None:
-        raise ApiError(503, "The diagram-core bridge is not configured (DIAGRAM_BRIDGE_URL).")
-    return bridge
+def _diagram_core(request: Request) -> DiagramCore:
+    diagram_core: DiagramCore = request.app.state.diagram_core
+    return diagram_core
 
 
 def _icon_artwork(conn: Connection, model: dict[str, Any]) -> dict[str, str]:
@@ -72,7 +70,7 @@ def _icon_artwork(conn: Connection, model: dict[str, Any]) -> dict[str, str]:
 
 def render_svg(
     conn: Connection,
-    bridge: DiagramBridge,
+    core: DiagramCore,
     family: str,
     dsl: str,
     diagram_type_id: str,
@@ -82,14 +80,14 @@ def render_svg(
     submissions); downloads stay transparent."""
     if family not in DSL_FAMILIES:
         raise ApiError(422, f"No DSL family registered for: {family}")
-    parsed = bridge.parse(family, dsl)
+    parsed = core.parse(family, dsl)
     if "model" not in parsed:
         errors = json.dumps(parsed.get("errors", []), separators=(",", ":"), ensure_ascii=False)
         raise ApiError(422, f"Diagram could not be rendered — DSL has parse errors: {errors}")
     model: dict[str, Any] = parsed["model"]
     legend = model.get("legend") or {}
     standard = get_active_standard(conn, diagram_type_id) if legend.get("visible") else None
-    return bridge.render_svg(
+    return core.render_svg(
         model,
         icons=_icon_artwork(conn, model),
         standard_rules=standard.rules if standard else None,
@@ -105,14 +103,14 @@ def export(
     db: Db,
     format: Literal["mermaid", "svg", "png"] = "mermaid",
 ) -> Response:
-    bridge = _bridge(request)
+    core = _diagram_core(request)
     with db.connect() as conn:
         require_diagram_access(conn, user.id, id, "view")
         diagram = get_diagram(conn, id)
         if format == "mermaid":
-            body: bytes | str = bridge.portable(diagram["dslContent"])
+            body: bytes | str = core.portable(diagram["dslContent"])
         else:
-            svg = render_svg(conn, bridge, diagram["dslFamily"], diagram["dslContent"], diagram["diagramTypeId"])
+            svg = render_svg(conn, core, diagram["dslFamily"], diagram["dslContent"], diagram["diagramTypeId"])
             body = svg if format == "svg" else bytes(resvg_py.svg_to_bytes(svg_string=svg, skip_system_fonts=True))
     return Response(
         content=body,

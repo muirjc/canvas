@@ -16,7 +16,7 @@ from canvas_api.auth.rate_limit import LoginRateLimiter
 from canvas_api.auth.session import SessionUser, current_user
 from canvas_api.config import Settings
 from canvas_api.db import create_db_engine
-from canvas_api.diagram_core import DiagramBridge, DiagramCore
+from canvas_api.diagram_core import DiagramCore
 from canvas_api.errors import register_error_handlers
 from canvas_api.front_door import install as install_front_door
 from canvas_api.github.client import GitHubClient
@@ -75,18 +75,13 @@ def create_app(
     _ = settings.typescript_route_groups
     oidc_client = OidcClient(oidc_config, settings.web_origin_list[0], oidc_transport) if oidc_config else None
     db = engine or create_db_engine(settings)
-    # canvas-1bty.15: diagram-core is native Python. Only with DIAGRAM_BRIDGE_URL set (tests, a fallback) can
-    # DIAGRAM_CORE_MODE send answers through the TypeScript bridge (shadow/bridge); without it, always native.
-    bridge = DiagramCore(
-        DiagramBridge(settings.diagram_bridge_url) if settings.diagram_bridge_url else None,
-        settings.diagram_core_mode,
-    )
+    # canvas-1bty.15: diagram-core, native Python.
+    diagram_core = DiagramCore()
     github_client = GitHubClient(github_config, github_transport) if github_config else None
 
     @asynccontextmanager
     async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
         yield
-        bridge.close()
         if github_client is not None:
             github_client.close()
         if oidc_client is not None:
@@ -99,7 +94,7 @@ def create_app(
     app = FastAPI(title="Canvas API (Python)", lifespan=lifespan, docs_url=None, redoc_url=None)
     app.state.settings = settings
     app.state.db = db
-    app.state.diagram_bridge = bridge
+    app.state.diagram_core = diagram_core
     app.state.github_client = github_client
     app.state.oidc_client = oidc_client
     app.state.login_rate_limiter = LoginRateLimiter(settings.login_rate_limit_per_minute)

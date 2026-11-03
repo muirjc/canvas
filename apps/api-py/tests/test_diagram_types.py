@@ -156,7 +156,7 @@ def test_a_built_in_family_never_changes(api: Api, admin: User, architect: User)
     assert patch(api, admin, "flowchart", dslFamily="flowchart", name="Same Family").status_code == 200
 
 
-def test_a_custom_family_is_locked_once_a_diagram_uses_it(api: Api, admin: User, needs_bridge: str) -> None:
+def test_a_custom_family_is_locked_once_a_diagram_uses_it(api: Api, admin: User) -> None:
     type_id = custom(api, admin)
     api.new_diagram(api.project(admin, "P"), admin, "D", type_id, "flowchart TD\n  A --> B\n")
     assert patch(api, admin, type_id, dslFamily="erd").status_code == 409

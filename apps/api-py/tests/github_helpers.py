@@ -52,15 +52,12 @@ def id8(diagram_id: str) -> str:
 class GH:
     """One test's world: a clean database, the app, a fake GitHub with an `acme` installation, and users."""
 
-    def __init__(
-        self, api: Api, app: FastAPI, fake: FakeGitHub, engine: Engine, validator_root: Path, bridge_url: str
-    ) -> None:
+    def __init__(self, api: Api, app: FastAPI, fake: FakeGitHub, engine: Engine, validator_root: Path) -> None:
         self.api = api
         self.app = app
         self.fake = fake
         self.engine = engine
         self.validator_root = validator_root
-        self.bridge_url = bridge_url
         self._scratch = 0
         self.users: dict[str, User] = {}
         installation = fake.add_installation(account="acme")

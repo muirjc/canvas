@@ -16,11 +16,12 @@ from typing import Any
 
 import pytest
 
-from canvas_api.diagram_core import DiagramBridge, canonical_json
+from canvas_api.diagram_core import canonical_json
 from canvas_api.diagram_core.detect import detect_dsl_family
 from canvas_api.diagram_core.erd import parse_erd, serialize_erd
 from canvas_api.diagram_core.jsvalues import to_js_json
 from canvas_api.diagram_core.jsyaml import YamlError
+from tests.diagram_bridge import DiagramBridge
 
 CORPUS = Path(__file__).resolve().parents[3] / "packages" / "diagram-core" / "corpus"
 
