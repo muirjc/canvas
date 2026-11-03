@@ -93,6 +93,16 @@ tests are NON-NEGOTIABLE and must exist (and fail) before implementing any diagr
 work — see `.specify/memory/constitution.md` Principle IV.
 
 ## Recent Changes
+- `canvas-1bty.15.7` part 1 (Python phase 11g-1): **the model edits are native.** `diagram_core/diagram_ops.py`
+  ports diagram-ops.ts (all 32 edits: nodes, edges, styles, links, roles, ER/UML/architecture edge patches,
+  containers and nesting, sequence markers and autonumber) and `standard_ops.py` ports standard-ops.ts
+  (`add_element_of_kind`, `apply_element_kind`, `apply_connector_rule`). Not wired into `DiagramCore` yet: the AI
+  tools that call them are 11g-2. Conventions: None in a model is undefined; where TypeScript writes a maybe-
+  undefined field (`label: input.label`) Python writes None, so the key keeps its slot and a later edit lands
+  where TypeScript puts it (JSON key order matches); in a patch, absent = untouched, None (null) = clear.
+  `generate_id` is a module function, so tests supply TypeScript's ids. Tests: `test_diagram_core_ops.py` replays
+  `tests/data/diagram_ops_vectors.json` (`make_diagram_ops_vectors.ts`: 2,400+ seeded random steps on corpus
+  and hand-made models, JSON text compared after every step), checked to catch 13 deliberate bugs.
 - `canvas-1bty.19` (security): **the icon SVG clean-up is hardened, in TypeScript and Python together**
   (`svg-import.ts` / `diagram_core/svg_import.py`, identical, parity-fuzzed). From an appsec review of the 11f
   port, which matched TypeScript, so both had the holes: (1) time: the tag pattern backtracked EXPONENTIALLY (26
