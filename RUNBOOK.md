@@ -608,9 +608,8 @@ TypeScript **diagram-core bridge** (`packages/diagram-bridge`) was retired from 
 no mismatch over a full traffic run, with a deliberate mismatch as the control). The browser still runs the
 TypeScript diagram-core, so the two must keep matching: the bridge stays as a **test-only reference**. CI's Python
 tests start it (`REQUIRE_BRIDGE=1`) and compare Python with it on the corpus and on random input; locally those
-tests skip without Node and the built bundle (`npm run build --workspace=@canvas/diagram-bridge`).
-`DIAGRAM_BRIDGE_URL` + `DIAGRAM_CORE_MODE` (`shadow`/`bridge`) still work for such a comparison locally; without a
-bridge URL, as in Azure and CI's e2e job, diagram-core always answers natively.
+tests skip without Node and the built bundle (`npm run build --workspace=@canvas/diagram-bridge`). The app itself
+no longer talks to the bridge at all (`DIAGRAM_BRIDGE_URL` and `DIAGRAM_CORE_MODE` were removed in 11h-2).
 
 ## Known flakiness
 

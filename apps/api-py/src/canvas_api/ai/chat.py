@@ -3,7 +3,7 @@
 Each turn: parse the editor's current diagram, compose the system prompt (persona, family primer, standard,
 reference material, reply style, the current diagram), then call the model, run the tools it asks for and
 call again, until it stops asking or the step limit is reached (the AI SDK's generateText with stopWhen).
-The tools run in the diagram-core bridge (the TypeScript tool definitions); the edited diagram comes back
+The tools are diagram-core's (canvas_api/diagram_core/ai, a port of the TypeScript ones); the edited diagram comes back
 as DSL. The turn, its reply and its token usage are saved.
 """
 
@@ -33,7 +33,7 @@ from canvas_api.ai.settings import chosen_model_id
 from canvas_api.ai.usage import record_usage, usage_for_messages
 from canvas_api.catalog import DSL_FAMILIES
 from canvas_api.config import Settings
-from canvas_api.diagram_core import DiagramBridge
+from canvas_api.diagram_core import DiagramCore
 from canvas_api.standards import get_active_standard
 from canvas_api.timestamps import to_api
 
@@ -143,7 +143,7 @@ def language_model_for(settings: Settings, chosen: str | None) -> LanguageModel:
 
 def _system_prompt(
     conn: Connection,
-    bridge: DiagramBridge,
+    core: DiagramCore,
     persona_id: str | None,
     persona_prompt: str | None,
     family: str,
@@ -157,7 +157,7 @@ def _system_prompt(
     def section(heading: str, body: str) -> None:
         parts.append(f"## {heading}\n\n{body}")
 
-    sections = bridge.ai_prompt(family, rules, model)
+    sections = core.ai_prompt(family, rules, model)
     if sections.get("primer"):
         section("Diagram type", sections["primer"])
     if sections.get("standard"):
@@ -186,7 +186,7 @@ def _step_limit(mode: str, rules: dict[str, Any] | None) -> int:
 
 def send_chat_message(
     db: Engine,
-    bridge: DiagramBridge,
+    core: DiagramCore,
     settings: Settings,
     *,
     diagram: dict[str, Any],
@@ -201,7 +201,7 @@ def send_chat_message(
     family = diagram["dslFamily"]
     if family not in DSL_FAMILIES:
         raise DslParseError(f"No DSL family registered for: {family}")
-    parsed = bridge.parse(family, current_dsl)
+    parsed = core.parse(family, current_dsl)
     if "model" not in parsed:
         raise DslParseError("currentDslContent could not be parsed")
     model: dict[str, Any] = parsed["model"]
@@ -213,14 +213,14 @@ def send_chat_message(
         standard = get_active_standard(conn, diagram["diagramTypeId"])
         rules = standard.rules if standard else None
         system = _system_prompt(
-            conn, bridge, chat_persona, persona["systemPrompt"] if persona else None, family, model, rules, mode
+            conn, core, chat_persona, persona["systemPrompt"] if persona else None, family, model, rules, mode
         )
         chosen = chosen_model_id(conn)
     lm = (language_model or (lambda c: language_model_for(settings, c)))(chosen)
     tools = (
         []
         if mode == "plan"
-        else [ToolSpec(t["name"], t["description"], t["inputSchema"]) for t in bridge.ai_tools(family, rules)]
+        else [ToolSpec(t["name"], t["description"], t["inputSchema"]) for t in core.ai_tools(family, rules)]
     )
 
     conversation = [Message(role=m["role"], text=m["content"]) for m in history]
@@ -264,7 +264,7 @@ def send_chat_message(
                 break
             results = []
             for call in step.tool_calls:
-                run = bridge.ai_tool(family, rules, model, call.name, call.input)
+                run = core.ai_tool(family, rules, model, call.name, call.input)
                 if run.get("ok"):
                     model = run["model"]
                     outcomes.extend(run.get("outcomes", []))
@@ -276,7 +276,7 @@ def send_chat_message(
         if totals["steps"] > 0:
             record(False)
         raise
-    updated_dsl = bridge.serialize(family, model)
+    updated_dsl = core.serialize(family, model)
 
     # The two messages in separate statements, as the TypeScript service writes them: created_at is the
     # column default, and the conversation is read back in that order.

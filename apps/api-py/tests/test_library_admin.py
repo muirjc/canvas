@@ -112,7 +112,7 @@ def icon_dsl(library_id: str, version: str, icon_id: str) -> str:
 
 
 @pytest.fixture()
-def env(api: Api, needs_bridge: str) -> Env:
+def env(api: Api) -> Env:
     admin = api.user("admin@example.com", role="admin")
     architect = api.user("architect@example.com")
     e = Env(api, admin, architect, api.project(admin, "P"))
@@ -802,7 +802,7 @@ def test_re_loading_a_built_in_manifest_neither_un_retires_nor_changes_origin_or
     # What the catalog seed does on each deploy, and the same call trying to take the library over.
     assert env.call("POST", "/libraries", AWS).status_code == 201
     with env.api.engine.begin() as conn:
-        _ingest(conn, env.api.client.app.state.diagram_bridge, AWS, "custom", "Hijack")  # type: ignore[attr-defined]
+        _ingest(conn, env.api.client.app.state.diagram_core, AWS, "custom", "Hijack")  # type: ignore[attr-defined]
 
     aws = next(lib for lib in env.admin_list() if lib["id"] == "aws-icons")
     assert aws["origin"] == "builtin"

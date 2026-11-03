@@ -93,6 +93,18 @@ tests are NON-NEGOTIABLE and must exist (and fail) before implementing any diagr
 work — see `.specify/memory/constitution.md` Principle IV.
 
 ## Recent Changes
+- `canvas-1bty.15.8` part 2 (Python phase 11h-2): **the bridge is gone from the Python app, kept only by its
+  tests.** `DiagramCore` (diagram_core/core.py) is native-only: no bridge, no modes, no shadow logging; same
+  method names and answer shapes, so callers didn't change. `BridgeError` became `DiagramCoreError` (raised where
+  TypeScript throws: YAML errors, a model/standard missing a field -- only the error's type kept --, an unknown
+  family); `canonical_json`/`JsonObject` moved to core.py. Settings `DIAGRAM_BRIDGE_URL`/`DIAGRAM_CORE_MODE` are
+  removed; `app.state.diagram_core` replaces `app.state.diagram_bridge`, and every `bridge` parameter/helper in
+  routes, GitHub and chat code is now `core`/`_diagram_core`. The HTTP client moved to `tests/diagram_bridge.py`
+  (with `BridgeError`), used only by the comparison tests (`bridge_url`/`needs_bridge` fixtures); route tests no
+  longer need the bridge, so they run without Node. `test_diagram_core_modes.py` became `test_diagram_core_api.py`
+  (native answers and errors). Also deleted in Azure, with the user's OK: the unused `canvas-diagram-bridge` ACR
+  repository. Decided with the user: an unexpected exception in an AI tool fails the request (Python's stricter
+  behaviour), unlike TypeScript, which handed its message to the model.
 - `canvas-1bty.15.8` part 1 (Python phase 11h-1): **the diagram-core bridge is out of production.** Before the
   cutover, main was deployed to Azure in shadow mode and driven through every diagram-core path (95 corpus diagrams
   imported as drafts and saved, 285 exports, 36 template compiles; then cleaned up): no `diagram-core shadow

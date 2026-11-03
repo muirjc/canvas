@@ -14,12 +14,13 @@ from collections.abc import Iterator
 
 import pytest
 
-from canvas_api.diagram_core import DiagramBridge, canonical_json
+from canvas_api.diagram_core import canonical_json
 from canvas_api.diagram_core.detect import detect_dsl_family
 from canvas_api.diagram_core.flowchart import parse_flowchart, serialize_flowchart
 from canvas_api.diagram_core.jsvalues import to_js_json
 from canvas_api.diagram_core.jsyaml import YamlError
 from canvas_api.diagram_core.portable import to_portable_mermaid
+from tests.diagram_bridge import DiagramBridge
 
 IDS = ["A", "B", "C", "n1", "n2", "Start", "end_1", "x", "_q", "10", "2"]
 SHAPES = [

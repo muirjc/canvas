@@ -27,7 +27,7 @@ from canvas_api.audit import client_ip, record_audit
 from canvas_api.auth.roles import AdminUser, CurrentUser
 from canvas_api.config import Settings
 from canvas_api.db import get_engine
-from canvas_api.diagram_core import DiagramBridge
+from canvas_api.diagram_core import DiagramCore
 from canvas_api.errors import ApiError
 from canvas_api.github.client import (
     GitHubAccessError,
@@ -92,11 +92,9 @@ def _require_client(request: Request) -> GitHubClient:
     return client
 
 
-def _bridge(request: Request) -> DiagramBridge:
-    bridge: DiagramBridge | None = request.app.state.diagram_bridge
-    if bridge is None:
-        raise ApiError(503, "The diagram-core bridge is not configured (DIAGRAM_BRIDGE_URL).")
-    return bridge
+def _diagram_core(request: Request) -> DiagramCore:
+    diagram_core: DiagramCore = request.app.state.diagram_core
+    return diagram_core
 
 
 def _settings(request: Request) -> Settings:
@@ -283,7 +281,7 @@ def _submission_status(request: Request, conn: Connection, diagram_id: str, user
     approved = get_approved_submission(conn, diagram_id)
     level = resolve_diagram_access(conn, user_id, diagram_id)
     blocking, warnings = check_submittable(
-        conn, _bridge(request), diagram["diagramTypeId"], diagram["dslFamily"], diagram["dslContent"]
+        conn, _diagram_core(request), diagram["diagramTypeId"], diagram["dslFamily"], diagram["dslContent"]
     )
     fingerprint = submission_fingerprint(diagram["dslContent"], diagram["name"], diagram["description"])
 
@@ -324,17 +322,17 @@ def submit(id: str, request: Request, response: Response, user: CurrentUser, db:
         require_diagram_access(conn, user.id, id, "edit")
     with _github_errors():
         client = _require_client(request)
-        bridge = _bridge(request)
+        core = _diagram_core(request)
         with db.connect() as conn:
             diagram = get_diagram(conn, id)
         settings = _settings(request)
 
         def draw(conn: Connection, family: str, dsl: str, type_id: str, background: str) -> str:
-            return render_svg(conn, bridge, family, dsl, type_id, background)
+            return render_svg(conn, core, family, dsl, type_id, background)
 
         result = submit_diagram(
             client,
-            bridge,
+            core,
             db,
             diagram,
             Submitter(user.id, user.name, user.email),

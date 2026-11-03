@@ -15,7 +15,7 @@ from collections import OrderedDict
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 
-from canvas_api.diagram_core import DiagramBridge
+from canvas_api.diagram_core import DiagramCore
 from canvas_api.github.client import GitHubClient, RepoRef
 
 #: Larger documents are skipped (GitHub's blob API and a reviewer's patience both have limits).
@@ -62,7 +62,7 @@ def _locale_key(text: str) -> tuple[str, str]:
 
 
 def document_embed_updates(
-    client: GitHubClient, bridge: DiagramBridge, token: str, repo: RepoRef, tree_sha: str, diagram: DiagramFiles
+    client: GitHubClient, core: DiagramCore, token: str, repo: RepoRef, tree_sha: str, diagram: DiagramFiles
 ) -> EmbedUpdate:
     listing, truncated = client.list_tree_files(token, repo, tree_sha)
     markdown = sorted(
@@ -78,7 +78,7 @@ def document_embed_updates(
         text = _read_markdown(client, token, repo, sha)
         if text is None:
             return path, None, False
-        update = bridge.embeds(text, path, sources, only)
+        update = core.embeds(text, path, sources, only)
         embeds = any(r.get("status") in ("current", "updated", "filled") for r in update.get("results", []))
         return path, str(update["markdown"]) if update.get("changed") else None, embeds
 

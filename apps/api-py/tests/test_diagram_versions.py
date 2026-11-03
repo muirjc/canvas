@@ -1,6 +1,6 @@
 """Diagram versions, save conflicts and presence (phase 4, canvas-1bty.8), the cases of apps/api/tests/contract/
 versions and edit-conflict. Every response is also checked against the API contract (tests/api.py). Saves
-parse through the diagram-core bridge (`needs_bridge`).
+parse through diagram-core.
 
 Left out:
 - edit-conflict.test.ts's "of two saves from the same version at the same moment, exactly one wins" uses
@@ -31,7 +31,7 @@ class Setup:
 
 
 @pytest.fixture()
-def s(api: Api, needs_bridge: str) -> Setup:
+def s(api: Api) -> Setup:
     api.diagram_type("flowchart", name="Generic Flowchart")
     alice = api.user("architect@example.com", name="Archie Architect")
     return Setup(api, alice, api.project(alice, "Test Project"))

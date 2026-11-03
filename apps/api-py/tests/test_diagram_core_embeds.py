@@ -15,8 +15,8 @@ from typing import Any
 
 import pytest
 
-from canvas_api.diagram_core import DiagramBridge
 from canvas_api.diagram_core.embeds import EMBED_END_MARKER, find_embed_markers, normalise_embed_path, update_embeds
+from tests.diagram_bridge import DiagramBridge
 
 MMD = "architecture/prod/diagrams/product-context/product-context.mmd"
 SVG = "architecture/prod/diagrams/product-context/product-context.svg"

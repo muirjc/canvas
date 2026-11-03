@@ -2,7 +2,7 @@
 editing them, cloning, publishing and retiring -- the cases of apps/api/tests/contract/standards,
 standards-v2 and standards-c4-role-shapes. Every response is also checked against the API contract
 (tests/api.py). Creating and editing run diagram-core's definition check, and publishing/retiring re-check
-the type's diagrams, both through the bridge (`needs_bridge`).
+the type's diagrams, both through diagram-core.
 
 Request validation: zod and pydantic word structural errors differently, so those cases assert the 400, the
 `Invalid standard definition` error and a non-empty list of {path, message} issues. Exact paths and messages
@@ -41,7 +41,7 @@ V2_BODY: dict[str, Any] = {
 
 
 @pytest.fixture()
-def admin(api: Api, needs_bridge: str) -> User:
+def admin(api: Api) -> User:
     api.diagram_type("flowchart", name="Generic Flowchart")
     return api.user("admin@example.com", role="admin")
 

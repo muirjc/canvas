@@ -1,4 +1,6 @@
-"""Client for the diagram-core bridge (packages/diagram-bridge, canvas-1bty.4).
+"""Client for the diagram-core bridge (packages/diagram-bridge, canvas-1bty.4): the TypeScript diagram-core over
+HTTP. Test-only since canvas-1bty.15.8: the tests compare the native Python diagram-core with it, because the browser
+still runs the TypeScript one and the two must keep matching.
 
 One keep-alive HTTP connection pool; every call is JSON in, JSON out. Models are plain dicts in the
 TypeScript model's shape (packages/diagram-core/src/model/diagram-model.ts) -- the golden corpus pins
@@ -7,22 +9,17 @@ that shape down.
 
 from __future__ import annotations
 
-import json
 from typing import Any, cast
 
 import httpx
 
-JsonObject = dict[str, Any]
+from canvas_api.diagram_core import JsonObject, canonical_json
+
+__all__ = ["BridgeError", "DiagramBridge", "canonical_json"]
 
 
 class BridgeError(RuntimeError):
     """The bridge refused a request (400) or failed (5xx), or couldn't be reached."""
-
-
-def canonical_json(value: Any) -> str:
-    """The corpus's canonical JSON: keys sorted, two-space indent, trailing newline (as the TypeScript
-    corpus test writes it)."""
-    return json.dumps(value, sort_keys=True, indent=2, ensure_ascii=False) + "\n"
 
 
 class DiagramBridge:

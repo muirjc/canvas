@@ -6,7 +6,7 @@ Built-in libraries (the catalog seed's) can only be retired or restored; custom 
 files or a manifest) are fully editable. Retiring hides a library or icon from palettes and search while the
 diagrams that use it keep rendering it; deleting is only for a custom library or icon nothing uses. Every
 change is audited (icon_library_changed). The SVG clean-up, manifest validation and reading which diagrams
-use an icon are diagram-core's, through the bridge.
+use an icon are diagram-core's.
 """
 
 from __future__ import annotations
@@ -22,7 +22,7 @@ from sqlalchemy import Connection, Engine, bindparam, text
 from canvas_api.audit import client_ip, record_audit
 from canvas_api.auth.roles import AdminUser
 from canvas_api.db import get_engine
-from canvas_api.diagram_core import DiagramBridge
+from canvas_api.diagram_core import DiagramCore
 from canvas_api.diagram_core.jsvalues import js_template
 from canvas_api.errors import ApiError
 from canvas_api.github.jstext import JS_WHITESPACE, js_len, js_number, js_slice, js_trim
@@ -32,7 +32,7 @@ router = APIRouter(tags=["Libraries"])
 Db = Annotated[Engine, Depends(get_engine)]
 
 MAX_ICONS_PER_IMPORT = 1000
-#: Bridge calls stay well under its 10 MB request limit.
+#: Icons are cleaned up in chunks of this size (from when an HTTP bridge with a 10 MB limit did it).
 _CHUNK_CHARS = 4 * 1024 * 1024
 _MANIFEST_ID = re.compile(r"[a-z0-9][a-z0-9._-]{0,59}")
 _MANIFEST_VERSION = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]{0,29}")
@@ -77,11 +77,9 @@ class PaletteBody(BaseModel):
     diagramTypeIds: list[StrictStr] = Field(max_length=500)
 
 
-def _bridge(request: Request) -> DiagramBridge:
-    bridge: DiagramBridge | None = request.app.state.diagram_bridge
-    if bridge is None:
-        raise ApiError(503, "The diagram-core bridge is not configured (DIAGRAM_BRIDGE_URL).")
-    return bridge
+def _diagram_core(request: Request) -> DiagramCore:
+    diagram_core: DiagramCore = request.app.state.diagram_core
+    return diagram_core
 
 
 def _not_found(message: str) -> ApiError:
@@ -147,9 +145,7 @@ _LIVE_DIAGRAMS = text(
 )
 
 
-def _icon_usage(
-    conn: Connection, bridge: DiagramBridge, library_id: str | None = None
-) -> dict[str, list[dict[str, Any]]]:
+def _icon_usage(conn: Connection, core: DiagramCore, library_id: str | None = None) -> dict[str, list[dict[str, Any]]]:
     """Which live diagrams use each library version and icon: keys "<lib>@<version>" and
     "<lib>@<version>@<icon>"."""
     candidates = []
@@ -161,7 +157,7 @@ def _icon_usage(
             candidates.append({"row": row, "family": row.dsl_family, "dsl": row.dsl_content})
     usage: dict[str, list[dict[str, Any]]] = {}
     for chunk in _chunks(candidates, lambda c: len(c["dsl"])):
-        refs = bridge.icon_refs([{"family": c["family"], "dsl": c["dsl"]} for c in chunk])
+        refs = core.icon_refs([{"family": c["family"], "dsl": c["dsl"]} for c in chunk])
         for candidate, found in zip(chunk, refs, strict=True):
             if found is None:
                 continue
@@ -199,7 +195,7 @@ def _require_custom(conn: Connection, library_id: str, version: str) -> None:
         raise _invalid("Built-in libraries can only be retired or restored, not edited.")
 
 
-def _admin_libraries(conn: Connection, bridge: DiagramBridge) -> list[dict[str, Any]]:
+def _admin_libraries(conn: Connection, core: DiagramCore) -> list[dict[str, Any]]:
     libraries = conn.execute(
         text(
             "SELECT id, version, display_name, origin, license, retired_at FROM icon_libraries"
@@ -221,7 +217,7 @@ def _admin_libraries(conn: Connection, bridge: DiagramBridge) -> list[dict[str, 
             " JOIN diagram_types t ON t.id = p.diagram_type_id ORDER BY t.name"
         )
     ).all()
-    usage = _icon_usage(conn, bridge)
+    usage = _icon_usage(conn, core)
     result = []
     for lib in libraries:
         n, retired = counts.get((lib.id, lib.version), (0, 0))
@@ -242,8 +238,8 @@ def _admin_libraries(conn: Connection, bridge: DiagramBridge) -> list[dict[str, 
     return result
 
 
-def _find_library(conn: Connection, bridge: DiagramBridge, library_id: str, version: str) -> dict[str, Any]:
-    return next(lib for lib in _admin_libraries(conn, bridge) if lib["id"] == library_id and lib["version"] == version)
+def _find_library(conn: Connection, core: DiagramCore, library_id: str, version: str) -> dict[str, Any]:
+    return next(lib for lib in _admin_libraries(conn, core) if lib["id"] == library_id and lib["version"] == version)
 
 
 _KEYWORDS = text(
@@ -282,14 +278,14 @@ def _set_keywords(conn: Connection, library_id: str, version: str, keywords: dic
 
 @router.get("/admin/libraries")
 def list_libraries(request: Request, _admin: AdminUser, db: Db) -> dict[str, Any]:
-    bridge = _bridge(request)
+    core = _diagram_core(request)
     with db.connect() as conn:
-        return {"libraries": _admin_libraries(conn, bridge)}
+        return {"libraries": _admin_libraries(conn, core)}
 
 
 @router.get("/admin/libraries/{id}/{version}/icons")
 def list_icons(id: str, version: str, request: Request, _admin: AdminUser, db: Db) -> dict[str, Any]:
-    bridge = _bridge(request)
+    core = _diagram_core(request)
     with db.connect() as conn:
         _library_row(conn, id, version)
         rows = conn.execute(
@@ -300,7 +296,7 @@ def list_icons(id: str, version: str, request: Request, _admin: AdminUser, db: D
             {"id": id, "version": version},
         ).all()
         keywords = _keywords(conn, id, version)
-        usage = _icon_usage(conn, bridge, id)
+        usage = _icon_usage(conn, core, id)
     return {
         "icons": [
             {
@@ -322,10 +318,10 @@ def usage(
     id: str, version: str, request: Request, _admin: AdminUser, db: Db, iconId: str | None = None
 ) -> dict[str, Any]:
     """Which diagrams use a library (or one icon), for the admin page."""
-    bridge = _bridge(request)
+    core = _diagram_core(request)
     with db.connect() as conn:
         _library_row(conn, id, version)
-        found = _icon_usage(conn, bridge, id)
+        found = _icon_usage(conn, core, id)
     return {"diagrams": found.get(f"{id}@{version}@{iconId}" if iconId else f"{id}@{version}", [])}
 
 
@@ -334,14 +330,14 @@ def usage(
 
 def _ingest(
     conn: Connection,
-    bridge: DiagramBridge,
+    core: DiagramCore,
     manifest: Any,
     origin: str,
     display_name: str | None,
 ) -> dict[str, Any]:
     """library.service.ts ingestLibrary: validated by diagram-core (raises ApiError 400 with its message),
     then stored. Re-loading a version updates its icons but never its origin, name or retirement."""
-    loaded = bridge.load_library(manifest)
+    loaded = core.load_library(manifest)
     if not loaded.get("ok"):
         raise _invalid(str(loaded.get("error")))
     library: dict[str, Any] = loaded["library"]
@@ -390,12 +386,12 @@ def _ingest(
 def load_builtin(request: Request, _admin: AdminUser, db: Db, body: Annotated[Any, Body()] = None) -> dict[str, Any]:
     """Loads a library as BUILT-IN (the catalog seed's path; tests use it for the bundled packs). Admins import
     custom libraries through /admin/libraries/import-* instead, which checks the artwork strictly."""
-    bridge = _bridge(request)
+    core = _diagram_core(request)
     if not isinstance(body, dict):
         raise _invalid("Library manifest requires both id and version")
-    body = _strict_artwork(bridge, body)
+    body = _strict_artwork(core, body)
     with db.begin() as conn:
-        library = _ingest(conn, bridge, body, "builtin", None)
+        library = _ingest(conn, core, body, "builtin", None)
     return {"status": "ingested", "id": library["id"], "version": library["version"]}
 
 
@@ -407,7 +403,7 @@ def _template_of(record: dict[str, Any], key: str) -> str:
     return js_template(record[key]) if key in record else "undefined"
 
 
-def _strict_artwork(bridge: DiagramBridge, manifest: dict[str, Any]) -> dict[str, Any]:
+def _strict_artwork(core: DiagramCore, manifest: dict[str, Any]) -> dict[str, Any]:
     """canvas-1bty.19: markup artwork through the strict allowlist (a path or URL reference is left alone), as
     TypeScript's POST /libraries. The seed loads the bundled packs directly and keeps them as shipped."""
     icons = manifest.get("icons")
@@ -426,7 +422,7 @@ def _strict_artwork(bridge: DiagramBridge, manifest: dict[str, Any]) -> dict[str
     ]
     results: list[dict[str, Any]] = []
     for chunk in _chunks(items, lambda item: len(item["svg"])):
-        results.extend(bridge.svg_sanitize_strict(chunk))
+        results.extend(core.svg_sanitize_strict(chunk))
     cleaned = list(icons)
     for (i, icon), result in zip(picked, results, strict=True):
         if not result.get("ok"):
@@ -436,7 +432,7 @@ def _strict_artwork(bridge: DiagramBridge, manifest: dict[str, Any]) -> dict[str
 
 
 def _prepare_icons(
-    bridge: DiagramBridge, library_id: str, uploads: list[UploadedIcon], taken: set[str]
+    core: DiagramCore, library_id: str, uploads: list[UploadedIcon], taken: set[str]
 ) -> tuple[list[dict[str, Any]], list[dict[str, str]]]:
     """Uploaded files -> manifest icons; files that can't be used are reported, not fatal.
 
@@ -466,7 +462,7 @@ def _prepare_icons(
         items = [{"svg": svg, "idPrefix": prefix} for svg, prefix in pairs]
         results: list[dict[str, Any]] = []
         for chunk in _chunks(items, lambda item: len(item["svg"])):
-            results.extend(bridge.svg_prepare(chunk))
+            results.extend(core.svg_prepare(chunk))
         return results
 
     first_ids = assign([True] * len(uploads))
@@ -512,7 +508,7 @@ def _unique_library_id(conn: Connection, name: str) -> str:
 @router.post("/admin/libraries/import-svg", status_code=201)
 def import_svg(request: Request, admin: AdminUser, db: Db, body: ImportSvgBody) -> dict[str, Any]:
     """A new custom library from uploaded SVG files."""
-    bridge = _bridge(request)
+    core = _diagram_core(request)
     name = js_trim(body.name)
     if not name:
         raise _invalid("Give the library a name.")
@@ -522,7 +518,7 @@ def import_svg(request: Request, admin: AdminUser, db: Db, body: ImportSvgBody) 
         raise _invalid(f"At most {MAX_ICONS_PER_IMPORT} icons per import.")
     with db.begin() as conn:
         library_id = _unique_library_id(conn, name)
-        icons, rejected = _prepare_icons(bridge, library_id, body.icons, set())
+        icons, rejected = _prepare_icons(core, library_id, body.icons, set())
         if not icons:
             raise _none_usable(rejected)
         license_text = js_trim(body.license or "") or None
@@ -532,8 +528,8 @@ def import_svg(request: Request, admin: AdminUser, db: Db, body: ImportSvgBody) 
             "icons": icons,
             **({"license": license_text} if license_text else {}),
         }
-        _ingest(conn, bridge, manifest, "custom", name)
-        library = _find_library(conn, bridge, library_id, "1")
+        _ingest(conn, core, manifest, "custom", name)
+        library = _find_library(conn, core, library_id, "1")
         _audit(
             conn,
             request,
@@ -552,7 +548,7 @@ def import_svg(request: Request, admin: AdminUser, db: Db, body: ImportSvgBody) 
 @router.post("/admin/libraries/import-manifest", status_code=201)
 def import_manifest(request: Request, admin: AdminUser, db: Db, body: ImportManifestBody) -> dict[str, Any]:
     """A custom library from a manifest (the bundled packs' format; artwork already in 48x48 space)."""
-    bridge = _bridge(request)
+    core = _diagram_core(request)
     manifest = body.manifest
     library_id, version, raw_icons = manifest.get("id"), manifest.get("version"), manifest.get("icons")
     if not isinstance(library_id, str) or not isinstance(version, str) or not isinstance(raw_icons, list):
@@ -584,7 +580,7 @@ def import_manifest(request: Request, admin: AdminUser, db: Db, body: ImportMani
         items = [{"svg": icon["assetRef"], "idPrefix": f"{library_id}-{icon['id']}"} for icon in raw_icons]
         results: list[dict[str, Any]] = []
         for chunk in _chunks(items, lambda item: len(item["svg"])):
-            results.extend(bridge.svg_sanitize_strict(chunk))
+            results.extend(core.svg_sanitize_strict(chunk))
         icons = []
         for icon, result in zip(raw_icons, results, strict=True):
             if not result.get("ok"):
@@ -602,8 +598,8 @@ def import_manifest(request: Request, admin: AdminUser, db: Db, body: ImportMani
         clean = {"id": library_id, "version": version, "icons": icons}
         if manifest.get("license") is not None:
             clean["license"] = manifest["license"]
-        _ingest(conn, bridge, clean, "custom", js_trim(body.name or "") or None)
-        library = _find_library(conn, bridge, library_id, version)
+        _ingest(conn, core, clean, "custom", js_trim(body.name or "") or None)
+        library = _find_library(conn, core, library_id, version)
         _audit(
             conn,
             request,
@@ -664,7 +660,7 @@ def update_library(
 
 @router.post("/admin/libraries/{id}/{version}/icons", status_code=201)
 def add_icons(id: str, version: str, request: Request, admin: AdminUser, db: Db, body: AddIconsBody) -> dict[str, Any]:
-    bridge = _bridge(request)
+    core = _diagram_core(request)
     with db.begin() as conn:
         _require_custom(conn, id, version)
         if not body.icons or len(body.icons) > MAX_ICONS_PER_IMPORT:
@@ -676,7 +672,7 @@ def add_icons(id: str, version: str, request: Request, admin: AdminUser, db: Db,
                 {"id": id, "version": version},
             )
         }
-        icons, rejected = _prepare_icons(bridge, id, body.icons, existing)
+        icons, rejected = _prepare_icons(core, id, body.icons, existing)
         if not icons:
             raise _none_usable(rejected)
         conn.execute(
@@ -724,7 +720,7 @@ def update_icon(
     id: str, version: str, iconId: str, request: Request, admin: AdminUser, db: Db, body: UpdateIconBody
 ) -> Response:
     _at_least_one_field(body)
-    bridge = _bridge(request)
+    core = _diagram_core(request)
     with db.begin() as conn:
         _require_custom(conn, id, version)
         exists = conn.execute(
@@ -735,7 +731,7 @@ def update_icon(
             raise _not_found(f"No icon {iconId} in {id} {version}.")
         asset_ref = None
         if body.svg is not None:
-            result = bridge.svg_prepare([{"svg": body.svg, "idPrefix": f"{id}-{iconId}"}])[0]
+            result = core.svg_prepare([{"svg": body.svg, "idPrefix": f"{id}-{iconId}"}])[0]
             if not result.get("ok"):
                 raise _invalid(str(result.get("error")))
             asset_ref = result["assetRef"]
@@ -859,10 +855,10 @@ def _in_use(users: list[dict[str, Any]], what: str) -> ApiError:
 
 @router.delete("/admin/libraries/{id}/{version}", status_code=204)
 def delete_library(id: str, version: str, request: Request, admin: AdminUser, db: Db) -> Response:
-    bridge = _bridge(request)
+    core = _diagram_core(request)
     with db.begin() as conn:
         _require_custom(conn, id, version)
-        users = _icon_usage(conn, bridge, id).get(f"{id}@{version}", [])
+        users = _icon_usage(conn, core, id).get(f"{id}@{version}", [])
         if users:
             raise _in_use(users, "library")
         where = {"id": id, "version": version}
@@ -877,10 +873,10 @@ def delete_library(id: str, version: str, request: Request, admin: AdminUser, db
 
 @router.delete("/admin/libraries/{id}/{version}/icons/{iconId}", status_code=204)
 def delete_icon(id: str, version: str, iconId: str, request: Request, admin: AdminUser, db: Db) -> Response:
-    bridge = _bridge(request)
+    core = _diagram_core(request)
     with db.begin() as conn:
         _require_custom(conn, id, version)
-        users = _icon_usage(conn, bridge, id).get(f"{id}@{version}@{iconId}", [])
+        users = _icon_usage(conn, core, id).get(f"{id}@{version}@{iconId}", [])
         if users:
             raise _in_use(users, "icon")
         where = {"id": id, "version": version, "icon": iconId}

@@ -21,10 +21,11 @@ from pathlib import Path
 
 import pytest
 
-from canvas_api.diagram_core import DiagramBridge, DiagramCore
+from canvas_api.diagram_core import DiagramCore
 from canvas_api.diagram_core.templates import TEMPLATE_COMPILERS, compile_template
 from canvas_api.diagram_core.templates.helpers import camel_slug, find_section
 from canvas_api.diagram_core.templates.markdown_table import extract_first_table, split_into_sections
+from tests.diagram_bridge import DiagramBridge
 
 DOCS = Path(__file__).resolve().parents[3] / "docs"
 DOC_FOR_TYPE = {
@@ -433,4 +434,4 @@ def test_the_raw_docs_match_the_bridge(bridge: DiagramBridge, doc_name: str) -> 
 
 def test_diagram_core_compiles_templates_natively_without_a_bridge() -> None:
     doc = (DOCS / "erd-template.md").read_text("utf-8")
-    assert DiagramCore(None, mode="native").compile_template("erd", doc) == compile_template("erd", doc)
+    assert DiagramCore().compile_template("erd", doc) == compile_template("erd", doc)

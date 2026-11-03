@@ -18,7 +18,8 @@ from typing import Any
 
 import pytest
 
-from canvas_api.diagram_core import BridgeError, DiagramBridge, canonical_json
+from canvas_api.diagram_core import canonical_json
+from tests.diagram_bridge import BridgeError, DiagramBridge
 
 REPO = Path(__file__).resolve().parents[3]
 BUNDLE = REPO / "packages" / "diagram-bridge" / "dist" / "bridge.mjs"

@@ -148,7 +148,7 @@ def test_denies_a_non_admin_on_all_4_routes(api: Api, admin: User, architect: Us
 
 
 def test_fr_009_editing_or_deleting_reference_material_never_touches_chat_history(
-    api: Api, scripted: ScriptedModel, needs_bridge: str, admin: User, architect: User, persona_id: str
+    api: Api, scripted: ScriptedModel, admin: User, architect: User, persona_id: str
 ) -> None:
     scripted.reply(text_step("Okay, done."))
     world = chat_world(api, admin=admin, architect=architect)

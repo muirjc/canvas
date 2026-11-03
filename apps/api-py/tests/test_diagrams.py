@@ -1,7 +1,6 @@
 """Diagrams (phase 4, canvas-1bty.8): create, read, save, rename, describe, move, delete and restore, drafts,
 and the diagram-route cases of other TypeScript files. Every response is also checked against the API
-contract (tests/api.py). Saving parses and validates through the diagram-core bridge, so these tests need it
-(`needs_bridge`).
+contract (tests/api.py). Saving parses and validates through diagram-core.
 
 Covers apps/api/tests/contract: diagrams, diagram-rename, diagram-description, diagram-delete-restore,
 diagram-draft, and the diagram-route cases of project-management (move), project-access (creating, listing
@@ -24,7 +23,6 @@ from __future__ import annotations
 import time
 from dataclasses import dataclass
 from datetime import datetime, timedelta
-from typing import Any
 
 import pytest
 
@@ -43,7 +41,7 @@ class World:
 
 
 @pytest.fixture()
-def owner(api: Api, needs_bridge: str) -> User:
+def owner(api: Api) -> User:
     api.diagram_type("flowchart", name="Generic Flowchart")
     return api.user("owner@example.com", name="Ozzy Owner")
 
@@ -841,31 +839,3 @@ def test_v2_violations_are_flagged_with_the_overridden_severity(api: Api, owner:
 
 def _db(api: Api, when: datetime) -> object:
     return to_db(when, api.dialect)
-
-
-def test_diagrams_work_without_the_bridge(settings: Any, engine: Any) -> None:
-    """canvas-1bty.15.8: production runs with no DIAGRAM_BRIDGE_URL; diagram-core then answers natively."""
-    from fastapi.testclient import TestClient
-
-    from canvas_api.app import create_app
-    from tests.api import reset
-
-    reset(engine)
-    without = settings.model_copy(update={"diagram_bridge_url": None})
-    with TestClient(create_app(without, engine)) as client:
-        api = Api(client, engine)
-        api.diagram_type("flowchart", name="Generic Flowchart")
-        owner = api.user("native@example.com")
-        project = api.project(owner)
-        created = api.call(
-            "POST",
-            f"/projects/{project}/diagrams",
-            owner,
-            json={"name": "Native", "diagramTypeId": "flowchart", "initialDslContent": FLOWCHART_ABC},
-        )
-        assert created.status_code == 201
-        diagram = created.json()["diagram"]
-        assert api.save_diagram(owner, diagram, FLOWCHART_ABC, diagram["currentVersionId"]).status_code == 200
-        svg = api.call("GET", f"/diagrams/{diagram['id']}/export", owner, params={"format": "svg"})
-        assert svg.status_code == 200
-        assert svg.text.startswith("<svg")

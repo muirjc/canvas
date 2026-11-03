@@ -276,7 +276,7 @@ def test_mock_provider_accepts_only_the_mock_model(env: Env) -> None:
 
 
 @pytest.fixture()
-def real_chat(env: Env, needs_bridge: str, monkeypatch: pytest.MonkeyPatch) -> tuple[Any, list[str]]:
+def real_chat(env: Env, monkeypatch: pytest.MonkeyPatch) -> tuple[Any, list[str]]:
     """Chat with no injected model: it builds Anthropic's from the admin's choice. The Anthropic API is a mock
     transport; nothing leaves the process. Returns the world and the model ids the API was asked for."""
     requested: list[str] = []

@@ -19,7 +19,7 @@ from sqlalchemy import Connection, Engine, text
 from canvas_api.auth.roles import AdminUser, CurrentUser
 from canvas_api.catalog import DSL_FAMILIES
 from canvas_api.db import get_engine
-from canvas_api.diagram_core import DiagramBridge
+from canvas_api.diagram_core import DiagramCore
 from canvas_api.errors import ApiError
 from canvas_api.standards import (
     active_standard_record,
@@ -53,11 +53,9 @@ def _compact(value: Any) -> str:
     return json.dumps(value, separators=(",", ":"), ensure_ascii=False)
 
 
-def _bridge(request: Request) -> DiagramBridge:
-    bridge: DiagramBridge | None = request.app.state.diagram_bridge
-    if bridge is None:
-        raise ApiError(503, "The diagram-core bridge is not configured (DIAGRAM_BRIDGE_URL).")
-    return bridge
+def _diagram_core(request: Request) -> DiagramCore:
+    diagram_core: DiagramCore = request.app.state.diagram_core
+    return diagram_core
 
 
 def _family_of(conn: Connection, diagram_type_id: str) -> str:
@@ -67,12 +65,12 @@ def _family_of(conn: Connection, diagram_type_id: str) -> str:
     return str(row.dsl_family)
 
 
-def _checked_rules(bridge: DiagramBridge, body: Any, family: str) -> tuple[dict[str, Any], set[str], Any]:
+def _checked_rules(core: DiagramCore, body: Any, family: str) -> tuple[dict[str, Any], set[str], Any]:
     """(rules, fields the body gave, the parsed body), or 400 with the issues: structural first, then
     diagram-core's definition check for the family."""
     parsed, rules, issues = parse_standard_body(body)
     if not issues:
-        issues = bridge.check_standard(rules, family)
+        issues = core.check_standard(rules, family)
     if issues or parsed is None:
         raise ApiError(400, "Invalid standard definition", issues=issues)
     return rules, parsed.model_fields_set, parsed
@@ -139,7 +137,7 @@ def _row_or_404(conn: Connection, standard_id: str) -> Any:
     return row
 
 
-def revalidate_diagrams_for_type(engine: Engine, bridge: DiagramBridge, diagram_type_id: str) -> int:
+def revalidate_diagrams_for_type(engine: Engine, core: DiagramCore, diagram_type_id: str) -> int:
     """Re-checks every diagram of a type against its standard in force (none = no violations). Refreshes
     only the cached result, never the DSL. Runs after the response; a failure is logged, and each
     diagram's next save refreshes its result anyway."""
@@ -157,8 +155,8 @@ def revalidate_diagrams_for_type(engine: Engine, bridge: DiagramBridge, diagram_
                 {"type": diagram_type_id},
             ).all()
             for row in rows:
-                parsed = bridge.parse(family, row.dsl_content)
-                violations = bridge.validate(parsed["model"], standard.rules) if "model" in parsed and standard else []
+                parsed = core.parse(family, row.dsl_content)
+                violations = core.validate(parsed["model"], standard.rules) if "model" in parsed and standard else []
                 conn.execute(
                     text(
                         "UPDATE diagrams SET last_validation_result = :violations,"
@@ -198,21 +196,21 @@ def every_version(id: str, _user: CurrentUser, db: Db) -> dict[str, Any]:
 
 @router.post("/diagram-types/{id}/standards", status_code=201)
 def create(id: str, request: Request, _admin: AdminUser, db: Db, body: Annotated[Any, Body()] = None) -> dict[str, Any]:
-    bridge = _bridge(request)
+    core = _diagram_core(request)
     with db.begin() as conn:
         family = _family_of(conn, id)
-        rules, _given, parsed = _checked_rules(bridge, body, family)
+        rules, _given, parsed = _checked_rules(core, body, family)
         return {"standard": _create_draft(conn, id, rules, parsed.name, parsed.description)}
 
 
 @router.put("/standards/{id}")
 def update(id: str, request: Request, _admin: AdminUser, db: Db, body: Annotated[Any, Body()] = None) -> dict[str, Any]:
     """Edits a draft in place; published and retired standards are immutable (clone instead)."""
-    bridge = _bridge(request)
+    core = _diagram_core(request)
     with db.begin() as conn:
         existing = _row_or_404(conn, id)
         family = _family_of(conn, existing.diagram_type_id)
-        rules, given, parsed = _checked_rules(bridge, body, family)
+        rules, given, parsed = _checked_rules(core, body, family)
         if existing.status != "draft":
             raise ApiError(409, f'Standard {id} is "{existing.status}", only "draft" standards can be edited')
         conn.execute(
@@ -251,7 +249,7 @@ def clone(id: str, _admin: AdminUser, db: Db) -> dict[str, Any]:
 @router.post("/standards/{id}/publish")
 def publish(id: str, request: Request, background: BackgroundTasks, _admin: AdminUser, db: Db) -> dict[str, Any]:
     """Publishes a draft, retiring whatever was in force for its diagram type."""
-    bridge = _bridge(request)
+    core = _diagram_core(request)
     with db.begin() as conn:
         row = _row_or_404(conn, id)
         if row.status != "draft":
@@ -269,14 +267,14 @@ def publish(id: str, request: Request, background: BackgroundTasks, _admin: Admi
         )
         standard = standard_record(conn, get_standard_row(conn, id))
     # Existing diagrams are re-evaluated against it, never silently modified.
-    background.add_task(revalidate_diagrams_for_type, db, bridge, standard["diagramTypeId"])
+    background.add_task(revalidate_diagrams_for_type, db, core, standard["diagramTypeId"])
     return {"standard": standard}
 
 
 @router.post("/standards/{id}/retire")
 def retire(id: str, request: Request, background: BackgroundTasks, _admin: AdminUser, db: Db) -> dict[str, Any]:
     """Retiring removes the rules in force, so cached violations are refreshed too."""
-    bridge = _bridge(request)
+    core = _diagram_core(request)
     with db.begin() as conn:
         _row_or_404(conn, id)
         conn.execute(
@@ -287,5 +285,5 @@ def retire(id: str, request: Request, background: BackgroundTasks, _admin: Admin
             {"id": id},
         )
         standard = standard_record(conn, get_standard_row(conn, id))
-    background.add_task(revalidate_diagrams_for_type, db, bridge, standard["diagramTypeId"])
+    background.add_task(revalidate_diagrams_for_type, db, core, standard["diagramTypeId"])
     return {"standard": standard}
