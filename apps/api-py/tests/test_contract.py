@@ -15,7 +15,7 @@ from canvas_api.telemetry import route_template
 from tests.api import CONTRACT, CONTRACT_DIR, check_contract
 
 #: Python routes that aren't moved TypeScript routes.
-OWN_ROUTES = {"GET /health", "GET /py/me", "GET /py/diagram-core"}
+OWN_ROUTES = {"GET /health", "GET /py/me"}
 
 
 def test_catalog_values_match_the_typescript_service() -> None:

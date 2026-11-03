@@ -590,40 +590,27 @@ Locally, as CI's e2e job runs it (the web app's Vite dev server calls `http://lo
 ```bash
 # The TypeScript API behind it (only needed for groups sent back to it):
 cd apps/api && PORT=3001 TRUST_CLIENT_IP_HEADER=true npm run dev
-# The bridge, then the Python front door on port 3000 with apps/api/.env's settings:
-npm run build --workspace=@canvas/diagram-bridge && npm start --workspace=@canvas/diagram-bridge
-cd apps/api-py && uv sync && DIAGRAM_BRIDGE_URL=http://127.0.0.1:7070 \
-  uv run --env-file ../api/.env uvicorn canvas_api.main:app --port 3000
+# The Python front door on port 3000 with apps/api/.env's settings:
+cd apps/api-py && uv sync && uv run --env-file ../api/.env uvicorn canvas_api.main:app --port 3000
 ```
 
-In Azure, `deploy.sh` builds the `canvas-api-py` (Python, with the web app), `canvas-api` (TypeScript)
-and `canvas-diagram-bridge` images with the same tag. `pause.sh`/`resume.sh` set and clear
+In Azure, `deploy.sh` builds the `canvas-api-py` (Python, with the web app) and `canvas-api` (TypeScript)
+images with the same tag. `pause.sh`/`resume.sh` set and clear
 `CANVAS_PAUSED` on canvas-api's `api` container.
 Tests: `uv run pytest` (Postgres, schema `canvas_py`) and `TEST_DB_CLIENT=sqlite uv run pytest`;
 see [apps/api-py/README.md](apps/api-py/README.md).
 
-**diagram-core in Python (phase 11, canvas-1bty.15).** diagram-core's server side is being ported to Python
-part by part (`apps/api-py/src/canvas_api/diagram_core/`); each part must match TypeScript on the golden corpus
-and on generated diagrams before it's used. `DIAGRAM_CORE_MODE` on canvas-api decides who answers what's ported:
-`shadow` (the default in Azure: the bridge answers, Python's answer is computed alongside and any difference is
-logged as `diagram-core shadow mismatch` -- the op and family, never the diagram's text), `native` (Python
-answers; CI's e2e job runs this way) or `bridge` (the bridge answers everything, the switch back). Set it with
-`CANVAS_DIAGRAM_CORE_MODE=native ./deploy.sh`, or straight away with
-`az containerapp update -n canvas-api -g <rg> --container-name api --set-env-vars DIAGRAM_CORE_MODE=bridge`.
-Ported so far: family detection, flowchart parse and serialize, a new diagram's starting DSL, portable Mermaid
-for flowchart/sequence/architecture (11a). To look for mismatches in Application Insights:
-`traces | where message has "diagram-core shadow mismatch" | summarize count() by tostring(customDimensions.op), tostring(customDimensions.family)`.
-
-The Python service reaches diagram-core (parsing, validation, SVG) through the **diagram-core
-bridge** (`packages/diagram-bridge`, canvas-1bty.4): a second container in `canvas-api`
-listening on `127.0.0.1:7070`, set as `DIAGRAM_BRIDGE_URL`. Locally:
-`npm run build --workspace=@canvas/diagram-bridge && npm start --workspace=@canvas/diagram-bridge`,
-then `DIAGRAM_BRIDGE_URL=http://127.0.0.1:7070` for uvicorn. Since phase 4 (canvas-1bty.8) the bridge
-is required, not optional: creating, saving, importing and restoring diagrams parse and validate through
-it, and answer 503 without it. Signed in, `/py/diagram-core` answers
-`{"bridge": "ok"}` when it works. The Python tests run the golden corpus
-(`packages/diagram-core/corpus`) through it; they skip without Node and the built bundle, except in
-CI.
+**diagram-core in Python (phase 11, canvas-1bty.15).** diagram-core's server side runs natively in Python
+(`apps/api-py/src/canvas_api/diagram_core/`): parsing and serializing every family, validation, rendering, templates,
+the icon-library clean-up, document embeds and the AI chat's tools. Each part was checked against TypeScript on the
+golden corpus, on generated vectors and on random input, then compared in production in shadow mode before the
+TypeScript **diagram-core bridge** (`packages/diagram-bridge`) was retired from Azure (canvas-1bty.15.8, 2026-11-03:
+no mismatch over a full traffic run, with a deliberate mismatch as the control). The browser still runs the
+TypeScript diagram-core, so the two must keep matching: the bridge stays as a **test-only reference**. CI's Python
+tests start it (`REQUIRE_BRIDGE=1`) and compare Python with it on the corpus and on random input; locally those
+tests skip without Node and the built bundle (`npm run build --workspace=@canvas/diagram-bridge`).
+`DIAGRAM_BRIDGE_URL` + `DIAGRAM_CORE_MODE` (`shadow`/`bridge`) still work for such a comparison locally; without a
+bridge URL, as in Azure and CI's e2e job, diagram-core always answers natively.
 
 ## Known flakiness
 

@@ -1,15 +1,17 @@
 # diagram-core bridge
 
-diagram-core (TypeScript) over HTTP, for the Python service while the backend moves to Python
-(canvas-1bty, [docs/python-backend-assessment.md](../../docs/python-backend-assessment.md), phase 1).
-Transition only: it goes once diagram-core's server side is ported to Python and passes the golden
-corpus ([packages/diagram-core/corpus](../diagram-core/corpus)).
+diagram-core (TypeScript) over HTTP. It served the Python service while the backend moved to Python
+(canvas-1bty, [docs/python-backend-assessment.md](../../docs/python-backend-assessment.md)); since
+diagram-core's server side runs natively in Python (canvas-1bty.15) it is **test-only**: no longer deployed
+(canvas-1bty.15.8), it is the reference the Python tests compare against (the golden corpus and random input),
+because the browser still runs the TypeScript diagram-core and the two must keep matching. CI's Python tests start
+it with `REQUIRE_BRIDGE=1`.
 
 One dependency-free file, `dist/bridge.mjs` (esbuild, from diagram-core's source modules; the only
 icon libraries in it are the manifests the architecture template compiler needs). Since
 canvas-1bty.12 it also bundles the AI chat's diagram tools from `apps/api/src/ai` (`diagram-tools.ts`,
 `diagram-type-primers.ts`, `standard-prompt.ts`, `describe-model.ts`, with zod and the AI SDK's schema
-helpers), so the Python chat offers the model exactly the tools the TypeScript one does. It runs as a sidecar container next to the Python API in `canvas-api` and listens on `127.0.0.1:7070`.
+helpers), so the Python chat offers the model exactly the tools the TypeScript one does. It listens on `127.0.0.1:7070` (`BRIDGE_PORT`, `BRIDGE_HOST`).
 
 | `POST /<op>` | Body | Answer |
 |---|---|---|
@@ -34,10 +36,6 @@ helpers), so the Python chat offers the model exactly the tools the TypeScript o
 
 `GET /health` answers `{ "status": "ok" }`. Bad input is a 400 with `{ error }`; nothing is logged
 but the startup line.
-
-Measured 2026-11-01 (localhost, keep-alive, from Python): about 0.5 ms added per call; a save
-(parse + validate) about 1.1 ms median, 2 ms p95, against 0.04-0.09 ms in-process. Small next to a
-request's network time, so the sidecar shape (a second container in the same app) stays.
 
 ```bash
 npm run build --workspace=@canvas/diagram-bridge

@@ -93,6 +93,19 @@ tests are NON-NEGOTIABLE and must exist (and fail) before implementing any diagr
 work — see `.specify/memory/constitution.md` Principle IV.
 
 ## Recent Changes
+- `canvas-1bty.15.8` part 1 (Python phase 11h-1): **the diagram-core bridge is out of production.** Before the
+  cutover, main was deployed to Azure in shadow mode and driven through every diagram-core path (95 corpus diagrams
+  imported as drafts and saved, 285 exports, 36 template compiles; then cleaned up): no `diagram-core shadow
+  mismatch`, with a known mismatch (`constructor` node id, canvas-1bty.15.9) imported as a control to prove the
+  warnings arrive (App Insights logs are not sampled: `enable_trace_based_sampling_for_logs` is off; requests are,
+  ~5/s). Then: `create_app` always builds a `DiagramCore` (native without `DIAGRAM_BRIDGE_URL`; it used to leave
+  diagram-core unset, so routes 503'd); the `canvas-api` sidecar, `DIAGRAM_BRIDGE_URL` and the `diagramCoreMode`
+  param are gone from Bicep (the `api` container took the sidecar's 0.25 CPU / 0.5Gi: 0.75 / 1.5Gi); deploy.sh no
+  longer builds `canvas-diagram-bridge` and refuses `CANVAS_DIAGRAM_CORE_MODE`; CI's e2e job no longer starts the
+  bridge; the stale `/py/diagram-core` probe and `packages/diagram-bridge/Dockerfile` are deleted. Decided with the
+  user: the bridge stays as a **test-only reference** (the browser still runs TypeScript diagram-core, so CI's
+  Python tests keep comparing against it, `REQUIRE_BRIDGE=1`). Part 2 (the "bridge" naming in routes,
+  `DiagramCore`'s modes, tests that needlessly need the bridge) is cleanup.
 - `canvas-1bty.15.7` part 2 (Python phase 11g-2): **the AI chat's diagram tools are native.**
   `diagram_core/ai/` ports diagram-tools.ts (`tools.py`: every tool, offered by family and standard, the
   not-found/standard checks, kind limits, returned ids, `newViolations`), the primers (`primers.py`, generated from
