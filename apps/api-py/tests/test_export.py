@@ -26,8 +26,10 @@ Left out:
 
 from __future__ import annotations
 
+import re
 import struct
 import xml.etree.ElementTree as ET
+import zlib
 
 import httpx
 import pytest
@@ -293,6 +295,88 @@ def test_a_png_starts_with_the_signature_and_is_the_size_of_its_svg(api: Api, ow
     width, height = struct.unpack(">II", png[16:24])
     assert width == round(float(root.attrib["width"]))
     assert height == round(float(root.attrib["height"]))
+
+
+# --- canvas-dyvn: the PNG draws the text ---------------------------------------------------------------
+
+
+def decode_png(png: bytes) -> tuple[int, int, list[bytes]]:
+    """Width, height and RGBA rows of an 8-bit RGBA PNG (what resvg writes), with PNG's row filters undone."""
+    assert png[:8] == PNG_SIGNATURE
+    pos, idat, width, height = 8, b"", 0, 0
+    while pos < len(png):
+        (length,) = struct.unpack(">I", png[pos : pos + 4])
+        kind, data = png[pos + 4 : pos + 8], png[pos + 8 : pos + 8 + length]
+        if kind == b"IHDR":
+            width, height = struct.unpack(">II", data[:8])
+            assert data[8:10] == bytes([8, 6]), "expected 8-bit RGBA"
+        elif kind == b"IDAT":
+            idat += data
+        pos += 12 + length
+    raw, stride, rows, previous = zlib.decompress(idat), width * 4, [], bytearray(width * 4)
+    for y in range(height):
+        start = y * (stride + 1)
+        kind, row = raw[start], bytearray(raw[start + 1 : start + 1 + stride])
+        for i in range(stride):
+            left = row[i - 4] if i >= 4 else 0
+            up, up_left = previous[i], previous[i - 4] if i >= 4 else 0
+            if kind == 1:
+                row[i] = (row[i] + left) & 0xFF
+            elif kind == 2:
+                row[i] = (row[i] + up) & 0xFF
+            elif kind == 3:
+                row[i] = (row[i] + (left + up) // 2) & 0xFF
+            elif kind == 4:
+                p = left + up - up_left
+                pa, pb, pc = abs(p - left), abs(p - up), abs(p - up_left)
+                row[i] = (row[i] + (left if pa <= pb and pa <= pc else up if pb <= pc else up_left)) & 0xFF
+        rows.append(bytes(row))
+        previous = row
+    return width, height, rows
+
+
+def pixels_like(rows: list[bytes], colour: tuple[int, int, int], box: tuple[int, int, int, int]) -> int:
+    """Opaque pixels within a small distance of `colour` in the box [x0, x1) x [y0, y1)."""
+    x0, y0, x1, y1 = box
+    count = 0
+    for y in range(y0, y1):
+        for x in range(x0, x1):
+            r, g, b, a = rows[y][x * 4 : x * 4 + 4]
+            count += a > 128 and abs(r - colour[0]) + abs(g - colour[1]) + abs(b - colour[2]) < 60
+    return count
+
+
+def label_text(svg: str, label: str) -> tuple[tuple[int, int, int], tuple[int, int, int, int]]:
+    """The colour of the centred <text> for `label`, and a box around its anchor point a few pixels each way
+    (inside the shape, away from its border)."""
+    found = re.search(r'<text x="([\d.]+)" y="([\d.]+)"[^>]*fill="#([0-9a-f]{6})"[^>]*>' + re.escape(label) + "<", svg)
+    assert found, f"no <text> for {label!r}"
+    x, y, hex_colour = round(float(found[1])), round(float(found[2])), found[3]
+    colour = (int(hex_colour[0:2], 16), int(hex_colour[2:4], 16), int(hex_colour[4:6], 16))
+    return colour, (x - 15, y - 6, x + 15, y + 6)
+
+
+@pytest.mark.parametrize(
+    ("diagram_type", "dsl", "label"),
+    [
+        ("flowchart", "flowchart TD\n  A[Start]\n", "Start"),
+        # A C4 element's name is drawn bold, in white on the element's colour.
+        ("c4-context", 'C4Context\n  Person(customer, "Customer", "Buys things")\n', "Customer"),
+    ],
+    ids=["flowchart label", "bold C4 name"],
+)
+def test_the_png_draws_the_labels(api: Api, owner: User, project: str, diagram_type: str, dsl: str, label: str) -> None:
+    """resvg loads no system fonts (so a PNG doesn't depend on the host); without a bundled font it drew the
+    shapes and silently dropped every label."""
+    if diagram_type == "c4-context":
+        api.diagram_type("c4-context", "c4", name="C4 Context", personas=["Technical"], palette=["c4-notation"])
+    diagram = api.new_diagram(project, owner, "PNG Text", diagram_type, dsl=dsl)
+    svg = svg_of(api, owner, diagram["id"])
+    png = export(api, owner, diagram["id"], "png")
+    assert png.status_code == 200, png.text
+    _, _, rows = decode_png(png.content)
+    colour, box = label_text(svg, label)
+    assert pixels_like(rows, colour, box) > 20
 
 
 # --- export-icon-artwork.test.ts ----------------------------------------------------------------------

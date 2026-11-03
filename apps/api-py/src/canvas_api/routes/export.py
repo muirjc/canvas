@@ -3,8 +3,10 @@
 - Mermaid: the saved DSL made portable (plain style/linkStyle lines), by diagram-core.
 - SVG: rendered by diagram-core, with the icon artwork the diagram uses (looked up here) and, when the
   diagram shows a legend, its type's active standard for the legend's automatic entries.
-- PNG: that SVG rasterised by resvg-py, the same Rust renderer as the TypeScript service's
-  @resvg/resvg-js, with system fonts off as there, so a PNG doesn't depend on the host's fonts.
+- PNG: that SVG rasterised by resvg-py. System fonts stay off, so a PNG doesn't depend on the host;
+  the text is drawn in the bundled Liberation Sans (canvas_api/fonts, SIL OFL 1.1), which the SVG's
+  font stack reaches through its final `sans-serif` (canvas-dyvn: with no font at all, resvg drew the
+  shapes and silently dropped every label).
 
 Every response is a download (fixed file name) with a locked-down Content-Security-Policy, so an
 exported file opened straight from this URL can't run anything, whatever ends up inside the SVG.
@@ -13,6 +15,7 @@ exported file opened straight from this URL can't run anything, whatever ends up
 from __future__ import annotations
 
 import json
+from pathlib import Path
 from typing import Annotated, Any, Literal
 
 import resvg_py
@@ -29,6 +32,11 @@ from canvas_api.routes.diagrams import get_diagram
 from canvas_api.standards import get_active_standard
 
 router = APIRouter(tags=["Export"])
+
+#: The fonts a PNG's text is drawn in: regular and bold (the renderer uses both, nothing italic).
+FONTS_DIR = Path(__file__).resolve().parents[1] / "fonts"
+FONT_FILES = [str(FONTS_DIR / "LiberationSans-Regular.ttf"), str(FONTS_DIR / "LiberationSans-Bold.ttf")]
+FONT_FAMILY = "Liberation Sans"
 Db = Annotated[Engine, Depends(get_engine)]
 
 #: Inline styles only; everything else blocked, and the response gets an opaque, sandboxed origin.
@@ -111,7 +119,7 @@ def export(
             body: bytes | str = core.portable(diagram["dslContent"])
         else:
             svg = render_svg(conn, core, diagram["dslFamily"], diagram["dslContent"], diagram["diagramTypeId"])
-            body = svg if format == "svg" else bytes(resvg_py.svg_to_bytes(svg_string=svg, skip_system_fonts=True))
+            body = svg if format == "svg" else _png(svg)
     return Response(
         content=body,
         headers={
@@ -119,4 +127,20 @@ def export(
             "Content-Disposition": CONTENT_DISPOSITIONS[format],
             "Content-Security-Policy": EXPORT_CSP,
         },
+    )
+
+
+def _png(svg: str) -> bytes:
+    """The SVG rasterised with the bundled fonts only; every generic family (and system-ui, which resvg
+    doesn't know) falls back to Liberation Sans."""
+    return bytes(
+        resvg_py.svg_to_bytes(
+            svg_string=svg,
+            skip_system_fonts=True,
+            font_files=FONT_FILES,
+            font_family=FONT_FAMILY,
+            sans_serif_family=FONT_FAMILY,
+            serif_family=FONT_FAMILY,
+            monospace_family=FONT_FAMILY,
+        )
     )
