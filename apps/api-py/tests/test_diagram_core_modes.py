@@ -66,6 +66,9 @@ class FakeBridge:
     def compile_template(self, diagram_type_id: str, template: str) -> dict[str, Any]:
         return self._answer("compile_template", {"dsl": "from the bridge"})  # type: ignore[no-any-return]
 
+    def load_library(self, manifest: Any) -> dict[str, Any]:
+        return self._answer("load_library", {"library": "from the bridge"})  # type: ignore[no-any-return]
+
 
 def core_with(bridge: FakeBridge | None, mode: Mode) -> DiagramCore:
     return DiagramCore(bridge, mode)  # type: ignore[arg-type]
@@ -245,15 +248,15 @@ def test_without_a_bridge_the_mode_is_native(mode: Mode) -> None:
 
 def test_without_a_bridge_unported_operations_raise() -> None:
     core = DiagramCore(None)
-    for call in (lambda: core.compile_template("c4-context", "x"),):
+    for call in (lambda: core.load_library({}),):
         with pytest.raises(BridgeError, match="not ported to Python yet and no bridge"):
             call()
 
 
 def test_everything_else_is_delegated_to_the_bridge_and_close_and_health_too() -> None:
-    bridge = FakeBridge(compile_template={"dsl": "x"}, health=False)
+    bridge = FakeBridge(load_library={"library": "x"}, health=False)
     core = core_with(bridge, "shadow")
-    assert core.compile_template("c4-context", "t") == {"dsl": "x"}
+    assert core.load_library({}) == {"library": "x"}
     assert core.health() is False
     core.close()
     assert bridge.closed
@@ -346,3 +349,27 @@ def test_shadow_mode_compares_render_svg(caplog: pytest.LogCaptureFixture) -> No
     ]
     for record in caplog.records:
         assert SECRET not in repr(record.__dict__)
+
+
+# --- templates (canvas-1bty.15.5) ------------------------------------------------------------------------------
+
+TEMPLATE = "# T\n## 3. Services\n| Service |\n|---|\n| Web |\n## 5. Connections\n| From | To |\n|---|---|\n"
+
+
+def test_compile_template_answers_natively_without_a_bridge() -> None:
+    core = DiagramCore(None)
+    assert core.compile_template("network", TEMPLATE) == {"dsl": "architecture-beta\n    service web(server)[Web]\n"}
+    assert core.compile_template("flowchart", TEMPLATE) == {"unsupported": True}
+
+
+def test_shadow_mode_compares_compile_template(caplog: pytest.LogCaptureFixture) -> None:
+    native = DiagramCore(None).compile_template("network", TEMPLATE)
+    agreeing = core_with(FakeBridge(compile_template=native), "shadow")
+    differing = core_with(FakeBridge(compile_template={"dsl": "other"}), "shadow")
+    with caplog.at_level(logging.DEBUG, logger=LOGGER):
+        assert agreeing.compile_template("network", TEMPLATE) == native
+        assert differing.compile_template("network", TEMPLATE) == {"dsl": "other"}
+    assert [(r.levelno, r.__dict__["op"], r.__dict__["family"]) for r in caplog.records] == [
+        (logging.DEBUG, "compile-template", "network"),
+        (logging.WARNING, "compile-template", "network"),
+    ]

@@ -1,6 +1,6 @@
 import type { ParseError } from '../dsl/types.js';
 import { extractFirstTable, splitIntoSections } from './markdown-table.js';
-import { cell, err, findSection, pickOption, readMetadataFields } from './template-helpers.js';
+import { cell, err, findSection, ownValue, pickOption, readMetadataFields } from './template-helpers.js';
 import type { TemplateCompiler, TemplateCompileResult } from './types.js';
 
 /**
@@ -67,7 +67,7 @@ export const umlClassTemplateCompiler: TemplateCompiler = {
     const fields = metadataSection ? readMetadataFields(metadataSection) : new Map<string, string>();
     const title = (fields.get('Diagram title') ?? '').trim();
     const directionRaw = [...fields.entries()].find(([field]) => field.startsWith('Direction'))?.[1] ?? '';
-    const direction = directionRaw ? DIRECTIONS[directionRaw.toLowerCase()] : undefined;
+    const direction = directionRaw ? ownValue(DIRECTIONS, directionRaw.toLowerCase()) : undefined;
     if (directionRaw && !direction) errors.push(err(`Section 1: unrecognized Direction "${directionRaw}" (expected Top to bottom, Left to right, Bottom to top or Right to left).`));
 
     // --- Section 2: classes -------------------------------------------------------------------
@@ -125,7 +125,7 @@ export const umlClassTemplateCompiler: TemplateCompiler = {
         }
         const kind = pickOption(cell(row, 'Kind') || (cell(row, 'Parameters') ? 'Method' : 'Attribute'), KINDS);
         const visibilityRaw = cell(row, 'Visibility');
-        const visibility = visibilityRaw ? VISIBILITY[visibilityRaw.toLowerCase()] : '';
+        const visibility = visibilityRaw ? ownValue(VISIBILITY, visibilityRaw.toLowerCase()) : '';
         const modifierRaw = cell(row, 'Modifier');
         const modifier = modifierRaw ? pickOption(modifierRaw, Object.keys(MODIFIERS) as (keyof typeof MODIFIERS)[]) : undefined;
         if (!kind || visibility === undefined || (modifierRaw && !modifier)) {

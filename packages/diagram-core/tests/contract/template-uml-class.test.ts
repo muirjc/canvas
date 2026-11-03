@@ -89,6 +89,12 @@ describe('UML class template compiler', () => {
     );
   });
 
+  it('Object.prototype names are not directions or visibilities (canvas-1bty.15.5)', () => {
+    const direction = 'Direction (Top to bottom / Left to right / Bottom to top / Right to left)';
+    expect(errorsOf(compile({ 'diagram metadata': [[direction, 'constructor']], classes: [['Order']] }))[0]).toContain('unrecognized Direction "constructor"');
+    expect(errorsOf(compile({ classes: [['Order']], members: [['Order', 'id', 'Attribute', 'constructor', 'int', '', '']] }))[0]).toContain('Visibility Public/Private/Protected/Package');
+  });
+
   it('the blank template reports what is missing', () => {
     expect(errorsOf(umlClassTemplateCompiler.compile(doc))).toEqual(['Section 2: list at least one class.']);
   });

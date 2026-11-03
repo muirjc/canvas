@@ -4,6 +4,7 @@ import { c4ComponentTemplateCompiler, c4ContainerTemplateCompiler, c4DeploymentT
 import { erdTemplateCompiler } from './erd-template-compiler.js';
 import { sequenceTemplateCompiler } from './sequence-template-compiler.js';
 import { umlClassTemplateCompiler } from './uml-class-template-compiler.js';
+import { ownValue } from './template-helpers.js';
 import type { TemplateCompiler } from './types.js';
 
 /**
@@ -26,5 +27,5 @@ export const templateCompilers: Record<string, TemplateCompiler> = {
 };
 
 export function getTemplateCompiler(diagramTypeId: string): TemplateCompiler | undefined {
-  return templateCompilers[diagramTypeId];
+  return ownValue(templateCompilers, diagramTypeId);
 }

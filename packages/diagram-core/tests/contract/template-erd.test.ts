@@ -81,4 +81,9 @@ describe('ERD template compiler', () => {
   it('the blank template reports what is missing', () => {
     expect(errorsOf(erdTemplateCompiler.compile(doc))).toEqual(['Section 2: list at least one entity.']);
   });
+  it('Object.prototype names are not directions (canvas-1bty.15.5)', () => {
+    const direction = 'Direction (Top to bottom / Left to right / Bottom to top / Right to left)';
+    const result = erdTemplateCompiler.compile(fillTemplate(doc, { 'diagram metadata': [[direction, '__proto__']], entities: [['Order']] }));
+    expect(errorsOf(result)[0]).toContain('unrecognized Direction "__proto__"');
+  });
 });
