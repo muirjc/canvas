@@ -26,6 +26,7 @@ from canvas_api.diagram_core import DiagramCore
 from canvas_api.diagram_core.jsvalues import js_template
 from canvas_api.errors import ApiError
 from canvas_api.github.jstext import JS_WHITESPACE, js_len, js_number, js_slice, js_trim
+from canvas_api.library_store import LibraryManifestError, ingest_library, set_library_keywords
 from canvas_api.timestamps import to_api
 
 router = APIRouter(tags=["Libraries"])
@@ -257,23 +258,7 @@ def _keywords(conn: Connection, library_id: str, version: str) -> dict[str, list
 
 def _set_keywords(conn: Connection, library_id: str, version: str, keywords: dict[str, list[str]]) -> None:
     """Replaces a library version's keywords (array-columns.ts setLibraryIconKeywords)."""
-    conn.execute(
-        text("DELETE FROM icon_keywords WHERE library_id = :id AND library_version = :version"),
-        {"id": library_id, "version": version},
-    )
-    rows = [
-        {"id": library_id, "version": version, "icon": icon_id, "keyword": keyword, "position": position}
-        for icon_id, words in keywords.items()
-        for position, keyword in enumerate(words)
-    ]
-    if rows:
-        conn.execute(
-            text(
-                "INSERT INTO icon_keywords (library_id, library_version, icon_id, keyword, position)"
-                " VALUES (:id, :version, :icon, :keyword, :position)"
-            ),
-            rows,
-        )
+    set_library_keywords(conn, library_id, version, keywords)
 
 
 @router.get("/admin/libraries")
@@ -335,51 +320,12 @@ def _ingest(
     origin: str,
     display_name: str | None,
 ) -> dict[str, Any]:
-    """library.service.ts ingestLibrary: validated by diagram-core (raises ApiError 400 with its message),
-    then stored. Re-loading a version updates its icons but never its origin, name or retirement."""
-    loaded = core.load_library(manifest)
-    if not loaded.get("ok"):
-        raise _invalid(str(loaded.get("error")))
-    library: dict[str, Any] = loaded["library"]
-    conn.execute(
-        text(
-            "INSERT INTO icon_libraries (id, version, license, origin, display_name)"
-            " VALUES (:id, :version, :license, :origin, :name)"
-            " ON CONFLICT (id, version) DO UPDATE SET license = excluded.license"
-        ),
-        {
-            "id": library["id"],
-            "version": library["version"],
-            "license": library.get("license"),
-            "origin": origin,
-            "name": display_name,
-        },
-    )
-    icons = library.get("icons") or []
-    if icons:
-        conn.execute(
-            text(
-                "INSERT INTO icons (library_id, library_version, id, display_name, category, asset_ref)"
-                " VALUES (:library, :version, :id, :name, :category, :asset)"
-                " ON CONFLICT (library_id, library_version, id) DO UPDATE SET display_name = excluded.display_name,"
-                " category = excluded.category, asset_ref = excluded.asset_ref"
-            ),
-            [
-                {
-                    "library": library["id"],
-                    "version": library["version"],
-                    "id": icon["id"],
-                    "name": icon["displayName"],
-                    "category": icon["category"],
-                    "asset": icon["assetRef"],
-                }
-                for icon in icons
-            ],
-        )
-    _set_keywords(
-        conn, library["id"], library["version"], {icon["id"]: list(icon.get("keywords") or []) for icon in icons}
-    )
-    return library
+    """library.service.ts ingestLibrary (canvas_api/library_store.py), with diagram-core's refusal as a 400.
+    Re-loading a version updates its icons but never its origin, name or retirement."""
+    try:
+        return ingest_library(conn, core, manifest, origin, display_name)
+    except LibraryManifestError as exc:
+        raise _invalid(str(exc)) from exc
 
 
 @router.post("/libraries", status_code=201)

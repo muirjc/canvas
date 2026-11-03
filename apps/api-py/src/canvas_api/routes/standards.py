@@ -8,23 +8,24 @@ afterwards, in the background, refreshing only their cached violations, never th
 
 from __future__ import annotations
 
-import json
 import logging
 from typing import Annotated, Any
-from uuid import uuid4
 
 from fastapi import APIRouter, BackgroundTasks, Body, Depends, Request
 from sqlalchemy import Connection, Engine, text
 
 from canvas_api.auth.roles import AdminUser, CurrentUser
-from canvas_api.catalog import DSL_FAMILIES
 from canvas_api.db import get_engine
 from canvas_api.diagram_core import DiagramCore
 from canvas_api.errors import ApiError
 from canvas_api.standards import (
     active_standard_record,
-    get_active_standard,
+    create_draft_standard,
     get_standard_row,
+    publish_standard,
+    revalidate_type_diagrams,
+    set_standard_shapes,
+    standard_json_columns,
     standard_record,
     standards_for_type,
 )
@@ -33,24 +34,6 @@ from canvas_api.standards_schema import parse_standard_body
 router = APIRouter(tags=["Standards"])
 Db = Annotated[Engine, Depends(get_engine)]
 log = logging.getLogger(__name__)
-
-#: The v2 rule fields, stored together in standards.kind_rules (standard.service.ts V2_RULE_KEYS).
-V2_RULE_KEYS = (
-    "elementKinds",
-    "kindGroups",
-    "connectorRules",
-    "connectorPolicy",
-    "containers",
-    "requireKnownKinds",
-    "severityOverrides",
-    "guidance",
-    "authoring",
-)
-
-
-def _compact(value: Any) -> str:
-    """JSON.stringify's output, so both services store the same text."""
-    return json.dumps(value, separators=(",", ":"), ensure_ascii=False)
 
 
 def _diagram_core(request: Request) -> DiagramCore:
@@ -76,60 +59,6 @@ def _checked_rules(core: DiagramCore, body: Any, family: str) -> tuple[dict[str,
     return rules, parsed.model_fields_set, parsed
 
 
-def _set_shapes(conn: Connection, standard_id: str, allowed: list[str], mandatory: list[str]) -> None:
-    conn.execute(text("DELETE FROM standard_allowed_shapes WHERE standard_id = :id"), {"id": standard_id})
-    conn.execute(text("DELETE FROM standard_mandatory_shapes WHERE standard_id = :id"), {"id": standard_id})
-    if allowed:
-        conn.execute(
-            text("INSERT INTO standard_allowed_shapes (standard_id, shape_id, position) VALUES (:id, :shape, :i)"),
-            [{"id": standard_id, "shape": shape, "i": i} for i, shape in enumerate(allowed)],
-        )
-    if mandatory:
-        conn.execute(
-            text("INSERT INTO standard_mandatory_shapes (standard_id, shape_id, position) VALUES (:id, :shape, :i)"),
-            [{"id": standard_id, "shape": shape, "i": i} for i, shape in enumerate(mandatory)],
-        )
-
-
-def _json_columns(rules: dict[str, Any]) -> dict[str, Any]:
-    return {
-        "refs": _compact(rules.get("allowedIconLibraryRefs", [])),
-        "palette": _compact(rules.get("colorPalette", [])),
-        "font": _compact(rules["fontConstraints"]) if rules.get("fontConstraints") else None,
-        "kinds": _compact({key: rules[key] for key in V2_RULE_KEYS if key in rules}),
-    }
-
-
-def _create_draft(
-    conn: Connection, diagram_type_id: str, rules: dict[str, Any], name: str | None, description: str | None
-) -> dict[str, Any]:
-    version = int(
-        conn.execute(
-            text("SELECT COALESCE(MAX(version), 0) + 1 FROM standards WHERE diagram_type_id = :type"),
-            {"type": diagram_type_id},
-        ).scalar_one()
-    )
-    standard_id = str(uuid4())
-    conn.execute(
-        text(
-            "INSERT INTO standards (id, diagram_type_id, version, status, allowed_icon_library_refs, color_palette,"
-            " font_constraints, name, description, kind_rules)"
-            " VALUES (:id, :type, :version, 'draft', :refs, :palette, :font, :name, :description, :kinds)"
-        ),
-        {
-            "id": standard_id,
-            "type": diagram_type_id,
-            "version": version,
-            # Never nameless: the same fallback the migration used.
-            "name": name if name is not None else f"{diagram_type_id} v{version}",
-            "description": description,
-            **_json_columns(rules),
-        },
-    )
-    _set_shapes(conn, standard_id, rules.get("allowedShapeIds", []), rules.get("mandatoryShapeIds", []))
-    return standard_record(conn, get_standard_row(conn, standard_id))
-
-
 def _row_or_404(conn: Connection, standard_id: str) -> Any:
     row = get_standard_row(conn, standard_id)
     if row is None:
@@ -138,37 +67,11 @@ def _row_or_404(conn: Connection, standard_id: str) -> Any:
 
 
 def revalidate_diagrams_for_type(engine: Engine, core: DiagramCore, diagram_type_id: str) -> int:
-    """Re-checks every diagram of a type against its standard in force (none = no violations). Refreshes
-    only the cached result, never the DSL. Runs after the response; a failure is logged, and each
-    diagram's next save refreshes its result anyway."""
+    """Re-checks every diagram of a type against its standard in force (canvas_api/standards.py). Runs after the
+    response; a failure is logged, and each diagram's next save refreshes its result anyway."""
     try:
         with engine.begin() as conn:
-            standard = get_active_standard(conn, diagram_type_id)
-            family = _family_of(conn, diagram_type_id)
-            if family not in DSL_FAMILIES:
-                return 0
-            rows = conn.execute(
-                text(
-                    "SELECT d.id, v.dsl_content FROM diagrams d JOIN diagram_versions v ON v.id = d.current_version_id"
-                    " WHERE d.diagram_type_id = :type"
-                ),
-                {"type": diagram_type_id},
-            ).all()
-            for row in rows:
-                parsed = core.parse(family, row.dsl_content)
-                violations = core.validate(parsed["model"], standard.rules) if "model" in parsed and standard else []
-                conn.execute(
-                    text(
-                        "UPDATE diagrams SET last_validation_result = :violations,"
-                        " standard_version_at_last_check = :version WHERE id = :id"
-                    ),
-                    {
-                        "violations": _compact(violations),
-                        "version": standard.version if standard else None,
-                        "id": row.id,
-                    },
-                )
-            return len(rows)
+            return revalidate_type_diagrams(conn, core, diagram_type_id)
     except Exception as exc:
         # The error's type only: driver errors can carry query detail.
         log.warning("Background standards revalidation failed: %s (%s)", type(exc).__name__, diagram_type_id)
@@ -200,7 +103,7 @@ def create(id: str, request: Request, _admin: AdminUser, db: Db, body: Annotated
     with db.begin() as conn:
         family = _family_of(conn, id)
         rules, _given, parsed = _checked_rules(core, body, family)
-        return {"standard": _create_draft(conn, id, rules, parsed.name, parsed.description)}
+        return {"standard": create_draft_standard(conn, id, rules, parsed.name, parsed.description)}
 
 
 @router.put("/standards/{id}")
@@ -218,7 +121,7 @@ def update(id: str, request: Request, _admin: AdminUser, db: Db, body: Annotated
                 "UPDATE standards SET allowed_icon_library_refs = :refs, color_palette = :palette,"
                 " font_constraints = :font, kind_rules = :kinds WHERE id = :id"
             ),
-            {"id": id, **_json_columns(rules)},
+            {"id": id, **standard_json_columns(rules)},
         )
         if parsed.name is not None:
             conn.execute(text("UPDATE standards SET name = :name WHERE id = :id"), {"name": parsed.name, "id": id})
@@ -226,7 +129,7 @@ def update(id: str, request: Request, _admin: AdminUser, db: Db, body: Annotated
             conn.execute(
                 text("UPDATE standards SET description = :d WHERE id = :id"), {"d": parsed.description, "id": id}
             )
-        _set_shapes(conn, id, rules.get("allowedShapeIds", []), rules.get("mandatoryShapeIds", []))
+        set_standard_shapes(conn, id, rules.get("allowedShapeIds", []), rules.get("mandatoryShapeIds", []))
         return {"standard": standard_record(conn, get_standard_row(conn, id))}
 
 
@@ -236,7 +139,7 @@ def clone(id: str, _admin: AdminUser, db: Db) -> dict[str, Any]:
     with db.begin() as conn:
         source = standard_record(conn, _row_or_404(conn, id))
         return {
-            "standard": _create_draft(
+            "standard": create_draft_standard(
                 conn,
                 source["diagramTypeId"],
                 source["rules"],
@@ -254,18 +157,7 @@ def publish(id: str, request: Request, background: BackgroundTasks, _admin: Admi
         row = _row_or_404(conn, id)
         if row.status != "draft":
             raise ApiError(409, f'Standard {id} is "{row.status}", only "draft" standards can be published')
-        conn.execute(
-            text(
-                "UPDATE standards SET status = 'retired', retired_at = COALESCE(retired_at, CURRENT_TIMESTAMP)"
-                " WHERE diagram_type_id = :type AND status = 'published'"
-            ),
-            {"type": row.diagram_type_id},
-        )
-        conn.execute(
-            text("UPDATE standards SET status = 'published', published_at = CURRENT_TIMESTAMP WHERE id = :id"),
-            {"id": id},
-        )
-        standard = standard_record(conn, get_standard_row(conn, id))
+        standard = publish_standard(conn, id, row.diagram_type_id)
     # Existing diagrams are re-evaluated against it, never silently modified.
     background.add_task(revalidate_diagrams_for_type, db, core, standard["diagramTypeId"])
     return {"standard": standard}

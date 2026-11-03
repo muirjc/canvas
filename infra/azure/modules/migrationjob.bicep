@@ -1,11 +1,10 @@
 // DB migration Container Apps Job (canvas-ycu, mirrors ADP's infra/azure/modules/
 // migrationjob.bicep).
 //
-// Manual-trigger, one-off job running `node apps/api/dist/db/migrate.js` (apps/api/src/db/
-// migrate.ts's compiled output -- a dependency-free numbered-.sql-file runner, see its own doc
-// comment) against the same API image the app itself runs. Matches RUNBOOK.md's existing
-// `npm run migrate --workspace=@canvas/api` pattern rather than running migrations on container
-// boot.
+// Manual-trigger, one-off job running `python -m canvas_api.jobs.migrate` (a dependency-free
+// numbered-.sql-file runner, canvas_api/migrations.py) in the same canvas-api-py image the app
+// runs, rather than running migrations on container boot. Python since canvas-1bty.16 (was the
+// TypeScript apps/api/src/db/migrate.ts; same schema_migrations bookkeeping).
 
 @description('Azure region.')
 param location string
@@ -19,7 +18,7 @@ param identityId string
 @description('ACR login server.')
 param acrLoginServer string
 
-@description('Tag of the API image -- the same image the API app runs; only the command differs.')
+@description('Tag of the canvas-api-py image -- the same image the Python service runs; only the command differs.')
 param apiImageTag string
 
 @description('Key Vault URI.')
@@ -67,15 +66,13 @@ resource migrationJob 'Microsoft.App/jobs@2025-01-01' = {
       containers: [
         {
           name: 'migrate'
-          image: '${acrLoginServer}/canvas-api:${apiImageTag}'
-          command: ['node']
-          args: ['apps/api/dist/db/migrate.js']
+          image: '${acrLoginServer}/canvas-api-py:${apiImageTag}'
+          command: ['python']
+          args: ['-m', 'canvas_api.jobs.migrate']
           env: [
+            { name: 'DB_CLIENT', value: 'postgres' }
             { name: 'DATABASE_URL', secretRef: 'database-url' }
-            // migrate.ts's runMigrations() never reads SESSION_SECRET itself, but its own
-            // getPool() -> config.ts's loadConfig() requires it to be set regardless (any
-            // missing required env var throws before the pool is even created) -- verified live
-            // against a real container run, not assumed.
+            // Not used by the migration; Settings requires it.
             { name: 'SESSION_SECRET', secretRef: 'session-secret' }
           ]
           resources: {

@@ -32,13 +32,13 @@ from canvas_api.catalog import DSL_FAMILIES
 from canvas_api.db import get_engine
 from canvas_api.diagram_core import DiagramCore
 from canvas_api.errors import ApiError
+from canvas_api.retention import delete_diagram_rows, diagram_retention_boundary
 from canvas_api.standards import get_active_standard
 from canvas_api.timestamps import now_utc, parse_instant, to_api, to_api_ms, to_db
 
 router = APIRouter(tags=["Diagrams"])
 Db = Annotated[Engine, Depends(get_engine)]
 
-DIAGRAM_RETENTION_DAYS = 30
 DEFAULT_VERSION_LIMIT = 5
 DEFAULT_DELETED_DIAGRAMS_LIMIT = 20
 HEARTBEAT_SECONDS = 30
@@ -660,18 +660,6 @@ def leave(id: str, user: CurrentUser, db: Db, body: PresenceBody) -> Response:
 
 # --- delete and restore -------------------------------------------------------------------------------
 
-#: A draft was never saved, so discarding it leaves nothing behind: its dependents first (versions
-#: cascade with the diagram; share grants have no foreign key).
-_PURGE_DIAGRAM = (
-    text("DELETE FROM chat_messages WHERE diagram_chat_id IN (SELECT id FROM diagram_chats WHERE diagram_id = :id)"),
-    text("DELETE FROM diagram_chats WHERE diagram_id = :id"),
-    text("DELETE FROM share_grants WHERE subject_type = 'diagram' AND subject_id = :id"),
-    text("DELETE FROM diagram_comment_reads WHERE diagram_id = :id"),
-    text("DELETE FROM diagram_comments WHERE diagram_id = :id AND thread_root_id IS NOT NULL"),
-    text("DELETE FROM diagram_comments WHERE diagram_id = :id"),
-    text("DELETE FROM diagrams WHERE id = :id"),
-)
-
 
 def _require_owner_or_admin(conn: Connection, user: SessionUser, diagram_id: str) -> None:
     """Deleting is the owner's or an admin's, never an edit share's. Someone else's draft isn't there."""
@@ -693,9 +681,8 @@ def delete(id: str, user: CurrentUser, db: Db) -> Response:
         if row is None:
             raise ApiError(404, f"No diagram with id {id}")
         if bool(row.draft):
-            conn.execute(text("UPDATE diagrams SET current_version_id = NULL WHERE id = :id"), {"id": id})
-            for statement in _PURGE_DIAGRAM:
-                conn.execute(statement, {"id": id})
+            # Never saved, so discarding it leaves nothing behind.
+            delete_diagram_rows(conn, id)
         else:
             conn.execute(
                 text(
@@ -737,7 +724,7 @@ def list_deleted(_admin: AdminUser, db: Db, limit: str | None = None, q: str | N
         rows = conn.execute(
             _LIST_DELETED[dialect],
             {
-                "boundary": to_db(now_utc() - timedelta(days=DIAGRAM_RETENTION_DAYS), dialect),
+                "boundary": to_db(diagram_retention_boundary(), dialect),
                 "pattern": f"%{search_text}%" if search_text else None,
                 "limit": size + 1,
             },
@@ -765,7 +752,7 @@ def restore(id: str, admin: AdminUser, db: Db) -> dict[str, Any]:
         row = conn.execute(text("SELECT deleted_at FROM diagrams WHERE id = :id"), {"id": id}).first()
         if row is None or row.deleted_at is None:
             raise ApiError(404, f"No soft-deleted diagram with id {id}")
-        if not parse_instant(row.deleted_at) > now_utc() - timedelta(days=DIAGRAM_RETENTION_DAYS):
+        if not parse_instant(row.deleted_at) > diagram_retention_boundary():
             raise ApiError(409, "This diagram's recovery window has passed and it is no longer available.")
         conn.execute(
             text(
