@@ -1,0 +1,23 @@
+---
+canvas:
+  positions:
+    constructor: {x: 30, y: 30}
+  containers:
+    toString: {x: 0, y: 200, width: null, height: null}
+---
+classDiagram
+  class constructor {
+    +String toString
+    +valueOf() int
+  }
+  namespace toString {
+    class __proto__
+  }
+  constructor <|-- hasOwnProperty
+  <<interface>> hasOwnProperty
+  note for constructor "a note"
+  style __proto__ fill:#ff0000
+  style valueOf fill:#00ff00
+  classDef isPrototypeOf fill:#0000ff
+  class hasOwnProperty isPrototypeOf
+  class constructor toString

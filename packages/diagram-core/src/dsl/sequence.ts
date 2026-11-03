@@ -5,7 +5,7 @@ import {
   type DiagramNode,
   type NodeStyle,
 } from '../model/diagram-model.js';
-import { splitFrontMatter, joinFrontMatter, stripTrailingComment, type CanvasFrontMatter } from './front-matter.js';
+import { splitFrontMatter, joinFrontMatter, stripTrailingComment, type CanvasFrontMatter, NO_ENTRIES } from './front-matter.js';
 import type { ParseError, ParseResult } from './types.js';
 
 const ID = String.raw`[A-Za-z0-9_]+`;
@@ -105,8 +105,8 @@ export function parseSequence(dsl: string): ParseResult {
   // computed-value conflict (style is never derived from anything, unlike position) — read below,
   // same as every other family's parser already does.
   const { frontMatter, body } = splitFrontMatter(dsl);
-  const styles = frontMatter.canvas?.styles ?? {};
-  const edgeStyles = frontMatter.canvas?.edgeStyles ?? {};
+  const styles = frontMatter.canvas?.styles ?? NO_ENTRIES;
+  const edgeStyles = frontMatter.canvas?.edgeStyles ?? NO_ENTRIES;
 
   const lines = body.split(/\r?\n/);
   const errors: ParseError[] = [];

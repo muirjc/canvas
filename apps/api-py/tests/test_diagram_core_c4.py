@@ -87,7 +87,7 @@ def test_corpus_case_is_stable(case: str) -> None:
 
 # --- parity fuzz against the bridge -------------------------------------------------------------------------------
 
-IDS = ["a", "b", "c", "api", "db", "q1", "_x", "N2"]
+IDS = ["a", "b", "c", "api", "db", "q1", "_x", "N2", "constructor", "toString", "__proto__"]
 ELEMENTS = [
     "Person",
     "Person_Ext",

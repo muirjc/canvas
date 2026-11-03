@@ -1,0 +1,71 @@
+{
+  "containers": [
+    {
+      "id": "toString",
+      "label": "Bank",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "role": "system-boundary"
+    }
+  ],
+  "diagramTypeId": "c4-context",
+  "edges": [
+    {
+      "id": "e1",
+      "label": "Uses",
+      "sourceId": "constructor",
+      "style": {
+        "strokeColor": "#0000ff"
+      },
+      "targetId": "__proto__"
+    },
+    {
+      "id": "e2",
+      "label": "Sends",
+      "sourceId": "__proto__",
+      "targetId": "hasOwnProperty"
+    }
+  ],
+  "nodes": [
+    {
+      "c4TypeLabel": "Person",
+      "id": "constructor",
+      "label": "Customer",
+      "position": {
+        "x": 100,
+        "y": 100
+      },
+      "role": "person",
+      "shape": "person",
+      "style": {
+        "fillColor": "#00ff00"
+      }
+    },
+    {
+      "c4TypeLabel": "Software System",
+      "containerId": "toString",
+      "id": "__proto__",
+      "label": "Core",
+      "position": {
+        "x": 400,
+        "y": 100
+      },
+      "role": "system",
+      "shape": "rectangle"
+    },
+    {
+      "c4TypeLabel": "Software System",
+      "external": true,
+      "id": "hasOwnProperty",
+      "label": "Mail",
+      "position": {
+        "x": 40,
+        "y": 40
+      },
+      "role": "system",
+      "shape": "rectangle"
+    }
+  ]
+}

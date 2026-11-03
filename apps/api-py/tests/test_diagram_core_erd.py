@@ -111,7 +111,7 @@ def test_serializing_fills_in_what_mermaid_requires() -> None:
 
 # --- parity fuzz against the bridge ---------------------------------------------------------------------------
 
-IDS = ["CUSTOMER", "ORDER", "o", "A", "line-item", "_x", "9", "B2"]
+IDS = ["CUSTOMER", "ORDER", "o", "A", "line-item", "_x", "9", "B2", "constructor", "toString", "__proto__"]
 CARDS = ["||", "|o", "}|", "}o", "o|", "|{", "o{", "{{", "|"]
 LINES = ["--", "..", "-", "-.", ""]
 LABELS = ["places", '"quoted, label"', '"half', 'say "hi"', "x : y", '""', "  spaced  ", "émoji 🎨", "a%%b"]

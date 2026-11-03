@@ -1,0 +1,31 @@
+---
+canvas:
+  positions:
+    constructor:
+      x: 100
+      y: 100
+    __proto__:
+      x: 400
+      y: 100
+    hasOwnProperty:
+      x: 40
+      y: 40
+  styles:
+    constructor:
+      fillColor: "#00ff00"
+  edgeStyles:
+    e1:
+      strokeColor: "#0000ff"
+  containers:
+    toString:
+      x: 0
+      y: 0
+---
+C4Context
+System_Boundary(toString, "Bank") {
+  System(__proto__, "Core")
+}
+Person(constructor, "Customer")
+System_Ext(hasOwnProperty, "Mail")
+Rel(constructor, __proto__, "Uses")
+Rel(__proto__, hasOwnProperty, "Sends")

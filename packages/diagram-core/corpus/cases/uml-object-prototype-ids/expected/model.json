@@ -1,0 +1,89 @@
+{
+  "containers": [
+    {
+      "id": "toString",
+      "label": "toString",
+      "position": {
+        "x": 0,
+        "y": 200
+      },
+      "role": "namespace"
+    },
+    {
+      "attachedNodeIds": [
+        "constructor"
+      ],
+      "id": "note1",
+      "label": "a note",
+      "position": {
+        "x": 400,
+        "y": 40
+      },
+      "role": "note"
+    }
+  ],
+  "diagramTypeId": "uml",
+  "edges": [
+    {
+      "id": "e1",
+      "sourceId": "constructor",
+      "targetId": "hasOwnProperty",
+      "umlRelationKind": "inheritance"
+    }
+  ],
+  "nodes": [
+    {
+      "id": "constructor",
+      "label": "constructor",
+      "members": [
+        {
+          "kind": "attribute",
+          "name": "toString",
+          "type": "String",
+          "visibility": "+"
+        },
+        {
+          "kind": "method",
+          "name": "valueOf",
+          "params": "",
+          "returnType": "int",
+          "visibility": "+"
+        }
+      ],
+      "position": {
+        "x": 30,
+        "y": 30
+      },
+      "role": "class",
+      "shape": "rectangle"
+    },
+    {
+      "containerId": "toString",
+      "id": "__proto__",
+      "label": "__proto__",
+      "position": {
+        "x": 40,
+        "y": 40
+      },
+      "role": "class",
+      "shape": "rectangle",
+      "style": {
+        "fillColor": "#ff0000"
+      }
+    },
+    {
+      "id": "hasOwnProperty",
+      "label": "hasOwnProperty",
+      "position": {
+        "x": 220,
+        "y": 40
+      },
+      "role": "class",
+      "shape": "rectangle",
+      "style": {
+        "fillColor": "#0000ff"
+      },
+      "umlStereotype": "interface"
+    }
+  ]
+}

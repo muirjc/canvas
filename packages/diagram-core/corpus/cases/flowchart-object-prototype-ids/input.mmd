@@ -1,0 +1,21 @@
+---
+canvas:
+  positions:
+    constructor: {x: 40, y: 60}
+    __proto__: {x: 300, y: 60}
+  containers:
+    valueOf: {x: 0, y: 0, width: null, height: null}
+  styles:
+    toString: {fillColor: '#ffcc00'}
+---
+flowchart TD
+  subgraph valueOf [Group]
+    constructor[Start] --> toString
+  end
+  __proto__ --> hasOwnProperty
+  hasOwnProperty --> isPrototypeOf
+  style hasOwnProperty fill:#00ff00
+  style propertyIsEnumerable fill:#123456
+  classDef constructor fill:#0000ff
+  class __proto__ constructor
+  class isPrototypeOf toString

@@ -93,6 +93,15 @@ tests are NON-NEGOTIABLE and must exist (and fail) before implementing any diagr
 work — see `.specify/memory/constitution.md` Principle IV.
 
 ## Recent Changes
+- `canvas-1bty.15.9`: **ids named like Object.prototype members are ordinary ids in TypeScript too**, matching
+  Python (decided with the user: change TypeScript). `splitFrontMatter` copies each id-keyed canvas section
+  (positions, containers, styles, edgeStyles, icons, kinds) into an object with no prototype (a non-map section
+  counts as empty), and a missing section falls back to the frozen `NO_ENTRIES`, not `{}`: a node `constructor`/
+  `toString`/`__proto__` used to pick up a function as its style/icon/position, and serializing then crashed
+  ("Tag not resolved for Function value"). A container's `width: null`/`height: null` in front matter is now no
+  size (was a size of nulls), as in Python. `getDslFamily` reads own keys; Auto Layout gives dagre `#`-prefixed
+  keys (dagre's graph is a plain object, so these ids crashed it). Corpus: one `<family>-object-prototype-ids`
+  case per family; the Python parse fuzzers' id pools now include these names.
 - `canvas-1bty.15.8` part 2 (Python phase 11h-2): **the bridge is gone from the Python app, kept only by its
   tests.** `DiagramCore` (diagram_core/core.py) is native-only: no bridge, no modes, no shadow logging; same
   method names and answer shapes, so callers didn't change. `BridgeError` became `DiagramCoreError` (raised where

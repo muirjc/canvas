@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { autoLayout } from '../../src/model/auto-layout.js';
 import { createEmptyDiagramModel, type DiagramModel } from '../../src/model/diagram-model.js';
+import { getDslFamily } from '../../src/dsl/registry.js';
 import { nodeSize } from '../../src/render/svg-renderer.js';
 
 /**
@@ -298,5 +299,25 @@ describe('autoLayout: content is untouched', () => {
     const snapshot = JSON.parse(JSON.stringify(model));
     autoLayout(model, 'TD');
     expect(model).toEqual(snapshot);
+  });
+});
+
+describe('ids named like Object.prototype members (canvas-1bty.15.9)', () => {
+  it('lays out constructor, toString, __proto__ and friends like any other node', () => {
+    const dsl =
+      'flowchart TD\n  subgraph valueOf [G]\n    constructor --> toString\n  end\n  __proto__ --> hasOwnProperty\n  toString --> __proto__\n';
+    const parsed = getDslFamily('flowchart')!.parse(dsl);
+    if (!('model' in parsed)) throw new Error('did not parse');
+    const laid = autoLayout(parsed.model, 'TD');
+    expect(laid.nodes.map((n) => n.id).sort()).toEqual(['__proto__', 'constructor', 'hasOwnProperty', 'toString']);
+    for (const n of laid.nodes) expect(Number.isFinite(n.position.x) && Number.isFinite(n.position.y)).toBe(true);
+    expect(new Set(laid.nodes.map((n) => `${n.position.x},${n.position.y}`)).size).toBe(4);
+  });
+});
+
+describe('getDslFamily', () => {
+  it('knows only its own families, not Object.prototype members', () => {
+    expect(getDslFamily('flowchart')).toBeDefined();
+    for (const id of ['constructor', 'toString', '__proto__', 'hasOwnProperty']) expect(getDslFamily(id)).toBeUndefined();
   });
 });

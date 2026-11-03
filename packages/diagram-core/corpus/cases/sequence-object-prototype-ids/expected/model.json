@@ -1,0 +1,167 @@
+{
+  "containers": [
+    {
+      "id": "box1",
+      "label": "Aqua valueOf",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "role": "box"
+    },
+    {
+      "attachedNodeIds": [
+        "toString"
+      ],
+      "id": "pt2",
+      "label": "",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "role": "activate",
+      "sequenceOrder": 1
+    },
+    {
+      "attachedNodeIds": [
+        "toString"
+      ],
+      "id": "pt3",
+      "label": "",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "role": "deactivate",
+      "sequenceOrder": 3
+    },
+    {
+      "attachedNodeIds": [
+        "__proto__"
+      ],
+      "id": "note4",
+      "label": "n",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "role": "note-over",
+      "sequenceOrder": 4,
+      "size": {
+        "height": 50,
+        "width": 100
+      }
+    },
+    {
+      "attachedNodeIds": [
+        "hasOwnProperty"
+      ],
+      "id": "pt5",
+      "label": "",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "role": "create",
+      "sequenceOrder": 5
+    },
+    {
+      "attachedNodeIds": [
+        "hasOwnProperty"
+      ],
+      "id": "pt6",
+      "label": "",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "role": "destroy",
+      "sequenceOrder": 7
+    }
+  ],
+  "diagramTypeId": "sequence",
+  "edges": [
+    {
+      "arrow": "target",
+      "id": "e1",
+      "label": "hi",
+      "lineStyle": "solid",
+      "sequenceOrder": 0,
+      "sourceId": "constructor",
+      "targetId": "toString"
+    },
+    {
+      "arrow": "target",
+      "id": "e2",
+      "label": "ok",
+      "lineStyle": "dotted",
+      "sequenceOrder": 2,
+      "sourceId": "toString",
+      "targetId": "constructor"
+    },
+    {
+      "arrow": "target",
+      "id": "e3",
+      "label": "new",
+      "lineStyle": "solid",
+      "sequenceOrder": 6,
+      "sourceId": "__proto__",
+      "targetId": "hasOwnProperty"
+    },
+    {
+      "arrow": "target",
+      "id": "e4",
+      "label": "bye",
+      "lineStyle": "dotted",
+      "sequenceOrder": 8,
+      "sourceId": "hasOwnProperty",
+      "targetId": "__proto__"
+    }
+  ],
+  "nodes": [
+    {
+      "id": "constructor",
+      "label": "constructor",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "role": "participant",
+      "shape": "rectangle",
+      "style": {
+        "fillColor": "#ffcc00"
+      }
+    },
+    {
+      "id": "toString",
+      "label": "Tos",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "role": "actor",
+      "shape": "person"
+    },
+    {
+      "containerId": "box1",
+      "id": "__proto__",
+      "label": "__proto__",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "role": "participant",
+      "shape": "rectangle"
+    },
+    {
+      "id": "hasOwnProperty",
+      "label": "hasOwnProperty",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "role": "participant",
+      "shape": "rectangle"
+    }
+  ]
+}

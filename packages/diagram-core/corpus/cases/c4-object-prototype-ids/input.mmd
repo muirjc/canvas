@@ -1,0 +1,20 @@
+---
+canvas:
+  positions:
+    constructor: {x: 100, y: 100}
+    __proto__: {x: 400, y: 100}
+  containers:
+    toString: {x: 0, y: 0, width: null, height: null}
+---
+C4Context
+  Person(constructor, "Customer")
+  System_Boundary(toString, "Bank") {
+    System(__proto__, "Core")
+  }
+  System_Ext(hasOwnProperty, "Mail")
+  Rel(constructor, __proto__, "Uses")
+  Rel(__proto__, hasOwnProperty, "Sends")
+  UpdateElementStyle(valueOf, $bgColor="#ff0000")
+  UpdateElementStyle(constructor, $bgColor="#00ff00")
+  UpdateRelStyle(constructor, __proto__, $lineColor="#0000ff")
+  UpdateRelStyle(toString, valueOf, $lineColor="#0000ff")
