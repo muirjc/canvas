@@ -25,3 +25,8 @@ a3344adf564e06f453f06251797a446575e14d82:packages/diagram-core/tests/contract/se
 55f5176cc193cb275ba40ee7b8c136a63d4a3537:apps/api-py/tests/test_auth_mfa.py:generic-api-key:209
 55f5176cc193cb275ba40ee7b8c136a63d4a3537:apps/api-py/tests/test_auth_units.py:generic-api-key:168
 55f5176cc193cb275ba40ee7b8c136a63d4a3537:apps/api-py/tests/test_auth_units.py:generic-api-key:309
+
+# canvas-1bty.15.7 (#297): generic-api-key false positive -- a random test element id that happened to follow
+# the word "api" in the diagram-ops test vectors (one-line JSON). The generator now makes counter ids, so the
+# live file no longer matches; this entry covers the already-pushed commit.
+c1bcc3a1edf323a99eab87448083355512a5eb8e:apps/api-py/tests/data/diagram_ops_vectors.json:generic-api-key:1
