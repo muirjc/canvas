@@ -57,6 +57,8 @@ def load_generated_aws_icons(explicit_path: str | None = None) -> dict[str, Any]
     path = Path(chosen) if chosen is not None else DEFAULT_AWS_ICONS_MANIFEST
     if not path.is_file():
         return None
+    # The path is the operator's own setting (AWS_ICONS_MANIFEST, or the seed caller), never request input.
+    # bearer:disable python_lang_path_traversal
     manifest: dict[str, Any] = json.loads(path.read_text(encoding="utf-8"))
     expected = aws_icons_version()
     if manifest.get("id") != "aws-icons" or manifest.get("version") != expected:
