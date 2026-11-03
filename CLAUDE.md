@@ -93,6 +93,20 @@ tests are NON-NEGOTIABLE and must exist (and fail) before implementing any diagr
 work — see `.specify/memory/constitution.md` Principle IV.
 
 ## Recent Changes
+- `canvas-1bty.15.6` (Python phase 11f): **the library admin's diagram-core work and document embeds are
+  native.** `diagram_core/svg_import.py` ports svg-import.ts + svg-sanitizer.ts (`prepare_uploaded_svg`,
+  `sanitize_icon_markup_strict`, `sanitize_svg_fragment`), `libraries.py` loadLibrary and the icon-refs op,
+  `embeds.py` markdown-embeds.ts (`update_embeds`). `DiagramCore` gained `svg_prepare`, `svg_sanitize_strict`,
+  `load_library`, `icon_refs`, `embeds`, all through the modes, so /admin/libraries/* and GitHub submissions' README
+  embeds no longer need the bridge in `native` mode. JS details kept: the id prefix is made safe per UTF-16 unit
+  (an emoji -> two dashes), `/i` is `re.IGNORECASE | re.ASCII` (Python alone folds the long s and Kelvin sign onto
+  s/k: `<ſcript` must NOT match `<script`), viewBox numbers go through JS `Number()` (`js_number_value` now refuses
+  `0x1_0`/`0x+1` and returns Infinity for a huge hex). A manifest that isn't the documented shape gets
+  {ok: false} from Python where TypeScript throws a raw TypeError (admin-only legacy POST /libraries). Tests:
+  `test_diagram_core_svg_import.py` (TS contract cases + hostile/random SVG fuzz against the bridge, checked to
+  catch a dropped `re.ASCII` and a Python `lstrip()`), `test_diagram_core_embeds.py` (1,847-case fuzz, every
+  status). An appsec review found no Python/TS divergence but shared sanitizer weaknesses (quadratic regexes, a
+  url() filter bypass, wrapper breakout, xmlns aliasing, the weak denylist): `canvas-1bty.19`.
 - `canvas-1bty.15.5` (Python phase 11e): **template import is native.** `diagram_core/templates/` ports every
   template compiler (architecture, C4 context, C4 container/component/deployment, ERD, sequence, UML class) plus
   the Markdown-table and helper code; `DiagramCore.compile_template` goes through the modes like render, so
