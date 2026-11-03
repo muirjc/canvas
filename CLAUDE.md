@@ -96,6 +96,11 @@ tests are NON-NEGOTIABLE and must exist (and fail) before implementing any diagr
 work — see `.specify/memory/constitution.md` Principle IV.
 
 ## Recent Changes
+- `canvas-dyvn`: **PNG exports draw their text.** resvg ran with system fonts off and no font, so every label was
+  silently dropped. The API now bundles Liberation Sans Regular + Bold 2.1 (`apps/api-py/src/canvas_api/fonts`,
+  SIL OFL 1.1, `OFL.txt` beside them, and in THIRD-PARTY-NOTICES.md) and `routes/export.py` passes them to
+  resvg-py as every generic family (the SVG's stack ends in `sans-serif`; system fonts stay off). Test:
+  `test_the_png_draws_the_labels` decodes the PNG and counts pixels of the text's own colour at the label.
 - `canvas-1bty.16` part 2 (Python phase 12b): **the TypeScript API is gone.** `apps/api` deleted (tag
   `typescript-api-final` is the last commit with it; comments citing `apps/api/...` mean that tag), with the
   repo-root Dockerfile, `infra/azure/modules/tsapiapp.bicep` and the `canvas-api-ts` app (deploy.sh deletes it).

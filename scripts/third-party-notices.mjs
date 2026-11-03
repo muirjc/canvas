@@ -23,6 +23,8 @@ import { dirname, join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
+// canvas-dyvn: the font PNG exports draw their text in.
+const FONT_LICENSE = join(ROOT, 'apps/api-py/src/canvas_api/fonts/OFL.txt');
 const OUTPUT = join(ROOT, 'THIRD-PARTY-NOTICES.md');
 const PY_PROJECT = join(ROOT, 'apps', 'api-py');
 const PY_SITE_PACKAGES = join(PY_PROJECT, '.venv', 'lib', 'python3.13', 'site-packages');
@@ -377,7 +379,14 @@ function render({ packages, platformBinaries, pyPackages, pyNotInstalled }) {
     '  placeholder icons.',
     '- The generic shapes, the Mermaid architecture icons and the placeholder icons are original',
     '  Canvas artwork under the Apache License 2.0.',
-    '- Canvas bundles no fonts.',
+    '- **Liberation Sans** (Regular and Bold, version 2.1;',
+    '  <https://github.com/liberationfonts/liberation-fonts>): the font PNG exports draw their text',
+    '  in, bundled in the API image (`apps/api-py/src/canvas_api/fonts`), unmodified, under the SIL',
+    '  Open Font License 1.1 (its text is below and beside the font files, in `OFL.txt`).',
+    '',
+    '### Liberation Sans licence',
+    '',
+    fence(readFileSync(FONT_LICENSE, 'utf8').replace(/\r\n?/g, '\n').trim()),
     '',
     '## npm packages',
     '',

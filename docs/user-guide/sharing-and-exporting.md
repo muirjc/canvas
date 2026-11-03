@@ -69,7 +69,7 @@ appears for people who have it. Anyone can see who has access.
   [What reviewers see on GitHub](submitting-for-approval.md#what-reviewers-see-on-github)). Other
   tools arrange the shapes themselves.
 - **SVG**: a sharp, scalable picture for documents and wikis.
-- **PNG**: an image.
+- **PNG**: an image. Its text is drawn in Liberation Sans, so it can look slightly different from the editor, which uses your system's font.
 
 ![The Export menu](../images/export-menu.png)
 
