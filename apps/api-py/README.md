@@ -30,7 +30,7 @@ or PNG (phase 6, canvas-1bty.10; PNG with resvg-py, the same Rust renderer as th
 documents that embed it, status sync on demand and withdrawing (phase 7, canvas-1bty.11; the scheduled
 sync is `python -m canvas_api.github.sync_run`); AI chat (the conversation loop with the Anthropic/OpenAI
 SDKs or the rule-based mock, personas and reference material, AI settings, token usage and prices; the
-diagram tools themselves come from the bridge's `ai-tools`/`ai-tool` ops until phase 11) (phase 8,
+diagram tools, ported in phase 11g as `diagram_core/ai/`, answer natively like the rest of diagram-core) (phase 8,
 canvas-1bty.12); sign-in: sessions (now written here too, in @fastify/session's format), Canvas
 passwords with lockout and one-time passwords, two-step verification (TOTP and recovery codes), the
 admin's local-account actions, and Entra ID (OIDC code flow with PKCE; the ID token's signature,

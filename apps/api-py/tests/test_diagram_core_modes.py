@@ -9,6 +9,7 @@ import pytest
 
 from canvas_api.diagram_core import BridgeError, DiagramCore
 from canvas_api.diagram_core.core import KNOWN_FAMILIES, NATIVE_FAMILIES, Mode
+from canvas_api.diagram_core.diagram_ops import ids_from
 
 LOGGER = "canvas_api.diagram_core"
 SECRET = "Confidential-Payroll-Gateway"  # gitleaks:allow
@@ -74,6 +75,16 @@ class FakeBridge:
 
     def ai_prompt(self, family: str, rules: Any, model: Any) -> dict[str, Any]:
         return self._answer("ai_prompt", {"primer": "from the bridge"})  # type: ignore[no-any-return]
+
+    def ai_tools(self, family: str, rules: Any) -> list[dict[str, Any]]:
+        return self._answer("ai_tools", [])  # type: ignore[no-any-return]
+
+    def ai_tool(self, family: str, rules: Any, model: Any, name: str, input: Any) -> dict[str, Any]:
+        return self._answer("ai_tool", {"ok": False, "error": "from the bridge"})  # type: ignore[no-any-return]
+
+    def future_op(self) -> str:
+        """An operation DiagramCore doesn't define: it falls through to the bridge."""
+        return self._answer("future_op", "from the bridge")  # type: ignore[no-any-return]
 
 
 def core_with(bridge: FakeBridge | None, mode: Mode) -> DiagramCore:
@@ -254,15 +265,14 @@ def test_without_a_bridge_the_mode_is_native(mode: Mode) -> None:
 
 def test_without_a_bridge_unported_operations_raise() -> None:
     core = DiagramCore(None)
-    for call in (lambda: core.ai_prompt("flowchart", None, {}),):
-        with pytest.raises(BridgeError, match="not ported to Python yet and no bridge"):
-            call()
+    with pytest.raises(BridgeError, match="not ported to Python yet and no bridge"):
+        core.future_op()
 
 
 def test_everything_else_is_delegated_to_the_bridge_and_close_and_health_too() -> None:
-    bridge = FakeBridge(ai_prompt={"primer": "x"}, health=False)
+    bridge = FakeBridge(future_op="x", health=False)
     core = core_with(bridge, "shadow")
-    assert core.ai_prompt("flowchart", None, {}) == {"primer": "x"}
+    assert core.future_op() == "x"
     assert core.health() is False
     core.close()
     assert bridge.closed
@@ -412,4 +422,55 @@ def test_shadow_mode_compares_the_library_operations(caplog: pytest.LogCaptureFi
     assert [(r.levelno, r.__dict__["op"]) for r in caplog.records] == [
         (logging.DEBUG, "svg-sanitize-strict"),
         (logging.WARNING, "svg-sanitize-strict"),
+    ]
+
+
+# --- the AI chat's diagram tools (canvas-1bty.15.7) -------------------------------------------------------------
+
+EMPTY_SEQUENCE: dict[str, Any] = {"diagramTypeId": "sequence", "nodes": [], "edges": [], "containers": []}
+
+
+def test_the_ai_operations_answer_natively_without_a_bridge() -> None:
+    core = DiagramCore(None)
+    assert [t["name"] for t in core.ai_tools("sequence", None)][-2:] == ["activateParticipant", "deactivateParticipant"]
+    added = core.ai_tool("sequence", None, EMPTY_SEQUENCE, "addNode", {"shape": "person", "label": "Ann"})
+    assert added["ok"] is True
+    assert added["model"]["nodes"][0]["label"] == "Ann"
+    assert added["outcomes"] == [{"tool": "addNode", "applied": True}]
+    assert core.ai_tool("sequence", None, EMPTY_SEQUENCE, "nope", {})["ok"] is False
+    assert core.ai_prompt("sequence", None, EMPTY_SEQUENCE)["currentDiagram"].startswith("Current shapes:\n(none yet)")
+
+
+def test_shadow_mode_reuses_the_bridges_ids_for_a_tool_call(caplog: pytest.LogCaptureFixture) -> None:
+    call = ("sequence", None, EMPTY_SEQUENCE, "addNode", {"shape": "person"})
+    with ids_from(["n-made-by-the-bridge"]):
+        bridge_answer = DiagramCore(None).ai_tool(*call)
+    assert bridge_answer["output"]["nodeId"] == "n-made-by-the-bridge"
+    agreeing = core_with(FakeBridge(ai_tool=bridge_answer), "shadow")
+    differing = core_with(FakeBridge(ai_tool={**bridge_answer, "outcomes": []}), "shadow")
+    with caplog.at_level(logging.DEBUG, logger=LOGGER):
+        assert agreeing.ai_tool(*call) == bridge_answer
+        assert differing.ai_tool(*call)["outcomes"] == []
+    assert [(r.levelno, r.__dict__["op"], r.__dict__["family"]) for r in caplog.records] == [
+        (logging.DEBUG, "ai-tool", "sequence"),
+        (logging.WARNING, "ai-tool", "sequence"),
+    ]
+    # Outside that call, ids are generated again.
+    assert DiagramCore(None).ai_tool(*call)["output"]["nodeId"] != "n-made-by-the-bridge"
+
+
+def test_shadow_mode_compares_the_tool_list_and_prompt(caplog: pytest.LogCaptureFixture) -> None:
+    native = DiagramCore(None)
+    agreeing = core_with(
+        FakeBridge(ai_tools=native.ai_tools("erd", None), ai_prompt=native.ai_prompt("erd", None, EMPTY_SEQUENCE)),
+        "shadow",
+    )
+    with caplog.at_level(logging.DEBUG, logger=LOGGER):
+        agreeing.ai_tools("erd", None)
+        agreeing.ai_prompt("erd", None, EMPTY_SEQUENCE)
+        core_with(FakeBridge(), "shadow").ai_tools("erd", None)
+    assert [(r.levelno, r.__dict__["op"]) for r in caplog.records] == [
+        (logging.DEBUG, "ai-tools"),
+        (logging.DEBUG, "ai-prompt"),
+        (logging.WARNING, "ai-tools"),
     ]

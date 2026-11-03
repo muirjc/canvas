@@ -15,12 +15,15 @@ from __future__ import annotations
 import logging
 import time
 from collections.abc import Callable
-from typing import Any, Literal, TypeVar
+from contextlib import nullcontext
+from typing import Any, Literal, TypeVar, cast
 
+from canvas_api.diagram_core.ai import list_tools, prompt_sections, run_tool
 from canvas_api.diagram_core.architecture import parse_architecture, serialize_architecture
 from canvas_api.diagram_core.bridge import BridgeError, DiagramBridge, JsonObject, canonical_json
 from canvas_api.diagram_core.c4 import parse_c4, serialize_c4
 from canvas_api.diagram_core.detect import detect_dsl_family
+from canvas_api.diagram_core.diagram_ops import ids_from
 from canvas_api.diagram_core.embeds import update_embeds
 from canvas_api.diagram_core.erd import parse_erd, serialize_erd
 from canvas_api.diagram_core.flowchart import parse_flowchart, serialize_flowchart
@@ -297,6 +300,54 @@ class DiagramCore:
             lambda: icon_refs(parse, diagrams),
             lambda: self._require_bridge("icon-refs").icon_refs(diagrams),
         )
+
+    # --- the AI chat's diagram tools (canvas-1bty.15.7) ------------------------------------------------------------
+
+    def ai_tools(self, family: str, rules: JsonObject | None) -> list[JsonObject]:
+        """The tools offered for a family under a standard: [{name, description, inputSchema}]."""
+        return self._answer(
+            "ai-tools",
+            family,
+            lambda: list_tools(family, rules),
+            lambda: self._require_bridge("ai-tools").ai_tools(family, rules),
+        )
+
+    def ai_tool(self, family: str, rules: JsonObject | None, model: JsonObject, name: str, input: Any) -> JsonObject:
+        """Runs one tool call: {ok: true, model, output, outcomes} or {ok: false, error}. In shadow mode the native
+        run reuses the ids the bridge generated, so the two answers can be compared."""
+        bridge_ids: list[str] = []
+
+        def bridged() -> JsonObject:
+            answer = self._require_bridge("ai-tool").ai_tool(family, rules, model, name, input)
+            if answer.get("ok") and isinstance(answer.get("model"), dict):
+                bridge_ids.extend(_new_ids(model, answer["model"]))
+            return answer
+
+        def native() -> JsonObject:
+            with ids_from(bridge_ids) if bridge_ids else nullcontext():
+                return cast(JsonObject, to_js_json(run_tool(family, rules, model, name, input)))
+
+        return self._answer("ai-tool", family, native, bridged)
+
+    def ai_prompt(self, family: str, rules: JsonObject | None, model: JsonObject) -> JsonObject:
+        """{primer, standard, currentDiagram}: the diagram-specific system prompt sections."""
+        return self._answer(
+            "ai-prompt",
+            family,
+            lambda: prompt_sections(family, rules, model),
+            lambda: self._require_bridge("ai-prompt").ai_prompt(family, rules, model),
+        )
+
+
+def _new_ids(before: JsonObject, after: JsonObject) -> list[str]:
+    """Ids of the elements `after` has and `before` doesn't (nodes, edges, then containers)."""
+    known = {item.get("id") for key in ("nodes", "edges", "containers") for item in before.get(key) or []}
+    return [
+        item["id"]
+        for key in ("nodes", "edges", "containers")
+        for item in after.get(key) or []
+        if isinstance(item.get("id"), str) and item["id"] not in known
+    ]
 
 
 def _native(op: str, compute: Callable[[], Any]) -> Any:
