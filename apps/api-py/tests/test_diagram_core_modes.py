@@ -69,6 +69,12 @@ class FakeBridge:
     def load_library(self, manifest: Any) -> dict[str, Any]:
         return self._answer("load_library", {"library": "from the bridge"})  # type: ignore[no-any-return]
 
+    def svg_sanitize_strict(self, items: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        return self._answer("svg_sanitize_strict", [])  # type: ignore[no-any-return]
+
+    def ai_prompt(self, family: str, rules: Any, model: Any) -> dict[str, Any]:
+        return self._answer("ai_prompt", {"primer": "from the bridge"})  # type: ignore[no-any-return]
+
 
 def core_with(bridge: FakeBridge | None, mode: Mode) -> DiagramCore:
     return DiagramCore(bridge, mode)  # type: ignore[arg-type]
@@ -248,15 +254,15 @@ def test_without_a_bridge_the_mode_is_native(mode: Mode) -> None:
 
 def test_without_a_bridge_unported_operations_raise() -> None:
     core = DiagramCore(None)
-    for call in (lambda: core.load_library({}),):
+    for call in (lambda: core.ai_prompt("flowchart", None, {}),):
         with pytest.raises(BridgeError, match="not ported to Python yet and no bridge"):
             call()
 
 
 def test_everything_else_is_delegated_to_the_bridge_and_close_and_health_too() -> None:
-    bridge = FakeBridge(load_library={"library": "x"}, health=False)
+    bridge = FakeBridge(ai_prompt={"primer": "x"}, health=False)
     core = core_with(bridge, "shadow")
-    assert core.load_library({}) == {"library": "x"}
+    assert core.ai_prompt("flowchart", None, {}) == {"primer": "x"}
     assert core.health() is False
     core.close()
     assert bridge.closed
@@ -372,4 +378,38 @@ def test_shadow_mode_compares_compile_template(caplog: pytest.LogCaptureFixture)
     assert [(r.levelno, r.__dict__["op"], r.__dict__["family"]) for r in caplog.records] == [
         (logging.DEBUG, "compile-template", "network"),
         (logging.WARNING, "compile-template", "network"),
+    ]
+
+
+# --- the library admin and embeds (canvas-1bty.15.6) -----------------------------------------------------------
+
+
+def test_library_operations_answer_natively_without_a_bridge() -> None:
+    core = DiagramCore(None)
+    assert core.svg_sanitize_strict([{"svg": '<g id="a" onclick="x()"/>', "idPrefix": "p"}]) == [
+        {"ok": True, "assetRef": '<g id="p-a"/>'}
+    ]
+    assert core.svg_prepare([{"svg": "hello", "idPrefix": "p"}]) == [{"ok": False, "error": "This isn't an SVG file."}]
+    assert core.load_library({"id": "l", "version": "1", "icons": []}) == {
+        "ok": True,
+        "library": {"id": "l", "version": "1", "icons": []},
+    }
+    assert core.icon_refs([{"family": "flowchart", "dsl": FLOWCHART}]) == [[]]
+    assert core.embeds("# Doc\n", "docs/a.md", {})["changed"] is False
+    with pytest.raises(BridgeError):
+        core.svg_prepare([{"svg": 1, "idPrefix": "p"}])
+    with pytest.raises(BridgeError):
+        core.load_library([])
+
+
+def test_shadow_mode_compares_the_library_operations(caplog: pytest.LogCaptureFixture) -> None:
+    items = [{"svg": "<g/>", "idPrefix": "p"}]
+    agreeing = core_with(FakeBridge(svg_sanitize_strict=[{"ok": True, "assetRef": "<g/>"}]), "shadow")
+    differing = core_with(FakeBridge(svg_sanitize_strict=[{"ok": True, "assetRef": "<g></g>"}]), "shadow")
+    with caplog.at_level(logging.DEBUG, logger=LOGGER):
+        agreeing.svg_sanitize_strict(items)
+        assert differing.svg_sanitize_strict(items) == [{"ok": True, "assetRef": "<g></g>"}]
+    assert [(r.levelno, r.__dict__["op"]) for r in caplog.records] == [
+        (logging.DEBUG, "svg-sanitize-strict"),
+        (logging.WARNING, "svg-sanitize-strict"),
     ]

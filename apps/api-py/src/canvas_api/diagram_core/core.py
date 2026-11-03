@@ -21,14 +21,17 @@ from canvas_api.diagram_core.architecture import parse_architecture, serialize_a
 from canvas_api.diagram_core.bridge import BridgeError, DiagramBridge, JsonObject, canonical_json
 from canvas_api.diagram_core.c4 import parse_c4, serialize_c4
 from canvas_api.diagram_core.detect import detect_dsl_family
+from canvas_api.diagram_core.embeds import update_embeds
 from canvas_api.diagram_core.erd import parse_erd, serialize_erd
 from canvas_api.diagram_core.flowchart import parse_flowchart, serialize_flowchart
 from canvas_api.diagram_core.jsvalues import to_js_json
 from canvas_api.diagram_core.jsyaml import YamlError
+from canvas_api.diagram_core.libraries import icon_refs, load_library
 from canvas_api.diagram_core.model import create_empty_diagram_model
 from canvas_api.diagram_core.portable import to_portable_mermaid
 from canvas_api.diagram_core.sequence import parse_sequence, serialize_sequence
 from canvas_api.diagram_core.standards import check_standard_definition, validate
+from canvas_api.diagram_core.svg_import import SvgImportError, prepare_uploaded_svg, sanitize_icon_markup_strict
 from canvas_api.diagram_core.svg_render import render_to_svg
 from canvas_api.diagram_core.templates import compile_template
 from canvas_api.diagram_core.uml import parse_uml, serialize_uml
@@ -239,6 +242,62 @@ class DiagramCore:
             lambda: self._require_bridge("compile-template").compile_template(diagram_type_id, template),
         )
 
+    def embeds(
+        self, markdown: str, doc_path: str, sources: dict[str, JsonObject], only: list[str] | None = None
+    ) -> JsonObject:
+        """A Markdown document's diagram embeds brought up to date (canvas-1bty.15.6): {markdown, changed,
+        results}."""
+        return self._answer(
+            "embeds",
+            None,
+            lambda: update_embeds(markdown, doc_path, sources, None if only is None else set(only)),
+            lambda: self._require_bridge("embeds").embeds(markdown, doc_path, sources, only),
+        )
+
+    # --- the library admin (canvas-1bty.15.6) -------------------------------------------------------------------
+
+    def svg_prepare(self, items: list[JsonObject]) -> list[JsonObject]:
+        """Uploaded SVG files -> icon artwork: [{ok: true, assetRef} | {ok: false, error}], one per item."""
+        return self._answer(
+            "svg-prepare",
+            None,
+            lambda: _svg_batch(items, prepare_uploaded_svg),
+            lambda: self._require_bridge("svg-prepare").svg_prepare(items),
+        )
+
+    def svg_sanitize_strict(self, items: list[JsonObject]) -> list[JsonObject]:
+        """A custom manifest's artwork, checked strictly: same shape as svg_prepare."""
+        return self._answer(
+            "svg-sanitize-strict",
+            None,
+            lambda: _svg_batch(items, sanitize_icon_markup_strict),
+            lambda: self._require_bridge("svg-sanitize-strict").svg_sanitize_strict(items),
+        )
+
+    def load_library(self, manifest: Any) -> JsonObject:
+        """{ok: true, library} (validated, artwork sanitized) or {ok: false, error}."""
+        if not isinstance(manifest, dict):
+            raise BridgeError('diagram-core load-library: "manifest" must be an object')
+        return self._answer(
+            "load-library",
+            None,
+            lambda: load_library(manifest),
+            lambda: self._require_bridge("load-library").load_library(manifest),
+        )
+
+    def icon_refs(self, diagrams: list[JsonObject]) -> list[list[JsonObject] | None]:
+        """Each diagram's icon references, nodes then containers (None when it doesn't parse)."""
+
+        def parse(family: str, dsl: str) -> Any:
+            return to_js_json(PARSERS[family](dsl)) if family in PARSERS else None
+
+        return self._answer(
+            "icon-refs",
+            None,
+            lambda: icon_refs(parse, diagrams),
+            lambda: self._require_bridge("icon-refs").icon_refs(diagrams),
+        )
+
 
 def _native(op: str, compute: Callable[[], Any]) -> Any:
     """A native answer; the TypeScript code throws where these raise (bad YAML front matter, a standard or model
@@ -250,6 +309,20 @@ def _native(op: str, compute: Callable[[], Any]) -> Any:
         raise BridgeError(f"diagram-core {op}: {error}") from error
     except (KeyError, TypeError, AttributeError) as error:
         raise BridgeError(f"diagram-core {op}: {type(error).__name__}") from error
+
+
+def _svg_batch(items: list[JsonObject], clean: Callable[[str, str], str]) -> list[JsonObject]:
+    """One clean-up per item: an SvgImportError is that item's answer (anything else is a bug)."""
+    results: list[JsonObject] = []
+    for item in items:
+        svg, id_prefix = item.get("svg"), item.get("idPrefix")
+        if not isinstance(svg, str) or not isinstance(id_prefix, str):
+            raise BridgeError('diagram-core svg: each item needs "svg" and "idPrefix" strings')
+        try:
+            results.append({"ok": True, "assetRef": clean(svg, id_prefix)})
+        except SvgImportError as error:
+            results.append({"ok": False, "error": str(error)})
+    return results
 
 
 def _family_of(model: JsonObject) -> str | None:

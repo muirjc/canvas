@@ -47,12 +47,15 @@ def js_number_value(value: Any) -> float:
         if text == "":
             return 0.0
         lowered = text.lower()
-        for prefix, base in (("0x", 16), ("0o", 8), ("0b", 2)):
+        for prefix, digits, base in (("0x", "[0-9a-fA-F]+", 16), ("0o", "[0-7]+", 8), ("0b", "[01]+", 2)):
             if lowered.startswith(prefix):
+                # Digits only: Python's int() would also take "_", a sign or spaces.
+                if not re.fullmatch(digits, text[2:]):
+                    return math.nan
                 try:
                     return float(int(text[2:], base))
-                except ValueError:
-                    return math.nan
+                except OverflowError:
+                    return math.inf
         if _STR_NUMBER.match(text):
             body = text.lstrip("+-")
             if body == "Infinity":
