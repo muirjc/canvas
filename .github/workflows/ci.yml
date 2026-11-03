@@ -222,17 +222,6 @@ jobs:
       # sent back with TYPESCRIPT_ROUTE_GROUPS. This unchanged e2e suite is the gate.
       - name: Install uv
         run: pipx install uv==0.13.1
-      # canvas-1bty.8: the Python service parses and validates diagrams through the diagram-core bridge,
-      # a sidecar on 127.0.0.1:7070 in Azure; the same here.
-      - name: Start the diagram-core bridge
-        run: |
-          npm run build --workspace=@canvas/diagram-bridge
-          nohup node packages/diagram-bridge/dist/bridge.mjs > /tmp/bridge.log 2>&1 &
-          for i in $(seq 1 30); do
-            curl -sf http://127.0.0.1:7070/health > /dev/null && exit 0
-            sleep 1
-          done
-          echo "diagram-core bridge did not become healthy in time"; cat /tmp/bridge.log; exit 1
       - name: Start the TypeScript API (behind the Python front door)
         working-directory: apps/api
         env:
@@ -248,10 +237,8 @@ jobs:
       - name: Start the Python service (the front door)
         working-directory: apps/api-py
         env:
-          DIAGRAM_BRIDGE_URL: http://127.0.0.1:7070
+          # canvas-1bty.15.8: no DIAGRAM_BRIDGE_URL, as in Azure: diagram-core answers natively.
           TYPESCRIPT_API_URL: http://127.0.0.1:3001
-          # canvas-1bty.15: what's ported of diagram-core answers from Python here (Azure shadows it first).
-          DIAGRAM_CORE_MODE: native
         run: |
           uv python install 3.13
           uv sync --frozen

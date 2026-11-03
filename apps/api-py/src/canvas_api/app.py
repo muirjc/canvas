@@ -16,7 +16,7 @@ from canvas_api.auth.rate_limit import LoginRateLimiter
 from canvas_api.auth.session import SessionUser, current_user
 from canvas_api.config import Settings
 from canvas_api.db import create_db_engine
-from canvas_api.diagram_core import BridgeError, DiagramBridge, DiagramCore
+from canvas_api.diagram_core import DiagramBridge, DiagramCore
 from canvas_api.errors import register_error_handlers
 from canvas_api.front_door import install as install_front_door
 from canvas_api.github.client import GitHubClient
@@ -75,20 +75,18 @@ def create_app(
     _ = settings.typescript_route_groups
     oidc_client = OidcClient(oidc_config, settings.web_origin_list[0], oidc_transport) if oidc_config else None
     db = engine or create_db_engine(settings)
-    # canvas-1bty.15: diagram-core answers natively what's been ported to Python (DIAGRAM_CORE_MODE), the rest
-    # through the bridge.
-    bridge = (
-        DiagramCore(DiagramBridge(settings.diagram_bridge_url), settings.diagram_core_mode)
-        if settings.diagram_bridge_url
-        else None
+    # canvas-1bty.15: diagram-core is native Python. Only with DIAGRAM_BRIDGE_URL set (tests, a fallback) can
+    # DIAGRAM_CORE_MODE send answers through the TypeScript bridge (shadow/bridge); without it, always native.
+    bridge = DiagramCore(
+        DiagramBridge(settings.diagram_bridge_url) if settings.diagram_bridge_url else None,
+        settings.diagram_core_mode,
     )
     github_client = GitHubClient(github_config, github_transport) if github_config else None
 
     @asynccontextmanager
     async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
         yield
-        if bridge is not None:
-            bridge.close()
+        bridge.close()
         if github_client is not None:
             github_client.close()
         if oidc_client is not None:
@@ -145,18 +143,6 @@ def create_app(
         """canvas-1bty.2: who the Python service thinks is signed in. Proves a session made by the
         TypeScript service works here; removed once real routes have moved."""
         return {"id": user.id, "email": user.email, "role": user.role, "service": "python"}
-
-    @app.get("/py/diagram-core", tags=["Diagnostics"])
-    def python_diagram_core(_user: Annotated[SessionUser, Depends(current_user)]) -> dict[str, str]:
-        """canvas-1bty.4: proves the Python service reaches diagram-core through the bridge (parses a
-        one-line flowchart). Signed-in users only; removed once real routes use the bridge."""
-        if bridge is None:
-            return {"bridge": "not configured"}
-        try:
-            parsed = bridge.parse("flowchart", "flowchart TD\n  A --> B\n")
-        except BridgeError:
-            return {"bridge": "unreachable"}
-        return {"bridge": "ok" if "model" in parsed else "error"}
 
     # canvas-1bty.14: the front door's jobs (the web app, paused mode, CORS, the fallback to TypeScript),
     # after every route so the web app's files never shadow one.

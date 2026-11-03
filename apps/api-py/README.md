@@ -35,20 +35,22 @@ canvas-1bty.12); sign-in: sessions (now written here too, in @fastify/session's 
 passwords with lockout and one-time passwords, two-step verification (TOTP and recovery codes), the
 admin's local-account actions, and Entra ID (OIDC code flow with PKCE; the ID token's signature,
 issuer, audience, expiry and nonce checked with PyJWT against the issuer's keys) (phase 9,
-canvas-1bty.13; `auth/`, `routes/auth.py`); the icon-library admin, SVG import through the bridge's
-`svg-prepare` (phase 10, canvas-1bty.14; `routes/library_admin.py`) -- see `apps/api/src/python/route-groups.ts`, which the
+canvas-1bty.13; `auth/`, `routes/auth.py`); the icon-library admin, SVG import
+(phase 10, canvas-1bty.14; `routes/library_admin.py`) -- see `apps/api/src/python/route-groups.ts`, which the
 TypeScript front door forwards. Each route's shapes are held to `apps/api/contract/openapi.json`:
 `tests/api.py`'s client checks every response a test gets against it. Routes not moved yet can't be
 called from these tests, so tests seed those rows directly (`Api.diagram`, `Api.grant`, ...).
 
-diagram-core is being ported here (phase 11, canvas-1bty.15; `canvas_api/diagram_core/`): `DiagramCore` (core.py)
-answers natively what's ported -- family detection, flowchart parse/serialize, portable Mermaid (11a) -- and
-sends the rest to the bridge; `DIAGRAM_CORE_MODE` (native/shadow/bridge) decides who answers the ported parts.
-Front matter is YAML written byte for byte as the `yaml` npm package writes it (`jsyaml.py`).
+diagram-core runs natively here (phase 11, canvas-1bty.15; `canvas_api/diagram_core/`, `DiagramCore` in core.py):
+every family's parse/serialize, validation, rendering, templates, the icon-library clean-up, embeds and the AI
+chat's tools. Front matter is YAML written byte for byte as the `yaml` npm package writes it (`jsyaml.py`).
 
-Diagram routes parse and validate through the diagram-core bridge; the tests start it once per run
-(`bridge_url` in tests/conftest.py, `npm run build --workspace=@canvas/diagram-bridge` first) and skip
-the tests that need it when Node or the bundle is missing.
+The TypeScript diagram-core bridge (`packages/diagram-bridge`) is no longer deployed (canvas-1bty.15.8) but stays
+the tests' reference, since the browser still runs the TypeScript diagram-core: the tests start it once per run
+(`bridge_url` in tests/conftest.py, `npm run build --workspace=@canvas/diagram-bridge` first) and compare Python
+with it; they skip those comparisons when Node or the bundle is missing (never in CI: `REQUIRE_BRIDGE=1`). With
+`DIAGRAM_BRIDGE_URL` set, `DIAGRAM_CORE_MODE` (shadow/bridge) can still route answers through it; without it,
+diagram-core always answers natively.
 
 Query UUID columns with fixed `text()` statements: SQLAlchemy Core binds a string as VARCHAR, which
 Postgres won't compare with a UUID.

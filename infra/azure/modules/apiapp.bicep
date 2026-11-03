@@ -1,5 +1,6 @@
 // canvas-1bty.14: canvas-api, the one component the public reaches -- since phase 10 the Python backend
-// (apps/api-py) with the diagram-core bridge as a sidecar. Same name, so the same address, IP allow-list
+// (apps/api-py), diagram-core native in Python (canvas-1bty.15; the TypeScript bridge sidecar was removed in
+// 11h, canvas-1bty.15.8). Same name, so the same address, IP allow-list
 // and Entra redirect URI as when it ran the TypeScript API. It serves the web app (built into its image),
 // the paused page (CANVAS_PAUSED, pause.sh/resume.sh), and every API route; a route group named in
 // TYPESCRIPT_ROUTE_GROUPS (the one-release fallback) and /docs go to the internal TypeScript service,
@@ -20,7 +21,7 @@ param identityId string
 @description('ACR login server.')
 param acrLoginServer string
 
-@description('Tag of the canvas-api-py image (apps/api-py/Dockerfile) and canvas-diagram-bridge, built and pushed by deploy.sh.')
+@description('Tag of the canvas-api-py image (apps/api-py/Dockerfile), built and pushed by deploy.sh.')
 param imageTag string
 
 @description('Key Vault URI (used to build secret references).')
@@ -70,10 +71,6 @@ param typescriptApiUrl string = ''
 
 @description('canvas-1bty.14: route groups sent back to TypeScript (TYPESCRIPT_ROUTE_GROUPS): empty or "none" = none.')
 param typescriptRouteGroups string = ''
-
-@description('canvas-1bty.15: DIAGRAM_CORE_MODE -- who answers the parts of diagram-core ported to Python: shadow (the bridge answers, Python is compared and differences logged), native, or bridge.')
-@allowed(['shadow', 'native', 'bridge'])
-param diagramCoreMode string = 'shadow'
 
 @description('Port uvicorn listens on (apps/api-py/Dockerfile).')
 param port int = 8000
@@ -163,9 +160,6 @@ resource apiApp 'Microsoft.App/containerApps@2025-01-01' = {
             { name: 'COOKIE_SAME_SITE', value: 'lax' }
             { name: 'APPLICATIONINSIGHTS_CONNECTION_STRING', value: appInsightsConnectionString }
             { name: 'OTEL_SERVICE_NAME', value: 'canvas-api' }
-            // canvas-1bty.4: the diagram-core bridge, the sidecar below (same localhost).
-            { name: 'DIAGRAM_BRIDGE_URL', value: 'http://127.0.0.1:7070' }
-            { name: 'DIAGRAM_CORE_MODE', value: diagramCoreMode }
             // canvas-1bty.11: GitHub approval.
             { name: 'GITHUB_APP_ID', value: githubAppId }
             { name: 'GITHUB_APP_PRIVATE_KEY', secretRef: 'github-app-private-key' }
@@ -190,9 +184,10 @@ resource apiApp 'Microsoft.App/containerApps@2025-01-01' = {
             { name: 'TYPESCRIPT_API_URL', value: typescriptApiUrl }
             { name: 'TYPESCRIPT_ROUTE_GROUPS', value: typescriptRouteGroups }
           ]
+          // canvas-1bty.15.8: what the bridge sidecar had (0.25 / 0.5Gi) moved here with diagram-core.
           resources: {
-            cpu: json('0.5')
-            memory: '1Gi'
+            cpu: json('0.75')
+            memory: '1.5Gi'
           }
           probes: [
             {
@@ -214,22 +209,6 @@ resource apiApp 'Microsoft.App/containerApps@2025-01-01' = {
               periodSeconds: 10
             }
           ]
-        }
-        {
-          // canvas-1bty.4: diagram-core (TypeScript) for the Python service until it is ported
-          // (packages/diagram-bridge). Shares the app's network: listens on 127.0.0.1 only, so
-          // nothing outside this replica can reach it.
-          name: 'diagram-bridge'
-          image: '${acrLoginServer}/canvas-diagram-bridge:${imageTag}'
-          env: [
-            { name: 'BRIDGE_HOST', value: '127.0.0.1' }
-            { name: 'BRIDGE_PORT', value: '7070' }
-          ]
-          // 0.5 + 0.25 CPU / 1 + 0.5 Gi: a valid Container Apps combination (0.75 / 1.5Gi).
-          resources: {
-            cpu: json('0.25')
-            memory: '0.5Gi'
-          }
         }
       ]
       scale: {
