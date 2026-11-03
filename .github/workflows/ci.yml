@@ -128,10 +128,12 @@ jobs:
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: npm
-      - name: Build the diagram-core bridge
+      # diagram-core too: test_jobs_seed_parity.py runs the TypeScript catalog seed, which imports its dist.
+      - name: Build diagram-core and the bridge
         working-directory: .
         run: |
           npm ci
+          npm run build --workspace=@canvas/diagram-core
           npm run build --workspace=@canvas/diagram-bridge
       - name: Install uv
         run: pipx install uv==0.13.1
