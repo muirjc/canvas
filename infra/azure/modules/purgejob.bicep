@@ -1,5 +1,5 @@
-// canvas-ne2y: scheduled Container Apps Job that runs the housekeeping purge nightly -- `node
-// apps/api/dist/purge/run.js`. It physically removes diagrams and projects deleted more than 30
+// canvas-ne2y: scheduled Container Apps Job that runs the housekeeping purge nightly -- `python -m
+// canvas_api.jobs.purge`. It physically removes diagrams and projects deleted more than 30
 // days ago (past the admin's Restore window) and unsaved drafts (Create with AI, Import, templates)
 // abandoned for more than 24 hours. pause.sh moves the schedule to once a year (the CLI can't
 // suspend a scheduled job); resume.sh and deploy.sh put it back.
@@ -16,7 +16,7 @@ param identityId string
 @description('ACR login server.')
 param acrLoginServer string
 
-@description('Tag of the API image -- the same image the API app runs; only the command differs.')
+@description('Tag of the canvas-api-py image -- the same image the Python service runs; only the command differs.')
 param apiImageTag string
 
 @description('Key Vault URI.')
@@ -68,12 +68,13 @@ resource purgeJob 'Microsoft.App/jobs@2025-01-01' = {
       containers: [
         {
           name: 'purge'
-          image: '${acrLoginServer}/canvas-api:${apiImageTag}'
-          command: ['node']
-          args: ['apps/api/dist/purge/run.js']
+          image: '${acrLoginServer}/canvas-api-py:${apiImageTag}'
+          command: ['python']
+          args: ['-m', 'canvas_api.jobs.purge']
           env: [
+            { name: 'DB_CLIENT', value: 'postgres' }
             { name: 'DATABASE_URL', secretRef: 'database-url' }
-            // Not used by the purge; loadConfig requires it.
+            // Not used by the purge; Settings requires it.
             { name: 'SESSION_SECRET', secretRef: 'session-secret' }
           ]
           resources: {

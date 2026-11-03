@@ -52,6 +52,10 @@ RUN useradd --create-home --uid 10001 canvas
 WORKDIR /app/apps/api-py
 COPY --from=build /app/apps/api-py /app/apps/api-py
 COPY apps/api/migrations /app/apps/api/migrations
+# jmuir-dtu.29: a locally generated AWS icon library (vendor-icons/aws-icons.json), if the deploying machine has
+# one -- the catalog seed job (canvas_api.jobs.seed_catalog) loads it in place of the placeholder AWS icons. The
+# folder always exists (its README is committed), so this COPY never fails when the file is absent.
+COPY vendor-icons /app/vendor-icons
 COPY --from=validator /app/packages/validator-cli/dist /app/packages/validator-cli/dist
 COPY --from=web /app/apps/web/dist /app/apps/web/dist
 COPY infra/azure/paused.html /app/paused.html

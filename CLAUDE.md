@@ -93,6 +93,21 @@ tests are NON-NEGOTIABLE and must exist (and fail) before implementing any diagr
 work — see `.specify/memory/constitution.md` Principle IV.
 
 ## Recent Changes
+- `canvas-1bty.16` part 1 (Python phase 12a): **the jobs are Python.** `apps/api-py/src/canvas_api/jobs/`:
+  `migrate`, `seed_catalog`, `seed_demo`, `bootstrap_admin`, `purge` (`--dry-run`), `e2e_reset`, each run as
+  `python -m canvas_api.jobs.<name>` (env: `DB_CLIENT`, `DATABASE_URL`, `SESSION_SECRET`, plus each job's own, same
+  names and output as TypeScript). The five Azure jobs (migration, catalog seed, demo seed, bootstrap admin, purge)
+  now run the `canvas-api-py` image. Catalog data in `canvas_api/seed/` (diagram types, starter standards, personas)
+  and the bundled icon manifests as JSON in `canvas_api/seed/manifests/` (diagram-core's
+  `python-seed-libraries.test.ts` fails on drift, `UPDATE_SEED_LIBRARIES=1` regenerates); `library_store.py`
+  (ingest, shared with the admin routes), `retention.py` (purge, shared with the routes). Seeded rows are identical
+  to the TypeScript seed, table by table, on both databases (`test_jobs_seed_parity.py`, skips without tsx).
+  Differences on purpose: each job runs in one transaction (TypeScript could stop half done); SQLite migrations
+  are atomic per file; on SQLite the draft purge compares times with `julianday()` (TypeScript compared text, so
+  a draft minutes old could go on the cutoff's date). e2e: global-setup runs the Python `e2e_reset`/`seed_demo`;
+  CI seeds with Python and runs `tests/fake_github_server.py` (Python) instead of the TypeScript fake GitHub. The
+  TypeScript API still runs behind Python until 12b. Pitfall: two Postgres pytest sessions at once break each
+  other (each drops the `canvas_py` schema).
 - `canvas-1bty.20` (security): **icon artwork is clipped to its box** in the server renderer, TypeScript and Python
   together (`clipIconArtwork` / `clip_icon_artwork`): node and group icons are wrapped in
   `<svg x="0" y="0" width="48" height="48" viewBox="0 0 48 48" overflow="hidden">`, so manifest/bundled artwork

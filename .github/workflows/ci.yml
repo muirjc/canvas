@@ -133,8 +133,6 @@ jobs:
         run: |
           npm ci
           npm run build --workspace=@canvas/diagram-bridge
-      - name: Install uv
-        run: pipx install uv==0.13.1
       - run: uv python install 3.13
       - run: uv sync --frozen
       - name: Lint and format
@@ -192,10 +190,17 @@ jobs:
       - name: Install Playwright browsers
         working-directory: apps/web
         run: npx playwright install --with-deps chromium
-      - name: Seed database
-        working-directory: apps/api
+      # canvas-1bty.16: the jobs and e2e helpers are Python (apps/api-py's canvas_api.jobs, tests/fake_github_server.py).
+      - name: Install uv and the Python service
+        working-directory: apps/api-py
         run: |
-          OUTPUT=$(npm run seed 2>&1 | tee /dev/stderr)
+          pipx install uv==0.13.1
+          uv python install 3.13
+          uv sync --frozen
+      - name: Seed database
+        working-directory: apps/api-py
+        run: |
+          OUTPUT=$(uv run python -m canvas_api.jobs.seed_demo 2>&1 | tee /dev/stderr)
           PROJECT_ID=$(echo "$OUTPUT" | grep "Project id:" | awk '{print $NF}')
           echo "E2E_PROJECT_ID=$PROJECT_ID" >> "$GITHUB_ENV"
       # canvas-3s5: the GitHub approval spec (github-approval.spec.ts) drives the real API against
@@ -203,9 +208,9 @@ jobs:
       # (base64 of the PEM, one line) to a file; the API then gets the App settings below, so its
       # GitHub feature is on for the whole run (other specs are unaffected either way).
       - name: Start fake GitHub
-        working-directory: apps/api
+        working-directory: apps/api-py
         run: |
-          FAKE_GITHUB_PORT=3999 nohup npx tsx tests/helpers/fake-github-server.ts /tmp/fake-github.key > /tmp/fake-github.log 2>&1 &
+          FAKE_GITHUB_PORT=3999 nohup uv run python -m tests.fake_github_server /tmp/fake-github.key > /tmp/fake-github.log 2>&1 &
           for i in $(seq 1 30); do
             if curl -sf http://127.0.0.1:3999/_fake/pulls > /dev/null; then
               {
@@ -221,8 +226,6 @@ jobs:
       # canvas-1bty.14: as in Azure, the Python service is the front door (port 3000, which the web app and
       # Playwright call) and the TypeScript API runs behind it (port 3001) as the fallback for route groups
       # sent back with TYPESCRIPT_ROUTE_GROUPS. This unchanged e2e suite is the gate.
-      - name: Install uv
-        run: pipx install uv==0.13.1
       - name: Start the TypeScript API (behind the Python front door)
         working-directory: apps/api
         env:
@@ -241,8 +244,6 @@ jobs:
           # canvas-1bty.15.8: no DIAGRAM_BRIDGE_URL, as in Azure: diagram-core answers natively.
           TYPESCRIPT_API_URL: http://127.0.0.1:3001
         run: |
-          uv python install 3.13
-          uv sync --frozen
           nohup uv run uvicorn canvas_api.main:app --host 0.0.0.0 --port 3000 > /tmp/api-py.log 2>&1 &
           for i in $(seq 1 30); do
             if curl -sf http://localhost:3000/health > /dev/null; then

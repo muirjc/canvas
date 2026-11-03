@@ -1,7 +1,7 @@
 // Reference/lookup-data Container Apps Job (canvas-??? -- the gap found when a clean build of
 // this environment left the DiagramType catalog, bundled icon/shape libraries, and default
 // AiPersonas entirely unpopulated: nothing in deploy.sh's default flow ever ran
-// apps/api/src/seed/catalog.ts's data, so a fresh database couldn't even create a diagram).
+// the catalog seed (now `python -m canvas_api.jobs.seed_catalog`, canvas-1bty.16), so a fresh database couldn't even create a diagram).
 //
 // Unlike modules/seedjob.bicep (canvas-seed, dev/demo data including a published-password admin
 // account -- deliberately left manual-trigger-only), this job's data is pure idempotent catalog
@@ -20,7 +20,7 @@ param identityId string
 @description('ACR login server.')
 param acrLoginServer string
 
-@description('Tag of the API image -- the same image the API app runs; only the command differs.')
+@description('Tag of the canvas-api-py image -- the same image the Python service runs; only the command differs.')
 param apiImageTag string
 
 @description('Key Vault URI.')
@@ -68,13 +68,13 @@ resource catalogSeedJob 'Microsoft.App/jobs@2025-01-01' = {
       containers: [
         {
           name: 'seed-catalog'
-          image: '${acrLoginServer}/canvas-api:${apiImageTag}'
-          command: ['node']
-          args: ['apps/api/dist/seed/catalog.js']
+          image: '${acrLoginServer}/canvas-api-py:${apiImageTag}'
+          command: ['python']
+          args: ['-m', 'canvas_api.jobs.seed_catalog']
           env: [
+            { name: 'DB_CLIENT', value: 'postgres' }
             { name: 'DATABASE_URL', secretRef: 'database-url' }
-            // seed/catalog.ts's runMigrations() -> config.ts's loadConfig() requires this to be
-            // set regardless, same as migrationjob.bicep's own identical comment explains.
+            // Not used by the seed; Settings requires it.
             { name: 'SESSION_SECRET', secretRef: 'session-secret' }
           ]
           resources: {

@@ -11,8 +11,8 @@ type's locked family in test_diagram_types.py.
 
 Left out:
 - diagrams.test.ts's export cases (mermaid, svg, png, portable style lines): in test_export.py.
-- diagram-draft.test.ts's "an abandoned draft is purged after a day": it calls the TypeScript service
-  functions (findAbandonedDraftIds, purgeExpiredDiagrams), not a route; the purge job isn't ported yet.
+- diagram-draft.test.ts's "an abandoned draft is purged after a day": it calls the purge's service
+  functions, not a route; in test_jobs_purge.py.
 - standards.test.ts / standards-v2.test.ts: publishing and retiring standards (and the revalidation they
   trigger) are in test_standards.py; here the standard is seeded as published, directly.
 - diagram-delete-restore.test.ts reads restored_at/restored_by_user_id from the database, as the TS test does.

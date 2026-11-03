@@ -7,7 +7,7 @@ sharing in phase 3.
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta
+from datetime import datetime
 from typing import Annotated, Any
 from uuid import uuid4
 
@@ -20,13 +20,11 @@ from canvas_api.auth.roles import AdminUser, ArchitectOrAdmin, CurrentUser
 from canvas_api.auth.session import SessionUser
 from canvas_api.db import get_engine
 from canvas_api.errors import ApiError
+from canvas_api.retention import project_retention_boundary
 from canvas_api.timestamps import now_utc, to_api, to_db
 
 router = APIRouter(tags=["Projects"])
 Db = Annotated[Engine, Depends(get_engine)]
-
-#: Soft-deleted projects older than this can't be restored (project.service.ts PROJECT_RETENTION_DAYS).
-PROJECT_RETENTION_DAYS = 30
 
 
 class CreateProjectBody(BaseModel):
@@ -221,7 +219,7 @@ def delete_project(id: str, user: CurrentUser, db: Db) -> Response:
 
 
 def _retention_boundary(dialect: str) -> Any:
-    return to_db(now_utc() - timedelta(days=PROJECT_RETENTION_DAYS), dialect)
+    return to_db(project_retention_boundary(), dialect)
 
 
 @router.get("/admin/deleted-projects")
@@ -263,7 +261,7 @@ def restore_project(id: str, admin: AdminUser, db: Db) -> dict[str, Any]:
 
 
 def _deleted_within_retention(deleted_at: Any, dialect: str) -> bool:
-    boundary = now_utc() - timedelta(days=PROJECT_RETENTION_DAYS)
+    boundary = project_retention_boundary()
     if isinstance(deleted_at, str):
         # SQLite text: compare as instants (the TypeScript service parses it into a Date, toDate()).
         iso = to_api(deleted_at) or ""
