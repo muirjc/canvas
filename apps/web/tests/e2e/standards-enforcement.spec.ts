@@ -5,7 +5,7 @@ import { API_BASE_URL, login } from './standards-v2-helpers';
 
 const PROJECT_ID = process.env.E2E_PROJECT_ID;
 
-test.skip(!PROJECT_ID, 'E2E_PROJECT_ID env var not set — run `npm run seed` and export it first');
+test.skip(!PROJECT_ID, 'E2E_PROJECT_ID env var not set — run the demo seed (python -m canvas_api.jobs.seed_demo) and export it first');
 
 // canvas-7ewa: the editor's toolbar now follows the active standard, so these specs publish onto
 // their own fixed-name CUSTOM flowchart-family type instead of the built-in flowchart type (a

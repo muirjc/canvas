@@ -1,7 +1,7 @@
 import { expect, test } from '@playwright/test';
 import { PROJECT_ID, addKind, applyDsl, login, newDiagram, readDsl } from './standards-v2-helpers';
 
-test.skip(!PROJECT_ID, 'E2E_PROJECT_ID env var not set — run `npm run seed` and export it first');
+test.skip(!PROJECT_ID, 'E2E_PROJECT_ID env var not set — run the demo seed (python -m canvas_api.jobs.seed_demo) and export it first');
 
 test('c4 context: external system kind renders grey and serializes System_Ext', async ({ page }) => {
   await login(page);

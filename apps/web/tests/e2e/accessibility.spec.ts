@@ -9,7 +9,7 @@ const ADMIN_PASSWORD = 'admin-dev-password';
 const GUEST_EMAIL = 'guest@example.com';
 const GUEST_PASSWORD = 'guest-dev-password';
 
-test.skip(!PROJECT_ID, 'E2E_PROJECT_ID env var not set — run `npm run seed` and export it first');
+test.skip(!PROJECT_ID, 'E2E_PROJECT_ID env var not set — run the demo seed (python -m canvas_api.jobs.seed_demo) and export it first');
 
 /**
  * Automated WCAG 2.1 AA audit (constitution's Technology & Compliance Constraints) of the
@@ -18,7 +18,9 @@ test.skip(!PROJECT_ID, 'E2E_PROJECT_ID env var not set — run `npm run seed` an
  * pass/fail summary.
  */
 async function auditPage(page: import('@playwright/test').Page) {
-  const results = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa']).analyze();
+  const results = await new AxeBuilder({ page })
+    .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
+    .analyze();
   expect(results.violations, JSON.stringify(results.violations, null, 2)).toEqual([]);
 }
 
@@ -42,7 +44,9 @@ test.describe('Accessibility (WCAG 2.1 AA)', () => {
     // canvas-i08: audit a small project of its own rather than the shared one, which grows by
     // hundreds of diagrams per local suite run until axe can't finish within the timeout. The
     // page's markup is the same with one diagram as with thousands.
-    const created = await page.request.post(`${API_BASE_URL}/projects`, { data: { name: `A11y Main Screen ${Date.now()}` } });
+    const created = await page.request.post(`${API_BASE_URL}/projects`, {
+      data: { name: `A11y Main Screen ${Date.now()}` },
+    });
     expect(created.status()).toBe(201);
     const projectId = (await created.json()).project.id as string;
     const diagram = await page.request.post(`${API_BASE_URL}/projects/${projectId}/diagrams`, {
@@ -101,7 +105,9 @@ test.describe('Accessibility (WCAG 2.1 AA)', () => {
     await auditPage(page);
   });
 
-  test('the delete-confirmation dialog (ConfirmDialog) has no violations while open', async ({ page }) => {
+  test('the delete-confirmation dialog (ConfirmDialog) has no violations while open', async ({
+    page,
+  }) => {
     await page.goto(`/?projectId=${PROJECT_ID}`);
     await page.getByTestId('login-email').fill(ADMIN_EMAIL);
     await page.getByTestId('login-password').fill(ADMIN_PASSWORD);
@@ -129,7 +135,9 @@ test.describe('Accessibility (WCAG 2.1 AA)', () => {
     await auditPage(page);
   });
 
-  test('admin libraries console has no violations (list, library detail, import dialog)', async ({ page }) => {
+  test('admin libraries console has no violations (list, library detail, import dialog)', async ({
+    page,
+  }) => {
     await page.goto('/?admin=libraries');
     await page.getByTestId('login-email').fill(ADMIN_EMAIL);
     await page.getByTestId('login-password').fill(ADMIN_PASSWORD);
@@ -139,7 +147,13 @@ test.describe('Accessibility (WCAG 2.1 AA)', () => {
 
     await page.getByTestId('libraries-import').click();
     await page.getByTestId('library-import-files').setInputFiles([
-      { name: 'ok.svg', mimeType: 'image/svg+xml', buffer: Buffer.from('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><rect width="24" height="24"/></svg>') },
+      {
+        name: 'ok.svg',
+        mimeType: 'image/svg+xml',
+        buffer: Buffer.from(
+          '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><rect width="24" height="24"/></svg>',
+        ),
+      },
       { name: 'bad.svg', mimeType: 'image/svg+xml', buffer: Buffer.from('not an svg') },
     ]);
     await expect(page.getByTestId('library-import-error-1')).toBeVisible();
@@ -178,15 +192,27 @@ test.describe('Accessibility (WCAG 2.1 AA)', () => {
       data: { name: `A11y Shared Source ${Date.now()}` },
     });
     const projectId = (await projectResponse.json()).project.id;
-    const diagramResponse = await adminPage.request.post(`${API_BASE_URL}/projects/${projectId}/diagrams`, {
-      data: { name: `A11y Shared Diagram ${Date.now()}`, diagramTypeId: 'flowchart', initialDslContent: 'flowchart TD\n  A[Start]\n' },
-    });
+    const diagramResponse = await adminPage.request.post(
+      `${API_BASE_URL}/projects/${projectId}/diagrams`,
+      {
+        data: {
+          name: `A11y Shared Diagram ${Date.now()}`,
+          diagramTypeId: 'flowchart',
+          initialDslContent: 'flowchart TD\n  A[Start]\n',
+        },
+      },
+    );
     const diagramId = (await diagramResponse.json()).diagram.id;
-    const lookup = await adminPage.request.get(`${API_BASE_URL}/users/lookup?email=${encodeURIComponent(GUEST_EMAIL)}`);
+    const lookup = await adminPage.request.get(
+      `${API_BASE_URL}/users/lookup?email=${encodeURIComponent(GUEST_EMAIL)}`,
+    );
     const { user } = await lookup.json();
-    const shareResponse = await adminPage.request.post(`${API_BASE_URL}/diagrams/${diagramId}/shares`, {
-      data: { granteeUserId: user.id, accessLevel: 'view' },
-    });
+    const shareResponse = await adminPage.request.post(
+      `${API_BASE_URL}/diagrams/${diagramId}/shares`,
+      {
+        data: { granteeUserId: user.id, accessLevel: 'view' },
+      },
+    );
     const grantId = (await shareResponse.json()).grant.id;
 
     try {
@@ -197,7 +223,7 @@ test.describe('Accessibility (WCAG 2.1 AA)', () => {
       await expect(guestPage.getByTestId('shared-diagrams')).toBeVisible();
       await auditPage(guestPage);
     } finally {
-      // `guest@example.com` is a shared, persistent fixture (apps/api/src/seed/run.ts) other
+      // `guest@example.com` is a shared, persistent fixture (apps/api-py/src/canvas_api/jobs/seed_demo.py) other
       // specs rely on starting with zero shares (shared-diagrams.spec.ts's first test) — leaving
       // this grant behind would make that test's outcome depend on file execution order.
       await adminPage.request.delete(`${API_BASE_URL}/shares/${grantId}`);

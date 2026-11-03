@@ -6,13 +6,13 @@ const ADMIN_EMAIL = 'admin@example.com';
 const ADMIN_PASSWORD = 'admin-dev-password';
 const API_BASE_URL = process.env.VITE_API_BASE_URL ?? 'http://localhost:3000';
 
-test.skip(!PROJECT_ID, 'E2E_PROJECT_ID env var not set — run `npm run seed` and export it first');
+test.skip(!PROJECT_ID, 'E2E_PROJECT_ID env var not set — run the demo seed (python -m canvas_api.jobs.seed_demo) and export it first');
 
 /**
  * canvas-kwa: the AI could create/rename/connect/remove elements but had no tool to color them,
  * even though NodeStyle (fillColor/strokeColor/strokeWidth/strokeDasharray) is a full model field
  * already expressible via DSL (style/classDef/linkStyle). Against the API's `AI_PROVIDER=mock`
- * rule-based fake NLU (apps/api/src/ai/mock-nlu.ts — no real LLM call), which now recognizes
+ * rule-based fake NLU (apps/api-py/src/canvas_api/ai/mock_model.py — no real LLM call), which now recognizes
  * "make X <color>" and calls the new updateNodeStyle tool.
  */
 test('asking the AI to color a shape sets its fill color', async ({ page }) => {

@@ -1,7 +1,7 @@
 import { expect, test } from '@playwright/test';
 import { PROJECT_ID, login, newDiagram } from './standards-v2-helpers';
 
-test.skip(!PROJECT_ID, 'E2E_PROJECT_ID env var not set — run `npm run seed` and export it first');
+test.skip(!PROJECT_ID, 'E2E_PROJECT_ID env var not set — run the demo seed (python -m canvas_api.jobs.seed_demo) and export it first');
 
 test('value chain DSL: an unknown kind class is flagged by line before Apply, and Apply/Save still work', async ({ page }) => {
   await login(page);

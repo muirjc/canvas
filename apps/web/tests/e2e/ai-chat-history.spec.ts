@@ -6,14 +6,14 @@ const ADMIN_EMAIL = 'admin@example.com';
 const ADMIN_PASSWORD = 'admin-dev-password';
 const API_BASE_URL = process.env.VITE_API_BASE_URL ?? 'http://localhost:3000';
 
-test.skip(!PROJECT_ID, 'E2E_PROJECT_ID env var not set — run `npm run seed` and export it first');
+test.skip(!PROJECT_ID, 'E2E_PROJECT_ID env var not set — run the demo seed (python -m canvas_api.jobs.seed_demo) and export it first');
 
 /**
  * User Story 4 (feature 004) end-to-end, against the API's `AI_PROVIDER=mock` rule-based fake
- * NLU (apps/api/src/ai/mock-nlu.ts). Confirms reopening a diagram that's had chat activity shows
+ * NLU (apps/api-py/src/canvas_api/ai/mock_model.py). Confirms reopening a diagram that's had chat activity shows
  * its full prior conversation in order, while a diagram with none starts with an empty panel.
  */
-test('resumes a diagram\'s prior chat conversation on reopen', async ({ page }) => {
+test("resumes a diagram's prior chat conversation on reopen", async ({ page }) => {
   await page.goto(`/?projectId=${PROJECT_ID}`);
   await page.getByTestId('login-email').fill(ADMIN_EMAIL);
   await page.getByTestId('login-password').fill(ADMIN_PASSWORD);
@@ -44,7 +44,9 @@ test('resumes a diagram\'s prior chat conversation on reopen', async ({ page }) 
   await expect(page.locator('[data-testid="chat-message-user"]')).toHaveCount(3);
   await expect(page.locator('[data-testid="chat-message-assistant"]')).toHaveCount(3);
 
-  const userMessagesBeforeReload = await page.locator('[data-testid="chat-message-user"]').allTextContents();
+  const userMessagesBeforeReload = await page
+    .locator('[data-testid="chat-message-user"]')
+    .allTextContents();
   // canvas-j6v: an AI drawing is a draft until saved; save it so it's in the project's list.
   await page.getByTestId('save-diagram').click();
   await expect(page.getByTestId('save-status')).toHaveText('Saved');
@@ -61,7 +63,9 @@ test('resumes a diagram\'s prior chat conversation on reopen', async ({ page }) 
   await page.getByTestId('rail-tab-chat').click();
   await expect(page.locator('[data-testid="chat-message-user"]')).toHaveCount(3);
   await expect(page.locator('[data-testid="chat-message-assistant"]')).toHaveCount(3);
-  expect(await page.locator('[data-testid="chat-message-user"]').allTextContents()).toEqual(userMessagesBeforeReload);
+  expect(await page.locator('[data-testid="chat-message-user"]').allTextContents()).toEqual(
+    userMessagesBeforeReload,
+  );
 
   // A diagram that's never been chatted with (hand-created here) starts with an empty panel.
   await page.goto(`/?projectId=${PROJECT_ID}`);

@@ -1,7 +1,7 @@
 import { expect, test, type Page } from '@playwright/test';
 import { addKind, applyDsl, login, newDiagram, PROJECT_ID, readDsl } from './standards-v2-helpers';
 
-test.skip(!PROJECT_ID, 'E2E_PROJECT_ID env var not set — run `npm run seed` and export it first');
+test.skip(!PROJECT_ID, 'E2E_PROJECT_ID env var not set — run the demo seed (python -m canvas_api.jobs.seed_demo) and export it first');
 test.describe.configure({ timeout: 90_000 });
 
 /** canvas-eac: pinning a comment -- why the checkbox is off, and pinning to a group as well as a shape. */

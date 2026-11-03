@@ -6,15 +6,17 @@ const ADMIN_EMAIL = 'admin@example.com';
 const ADMIN_PASSWORD = 'admin-dev-password';
 const API_BASE_URL = process.env.VITE_API_BASE_URL ?? 'http://localhost:3000';
 
-test.skip(!PROJECT_ID, 'E2E_PROJECT_ID env var not set — run `npm run seed` and export it first');
+test.skip(!PROJECT_ID, 'E2E_PROJECT_ID env var not set — run the demo seed (python -m canvas_api.jobs.seed_demo) and export it first');
 
 /**
  * User Story 1 (feature 004) end-to-end, against the API's `AI_PROVIDER=mock` rule-based fake
- * NLU (apps/api/src/ai/mock-nlu.ts) rather than a real LLM — the API dev server must have been
+ * NLU (apps/api-py/src/canvas_api/ai/mock_model.py) rather than a real LLM — the API dev server must have been
  * started with AI_PROVIDER=mock (see RUNBOOK.md) or the AI's reply won't match what this test
  * expects.
  */
-test('creates a flowchart diagram from a natural-language description via a chosen persona', async ({ page }) => {
+test('creates a flowchart diagram from a natural-language description via a chosen persona', async ({
+  page,
+}) => {
   await page.goto(`/?projectId=${PROJECT_ID}`);
   await page.getByTestId('login-email').fill(ADMIN_EMAIL);
   await page.getByTestId('login-password').fill(ADMIN_PASSWORD);

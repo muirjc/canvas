@@ -39,20 +39,9 @@ def record_audit(
     )
 
 
-#: Set by the TypeScript front door to the client address it worked out (apps/api/src/python/front-door.ts),
-#: overwriting anything the client sent. Read only with TRUST_CLIENT_IP_HEADER=true, i.e. while that front door
-#: is in front of this service; since canvas-1bty.14 this service is the front door and never reads it.
-CLIENT_IP_HEADER = "x-canvas-client-ip"
-
-
 def client_ip(request: Request) -> str:
-    """The client's address for the audit log, as apps/api's clientIp() works it out: the LAST
-    X-Forwarded-For entry, the one Azure's ingress appended (the first is whatever the client claims);
-    without one, the connection's address."""
-    if request.app.state.settings.trust_client_ip_header:
-        from_front_door = request.headers.get(CLIENT_IP_HEADER)
-        if from_front_door:
-            return from_front_door
+    """The client's address for the audit log: the LAST X-Forwarded-For entry, the one Azure's ingress
+    appended (the first is whatever the client claims); without one, the connection's address."""
     forwarded = request.headers.get("x-forwarded-for")
     last = forwarded.split(",")[-1].strip() if forwarded else ""
     if last:

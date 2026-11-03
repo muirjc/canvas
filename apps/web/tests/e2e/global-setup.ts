@@ -10,7 +10,7 @@ const PY_JOB = 'uv run --project apps/api-py python -m canvas_api.jobs.';
 
 /**
  * canvas-i86: every e2e spec reads `process.env.E2E_PROJECT_ID`, skipping itself if it's unset —
- * but nothing ever SET it beyond a developer/agent manually running `npm run seed` and copying its
+ * but nothing ever SET it beyond a developer/agent manually running the demo seed and copying its
  * printed id into their shell by hand. That id inevitably drifted stale (the seeded "Smoke Test"
  * project got deleted at some point this session, likely by an unrelated delete-project test/
  * script run, and the hardcoded id kept getting reused anyway) once nothing was left to notice or
@@ -29,12 +29,14 @@ const PY_JOB = 'uv run --project apps/api-py python -m canvas_api.jobs.';
 export default function globalSetup(): void {
   // The Python jobs read their settings from the environment only, so every invocation needs
   // these two explicitly. Falls back to this repo's own standard local dev values (used
-  // consistently everywhere else — apps/api/.env, RUNBOOK.md) if a developer hasn't already
+  // consistently everywhere else — apps/api-py/.env.example, RUNBOOK.md) if a developer hasn't already
   // exported their own.
   const env = {
     ...process.env,
-    DATABASE_URL: process.env.DATABASE_URL ?? 'postgres://canvas:canvas_dev_password@localhost:5433/canvas',
-    SESSION_SECRET: process.env.SESSION_SECRET ?? 'change-me-to-a-random-string-of-at-least-32-characters',
+    DATABASE_URL:
+      process.env.DATABASE_URL ?? 'postgres://canvas:canvas_dev_password@localhost:5433/canvas',
+    SESSION_SECRET:
+      process.env.SESSION_SECRET ?? 'change-me-to-a-random-string-of-at-least-32-characters',
   };
 
   // canvas-fbv: each local run used to leave hundreds of diagrams in the shared "Smoke Test"
@@ -58,7 +60,8 @@ export default function globalSetup(): void {
   if (!match) {
     throw new Error(
       'global-setup: the demo seed (canvas_api.jobs.seed_demo) did not print a "Project id: <uuid>" ' +
-        'line — cannot resolve E2E_PROJECT_ID. Output was:\n' + output,
+        'line — cannot resolve E2E_PROJECT_ID. Output was:\n' +
+        output,
     );
   }
   process.env.E2E_PROJECT_ID = match[1];

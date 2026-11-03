@@ -7,14 +7,14 @@ const OWNER_PASSWORD = 'admin-dev-password';
 const GRANTEE_EMAIL = 'architect@example.com';
 const GRANTEE_PASSWORD = 'architect-dev-password';
 
-test.skip(!PROJECT_ID, 'E2E_PROJECT_ID env var not set — run `npm run seed` and export it first');
+test.skip(!PROJECT_ID, 'E2E_PROJECT_ID env var not set — run the demo seed (python -m canvas_api.jobs.seed_demo) and export it first');
 
 /**
  * canvas-228.3. Covers the two new Projects-adjacent actions: renaming a project from the
  * Projects screen (owner-or-admin only, `ProjectsPage.tsx`) and moving a diagram to a different
  * project from the home-screen project browser (edit access on both the diagram and the
  * destination, `ProjectBrowser.tsx`). Backend contract coverage already exists
- * (`apps/api/tests/contract/project-management.test.ts`) — this only exercises the UI wiring.
+ * (`apps/api-py/tests/test_projects.py`, `test_diagrams.py`) — this only exercises the UI wiring.
  */
 
 async function signIn(page: Page, email: string, password: string, url = '/'): Promise<void> {
@@ -103,7 +103,9 @@ test.describe('project rename', () => {
     expect(projects.find((p) => p.id === projectId)?.name).toBe(originalName);
   });
 
-  test('blurring the input (clicking elsewhere) commits the edit, same as Enter', async ({ page }) => {
+  test('blurring the input (clicking elsewhere) commits the edit, same as Enter', async ({
+    page,
+  }) => {
     await signIn(page, OWNER_EMAIL, OWNER_PASSWORD);
     const originalName = `Rename Blur ${Date.now()}`;
     const projectId = await createProject(page, originalName);
@@ -129,7 +131,7 @@ test.describe('project rename', () => {
 
   test('the rename button is hidden for a non-owner with only edit access', async ({ page }) => {
     // architect@example.com has a permanent edit-level share grant on the seeded project but does
-    // not own it and is not an admin (apps/api/src/seed/run.ts) — exactly the case
+    // not own it and is not an admin (apps/api-py/src/canvas_api/jobs/seed_demo.py) — exactly the case
     // requireProjectOwnerOrAdmin rejects server-side, mirrored here client-side.
     await signIn(page, GRANTEE_EMAIL, GRANTEE_PASSWORD, `/?projectId=${PROJECT_ID}`);
     await page.getByTestId('nav-projects').click();
@@ -141,7 +143,7 @@ test.describe('project rename', () => {
 });
 
 test.describe('move diagram', () => {
-  test('the Move dialog lists every other accessible project but not the diagram\'s own current project, and disables Move until a destination is chosen', async ({
+  test("the Move dialog lists every other accessible project but not the diagram's own current project, and disables Move until a destination is chosen", async ({
     page,
   }) => {
     await signIn(page, OWNER_EMAIL, OWNER_PASSWORD);

@@ -3,7 +3,7 @@ import { openStandardsAdmin } from './standards-admin-helpers';
 import { ensureCustomDiagramType } from './diagram-type-helpers';
 import { PROJECT_ID } from './standards-v2-helpers';
 
-test.skip(!PROJECT_ID, 'E2E_PROJECT_ID env var not set — run `npm run seed` and export it first');
+test.skip(!PROJECT_ID, 'E2E_PROJECT_ID env var not set — run the demo seed (python -m canvas_api.jobs.seed_demo) and export it first');
 
 /**
  * canvas-syd: a C4 kind's role fixes which shapes it can be drawn as. The Shapes checkboxes only

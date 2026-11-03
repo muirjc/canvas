@@ -6,6 +6,8 @@ export default tseslint.config(
   {
     ignores: [
       '**/node_modules/**',
+      // The Python service's virtualenv (apps/api-py/.venv) ships third-party JavaScript.
+      '**/.venv/**',
       '**/dist/**',
       '**/build/**',
       '**/coverage/**',

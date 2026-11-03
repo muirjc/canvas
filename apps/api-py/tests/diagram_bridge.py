@@ -112,20 +112,6 @@ class DiagramBridge:
             body["only"] = only
         return self._post("embeds", body)
 
-    # canvas-1bty.12: the AI chat's diagram tools and prompt sections (packages/diagram-bridge/src/ai.ts).
-
-    def ai_tools(self, family: str, rules: JsonObject | None) -> list[JsonObject]:
-        """The tools offered for a family under a standard: [{name, description, inputSchema}]."""
-        return cast(list[JsonObject], self._post("ai-tools", {"family": family, "rules": rules})["tools"])
-
-    def ai_tool(self, family: str, rules: JsonObject | None, model: JsonObject, name: str, input: Any) -> JsonObject:
-        """Runs one tool call: {ok: true, model, output, outcomes} or {ok: false, error}."""
-        return self._post("ai-tool", {"family": family, "rules": rules, "model": model, "name": name, "input": input})
-
-    def ai_prompt(self, family: str, rules: JsonObject | None, model: JsonObject) -> JsonObject:
-        """{primer, standard, currentDiagram}: the diagram-specific system prompt sections."""
-        return self._post("ai-prompt", {"family": family, "rules": rules, "model": model})
-
     # canvas-1bty.14: the library admin (packages/diagram-bridge/src/handlers.ts).
 
     def svg_prepare(self, items: list[JsonObject]) -> list[JsonObject]:

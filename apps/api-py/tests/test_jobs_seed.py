@@ -24,7 +24,7 @@ from canvas_api.seed.reference_standards import BUILT_IN_STANDARDS, seed_referen
 from tests.job_helpers import JobDb, job_db_fixture  # noqa: F401 - fixture
 from tests.seed_helpers import compare_dumps, dump_tables
 
-CONTRACT_CONSTANTS = Path(__file__).resolve().parents[2] / "api" / "contract" / "constants.json"
+CONTRACT_CONSTANTS = Path(__file__).resolve().parents[1] / "contract" / "constants.json"
 
 
 @pytest.fixture()
@@ -44,11 +44,10 @@ def _rows(engine: Engine, sql: str, **params: Any) -> list[Any]:
 
 
 def test_the_seeded_type_ids_are_the_contracts_built_in_ids() -> None:
-    """canvas_api.catalog and constants.json (written by the TypeScript tests) list the same ids as the seed."""
+    """canvas_api.catalog and the contract's constants.json list the same ids as the seed."""
     ids = [t.id for t in DIAGRAM_TYPES]
     assert ids == list(BUILTIN_DIAGRAM_TYPE_IDS)
-    if CONTRACT_CONSTANTS.exists():
-        assert ids == json.loads(CONTRACT_CONSTANTS.read_text(encoding="utf-8"))["builtinDiagramTypeIds"]
+    assert ids == json.loads(CONTRACT_CONSTANTS.read_text(encoding="utf-8"))["builtinDiagramTypeIds"]
 
 
 def test_every_built_in_standard_is_for_a_built_in_type_and_passes_the_definition_check() -> None:

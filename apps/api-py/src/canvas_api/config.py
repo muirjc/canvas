@@ -1,4 +1,4 @@
-"""Settings, read from the same environment variables as the TypeScript service (apps/api/src/config.ts)."""
+"""Settings, read from the environment (same names as the TypeScript service used, apps/api/src/config.ts)."""
 
 from __future__ import annotations
 
@@ -31,7 +31,7 @@ class Settings(BaseSettings):
         default=None, alias="APPLICATIONINSIGHTS_CONNECTION_STRING"
     )
 
-    # Sessions are shared with the TypeScript service (canvas-1bty.2): same secret, cookie and limits.
+    # Same secret, cookie and limits as the TypeScript service had (canvas-1bty.2), so sessions carried over.
     session_secret: str = Field(alias="SESSION_SECRET", min_length=32)
     session_idle_minutes: float = Field(default=480, alias="SESSION_IDLE_MINUTES", gt=0)
     session_max_hours: float = Field(default=12, alias="SESSION_MAX_HOURS", gt=0)
@@ -81,52 +81,22 @@ class Settings(BaseSettings):
     #: The user-assigned managed identity's client id.
     azure_client_id: str | None = Field(default=None, alias="AZURE_CLIENT_ID")
 
-    # canvas-1bty.14: this service is the front door. It serves the built web app, answers the paused page
-    # while the environment is paused, and sends route groups named in TYPESCRIPT_ROUTE_GROUPS (the
-    # one-release fallback) to the internal TypeScript service.
+    # canvas-1bty.14: this service is the front door. It serves the built web app and answers the paused page
+    # while the environment is paused.
     web_dist_dir: str | None = Field(default=None, alias="WEB_DIST_DIR")
     paused_page_path: str | None = Field(default=None, alias="PAUSED_PAGE_PATH")
     paused_setting: str | None = Field(default=None, alias="CANVAS_PAUSED")
-    typescript_api_url_setting: str | None = Field(default=None, alias="TYPESCRIPT_API_URL")
-    typescript_route_groups_setting: str | None = Field(default=None, alias="TYPESCRIPT_ROUTE_GROUPS")
-    #: "true" only while another service in front of this one sets X-Canvas-Client-IP (the old layout, with
-    #: the TypeScript front door). A front door must never take the client's address from a header the
-    #: client itself can send.
-    trust_client_ip_header_setting: str | None = Field(default=None, alias="TRUST_CLIENT_IP_HEADER")
+    #: canvas-1bty.16: "true" serves FastAPI's OpenAPI page at /docs (JSON at /openapi.json). Off by default,
+    #: so a real deployment doesn't publish its API map.
+    enable_api_docs_setting: str | None = Field(default=None, alias="ENABLE_API_DOCS")
 
     @property
     def paused(self) -> bool:
         return self.paused_setting == "true"
 
     @property
-    def trust_client_ip_header(self) -> bool:
-        return self.trust_client_ip_header_setting == "true"
-
-    @property
-    def typescript_api_url(self) -> str | None:
-        url = (self.typescript_api_url_setting or "").strip().rstrip("/")
-        if not url:
-            return None
-        if urlsplit(url).scheme not in ("http", "https"):
-            raise ValueError(f"TYPESCRIPT_API_URL must be http:// or https:// (got: {url})")
-        return url
-
-    @property
-    def typescript_route_groups(self) -> list[str]:
-        """The route groups sent back to TypeScript: unset, empty or "none" = none."""
-        from canvas_api.front_door.route_groups import ROUTE_GROUPS
-
-        value = (self.typescript_route_groups_setting or "").strip()
-        if not value or value == "none":
-            return []
-        names = [n.strip() for n in value.split(",") if n.strip()]
-        for name in names:
-            if name not in ROUTE_GROUPS:
-                known = ", ".join(ROUTE_GROUPS)
-                raise ValueError(f'TYPESCRIPT_ROUTE_GROUPS: unknown group "{name}" (known: {known}, or none)')
-        if names and not self.typescript_api_url:
-            raise ValueError("TYPESCRIPT_ROUTE_GROUPS needs TYPESCRIPT_API_URL (the TypeScript service).")
-        return names
+    def enable_api_docs(self) -> bool:
+        return self.enable_api_docs_setting == "true"
 
     @property
     def auth_mode(self) -> Literal["entra", "local"]:

@@ -4,123 +4,138 @@ Operational reference for running, debugging, and maintaining Canvas locally. Fo
 walkthroughs, see `specs/*/quickstart.md`. For the "what is this project" overview, see
 [README.md](README.md).
 
-## Environment variables (`apps/api/.env`)
+## Environment variables (`apps/api-py/.env`)
 
-| Variable | Required | Notes |
-|---|---|---|
-| `PORT` | no (default `3000`) | API listen port |
-| `DB_CLIENT` | no (default `postgres`) | `postgres` or `sqlite` — selects the Kysely dialect (`apps/api/src/db/client.ts`). See "Database engine" below. |
-| `DATABASE_URL` | **yes**, unless `NODE_ENV=test` | For `DB_CLIENT=postgres` (default): `postgres://canvas:canvas_dev_password@localhost:5433/canvas`. For `DB_CLIENT=sqlite`: a file path (e.g. `./data/canvas.db`) or `:memory:`. Falls back automatically when `NODE_ENV=test` (to `.../canvas_test` for Postgres, or an in-memory SQLite database for `TEST_DB_CLIENT=sqlite`) — see `apps/api/src/config.ts`. |
-| `SESSION_SECRET` | **yes**, unless `NODE_ENV=test` | ≥32 characters. Falls back to a fixed test string when `NODE_ENV=test`. |
-| `MFA_REQUIRED` / `MFA_ENCRYPTION_KEY` | no | Two-step verification for Canvas-password accounts — see "Local accounts" below. |
-| `LOGIN_RATE_LIMIT` | no | Password sign-in attempts per client IP per minute (default 20 in local mode, off otherwise). |
-| `AUTH_MODE` | no (default `entra`) | `entra` or `local`. `local` serves only Canvas-managed email/password sign-in: local sign-in is forced on and the Entra routes are never registered, even if `OIDC_*` is set. See "Local accounts" below. |
-| `ALLOW_LOCAL_AUTH` | no (default `false`) | Set `true` for local dev/demo — enables email/password login without OIDC. |
-| `OIDC_ISSUER_URL` / `OIDC_CLIENT_ID` / `OIDC_CLIENT_SECRET` / `OIDC_REDIRECT_URI` | no | Leave blank locally; SSO routes are disabled when unset (logged at startup). See "Entra ID SSO" below to actually try it locally. |
-| `WEB_ORIGINS` | no (default `http://localhost:5173`) | Comma-separated list of origins allowed to make credentialed CORS requests. |
-| `COOKIE_SECURE` | no (default `false`) | Set `true` for a split-origin deployment (frontend and API on different hosts, e.g. Azure — see `docs/azure-deployment.md` for a quick demo, or `infra/azure/README.md` for a proper IaC deployment). Forced `true` automatically whenever `COOKIE_SAME_SITE=none`. |
-| `COOKIE_SAME_SITE` | no (default `lax`) | `lax`/`none`/`strict`. Leave at the default for local dev and any same-origin deployment. `none` is required for a split-origin deployment — `lax` cookies are never attached to cross-site fetch/XHR calls. |
-| `SESSION_IDLE_MINUTES` | no (default `480`) | A session unused for this long expires; the cookie's expiry is refreshed on every request. Sessions are stored in the database (`sessions` table), so they survive restarts. |
-| `SESSION_MAX_HOURS` | no (default `12`) | A signed-in session ends this long after sign-in, however active. |
-| `ENABLE_API_DOCS` | no (default `false`) | Set `true` to serve an OpenAPI/Swagger UI at `/docs`. Opt-in — left `false` by default so a real deployment doesn't expose its full route surface just because the capability exists. See "API documentation" below. |
+The API reads only the process environment. Locally, keep settings in `apps/api-py/.env`
+(gitignored; start from `apps/api-py/.env.example`) and pass it with `uv run --env-file .env ...`.
+Every setting and its default is in `apps/api-py/src/canvas_api/config.py`.
 
-The API refuses to start without `DATABASE_URL`/`SESSION_SECRET` in non-test mode — this is
-intentional fail-fast behavior, not a bug.
+| Variable                                                                                | Required                             | Notes                                                                                                                                                                                                     |
+| --------------------------------------------------------------------------------------- | ------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `DB_CLIENT`                                                                             | no (default `postgres`)              | `postgres` or `sqlite`. See "Database engine" below.                                                                                                                                                      |
+| `DATABASE_URL`                                                                          | **yes**                              | Postgres: `postgres://canvas:canvas_dev_password@localhost:5433/canvas`. SQLite: a file path (e.g. `./data/canvas.db`, relative to where you run the command) or `:memory:`.                              |
+| `SESSION_SECRET`                                                                        | **yes**                              | ≥32 characters.                                                                                                                                                                                           |
+| `SESSION_IDLE_MINUTES`                                                                  | no (default `480`)                   | A session unused for this long expires; the cookie's expiry is refreshed on every request. Sessions are stored in the database (`sessions` table), so they survive restarts.                              |
+| `SESSION_MAX_HOURS`                                                                     | no (default `12`)                    | A signed-in session ends this long after sign-in, however active.                                                                                                                                         |
+| `AUTH_MODE`                                                                             | no (default `entra`)                 | `entra` or `local`. `local` serves only Canvas-managed email/password sign-in: local sign-in is forced on and the Entra routes are never registered, even if `OIDC_*` is set. See "Local accounts" below. |
+| `ALLOW_LOCAL_AUTH`                                                                      | no (default `false`)                 | Set `true` for local dev/demo — enables email/password login without OIDC.                                                                                                                                |
+| `MFA_REQUIRED` / `MFA_ENCRYPTION_KEY`                                                   | no                                   | Two-step verification for Canvas-password accounts — see "Local accounts" below.                                                                                                                          |
+| `LOGIN_RATE_LIMIT`                                                                      | no                                   | Password sign-in attempts per client IP per minute (default 20 in local mode, off otherwise).                                                                                                             |
+| `OIDC_ISSUER_URL` / `OIDC_CLIENT_ID` / `OIDC_CLIENT_SECRET` / `OIDC_REDIRECT_URI`       | no                                   | Leave blank locally; SSO is off unless the issuer, client id and redirect URI are all set. See "Entra ID SSO" below.                                                                                      |
+| `OIDC_CLIENT_AUTH` / `AZURE_CLIENT_ID`                                                  | no                                   | `managed-identity` signs in to Entra with the managed identity (`AZURE_CLIENT_ID`) instead of a client secret. See "No client secret" below.                                                              |
+| `WEB_ORIGINS`                                                                           | no (default `http://localhost:5173`) | Comma-separated list of origins allowed to make credentialed CORS requests.                                                                                                                               |
+| `COOKIE_SECURE`                                                                         | no (default `false`)                 | Forced `true` whenever `COOKIE_SAME_SITE=none`.                                                                                                                                                           |
+| `COOKIE_SAME_SITE`                                                                      | no (default `lax`)                   | `lax`/`none`/`strict`. Leave at the default for local dev and any same-origin deployment (Azure serves the web app and the API from one address). `none` is only for a split-origin deployment.           |
+| `AI_PROVIDER` / `AI_MODEL` / `ANTHROPIC_API_KEY` / `OPENAI_API_KEY`                     | no                                   | `anthropic`, `openai` or `mock` (rule-based, no key; what the e2e suite uses). Unset = AI off.                                                                                                            |
+| `GITHUB_APP_ID` / `GITHUB_APP_PRIVATE_KEY` / `GITHUB_APP_API_URL` / `CANVAS_PUBLIC_URL` | no                                   | GitHub approval; off unless both the id and key are set. See "GitHub approval" below.                                                                                                                     |
+| `CANVAS_VALIDATOR_DIR`                                                                  | no                                   | Where the CI validator bundle is (default: `packages/validator-cli/dist` in the repository).                                                                                                              |
+| `APPLICATIONINSIGHTS_CONNECTION_STRING`                                                 | no                                   | Telemetry; off unless set. See "Performance telemetry" below.                                                                                                                                             |
+| `WEB_DIST_DIR` / `PAUSED_PAGE_PATH` / `CANVAS_PAUSED`                                   | no                                   | Serve the built web app, and the paused page while `CANVAS_PAUSED=true`. Set in the image; unused locally (Vite serves the web app).                                                                      |
+| `NODE_ENV`                                                                              | no                                   | `production` makes `MFA_ENCRYPTION_KEY` required in local auth mode, and makes the `e2e_reset` job refuse to run.                                                                                         |
+| `ENABLE_API_DOCS`                                                                       | no (default `false`)                 | `true` serves FastAPI's Swagger UI at `/docs` and the OpenAPI JSON at `/openapi.json`. See "API documentation" below.                                                                                     |
+
+The port is uvicorn's `--port`, not a setting. The API refuses to start without
+`DATABASE_URL`/`SESSION_SECRET`, or with an invalid sign-in, GitHub or MFA setting; this is
+intentional fail-fast behaviour.
 
 ## Database engine
 
 Canvas supports two database engines, selected by `DB_CLIENT`:
 
-| | PostgreSQL (`DB_CLIENT=postgres`, the default) | SQLite (`DB_CLIENT=sqlite`) |
-|---|---|---|
-| Setup | `docker compose up -d` (or any reachable Postgres 16 server) | None — `better-sqlite3` is bundled; `DATABASE_URL` just needs to be a file path (or `:memory:`) |
-| Migrations | `apps/api/migrations/*.sql` (13 incremental files) | `apps/api/migrations/sqlite/0001_init.sql` (one file, the schema's final shape directly — SQLite can't parse several constructs the incremental Postgres migrations use) |
-| Recommended for | Any deployment with concurrent writers, including the Azure reference deployment | Local dev, evaluation, and small/single-team self-hosted use **only** |
+|                 | PostgreSQL (`DB_CLIENT=postgres`, the default)                                   | SQLite (`DB_CLIENT=sqlite`)                                                                |
+| --------------- | -------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------ |
+| Setup           | `docker compose up -d` (or any reachable Postgres 16 server)                     | None: Python's built-in `sqlite3`; `DATABASE_URL` is a file path (or `:memory:`)           |
+| Migrations      | `apps/api-py/migrations/*.sql` (incremental files)                               | `apps/api-py/migrations/sqlite/*.sql` (a squashed `0001_init.sql`, then incremental files) |
+| Recommended for | Any deployment with concurrent writers, including the Azure reference deployment | Local dev, evaluation, and small/single-team self-hosted use **only**                      |
 
 **Why SQLite isn't recommended for larger concurrent deployments**: SQLite serializes writers —
-only one write transaction can be in flight at a time (`SQLITE_BUSY` under contention without WAL
-tuning, which this project does not attempt to add). This is a real, disclosed limitation, not an
+only one write transaction can be in flight at a time. This is a real, disclosed limitation, not an
 oversight — see `docs/solution-architecture-document.md` §12 for the full trade-off and
-`.specify/memory/constitution.md` Principle VI for why Kysely (a typed SQL compiler, not an ORM)
-was judged compatible with keeping both engines supported from one codebase.
+`.specify/memory/constitution.md` Principle VI for why a query builder (SQLAlchemy Core, not an
+ORM) keeps both engines supported from one codebase.
 
 A few other disclosed, by-design differences between the two engines:
+
 - SQLite's `LIKE`-based search is ASCII-only case-insensitive (Postgres's `ILIKE` does full
   Unicode case-folding).
 - The Playwright E2E suite runs against Postgres only; the SQLite dialect's CI coverage is the
   `unit-tests` job's matrix (see "CI" below).
 
-Running against SQLite with no Postgres/Docker at all (`better-sqlite3` won't create a missing
-parent directory on its own, so create `data/` first if `DATABASE_URL` points inside it):
+**Migrations** apply in file-name order, each in its own transaction, recorded in
+`schema_migrations`. `python -m canvas_api.jobs.migrate` applies the pending ones; the seed,
+purge, bootstrap-admin and e2e-reset jobs apply them first too. A new migration is a new `.sql`
+file in both folders.
+
+Running against SQLite with no Postgres/Docker at all (SQLite won't create a missing parent
+directory, so create `data/` first):
 
 ```bash
+cd apps/api-py
 mkdir -p data
-# apps/api/.env
-DB_CLIENT=sqlite
-DATABASE_URL=./data/canvas.db   # or :memory: for a throwaway database
-SESSION_SECRET=...
-ALLOW_LOCAL_AUTH=true
-
-npm run migrate --workspace=@canvas/api
-npm run seed --workspace=@canvas/api
-npm run dev --workspace=@canvas/api
+# in .env:
+#   DB_CLIENT=sqlite
+#   DATABASE_URL=./data/canvas.db   # or :memory: for a throwaway database (lost when the process exits)
+uv run --env-file .env python -m canvas_api.jobs.seed_demo
+uv run --env-file .env uvicorn canvas_api.main:app --port 3000 --reload
 ```
-
-Every `apps/api` script above (`dev`/`migrate`/`seed`/`seed:catalog`/`purge`) loads
-`apps/api/.env` itself via Node's native `--env-file-if-exists` flag — populating that file is
-enough, no shell export step needed on any platform.
 
 ### Running on Windows without Docker
 
-Enterprise laptops that don't support Docker (or WSL2) can still run Canvas — SQLite mode above
-needs neither. The same steps, PowerShell-flavored:
+SQLite mode needs neither Docker nor WSL2. The same steps in PowerShell (install
+[uv](https://docs.astral.sh/uv/) first; it fetches Python 3.13 itself):
 
 ```powershell
 git clone <repo> ; cd canvas
-npm install                                              # see note below
-npm run build --workspace=@canvas/diagram-core           # must precede api/web build or run
-Copy-Item apps/api/.env.example apps/api/.env
-# edit apps/api/.env: DB_CLIENT=sqlite, DATABASE_URL=./data/canvas.db, ALLOW_LOCAL_AUTH=true,
+npm install
+npm run build --workspace=@canvas/diagram-core           # before running or building the web app
+cd apps/api-py
+uv sync
+Copy-Item .env.example .env
+# edit .env: DB_CLIENT=sqlite, DATABASE_URL=./data/canvas.db, ALLOW_LOCAL_AUTH=true,
 # SESSION_SECRET=<any 32+ character string>
 New-Item -ItemType Directory -Force data
-npm run migrate --workspace=@canvas/api
-npm run seed --workspace=@canvas/api                     # prints admin login + a demo project id
-npm run dev --workspace=@canvas/api                      # separate terminal
-npm run dev --workspace=@canvas/web                      # separate terminal
+uv run --env-file .env python -m canvas_api.jobs.seed_demo     # prints admin login + a demo project id
+uv run --env-file .env uvicorn canvas_api.main:app --port 3000 # separate terminal
+cd ../.. ; npm run dev --workspace=@canvas/web                  # separate terminal
 ```
 
 Sign in at `http://localhost:5173/?projectId=<seed-printed-id>` with `admin@example.com` /
-`admin-dev-password` and create a diagram to confirm everything actually works end to end.
-
-**The one real unknown on Windows: `npm install`'s handling of `better-sqlite3`.** Watch its
-output closely the first time:
-- No `gyp info`/`node-gyp rebuild` chatter for `better-sqlite3` → its bundled `prebuilds/win32-*`
-  binary loaded cleanly, no compiler needed. Proceed as normal.
-- If `node-gyp rebuild` runs and fails (missing Visual Studio Build Tools / Python) — this
-  project's own `infra/azure/Dockerfile` independently hit exactly this on a clean Linux
-  container build (see its header comment) — try `npm install --ignore-scripts` next: it skips
-  npm's implicit native-rebuild attempt, and the actual `.node` file `better-sqlite3` needs is
-  already bundled in the published package regardless of whether that rebuild step runs. Re-check
-  with `node -e "require('better-sqlite3')"`.
-- If that still fails, the remaining fallback (installing the VS Build Tools C++ workload +
-  Python) likely needs admin rights not available on a locked-down machine — don't assume it's
-  installable; this is the point to escalate rather than keep guessing.
+`admin-dev-password` and create a diagram to confirm everything works end to end.
 
 ## Starting everything from a cold clone
 
 ```bash
 docker compose up -d                                   # Postgres on host port 5433
 npm install
-npm run build --workspace=@canvas/diagram-core          # must happen before api/web build or run
-cp apps/api/.env.example apps/api/.env                  # then set ALLOW_LOCAL_AUTH=true
-npm run migrate --workspace=@canvas/api
-npm run seed --workspace=@canvas/api                    # prints admin login + a demo project id
-npm run dev --workspace=@canvas/api                     # foreground; Ctrl-C to stop
-npm run dev --workspace=@canvas/web                     # separate terminal; foreground
+npm run build --workspace=@canvas/diagram-core          # before running or building the web app
+cd apps/api-py
+uv sync
+cp .env.example .env                                    # local defaults, ALLOW_LOCAL_AUTH=true
+uv run --env-file .env python -m canvas_api.jobs.seed_demo   # migrates; prints logins + a demo project id
+uv run --env-file .env uvicorn canvas_api.main:app --port 3000 --reload   # foreground; Ctrl-C to stop
+npm run dev --workspace=@canvas/web                     # separate terminal, repository root
 ```
 
 Sign in at `http://localhost:5173/?projectId=<seed-printed-id>` with `admin@example.com` /
-`admin-dev-password` (or `architect@example.com` / `architect-dev-password`).
+`admin-dev-password` (or `architect@example.com` / `architect-dev-password`). The web app calls
+the API at `http://localhost:3000` (`VITE_API_BASE_URL` overrides it; `apps/web/src/config.ts`).
+
+### Jobs
+
+Each job is a Python module, run from `apps/api-py` with the same settings as the API
+(`uv run --env-file .env python -m canvas_api.jobs.<name>`). In Azure each runs as a Container Apps
+job from the same image.
+
+| Job               | What it does                                                                                                                                         |
+| ----------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `migrate`         | Applies pending migrations.                                                                                                                          |
+| `seed_catalog`    | Migrates, then seeds diagram types, starter standards, icon libraries and AI personas. Idempotent. Optional `AWS_ICONS_MANIFEST`.                    |
+| `seed_demo`       | `seed_catalog`, then three demo accounts with published passwords and the "Smoke Test" project; prints `Project id: ...`. Refuses `AUTH_MODE=local`. |
+| `bootstrap_admin` | The first admin of a local-mode environment (`BOOTSTRAP_ADMIN_EMAIL`, `BOOTSTRAP_ADMIN_PASSWORD`, `BOOTSTRAP_MODE=create                             | reset`). Never prints the password. |
+| `purge`           | Deletes diagrams and projects past their retention window and abandoned AI drafts. `--dry-run` lists them only.                                      |
+| `e2e_reset`       | Empties the e2e "Smoke Test" project and removes `e2e-user-*` accounts. Refuses `NODE_ENV=production`.                                               |
+
+The GitHub status sync is `python -m canvas_api.github.sync_run` (see "GitHub approval").
 
 ## Real AWS icons (optional)
 
@@ -134,14 +149,12 @@ use the same `aws-icons@2024.1` version and icon ids.
 
 ## API documentation
 
-Set `ENABLE_API_DOCS=true` in `apps/api/.env` and restart the API dev server to serve an
-interactive OpenAPI/Swagger UI at `http://localhost:3000/docs` (raw spec at `/docs/json`). Lists
-every registered route (47 as of this writing); request/response body schemas are not yet
-annotated for most routes (tracked as `canvas-lfc`) — for the authoritative shape of any given
-endpoint not yet schema-annotated, see its `apps/api/src/**/*.routes.ts` source or matching
-`apps/api/tests/contract/*.test.ts`. Left `false` by default (same opt-in posture as
-`ALLOW_LOCAL_AUTH`) so a real deployment doesn't expose its full route surface unintentionally —
-deliberately turn it on for that environment if you want it there too.
+Set `ENABLE_API_DOCS=true` in `apps/api-py/.env` and restart the API to serve FastAPI's Swagger UI at
+`http://localhost:3000/docs` and the OpenAPI JSON at `/openapi.json` (no longer `/docs/json`). The
+reviewed request/response shapes are the frozen contract, `apps/api-py/contract/openapi.json` (with
+`constants.json`); edit it by hand together with the route it describes. The Python tests check
+every response they get against it (`apps/api-py/tests/api.py`). Off by default so a real
+deployment doesn't publish its API map.
 
 ## Azure IP allow-list (canvas-cng)
 
@@ -173,13 +186,13 @@ Background and the threat model: `docs/ip-allowlist-security-plan.md` (option B)
 
 ### Choosing a mode
 
-| | `entra` (default) | `local` |
-|---|---|---|
-| Who keeps the accounts | Your Entra tenant (app roles admin/architect/viewer) | Canvas (Admin → Users) |
-| Sign-in | Entra, with its own MFA/Conditional Access | Email + password, then an authenticator code |
-| Needs | An app registration (`ENTRA_CLIENT_ID`/`SECRET`) | Nothing external; the IP allow-list is **mandatory** |
-| First admin | Whoever has the admin app role | Created by `deploy.sh` from `CANVAS_ADMIN_EMAIL` |
-| Use it when | You have an Entra tenant | You don't, or want Canvas self-contained |
+|                        | `entra` (default)                                    | `local`                                              |
+| ---------------------- | ---------------------------------------------------- | ---------------------------------------------------- |
+| Who keeps the accounts | Your Entra tenant (app roles admin/architect/viewer) | Canvas (Admin → Users)                               |
+| Sign-in                | Entra, with its own MFA/Conditional Access           | Email + password, then an authenticator code         |
+| Needs                  | An app registration (`ENTRA_CLIENT_ID`/`SECRET`)     | Nothing external; the IP allow-list is **mandatory** |
+| First admin            | Whoever has the admin app role                       | Created by `deploy.sh` from `CANVAS_ADMIN_EMAIL`     |
+| Use it when            | You have an Entra tenant                             | You don't, or want Canvas self-contained             |
 
 Local mode is defence in depth: only allow-listed networks reach the site, and every person needs a
 password **and** their phone. The mode is cached in `infra/azure/.secrets/auth-mode`, so a routine
@@ -236,7 +249,8 @@ machine on the allow-list, with the environment resumed, run `infra/azure/reset-
 `infra/azure/.secrets/bootstrap-admin-password` (never printed) and makes the account an active,
 unlocked admin with two-step verification reset, signed out everywhere. Then sign in and set up
 again (step 4 above). Locally (dev): `BOOTSTRAP_MODE=reset BOOTSTRAP_ADMIN_EMAIL=...
-BOOTSTRAP_ADMIN_PASSWORD=... npm run bootstrap-admin --workspace=@canvas/api`.
+BOOTSTRAP_ADMIN_PASSWORD=... uv run --env-file .env python -m canvas_api.jobs.bootstrap_admin`
+in `apps/api-py`.
 
 ### Rotating the MFA key
 
@@ -244,6 +258,7 @@ BOOTSTRAP_ADMIN_PASSWORD=... npm run bootstrap-admin --workspace=@canvas/api`.
 encrypts every stored authenticator secret, and there's no re-encryption tool: **replacing it makes
 every enrolled authenticator unreadable** (sign-in fails at the code step for everyone). Don't
 rotate it routinely. If it has leaked — the attacker would also need the database to use it:
+
 1. Generate a new one: `openssl rand -base64 32 | tr -d '\n' > infra/azure/.secrets/mfa-encryption-key`.
 2. `./deploy.sh --yes` (it writes Key Vault and restarts the API with the new value).
 3. Run `./reset-admin.sh` for yourself, sign in and set up MFA again.
@@ -259,20 +274,19 @@ job resource in place — harmless; `az containerapp job delete --name canvas-bo
 
 ### Reference
 
-| Setting | Default | |
-|---|---|---|
-| `AUTH_MODE` | `entra` | `local` = Canvas accounts only; forces local sign-in on and ignores `OIDC_*`. |
-| `MFA_REQUIRED` | on in local mode | Off elsewhere; dev accounts can opt in from the account screen. |
-| `MFA_ENCRYPTION_KEY` | derived from `SESSION_SECRET` (dev) | Base64, 32 bytes; required in production local mode. |
-| `LOGIN_RATE_LIMIT` | 20 in local mode, else off | Password sign-ins per client IP per minute; keyed on the last `X-Forwarded-For` entry (unspoofable behind Azure's ingress); in memory (single replica). |
+| Setting              | Default                             |                                                                                                                                                         |
+| -------------------- | ----------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `AUTH_MODE`          | `entra`                             | `local` = Canvas accounts only; forces local sign-in on and ignores `OIDC_*`.                                                                           |
+| `MFA_REQUIRED`       | on in local mode                    | Off elsewhere; dev accounts can opt in from the account screen.                                                                                         |
+| `MFA_ENCRYPTION_KEY` | derived from `SESSION_SECRET` (dev) | Base64, 32 bytes; required in production local mode.                                                                                                    |
+| `LOGIN_RATE_LIMIT`   | 20 in local mode, else off          | Password sign-ins per client IP per minute; keyed on the last `X-Forwarded-For` entry (unspoofable behind Azure's ingress); in memory (single replica). |
 
 ## Entra ID SSO (canvas-haz)
 
 Unlike the self-hosted Keycloak this replaced, there's no local-container IdP to `docker compose
 up` — Entra ID is always a real, cloud-hosted tenant. Local SSO testing needs a real (free) Entra
 dev tenant and its own app registration; `ALLOW_LOCAL_AUTH=true` remains the primary, fully
-self-contained local dev login path (see `.env.example`), and nothing about it changed in this
-migration.
+self-contained local dev login path (see `apps/api-py/.env.example`).
 
 **One-time tenant setup** (a Global Administrator / Application Administrator does this in the
 Entra admin center — this is a tenant-side task, not app code, and only needs doing once per
@@ -280,7 +294,7 @@ tenant):
 
 1. Create a single-tenant **app registration** (e.g. `canvas-dev` for local work, a separate
    `canvas-azure` registration for the actual Azure deployment — kept separate because
-   `az ad app update --web-redirect-uris` *replaces* the whole redirect-URI list, so one shared
+   `az ad app update --web-redirect-uris` _replaces_ the whole redirect-URI list, so one shared
    registration would have its localhost entries overwritten by every Azure redeploy).
 2. Authentication → add a **"Web"** platform (not SPA — canvas is a confidential BFF client; the
    browser never sees an access/ID token, only a session cookie). Redirect URI:
@@ -289,12 +303,12 @@ tenant):
    expiry — Entra client secrets expire (6–24 months is typical); put the renewal date on a
    calendar, since an expired secret fails every login with no advance warning.
 4. App roles → create exactly three, **Value** set to the literal strings `admin`, `architect`,
-   `viewer` (must match `UserRole` in `apps/api/src/auth/types.ts` exactly — this is what lets
-   `apps/api/src/auth/oidc.ts`'s `mapIdpRolesToUserRole` work with no mapping table at all).
+   `viewer` (must match `Role` in `apps/api-py/src/canvas_api/auth/roles.py` exactly — this is
+   what lets `canvas_api/auth/oidc.py`'s `map_idp_roles_to_user_role` work with no mapping table).
    Allowed member type: Users/Groups.
 5. Token configuration → add the optional claim **`email`** to the ID token (without it, work/
    school accounts without a `mail` attribute set often have no usable email claim at all —
-   `extractIdentityFromIdToken` falls back to `preferred_username` only when it looks like an
+   `extract_identity` falls back to `preferred_username` only when it looks like an
    email, and ultimately to a non-matching `${sub}@unknown.local` placeholder if neither is
    present).
 6. Enterprise application → Properties → **"Assignment required" = Yes**. This is what makes
@@ -309,22 +323,21 @@ tenant):
 **Local `.env`** once the app registration exists:
 
 ```bash
-# apps/api/.env — see .env.example's own comment on these four
+# apps/api-py/.env — see .env.example's own comment on these four
 OIDC_ISSUER_URL=https://login.microsoftonline.com/<tenant-id>/v2.0
 OIDC_CLIENT_ID=<canvas-dev app registration's Application (client) ID>
 OIDC_CLIENT_SECRET=<the client secret value from step 3>
 OIDC_REDIRECT_URI=http://localhost:3000/auth/callback
 ```
 
-The `/v2.0` suffix is **required** — `apps/api/src/config.ts`'s `validateOidcIssuerUrl()` rejects
+The `/v2.0` suffix is **required** — `canvas_api/config.py`'s `validate_oidc_issuer_url()` rejects
 a bare tenant path or the v1 endpoint (`https://sts.windows.net/<tenant-id>/`) at startup with a
 clear error, since the v1 token shape has no flat top-level `roles` claim. The multi-tenant
 aliases (`/common`, `/organizations`, `/consumers`) are rejected the same way — this app always
-authenticates against one specific tenant. Restart `npm run dev --workspace=@canvas/api` to pick
-up the new env vars (OIDC discovery runs once at startup, not per-request) — `LoginForm.tsx` now
-shows a "Sign in with SSO" link.
+authenticates against one specific tenant. Restart the API to pick up the new settings (OIDC
+discovery runs once, at the first sign-in) — `LoginForm.tsx` then shows a "Sign in with SSO" link.
 
-Role mapping (`apps/api/src/auth/oidc.ts`'s `extractEntraRoles`/`mapIdpRolesToUserRole`) reads the
+Role mapping (`canvas_api/auth/oidc.py`'s `extract_entra_roles`/`map_idp_roles_to_user_role`) reads the
 flat top-level `roles` claim on the ID token and re-syncs it on every login — Entra is the source
 of truth once a user signs in via SSO, so a role change there (or in the app's role assignments)
 takes effect on that user's very next login, not just at some later manual re-provisioning step.
@@ -335,22 +348,17 @@ is case-sensitive). A user with none of `admin`/`architect`/`viewer` in `roles` 
 `viewer` (least privilege) — in practice this rarely fires, since "Assignment required = Yes"
 above already prevents an unassigned user from getting a token at all.
 
-**Testing posture — unit/contract only, no live-tenant E2E**: the previous Keycloak-era
-`apps/web/tests/e2e/sso-login.spec.ts` (a live-browser spec driving a real self-hosted IdP's login
-theme) is gone; it had no Entra equivalent worth building (standing up a disposable cloud tenant
-per CI run is a different order of complexity than `docker compose up`, and MFA now lives entirely
-in tenant Conditional Access policy, outside any test's reach regardless). In its place,
-`apps/api/tests/contract/oidc-callback.test.ts` drives the real `/auth/login` → `/auth/callback`
-flow through the genuinely-not-mocked `openid-client`/`oauth4webapi` libraries, with `fetch`
-stubbed to serve a locally-generated RS256 keypair's discovery document, JWKS, and signed test ID
-tokens (via `jose`, a test-only devDependency) — this is what actually proves ID-token signature
-verification (`client.enableNonRepudiationChecks`), `iss`/`aud`/`exp`/nonce/state validation, and
-role mapping all work, without needing a live tenant. There is no local-equivalent live SSO test
-to run by hand; the **only** real-tenant verification is the manual post-deploy checklist below,
-run once against the actual deployed Azure environment.
+**Testing posture — unit/contract only, no live-tenant E2E**: there is no browser test against a
+real tenant (standing up a disposable cloud tenant per CI run is out of proportion, and MFA lives in
+tenant Conditional Access policy, outside any test's reach). Instead,
+`apps/api-py/tests/test_auth_oidc.py` drives the real `/auth/login` → `/auth/callback` flow against
+a fake identity provider answered in-process (a locally generated RS256 keypair's discovery
+document, JWKS and signed ID tokens). It proves ID-token signature verification, `iss`/`aud`/`exp`/
+nonce/state validation and role mapping without a live tenant. The **only** real-tenant
+verification is the manual post-deploy checklist below.
 
 `ALLOW_LOCAL_AUTH=true` still works alongside SSO — both entry points render whenever both are
-configured; this is a genuine platform-wide, not-yet-revisited decision for a *deployed*
+configured; this is a genuine platform-wide, not-yet-revisited decision for a _deployed_
 environment (see `infra/azure/modules/apiapp.bicep`'s own `allowLocalAuth` param comment — it
 defaults `false` there specifically because Entra SSO is the intended only way in for that
 deployment, kept as a param purely as an emergency break-glass switch).
@@ -381,14 +389,14 @@ through a **federated credential** on the app registration.
 How it works: on each sign-in callback the API fetches the identity's token from the Container Apps
 identity endpoint (cached until shortly before it expires) and sends it as the
 `client_assertion` (`jwt-bearer`) in the token request -- no `client_secret`. Covered by
-`tests/contract/oidc-callback.test.ts`; not yet verified live (Azure runs `AUTH_MODE=local` today).
+`apps/api-py/tests/test_auth_oidc.py`; not yet verified live (Azure runs `AUTH_MODE=local` today).
 Back to a secret: `CANVAS_OIDC_CLIENT_AUTH=secret ENTRA_CLIENT_SECRET=... ./deploy.sh`.
 
 ### Manual post-deploy live verification (Entra, Phase 7 of canvas-haz)
 
 Nothing above is a substitute for actually trying this against the real deployed Azure
-environment once — the contract test proves the *code's* validation logic; it can't prove the
-*tenant's* app registration, role assignments, or redirect-URI list are configured correctly. Work
+environment once — the contract test proves the _code's_ validation logic; it can't prove the
+_tenant's_ app registration, role assignments, or redirect-URI list are configured correctly. Work
 through this checklist once per environment stand-up (and again any time the `canvas-azure` app
 registration's redirect URIs or client secret change):
 
@@ -417,44 +425,43 @@ registration's redirect URIs or client secret change):
 ### Running servers detached, for scripted/agent workflows
 
 ```bash
-nohup npm run dev --workspace=@canvas/api > /tmp/api-dev.log 2>&1 &
+cd apps/api-py
+nohup uv run --env-file .env uvicorn canvas_api.main:app --port 3000 > /tmp/api-dev.log 2>&1 &
 disown
+cd ../..
 nohup npm run dev --workspace=@canvas/web > /tmp/web-dev.log 2>&1 &
 disown
 curl -s http://localhost:3000/health   # {"status":"ok"} once ready
 ```
 
-Env vars don't survive across separate shell invocations unless exported in the same command or
-placed in `apps/api/.env` — if the API fails immediately with `Missing required environment
-variable`, that's why.
+The API reads only its environment: if it fails at start-up with a validation error naming
+`DATABASE_URL` or `SESSION_SECRET`, the `--env-file` was missing or not found from the current
+directory.
 
 ## GitHub approval (canvas-3s5)
 
 Setup for admins is in `docs/admin-guide/github.md`; the design is in `docs/github-approval-design.md`.
 
 - **Local:** set `GITHUB_APP_ID` and `GITHUB_APP_PRIVATE_KEY` (the PEM, or base64 of it) in
-  `apps/api/.env`. Use a test App installed on a sandbox repository only. Without them the feature is
+  `apps/api-py/.env`. Use a test App installed on a sandbox repository only. Without them the feature is
   off and hidden.
 - **Azure:** `CANVAS_GITHUB_APP_ID=<id> CANVAS_GITHUB_APP_PRIVATE_KEY_FILE=<pem> ./deploy.sh` once;
   both are cached in `infra/azure/.secrets/`. The key goes to Key Vault as `github-app-private-key`.
 - **Rotating the key:** generate a new private key in the App's settings, re-run deploy.sh with
   `CANVAS_GITHUB_APP_PRIVATE_KEY_FILE` pointing at it (the secret-refresh step restarts canvas-api
-  and canvas-api-ts and updates the sync job), then delete the old key in GitHub.
+  and updates the sync job), then delete the old key in GitHub.
 - **Status sync:** the `canvas-github-sync` job runs `python -m canvas_api.github.sync_run` in the
   canvas-api-py image every 15 minutes (only deployed when an App id is set). Run it now with
   `az containerapp job start --name canvas-github-sync --resource-group canvas-rg`; locally,
-  `uv run python -m canvas_api.github.sync_run` in `apps/api-py` (the TypeScript
-  `npm run github-sync --workspace=@canvas/api` still works until `apps/api` is retired). pause.sh
-  moves its schedule to once a year and resume.sh restores it.
-- **Which service:** since canvas-1bty.11 the GitHub routes answer from the Python service (route
-  group `github`), which needs the same `GITHUB_APP_ID`/`GITHUB_APP_PRIVATE_KEY`/`GITHUB_APP_API_URL`
-  and `CANVAS_PUBLIC_URL` as canvas-api (deploy.sh and the bicep set both). Its image carries the CI
-  validator bundle (`CANVAS_VALIDATOR_DIR`).
+  `uv run --env-file .env python -m canvas_api.github.sync_run` in `apps/api-py`. pause.sh
+  moves its schedule to once a year and resume.sh restores it. The image carries the CI validator
+  bundle (`CANVAS_VALIDATOR_DIR`).
 - **Troubleshooting:** a submission's `last_sync_error` and a link's `last_check_error`
   (`diagram_submissions`, `github_links`) hold GitHub's last error; "Needs attention" on the admin
   page means the App lost access (uninstalled, or the repository removed from the installation).
   Use the admin page's **Test** to see which permission or resource is missing.
-- **Tests** run against `apps/api/tests/helpers/fake-github.ts`; no real GitHub is contacted.
+- **Tests** run against an in-process fake GitHub (`apps/api-py/tests/fake_github.py`); the e2e
+  suite runs it as its own process (`tests/fake_github_server.py`). No real GitHub is contacted.
 - **Rate limits** (canvas-3s5.4): reads send If-None-Match with the last ETag (a 304 doesn't count
   against GitHub's limit). After a rate-limit answer (429, or 403 with no requests remaining or the
   secondary-limit message) the client sends nothing until GitHub's `retry-after` /
@@ -468,7 +475,7 @@ Setup for admins is in `docs/admin-guide/github.md`; the design is in `docs/gith
      `Co-authored-by: <name> <email>`, with README / SVG / `.mmd` / `.canvas.mmd` / `canvas.json` /
      `.canvas/standards/...` / `.canvas/validator.mjs`.
   3. `node .canvas/validator.mjs` on a clone of the PR branch passes; the repository's
-     *Canvas diagrams* workflow passes (Validate + Architecture gate) with findings annotated.
+     _Canvas diagrams_ workflow passes (Validate + Architecture gate) with findings annotated.
   4. Edit + **Push update to PR #n**: same PR, new commit on top.
   5. With the PR open, **Refresh** in the Approval tab shows the checks; a "Request changes"
      review shows as changes requested.
@@ -481,7 +488,7 @@ Setup for admins is in `docs/admin-guide/github.md`; the design is in `docs/gith
   `dist/validator.mjs` (`npm run build --workspace=@canvas/validator-cli`; the Dockerfile builds it
   into the image). Each submission commits it to `.canvas/validator.mjs`; unchanged content is a
   no-op in Git, so repositories only see a diff when the validator changes. It imports
-  diagram-core's *source* modules (not the package entry) to keep the icon libraries out. The API
+  diagram-core's _source_ modules (not the package entry) to keep the icon libraries out. The API
   finds it at `CANVAS_VALIDATOR_DIR` or `packages/validator-cli/dist/`; when it's missing,
   submissions skip the file and the admin page says so. The example workflow
   (`packages/validator-cli/examples/canvas-diagrams.yml`) is served at
@@ -491,125 +498,99 @@ Setup for admins is in `docs/admin-guide/github.md`; the design is in `docs/gith
 ## Resetting state
 
 - **Wipe and reseed the dev database**: `docker compose down -v && docker compose up -d`, then
-  re-run `migrate` and `seed`.
+  re-run the `seed_demo` job (it migrates first).
 - **The e2e "Smoke Test" project** is cleared automatically before every local Playwright run
-  (canvas-fbv): the global setup runs `npm run e2e:reset --workspace=@canvas/api`, which
-  permanently deletes every diagram in that seeded project (live or soft-deleted, with their chats
-  and share grants), then re-seeds. Don't keep diagrams you care about in "Smoke Test". Skip it
-  with `E2E_KEEP_DATA=1` (e.g. to inspect what the previous run left); CI never runs it (fresh
-  database). Projects created by specs elsewhere are not touched.
+  (canvas-fbv): the global setup (`apps/web/tests/e2e/global-setup.ts`) runs the `e2e_reset` job,
+  which permanently deletes every diagram in that seeded project (live or soft-deleted, with their
+  chats and share grants), then `seed_demo`. Don't keep diagrams you care about in "Smoke Test". Skip
+  it with `E2E_KEEP_DATA=1` (e.g. to inspect what the previous run left); CI never runs it (fresh
+  database). Projects created by specs elsewhere are not touched. The global setup uses
+  `DATABASE_URL`/`SESSION_SECRET` from your shell, else the local defaults above.
 - **Re-run seed only** (idempotent — matches existing users/project by email/name instead of
-  duplicating): `npm run seed --workspace=@canvas/api`.
-- **Rebuild `diagram-core` after any change to `packages/diagram-core/src`**: both `apps/api` and
-  `apps/web` resolve it via its **built** `dist/` output (npm workspace symlink to
-  `packages/diagram-core`, whose `package.json` `main` points at `dist/`), not the TS source. A
-  stale or missing `dist/` is the most common cause of `Cannot find module '@canvas/diagram-core'`
-  or of edits appearing to "not take effect."
+  duplicating): `uv run --env-file .env python -m canvas_api.jobs.seed_demo` in `apps/api-py`.
+- **Purge now**: `uv run --env-file .env python -m canvas_api.jobs.purge --dry-run` lists what would
+  go; drop `--dry-run` to delete.
+- **Rebuild `diagram-core` after any change to `packages/diagram-core/src`**: `apps/web` resolves it
+  via its **built** `dist/` output (npm workspace symlink to `packages/diagram-core`, whose
+  `package.json` `main` points at `dist/`), not the TS source. A stale or missing `dist/` is the most
+  common cause of `Cannot find module '@canvas/diagram-core'` or of edits appearing to "not take
+  effect." The Python API has its own port and doesn't use `dist/`.
 
 ## Running tests locally
 
 ```bash
-npm run build --workspace=@canvas/diagram-core    # once, before any api/web test run
+npm run build --workspace=@canvas/diagram-core    # once, before any web test run
 npm run test --workspace=@canvas/diagram-core      # no external services needed
-npm run test --workspace=@canvas/api               # needs Postgres reachable; NODE_ENV=test picks canvas_test DB automatically
-TEST_DB_CLIENT=sqlite npm run test --workspace=@canvas/api   # same suite against an in-memory SQLite DB — no Postgres needed
+cd apps/api-py
+uv run pytest                                      # Postgres: schema canvas_py in canvas_test on localhost:5433
+TEST_DB_CLIENT=sqlite uv run pytest                # in-memory SQLite, no Postgres needed
+uv run ruff check . && uv run ruff format --check . && uv run mypy
 ```
 
-E2E (Playwright) needs both dev servers running (see above) and a seeded project id:
+The Postgres tests need a `canvas_test` database, which `docker compose` doesn't create. Once:
+`docker compose exec postgres createdb -U canvas canvas_test`. Each run recreates the `canvas_py`
+schema inside it, so two Postgres pytest runs at once break each other. The diagram-core comparison
+tests skip without Node and the bridge bundle (`npm run build --workspace=@canvas/diagram-bridge`);
+see `apps/api-py/README.md`.
+
+E2E (Playwright) needs the API running on port 3000 (see above). Playwright starts the Vite dev
+server itself, and its global setup resets and seeds the "Smoke Test" project and sets
+`E2E_PROJECT_ID`:
 
 ```bash
-export E2E_PROJECT_ID='<seed-printed-id>'
 cd apps/web
-npx playwright test                 # full suite; starts its own Vite dev server if not already running
+npx playwright test                 # full suite
 npx playwright test tests/e2e/import.spec.ts   # single file
 RUN_PERF_TESTS=1 npx playwright test tests/e2e/canvas-performance.spec.ts   # opt-in perf test, excluded from CI
 ```
 
-Tests missing `E2E_PROJECT_ID` are skipped, not failed — a suite showing all-skipped almost always
-means that variable isn't set.
+The AI specs need the API started with `AI_PROVIDER=mock`. Tests missing `E2E_PROJECT_ID` are
+skipped, not failed.
 
 ## Performance telemetry (canvas-6upe)
 
-The API sends OpenTelemetry traces and metrics to Azure **Application Insights** (`canvas-insights`,
-on the `canvas-logs` workspace) whenever `APPLICATIONINSIGHTS_CONNECTION_STRING` is set; `deploy.sh`
-sets it from the Bicep output. Each request is a span named after its route template
-(`GET /diagrams/:id`) with the user's opaque id and role; child spans time every SQL query (the
-parameterised text only, never values), rendering (`render svg`, `rasterize png`), standards
-validation, AI chat turns (with token counts) and outbound HTTP (AI providers, GitHub, Entra).
-Diagram content, prompts, emails and tokens are never recorded. Log lines carry `trace_id`.
+The API sends OpenTelemetry traces to Azure **Application Insights** (`canvas-insights`, on the
+`canvas-logs` workspace) whenever `APPLICATIONINSIGHTS_CONNECTION_STRING` is set; `deploy.sh` sets
+it from the Bicep output. It uses the Azure Monitor OpenTelemetry distro
+(`apps/api-py/src/canvas_api/telemetry.py`); each request is a span named after its route template
+(`GET /diagrams/:id`). Diagram content, prompts, emails and tokens are never recorded.
 
 - **Where to look:** Azure portal -> Monitor -> Workbooks -> **Canvas performance** (per-route
-  p50/p95/p99 and failures, key routes over 7 days, slowest SQL, outbound calls, requests over 3 s,
-  i.e. cold starts), or Application Insights -> Performance / Transaction search for one request's
-  timeline.
+  p50/p95/p99 and failures, key routes over 7 days, requests over 3 s, i.e. cold starts), or
+  Application Insights -> Performance / Transaction search for one request's timeline.
 - **Alert:** `canvas-key-route-p95` runs hourly and emails the admin (`adminEmail`; local auth mode)
   when open diagram / save / export / project list p95 > 2 s, or AI chat > 30 s (at least 5 requests).
-- **Locally:** off unless you set `APPLICATIONINSIGHTS_CONNECTION_STRING` in `apps/api/.env` (for
-  example to a separate dev Application Insights). `TELEMETRY=off` forces it off;
-  `TELEMETRY_SAMPLING_RATIO` (0-1, default 1) samples. Never on under tests.
+- **Locally:** off unless you set `APPLICATIONINSIGHTS_CONNECTION_STRING` in `apps/api-py/.env`
+  (for example to a separate dev Application Insights). Never on under tests.
 - **Cost:** pay per GB ingested, 90-day retention; nothing is sent while the environment is paused.
 
-## Python service (canvas-1bty)
+## Python backend
 
-The backend has moved to Python (`apps/api-py`), route group by route group
-([docs/python-backend-assessment.md](docs/python-backend-assessment.md)). Since phase 10
-(canvas-1bty.14) **the Python service is the front door**: the public `canvas-api` container app runs
-it, so the address, IP allow-list and Entra redirect URI are unchanged. It serves the web app
-(`WEB_DIST_DIR`, built into its image), the paused page (`CANVAS_PAUSED`, `PAUSED_PAGE_PATH`) and
-every API route, and allows credentialed cross-origin calls from `WEB_ORIGINS` only (the Vite dev
-server). The TypeScript API (`apps/api`) runs internal-only as `canvas-api-ts` until phase 12 deletes
-it; it gets the route groups sent back to it (below) and `/docs`, and reads the client's address from
-the `X-Canvas-Client-IP` header Python sets (`TRUST_CLIENT_IP_HEADER=true`, never set on a public
-service). Both read the same sessions and need the same `SESSION_SECRET`, database and sign-in
-settings (`modules/apiapp.bicep`, `modules/tsapiapp.bicep`).
+The backend is `apps/api-py` (FastAPI, SQLAlchemy Core, Python 3.13, uv). It replaced the
+TypeScript API (`apps/api`) route group by route group
+([docs/python-backend-assessment.md](docs/python-backend-assessment.md)); the TypeScript code was
+removed in phase 12 and its last version is at tag `typescript-api-final`
+(`git show typescript-api-final:apps/api/...`). Old settings `TYPESCRIPT_API_URL`,
+`TYPESCRIPT_ROUTE_GROUPS` and `TRUST_CLIENT_IP_HEADER` no longer exist, and deploy.sh refuses
+`CANVAS_TYPESCRIPT_ROUTE_GROUPS`.
 
-The route groups are listed in `apps/api/src/python/route-groups.ts` (phase 2: `projects`,
-`diagram-types`, `libraries`, `app-settings`; phase 3: `comments`, `sharing`, `admin-users`; phase 4:
-`diagrams`; phase 5: `standards`; phase 6: `export`; phase 7: `github`; phase 8: `ai`; phase 9:
-`auth`; phase 10: `library-admin`, the icon-library admin). Python keeps a copy
-(`canvas_api/front_door/route_groups.py`) held equal to the contract's `constants.json`.
+In Azure, the public `canvas-api` container app runs the `canvas-api-py` image. It serves the web
+app (`WEB_DIST_DIR`, built into the image), the paused page (`CANVAS_PAUSED`, `PAUSED_PAGE_PATH`)
+and every API route (`canvas_api/front_door/`), and allows credentialed cross-origin calls from
+`WEB_ORIGINS` only (locally, the Vite dev server). It reads the client's address from the last
+`X-Forwarded-For` entry. `pause.sh`/`resume.sh` set and clear `CANVAS_PAUSED` on canvas-api's
+`api` container. Every Container Apps job runs the same image.
 
-**Falling back to TypeScript.** Every TypeScript route is still in place for one release.
-`TYPESCRIPT_ROUTE_GROUPS` on canvas-api names groups to send back to `TYPESCRIPT_API_URL`
-(canvas-api-ts): unset or `none` = none, or a list such as `projects,library-admin`. In Azure:
-`CANVAS_TYPESCRIPT_ROUTE_GROUPS=projects ./deploy.sh` (set it on every deploy while you need it), or
-straight away with
-`az containerapp update -n canvas-api -g <rg> --container-name api --set-env-vars TYPESCRIPT_ROUTE_GROUPS=projects`.
-(`CANVAS_PYTHON_ROUTE_GROUPS`, the old switch, is refused.) The first deploy of phase 10 removes the
-old `canvas-api-py` app.
+**diagram-core.** The server runs a Python port of diagram-core (`canvas_api/diagram_core/`):
+parsing and serializing every family, validation, rendering, templates, the icon-library clean-up,
+document embeds and the AI chat's tools. The browser still runs the TypeScript
+`packages/diagram-core`, so the two must keep matching. The TypeScript **diagram-core bridge**
+(`packages/diagram-bridge`) is a test-only reference: CI's Python tests start it
+(`REQUIRE_BRIDGE=1`) and compare Python with it on the golden corpus and on random input; locally
+those tests skip without Node and the built bundle. The app never calls it. A change to diagram-core
+behaviour is made in both languages.
 
-**API contract.** Each moved route's request and response shapes are in
-`apps/api/contract/openapi.json`, generated from the TypeScript routes' own schemas
-(`UPDATE_CONTRACT=1 npx vitest run tests/contract/openapi-snapshot.test.ts` in `apps/api`). The
-TypeScript test fails when a moved route's shape changes without regenerating it; the Python tests
-check every response they get against it. CI's e2e job runs with the Python service behind the
-front door, as in Azure.
-
-Locally, as CI's e2e job runs it (the web app's Vite dev server calls `http://localhost:3000`):
-
-```bash
-# The TypeScript API behind it (only needed for groups sent back to it):
-cd apps/api && PORT=3001 TRUST_CLIENT_IP_HEADER=true npm run dev
-# The Python front door on port 3000 with apps/api/.env's settings:
-cd apps/api-py && uv sync && uv run --env-file ../api/.env uvicorn canvas_api.main:app --port 3000
-```
-
-In Azure, `deploy.sh` builds the `canvas-api-py` (Python, with the web app) and `canvas-api` (TypeScript)
-images with the same tag. `pause.sh`/`resume.sh` set and clear
-`CANVAS_PAUSED` on canvas-api's `api` container.
-Tests: `uv run pytest` (Postgres, schema `canvas_py`) and `TEST_DB_CLIENT=sqlite uv run pytest`;
-see [apps/api-py/README.md](apps/api-py/README.md).
-
-**diagram-core in Python (phase 11, canvas-1bty.15).** diagram-core's server side runs natively in Python
-(`apps/api-py/src/canvas_api/diagram_core/`): parsing and serializing every family, validation, rendering, templates,
-the icon-library clean-up, document embeds and the AI chat's tools. Each part was checked against TypeScript on the
-golden corpus, on generated vectors and on random input, then compared in production in shadow mode before the
-TypeScript **diagram-core bridge** (`packages/diagram-bridge`) was retired from Azure (canvas-1bty.15.8, 2026-11-03:
-no mismatch over a full traffic run, with a deliberate mismatch as the control). The browser still runs the
-TypeScript diagram-core, so the two must keep matching: the bridge stays as a **test-only reference**. CI's Python
-tests start it (`REQUIRE_BRIDGE=1`) and compare Python with it on the corpus and on random input; locally those
-tests skip without Node and the built bundle (`npm run build --workspace=@canvas/diagram-bridge`). The app itself
-no longer talks to the bridge at all (`DIAGRAM_BRIDGE_URL` and `DIAGRAM_CORE_MODE` were removed in 11h-2).
+Tests and lint: see "Running tests locally" and [apps/api-py/README.md](apps/api-py/README.md).
 
 ## Known flakiness
 
@@ -619,11 +600,8 @@ no longer talks to the bridge at all (`DIAGRAM_BRIDGE_URL` and `DIAGRAM_CORE_MOD
   This was observed as a real CI failure (2-worker default on GitHub-hosted runners) even though
   it didn't reproduce locally with 4 workers. If you deliberately override `workers` to speed up a
   local run, expect the same class of flake to resurface.
-- **A Postgres "deadlock detected" in `resetDatabase()`** has been observed once under heavy
-  concurrent test-suite load. Re-running resolves it; if it recurs consistently, check for a test
-  file missing `fileParallelism: false` semantics (contract tests share one database and reset it
-  in `beforeEach`, so they must not run concurrently against each other — see
-  `apps/api/vitest.config.ts`).
+- **Two Postgres pytest runs at once** break each other: each drops and recreates the `canvas_py`
+  schema in `canvas_test`. Run one at a time, or use `TEST_DB_CLIENT=sqlite` for the second.
 - **`@esbuild/linux-x64` optional dependency going missing** after `npm install` (breaks `tsx`):
   fix with `npm install esbuild --no-save`.
 
@@ -631,11 +609,11 @@ no longer talks to the bridge at all (`DIAGRAM_BRIDGE_URL` and `DIAGRAM_CORE_MOD
 
 Three jobs, all required to pass before a PR can merge (branch protection on `main`):
 
-| Job | What it does | Needs |
-|---|---|---|
-| `lint-and-build` | `eslint .` + `tsc` build for `diagram-core` → `api` → `web`, in that order | — |
-| `unit-tests` | `diagram-core` + `api` vitest suites, as a `db-client: [postgres, sqlite]` matrix (`fail-fast: false`) — `diagram-core`'s own tests run once, on the postgres leg only, since that package has no database coupling | Postgres service container (`canvas_test` DB) — present for both matrix legs, but only the postgres leg actually uses it |
-| `e2e-tests` | Seeds a dev-mode Postgres DB, starts the API, runs the full Playwright suite (which starts its own Vite dev server) | Postgres service container (`canvas` DB) |
+| Job              | What it does                                                                                                                                                                                                                                                                                                 | Needs                                                                                           |
+| ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------- |
+| `lint-and-build` | `eslint .`, the licence check, and builds of `diagram-core`, `web` and `validator-cli`                                                                                                                                                                                                                       | —                                                                                               |
+| `unit-tests`     | The Python suite (`uv run pytest`, `TEST_DB_CLIENT` from the matrix, `REQUIRE_BRIDGE=1`) as a `db-client: [postgres, sqlite]` matrix (`fail-fast: false`). The postgres leg also runs ruff, mypy and the `diagram-core`, `validator-cli` and `diagram-bridge` vitest suites, which have no database coupling | Postgres service container (`canvas_test` DB) — present for both legs, used by the postgres leg |
+| `e2e-tests`      | Seeds with the `seed_demo` job, starts the fake GitHub and the Python API on port 3000 (`AI_PROVIDER=mock`), runs the full Playwright suite (which starts its own Vite dev server)                                                                                                                           | Postgres service container (`canvas` DB)                                                        |
 
 The opt-in performance spec (`RUN_PERF_TESTS`) is intentionally **not** run in CI — shared-runner
 timing variance makes it unreliable there; run it locally instead when performance work is in
@@ -662,7 +640,7 @@ at least 14 days old (`cooldown`).
 `main` (ruleset `main-protection`) requires these checks to pass: `lint-and-build`,
 `unit-tests (postgres)`, `unit-tests (sqlite)`, `e2e-tests`, `secret-scan`, `sast-bearer` and
 `sast-semgrep` — the last two added 2026-10-23, after #214–#216 merged with failing SAST jobs
-(auto-merge only waits for *required* checks). It also requires the PR branch to be up to date with
+(auto-merge only waits for _required_ checks). It also requires the PR branch to be up to date with
 `main` ("strict" status checks), and blocks force-pushes/deletion. A SAST false positive therefore
 has to be suppressed in the code with its reason (`// bearer:disable <rule>`, `// nosemgrep:
 <rule>`); dismissing the GitHub alert alone doesn't make the job pass. No approving-review requirement is

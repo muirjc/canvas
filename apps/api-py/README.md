@@ -1,10 +1,10 @@
 # Canvas API (Python)
 
-The backend has moved here from `apps/api` (TypeScript), route group by route group. Plan, phases
-and decisions: [docs/python-backend-assessment.md](../../docs/python-backend-assessment.md)
-(epic canvas-1bty). Since phase 10 (canvas-1bty.14) this service is the front door (Azure's
-`canvas-api`): it serves the web app and the paused page and answers every route, sending a group back
-to the internal TypeScript service only when `TYPESCRIPT_ROUTE_GROUPS` names it (`canvas_api/front_door/`).
+Canvas's backend: the API, its jobs, and the front door that serves the built web app. It replaced
+the TypeScript API (`apps/api`) route group by route group (epic canvas-1bty,
+[docs/python-backend-assessment.md](../../docs/python-backend-assessment.md)). Comments and
+docstrings that cite `apps/api/...` refer to the TypeScript original at tag `typescript-api-final`
+(`git show typescript-api-final:apps/api/<path>`).
 
 Stack: Python 3.13, FastAPI, SQLAlchemy Core (Postgres or SQLite, never the ORM), pydantic, uv,
 ruff, mypy, pytest.
@@ -12,47 +12,47 @@ ruff, mypy, pytest.
 ```bash
 cd apps/api-py
 uv sync                                   # install (versions at least two weeks old, see pyproject)
+cp .env.example .env                      # local settings (gitignored)
+uv run --env-file .env python -m canvas_api.jobs.seed_demo                # migrate + demo data
+uv run --env-file .env uvicorn canvas_api.main:app --port 3000 --reload   # the API on :3000
 uv run pytest                             # Postgres: schema canvas_py in canvas_test on localhost:5433
 TEST_DB_CLIENT=sqlite uv run pytest       # SQLite, in memory
 uv run ruff check . && uv run ruff format --check . && uv run mypy
-DB_CLIENT=sqlite DATABASE_URL=/tmp/canvas.db uv run uvicorn canvas_api.main:app --reload
-# As the front door, with apps/api/.env's settings (RUNBOOK.md "Python service"):
-uv run --env-file ../api/.env uvicorn canvas_api.main:app --port 3000
 ```
 
-Moved so far: projects, diagram types, the icon library list and search, app settings (phase 2,
-canvas-1bty.6); comments, sharing and project members, admin users, the audit log
-and user lookup (phase 3, canvas-1bty.7); diagrams, versions, presence, drafts, import and template
-import (phase 4, canvas-1bty.8); standards: drafts, clone, publish, retire, with the re-check of a type's
-diagrams after publish/retire as a background task (phase 5, canvas-1bty.9); export as Mermaid, SVG
-or PNG (phase 6, canvas-1bty.10; PNG with resvg-py, the same Rust renderer as the TypeScript service's
-@resvg/resvg-js); GitHub approval: repository links, submitting a diagram as a pull request with the
-documents that embed it, status sync on demand and withdrawing (phase 7, canvas-1bty.11; the scheduled
-sync is `python -m canvas_api.github.sync_run`); AI chat (the conversation loop with the Anthropic/OpenAI
-SDKs or the rule-based mock, personas and reference material, AI settings, token usage and prices; the
-diagram tools, ported in phase 11g as `diagram_core/ai/`, answer natively like the rest of diagram-core) (phase 8,
-canvas-1bty.12); sign-in: sessions (now written here too, in @fastify/session's format), Canvas
-passwords with lockout and one-time passwords, two-step verification (TOTP and recovery codes), the
-admin's local-account actions, and Entra ID (OIDC code flow with PKCE; the ID token's signature,
-issuer, audience, expiry and nonce checked with PyJWT against the issuer's keys) (phase 9,
-canvas-1bty.13; `auth/`, `routes/auth.py`); the icon-library admin, SVG import
-(phase 10, canvas-1bty.14; `routes/library_admin.py`) -- see `apps/api/src/python/route-groups.ts`, which the
-TypeScript front door forwards. Each route's shapes are held to `apps/api/contract/openapi.json`:
-`tests/api.py`'s client checks every response a test gets against it. Routes not moved yet can't be
-called from these tests, so tests seed those rows directly (`Api.diagram`, `Api.grant`, ...).
+The service reads only the process environment (`env_file=None` in `config.py`), so pass a local
+`.env` with `--env-file`. Settings and defaults: `src/canvas_api/config.py`; the table is in
+[RUNBOOK.md](../../RUNBOOK.md). The Postgres tests need a `canvas_test` database
+(`docker compose exec postgres createdb -U canvas canvas_test`, once); each run recreates the
+`canvas_py` schema in it, so don't run two at once.
 
-diagram-core runs natively here (phase 11, canvas-1bty.15; `canvas_api/diagram_core/`, `DiagramCore` in core.py):
-every family's parse/serialize, validation, rendering, templates, the icon-library clean-up, embeds and the AI
-chat's tools. Front matter is YAML written byte for byte as the `yaml` npm package writes it (`jsyaml.py`).
+Layout (`src/canvas_api/`):
 
-The TypeScript diagram-core bridge (`packages/diagram-bridge`) is no longer deployed (canvas-1bty.15.8) but stays
-the tests' reference, since the browser still runs the TypeScript diagram-core: the tests start it once per run
-(`bridge_url` in tests/conftest.py, `npm run build --workspace=@canvas/diagram-bridge` first) and compare Python
-with it; they skip those comparisons when Node or the bundle is missing (never in CI: `REQUIRE_BRIDGE=1`). The app itself
-never calls it (`tests/diagram_bridge.py` is the client).
+- `app.py` builds the app; `main.py` is uvicorn's entry point (`canvas_api.main:app`).
+- `routes/`: one module per route group (projects, diagrams, standards, export, github, ai, auth,
+  library admin, ...).
+- `front_door/`: serves `WEB_DIST_DIR` and the paused page (`CANVAS_PAUSED`), CORS for
+  `WEB_ORIGINS`, security headers, and the route table (`route_groups.py`).
+- `auth/`: sessions, Canvas passwords, lockout, TOTP and recovery codes, Entra OIDC with PKCE.
+- `ai/`: the chat loop with the Anthropic/OpenAI SDKs or the rule-based mock (`mock_model.py`).
+- `github/`: the GitHub App client, submissions and status sync (`sync_run.py`, the scheduled job).
+- `diagram_core/`: the Python port of `packages/diagram-core` (every family's parse/serialize,
+  validation, rendering, templates, the icon clean-up, embeds, the AI tools). Front matter is YAML
+  written byte for byte as the `yaml` npm package writes it (`jsyaml.py`).
+- `jobs/`: `python -m canvas_api.jobs.<name>`: `migrate`, `seed_catalog`, `seed_demo`,
+  `bootstrap_admin`, `purge` (`--dry-run`), `e2e_reset`. Catalog data is in `seed/`.
+
+The schema is the plain SQL in `migrations/` (Postgres) and `migrations/sqlite/` (SQLite), applied
+by `migrations.py`. The API contract is `contract/openapi.json` and `contract/constants.json`: frozen,
+and edited by hand together with the route it describes. `tests/api.py`'s client checks every
+response a test gets against it.
+
+The browser still runs the TypeScript diagram-core, so the Python port must keep matching it. The
+TypeScript diagram-core bridge (`packages/diagram-bridge`) is the tests' reference: the tests start it
+once per run (`bridge_url` in tests/conftest.py; `npm run build --workspace=@canvas/diagram-bridge`
+first) and compare Python with it; they skip those comparisons when Node or the bundle is missing
+(never in CI: `REQUIRE_BRIDGE=1`). The app itself never calls it (`tests/diagram_bridge.py` is the
+client).
 
 Query UUID columns with fixed `text()` statements: SQLAlchemy Core binds a string as VARCHAR, which
 Postgres won't compare with a UUID.
-
-The schema comes from `apps/api/migrations` (plain SQL, shared by both services); there are no
-Python-specific migrations.

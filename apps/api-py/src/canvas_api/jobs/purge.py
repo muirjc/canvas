@@ -1,4 +1,4 @@
-"""Housekeeping purge (apps/api/src/purge/run.ts, `npm run purge`): physically deletes diagrams whose
+"""Housekeeping purge (apps/api/src/purge/run.ts, formerly `npm run purge`): physically deletes diagrams whose
 soft-delete retention window (DIAGRAM_RETENTION_DAYS) has elapsed and drafts nobody saved within
 DRAFT_RETENTION_HOURS, then projects past PROJECT_RETENTION_DAYS that no longer hold any diagrams or
 sub-projects. Applies pending migrations first. Azure runs it nightly (the canvas-purge Container Apps Job).

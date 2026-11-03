@@ -6,7 +6,7 @@ const ADMIN_EMAIL = 'admin@example.com';
 const ADMIN_PASSWORD = 'admin-dev-password';
 const API_BASE_URL = process.env.VITE_API_BASE_URL ?? 'http://localhost:3000';
 
-test.skip(!PROJECT_ID, 'E2E_PROJECT_ID env var not set — run `npm run seed` and export it first');
+test.skip(!PROJECT_ID, 'E2E_PROJECT_ID env var not set — run the demo seed (python -m canvas_api.jobs.seed_demo) and export it first');
 
 async function dragNodeBy(page: Page, testId: string, dx: number, dy: number) {
   const target = page.getByTestId(testId);
@@ -40,7 +40,9 @@ async function sendChatMessage(page: Page, message: string) {
  * preserved, unlike a screen-pixel bounding box, which shifts with page scroll (e.g. Playwright
  * auto-scrolling the chat input into view) even though nothing about the model moved. */
 function extractPosition(dsl: string, nodeId: string): { x: number; y: number } | undefined {
-  const match = dsl.match(new RegExp(`${nodeId}:\\s*\\n\\s*x:\\s*(-?[0-9.]+)\\s*\\n\\s*y:\\s*(-?[0-9.]+)`));
+  const match = dsl.match(
+    new RegExp(`${nodeId}:\\s*\\n\\s*x:\\s*(-?[0-9.]+)\\s*\\n\\s*y:\\s*(-?[0-9.]+)`),
+  );
   if (!match) return undefined;
   return { x: Number(match[1]), y: Number(match[2]) };
 }
@@ -57,7 +59,7 @@ async function getDslPosition(page: Page, nodeId: string): Promise<{ x: number; 
 
 /**
  * User Story 2 (feature 004) end-to-end, against the API's `AI_PROVIDER=mock` rule-based fake
- * NLU (apps/api/src/ai/mock-nlu.ts) — no real LLM call. Requires the API dev server to have been
+ * NLU (apps/api-py/src/canvas_api/ai/mock_model.py) — no real LLM call. Requires the API dev server to have been
  * started with AI_PROVIDER=mock (see RUNBOOK.md).
  *
  * Covers spec.md User Story 2's acceptance scenarios: chat-driven add/connect/rename/remove each
@@ -82,7 +84,9 @@ test('refines an open diagram through chat without disturbing manual edits', asy
 
   // Seed two known-id shapes directly via the DSL panel — deterministic ids make the later
   // chat-driven "connect/rename/remove by name" steps and position checks reliable.
-  await page.getByTestId('dsl-panel').fill('flowchart TD\n  validate[Validate]\n  approve[Approve]\n');
+  await page
+    .getByTestId('dsl-panel')
+    .fill('flowchart TD\n  validate[Validate]\n  approve[Approve]\n');
   await page.getByTestId('apply-dsl').click();
   await expect(page.locator('[data-testid^="node-"]')).toHaveCount(2);
 
@@ -125,5 +129,7 @@ test('refines an open diagram through chat without disturbing manual edits', asy
   // reports it, the diagram is unchanged (scenario 5, FR-014).
   await sendChatMessage(page, 'Remove shape called Approve');
   await expect(page.locator('[data-testid^="node-"]')).toHaveCount(2);
-  await expect(page.locator('[data-testid="chat-message-assistant"]').last()).toContainText('No shape with id');
+  await expect(page.locator('[data-testid="chat-message-assistant"]').last()).toContainText(
+    'No shape with id',
+  );
 });

@@ -1,4 +1,4 @@
-"""Applies the pending database migrations (apps/api/src/db/migrate.ts, `npm run migrate`). Run on every
+"""Applies the pending database migrations (apps/api/src/db/migrate.ts, formerly `npm run migrate`). Run on every
 deploy before the app starts (Azure: the canvas-migrate Container Apps Job).
 
 Usage: python -m canvas_api.jobs.migrate

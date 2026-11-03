@@ -18,7 +18,6 @@ import {
   type IconShapeLibraryManifest,
   type StandardRules,
 } from './diagram-core.js';
-import { listTools, promptSections, runTool } from './ai.js';
 
 /**
  * canvas-1bty.4: each operation the Python service needs from diagram-core, as JSON in -> JSON out.
@@ -39,10 +38,6 @@ function obj<T>(body: Body, key: string): T {
   const value = body[key];
   if (!value || typeof value !== 'object' || Array.isArray(value)) throw new BadRequest(`"${key}" must be an object`);
   return value as T;
-}
-
-function optionalRules(body: Body): StandardRules | undefined {
-  return body.rules == null ? undefined : obj<StandardRules>(body, 'rules');
 }
 
 function list(body: Body, key: string): unknown[] {
@@ -137,7 +132,7 @@ export const handlers: Record<string, (body: Body) => unknown> = {
     return updateEmbeds(str(body, 'markdown'), str(body, 'docPath'), (path) => sources[path], only);
   },
 
-  // canvas-1bty.14: the library admin (apps/api/src/libraries/library-admin.service.ts).
+  // canvas-1bty.14: the library admin (apps/api-py canvas_api/routes/library_admin.py).
   /** { items: [{ svg, idPrefix }] } -> { results: [{ ok: true, assetRef } | { ok: false, error }] }: uploaded files. */
   'svg-prepare': (body) => svgBatch(body, prepareUploadedSvg),
 
@@ -165,14 +160,4 @@ export const handlers: Record<string, (body: Body) => unknown> = {
       return [...parsed.model.nodes, ...parsed.model.containers].flatMap((e) => (e.icon ? [e.icon] : []));
     }),
   }),
-
-  // canvas-1bty.12: the AI chat's diagram tools and prompt sections (src/ai.ts).
-  /** { family, rules? } -> { tools: [{ name, description, inputSchema }] } */
-  'ai-tools': async (body) => ({ tools: await listTools(family(body).id, optionalRules(body)) }),
-
-  /** { family, rules?, model, name, input } -> { ok: true, model, output, outcomes } | { ok: false, error } */
-  'ai-tool': (body) => runTool(family(body).id, optionalRules(body), obj<DiagramModel>(body, 'model'), str(body, 'name'), body.input ?? {}),
-
-  /** { family, rules?, model } -> { primer, standard, currentDiagram } */
-  'ai-prompt': (body) => promptSections(family(body).id, optionalRules(body), obj<DiagramModel>(body, 'model')),
 };

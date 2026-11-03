@@ -1,83 +1,90 @@
 # Technology Stack: Canvas
 
-| | |
-|---|---|
-| **Document status** | Draft |
-| **Version** | 1.0 |
-| **Date** | 2026-09-11 |
-| **Companion document** | `docs/solution-architecture-document.md` §3 covers the *why* behind the key choices; this is the complete, current dependency manifest. |
+|                        |                                                                                                                                         |
+| ---------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
+| **Document status**    | Draft                                                                                                                                   |
+| **Version**            | 1.1                                                                                                                                     |
+| **Date**               | 2026-11-03                                                                                                                              |
+| **Companion document** | `docs/solution-architecture-document.md` §3 covers the _why_ behind the key choices; this is the complete, current dependency manifest. |
 
 ## Runtime requirements
 
-| Requirement | Version |
-|---|---|
-| Node.js | 22 LTS (pinned in CI as `NODE_VERSION: '22'`) |
-| npm | Whatever ships with Node 22 (npm workspaces monorepo — no separate package manager) |
-| PostgreSQL (default) OR SQLite | Postgres 16 (`postgres:16-alpine` locally; Azure Database for PostgreSQL Flexible Server, version 16, in the cloud) — **or** SQLite via the bundled `better-sqlite3` driver, no separate server process. Selected by `DB_CLIENT` (see `RUNBOOK.md`). SQLite is for local dev/evaluation/small self-hosted use, not larger concurrent production deployments — see `docs/solution-architecture-document.md` §12. |
-| Docker | Local dev only, and only needed for the Postgres engine — not required at all when running against SQLite |
+| Requirement                    | Version                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| ------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Python                         | 3.13 (`requires-python = ">=3.13,<3.14"` in `apps/api-py/pyproject.toml`; `python:3.13-slim` in the image)                                                                                                                                                                                                                                                                                                                    |
+| uv                             | Manages the backend's virtual environment and lockfile (`apps/api-py/uv.lock`); 0.13.1 in CI and the image                                                                                                                                                                                                                                                                                                                    |
+| Node.js                        | 22 LTS (pinned in CI as `NODE_VERSION: '22'`): builds the web app, `diagram-core`, the validator and the test-only bridge                                                                                                                                                                                                                                                                                                     |
+| npm                            | Whatever ships with Node 22 (npm workspaces for the TypeScript packages)                                                                                                                                                                                                                                                                                                                                                      |
+| PostgreSQL (default) OR SQLite | Postgres 16 (`postgres:16-alpine` locally; Azure Database for PostgreSQL Flexible Server, version 16, in the cloud) through psycopg 3 — **or** SQLite through Python's built-in `sqlite3`, no separate server process. Selected by `DB_CLIENT` (see `RUNBOOK.md`). SQLite is for local dev/evaluation/small self-hosted use, not larger concurrent production deployments — see `docs/solution-architecture-document.md` §12. |
+| Docker                         | Local dev only, and only needed for the Postgres engine — not required at all when running against SQLite                                                                                                                                                                                                                                                                                                                     |
 
 ## External services (optional/pluggable)
 
-| Service | Version | Required for |
-|---|---|---|
-| Microsoft Entra ID | Tenant-hosted, no version to pin (OIDC v2.0 endpoint) | SSO login with App Role-based access and tenant-enforced MFA — optional locally (`ALLOW_LOCAL_AUTH` fallback), primary auth path on Azure. Requires a real Entra tenant + app registration even for local testing — see `RUNBOOK.md`'s "Entra ID SSO" section; there is no self-contained local-container equivalent (canvas-haz epic, replacing a self-hosted Keycloak Container App). |
-| Anthropic API | Claude models via `@ai-sdk/anthropic` | AI chat, when `AI_PROVIDER=anthropic` |
-| OpenAI API | via `@ai-sdk/openai` | AI chat, when `AI_PROVIDER=openai` |
+| Service            | Version                                               | Required for                                                                                                                                                                                                                                                   |
+| ------------------ | ----------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Microsoft Entra ID | Tenant-hosted, no version to pin (OIDC v2.0 endpoint) | SSO login with App Role-based access and tenant-enforced MFA — optional locally (`ALLOW_LOCAL_AUTH` fallback), primary auth path on Azure. Requires a real Entra tenant + app registration even for local testing — see `RUNBOOK.md`'s "Entra ID SSO" section. |
+| Anthropic API      | Claude models via the `anthropic` SDK                 | AI chat, when `AI_PROVIDER=anthropic`                                                                                                                                                                                                                          |
+| OpenAI API         | via the `openai` SDK (Responses API)                  | AI chat, when `AI_PROVIDER=openai`                                                                                                                                                                                                                             |
 
 Neither AI provider is required — `AI_PROVIDER=mock` gives fully deterministic offline behavior
 (used by default in E2E/CI).
 
-## `apps/api` (Fastify backend)
+## `apps/api-py` (FastAPI backend)
 
-| Package | Version |
-|---|---|
-| fastify | ^5.1.0 |
-| @fastify/cookie | ^11.0.1 |
-| @fastify/cors | ^10.0.1 |
-| @fastify/session | ^11.0.1 |
-| @fastify/swagger | ^9.8.1 |
-| @fastify/swagger-ui | ^6.1.1 |
-| openid-client | ^6.1.7 |
-| kysely | ^0.29.6 |
-| pg | ^8.13.1 |
-| better-sqlite3 | ^13.0.3 |
-| pino / pino-pretty | ^9.5.0 / ^13.0.0 |
-| zod | ^4.4.3 |
-| ai | ^7.0.37 |
-| @ai-sdk/anthropic | ^4.0.21 |
-| @ai-sdk/openai | ^4.0.20 |
-| @resvg/resvg-js | ^2.6.2 |
-| @canvas/diagram-core | workspace (`packages/diagram-core`) |
+Versions are the lower bounds in `pyproject.toml`; `uv.lock` pins the exact ones (shown where they
+differ). `[tool.uv] exclude-newer = "14 days"` only accepts releases at least two weeks old.
 
-**Dev/test**: typescript ^5.7.2 · vitest ^2.1.8 · tsx ^4.19.2 · supertest ^7.0.0 · jose ^6.2.2
-(signs synthetic ID tokens in the Entra OIDC callback contract test — resolves to the copy already
-transitively installed by `openid-client`, nothing new downloaded) · @types/node ^22.10.2 ·
-@types/pg ^8.11.10 · @types/better-sqlite3 ^9.6.0
+| Package                      | Version                | Used for                                            |
+| ---------------------------- | ---------------------- | --------------------------------------------------- |
+| fastapi                      | >=0.143.3              | HTTP routes, `/docs` (opt-in)                       |
+| uvicorn[standard]            | >=0.54.0               | ASGI server                                         |
+| pydantic / pydantic-settings | >=2.14.1 / >=2.16.0    | Request bodies, settings from the environment       |
+| sqlalchemy                   | >=2.1.5                | SQL Core only (a query compiler, never the ORM)     |
+| psycopg[binary]              | >=3.3.6                | PostgreSQL driver                                   |
+| httpx                        | >=0.28.1               | Outbound HTTP: Entra OIDC, GitHub, managed identity |
+| pyjwt[crypto]                | >=2.15.1               | ID-token signature and claim checks                 |
+| cryptography                 | >=46 (locked 50.0.2)   | GitHub App JWT, MFA secret encryption               |
+| anthropic                    | >=1.15.0               | AI chat, Anthropic provider                         |
+| openai                       | >=3.35.1               | AI chat, OpenAI provider                            |
+| resvg-py                     | >=0.5.0                | PNG export (resvg, the Rust SVG renderer)           |
+| pyyaml                       | >=6.0.2 (locked 6.0.3) | Diagram front-matter YAML                           |
+| structlog                    | >=26.1.0               | Structured logs                                     |
+| azure-monitor-opentelemetry  | >=1.8.11               | Telemetry to Application Insights                   |
+
+**Dev/test** (`[dependency-groups] dev`): pytest >=9.1.1 · ruff >=0.17.1 · mypy >=2.4.0 (strict) ·
+jsonschema >=4.26.0 (checks responses against `apps/api-py/contract/openapi.json`) · types-pyyaml.
 
 ## `apps/web` (React frontend)
 
-| Package | Version |
-|---|---|
-| react / react-dom | ^18.3.1 |
-| @canvas/diagram-core | workspace (`packages/diagram-core`) |
+| Package              | Version                                                 |
+| -------------------- | ------------------------------------------------------- |
+| react / react-dom    | ^18.3.1                                                 |
+| @canvas/diagram-core | workspace (`packages/diagram-core`)                     |
+| qrcode               | 1.5.4 (exact; the two-step verification set-up QR code) |
 
-**Dev/test**: typescript ^5.7.2 · vite ^6.0.3 · vitest ^2.1.8 · @vitejs/plugin-react ^4.3.4 ·
+**Dev/test**: typescript ^5.7.2 · vite ^6.0.3 · vitest ^5.0.4 · @vitejs/plugin-react ^4.3.4 ·
 @playwright/test ^1.49.1 · @axe-core/playwright ^4.12.1 · @testing-library/react ^16.1.0 · jsdom
-^25.0.1 · @types/react ^18.3.17 · @types/react-dom ^18.3.5
+^25.0.1 · @types/react ^18.3.17 · @types/react-dom ^18.3.5 · @types/qrcode 1.5.6
 
 No UI framework/component library — plain React + hand-written CSS (`apps/web/src/styles/`).
 
 ## `packages/diagram-core` (shared kernel)
 
-| Package | Version |
-|---|---|
-| @dagrejs/dagre | ^3.1.0 |
-| yaml | ^2.9.0 |
+| Package        | Version |
+| -------------- | ------- |
+| @dagrejs/dagre | ^3.1.0  |
+| yaml           | ^2.9.0  |
 
-**Dev/test**: typescript ^5.7.2 · vitest ^2.1.8
+**Dev/test**: typescript ^5.7.2 · vitest ^5.0.4
 
-Deliberately minimal — the one package every other workspace depends on has almost no
-dependencies of its own (see `docs/solution-architecture-document.md` §4.1).
+Deliberately minimal (see `docs/solution-architecture-document.md` §4.1). The browser runs this
+package; the backend runs its Python port (`apps/api-py/src/canvas_api/diagram_core/`).
+
+## `packages/validator-cli` and `packages/diagram-bridge`
+
+Both bundle `diagram-core` with esbuild ^0.28.1 (dev/test: typescript ^5.7.2 · vitest ^5.0.4).
+`validator-cli` is the validator a repository's CI runs on submitted diagrams; it ships in the API
+image. `diagram-bridge` is test-only: the Python tests compare the Python diagram-core against it.
 
 ## Repo root (tooling, applies to every workspace)
 
@@ -93,18 +100,12 @@ and its modules use whatever provider API versions are declared per-resource (e.
 
 ## Notes
 
-- All internal package versions use `^` (caret) ranges — exact resolved versions are locked via
-  `package-lock.json` (npm workspaces, single root lockfile for all four `package.json`s).
-- `better-sqlite3` is a native dependency, unlike `pg`'s pure-JS wire protocol, but — unlike
-  `@resvg/resvg-js`, the image's other native dependency — it has **no prebuilt-binary install
-  path at all**: no `install`/`postinstall` script, no `prebuild-install` dependency; it always
-  compiles its bundled SQLite C amalgamation from source via `node-gyp` (which auto-runs because a
-  `binding.gyp` is present), on every platform, every time. A prior version of this note claimed a
-  prebuilt binary was "confirmed" — that was never actually verified against a truly from-scratch
-  Docker build (a local dev machine's ambient `python3` masks the gap) and was found to be false
-  live during `canvas-haz`'s Phase 7 deploy: the production Dockerfile's build stage needs
-  `python3`/`make`/`g++` installed (never copied into the runtime stage) for `npm ci` to succeed at
-  all — see the Dockerfile's own comment for the full story.
-- `@canvas/diagram-core` is resolved by `apps/api`/`apps/web` via an npm workspace symlink to its
-  **built** `dist/` output, not its TypeScript source — see `RUNBOOK.md`'s "Resetting state"
-  section for the rebuild step this implies after any change to that package.
+- npm packages use `^` (caret) ranges, locked by the root `package-lock.json`. Python packages use
+  `>=` lower bounds, locked by `apps/api-py/uv.lock` (`uv sync --frozen` in CI and the image).
+- `@canvas/diagram-core` is resolved by `apps/web` via an npm workspace symlink to its **built**
+  `dist/` output, not its TypeScript source — see `RUNBOOK.md`'s "Resetting state" section for the
+  rebuild step this implies after any change to that package.
+- `npm run licenses` writes `THIRD-PARTY-NOTICES.md`, which covers the npm packages and the Python
+  packages Canvas ships.
+- The backend was TypeScript (Fastify, Kysely) until phase 12 of the canvas-1bty epic; the last
+  version is tagged `typescript-api-final`.

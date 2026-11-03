@@ -1,5 +1,6 @@
-"""The API contract with the TypeScript service (canvas-1bty.6): apps/api/contract/, written by
-apps/api/tests/contract/openapi-snapshot.test.ts from the TypeScript routes' own schemas."""
+"""The API contract (canvas-1bty.6): apps/api-py/contract/. Written by the TypeScript API's tests from its routes'
+own schemas (tag typescript-api-final); since canvas-1bty.16 frozen and edited by hand, together with the route
+it describes. The web app relies on these shapes."""
 
 from __future__ import annotations
 
@@ -10,29 +11,19 @@ import pytest
 from fastapi.testclient import TestClient
 
 from canvas_api.catalog import BUILTIN_DIAGRAM_TYPE_IDS, DSL_FAMILIES, PERSONAS, RULE_IDS
-from canvas_api.front_door.route_groups import ROUTE_GROUPS
 from canvas_api.telemetry import route_template
 from tests.api import CONTRACT, CONTRACT_DIR, check_contract
 
-#: Python routes that aren't moved TypeScript routes.
-OWN_ROUTES = {"GET /health", "GET /py/me"}
+#: Routes outside the contract.
+OWN_ROUTES = {"GET /health"}
 
 
-def test_catalog_values_match_the_typescript_service() -> None:
+def test_catalog_values_match_the_contract() -> None:
     constants = json.loads((CONTRACT_DIR / "constants.json").read_text(encoding="utf-8"))
     assert list(DSL_FAMILIES) == constants["dslFamilies"]
     assert list(PERSONAS) == constants["personas"]
     assert list(BUILTIN_DIAGRAM_TYPE_IDS) == constants["builtinDiagramTypeIds"]
     assert list(RULE_IDS) == constants["ruleIds"]
-
-
-def test_route_groups_match_the_typescript_services() -> None:
-    """The front door's table of routes by group (for the fallback to TypeScript) is the TypeScript service's own
-    (apps/api/src/python/route-groups.ts, written to constants.json). The file lists groups alphabetically,
-    Python's in the order they moved; each group's routes are in the same order in both."""
-    constants = json.loads((CONTRACT_DIR / "constants.json").read_text(encoding="utf-8"))
-    assert {group: list(routes) for group, routes in ROUTE_GROUPS.items()} == constants["routeGroups"]
-    assert sorted(ROUTE_GROUPS) == list(constants["routeGroups"])
 
 
 def _python_routes(client: TestClient) -> set[str]:
@@ -47,7 +38,7 @@ def test_python_serves_exactly_the_contracts_operations(client: TestClient) -> N
     assert _python_routes(client) - OWN_ROUTES == contract
 
 
-def test_route_names_match_the_typescript_ones(client: TestClient) -> None:
+def test_route_names_keep_the_typescript_form(client: TestClient) -> None:
     # The telemetry workbook keys on "PATCH /projects/:id"; Python's spans use the same names.
     names = {route_template(r) for r in _python_routes(client) - OWN_ROUTES}
     assert "PATCH /projects/:id" in names

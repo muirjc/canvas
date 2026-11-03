@@ -3,7 +3,7 @@ import { createAndPublishShapeStandard, openStandardsAdmin } from './standards-a
 
 const PROJECT_ID = process.env.E2E_PROJECT_ID;
 
-test.skip(!PROJECT_ID, 'E2E_PROJECT_ID env var not set — run `npm run seed` and export it first');
+test.skip(!PROJECT_ID, 'E2E_PROJECT_ID env var not set — run the demo seed (python -m canvas_api.jobs.seed_demo) and export it first');
 
 async function createAndPublish(page: Page, name: string, description?: string) {
   // No shape restriction: this publishes onto the built-in flowchart type, and since canvas-7ewa

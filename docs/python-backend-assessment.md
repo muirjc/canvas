@@ -1,5 +1,10 @@
 # Moving the backend to Python: decision note
 
+> **Status (2026-11-03): complete.** The backend is `apps/api-py` only. Phase 12 of epic
+> canvas-1bty made the jobs Python and deleted the TypeScript API (`apps/api`); its last version is
+> at tag `typescript-api-final`. For how things work now, see `README.md`, `RUNBOOK.md` and
+> `apps/api-py/README.md`. The rest of this note is the original assessment and plan, kept as written.
+
 Status: decided 2026-10-29 (motivation, pace, end state); plan written 2026-10-31.
 Tracking: canvas-lvlo (this note), and the epic created from it.
 
@@ -20,29 +25,29 @@ TypeScript to Python, **incrementally**. The frontend stays React and TypeScript
 
 Measured 2026-10-31:
 
-| | Size |
-|---|---|
-| `apps/api/src` | ~15,800 lines, 104 files, ~120 routes (Fastify) |
-| `apps/api/tests` | ~19,500 lines, 91 test files (Vitest, against Postgres and SQLite in CI) |
-| Migrations | 35 Postgres, 22 SQLite, plain SQL |
-| Jobs | migrate, seed, seed-catalog, bootstrap-admin, purge, github-sync |
-| `packages/diagram-core` | ~14,100 lines; used by the browser **and** 22 API files |
+|                         | Size                                                                     |
+| ----------------------- | ------------------------------------------------------------------------ |
+| `apps/api/src`          | ~15,800 lines, 104 files, ~120 routes (Fastify)                          |
+| `apps/api/tests`        | ~19,500 lines, 91 test files (Vitest, against Postgres and SQLite in CI) |
+| Migrations              | 35 Postgres, 22 SQLite, plain SQL                                        |
+| Jobs                    | migrate, seed, seed-catalog, bootstrap-admin, purge, github-sync         |
+| `packages/diagram-core` | ~14,100 lines; used by the browser **and** 22 API files                  |
 
 Library by library:
 
-| Today (TypeScript) | Python |
-|---|---|
-| Fastify, @fastify/session, cookie, cors, static, swagger | FastAPI (OpenAPI built in), Starlette middleware |
-| Kysely (query compiler, Postgres + SQLite) | SQLAlchemy Core 2 (not the ORM, keeping Principle VI's "query compiler, not ORM" line) |
-| zod / Fastify JSON schemas | pydantic v2 |
-| openid-client (Entra, nonce, signature checks) | Authlib |
-| Vercel AI SDK (Anthropic, OpenAI, tool calling) | `anthropic` and `openai` SDKs directly, tool schemas from pydantic |
-| @resvg/resvg-js (PNG export) | resvg-py |
-| plain `fetch` GitHub client, App JWT on node:crypto | httpx, PyJWT |
-| TOTP on node:crypto | standard library `hmac` |
-| pino | structlog |
-| @azure/monitor-opentelemetry | azure-monitor-opentelemetry (same Application Insights resource) |
-| Vitest + `fastify.inject` | pytest + httpx `AsyncClient` against the ASGI app |
+| Today (TypeScript)                                       | Python                                                                                 |
+| -------------------------------------------------------- | -------------------------------------------------------------------------------------- |
+| Fastify, @fastify/session, cookie, cors, static, swagger | FastAPI (OpenAPI built in), Starlette middleware                                       |
+| Kysely (query compiler, Postgres + SQLite)               | SQLAlchemy Core 2 (not the ORM, keeping Principle VI's "query compiler, not ORM" line) |
+| zod / Fastify JSON schemas                               | pydantic v2                                                                            |
+| openid-client (Entra, nonce, signature checks)           | Authlib                                                                                |
+| Vercel AI SDK (Anthropic, OpenAI, tool calling)          | `anthropic` and `openai` SDKs directly, tool schemas from pydantic                     |
+| @resvg/resvg-js (PNG export)                             | resvg-py                                                                               |
+| plain `fetch` GitHub client, App JWT on node:crypto      | httpx, PyJWT                                                                           |
+| TOTP on node:crypto                                      | standard library `hmac`                                                                |
+| pino                                                     | structlog                                                                              |
+| @azure/monitor-opentelemetry                             | azure-monitor-opentelemetry (same Application Insights resource)                       |
+| Vitest + `fastify.inject`                                | pytest + httpx `AsyncClient` against the ASGI app                                      |
 
 Tooling: Python 3.13, `uv` for dependencies and the lock file, `ruff` (lint and format), `mypy
 --strict`, `pytest`.
@@ -111,25 +116,25 @@ Each phase is a child bead of the epic. Within a route group: port its contract 
 one release as a fallback, then delete it. The Playwright end-to-end suite is black-box over HTTP and
 the UI, stays unchanged, and is the acceptance gate throughout.
 
-| Phase | What | Gate |
-|---|---|---|
-| 0a | API contract: request/response schemas (canvas-62y) and an OpenAPI snapshot, written per route group as it moves | Snapshot diff in CI |
-| 0b | Python service skeleton: FastAPI, SQLAlchemy Core (Postgres + SQLite), pydantic, uv, ruff, mypy, pytest, OpenTelemetry; CI jobs for both databases; Docker image | `/health` from Python in the container |
-| 0c | Shared sign-in spike: read `cid` sessions and verify the signature in Python | A user signed in via TypeScript calls a Python route |
-| 0d | Front door: TypeScript forwards a route prefix to the internal Python container (local compose and Azure) | One read-only route served by Python in Azure |
-| 1a | diagram-core bridge: Node sidecar over the esbuild bundle; latency per save and export measured | Save and export through the bridge within the performance budget |
-| 1b | Golden corpus generated from TypeScript, checked in CI | Corpus green on TypeScript |
-| 2 | Simple reads and CRUD: projects, diagram types, libraries list, settings | Contract tests in pytest, e2e green |
-| 3 | Comments, sharing and members, audit, admin users | as above |
-| 4 | Diagrams: save, versions, presence, drafts, import, templates (via the bridge) | as above |
-| 5 | Standards and kinds (via the bridge) | as above |
-| 6 | Export SVG and PNG (bridge + resvg-py) | as above |
-| 7 | GitHub App: link, submit, status sync, document embeds; github-sync job | as above, against the fake GitHub |
-| 8 | AI chat and tools (Anthropic/OpenAI SDKs) | as above, mock provider |
-| 9 | Auth last: local accounts, TOTP, Entra OIDC; re-prove canvas-haz's 15 security contract cases in pytest | All 15 cases fail when the hardening is removed, as today |
-| 10 | Move the icon-library admin (the last group), then swap the front door to Python: `canvas-api` runs Python, TypeScript runs internal as `canvas-api-ts` for the fallback (`TYPESCRIPT_ROUTE_GROUPS`) | e2e green with Python in front |
-| 11 | Port diagram-core's server side to Python family by family against the corpus; retire the sidecar | Corpus green on Python for every family |
-| 12 | Jobs (migrate, seed, purge, bootstrap-admin), Dockerfile, CI, infra, RUNBOOK/README/CLAUDE.md, licence notices (pip packages too); delete `apps/api` TypeScript | No TypeScript or Node in the backend image |
+| Phase | What                                                                                                                                                                                                 | Gate                                                             |
+| ----- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------- |
+| 0a    | API contract: request/response schemas (canvas-62y) and an OpenAPI snapshot, written per route group as it moves                                                                                     | Snapshot diff in CI                                              |
+| 0b    | Python service skeleton: FastAPI, SQLAlchemy Core (Postgres + SQLite), pydantic, uv, ruff, mypy, pytest, OpenTelemetry; CI jobs for both databases; Docker image                                     | `/health` from Python in the container                           |
+| 0c    | Shared sign-in spike: read `cid` sessions and verify the signature in Python                                                                                                                         | A user signed in via TypeScript calls a Python route             |
+| 0d    | Front door: TypeScript forwards a route prefix to the internal Python container (local compose and Azure)                                                                                            | One read-only route served by Python in Azure                    |
+| 1a    | diagram-core bridge: Node sidecar over the esbuild bundle; latency per save and export measured                                                                                                      | Save and export through the bridge within the performance budget |
+| 1b    | Golden corpus generated from TypeScript, checked in CI                                                                                                                                               | Corpus green on TypeScript                                       |
+| 2     | Simple reads and CRUD: projects, diagram types, libraries list, settings                                                                                                                             | Contract tests in pytest, e2e green                              |
+| 3     | Comments, sharing and members, audit, admin users                                                                                                                                                    | as above                                                         |
+| 4     | Diagrams: save, versions, presence, drafts, import, templates (via the bridge)                                                                                                                       | as above                                                         |
+| 5     | Standards and kinds (via the bridge)                                                                                                                                                                 | as above                                                         |
+| 6     | Export SVG and PNG (bridge + resvg-py)                                                                                                                                                               | as above                                                         |
+| 7     | GitHub App: link, submit, status sync, document embeds; github-sync job                                                                                                                              | as above, against the fake GitHub                                |
+| 8     | AI chat and tools (Anthropic/OpenAI SDKs)                                                                                                                                                            | as above, mock provider                                          |
+| 9     | Auth last: local accounts, TOTP, Entra OIDC; re-prove canvas-haz's 15 security contract cases in pytest                                                                                              | All 15 cases fail when the hardening is removed, as today        |
+| 10    | Move the icon-library admin (the last group), then swap the front door to Python: `canvas-api` runs Python, TypeScript runs internal as `canvas-api-ts` for the fallback (`TYPESCRIPT_ROUTE_GROUPS`) | e2e green with Python in front                                   |
+| 11    | Port diagram-core's server side to Python family by family against the corpus; retire the sidecar                                                                                                    | Corpus green on Python for every family                          |
+| 12    | Jobs (migrate, seed, purge, bootstrap-admin), Dockerfile, CI, infra, RUNBOOK/README/CLAUDE.md, licence notices (pip packages too); delete `apps/api` TypeScript                                      | No TypeScript or Node in the backend image                       |
 
 New backend features from now on are built in Python once phase 0 is done: notifications (canvas-q9v,
 canvas-2h2w.4), Entra groups (canvas-2h2w.3), server-side search (canvas-g8i), AI layout tools
@@ -138,19 +143,20 @@ in TypeScript until their group moves.
 
 ## Risks
 
-| Risk | Mitigation |
-|---|---|
-| Two diagram-core implementations drift | The golden corpus, run by both CI jobs; a diagram-core change isn't done until its corpus cases are added |
-| Auth regressions | Auth moves last; canvas-haz's 15 signature/nonce/issuer cases are ported and shown to fail without the hardening |
-| Response shapes change and break the web app | OpenAPI snapshot diff in CI; the e2e suite unchanged |
-| The bridge adds latency to save/export | Measured in phase 1a against the telemetry baseline (canvas-i3n); the port in phase 11 removes it |
-| Two runtimes in production for a while | Accepted for the transition; the sidecar is internal-only and goes away in phase 11 |
-| A long migration stalls half way | Every phase leaves a working, deployed system; nothing depends on finishing quickly |
-| Cold start of a second container | Python is internal and scales with the front door; measure in phase 0d (scale-to-zero stays, canvas-aots) |
+| Risk                                         | Mitigation                                                                                                       |
+| -------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
+| Two diagram-core implementations drift       | The golden corpus, run by both CI jobs; a diagram-core change isn't done until its corpus cases are added        |
+| Auth regressions                             | Auth moves last; canvas-haz's 15 signature/nonce/issuer cases are ported and shown to fail without the hardening |
+| Response shapes change and break the web app | OpenAPI snapshot diff in CI; the e2e suite unchanged                                                             |
+| The bridge adds latency to save/export       | Measured in phase 1a against the telemetry baseline (canvas-i3n); the port in phase 11 removes it                |
+| Two runtimes in production for a while       | Accepted for the transition; the sidecar is internal-only and goes away in phase 11                              |
+| A long migration stalls half way             | Every phase leaves a working, deployed system; nothing depends on finishing quickly                              |
+| Cold start of a second container             | Python is internal and scales with the front door; measure in phase 0d (scale-to-zero stays, canvas-aots)        |
 
 ## Open questions
 
 None block phase 0. Decided during the phases themselves:
+
 - Sidecar shape (a second container vs a process in the Python container) in phase 1a, from latency
   numbers.
 - The exact point to swap the front door (phase 10).

@@ -4,16 +4,14 @@ from __future__ import annotations
 
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
-from typing import Annotated
 
 import httpx
-from fastapi import Depends, FastAPI, Request, Response
+from fastapi import FastAPI, Request, Response
 from sqlalchemy import Engine
 from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoint
 
 from canvas_api.auth.oidc import OidcClient
 from canvas_api.auth.rate_limit import LoginRateLimiter
-from canvas_api.auth.session import SessionUser, current_user
 from canvas_api.config import Settings
 from canvas_api.db import create_db_engine
 from canvas_api.diagram_core import DiagramCore
@@ -38,9 +36,7 @@ from canvas_api.routes import (
 )
 from canvas_api.telemetry import configure_telemetry
 
-#: The headers apps/api's onSend hook puts on every response (app.ts). Behind the TypeScript front door
-#: it sets them again on forwarded responses; Python sets them itself so nothing changes when it becomes
-#: the front door (phase 10).
+#: Put on every response (as the TypeScript API's onSend hook did).
 SECURITY_HEADERS = {
     "X-Content-Type-Options": "nosniff",
     "X-Frame-Options": "DENY",
@@ -61,18 +57,15 @@ def create_app(
     engine: Engine | None = None,
     github_transport: httpx.BaseTransport | None = None,
     oidc_transport: httpx.BaseTransport | None = None,
-    typescript_transport: httpx.AsyncBaseTransport | None = None,
 ) -> FastAPI:
-    """`github_transport`, `oidc_transport`, `typescript_transport`: tests answer GitHub's API, the identity
-    provider and the TypeScript service in-process (tests/fake_github.py)."""
+    """`github_transport`, `oidc_transport`: tests answer GitHub's API and the identity provider in-process
+    (tests/fake_github.py)."""
     settings = settings or Settings()  # type: ignore[call-arg]  # read from the environment
     # canvas-1bty.11: a bad GitHub App key or URL fails startup here, not at first use.
     github_config = settings.github
     # canvas-1bty.13: so do bad sign-in settings (AUTH_MODE, the Entra issuer, the MFA key, LOGIN_RATE_LIMIT).
     oidc_config = settings.oidc
     _ = settings.mfa_encryption_key
-    # canvas-1bty.14: and bad front-door settings (TYPESCRIPT_API_URL, TYPESCRIPT_ROUTE_GROUPS).
-    _ = settings.typescript_route_groups
     oidc_client = OidcClient(oidc_config, settings.web_origin_list[0], oidc_transport) if oidc_config else None
     db = engine or create_db_engine(settings)
     # canvas-1bty.15: diagram-core, native Python.
@@ -86,12 +79,18 @@ def create_app(
             github_client.close()
         if oidc_client is not None:
             oidc_client.close()
-        if app.state.typescript_forwarder is not None:
-            await app.state.typescript_forwarder.close()
         if engine is None:
             db.dispose()
 
-    app = FastAPI(title="Canvas API (Python)", lifespan=lifespan, docs_url=None, redoc_url=None)
+    # canvas-1bty.16: FastAPI's own OpenAPI page at /docs, only with ENABLE_API_DOCS=true (the document too).
+    docs = settings.enable_api_docs
+    app = FastAPI(
+        title="Canvas API",
+        lifespan=lifespan,
+        docs_url="/docs" if docs else None,
+        openapi_url="/openapi.json" if docs else None,
+        redoc_url=None,
+    )
     app.state.settings = settings
     app.state.db = db
     app.state.diagram_core = diagram_core
@@ -106,10 +105,7 @@ def create_app(
     configure_telemetry(app, settings.applicationinsights_connection_string)
     register_error_handlers(app)
 
-    # The route groups apps/api forwards here (apps/api/src/python/route-groups.ts): phase 2
-    # (canvas-1bty.6), phase 3 (canvas-1bty.7), phase 4 (canvas-1bty.8), phase 5 (canvas-1bty.9),
-    # phase 6 (canvas-1bty.10), phase 7 (canvas-1bty.11), phase 8 (canvas-1bty.12), phase 9 (canvas-1bty.13),
-    # phase 10 (canvas-1bty.14).
+    # The route groups, in the order they moved from TypeScript (canvas-1bty.6 to .14).
     for group in (
         auth,
         projects,
@@ -130,19 +126,12 @@ def create_app(
 
     @app.get("/health", tags=["Health"])
     def health() -> dict[str, str]:
-        """Same answer as the TypeScript service's /health."""
         return {"status": "ok"}
 
-    @app.get("/py/me", tags=["Auth"])
-    def python_me(user: Annotated[SessionUser, Depends(current_user)]) -> dict[str, str]:
-        """canvas-1bty.2: who the Python service thinks is signed in. Proves a session made by the
-        TypeScript service works here; removed once real routes have moved."""
-        return {"id": user.id, "email": user.email, "role": user.role, "service": "python"}
-
-    # canvas-1bty.14: the front door's jobs (the web app, paused mode, CORS, the fallback to TypeScript),
-    # after every route so the web app's files never shadow one.
-    install_front_door(app, settings, typescript_transport)
-    # Outermost, so every response carries them: the front door's own (web files, 404s, the paused page),
-    # CORS preflights and forwarded ones too, as apps/api's onSend hook did.
+    # canvas-1bty.14: the front door's jobs (the web app, paused mode, CORS), after every route so the web
+    # app's files never shadow one.
+    install_front_door(app, settings)
+    # Outermost, so every response carries them: the front door's own (web files, 404s, the paused page) and
+    # CORS preflights too.
     app.add_middleware(SecurityHeadersMiddleware)
     return app

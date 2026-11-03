@@ -1,4 +1,4 @@
-"""Local e2e reset (apps/api/src/seed/reset-e2e.ts, `npm run e2e:reset`): permanently deletes every diagram in
+"""Local e2e reset (apps/api/src/seed/reset-e2e.ts, formerly `npm run e2e:reset`): permanently deletes every diagram in
 the seeded "Smoke Test" project (E2E_PROJECT_ID) and the e2e-user-* accounts local-user-management.spec.ts
 creates, so local Playwright runs don't pile up hundreds of diagrams per run. apps/web's Playwright global setup
 runs it before each LOCAL run (CI starts from an empty database); the demo seed then restores the project's

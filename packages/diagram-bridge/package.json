@@ -4,7 +4,7 @@
   "private": true,
   "license": "Apache-2.0",
   "type": "module",
-  "description": "canvas-1bty.4: diagram-core over HTTP for the Python service while it moves off TypeScript (bundled to dist/bridge.mjs).",
+  "description": "canvas-1bty.4: diagram-core over HTTP, a test-only reference the Python tests compare against (bundled to dist/bridge.mjs).",
   "scripts": {
     "build": "node scripts/build.mjs",
     "typecheck": "tsc --noEmit -p tsconfig.json",
@@ -12,11 +12,8 @@
     "start": "node dist/bridge.mjs"
   },
   "devDependencies": {
-    "@ai-sdk/provider-utils": "^5.0.12",
-    "ai": "^7.0.37",
     "esbuild": "^0.28.1",
     "typescript": "^5.7.2",
-    "vitest": "^5.0.4",
-    "zod": "^4.4.3"
+    "vitest": "^5.0.4"
   }
 }

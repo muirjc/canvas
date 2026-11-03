@@ -7,7 +7,7 @@ const OWNER_PASSWORD = 'admin-dev-password';
 const GRANTEE_EMAIL = 'architect@example.com';
 const GRANTEE_PASSWORD = 'architect-dev-password';
 
-test.skip(!PROJECT_ID, 'E2E_PROJECT_ID env var not set — run `npm run seed` and export it first');
+test.skip(!PROJECT_ID, 'E2E_PROJECT_ID env var not set — run the demo seed (python -m canvas_api.jobs.seed_demo) and export it first');
 
 /**
  * canvas-40t: DELETE /diagrams/:id requires `requireDiagramOwnerOrAdmin()` — a user with only
@@ -18,7 +18,7 @@ test.skip(!PROJECT_ID, 'E2E_PROJECT_ID env var not set — run `npm run seed` an
  * actually deleted by the failed attempt.
  *
  * `architect@example.com` already has a permanent project-level "edit" grant on the seeded
- * project (apps/api/src/seed/run.ts — see shared-diagrams.spec.ts's own note on this), so no
+ * project (apps/api-py/src/canvas_api/jobs/seed_demo.py — see shared-diagrams.spec.ts's own note on this), so no
  * explicit per-diagram share is needed here: it is enough to have the owner create a diagram in
  * that same project and have the architect find it via the ordinary project browser, exactly as
  * they would for any diagram they didn't create.

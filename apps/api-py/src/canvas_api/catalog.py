@@ -1,6 +1,6 @@
-"""Catalog values the TypeScript service gets from diagram-core and its seed.
+"""Catalog values from diagram-core and the seed.
 
-Held equal to apps/api/contract/constants.json (written by the TypeScript tests) by
+Held equal to the contract's constants.json (apps/api-py/contract) by
 tests/test_contract.py, so a family, persona or built-in diagram type added there can't be missed here.
 """
 

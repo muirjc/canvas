@@ -1,23 +1,15 @@
 """canvas-1bty.13: the pieces of sign-in on their own (ports apps/api tests/unit/{login-rate-limit,mfa-crypto,
 password-policy,totp,oidc}.test.ts and the sign-in parts of config.test.ts), plus the cross-service vectors.
 
-Cross-service compatibility: a browser, a password and an authenticator secret made by one service must work
-in the other while both run. The fixed values below were made by the TypeScript code itself:
-
-  node -e "import('/.../apps/api/src/auth/password.ts').then(...)"  (hashPassword, encryptSecret, totpCode)
-
-(Node runs the .ts files directly.) The reverse direction -- Python-made values checked by the TypeScript
-functions -- runs node at test time."""
+Compatibility with what the TypeScript service stored (passwords, authenticator secrets, recovery codes): the
+fixed values below were made by its own code (tag typescript-api-final), with
+  node -e "import('/.../apps/api/src/auth/password.ts').then(...)"  (hashPassword, encryptSecret, totpCode)"""
 
 from __future__ import annotations
 
 import base64
 import hashlib
-import json
 import secrets
-import shutil
-import subprocess
-from pathlib import Path
 from typing import Any
 
 import httpx
@@ -38,7 +30,6 @@ from canvas_api.auth.passwords import (
     MAX_PASSWORD_LENGTH,
     check_password_policy,
     generate_one_time_password,
-    hash_password,
     verify_password,
 )
 from canvas_api.auth.rate_limit import LoginRateLimiter
@@ -53,22 +44,6 @@ from canvas_api.auth.totp import (
 )
 from canvas_api.config import OidcConfig, Settings, validate_oidc_issuer_url
 from tests.conftest import TEST_SESSION_SECRET
-
-API_SRC = Path(__file__).resolve().parents[2] / "api" / "src" / "auth"
-
-
-def node(script: str, *args: str) -> str:
-    """Runs a module-mode script under Node (which strips the types of the TypeScript sources) and returns stdout."""
-    assert shutil.which("node"), "these cross-service checks need node"
-    done = subprocess.run(  # noqa: S603 - fixed command, test only
-        ["node", "--input-type=module", "-e", script, "--", *args],  # noqa: S607
-        capture_output=True,
-        text=True,
-        check=True,
-        timeout=60,
-    )
-    return done.stdout.strip()
-
 
 # --- the login rate limiter -------------------------------------------------------------------------------
 
@@ -177,15 +152,6 @@ def test_a_typescript_made_ciphertext_decrypts_in_python(settings: Settings) -> 
     assert decrypt_secret(TS_MFA_CIPHERTEXT, settings.mfa_encryption_key) == SECRET
 
 
-def test_a_python_made_ciphertext_decrypts_in_typescript(settings: Settings) -> None:
-    stored = encrypt_secret(SECRET, settings.mfa_encryption_key)
-    script = (
-        f"import {{ decryptSecret }} from '{API_SRC}/mfa-crypto.ts';"
-        "process.stdout.write(decryptSecret(process.argv[1], Buffer.from(process.argv[2], 'hex')));"
-    )
-    assert node(script, stored, settings.mfa_encryption_key.hex()) == SECRET
-
-
 # --- password policy ----------------------------------------------------------------------------------------
 
 
@@ -261,18 +227,6 @@ TS_PASSWORDS = [
 def test_a_typescript_made_password_hash_verifies_in_python(password: str, password_hash: str, salt: str) -> None:
     assert verify_password(password, password_hash, salt) is True
     assert verify_password(password + "x", password_hash, salt) is False
-
-
-def test_a_python_made_password_hash_verifies_in_typescript() -> None:
-    script = (
-        f"import {{ verifyPassword }} from '{API_SRC}/password.ts';"
-        "const [pw, hash, salt] = process.argv.slice(1);"
-        "process.stdout.write(JSON.stringify([verifyPassword(pw, hash, salt), verifyPassword(pw + 'x', hash, salt)]));"
-    )
-    for password in ("correct horse battery", "pässwörd-日本語-🔑 long enough"):
-        password_hash, salt = hash_password(password)
-        assert len(salt) == 32 and len(password_hash) == 128
-        assert json.loads(node(script, password, password_hash, salt)) == [True, False]
 
 
 def test_a_malformed_stored_hash_is_a_failed_check_not_an_error() -> None:
@@ -377,17 +331,6 @@ def test_builds_an_otpauth_uri_an_authenticator_app_understands() -> None:
         "digits": "6",
         "period": "30",
     }
-
-
-def test_python_totp_codes_match_typescript_for_a_random_secret_over_a_few_steps() -> None:
-    secret = generate_totp_secret()
-    steps = [0, 57_000_000, 58_333_333]
-    script = (
-        f"import {{ totpCode }} from '{API_SRC}/totp.ts';"
-        "const [secret, ...steps] = process.argv.slice(1);"
-        "process.stdout.write(JSON.stringify(steps.map((s) => totpCode(secret, Number(s)))));"
-    )
-    assert json.loads(node(script, secret, *map(str, steps))) == [totp_code(secret, s) for s in steps]
 
 
 # --- recovery codes -----------------------------------------------------------------------------------------
