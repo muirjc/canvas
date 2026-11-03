@@ -40,8 +40,18 @@ problem is marked and is not imported; the rest still are. Canvas refuses:
 
 Icons end up inside diagrams and exported files, so Canvas also **removes** anything that isn't
 plain drawing: scripts, embedded images and other unknown elements, event handlers such as `onclick`,
-and links to anything outside the file. Colours, gradients, masks and clipping stay. Internal ids
-are renamed so two icons in one diagram can't clash.
+and links to anything outside the file. Colours, gradients, masks, clipping and transforms stay.
+Internal ids are renamed so two icons in one diagram can't clash. In detail:
+
+- an inline `style` keeps only presentation properties (fill, stroke, opacity, fonts and the like);
+- a value that uses a CSS escape (`\`), a character reference such as `&#117;`, or a function other
+  than `url(#id)`, `translate`, `scale`, `rotate`, `matrix`, `skewX`/`skewY`, `rgb`/`rgba` or
+  `hsl`/`hsla` is removed;
+- `xlink:href` is written as `href`, and other namespaced attributes are removed;
+- a closing tag that doesn't match anything opened in the icon is removed, and anything left open is
+  closed, so an icon can't draw outside its own box;
+- characters XML doesn't allow (control characters and the like) are removed;
+- artwork over 200 KB, nested more than 100 deep, or with more than 16 `<use>` elements is refused.
 
 ### The 48 x 48 fit
 

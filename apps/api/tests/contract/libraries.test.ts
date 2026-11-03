@@ -56,6 +56,19 @@ describe('Libraries API contract', () => {
     expect(response.statusCode).toBe(403);
   });
 
+  it('cleans markup artwork strictly (canvas-1bty.19), leaving path references alone', async () => {
+    const icon = (id: string, assetRef: string) => ({ id, displayName: id, keywords: [], category: 'T', assetRef });
+    const hostile = { id: 'x-pack', version: '1', icons: [icon('evil', '<g id="a" onclick="x()"/><image href="http://evil/x.png"/></g>'), icon('plain', 'icons/plain.svg')] };
+    expect((await app.inject({ method: 'POST', url: '/libraries', headers: { cookie: adminCookie }, payload: hostile })).statusCode).toBe(201);
+    const listed = await app.inject({ method: 'GET', url: '/libraries/x-pack/versions/1/icons', headers: { cookie: architectCookie } });
+    const byId = Object.fromEntries(listed.json().icons.map((i: { id: string; assetRef: string }) => [i.id, i.assetRef]));
+    expect(byId).toEqual({ evil: '<g id="x-pack-evil-a"/>', plain: 'icons/plain.svg' });
+    const styled = { id: 'y-pack', version: '1', icons: [icon('a', '<style>*{fill:red}</style><path/>')] };
+    const refused = await app.inject({ method: 'POST', url: '/libraries', headers: { cookie: adminCookie }, payload: styled });
+    expect(refused.statusCode).toBe(400);
+    expect(refused.json().error).toContain('<style> block');
+  });
+
   it('ingests Azure and AWS icon libraries and lists them', async () => {
     for (const manifest of [azureIconsManifest, awsIconsManifest]) {
       const response = await app.inject({ method: 'POST', url: '/libraries', headers: { cookie: adminCookie }, payload: manifest });

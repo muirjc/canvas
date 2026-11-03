@@ -74,7 +74,8 @@ describe('prepareUploadedSvg', () => {
     expect(out).toContain('id="my-icon-c"');
     expect(out).toContain('fill="url(#my-icon-g)"');
     expect(out).toContain('href="#my-icon-g"');
-    expect(out).toContain('xlink:href="#my-icon-c"');
+    // xlink:href is written as href (SVG 2): exports don't declare the xlink namespace (canvas-1bty.19).
+    expect(out).toContain('<use href="#my-icon-c"/>');
     expect(out).not.toMatch(/id="g"/);
   });
 });

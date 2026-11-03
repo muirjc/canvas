@@ -1,5 +1,5 @@
 import type { FastifyInstance } from 'fastify';
-import type { IconShapeLibraryManifest } from '@canvas/diagram-core';
+import { sanitizeIconMarkupStrict, type IconShapeLibraryManifest } from '@canvas/diagram-core';
 import { requireAuth, requireRole } from '../auth/middleware.js';
 import { errorResponse, listEnvelope, objectResponse } from '../contract/schemas.js';
 import { ingestLibrary, listLibraries, searchIconsForDiagramType, searchIconsInLibrary } from './library.service.js';
@@ -18,7 +18,8 @@ export async function registerLibraryRoutes(app: FastifyInstance): Promise<void>
 
   // Loads a library as BUILT-IN (the catalog seed's path; tests use it to load the bundled packs).
   // canvas-3dq: admins import custom libraries through /admin/libraries/import-* instead, which
-  // sanitizes strictly and keeps built-in ids reserved.
+  // keeps built-in ids reserved. canvas-1bty.19: artwork here is cleaned strictly too (the seed,
+  // which loads the bundled packs directly, keeps them as shipped).
   app.post<{ Body: IconShapeLibraryManifest }>(
     '/libraries',
     {
@@ -31,7 +32,7 @@ export async function registerLibraryRoutes(app: FastifyInstance): Promise<void>
     },
     async (request, reply) => {
       try {
-        await ingestLibrary(request.body);
+        await ingestLibrary(strictArtwork(request.body));
         return reply.code(201).send({ status: 'ingested', id: request.body.id, version: request.body.version });
       } catch (error) {
         return reply.code(400).send({ error: (error as Error).message });
@@ -78,4 +79,17 @@ export async function registerLibraryRoutes(app: FastifyInstance): Promise<void>
       return reply.send({ icons });
     },
   );
+}
+
+/** Markup artwork through the strict allowlist (a path or URL reference is left alone). Throws SvgImportError. */
+function strictArtwork(manifest: IconShapeLibraryManifest): IconShapeLibraryManifest {
+  if (!manifest || !Array.isArray(manifest.icons)) return manifest;
+  return {
+    ...manifest,
+    icons: manifest.icons.map((icon) =>
+      icon && typeof icon.assetRef === 'string' && icon.assetRef.trimStart().startsWith('<')
+        ? { ...icon, assetRef: sanitizeIconMarkupStrict(icon.assetRef, `${manifest.id}-${icon.id}`) }
+        : icon,
+    ),
+  };
 }
