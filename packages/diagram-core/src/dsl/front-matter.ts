@@ -36,7 +36,30 @@ export function splitFrontMatter(dsl: string): SplitDocument {
     return { frontMatter: {}, body: dsl };
   }
   const parsed = parseYaml(match[1]) as CanvasFrontMatter | null;
-  return { frontMatter: upgradeLegacyIconRefs(parsed ?? {}), body: dsl.slice(match[0].length) };
+  return { frontMatter: upgradeLegacyIconRefs(ownKeysOnly(parsed ?? {})), body: dsl.slice(match[0].length) };
+}
+
+/** An id-keyed section the front matter doesn't have: empty, and no prototype either (see ownKeysOnly). */
+export const NO_ENTRIES: Readonly<Record<string, never>> = Object.freeze(Object.create(null) as Record<string, never>);
+
+/** The canvas sections keyed by a diagram's own ids (node, edge, container ids). */
+const ID_KEYED_SECTIONS = ['positions', 'containers', 'styles', 'edgeStyles', 'icons', 'kinds'] as const;
+
+/**
+ * canvas-1bty.15.9: each id-keyed section as an object with no prototype, so `positions[id]` finds only
+ * what the front matter holds -- an id such as `constructor`, `toString` or `__proto__` is an ordinary
+ * id, not a member of Object.prototype (which crashed serializing, or gave a node a function as its
+ * style). A section that isn't a map counts as empty. Same as the Python diagram-core.
+ */
+function ownKeysOnly(frontMatter: CanvasFrontMatter): CanvasFrontMatter {
+  const canvas: unknown = frontMatter.canvas;
+  if (!isRecord(canvas)) return frontMatter;
+  for (const key of ID_KEYED_SECTIONS) {
+    const section = canvas[key];
+    if (section === undefined || section === null) continue;
+    canvas[key] = isRecord(section) ? Object.assign(Object.create(null), section) : Object.create(null);
+  }
+  return frontMatter;
 }
 
 /**

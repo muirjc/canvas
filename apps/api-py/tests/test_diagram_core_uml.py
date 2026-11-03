@@ -106,7 +106,7 @@ def test_direction_folds_ascii_only() -> None:
 
 # --- parity fuzz against the bridge -----------------------------------------------------------------------------
 
-IDS = ["A", "B", "Cat", "dog_2", "_x", "10", "Order", "Z9"]
+IDS = ["A", "B", "Cat", "dog_2", "_x", "10", "Order", "Z9", "constructor", "toString", "__proto__"]
 TOKENS = ["<|--", "*--", "o--", "-->", "--", "..>", "..|>", "..", "()--", "--()", "<|..", "->"]
 LABELS = ["feeds", "has many", "a : b", "x", "émoji 🎨", "  spaced  "]
 CARDS = ["1", "*", "0..1", "many", "", "1..n"]

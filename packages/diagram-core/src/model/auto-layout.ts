@@ -65,6 +65,10 @@ interface LevelLayout {
  * hints (each connector's anchor sides, `align row/column`). Sequence diagrams are returned
  * unchanged. Only positions (and group sizes) change -- never labels, shapes or connectors.
  */
+/** canvas-1bty.15.9: dagre keeps nodes in plain objects, so an id like `constructor` or `__proto__` broke
+ *  it; a prefixed key is never an Object.prototype member, and keeps the ids' order (so layouts don't move). */
+const dagreKey = (id: string): string => `#${id}`;
+
 export function autoLayout(model: DiagramModel, direction?: FlowchartDirection, family = 'flowchart'): DiagramModel {
   if (!supportsAutoLayout(family)) return model;
   if (family === 'architecture') return architectureAutoLayout(model);
@@ -129,7 +133,7 @@ export function autoLayout(model: DiagramModel, direction?: FlowchartDirection, 
     const g = new dagre.graphlib.Graph();
     g.setGraph({ rankdir: toDagreRankDir(levelDirection), nodesep: DEFAULT_NODESEP, ranksep: DEFAULT_RANKSEP, marginx: 0, marginy: 0 });
     g.setDefaultEdgeLabel(() => ({}));
-    for (const id of children) g.setNode(id, { ...sizeOf.get(id)! });
+    for (const id of children) g.setNode(dagreKey(id), { ...sizeOf.get(id)! });
     const seenEdges = new Set<string>();
     for (const edge of model.edges) {
       // Only connectors whose ends both sit inside this level rank its items.
@@ -139,7 +143,7 @@ export function autoLayout(model: DiagramModel, direction?: FlowchartDirection, 
       const key = `${from}->${to}`;
       if (seenEdges.has(key)) continue;
       seenEdges.add(key);
-      g.setEdge(from, to);
+      g.setEdge(dagreKey(from), dagreKey(to));
     }
     if (children.length > 0) dagre.layout(g);
 
@@ -149,7 +153,7 @@ export function autoLayout(model: DiagramModel, direction?: FlowchartDirection, 
     let maxX = -Infinity;
     let maxY = -Infinity;
     for (const id of children) {
-      const laid = g.node(id);
+      const laid = g.node(dagreKey(id));
       const size = sizeOf.get(id)!;
       const x = (laid?.x ?? size.width / 2) - size.width / 2;
       const y = (laid?.y ?? size.height / 2) - size.height / 2;

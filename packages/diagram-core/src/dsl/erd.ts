@@ -1,5 +1,5 @@
 import { createEmptyDiagramModel, type DiagramModel, type DiagramNode, type EntityAttribute, type NodeStyle } from '../model/diagram-model.js';
-import { splitFrontMatter, joinFrontMatter, stripTrailingComment, type CanvasFrontMatter, readLegend, withLegend } from './front-matter.js';
+import { splitFrontMatter, joinFrontMatter, stripTrailingComment, type CanvasFrontMatter, readLegend, withLegend, NO_ENTRIES } from './front-matter.js';
 import type { FlowchartDirection } from '../model/diagram-model.js';
 import type { ParseError, ParseResult } from './types.js';
 
@@ -114,8 +114,8 @@ function nextPosition(): { x: number; y: number } {
 export function parseErd(dsl: string): ParseResult {
   autoPositionCounter = 0;
   const { frontMatter, body } = splitFrontMatter(dsl);
-  const positions = frontMatter.canvas?.positions ?? {};
-  const styles = frontMatter.canvas?.styles ?? {};
+  const positions = frontMatter.canvas?.positions ?? NO_ENTRIES;
+  const styles = frontMatter.canvas?.styles ?? NO_ENTRIES;
 
   const lines = body.split(/\r?\n/);
   const errors: ParseError[] = [];

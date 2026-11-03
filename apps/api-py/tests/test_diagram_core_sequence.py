@@ -93,7 +93,7 @@ def test_an_explicit_autonumber_without_numbers_round_trips() -> None:
 
 # --- parity fuzz against the bridge -----------------------------------------------------------------------------
 
-IDS = ["A", "B", "C", "Alice", "bob_2", "_x", "10"]
+IDS = ["A", "B", "C", "Alice", "bob_2", "_x", "10", "constructor", "toString", "__proto__"]
 LABELS = ["hi", "two words", "with: colon", "émoji 🎨", "a<br/>b", "  spaced  ", "x %% y", "1", "end", "#hash"]
 ARROWS = ["->", "-->", "->>", "-->>", "-x", "--x", "-)", "--)", "<<->>", "<<-->>", "=>", "-->>>"]
 BLOCKS = ["loop", "alt", "opt", "par", "critical", "break", "rect"]

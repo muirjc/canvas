@@ -1,5 +1,5 @@
 import { createEmptyDiagramModel, type DiagramContainer, type DiagramModel, type DiagramNode, type NodeStyle } from '../model/diagram-model.js';
-import { splitFrontMatter, joinFrontMatter, stripTrailingComment, type CanvasFrontMatter, readLegend, withLegend } from './front-matter.js';
+import { splitFrontMatter, joinFrontMatter, stripTrailingComment, type CanvasFrontMatter, readLegend, withLegend, NO_ENTRIES } from './front-matter.js';
 import type { ParseError, ParseResult } from './types.js';
 import { computeContainmentLayout } from '../model/containment-layout.js';
 
@@ -349,10 +349,10 @@ function nextAutoPosition(): { x: number; y: number } {
 export function parseC4(dsl: string): ParseResult {
   autoPositionCounter = 0;
   const { frontMatter, body } = splitFrontMatter(dsl);
-  const positions = frontMatter.canvas?.positions ?? {};
-  const styles = frontMatter.canvas?.styles ?? {};
-  const edgeStyles = frontMatter.canvas?.edgeStyles ?? {};
-  const containerMeta = frontMatter.canvas?.containers ?? {};
+  const positions = frontMatter.canvas?.positions ?? NO_ENTRIES;
+  const styles = frontMatter.canvas?.styles ?? NO_ENTRIES;
+  const edgeStyles = frontMatter.canvas?.edgeStyles ?? NO_ENTRIES;
+  const containerMeta = frontMatter.canvas?.containers ?? NO_ENTRIES;
   // canvas-m0g: a diagram with NO stored geometry at all (a fresh import/paste) gets a real
   // containment-aware auto-layout instead of the flat nextAutoPosition() counter — every
   // node/container gets a PLACEHOLDER_POSITION below, replaced by computeContainmentLayout's
@@ -521,7 +521,7 @@ export function parseC4(dsl: string): ParseResult {
         ...(args.descr ? { description: args.descr } : {}),
         ...(tags.length > 0 ? { tags } : {}),
         position: meta ? { x: meta.x, y: meta.y } : (isFreshImport ? PLACEHOLDER_POSITION : nextAutoPosition()),
-        size: meta?.width !== undefined && meta?.height !== undefined ? { width: meta.width, height: meta.height } : undefined,
+        size: meta?.width != null && meta?.height != null ? { width: meta.width, height: meta.height } : undefined,
         parentContainerId: containerStack[containerStack.length - 1],
       });
       containerStack.push(id);

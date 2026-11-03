@@ -8,7 +8,7 @@ import {
   type NodeShape,
   type NodeStyle,
 } from '../model/diagram-model.js';
-import { splitFrontMatter, stripTrailingComment, readLegend } from './front-matter.js';
+import { splitFrontMatter, stripTrailingComment, readLegend, NO_ENTRIES } from './front-matter.js';
 import type { ParseError, ParseResult } from './types.js';
 import { computeContainmentLayout } from '../model/containment-layout.js';
 
@@ -217,11 +217,11 @@ export function parseFlowchart(dsl: string): ParseResult {
   autoPositionCounter = 0;
   const { frontMatter, body } = splitFrontMatter(dsl);
   const canvas = frontMatter.canvas ?? {};
-  const positions = canvas.positions ?? {};
-  const containerMeta = canvas.containers ?? {};
-  const styles = canvas.styles ?? {};
-  const edgeStyles = canvas.edgeStyles ?? {};
-  const icons = canvas.icons ?? {};
+  const positions = canvas.positions ?? NO_ENTRIES;
+  const containerMeta = canvas.containers ?? NO_ENTRIES;
+  const styles = canvas.styles ?? NO_ENTRIES;
+  const edgeStyles = canvas.edgeStyles ?? NO_ENTRIES;
+  const icons = canvas.icons ?? NO_ENTRIES;
   // canvas-m0g: see c4.ts's identical comment — a fresh import/paste (no stored geometry at all)
   // gets a real containment-aware auto-layout (nested subgraphs) instead of the flat
   // nextAutoPosition() counter, via a post-pass once the whole tree is known.
@@ -356,7 +356,7 @@ export function parseFlowchart(dsl: string): ParseResult {
         id,
         label: label ?? id,
         position: meta ? { x: meta.x, y: meta.y } : (isFreshImport ? PLACEHOLDER_POSITION : nextAutoPosition()),
-        size: meta?.width !== undefined && meta?.height !== undefined ? { width: meta.width, height: meta.height } : undefined,
+        size: meta?.width != null && meta?.height != null ? { width: meta.width, height: meta.height } : undefined,
         parentContainerId: containerStack[containerStack.length - 1],
       });
       containerStack.push(id);

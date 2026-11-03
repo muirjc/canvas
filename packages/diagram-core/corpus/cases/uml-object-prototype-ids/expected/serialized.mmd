@@ -1,0 +1,36 @@
+---
+canvas:
+  positions:
+    constructor:
+      x: 30
+      y: 30
+    __proto__:
+      x: 40
+      y: 40
+    hasOwnProperty:
+      x: 220
+      y: 40
+  styles:
+    __proto__:
+      fillColor: "#ff0000"
+    hasOwnProperty:
+      fillColor: "#0000ff"
+  containers:
+    toString:
+      x: 0
+      y: 200
+    note1:
+      x: 400
+      y: 40
+---
+classDiagram
+namespace toString {
+  class __proto__
+}
+class constructor {
+  +String toString
+  +valueOf() int
+}
+class hasOwnProperty <<interface>>
+constructor <|-- hasOwnProperty
+note for constructor "a note"

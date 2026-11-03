@@ -116,7 +116,7 @@ def test_architecture_layout_matches_typescript(vector: dict[str, Any]) -> None:
 
 # --- parity fuzz against the bridge ------------------------------------------------------------------------
 
-IDS = ["a", "b", "c", "db", "api", "gw", "g1", "g2", "j1", "x_1", "10"]
+IDS = ["a", "b", "c", "db", "api", "gw", "g1", "g2", "j1", "x_1", "10", "constructor", "toString", "__proto__"]
 GROUPS = ["g1", "g2", "g3", "vpc"]
 ICONS = ["server", "database", "disk", "internet", "cloud", "logos:aws-lambda", "MDI:x", "app-services", "", " cloud "]
 LABELS = ["A", "two words", "API: v2 (x)", "émoji 🎨", "a]b", "very long label that wraps across lines"]

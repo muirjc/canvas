@@ -1,5 +1,5 @@
 import { createEmptyDiagramModel, type DiagramContainer, type DiagramModel, type DiagramNode } from '../model/diagram-model.js';
-import { splitFrontMatter, joinFrontMatter, stripTrailingComment, type CanvasFrontMatter, readLegend, withLegend } from './front-matter.js';
+import { splitFrontMatter, joinFrontMatter, stripTrailingComment, type CanvasFrontMatter, readLegend, withLegend, NO_ENTRIES } from './front-matter.js';
 import type { ParseError, ParseResult } from './types.js';
 import { computeArchitectureLayout } from '../model/architecture-layout.js';
 import { MERMAID_ARCHITECTURE_ICON_IDS, mermaidArchitectureIconsManifest } from '../libraries/mermaid-architecture-icons.js';
@@ -60,14 +60,14 @@ function nextAutoPosition(): { x: number; y: number } {
 export function parseArchitecture(dsl: string): ParseResult {
   autoPositionCounter = 0;
   const { frontMatter, body } = splitFrontMatter(dsl);
-  const positions = frontMatter.canvas?.positions ?? {};
-  const containerMeta = frontMatter.canvas?.containers ?? {};
-  const icons = frontMatter.canvas?.icons ?? {};
+  const positions = frontMatter.canvas?.positions ?? NO_ENTRIES;
+  const containerMeta = frontMatter.canvas?.containers ?? NO_ENTRIES;
+  const icons = frontMatter.canvas?.icons ?? NO_ENTRIES;
   // jmuir-dtu.28: architecture-beta has no class/tag syntax, so a service's element kind (its role)
   // and its style ride in front-matter. Junctions keep their own 'junction' role and are never
   // kinded.
-  const kinds = frontMatter.canvas?.kinds ?? {};
-  const styles = frontMatter.canvas?.styles ?? {};
+  const kinds = frontMatter.canvas?.kinds ?? NO_ENTRIES;
+  const styles = frontMatter.canvas?.styles ?? NO_ENTRIES;
   // jmuir-dtu.26: same fresh-import gate as c4.ts (canvas-m0g). With no stored geometry at all,
   // every element is laid out in one post-pass by computeArchitectureLayout, which sizes groups
   // to enclose their contents and honours edge anchor sides and align rows/columns. A diagram

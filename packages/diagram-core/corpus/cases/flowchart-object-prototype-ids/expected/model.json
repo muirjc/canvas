@@ -1,0 +1,91 @@
+{
+  "containers": [
+    {
+      "id": "valueOf",
+      "label": "Group",
+      "position": {
+        "x": 0,
+        "y": 0
+      }
+    }
+  ],
+  "diagramTypeId": "flowchart",
+  "direction": "TD",
+  "edges": [
+    {
+      "id": "e1",
+      "sourceId": "constructor",
+      "targetId": "toString"
+    },
+    {
+      "id": "e2",
+      "sourceId": "__proto__",
+      "targetId": "hasOwnProperty"
+    },
+    {
+      "id": "e3",
+      "sourceId": "hasOwnProperty",
+      "targetId": "isPrototypeOf"
+    }
+  ],
+  "nodes": [
+    {
+      "containerId": "valueOf",
+      "id": "constructor",
+      "label": "Start",
+      "position": {
+        "x": 40,
+        "y": 60
+      },
+      "shape": "rectangle"
+    },
+    {
+      "containerId": "valueOf",
+      "id": "toString",
+      "label": "toString",
+      "position": {
+        "x": 40,
+        "y": 40
+      },
+      "shape": "rectangle",
+      "style": {
+        "fillColor": "#ffcc00"
+      }
+    },
+    {
+      "id": "__proto__",
+      "label": "__proto__",
+      "position": {
+        "x": 300,
+        "y": 60
+      },
+      "role": "constructor",
+      "shape": "rectangle",
+      "style": {
+        "fillColor": "#0000ff"
+      }
+    },
+    {
+      "id": "hasOwnProperty",
+      "label": "hasOwnProperty",
+      "position": {
+        "x": 220,
+        "y": 40
+      },
+      "shape": "rectangle",
+      "style": {
+        "fillColor": "#00ff00"
+      }
+    },
+    {
+      "id": "isPrototypeOf",
+      "label": "isPrototypeOf",
+      "position": {
+        "x": 400,
+        "y": 40
+      },
+      "role": "toString",
+      "shape": "rectangle"
+    }
+  ]
+}

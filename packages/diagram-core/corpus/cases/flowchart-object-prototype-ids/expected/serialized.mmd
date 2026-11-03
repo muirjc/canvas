@@ -1,0 +1,40 @@
+---
+canvas:
+  positions:
+    constructor:
+      x: 40
+      y: 60
+    toString:
+      x: 40
+      y: 40
+    __proto__:
+      x: 300
+      y: 60
+    hasOwnProperty:
+      x: 220
+      y: 40
+    isPrototypeOf:
+      x: 400
+      y: 40
+  containers: {}
+  styles:
+    toString:
+      fillColor: "#ffcc00"
+    __proto__:
+      fillColor: "#0000ff"
+    hasOwnProperty:
+      fillColor: "#00ff00"
+  edgeStyles: {}
+  icons: {}
+---
+flowchart TD
+subgraph valueOf [Group]
+  constructor[Start]
+  toString[toString]
+end
+  __proto__[__proto__]:::constructor
+  hasOwnProperty[hasOwnProperty]
+  isPrototypeOf[isPrototypeOf]:::toString
+  constructor --> toString
+  __proto__ --> hasOwnProperty
+  hasOwnProperty --> isPrototypeOf

@@ -28,5 +28,5 @@ export const dslFamilies: Record<string, DslFamily> = {
 };
 
 export function getDslFamily(id: string): DslFamily | undefined {
-  return dslFamilies[id];
+  return Object.hasOwn(dslFamilies, id) ? dslFamilies[id] : undefined;
 }

@@ -1,0 +1,22 @@
+---
+canvas:
+  styles:
+    constructor:
+      fillColor: "#ffcc00"
+  edgeStyles: {}
+---
+sequenceDiagram
+box Aqua valueOf
+  participant __proto__
+end
+participant constructor
+actor toString as Tos
+constructor->>toString: hi
+activate toString
+toString-->>constructor: ok
+deactivate toString
+Note over __proto__: n
+create participant hasOwnProperty
+__proto__->>hasOwnProperty: new
+destroy hasOwnProperty
+hasOwnProperty-->>__proto__: bye
