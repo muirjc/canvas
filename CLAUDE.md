@@ -93,6 +93,14 @@ tests are NON-NEGOTIABLE and must exist (and fail) before implementing any diagr
 work — see `.specify/memory/constitution.md` Principle IV.
 
 ## Recent Changes
+- `canvas-1bty.20` (security): **icon artwork is clipped to its box** in the server renderer, TypeScript and Python
+  together (`clipIconArtwork` / `clip_icon_artwork`): node and group icons are wrapped in
+  `<svg x="0" y="0" width="48" height="48" viewBox="0 0 48 48" overflow="hidden">`, so manifest/bundled artwork
+  reaching outside the icon space can't paint over or pass for the rest of an exported diagram (resvg honours it:
+  the PNG export draws a hostile 2000x2000 rect only inside the 48x48 box). Checked the other `assetRef` users: the
+  canvas and the admin library page load artwork as an image of a complete 48x48 SVG (clipped, no script, no
+  fetch); an `assetRef` that isn't markup is inert text in either path, never fetched; GitHub submissions render
+  without icon artwork.
 - `canvas-1bty.15.9`: **ids named like Object.prototype members are ordinary ids in TypeScript too**, matching
   Python (decided with the user: change TypeScript). `splitFrontMatter` copies each id-keyed canvas section
   (positions, containers, styles, edgeStyles, icons, kinds) into an object with no prototype (a non-map section
