@@ -23,8 +23,9 @@ from canvas_api.audit import client_ip, record_audit
 from canvas_api.auth.roles import AdminUser
 from canvas_api.db import get_engine
 from canvas_api.diagram_core import DiagramBridge
+from canvas_api.diagram_core.jsvalues import js_template
 from canvas_api.errors import ApiError
-from canvas_api.github.jstext import js_len, js_number, js_slice, js_trim
+from canvas_api.github.jstext import JS_WHITESPACE, js_len, js_number, js_slice, js_trim
 from canvas_api.timestamps import to_api
 
 router = APIRouter(tags=["Libraries"])
@@ -392,9 +393,46 @@ def load_builtin(request: Request, _admin: AdminUser, db: Db, body: Annotated[An
     bridge = _bridge(request)
     if not isinstance(body, dict):
         raise _invalid("Library manifest requires both id and version")
+    body = _strict_artwork(bridge, body)
     with db.begin() as conn:
         library = _ingest(conn, bridge, body, "builtin", None)
     return {"status": "ingested", "id": library["id"], "version": library["version"]}
+
+
+_LEADING_SPACE = re.compile(f"^[{JS_WHITESPACE}]+")
+
+
+def _template_of(record: dict[str, Any], key: str) -> str:
+    """`${record[key]}` in TypeScript: "undefined" for an absent key."""
+    return js_template(record[key]) if key in record else "undefined"
+
+
+def _strict_artwork(bridge: DiagramBridge, manifest: dict[str, Any]) -> dict[str, Any]:
+    """canvas-1bty.19: markup artwork through the strict allowlist (a path or URL reference is left alone), as
+    TypeScript's POST /libraries. The seed loads the bundled packs directly and keeps them as shipped."""
+    icons = manifest.get("icons")
+    if not isinstance(icons, list):
+        return manifest
+    picked = [
+        (i, icon)
+        for i, icon in enumerate(icons)
+        if isinstance(icon, dict)
+        and isinstance(icon.get("assetRef"), str)
+        and _LEADING_SPACE.sub("", icon["assetRef"], count=1).startswith("<")
+    ]
+    items = [
+        {"svg": icon["assetRef"], "idPrefix": f"{_template_of(manifest, 'id')}-{_template_of(icon, 'id')}"}
+        for _, icon in picked
+    ]
+    results: list[dict[str, Any]] = []
+    for chunk in _chunks(items, lambda item: len(item["svg"])):
+        results.extend(bridge.svg_sanitize_strict(chunk))
+    cleaned = list(icons)
+    for (i, icon), result in zip(picked, results, strict=True):
+        if not result.get("ok"):
+            raise _invalid(str(result.get("error")))
+        cleaned[i] = {**icon, "assetRef": result["assetRef"]}
+    return {**manifest, "icons": cleaned}
 
 
 def _prepare_icons(

@@ -10,8 +10,10 @@ without, like the other bridge tests).
 # ruff: noqa: S311 - a seeded generator, not cryptography
 from __future__ import annotations
 
+import contextlib
 import json
 import random
+import time
 from collections.abc import Iterator
 from pathlib import Path
 from typing import Any
@@ -21,6 +23,9 @@ import pytest
 from canvas_api.diagram_core import DiagramBridge, DiagramCore
 from canvas_api.diagram_core.libraries import load_library
 from canvas_api.diagram_core.svg_import import (
+    MAX_ICON_DEPTH,
+    MAX_ICON_USES,
+    MAX_SVG_BYTES,
     SvgImportError,
     prepare_uploaded_svg,
     sanitize_icon_markup_strict,
@@ -130,6 +135,108 @@ def test_icon_refs() -> None:
     ]
 
 
+# --- hardening (canvas-1bty.19; the same cases as svg-import-hardening.test.ts) --------------------------------
+
+
+def _strict(markup: str) -> str:
+    return sanitize_icon_markup_strict(markup, "p")
+
+
+@pytest.mark.parametrize(
+    "markup",
+    [
+        "<a" + ' x="a b"' * 40,
+        '<a x="' * 30_000,
+        "<a x=" * 30_000,
+        "<a " * 60_000,
+        "<!--" * 45_000,
+        "<![CDATA[" * 20_000,
+        f'<g fill="{"a" * 150_000}(">',
+        f'<g fill="{"url(" * 40_000}">',
+        "<g>" * 30_000 + "</rect>" * 15_000,
+    ],
+)
+def test_stays_fast_on_input_made_to_backtrack(markup: str) -> None:
+    started = time.perf_counter()
+    with contextlib.suppress(SvgImportError):  # too deep: refused, quickly
+        _strict(markup[:MAX_SVG_BYTES])
+    assert time.perf_counter() - started < 1.5
+
+
+@pytest.mark.parametrize(
+    "prolog", ["<!DOCTYPE" * 20_000 + "[", "<!DOCTYPE [" * 15_000, "<?xml" * 35_000, "<!--" * 50_000]
+)
+def test_prepare_stays_fast_on_hostile_prologs(prolog: str) -> None:
+    started = time.perf_counter()
+    with pytest.raises(SvgImportError):
+        prepare_uploaded_svg(prolog[:MAX_SVG_BYTES], "p")
+    assert time.perf_counter() - started < 1.5
+
+
+def test_depth_use_and_character_limits() -> None:
+    assert "<g/>" in _strict("<g>" * MAX_ICON_DEPTH + "<g/>")
+    with pytest.raises(SvgImportError, match="nests elements more than 100 deep"):
+        _strict("<g>" * (MAX_ICON_DEPTH + 1))
+    with pytest.raises(SvgImportError, match="more than 16 <use>"):
+        _strict('<use href="#a"/>' * (MAX_ICON_USES + 1))
+    assert _strict('<text id="a\u0001b" x="\u000b1">a\u0000 \ufffe\ud800 \udc00 🚀\t</text>') == (
+        '<text id="p-ab" x="1">a   🚀\t</text>'
+    )
+
+
+def test_refuses_manifest_artwork_over_the_size_limit() -> None:
+    with pytest.raises(SvgImportError, match="too large"):
+        _strict(f'<path d="{"M0 0 " * 50_000}"/>')
+
+
+@pytest.mark.parametrize(
+    "markup",
+    [
+        '<rect style="fill:url(http://evil/x?a&amp;b)" cursor="url(http://evil/?a&amp;b)"/>',
+        '<rect style="cursor:&#117;rl(http://evil/x)" fill="&#117;rl(http://evil/x)"/>',
+        '<rect style="cursor:\\75rl(http://evil/x)" fill="\\75rl(http://evil/x)"/>',
+        "<rect style=\"cursor:image-set('http://evil/x.png' 1x)\" mask=\"image('http://evil/x')\"/>",
+        '<rect fill="url( http://evil/x )" filter="src(http://evil/x)" style="mask:cross-fade(url(#a), url(http://evil))"/>',
+        '<rect fill="URL(http://evil/x)" style="FILL:Url(http://evil/x)"/>',
+    ],
+)
+def test_loads_nothing_from_outside_the_icon(markup: str) -> None:
+    assert _strict(markup) == "<rect/>"
+
+
+def test_keeps_references_inside_the_icon_and_presentation_styles() -> None:
+    assert _strict('<rect fill="url(#g)" clip-path="url(&quot;#c&quot;)" style="fill:url(\'#g\');stroke:red"/>') == (
+        '<rect fill="url(#p-g)" clip-path="url(&quot;#p-c&quot;)" style="fill:url(\'#p-g\');stroke:red"/>'
+    )
+    assert (
+        _strict('<rect style="fill:red; position:fixed; behavior:x; -moz-binding:x; stroke : blue ;@import:x"/>')
+        == '<rect style="fill:red;stroke:blue"/>'
+    )
+
+
+def test_balanced_output() -> None:
+    assert _strict('</g><rect width="999" height="999"/><g>') == '<rect width="999" height="999"/><g></g>'
+    assert _strict("<g/></svg><rect/><svg>") == "<g/><rect/><svg></svg>"
+    assert _strict("<g><rect></g>") == "<g><rect></rect></g>"
+
+
+def test_namespaces_and_well_formed_xml() -> None:
+    assert _strict('<use xmlns:q="http://www.w3.org/1999/xlink" q:href="#a" xmlns="http://www.w3.org/2000/svg"/>') == (
+        "<use/>"
+    )
+    assert _strict('<use xlink:href="#a" xml:space="preserve" xml:base="x" svg:x="1"/>') == (
+        '<use href="#p-a" xml:space="preserve"/>'
+    )
+    assert _strict('<use href="#a" xlink:href="#b"/>') == '<use href="#p-a"/>'
+    assert _strict('<rect 9z="3" a.b:c="1" width="1" WIDTH="2" width="3" hidden/>') == (
+        '<rect width="1" WIDTH="2" hidden=""/>'
+    )
+    assert _strict("<text>a & b &amp; c &#65; &nbsp; 1 > 0</text>") == (
+        "<text>a &amp; b &amp; c &amp;#65; &amp;nbsp; 1 &gt; 0</text>"
+    )
+    assert _strict('<text x="1&amp;2" y="&#49;" class="a&b">t</text>') == '<text x="1&amp;2">t</text>'
+
+
 # --- fuzz against the bridge ----------------------------------------------------------------------------------
 
 TAGS = [
@@ -193,6 +300,12 @@ ATTR_NAMES = [
     "x",
     "on",
     "data-x",
+    "xmlns",
+    "xmlns:q",
+    "q:href",
+    "xml:space",
+    "9z",
+    "a.b",
     "İd",
     "\uff4fnload",
 ]
@@ -238,7 +351,22 @@ VALUES = [
     "\u00a0",
     "\ufeff",
     "x\u2028y",
+    "a\u0001b",
+    "\ufffe",
     "M0 0h24v24H0z",
+    "a&amp;b",
+    "&#117;rl(http://e)",
+    "\\75rl(x)",
+    "image-set('x' 1x)",
+    "translate(1 2) scale(2)",
+    "rgb(1,2,3)",
+    "url(#a) rotate(3)",
+    "url( #a )",
+    "fill:red;position:fixed",
+    "x&y",
+    "&quot;#a&quot;",
+    "url(&quot;#c&quot;)",
+    "a > b",
     "0 0 24 24",
 ]
 SPACES = [" ", "  ", "\n", "\t", "\u00a0", "\ufeff", "\u2028", "\u3000", "\u001c", "\r\n"]
@@ -366,7 +494,7 @@ def test_native_svg_clean_up_matches_the_bridge(bridge: DiagramBridge, seed: int
     failures += _differences(strict, bridge.svg_sanitize_strict(fragments), fragments)
     assert not failures, f"{len(failures)} differ; first:\n" + "\n\n".join(failures[:2])
     # Both outcomes stay reachable, so the fuzz can't quietly stop testing one.
-    assert sum(r["ok"] for r in prepared) >= 60
+    assert sum(r["ok"] for r in prepared) >= 40
     assert sum(not r["ok"] for r in prepared) >= 60
     assert sum(r["ok"] for r in strict) >= 200
 

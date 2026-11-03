@@ -93,6 +93,22 @@ tests are NON-NEGOTIABLE and must exist (and fail) before implementing any diagr
 work — see `.specify/memory/constitution.md` Principle IV.
 
 ## Recent Changes
+- `canvas-1bty.19` (security): **the icon SVG clean-up is hardened, in TypeScript and Python together**
+  (`svg-import.ts` / `diagram_core/svg_import.py`, identical, parity-fuzzed). From an appsec review of the 11f
+  port, which matched TypeScript, so both had the holes: (1) time: the tag pattern backtracked EXPONENTIALLY (26
+  quoted attributes and no `>` took 5.4 s) and comment/CDATA/`<?xml`/DOCTYPE removal was quadratic; now a tag
+  can't cross `<` and an unquoted value can't start with a quote, removals are index loops, and a closer is
+  matched through a per-name open count (all linear, < 0.1 s at 200 KB); (2) no external loads: values may hold
+  only the five named XML references (any other `&` drops the attribute), no `\`, no
+  javascript:/vbscript:/data:, and only `url(#id)`, transforms, `rgb(a)`/`hsl(a)` as functions; `style` keeps
+  allowlisted presentation properties; (3) balanced output (stray closers dropped, open elements closed);
+  (4) `xmlns*` and prefixed attributes dropped, `xlink:href` written as `href` (exports never declared xlink);
+  (5) well-formed XML: names `[A-Za-z_][\w.-]*`, duplicates dropped, `hidden` -> `hidden=""`, bare `&`/`<`/`>`
+  in text escaped, XML-illegal characters removed. Refused: artwork over 200 KB (manifests had no cap), nesting
+  over `MAX_ICON_DEPTH` (100), more than `MAX_ICON_USES` (16) `<use>`. The legacy `POST /libraries` (both
+  services) now runs markup artwork through the strict cleaner; the seed still loads the bundled packs as
+  shipped, and every bundled icon passes the new rules unchanged but for id prefixes and `href`. Follow-up:
+  `canvas-1bty.20` (clip icon artwork to its box in the renderer).
 - `canvas-1bty.15.6` (Python phase 11f): **the library admin's diagram-core work and document embeds are
   native.** `diagram_core/svg_import.py` ports svg-import.ts + svg-sanitizer.ts (`prepare_uploaded_svg`,
   `sanitize_icon_markup_strict`, `sanitize_svg_fragment`), `libraries.py` loadLibrary and the icon-refs op,

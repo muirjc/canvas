@@ -213,6 +213,24 @@ def test_refuses_a_manifest_diagram_core_rejects(env: Env, payload: dict[str, An
     assert [lib["id"] for lib in env.admin_list()] == ["generic"]
 
 
+def test_cleans_markup_artwork_strictly(env: Env) -> None:
+    """canvas-1bty.19: the legacy route used only the weak denylist; markup now goes through the strict allowlist
+    (a path or URL reference is left alone), and artwork the allowlist refuses refuses the manifest."""
+    hostile = manifest("x-pack", "1", ["evil", "plain"])
+    hostile["icons"][0]["assetRef"] = '<svg/onload=alert(1)><g id="a"/><image href="http://evil/x.png"/></g></svg>'
+    hostile["icons"][1]["assetRef"] = "icons/plain.svg"
+    assert env.call("POST", "/libraries", hostile).status_code == 201
+    icons = env.icons("x-pack", "1")
+    # `<svg/onload=...>` isn't a tag to the allowlist, so it stays as inert, escaped text.
+    assert icons["evil"]["assetRef"] == '&lt;svg/onload=alert(1)&gt;<g id="x-pack-evil-a"/>'
+    assert icons["plain"]["assetRef"] == "icons/plain.svg"
+    styled = manifest("y-pack", "1", ["a"])
+    styled["icons"][0]["assetRef"] = "<style>*{fill:red}</style><path/>"
+    response = env.call("POST", "/libraries", styled)
+    assert response.status_code == 400
+    assert "<style> block" in response.json()["error"]
+
+
 # --- slugify -----------------------------------------------------------------------------------------
 
 
