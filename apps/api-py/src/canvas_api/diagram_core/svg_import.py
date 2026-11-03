@@ -73,7 +73,9 @@ _JS_LINK_SINGLE = re.compile(f"(href|xlink:href|src){S}*={S}*'javascript:[^']*'"
 _LEADING_WS = re.compile(f"^{S}+")
 
 
+# This module IS the sanitizer (an allowlist with its own escaping, as svg-import.ts; parity-fuzzed against it).
 def _escape_attr(value: str) -> str:
+    # bearer:disable python_lang_manual_html_sanitization
     return value.replace('"', "&quot;").replace("<", "&lt;")
 
 
@@ -146,6 +148,8 @@ def sanitize_icon_markup_strict(markup: str, id_prefix: str) -> str:
         text = body[last : m.start()]
         last = m.end()
         if not skipping:
+            # Text between tags; see _escape_attr.
+            # bearer:disable python_lang_manual_html_sanitization
             out.append(text.replace("<", "&lt;"))
         closing, name, attrs, self_closing = m[1], m[2], m[3], m[4]
         lower = name.lower()
@@ -164,6 +168,8 @@ def sanitize_icon_markup_strict(markup: str, id_prefix: str) -> str:
             f"</{name}>" if closing else f"<{name}{_clean_attributes(attrs, prefix)}{'/' if self_closing else ''}>"
         )
     if not skipping:
+        # Trailing text; see _escape_attr.
+        # bearer:disable python_lang_manual_html_sanitization
         out.append(body[last:].replace("<", "&lt;"))
     return "".join(out)
 
