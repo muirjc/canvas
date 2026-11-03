@@ -3,7 +3,7 @@ import { awsIconsManifest } from '../libraries/aws-icons.js';
 import { azureIconsManifest } from '../libraries/azure-icons.js';
 import { MERMAID_ARCHITECTURE_ICON_IDS, mermaidArchitectureIconsManifest } from '../libraries/mermaid-architecture-icons.js';
 import { extractFirstTable, splitIntoSections } from './markdown-table.js';
-import { AliasAllocator, cell, err, findSection, pickOption, readMetadataFields, readYesNo } from './template-helpers.js';
+import { AliasAllocator, cell, err, findSection, ownValue, pickOption, readMetadataFields, readYesNo } from './template-helpers.js';
 import type { TemplateCompiler, TemplateCompileResult } from './types.js';
 
 /**
@@ -55,7 +55,7 @@ function resolveIcon(raw: string, fallback: string, where: string, errors: Parse
     return undefined;
   }
   const [, prefix, iconId] = prefixed;
-  const library = LIBRARY_PREFIXES[prefix.toLowerCase()];
+  const library = ownValue(LIBRARY_PREFIXES, prefix.toLowerCase());
   if (!library) return { token: value, library: false };
   if (library.ids && !library.ids.has(iconId)) {
     errors.push(err(`${where}: "${iconId}" is not an icon in Canvas's ${prefix} library.`));
@@ -187,8 +187,8 @@ export const architectureTemplateCompiler: TemplateCompiler = {
         );
         continue;
       }
-      const fromSide = SIDES[(cell(row, 'From side') || 'Right').toLowerCase()];
-      const toSide = SIDES[(cell(row, 'To side') || 'Left').toLowerCase()];
+      const fromSide = ownValue(SIDES, (cell(row, 'From side') || 'Right').toLowerCase());
+      const toSide = ownValue(SIDES, (cell(row, 'To side') || 'Left').toLowerCase());
       const arrow = readYesNo(cell(row, 'Arrow'), true);
       if (!fromSide || !toSide || arrow === undefined) {
         errors.push(err(`${where}: sides must be Left, Right, Top or Bottom, and Arrow Yes or No.`));

@@ -103,6 +103,15 @@ describe('architecture template compiler', () => {
     expect(errorsOf(compile({ groups: [['A', '', 'B'], ['B', '', 'A']], services: [['S', '', '']] }))[0]).toContain('are inside each other');
   });
 
+  it('Object.prototype names are not sides, libraries or diagram types (canvas-1bty.15.5)', () => {
+    const services = [['A', '', ''], ['B', '', '']];
+    expect(errorsOf(compile({ services, connections: [['A', 'constructor', 'B', '', '']] }))[0]).toContain('sides must be Left, Right, Top or Bottom');
+    // An unknown prefix is an iconify icon, passed through as written.
+    expect(dslOf(compile({ services: [['A', 'constructor:thing', '']], connections: [['A', '', 'A', '', '']] }))).toContain('service a(constructor:thing)[A]');
+    expect(getTemplateCompiler('constructor')).toBeUndefined();
+    expect(getTemplateCompiler('toString')).toBeUndefined();
+  });
+
   it('the blank template reports what is missing', () => {
     expect(errorsOf(architectureTemplateCompiler.compile(doc))).toEqual(['Section 3: list at least one service.']);
   });

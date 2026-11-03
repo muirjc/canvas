@@ -95,3 +95,9 @@ export function listCell(value: string): string[] {
     .map((part) => part.trim())
     .filter(Boolean);
 }
+
+/** `record[key]` for the record's own keys only: user text like "constructor" must not find Object.prototype's
+ *  members (canvas-1bty.15.5). */
+export function ownValue<T>(record: Record<string, T>, key: string): T | undefined {
+  return Object.hasOwn(record, key) ? record[key] : undefined;
+}

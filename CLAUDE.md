@@ -93,6 +93,19 @@ tests are NON-NEGOTIABLE and must exist (and fail) before implementing any diagr
 work — see `.specify/memory/constitution.md` Principle IV.
 
 ## Recent Changes
+- `canvas-1bty.15.5` (Python phase 11e): **template import is native.** `diagram_core/templates/` ports every
+  template compiler (architecture, C4 context, C4 container/component/deployment, ERD, sequence, UML class) plus
+  the Markdown-table and helper code; `DiagramCore.compile_template` goes through the modes like render, so
+  POST /projects/:id/diagrams/import-template compiles natively in `native` mode and is compared in `shadow`.
+  Icon catalogues: the architecture compiler only needs library ids/versions and Azure's icon ids, so Python
+  carries `diagram_core/icon_catalogue.json` (7 KB) instead of the 640 KB manifests; diagram-core's
+  `python-icon-catalogue.test.ts` fails when it drifts (`UPDATE_CATALOGUE=1` to regenerate). Fixed in TypeScript
+  (both sides now agree): lookups keyed by user text (`SIDES`, icon library prefixes, ERD/UML `DIRECTIONS`, UML
+  `VISIBILITY`, the template registry) read own keys only (`ownValue`), so "constructor"/"__proto__" no longer
+  find Object.prototype. Reproduced on purpose: sequence step numbers go through JS `Number()` (`0x10`, `1e0`,
+  `-0` are steps). Tests: `test_diagram_core_templates.py` (each doc's worked example; the C4 Context doc's is
+  prose, so the test carries a fillable one) and a seeded fuzz of mutated examples and random fillings for every
+  template type against the bridge (1,600 cases; plus ~30,000 in development, no differences).
 - `canvas-1bty.15.4` (Python phase 11d): **drawing is native.** `diagram_core/svg_render.py` ports
   svg-renderer.ts (every shape, table/described/icon nodes, container roles, ER crow's feet, UML markers and
   multiplicities, anchors and `{group}` ends, links, the legend, the background), `sequence_layout.py` and

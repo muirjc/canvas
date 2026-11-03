@@ -30,6 +30,7 @@ from canvas_api.diagram_core.portable import to_portable_mermaid
 from canvas_api.diagram_core.sequence import parse_sequence, serialize_sequence
 from canvas_api.diagram_core.standards import check_standard_definition, validate
 from canvas_api.diagram_core.svg_render import render_to_svg
+from canvas_api.diagram_core.templates import compile_template
 from canvas_api.diagram_core.uml import parse_uml, serialize_uml
 
 __all__ = ["KNOWN_FAMILIES", "NATIVE_FAMILIES", "PARSERS", "SERIALIZERS", "DiagramCore", "Mode"]
@@ -226,6 +227,16 @@ class DiagramCore:
             lambda: self._require_bridge("render-svg").render_svg(
                 model, icons=icons, standard_rules=standard_rules, background=background
             ),
+        )
+
+    def compile_template(self, diagram_type_id: str, template: str) -> JsonObject:
+        """A filled-in Markdown intake template as DSL (canvas-1bty.15.5): {"dsl"}, {"errors"}, or
+        {"unsupported": True} for a diagram type with no template compiler."""
+        return self._answer(
+            "compile-template",
+            diagram_type_id,
+            lambda: compile_template(diagram_type_id, template),
+            lambda: self._require_bridge("compile-template").compile_template(diagram_type_id, template),
         )
 
 

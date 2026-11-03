@@ -1,6 +1,6 @@
 import type { ParseError } from '../dsl/types.js';
 import { extractFirstTable, splitIntoSections } from './markdown-table.js';
-import { AliasAllocator, cell, err, findSection, listCell, pickOption, readMetadataFields, readYesNo } from './template-helpers.js';
+import { AliasAllocator, cell, err, findSection, listCell, ownValue, pickOption, readMetadataFields, readYesNo } from './template-helpers.js';
 import type { TemplateCompiler, TemplateCompileResult } from './types.js';
 
 /**
@@ -55,7 +55,7 @@ export const erdTemplateCompiler: TemplateCompiler = {
     const fields = metadataSection ? readMetadataFields(metadataSection) : new Map<string, string>();
     const title = (fields.get('Diagram title') ?? '').trim();
     const directionRaw = [...fields.entries()].find(([field]) => field.startsWith('Direction'))?.[1] ?? '';
-    const direction = directionRaw ? DIRECTIONS[directionRaw.toLowerCase()] : undefined;
+    const direction = directionRaw ? ownValue(DIRECTIONS, directionRaw.toLowerCase()) : undefined;
     if (directionRaw && !direction) errors.push(err(`Section 1: unrecognized Direction "${directionRaw}" (expected Top to bottom, Left to right, Bottom to top or Right to left).`));
 
     // --- Section 2: entities ------------------------------------------------------------------
