@@ -452,8 +452,12 @@ if (process.argv.includes('--check')) {
     );
     process.exit(1);
   }
+  // Package counts only.
+  // bearer:disable javascript_lang_logger_leak
   console.log(`THIRD-PARTY-NOTICES.md is up to date (${counts}).`);
 } else {
   writeFileSync(OUTPUT, content);
+  // Package counts only.
+  // bearer:disable javascript_lang_logger_leak
   console.log(`Wrote THIRD-PARTY-NOTICES.md (${counts}).`);
 }
