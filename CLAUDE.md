@@ -93,6 +93,22 @@ tests are NON-NEGOTIABLE and must exist (and fail) before implementing any diagr
 work — see `.specify/memory/constitution.md` Principle IV.
 
 ## Recent Changes
+- `canvas-1bty.15.7` part 2 (Python phase 11g-2): **the AI chat's diagram tools are native.**
+  `diagram_core/ai/` ports diagram-tools.ts (`tools.py`: every tool, offered by family and standard, the
+  not-found/standard checks, kind limits, returned ids, `newViolations`), the primers (`primers.py`, generated from
+  TypeScript's text), standard-prompt.ts and describe-model.ts (`prompt.py`), and the bridge's ai.ts
+  (`list_tools`/`run_tool`/`prompt_sections`). `schema.py` is a small zod: one definition gives the JSON Schema
+  byte for byte as zod's toJSONSchema writes it (an optional field's description first, a required one's last;
+  `minItems` before `type`) and the input check with zod's issues and the AI SDK's "Invalid input for tool ..."
+  text; decided with the user: the common failures (missing field, wrong type, enum, too short) match word for
+  word, rarer wording may differ (only the model reads it). `DiagramCore.ai_tools`/`ai_tool`/`ai_prompt` go
+  through the modes; in shadow mode the native tool run reuses the ids the bridge generated
+  (`diagram_ops.ids_from`, a ContextVar, per request), so answers compare. A tool that throws ValueError (empty
+  label, bad link) is `{ok: false, error}` as in TypeScript; any other exception is a BridgeError. Nothing is
+  bridge-only now (11h retires the bridge). Tests: `test_diagram_core_ai.py` replays
+  `tests/data/ai_tools_vectors.json` (`make_ai_tools_vectors.ts`, run in packages/diagram-bridge's vitest: tool
+  lists for 7 families x 12 rule sets, prompt sections, 202 seeded tool-call sequences (1,616 calls, some input broken)),
+  checked to catch 15 deliberate bugs; the chat tests in shadow mode compare every AI call with no mismatch.
 - `canvas-1bty.15.7` part 1 (Python phase 11g-1): **the model edits are native.** `diagram_core/diagram_ops.py`
   ports diagram-ops.ts (all 32 edits: nodes, edges, styles, links, roles, ER/UML/architecture edge patches,
   containers and nesting, sequence markers and autonumber) and `standard_ops.py` ports standard-ops.ts

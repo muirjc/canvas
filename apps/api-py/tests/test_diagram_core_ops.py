@@ -70,7 +70,7 @@ def test_every_edit_matches_typescript(start: Any, steps: list[Any], monkeypatch
 
 def test_the_vectors_reach_every_edit_and_every_error() -> None:
     ops = {step["op"] for case in DATA["cases"] for steps in case["sequences"] for step in steps}
-    exported = {name for name in diagram_ops.__all__ + standard_ops.__all__ if name != "generate_id"}
+    exported = {name for name in diagram_ops.__all__ + standard_ops.__all__ if name not in {"generate_id", "ids_from"}}
     assert {_snake(op) for op in ops} == exported
     steps = [step for case in DATA["cases"] for sequence in case["sequences"] for step in sequence]
     errors = {step["error"].split(":")[0] for step in steps if "error" in step}

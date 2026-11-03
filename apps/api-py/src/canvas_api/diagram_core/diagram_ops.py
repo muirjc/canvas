@@ -14,6 +14,9 @@ from __future__ import annotations
 
 import random
 import time
+from collections.abc import Iterator
+from contextlib import contextmanager
+from contextvars import ContextVar
 from typing import Any
 
 from canvas_api.diagram_core.jsvalues import js_template, js_truthy
@@ -27,6 +30,7 @@ __all__ = [
     "assign_edge_to_container",
     "assign_node_to_container",
     "generate_id",
+    "ids_from",
     "move_container",
     "remove_container",
     "remove_container_parent",
@@ -69,10 +73,30 @@ def _base36(number: int) -> str:
             return digits
 
 
+#: Ids to hand out before generating any, for this request only (`ids_from`).
+_SUPPLIED_IDS: ContextVar[Iterator[str] | None] = ContextVar("supplied_ids", default=None)
+
+
 def generate_id(prefix: str) -> str:
     """`${prefix}${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`: milliseconds in base 36,
-    then six random base-36 digits."""
+    then six random base-36 digits -- or the next supplied id (see `ids_from`)."""
+    supplied = _SUPPLIED_IDS.get()
+    if supplied is not None:
+        next_id = next(supplied, None)
+        if next_id is not None:
+            return next_id
     return prefix + _base36(int(time.time() * 1000)) + "".join(random.choices(_BASE36, k=6))  # noqa: S311 (an id, not a secret)
+
+
+@contextmanager
+def ids_from(ids: list[str]) -> Iterator[None]:
+    """New elements take these ids, in order, before any random one: so an edit repeated natively in shadow mode
+    can produce exactly what the bridge did. Per context (request), not global."""
+    token = _SUPPLIED_IDS.set(iter(ids))
+    try:
+        yield
+    finally:
+        _SUPPLIED_IDS.reset(token)
 
 
 def _copy_given(target: Obj, source: Obj, keys: tuple[str, ...]) -> Obj:
