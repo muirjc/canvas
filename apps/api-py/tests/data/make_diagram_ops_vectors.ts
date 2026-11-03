@@ -43,10 +43,11 @@ function prng(seed: number) {
 }
 
 it('gen', () => {
-  // Deterministic ids, so the file only changes when behaviour does.
-  const idRandom = prng(7);
-  vi.spyOn(Math, 'random').mockImplementation(idRandom);
-  vi.spyOn(Date, 'now').mockReturnValue(1_700_000_000_000);
+  // Deterministic, low-entropy ids (n0000001, e0000002, ...): the file only changes when behaviour does, and a
+  // random-looking id next to a word like "api" reads as a secret to the secret scan.
+  let idCount = 0;
+  vi.spyOn(Math, 'random').mockImplementation(() => ((idCount += 1) + 0.5) / 36 ** 6);
+  vi.spyOn(Date, 'now').mockReturnValue(0);
 
   const rand = prng(20261103);
   const pick = <T>(items: readonly T[]): T => items[Math.floor(rand() * items.length)];
