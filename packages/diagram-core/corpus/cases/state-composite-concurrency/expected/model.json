@@ -1,0 +1,506 @@
+{
+  "containers": [
+    {
+      "direction": "TB",
+      "id": "First",
+      "label": "First",
+      "position": {
+        "x": 40,
+        "y": 40
+      },
+      "role": "composite",
+      "size": {
+        "height": 130,
+        "width": 308
+      }
+    },
+    {
+      "id": "Second",
+      "label": "Second",
+      "position": {
+        "x": 452,
+        "y": 40
+      },
+      "role": "composite",
+      "size": {
+        "height": 130,
+        "width": 308
+      }
+    },
+    {
+      "id": "Third",
+      "label": "The third one",
+      "position": {
+        "x": 800,
+        "y": 40
+      },
+      "role": "composite",
+      "size": {
+        "height": 200,
+        "width": 592
+      }
+    },
+    {
+      "id": "Inner",
+      "label": "Inner",
+      "parentContainerId": "Third",
+      "position": {
+        "x": 820,
+        "y": 90
+      },
+      "role": "composite",
+      "size": {
+        "height": 130,
+        "width": 244
+      }
+    },
+    {
+      "id": "Active",
+      "label": "Active",
+      "position": {
+        "x": 40,
+        "y": 280
+      },
+      "role": "composite",
+      "size": {
+        "height": 370,
+        "width": 928
+      }
+    },
+    {
+      "id": "NamedComposite",
+      "label": "Another Composite",
+      "position": {
+        "x": 40,
+        "y": 690
+      },
+      "role": "composite",
+      "size": {
+        "height": 130,
+        "width": 360
+      }
+    },
+    {
+      "id": "Active__region1",
+      "label": "",
+      "parentContainerId": "Active",
+      "position": {
+        "x": 60,
+        "y": 330
+      },
+      "role": "region",
+      "size": {
+        "height": 130,
+        "width": 424
+      }
+    },
+    {
+      "id": "Active__region2",
+      "label": "",
+      "parentContainerId": "Active",
+      "position": {
+        "x": 524,
+        "y": 330
+      },
+      "role": "region",
+      "size": {
+        "height": 130,
+        "width": 424
+      }
+    },
+    {
+      "id": "Active__region3",
+      "label": "",
+      "parentContainerId": "Active",
+      "position": {
+        "x": 60,
+        "y": 500
+      },
+      "role": "region",
+      "size": {
+        "height": 130,
+        "width": 244
+      }
+    }
+  ],
+  "diagramTypeId": "state",
+  "direction": "LR",
+  "edges": [
+    {
+      "arrow": "target",
+      "id": "e1",
+      "sourceId": "root_start",
+      "targetId": "First"
+    },
+    {
+      "arrow": "target",
+      "id": "e2",
+      "sourceId": "First",
+      "targetId": "Second"
+    },
+    {
+      "arrow": "target",
+      "id": "e3",
+      "sourceId": "First",
+      "targetId": "Third"
+    },
+    {
+      "arrow": "target",
+      "containerId": "First",
+      "id": "e4",
+      "sourceId": "First_start",
+      "targetId": "fir"
+    },
+    {
+      "arrow": "target",
+      "containerId": "First",
+      "id": "e5",
+      "sourceId": "fir",
+      "targetId": "First_end"
+    },
+    {
+      "arrow": "target",
+      "containerId": "Second",
+      "id": "e6",
+      "sourceId": "Second_start",
+      "targetId": "sec"
+    },
+    {
+      "arrow": "target",
+      "containerId": "Second",
+      "id": "e7",
+      "sourceId": "sec",
+      "targetId": "Second_end"
+    },
+    {
+      "arrow": "target",
+      "containerId": "Third",
+      "id": "e8",
+      "sourceId": "Third_start",
+      "targetId": "thi"
+    },
+    {
+      "arrow": "target",
+      "containerId": "Third",
+      "id": "e9",
+      "sourceId": "thi",
+      "targetId": "Third_end"
+    },
+    {
+      "arrow": "target",
+      "containerId": "Inner",
+      "id": "e10",
+      "sourceId": "Inner_start",
+      "targetId": "deep"
+    },
+    {
+      "arrow": "target",
+      "containerId": "Third",
+      "id": "e11",
+      "label": "dive",
+      "sourceId": "thi",
+      "targetId": "Inner"
+    },
+    {
+      "arrow": "target",
+      "containerId": "Active__region1",
+      "id": "e12",
+      "sourceId": "Active__region1_start",
+      "targetId": "NumLockOff"
+    },
+    {
+      "arrow": "target",
+      "containerId": "Active__region1",
+      "id": "e13",
+      "label": "EvNumLockPressed",
+      "sourceId": "NumLockOff",
+      "targetId": "NumLockOn"
+    },
+    {
+      "arrow": "target",
+      "containerId": "Active__region1",
+      "id": "e14",
+      "label": "EvNumLockPressed",
+      "sourceId": "NumLockOn",
+      "targetId": "NumLockOff"
+    },
+    {
+      "arrow": "target",
+      "containerId": "Active__region2",
+      "id": "e15",
+      "sourceId": "Active__region2_start",
+      "targetId": "CapsLockOff"
+    },
+    {
+      "arrow": "target",
+      "containerId": "Active__region2",
+      "id": "e16",
+      "label": "EvCapsLockPressed",
+      "sourceId": "CapsLockOff",
+      "targetId": "CapsLockOn"
+    },
+    {
+      "arrow": "target",
+      "containerId": "Active__region3",
+      "id": "e17",
+      "sourceId": "Active__region3_start",
+      "targetId": "ScrollLockOff"
+    },
+    {
+      "arrow": "target",
+      "id": "e18",
+      "sourceId": "Third",
+      "targetId": "Active"
+    },
+    {
+      "arrow": "target",
+      "containerId": "NamedComposite",
+      "id": "e19",
+      "sourceId": "x",
+      "targetId": "y"
+    }
+  ],
+  "nodes": [
+    {
+      "id": "root_start",
+      "label": "",
+      "position": {
+        "x": 388,
+        "y": 40
+      },
+      "role": "start",
+      "shape": "state-start"
+    },
+    {
+      "containerId": "First",
+      "id": "First_start",
+      "label": "",
+      "position": {
+        "x": 60,
+        "y": 90
+      },
+      "role": "start",
+      "shape": "state-start"
+    },
+    {
+      "containerId": "First",
+      "id": "fir",
+      "label": "fir",
+      "position": {
+        "x": 124,
+        "y": 90
+      },
+      "role": "state",
+      "shape": "rounded-rectangle"
+    },
+    {
+      "containerId": "First",
+      "id": "First_end",
+      "label": "",
+      "position": {
+        "x": 304,
+        "y": 90
+      },
+      "role": "end",
+      "shape": "state-end"
+    },
+    {
+      "containerId": "Second",
+      "id": "Second_start",
+      "label": "",
+      "position": {
+        "x": 472,
+        "y": 90
+      },
+      "role": "start",
+      "shape": "state-start"
+    },
+    {
+      "containerId": "Second",
+      "id": "sec",
+      "label": "sec",
+      "position": {
+        "x": 536,
+        "y": 90
+      },
+      "role": "state",
+      "shape": "rounded-rectangle"
+    },
+    {
+      "containerId": "Second",
+      "id": "Second_end",
+      "label": "",
+      "position": {
+        "x": 716,
+        "y": 90
+      },
+      "role": "end",
+      "shape": "state-end"
+    },
+    {
+      "containerId": "Third",
+      "id": "Third_start",
+      "label": "",
+      "position": {
+        "x": 1104,
+        "y": 90
+      },
+      "role": "start",
+      "shape": "state-start"
+    },
+    {
+      "containerId": "Third",
+      "id": "thi",
+      "label": "thi",
+      "position": {
+        "x": 1168,
+        "y": 90
+      },
+      "role": "state",
+      "shape": "rounded-rectangle"
+    },
+    {
+      "containerId": "Third",
+      "id": "Third_end",
+      "label": "",
+      "position": {
+        "x": 1348,
+        "y": 90
+      },
+      "role": "end",
+      "shape": "state-end"
+    },
+    {
+      "containerId": "Inner",
+      "id": "Inner_start",
+      "label": "",
+      "position": {
+        "x": 840,
+        "y": 140
+      },
+      "role": "start",
+      "shape": "state-start"
+    },
+    {
+      "containerId": "Inner",
+      "id": "deep",
+      "label": "deep",
+      "position": {
+        "x": 904,
+        "y": 140
+      },
+      "role": "state",
+      "shape": "rounded-rectangle"
+    },
+    {
+      "containerId": "Active__region1",
+      "id": "Active__region1_start",
+      "label": "",
+      "position": {
+        "x": 80,
+        "y": 380
+      },
+      "role": "start",
+      "shape": "state-start"
+    },
+    {
+      "containerId": "Active__region1",
+      "id": "NumLockOff",
+      "label": "NumLockOff",
+      "position": {
+        "x": 144,
+        "y": 380
+      },
+      "role": "state",
+      "shape": "rounded-rectangle"
+    },
+    {
+      "containerId": "Active__region1",
+      "id": "NumLockOn",
+      "label": "NumLockOn",
+      "position": {
+        "x": 324,
+        "y": 380
+      },
+      "role": "state",
+      "shape": "rounded-rectangle"
+    },
+    {
+      "containerId": "Active__region2",
+      "id": "Active__region2_start",
+      "label": "",
+      "position": {
+        "x": 544,
+        "y": 380
+      },
+      "role": "start",
+      "shape": "state-start"
+    },
+    {
+      "containerId": "Active__region2",
+      "id": "CapsLockOff",
+      "label": "CapsLockOff",
+      "position": {
+        "x": 608,
+        "y": 380
+      },
+      "role": "state",
+      "shape": "rounded-rectangle"
+    },
+    {
+      "containerId": "Active__region2",
+      "id": "CapsLockOn",
+      "label": "CapsLockOn",
+      "position": {
+        "x": 788,
+        "y": 380
+      },
+      "role": "state",
+      "shape": "rounded-rectangle"
+    },
+    {
+      "containerId": "Active__region3",
+      "id": "Active__region3_start",
+      "label": "",
+      "position": {
+        "x": 80,
+        "y": 550
+      },
+      "role": "start",
+      "shape": "state-start"
+    },
+    {
+      "containerId": "Active__region3",
+      "id": "ScrollLockOff",
+      "label": "ScrollLockOff",
+      "position": {
+        "x": 144,
+        "y": 550
+      },
+      "role": "state",
+      "shape": "rounded-rectangle"
+    },
+    {
+      "containerId": "NamedComposite",
+      "id": "x",
+      "label": "x",
+      "position": {
+        "x": 60,
+        "y": 740
+      },
+      "role": "state",
+      "shape": "rounded-rectangle"
+    },
+    {
+      "containerId": "NamedComposite",
+      "id": "y",
+      "label": "y",
+      "position": {
+        "x": 240,
+        "y": 740
+      },
+      "role": "state",
+      "shape": "rounded-rectangle"
+    }
+  ]
+}

@@ -13,10 +13,10 @@ const ORIGIN: Position = { x: 40, y: 40 };
 
 /** canvas-p2g8.1: the diagram families Auto Layout arranges. Sequence diagrams are laid out from
  *  their message order (computeSequenceLayout), never by position, so they're not included. */
-export const AUTO_LAYOUT_FAMILIES = ['flowchart', 'c4', 'erd', 'uml', 'architecture'] as const;
+export const AUTO_LAYOUT_FAMILIES = ['flowchart', 'c4', 'erd', 'uml', 'architecture', 'state'] as const;
 
 /** Families whose DSL has a `direction` the chosen layout direction is written back to. */
-const FAMILIES_WITH_DIRECTION = new Set(['flowchart', 'erd', 'uml']);
+const FAMILIES_WITH_DIRECTION = new Set(['flowchart', 'erd', 'uml', 'state']);
 
 /** Families where the direction picker means something (architecture follows its own hints). */
 export function autoLayoutUsesDirection(family: string): boolean {

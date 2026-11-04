@@ -82,7 +82,8 @@ def strip_trailing_comment(line: str) -> str:
 def join_front_matter(front_matter: dict[str, Any], body: str) -> str:
     """The front matter (when any section has content) and the body."""
     canvas = front_matter.get("canvas") or {}
-    has_content = any(_has_keys(value) for value in canvas.values())
+    # canvas-bnnh: a key beside `canvas` (a state diagram's `title`) is content too.
+    has_content = any(key != "canvas" for key in front_matter) or any(_has_keys(value) for value in canvas.values())
     if not has_content:
         return body
     return f"---\n{jsyaml.dump(front_matter).rstrip(_TRAILING)}\n---\n{body}"

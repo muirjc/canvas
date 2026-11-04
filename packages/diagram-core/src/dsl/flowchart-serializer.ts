@@ -18,6 +18,10 @@ const SHAPE_DELIMITERS: Record<NodeShape, [string, string]> = {
   trapezoid: ['[/', '\\]'],
   'trapezoid-alt': ['[\\', '/]'],
   asymmetric: ['>', ']'],
+  // canvas-bnnh: state-diagram shapes have no flowchart form; the nearest one keeps the node.
+  'state-start': ['((', '))'],
+  'state-end': ['(((', ')))'],
+  'fork-bar': ['[', ']'],
 };
 
 // canvas-tfr: a role that is a valid ID token round-trips as the node's Mermaid class (its

@@ -33,9 +33,9 @@ HEADER_HEIGHT = 30
 ORIGIN: Position = {"x": 40, "y": 40}
 
 #: The families Auto Layout arranges (sequence diagrams are laid out from their message order).
-AUTO_LAYOUT_FAMILIES = ("flowchart", "c4", "erd", "uml", "architecture")
+AUTO_LAYOUT_FAMILIES = ("flowchart", "c4", "erd", "uml", "architecture", "state")
 #: Families whose DSL has a `direction` the chosen layout direction is written back to.
-FAMILIES_WITH_DIRECTION = frozenset({"flowchart", "erd", "uml"})
+FAMILIES_WITH_DIRECTION = frozenset({"flowchart", "erd", "uml", "state"})
 
 
 def auto_layout_uses_direction(family: str) -> bool:

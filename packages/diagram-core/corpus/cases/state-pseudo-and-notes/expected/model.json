@@ -1,0 +1,280 @@
+{
+  "accDescr": "How an order moves from placed to closed",
+  "accTitle": "Order lifecycle",
+  "containers": [
+    {
+      "attachedNodeIds": [
+        "State1"
+      ],
+      "id": "note1",
+      "label": "Important information! You can write\nnotes: even with a colon.",
+      "position": {
+        "x": 40,
+        "y": 40
+      },
+      "role": "note-right",
+      "size": {
+        "height": 100,
+        "width": 160
+      }
+    },
+    {
+      "attachedNodeIds": [
+        "State2"
+      ],
+      "id": "note2",
+      "label": "This is the note to the left.",
+      "position": {
+        "x": 320,
+        "y": 40
+      },
+      "role": "note-left",
+      "size": {
+        "height": 100,
+        "width": 160
+      }
+    }
+  ],
+  "diagramTypeId": "state",
+  "edges": [
+    {
+      "arrow": "target",
+      "id": "e1",
+      "sourceId": "root_start",
+      "targetId": "IsPositive"
+    },
+    {
+      "arrow": "target",
+      "id": "e2",
+      "sourceId": "IsPositive",
+      "targetId": "if_state"
+    },
+    {
+      "arrow": "target",
+      "id": "e3",
+      "label": "if n < 0",
+      "sourceId": "if_state",
+      "targetId": "False"
+    },
+    {
+      "arrow": "target",
+      "id": "e4",
+      "label": "if n >= 0",
+      "sourceId": "if_state",
+      "targetId": "True"
+    },
+    {
+      "arrow": "target",
+      "id": "e5",
+      "sourceId": "root_start",
+      "targetId": "fork_state"
+    },
+    {
+      "arrow": "target",
+      "id": "e6",
+      "sourceId": "fork_state",
+      "targetId": "State2"
+    },
+    {
+      "arrow": "target",
+      "id": "e7",
+      "sourceId": "fork_state",
+      "targetId": "State3"
+    },
+    {
+      "arrow": "target",
+      "id": "e8",
+      "sourceId": "State2",
+      "targetId": "join_state"
+    },
+    {
+      "arrow": "target",
+      "id": "e9",
+      "sourceId": "State3",
+      "targetId": "join_state"
+    },
+    {
+      "arrow": "target",
+      "id": "e10",
+      "sourceId": "join_state",
+      "targetId": "State4"
+    },
+    {
+      "arrow": "target",
+      "id": "e11",
+      "sourceId": "State4",
+      "targetId": "root_end"
+    },
+    {
+      "arrow": "target",
+      "id": "e12",
+      "sourceId": "State1",
+      "targetId": "State2"
+    }
+  ],
+  "nodes": [
+    {
+      "id": "if_state",
+      "label": "",
+      "position": {
+        "x": 240,
+        "y": 40
+      },
+      "role": "choice",
+      "shape": "diamond"
+    },
+    {
+      "id": "root_start",
+      "label": "",
+      "position": {
+        "x": 520,
+        "y": 40
+      },
+      "role": "start",
+      "shape": "state-start"
+    },
+    {
+      "id": "IsPositive",
+      "label": "IsPositive",
+      "position": {
+        "x": 584,
+        "y": 40
+      },
+      "role": "state",
+      "shape": "rounded-rectangle"
+    },
+    {
+      "id": "False",
+      "label": "False",
+      "position": {
+        "x": 764,
+        "y": 40
+      },
+      "role": "state",
+      "shape": "rounded-rectangle"
+    },
+    {
+      "id": "True",
+      "label": "True",
+      "position": {
+        "x": 40,
+        "y": 180
+      },
+      "role": "state",
+      "shape": "rounded-rectangle"
+    },
+    {
+      "id": "fork_state",
+      "label": "",
+      "position": {
+        "x": 220,
+        "y": 180
+      },
+      "role": "fork",
+      "shape": "fork-bar"
+    },
+    {
+      "id": "State2",
+      "label": "State2",
+      "position": {
+        "x": 340,
+        "y": 180
+      },
+      "role": "state",
+      "shape": "rounded-rectangle"
+    },
+    {
+      "id": "State3",
+      "label": "State3",
+      "position": {
+        "x": 520,
+        "y": 180
+      },
+      "role": "state",
+      "shape": "rounded-rectangle"
+    },
+    {
+      "id": "join_state",
+      "label": "",
+      "position": {
+        "x": 700,
+        "y": 180
+      },
+      "role": "join",
+      "shape": "fork-bar"
+    },
+    {
+      "id": "State4",
+      "label": "State4",
+      "position": {
+        "x": 820,
+        "y": 180
+      },
+      "role": "state",
+      "shape": "rounded-rectangle"
+    },
+    {
+      "id": "root_end",
+      "label": "",
+      "position": {
+        "x": 40,
+        "y": 280
+      },
+      "role": "end",
+      "shape": "state-end"
+    },
+    {
+      "id": "OldStyle",
+      "label": "",
+      "position": {
+        "x": 104,
+        "y": 280
+      },
+      "role": "choice",
+      "shape": "diamond"
+    },
+    {
+      "description": "The state with a note",
+      "id": "State1",
+      "label": "State1",
+      "position": {
+        "x": 184,
+        "y": 280
+      },
+      "role": "state",
+      "shape": "rounded-rectangle"
+    },
+    {
+      "id": "s2",
+      "label": "This is a state description",
+      "position": {
+        "x": 424,
+        "y": 280
+      },
+      "role": "state",
+      "shape": "rounded-rectangle"
+    },
+    {
+      "description": "first line\nsecond line",
+      "id": "s3",
+      "label": "s3",
+      "position": {
+        "x": 604,
+        "y": 280
+      },
+      "role": "state",
+      "shape": "rounded-rectangle"
+    },
+    {
+      "description": "with a description",
+      "id": "s4",
+      "label": "Alias",
+      "position": {
+        "x": 844,
+        "y": 280
+      },
+      "role": "state",
+      "shape": "rounded-rectangle"
+    }
+  ]
+}

@@ -6,6 +6,7 @@ import { parseArchitecture, serializeArchitecture } from './architecture.js';
 import { parseSequence, serializeSequence } from './sequence.js';
 import { parseErd, serializeErd } from './erd.js';
 import { parseUml, serializeUml } from './uml.js';
+import { parseState, serializeState } from './state.js';
 import type { ParseResult } from './types.js';
 
 export interface DslFamily {
@@ -25,6 +26,7 @@ export const dslFamilies: Record<string, DslFamily> = {
   sequence: { parse: parseSequence, serialize: serializeSequence },
   erd: { parse: parseErd, serialize: serializeErd },
   uml: { parse: parseUml, serialize: serializeUml },
+  state: { parse: parseState, serialize: serializeState },
 };
 
 export function getDslFamily(id: string): DslFamily | undefined {

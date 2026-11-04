@@ -4,6 +4,7 @@ import { parseFlowchart } from './flowchart-parser.js';
 import { parseC4 } from './c4.js';
 import { parseErd } from './erd.js';
 import { parseUml } from './uml.js';
+import { parseState } from './state.js';
 import { isParseSuccess, type ParseResult } from './types.js';
 import { parse as parseYaml, stringify as stringifyYaml } from 'yaml';
 import { FRONT_MATTER_PATTERN } from './front-matter.js';
@@ -60,11 +61,12 @@ function withStyleLines(dsl: string): string {
     : family === 'c4' ? c4Lines(parseC4(dsl))
     : family === 'erd' ? nodeStyleLines(parseErd(dsl), '')
     : family === 'uml' ? nodeStyleLines(parseUml(dsl), '')
+    : family === 'state' ? stateLines(parseState(dsl))
     : [];
   if (lines.length === 0) return dsl;
 
   // Flowcharts are written indented; the other families' serializers write flush left.
-  const indent = family === 'flowchart' ? '  ' : '';
+  const indent = family === 'flowchart' || family === 'state' ? '  ' : '';
   const trimmed = dsl.replace(/\s+$/, '');
   return `${trimmed}\n${indent}${COMMENT}\n${lines.join('\n')}\n`;
 }
@@ -89,6 +91,24 @@ function nodeStyleLines(result: ParseResult, indent: string): string[] {
     if (props) lines.push(`${indent}style ${node.id} ${props}`);
   }
   return lines;
+}
+
+/** canvas-bnnh: state diagrams colour states through classes (Mermaid's documented form): one classDef per
+ *  distinct colouring, assigned to its states. Start/end points and composite states are left alone, as
+ *  Mermaid's docs say classes don't apply to them. */
+function stateLines(result: ParseResult): string[] {
+  if (!isParseSuccess(result)) return [];
+  const classOf = new Map<string, string>();
+  const members = new Map<string, string[]>();
+  for (const node of result.model.nodes) {
+    if (node.role === 'start' || node.role === 'end') continue;
+    const props = styleProps(node.style);
+    if (!props) continue;
+    if (!classOf.has(props)) classOf.set(props, `canvasStyle${classOf.size + 1}`);
+    const name = classOf.get(props)!;
+    members.set(name, [...(members.get(name) ?? []), node.id]);
+  }
+  return [...classOf].flatMap(([props, name]) => [`  classDef ${name} ${props}`, `  class ${members.get(name)!.join(',')} ${name}`]);
 }
 
 /** C4's own macros carry only colours: no stroke width or dash pattern. */

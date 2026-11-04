@@ -1,0 +1,24 @@
+---
+canvas:
+  positions:
+    root_start: {x: 40, y: 40}
+    Idle: {x: 120, y: 30}
+    Busy: {x: 320, y: 30}
+    root_end: {x: 520, y: 40}
+    choice1: {x: 330, y: 160}
+  containers:
+    note1: {x: 120, y: 120, width: 160, height: 60}
+  styles:
+    Busy: {fillColor: "#ffe0b2", strokeColor: "#e65100"}
+  edgeStyles:
+    e2: {strokeColor: "#1565c0"}
+  pinned: [Idle, ghost]
+---
+stateDiagram-v2
+  [*] --> Idle
+  Idle --> Busy : start
+  state choice1 <<choice>>
+  Busy --> choice1
+  choice1 --> Idle : again
+  choice1 --> [*] : done
+  note left of Idle : waiting

@@ -18,7 +18,7 @@ export const GITHUB_MERMAID_VERSION = { version: '12.2.0', checkedOn: '2026-10-3
 
 /** Per diagram family: Mermaid syntax Canvas doesn't read or doesn't draw yet. Checked by a test. */
 export interface MermaidSupportNote {
-  family: 'flowchart' | 'sequence' | 'uml' | 'erd' | 'c4' | 'architecture';
+  family: 'flowchart' | 'sequence' | 'uml' | 'erd' | 'c4' | 'architecture' | 'state';
   label: string;
   notes: string[];
 }
@@ -51,6 +51,11 @@ export const MERMAID_SUPPORT_NOTES: readonly MermaidSupportNote[] = [
     family: 'c4',
     label: 'C4',
     notes: ['Read but not followed: UpdateLayoutConfig and the Node_L/Node_R alignment hints.'],
+  },
+  {
+    family: 'state',
+    label: 'State',
+    notes: ['Not read: floating notes (note "text" as N). Read but not kept: hide empty description and scale.'],
   },
   {
     family: 'architecture',

@@ -508,6 +508,10 @@ SHAPE_DELIMITERS = {
     "trapezoid": ("[/", "\\]"),
     "trapezoid-alt": ("[\\", "/]"),
     "asymmetric": (">", "]"),
+    # canvas-bnnh: state-diagram shapes have no flowchart form; the nearest one keeps the node.
+    "state-start": ("((", "))"),
+    "state-end": ("(((", ")))"),
+    "fork-bar": ("[", "]"),
 }
 _CLASS_TOKEN = re.compile("^[A-Za-z0-9_]+$")
 _UNSAFE_LINK_TEXT = re.compile('["\\r\\n]')
