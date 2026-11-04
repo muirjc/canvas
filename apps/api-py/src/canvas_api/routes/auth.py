@@ -50,6 +50,7 @@ from canvas_api.auth.totp import otpauth_uri
 from canvas_api.config import Settings
 from canvas_api.db import get_engine
 from canvas_api.errors import ApiError
+from canvas_api.groups import record_memberships
 
 router = APIRouter(tags=["Auth"])
 Db = Annotated[Engine, Depends(get_engine)]
@@ -139,6 +140,8 @@ def auth_config(request: Request) -> dict[str, Any]:
         "oidcEnabled": settings.oidc is not None,
         "localAuthEnabled": settings.allow_local_auth,
         "mfaRequired": settings.allow_local_auth and settings.mfa_required,
+        # canvas-2h2w.3: whether the share dialogs offer Entra groups.
+        "groupsEnabled": settings.entra_groups,
     }
 
 
@@ -480,6 +483,8 @@ def oidc_callback(request: Request, db: Db) -> RedirectResponse:
     try:
         with db.begin() as conn:
             user = _find_or_create_user(conn, sub, email, name, role)
+            if settings.entra_groups:
+                record_memberships(conn, user["id"], claims)  # canvas-2h2w.3
             start_session(
                 conn,
                 request,

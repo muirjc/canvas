@@ -1228,6 +1228,16 @@
               }
             ]
           },
+          "granteeGroupId": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "granteeName": {
             "anyOf": [
               {
@@ -1239,7 +1249,14 @@
             ]
           },
           "granteeUserId": {
-            "type": "string"
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "id": {
             "type": "string"
@@ -1260,6 +1277,7 @@
           "subjectType",
           "subjectId",
           "granteeUserId",
+          "granteeGroupId",
           "accessLevel",
           "grantedByUserId",
           "createdAt",
@@ -1539,6 +1557,16 @@
                 "grantId": {
                   "type": "string"
                 },
+                "groupId": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
                 "name": {
                   "anyOf": [
                     {
@@ -1550,12 +1578,20 @@
                   ]
                 },
                 "userId": {
-                  "type": "string"
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
                 }
               },
               "required": [
                 "grantId",
                 "userId",
+                "groupId",
                 "name",
                 "email",
                 "accessLevel"
@@ -1781,8 +1817,25 @@
           "grantedByUserId": {
             "type": "string"
           },
+          "granteeGroupId": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "granteeUserId": {
-            "type": "string"
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "id": {
             "type": "string"
@@ -1803,6 +1856,7 @@
           "subjectType",
           "subjectId",
           "granteeUserId",
+          "granteeGroupId",
           "accessLevel",
           "grantedByUserId",
           "createdAt"
@@ -6903,6 +6957,9 @@
                       ],
                       "type": "string"
                     },
+                    "groupsEnabled": {
+                      "type": "boolean"
+                    },
                     "localAuthEnabled": {
                       "type": "boolean"
                     },
@@ -6917,7 +6974,8 @@
                     "authMode",
                     "oidcEnabled",
                     "localAuthEnabled",
-                    "mfaRequired"
+                    "mfaRequired",
+                    "groupsEnabled"
                   ],
                   "type": "object"
                 }
@@ -9024,13 +9082,31 @@
                     ],
                     "type": "string"
                   },
+                  "granteeGroupId": {
+                    "anyOf": [
+                      {
+                        "maxLength": 64,
+                        "minLength": 1,
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
                   "granteeUserId": {
-                    "minLength": 1,
-                    "type": "string"
+                    "anyOf": [
+                      {
+                        "minLength": 1,
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
                   }
                 },
                 "required": [
-                  "granteeUserId",
                   "accessLevel"
                 ],
                 "type": "object"
@@ -9060,6 +9136,16 @@
             "description": "Default Response"
           },
           "4XX": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Default Response"
+          },
+          "5XX": {
             "content": {
               "application/json": {
                 "schema": {
@@ -9670,6 +9756,87 @@
         ],
         "tags": [
           "Diagrams"
+        ]
+      }
+    },
+    "/groups": {
+      "get": {
+        "parameters": [
+          {
+            "in": "query",
+            "name": "q",
+            "required": false,
+            "schema": {
+              "maxLength": 100,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "groups": {
+                      "items": {
+                        "additionalProperties": false,
+                        "properties": {
+                          "displayName": {
+                            "type": "string"
+                          },
+                          "id": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "displayName"
+                        ],
+                        "type": "object"
+                      },
+                      "maxItems": 50,
+                      "type": "array"
+                    }
+                  },
+                  "required": [
+                    "groups"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Default Response"
+          },
+          "4XX": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Default Response"
+          },
+          "5XX": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        },
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ],
+        "tags": [
+          "Sharing"
         ]
       }
     },
@@ -10867,13 +11034,31 @@
                     ],
                     "type": "string"
                   },
+                  "granteeGroupId": {
+                    "anyOf": [
+                      {
+                        "maxLength": 64,
+                        "minLength": 1,
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
                   "granteeUserId": {
-                    "minLength": 1,
-                    "type": "string"
+                    "anyOf": [
+                      {
+                        "minLength": 1,
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
                   }
                 },
                 "required": [
-                  "granteeUserId",
                   "accessLevel"
                 ],
                 "type": "object"
@@ -10903,6 +11088,16 @@
             "description": "Default Response"
           },
           "4XX": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Default Response"
+          },
+          "5XX": {
             "content": {
               "application/json": {
                 "schema": {

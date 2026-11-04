@@ -10,6 +10,7 @@ from fastapi import FastAPI, Request, Response
 from sqlalchemy import Engine
 from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoint
 
+from canvas_api.auth.graph import GraphClient
 from canvas_api.auth.oidc import OidcClient
 from canvas_api.auth.rate_limit import LoginRateLimiter
 from canvas_api.config import Settings
@@ -72,6 +73,8 @@ def create_app(
     # canvas-1bty.15: diagram-core, native Python.
     diagram_core = DiagramCore()
     github_client = GitHubClient(github_config, github_transport) if github_config else None
+    # canvas-2h2w.3: the Entra groups people can share with (through the identity platform's own HTTP client).
+    graph_client = GraphClient(oidc_client, settings.graph_api_url) if oidc_client and settings.entra_groups else None
 
     @asynccontextmanager
     async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
@@ -97,6 +100,7 @@ def create_app(
     app.state.diagram_core = diagram_core
     app.state.github_client = github_client
     app.state.oidc_client = oidc_client
+    app.state.graph_client = graph_client
     app.state.login_rate_limiter = LoginRateLimiter(settings.login_rate_limit_per_minute)
     # canvas-1bty.12: tests replace the AI model (a callable: chosen model id -> LanguageModel) and the
     # provider clients used to list models; None = the configured provider.

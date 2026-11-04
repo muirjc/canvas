@@ -96,6 +96,18 @@ tests are NON-NEGOTIABLE and must exist (and fail) before implementing any diagr
 work — see `.specify/memory/constitution.md` Principle IV.
 
 ## Recent Changes
+- `canvas-2h2w.3`: **share with Entra groups** (decided with the user: build now, verify live later with Azure on
+  Entra; only groups ASSIGNED TO THE CANVAS APP). Setting `ENTRA_GROUPS=true` (deploy.sh `CANVAS_ENTRA_GROUPS`,
+  bicep `entraGroups`), only with Entra sign-in; `/auth/config` `groupsEnabled`. Migrations Postgres `0036`, SQLite
+  `0024`: `entra_groups` (picked groups' names), `user_group_memberships` (from the ID token's `groups` claim at each
+  Entra sign-in, `groupMembershipClaims=ApplicationGroup`; overage keeps the old record), `share_grants.
+  grantee_group_id` (person XOR group; partial unique index for groups; SQLite table rebuilt). access.py's two grant
+  queries also match `grantee_group_id IN (user's memberships)`; highest of direct and group grants. `auth/graph.py`
+  `GraphClient.assigned_groups()` (servicePrincipals(appId)/appRoleAssignedTo, groups only, paged, cached 5 min) with
+  `OidcClient.app_token()` (client credentials, same secret/managed-identity assertion). Routes: `GET /groups?q=`;
+  share bodies take `granteeUserId` XOR `granteeGroupId` (group checked against Graph AFTER the access guard; 503 if
+  Graph fails); grants/members carry `granteeGroupId`/`groupId` (userId null). No notifications for group shares.
+  Tests: `tests/test_entra_groups.py` (fake IdP + fake Graph). RUNBOOK "Entra groups"; admin guide people.md.
 - `canvas-2h2w.4`: **in-app notifications about access** (decided with the user: in-app only, quiet, no opt-out;
   email stays canvas-q9v). Table `notifications` (Postgres `0035`, SQLite `0023`): kind `added` | `level_changed` |
   `removed` | `ownership`, subject (project|diagram, no FK; `subject_name` snapshotted so a later rename never

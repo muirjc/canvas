@@ -276,14 +276,17 @@ export function accessAtLeast(level: AccessLevel | undefined, required: AccessLe
 /** canvas-2h2w.2: GET /projects/:id/members. */
 export interface ProjectMembersDto {
   owner: { id: string; name: string | null; email: string | null };
-  members: { grantId: string; userId: string; name: string | null; email: string | null; accessLevel: AccessLevel }[];
+  /** A person (`userId` set) or an Entra group (`groupId` set; `name` is the group's name, `email` null). */
+  members: { grantId: string; userId: string | null; groupId: string | null; name: string | null; email: string | null; accessLevel: AccessLevel }[];
 }
 
 export interface ShareGrantDto {
   id: string;
   subjectType: 'diagram' | 'project';
   subjectId: string;
-  granteeUserId: string;
+  /** A grant is to a person or to an Entra group: exactly one of these is set. */
+  granteeUserId: string | null;
+  granteeGroupId: string | null;
   /** Null when the grantee no longer exists. */
   granteeName?: string | null;
   granteeEmail?: string | null;
@@ -633,6 +636,10 @@ export interface AiModelsDto {
   error?: string;
 }
 
+/** A share names a person by user id or an Entra group by `{ groupId }` (exactly one). */
+const granteeBody = (grantee: string | { groupId: string }) =>
+  typeof grantee === 'string' ? { granteeUserId: grantee } : { granteeGroupId: grantee.groupId };
+
 export const api = {
   me: () => request<{ user: SessionUser }>('/auth/me'),
   /** canvas-ao2: whether this request carried a session -- 'none' right after a sign-in means the
@@ -666,7 +673,7 @@ export const api = {
    *  LoginForm.tsx decide whether to show a "Sign in with SSO" link without it 404ing.
    *  canvas-cpa: localAuthEnabled likewise lets it decide whether to show the password fields at
    *  all, rather than a 404 surfacing as a bare "Not Found" only after submitting them. */
-  getAuthConfig: () => request<{ authMode: 'entra' | 'local'; mfaRequired?: boolean; oidcEnabled: boolean; localAuthEnabled: boolean }>('/auth/config'),
+  getAuthConfig: () => request<{ authMode: 'entra' | 'local'; mfaRequired?: boolean; oidcEnabled: boolean; localAuthEnabled: boolean; groupsEnabled?: boolean }>('/auth/config'),
   createDiagram: (projectId: string, body: { name: string; diagramTypeId: string; initialDslContent?: string; draft?: boolean }) =>
     request<{ diagram: DiagramDto }>(`/projects/${projectId}/diagrams`, { method: 'POST', body: JSON.stringify(body) }),
   importDiagram: (projectId: string, body: { name: string; dslContent: string; diagramTypeHint?: string; draft?: boolean }) =>
@@ -803,10 +810,12 @@ export const api = {
   /** Active users whose name or email contains `q` (max 20) — the share picker (canvas-cyt). */
   searchUsers: (q: string) =>
     request<{ users: { id: string; name: string; email: string }[] }>(`/users/search?q=${encodeURIComponent(q)}`),
-  createDiagramShare: (diagramId: string, granteeUserId: string, accessLevel: AccessLevel) =>
+  /** Entra groups assigned to Canvas whose name contains `q` (max 50); 400 when groups are off, 503 when Microsoft is unreachable. */
+  searchGroups: (q: string) => request<{ groups: { id: string; displayName: string }[] }>(`/groups?q=${encodeURIComponent(q)}`),
+  createDiagramShare: (diagramId: string, grantee: string | { groupId: string }, accessLevel: AccessLevel) =>
     request<{ grant: ShareGrantDto }>(`/diagrams/${diagramId}/shares`, {
       method: 'POST',
-      body: JSON.stringify({ granteeUserId, accessLevel }),
+      body: JSON.stringify({ ...granteeBody(grantee), accessLevel }),
     }),
   listDiagramShares: (diagramId: string) => request<{ grants: ShareGrantDto[] }>(`/diagrams/${diagramId}/shares`),
   /** Diagrams shared directly with the signed-in user (feature 008, FR-001). */
@@ -820,10 +829,10 @@ export const api = {
   /** canvas-2h2w.2: a project's owner and members, and the caller's own access to it. */
   getProjectMembers: (projectId: string) => request<ProjectMembersDto & { yourAccess: AccessLevel }>(`/projects/${projectId}/members`),
   /** Adds a member, or changes their level (needs Manage). */
-  setProjectMember: (projectId: string, granteeUserId: string, accessLevel: AccessLevel) =>
+  setProjectMember: (projectId: string, grantee: string | { groupId: string }, accessLevel: AccessLevel) =>
     request<{ grant: ShareGrantDto }>(`/projects/${projectId}/shares`, {
       method: 'POST',
-      body: JSON.stringify({ granteeUserId, accessLevel }),
+      body: JSON.stringify({ ...granteeBody(grantee), accessLevel }),
     }),
   /** Owner or admin only; the previous owner stays on with Manage. */
   transferProjectOwnership: (projectId: string, newOwnerId: string) =>

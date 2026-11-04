@@ -395,6 +395,34 @@ identity endpoint (cached until shortly before it expires) and sends it as the
 credential `canvas-api-managed-identity` is on the app registration; the old client secret is still there.
 Back to a secret: `CANVAS_OIDC_CLIENT_AUTH=secret ENTRA_CLIENT_SECRET=... ./deploy.sh`.
 
+### Entra groups (canvas-2h2w.3)
+
+With `ENTRA_GROUPS=true` (deploy.sh `CANVAS_ENTRA_GROUPS=true`, cached in `.secrets/entra-groups`) people
+can share a project or diagram with an Entra **group**. Only groups assigned to the Canvas enterprise
+application are offered, and only with Entra sign-in (it does nothing with `AUTH_MODE=local`). One-time
+setup, by someone who can change the app registration and a tenant admin for the consent:
+
+1. **Groups in the sign-in token**: `az ad app update --id <client-id> --set groupMembershipClaims=ApplicationGroup`.
+   The ID token then carries a `groups` claim with the person's groups *that are assigned to the app*. At
+   each sign-in Canvas stores them (`user_group_memberships`), so a change in Entra applies at the person's
+   next sign-in (and a removal keeps working until their session ends, up to 8 hours).
+2. **The group picker reads Microsoft Graph** with an app-only token (client credentials, the same
+   secret or managed-identity credential as sign-in): add Graph's **Application.Read.All** application
+   permission (`az ad app permission add --id <client-id> --api 00000003-0000-0000-c000-000000000000
+   --api-permissions 9a5d68dd-52b0-4cc2-bd40-abcf44ac3a30=Role`) and grant admin consent
+   (`az ad app permission admin-consent --id <client-id>`). It lists the app's assignments
+   (`servicePrincipals/{id}/appRoleAssignedTo`), groups only, cached 5 minutes.
+3. **Assign the groups** people may share with to the Canvas enterprise application (Entra portal →
+   Enterprise applications → Canvas → Users and groups). With "Assignment required" on (it is), members of
+   an assigned group can also sign in; give the group an app role (usually `viewer` or `architect`).
+
+deploy.sh prints these commands when the setting is on. Without the consent, `GET /groups` answers 503
+("Couldn't list the groups from Microsoft") and the API log says which Graph call was refused. A group
+share sends no notification (Canvas only knows members who have signed in). If someone is in more than
+200 assigned groups Entra leaves the claim out; Canvas then keeps their previous memberships and logs a
+warning. Tested against a fake Graph (`tests/test_entra_groups.py`); verify live with Azure on
+`AUTH_MODE=entra`, as for canvas-haz.9.
+
 ### Manual post-deploy live verification (Entra, Phase 7 of canvas-haz)
 
 Nothing above is a substitute for actually trying this against the real deployed Azure

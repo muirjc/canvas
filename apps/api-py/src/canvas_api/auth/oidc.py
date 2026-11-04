@@ -163,12 +163,52 @@ class OidcClient:
         self._jwks: list[dict[str, Any]] = []
         self._jwks_fetched_at = 0.0
         self._lock = threading.Lock()
+        self._app_tokens: dict[str, tuple[str, float]] = {}
         self._issuer = config.issuer_url
         # openid-client refuses plain HTTP unless the issuer itself is plain HTTP (a local test IdP only).
         self._allow_http = urlsplit(self._issuer).scheme == "http"
 
     def close(self) -> None:
         self._http.close()
+
+    @property
+    def http(self) -> httpx.Client:
+        """The client every call to the identity platform goes through (tests answer it in-process)."""
+        return self._http
+
+    def app_token(self, scope: str) -> str:
+        """canvas-2h2w.3: a token for the app itself (client credentials, with the same client authentication as
+        sign-in: the secret or the managed identity's assertion), e.g. for Microsoft Graph. Reused until five
+        minutes before it expires."""
+        with self._lock:
+            cached = self._app_tokens.get(scope)
+            if cached and time.time() < cached[1] - _REFRESH_MARGIN_SECONDS:
+                return cached[0]
+        endpoint = self.metadata().get("token_endpoint")
+        if not isinstance(endpoint, str) or (urlsplit(endpoint).scheme != "https" and not self._allow_http):
+            raise OidcError("no usable token endpoint")
+        form = {"grant_type": "client_credentials", "client_id": self.config.client_id, "scope": scope}
+        if self._assertion is not None:
+            form["client_assertion_type"] = _ASSERTION_TYPE
+            form["client_assertion"] = self._assertion.token()
+        elif self.config.client_secret:
+            form["client_secret"] = self.config.client_secret
+        response = self._http.post(endpoint, data=form, headers={"accept": "application/json"})
+        try:
+            body = response.json()
+        except ValueError as error:
+            raise OidcError("the token response is not JSON") from error
+        token = body.get("access_token") if isinstance(body, dict) else None
+        if response.status_code != 200 or not isinstance(token, str) or not token:
+            error_code = body.get("error") if isinstance(body, dict) else None
+            raise OidcError(f"the token endpoint refused the app token ({response.status_code}, {error_code})")
+        try:
+            expires_in = float(body.get("expires_in", 3600))
+        except (TypeError, ValueError):
+            expires_in = 3600
+        with self._lock:
+            self._app_tokens[scope] = (token, time.time() + expires_in)
+        return token
 
     def _get_json(self, url: str) -> Any:
         if urlsplit(url).scheme != "https" and not self._allow_http:
