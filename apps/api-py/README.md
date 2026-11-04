@@ -45,7 +45,8 @@ Layout (`src/canvas_api/`):
 The schema is the plain SQL in `migrations/` (Postgres) and `migrations/sqlite/` (SQLite), applied
 by `migrations.py`. The API contract is `contract/openapi.json` and `contract/constants.json`: frozen,
 and edited by hand together with the route it describes. `tests/api.py`'s client checks every
-response a test gets against it.
+response a test gets against it, and every request the API accepted (body and query parameters);
+`tests/test_contract.py` checks that each route's body and query parameters are in it.
 
 The browser still runs the TypeScript diagram-core, so the Python port must keep matching it. The
 TypeScript diagram-core bridge (`packages/diagram-bridge`) is the tests' reference: the tests start it

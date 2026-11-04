@@ -96,6 +96,15 @@ tests are NON-NEGOTIABLE and must exist (and fail) before implementing any diagr
 work — see `.specify/memory/constitution.md` Principle IV.
 
 ## Recent Changes
+- `canvas-62y`: **the contract describes requests too, and tests hold them to it.** Added the 8 missing request
+  bodies (AI persona/reference-material create+edit, `/auth/local/login`, standards create/PUT via a new
+  `StandardBody` component generated from `standards_schema.py`, legacy `POST /libraries`). `check_contract`
+  now also checks every request the API ACCEPTED (2xx; tests send bad ones on purpose): body vs the
+  requestBody schema (or none), query parameters by name and schema. That found 7 contract errors, fixed:
+  delete-user body optional, import-svg `license` / import-manifest `name` nullable, ai-prices and
+  ai-settings accept unknown keys, search `query`/`type` and deleted-diagrams `limit`/`q` were missing.
+  `test_every_body_and_query_parameter_a_route_takes_is_in_the_contract` compares FastAPI's own OpenAPI
+  document with the contract; the AI usage routes now declare `from`/`to` (`Query(alias="from")`).
 - `canvas-qeo8`: **fewer queries per request.** A diagram read went from 16 statements to 6, presence from
   ~13 to 8. (1) `current_user` writes the session only when that moves its stored expiry by
   `TOUCH_INTERVAL_MS` (60 s) or more, or the session changed (other callers of `save_session` always write);

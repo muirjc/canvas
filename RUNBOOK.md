@@ -153,7 +153,7 @@ Set `ENABLE_API_DOCS=true` in `apps/api-py/.env` and restart the API to serve Fa
 `http://localhost:3000/docs` and the OpenAPI JSON at `/openapi.json` (no longer `/docs/json`). The
 reviewed request/response shapes are the frozen contract, `apps/api-py/contract/openapi.json` (with
 `constants.json`); edit it by hand together with the route it describes. The Python tests check
-every response they get against it (`apps/api-py/tests/api.py`). Off by default so a real
+every response they get against it, and every request the API accepted (`apps/api-py/tests/api.py`). Off by default so a real
 deployment doesn't publish its API map.
 
 ## Azure IP allow-list (canvas-cng)

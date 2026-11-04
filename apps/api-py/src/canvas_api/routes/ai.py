@@ -10,7 +10,7 @@ import logging
 from datetime import UTC, datetime, timedelta
 from typing import Annotated, Any, Literal
 
-from fastapi import APIRouter, Depends, Request, Response
+from fastapi import APIRouter, Depends, Query, Request, Response
 from pydantic import BaseModel, Field, StrictBool, StrictFloat, StrictInt, StrictStr
 from sqlalchemy import Engine
 
@@ -344,16 +344,23 @@ def _period(from_: str | None, to: str | None) -> tuple[datetime, datetime]:
     return start, end
 
 
+#: The usage period's query parameters (`from` is a Python keyword, hence the alias).
+PeriodStart = Annotated[str | None, Query(alias="from")]
+PeriodEnd = Annotated[str | None, Query()]
+
+
 @router.get("/admin/ai-usage", tags=["Admin"])
-def ai_usage(_admin: AdminUser, db: Db, request: Request) -> dict[str, Any]:
-    start, end = _period(request.query_params.get("from"), request.query_params.get("to"))
+def ai_usage(_admin: AdminUser, db: Db, from_: PeriodStart = None, to: PeriodEnd = None) -> dict[str, Any]:
+    start, end = _period(from_, to)
     with db.connect() as conn:
         return {"from": js_iso(start), "to": js_iso(end), **summarize_by_user(conn, start, end)}
 
 
 @router.get("/admin/ai-usage/users/{id}", tags=["Admin"])
-def ai_usage_user(id: str, _admin: AdminUser, db: Db, request: Request) -> dict[str, Any]:
-    start, end = _period(request.query_params.get("from"), request.query_params.get("to"))
+def ai_usage_user(
+    id: str, _admin: AdminUser, db: Db, from_: PeriodStart = None, to: PeriodEnd = None
+) -> dict[str, Any]:
+    start, end = _period(from_, to)
     with db.connect() as conn:
         return {"from": js_iso(start), "to": js_iso(end), **user_detail(conn, id, start, end)}
 
