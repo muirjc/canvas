@@ -389,7 +389,9 @@ through a **federated credential** on the app registration.
 How it works: on each sign-in callback the API fetches the identity's token from the Container Apps
 identity endpoint (cached until shortly before it expires) and sends it as the
 `client_assertion` (`jwt-bearer`) in the token request -- no `client_secret`. Covered by
-`apps/api-py/tests/test_auth_oidc.py`; not yet verified live (Azure runs `AUTH_MODE=local` today).
+`apps/api-py/tests/test_auth_oidc.py`, and verified live on 2026-11-04 (Azure switched to Entra with
+`managed-identity`, an Entra user signed in, then switched back to `AUTH_MODE=local`). The federated
+credential `canvas-api-managed-identity` is on the app registration; the old client secret is still there.
 Back to a secret: `CANVAS_OIDC_CLIENT_AUTH=secret ENTRA_CLIENT_SECRET=... ./deploy.sh`.
 
 ### Manual post-deploy live verification (Entra, Phase 7 of canvas-haz)
