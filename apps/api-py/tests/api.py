@@ -16,7 +16,7 @@ from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
-from urllib.parse import quote, urlsplit
+from urllib.parse import parse_qsl, quote, urlsplit
 from uuid import uuid4
 
 import httpx
@@ -72,13 +72,46 @@ def contract_operation(method: str, path: str) -> tuple[str, dict[str, Any]] | N
     return matches[0] if matches else None
 
 
+def _schema_errors(schema: dict[str, Any], value: Any) -> list[str]:
+    root = {**schema, "components": CONTRACT["components"]}
+    errors = sorted(Draft202012Validator(root, format_checker=_formats).iter_errors(value), key=str)
+    return [f"{'/'.join(map(str, e.absolute_path)) or '(root)'}: {e.message}" for e in errors[:5]]
+
+
+def check_contract_request(request: httpx.Request, path: str, operation: dict[str, Any]) -> None:
+    """canvas-62y: a request the API accepted is one the contract describes -- its JSON body (or none) and
+    its query parameters. Only accepted requests: tests send malformed ones on purpose to get a 400."""
+    where = f"{request.method} {path}"
+    query_params = {p["name"]: p for p in operation.get("parameters", []) if p.get("in") == "query"}
+    for name, value in parse_qsl(urlsplit(str(request.url)).query, keep_blank_values=True):
+        assert name in query_params, f"{where}: query parameter {name!r} is not in the contract"
+        problems = _schema_errors(query_params[name].get("schema", {}), value)
+        assert not problems, f"{where}: query parameter {name}={value!r} breaks the contract: " + "; ".join(problems)
+    body = request.content
+    request_body = operation.get("requestBody")
+    if request_body is None:
+        assert body == b"", f"{where} sent a body the contract doesn't describe: {body[:200]!r}"
+        return
+    if body == b"":
+        assert not request_body.get("required"), f"{where} needs a body, the contract says"
+        return
+    media_type = request.headers.get("content-type", "").split(";")[0].strip()
+    content = request_body.get("content", {})
+    assert media_type in content, f"{where} sent {media_type!r}, not one of {sorted(content)}"
+    problems = _schema_errors(content[media_type].get("schema", {}), json.loads(body))
+    assert not problems, f"{where}: the request body breaks the contract: " + "; ".join(problems)
+
+
 def check_contract(response: httpx.Response) -> None:
-    """Fails unless the response is one the contract describes, in the shape it describes."""
+    """Fails unless the response is one the contract describes, in the shape it describes -- and, for an
+    accepted request, unless the request is one it describes too."""
     request = response.request
     found = contract_operation(request.method, urlsplit(str(request.url)).path)
     if found is None:
         return  # a route outside the contract (/health)
     path, operation = found
+    if 200 <= response.status_code < 300:
+        check_contract_request(request, path, operation)
     responses = operation["responses"]
     status = str(response.status_code)
     documented = responses.get(status) or responses.get(f"{status[0]}XX")
@@ -94,11 +127,8 @@ def check_contract(response: httpx.Response) -> None:
     if schema is None:
         assert response.content == b"", f"{where} should have no body"
         return
-    root = {**schema, "components": CONTRACT["components"]}
-    errors = sorted(Draft202012Validator(root, format_checker=_formats).iter_errors(response.json()), key=str)
-    assert not errors, f"{where} breaks the contract: " + "; ".join(
-        f"{'/'.join(map(str, e.absolute_path)) or '(root)'}: {e.message}" for e in errors[:5]
-    )
+    problems = _schema_errors(schema, response.json())
+    assert not problems, f"{where} breaks the contract: " + "; ".join(problems)
 
 
 # --- the database -----------------------------------------------------------------------------------
