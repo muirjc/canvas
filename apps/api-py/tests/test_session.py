@@ -232,6 +232,38 @@ def test_each_request_moves_the_idle_expiry_forward_and_resends_the_cookie(
     assert signed_in_user(after, settings) is not None
 
 
+def test_a_request_writes_the_session_only_when_that_moves_its_expiry_a_minute_or_more(
+    client: TestClient, make_session: Any, engine: Engine, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """canvas-qeo8: rolling the expiry forward by seconds isn't worth a write on every request."""
+    from canvas_api.auth import session as session_module
+
+    cookie = make_session(_user(), expires_in_ms=HOUR_MS)
+    session_id = unsign(cookie.replace("%2F", "/").replace("%2B", "+"), TEST_SESSION_SECRET)
+
+    def stored() -> tuple[str, int]:
+        with engine.connect() as conn:
+            row = conn.execute(text("SELECT data, expires_at FROM sessions WHERE id = :id"), {"id": session_id}).one()
+        return str(row.data), int(row.expires_at)
+
+    start = int(time.time() * 1000)
+    monkeypatch.setattr(session_module, "_now_ms", lambda: start)
+    assert _me(client, cookie).status_code == 200  # 7 hours behind: written
+    written = stored()
+    assert written[1] == start + 8 * HOUR_MS
+
+    monkeypatch.setattr(session_module, "_now_ms", lambda: start + session_module.TOUCH_INTERVAL_MS - 1)
+    res = _me(client, cookie)
+    assert res.status_code == 200
+    assert res.headers["set-cookie"].startswith("cid=")  # the cookie still goes out
+    assert stored() == written  # not written
+
+    later = start + session_module.TOUCH_INTERVAL_MS
+    monkeypatch.setattr(session_module, "_now_ms", lambda: later)
+    assert _me(client, cookie).status_code == 200
+    assert stored()[1] == later + 8 * HOUR_MS
+
+
 def test_touching_never_revives_a_revoked_session(make_session: Any, engine: Engine, settings: Settings) -> None:
     from canvas_api.auth.session import touch_session
 

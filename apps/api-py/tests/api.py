@@ -10,6 +10,8 @@ from __future__ import annotations
 import json
 import re
 import time
+from collections.abc import Iterator
+from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
@@ -20,7 +22,7 @@ from uuid import uuid4
 import httpx
 from fastapi.testclient import TestClient
 from jsonschema import Draft202012Validator, FormatChecker
-from sqlalchemy import Engine, text
+from sqlalchemy import Engine, event, text
 
 from canvas_api.auth.cookie_signer import sign
 from canvas_api.timestamps import to_db
@@ -525,3 +527,18 @@ class Api:
     def execute(self, sql: str, **params: Any) -> None:
         with self.engine.begin() as conn:
             conn.execute(text(sql), params)
+
+
+@contextmanager
+def counting_queries(engine: Engine) -> Iterator[list[str]]:
+    """The SQL statements run on `engine` inside the block (canvas-y3qt, canvas-qeo8)."""
+    statements: list[str] = []
+
+    def record(_conn: Any, _cursor: Any, statement: str, *_args: Any) -> None:
+        statements.append(statement)
+
+    event.listen(engine, "before_cursor_execute", record)
+    try:
+        yield statements
+    finally:
+        event.remove(engine, "before_cursor_execute", record)

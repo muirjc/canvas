@@ -6,7 +6,10 @@ same `sessions` rows, written in @fastify/session's format. The rules match the 
 - the row must exist, not be revoked, and not be past `expires_at` or the cookie expiry stored in it;
 - a signed-in session ends SESSION_MAX_HOURS after sign-in (`authenticatedAt`), however active; it is then
   revoked, as the TypeScript service replaces it;
-- each request moves the idle expiry forward (@fastify/session's `rolling`), in the row and the cookie;
+- each request moves the idle expiry forward (@fastify/session's `rolling`), in the row and the cookie --
+  except that a request which changes nothing else only writes the row when that moves it by at least
+  TOUCH_INTERVAL_MS (canvas-qeo8: one write fewer on almost every request), so the idle timeout can end
+  up to that much early;
 - signing in always starts a new session id and revokes the old one (no session fixation);
 - someone who must change a one-time password or set up two-step verification can only reach /auth/*
   and /health until they do.
@@ -34,6 +37,9 @@ SESSION_COOKIE_NAME = "cid"
 #: Expired rows are deleted when saving, at most this often per process (session-store.ts PRUNE_INTERVAL_MS).
 PRUNE_INTERVAL_MS = 10 * 60 * 1000
 _last_prune_ms = 0
+#: A signed-in request that changes nothing in the session writes it only when that moves the idle expiry
+#: forward by at least this much (canvas-qeo8).
+TOUCH_INTERVAL_MS = 60 * 1000
 
 
 class SessionUser(BaseModel):
@@ -291,9 +297,20 @@ def current_user(request: Request, response: Response) -> SessionUser:
             raise ApiError(403, "Change your one-time password before continuing.", "PASSWORD_CHANGE_REQUIRED")
         if user.mustEnrollMfa:
             raise ApiError(403, "Set up two-step verification before continuing.", "MFA_ENROLLMENT_REQUIRED")
-    save_session(request, response, session)
+    _roll(request, response, session)
     request.state.session = session
     return user
+
+
+def _roll(request: Request, response: Response, session: StoredSession) -> None:
+    """Rolls an unchanged session forward: saves it only when the stored expiry is TOUCH_INTERVAL_MS or
+    more behind where this request would move it; re-sends the cookie either way."""
+    settings: Settings = request.app.state.settings
+    stored = _parse_js_date((session.data.get("cookie") or {}).get("expires"))
+    if stored is not None and _now_ms() + _idle_ms(settings) - stored < TOUCH_INTERVAL_MS:
+        set_session_cookie(response, session.id, settings)
+        return
+    save_session(request, response, session)
 
 
 def revoke_sessions(conn: Connection, user_id: str) -> None:

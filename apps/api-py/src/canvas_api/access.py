@@ -63,25 +63,38 @@ def _user_role(conn: Connection, user_id: str) -> str | None:
     return None if row is None else str(row.role)
 
 
-def resolve_project_access(conn: Connection, user_id: str, project_id: str) -> AccessLevel | None:
-    """The user's access to a project; None only when it doesn't exist (or is deleted)."""
+#: A user's grants on a set of projects and (optionally) one diagram, in one query.
+_GRANTS = text(
+    "SELECT subject_type, access_level FROM share_grants WHERE grantee_user_id = :uid AND ("
+    " (subject_type = 'project' AND subject_id IN :ids) OR (subject_type = 'diagram' AND subject_id = :diagram))"
+).bindparams(bindparam("ids", expanding=True))
+#: No diagram: a value no subject_id has (ids are UUIDs), so only project grants match.
+_NO_DIAGRAM = "00000000-0000-0000-0000-000000000000"
+
+
+def _project_level(
+    conn: Connection, user_id: str, project_id: str, role: str | None, diagram_id: str | None = None
+) -> tuple[AccessLevel | None, str | None]:
+    """The user's access to a project before the viewer cap (None when it doesn't exist or is deleted), and
+    their grant on `diagram_id` if asked for -- read together: the ancestor chain, then one grants query."""
     chain = conn.execute(_ANCESTOR_CHAIN, {"id": project_id}).all()
-    if not chain:
-        return None
     ids = [str(row.id) for row in chain]
     grants = conn.execute(
-        text(
-            "SELECT access_level FROM share_grants WHERE subject_type = 'project'"
-            " AND grantee_user_id = :uid AND subject_id IN :ids"
-        ).bindparams(bindparam("ids", expanding=True)),
-        {"uid": user_id, "ids": ids},
+        _GRANTS, {"uid": user_id, "ids": ids or [_NO_DIAGRAM], "diagram": diagram_id or _NO_DIAGRAM}
     ).all()
-    role = _user_role(conn, user_id)
+    diagram_grant = next((str(g.access_level) for g in grants if g.subject_type == "diagram"), None)
+    if not chain:
+        return None, diagram_grant
     owns = any(str(row.owner_id) == user_id for row in chain)
-    return cap_for_role(
-        highest_access("view", "manage" if owns or role == "admin" else None, *(g.access_level for g in grants)),
-        role,
-    )
+    project_grants = (g.access_level for g in grants if g.subject_type == "project")
+    return highest_access("view", "manage" if owns or role == "admin" else None, *project_grants), diagram_grant
+
+
+def resolve_project_access(conn: Connection, user_id: str, project_id: str) -> AccessLevel | None:
+    """The user's access to a project; None only when it doesn't exist (or is deleted)."""
+    role = _user_role(conn, user_id)
+    level, _ = _project_level(conn, user_id, project_id, role)
+    return cap_for_role(level, role)
 
 
 @dataclass(frozen=True)
@@ -141,42 +154,39 @@ def require_project_access(conn: Connection, user_id: str, project_id: str, requ
         )
 
 
-def resolve_diagram_access(conn: Connection, user_id: str, diagram_id: str) -> AccessLevel | None:
-    """sharing.service.ts resolveDiagramAccess: the highest of open read (View), the user's access to
-    the diagram's project, a diagram share and owning it (Manage); then the viewer cap. None only when
-    the diagram doesn't exist."""
-    diagram = conn.execute(text("SELECT owner_id, project_id FROM diagrams WHERE id = :id"), {"id": diagram_id}).first()
-    if diagram is None:
-        return None
+_DIAGRAM_FOR_ACCESS = text("SELECT owner_id, project_id, draft FROM diagrams WHERE id = :id")
+
+
+def _diagram_level(conn: Connection, user_id: str, diagram_id: str, diagram: Any) -> AccessLevel | None:
+    """The highest of open read (View), the user's access to the diagram's project, a diagram share and
+    owning it (Manage); then the viewer cap. The project access isn't capped on its own: capping the
+    highest is the same as capping each."""
     role = _user_role(conn, user_id)
-    grant = conn.execute(
-        text(
-            "SELECT access_level FROM share_grants WHERE subject_type = 'diagram'"
-            " AND subject_id = :id AND grantee_user_id = :uid"
-        ),
-        {"id": diagram_id, "uid": user_id},
-    ).first()
-    project_level = resolve_project_access(conn, user_id, str(diagram.project_id))
+    project_level, grant = _project_level(conn, user_id, str(diagram.project_id), role, diagram_id)
     return cap_for_role(
-        highest_access(
-            "view",
-            project_level,
-            grant.access_level if grant else None,
-            "manage" if str(diagram.owner_id) == user_id else None,
-        ),
+        highest_access("view", project_level, grant, "manage" if str(diagram.owner_id) == user_id else None),
         role,
     )
 
 
-def require_diagram_access(conn: Connection, user_id: str, diagram_id: str, required: AccessLevel) -> None:
+def resolve_diagram_access(conn: Connection, user_id: str, diagram_id: str) -> AccessLevel | None:
+    """sharing.service.ts resolveDiagramAccess. None only when the diagram doesn't exist."""
+    diagram = conn.execute(_DIAGRAM_FOR_ACCESS, {"id": diagram_id}).first()
+    return None if diagram is None else _diagram_level(conn, user_id, diagram_id, diagram)
+
+
+def require_diagram_access(
+    conn: Connection, user_id: str, diagram_id: str, required: AccessLevel
+) -> AccessLevel | None:
     """access-control.middleware.ts requireDiagramAccess. A missing diagram falls through to the route's
-    own 404; someone else's unsaved draft doesn't exist for anyone else, admins included."""
-    row = conn.execute(text("SELECT owner_id, draft FROM diagrams WHERE id = :id"), {"id": diagram_id}).first()
+    own 404 (None); someone else's unsaved draft doesn't exist for anyone else, admins included. Returns
+    the user's access level, so a route needn't work it out again."""
+    row = conn.execute(_DIAGRAM_FOR_ACCESS, {"id": diagram_id}).first()
     if row is None:
-        return
+        return None
     if bool(row.draft) and str(row.owner_id) != user_id:
         raise ApiError(404, "Diagram not found")
-    level = resolve_diagram_access(conn, user_id, diagram_id)
+    level = _diagram_level(conn, user_id, diagram_id, row)
     if not access_at_least(level, required):
         raise ApiError(
             403,
@@ -184,3 +194,4 @@ def require_diagram_access(conn: Connection, user_id: str, diagram_id: str, requ
             if level
             else "You do not have access to this diagram.",
         )
+    return level

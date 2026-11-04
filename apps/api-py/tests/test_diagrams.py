@@ -27,7 +27,7 @@ from datetime import datetime, timedelta
 import pytest
 
 from canvas_api.timestamps import to_db
-from tests.api import JS_ISO, MISSING_ID, T0, Api, User
+from tests.api import JS_ISO, MISSING_ID, T0, Api, User, counting_queries
 
 FLOWCHART_ABC = "flowchart TD\n  A[Start]\n  B[End]\n  A --> B\n"
 
@@ -440,6 +440,20 @@ def people(api: Api, owner: User) -> People:
         child,
         diagram,
     )
+
+
+def test_reading_a_diagram_works_out_access_once(people: People) -> None:
+    """canvas-qeo8: the read checked access, then worked the same level out again for its answer (16
+    statements, now 6); and an unchanged session isn't written back on every request."""
+    who = people.stranger  # View through the open read: the whole check runs (project chain, grants)
+    people.api.call("GET", f"/diagrams/{people.diagram}", who)  # writes the new session once
+    with counting_queries(people.api.engine) as statements:
+        response = people.api.call("GET", f"/diagrams/{people.diagram}", who)
+    assert response.status_code == 200
+    assert response.json()["diagram"]["accessLevel"] == "view"
+    repeated = sorted({s for s in statements if statements.count(s) > 1})
+    assert repeated == [], repeated
+    assert not any(s.lstrip().upper().startswith("UPDATE SESSIONS") for s in statements)
 
 
 def test_everyone_signed_in_can_read_a_diagram_at_view_and_view_cannot_comment(people: People) -> None:
