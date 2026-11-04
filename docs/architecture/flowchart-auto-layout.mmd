@@ -1,0 +1,14 @@
+flowchart TD
+  start([Auto Layout]) --> fam{Family}
+  fam -- sequence --> computed[Nothing to do: layout follows message order]
+  fam -- architecture --> arch[Follow anchors and align rows and columns]
+  fam -- flowchart, C4, ERD, UML, state --> levels[Lay out each group's contents first, bottom-up]
+  levels --> hints[C4 side hints: along the direction orient a connector, across it form a row or column]
+  hints --> dagre[dagre ranks and orders each level, in that group's own direction]
+  dagre --> size[Size each group around its contents]
+  size --> place[Place levels top-down into absolute positions]
+  arch --> pins
+  place --> pins{Anything pinned?}
+  pins -- No --> done([New positions, a normal edit])
+  pins -- Yes --> shift[Shift by the pins' average move, put each pin back]
+  shift --> done

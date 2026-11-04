@@ -96,6 +96,12 @@ tests are NON-NEGOTIABLE and must exist (and fail) before implementing any diagr
 work — see `.specify/memory/constitution.md` Principle IV.
 
 ## Recent Changes
+- `canvas-3vcj` part 1: **Canvas documented as Canvas diagrams** in `docs/architecture/` (README index): C4
+  context/container/component, C4 Deployment of infra/azure, ERD (from the real schema), UML class of diagram-core's
+  model, 4 sequences (sign-in + MFA, compare-and-set save, AI chat turn, GitHub approval), 3 flowcharts (validation,
+  Auto Layout, purge), 4 state lifecycles (diagram, standard, GitHub submission, account; titles in front matter as
+  Mermaid requires). `architecture-docs.test.ts` parses, round-trips and renders every file -- keep them in step with
+  the code. Uploading them to an Azure project waits for a deploy. Found: canvas-y2yf (parallel connectors overlap).
 - `canvas-bnnh` part 2: **State Diagram is a diagram type.** Seed `state` ("State Diagram", Solution/Technical,
   family `state`) + a descriptive starter standard; `DSL_FAMILIES`/`BUILTIN_DIAGRAM_TYPE_IDS`/constants.json/
   `FAMILY_DEFAULT_TYPE` include it. diagram-core: `addStateNode(model, {kind, label?, containerId?})` +

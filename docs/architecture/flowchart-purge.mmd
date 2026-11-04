@@ -1,0 +1,12 @@
+flowchart TD
+  start([Nightly purge job, 03:00 UTC]) --> migrate[Apply pending migrations]
+  migrate --> diagrams[Diagrams deleted over 30 days ago]
+  diagrams --> drafts[AI drafts never saved, over 24 hours old]
+  drafts --> remove[Delete them with versions, chat, comments, shares, notifications]
+  remove --> projects[Projects deleted over 30 days ago]
+  projects --> empty{Still holds diagrams or sub-projects?}
+  empty -- Yes --> skip[Skip it and report why]
+  empty -- No --> delproj[Delete it with its shares and notifications]
+  skip --> notes[Notifications older than 90 days]
+  delproj --> notes
+  notes --> finish([Report what was removed])

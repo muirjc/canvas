@@ -1,0 +1,16 @@
+---
+title: Canvas account (local sign-in)
+---
+stateDiagram-v2
+  [*] --> MustChangePassword : admin adds the person, one-time password
+  MustChangePassword --> MustEnroll : new password set
+  MustEnroll --> Active : authenticator confirmed
+  Active --> Locked : three wrong passwords
+  Locked --> Active : admin unlocks
+  Active --> MustChangePassword : admin resets the password
+  Active --> MustEnroll : admin resets two-step verification
+  Active --> Deactivated : admin deactivates
+  Deactivated --> Active : admin reactivates
+  Active --> Deleted : admin deletes, content transferred
+  Deactivated --> Deleted : admin deletes
+  Deleted --> [*]

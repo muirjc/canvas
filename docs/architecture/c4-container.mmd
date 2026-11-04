@@ -1,0 +1,22 @@
+C4Container
+  title Canvas: containers
+  Person(user, "Canvas user", "Architect, viewer or admin")
+  System_Boundary(canvas, "Canvas") {
+    Container(web, "Web app", "React, TypeScript, Vite", "The editor, projects, admin console; runs diagram-core in the browser")
+    Container(api, "API", "Python, FastAPI", "Serves the web app and the REST API; diagram-core ported to Python")
+    ContainerDb(db, "Database", "PostgreSQL (or SQLite)", "Diagrams, versions, standards, sharing, comments, chat, audit")
+    Container(jobs, "Jobs", "Python", "Migrate, seed, purge, GitHub status sync, bootstrap admin, syntax report")
+    Container(vault, "Key Vault", "Azure Key Vault", "Database URL, session secret, provider keys, GitHub App key")
+  }
+  System_Ext(entra, "Microsoft Entra ID", "Sign-in")
+  System_Ext(llm, "Anthropic / OpenAI", "AI chat")
+  System_Ext(github, "GitHub", "Approval pull requests")
+  Rel(user, web, "Uses", "HTTPS")
+  Rel(web, api, "Calls", "JSON over HTTPS, session cookie")
+  Rel(api, db, "Reads and writes", "SQLAlchemy")
+  Rel(jobs, db, "Migrates, seeds, purges", "SQLAlchemy")
+  Rel(jobs, github, "Syncs submission status", "HTTPS")
+  Rel(api, vault, "Reads secrets at start", "Managed identity")
+  Rel(api, entra, "Signs people in", "OpenID Connect")
+  Rel(api, llm, "Runs chat turns", "HTTPS")
+  Rel(api, github, "Submits diagrams", "GitHub App")

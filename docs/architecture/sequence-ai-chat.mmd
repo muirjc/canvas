@@ -1,0 +1,21 @@
+sequenceDiagram
+  title One AI chat turn
+  actor U as User
+  participant W as Web app
+  participant A as API
+  participant M as Language model
+  participant C as diagram-core
+  participant D as Database
+  U->>W: "Add a payment service under the API"
+  W->>A: POST /diagrams/:id/chat/messages
+  A->>D: Persona, history, settings
+  A->>C: Describe the diagram (shapes, positions, groups, violations)
+  loop up to 5 steps (8 under a standard)
+    A->>M: System prompt, history, tools for this family
+    M-->>A: Tool calls
+    A->>C: Run each tool on the model
+    C-->>A: New model, outcome, new violations
+  end
+  A->>D: Save the turn and the token usage
+  A-->>W: Reply, changes made, the updated diagram text
+  W->>U: The edit, unsaved until Save

@@ -1,0 +1,22 @@
+sequenceDiagram
+  title Signing in with a Canvas account and two-step verification
+  actor U as User
+  participant W as Web app
+  participant A as API
+  participant D as Database
+  U->>W: Email and password
+  W->>A: POST /auth/local/login
+  A->>D: Read account, failed attempts
+  alt wrong password
+    A->>D: Count the failure (third one locks the account)
+    A-->>W: 401
+  else right password
+    A->>D: New session, waiting for the second step
+    A-->>W: 200, mfaRequired
+    U->>W: Code from the authenticator app
+    W->>A: POST /auth/mfa/verify
+    A->>D: Check the TOTP step was not used before
+    A->>D: Rotate the session id, mark it verified
+    A-->>W: 200, session cookie
+  end
+  Note over W,A: With Entra sign-in instead, /auth/login and /auth/callback run OpenID Connect with PKCE

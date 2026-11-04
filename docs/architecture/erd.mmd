@@ -1,0 +1,124 @@
+erDiagram
+  USERS ||--o{ PROJECTS : owns
+  PROJECTS ||--o{ PROJECTS : contains
+  PROJECTS ||--o{ DIAGRAMS : holds
+  DIAGRAM_TYPES ||--o{ DIAGRAMS : "typed as"
+  DIAGRAM_TYPES ||--o{ STANDARDS : "governed by"
+  DIAGRAMS ||--|{ DIAGRAM_VERSIONS : "saved as"
+  USERS ||--o{ DIAGRAM_VERSIONS : authors
+  DIAGRAMS ||--o{ DIAGRAM_COMMENTS : "discussed in"
+  DIAGRAMS ||--o| DIAGRAM_CHATS : "chats in"
+  DIAGRAM_CHATS ||--o{ CHAT_MESSAGES : contains
+  DIAGRAMS ||--o{ DIAGRAM_EDIT_SESSIONS : "open in"
+  DIAGRAMS ||--o{ DIAGRAM_SUBMISSIONS : "submitted as"
+  PROJECTS ||--o| GITHUB_LINKS : "linked to"
+  USERS ||--o{ SHARE_GRANTS : receives
+  ENTRA_GROUPS ||--o{ SHARE_GRANTS : receives
+  USERS ||--o{ USER_GROUP_MEMBERSHIPS : "member of"
+  USERS ||--o{ NOTIFICATIONS : "told by"
+  USERS ||--o{ AUDIT_EVENTS : "acts in"
+  USERS {
+    uuid id PK
+    string email UK
+    string role "admin, architect or viewer"
+    bool active
+  }
+  PROJECTS {
+    uuid id PK
+    uuid parent_project_id FK
+    uuid owner_id FK
+    timestamp deleted_at "soft delete, purged after 30 days"
+  }
+  DIAGRAMS {
+    uuid id PK
+    uuid project_id FK
+    string diagram_type_id FK
+    uuid owner_id FK
+    uuid current_version_id FK "compare-and-set on save"
+    bool draft "Create with AI, until first save"
+    timestamp deleted_at
+  }
+  DIAGRAM_VERSIONS {
+    uuid id PK
+    uuid diagram_id FK
+    int sequence_number
+    text dsl_content "Mermaid with canvas front matter"
+    json violations_at_save
+  }
+  DIAGRAM_TYPES {
+    string id PK
+    string dsl_family "flowchart, c4, architecture, sequence, erd, uml, state"
+    string origin "builtin or custom"
+  }
+  STANDARDS {
+    uuid id PK
+    string diagram_type_id FK
+    int version
+    string status "draft, published, retired"
+    json kind_rules
+  }
+  SHARE_GRANTS {
+    uuid id PK
+    string subject_type "project or diagram"
+    uuid subject_id
+    uuid grantee_user_id FK "a person, or"
+    string grantee_group_id FK "an Entra group"
+    string access_level "view, comment, edit, manage"
+  }
+  ENTRA_GROUPS {
+    string id PK
+    string display_name
+  }
+  USER_GROUP_MEMBERSHIPS {
+    uuid user_id PK
+    string group_id PK "from the sign-in token"
+  }
+  DIAGRAM_COMMENTS {
+    uuid id PK
+    uuid diagram_id FK
+    uuid thread_root_id FK
+    string anchor_id "node, edge or container"
+    timestamp resolved_at
+  }
+  DIAGRAM_CHATS {
+    uuid id PK
+    uuid diagram_id FK
+    uuid persona_id FK
+  }
+  CHAT_MESSAGES {
+    uuid id PK
+    uuid diagram_chat_id FK
+    string role
+    json tool_calls
+  }
+  DIAGRAM_EDIT_SESSIONS {
+    uuid diagram_id PK
+    uuid user_id PK
+    string session_id PK
+    timestamp last_seen_at "presence heartbeat"
+  }
+  DIAGRAM_SUBMISSIONS {
+    uuid id PK
+    uuid diagram_id FK
+    int pr_number
+    string state "open, merged, closed, withdrawn"
+  }
+  GITHUB_LINKS {
+    uuid id PK
+    uuid project_id FK
+    string repo_name
+    string folder
+  }
+  NOTIFICATIONS {
+    uuid id PK
+    uuid user_id FK
+    string kind
+    string subject_name "as it was"
+    timestamp read_at
+  }
+  AUDIT_EVENTS {
+    uuid id PK
+    string event
+    uuid actor_user_id FK
+    uuid target_user_id FK
+  }
