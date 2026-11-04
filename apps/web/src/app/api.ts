@@ -292,6 +292,20 @@ export interface ShareGrantDto {
   createdAt: string;
 }
 
+/** canvas-2h2w.4: one in-app notification about the signed-in user's access. */
+export interface NotificationDto {
+  id: string;
+  kind: 'added' | 'level_changed' | 'removed' | 'ownership';
+  subjectType: 'project' | 'diagram';
+  subjectId: string;
+  subjectName: string;
+  accessLevel: AccessLevel | null;
+  previousLevel: AccessLevel | null;
+  actorName: string | null;
+  createdAt: string;
+  read: boolean;
+}
+
 export interface SharedDiagramDto {
   diagramId: string;
   diagramName: string;
@@ -796,6 +810,11 @@ export const api = {
     }),
   listDiagramShares: (diagramId: string) => request<{ grants: ShareGrantDto[] }>(`/diagrams/${diagramId}/shares`),
   /** Diagrams shared directly with the signed-in user (feature 008, FR-001). */
+  /** canvas-2h2w.4: newest first, at most 50, plus the unread count. */
+  listNotifications: () => request<{ notifications: NotificationDto[]; unreadCount: number }>('/me/notifications'),
+  /** Marks the given notifications read; no ids marks every one. */
+  markNotificationsRead: (ids?: string[]) =>
+    request<{ unreadCount: number }>('/me/notifications/read', { method: 'POST', body: JSON.stringify(ids ? { ids } : {}) }),
   listSharedDiagrams: () => request<{ diagrams: SharedDiagramDto[] }>('/shared-diagrams'),
   revokeShare: (grantId: string) => request<void>(`/shares/${grantId}`, { method: 'DELETE' }),
   /** canvas-2h2w.2: a project's owner and members, and the caller's own access to it. */

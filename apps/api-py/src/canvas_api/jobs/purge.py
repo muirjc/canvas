@@ -1,7 +1,8 @@
 """Housekeeping purge (apps/api/src/purge/run.ts, formerly `npm run purge`): physically deletes diagrams whose
 soft-delete retention window (DIAGRAM_RETENTION_DAYS) has elapsed and drafts nobody saved within
 DRAFT_RETENTION_HOURS, then projects past PROJECT_RETENTION_DAYS that no longer hold any diagrams or
-sub-projects. Applies pending migrations first. Azure runs it nightly (the canvas-purge Container Apps Job).
+sub-projects, and notifications older than NOTIFICATION_RETENTION_DAYS (90). Applies pending migrations first.
+Azure runs it nightly (the canvas-purge Container Apps Job).
 
 Usage:
   python -m canvas_api.jobs.purge             # deletes
@@ -16,6 +17,7 @@ import sys
 from canvas_api.config import Settings
 from canvas_api.db import create_db_engine
 from canvas_api.migrations import run_migrations
+from canvas_api.notifications import NOTIFICATION_RETENTION_DAYS, purge_old_notifications
 from canvas_api.retention import (
     DIAGRAM_RETENTION_DAYS,
     DRAFT_RETENTION_HOURS,
@@ -72,6 +74,9 @@ def main(argv: list[str] | None = None) -> int:
             print(f"Skipped {len(result.skipped)} expired project(s) still in use:")
             for skipped in result.skipped:
                 print(f"  {skipped.id} ({skipped.reason})")
+        with engine.begin() as conn:
+            removed = purge_old_notifications(conn)
+        print(f"Removed {removed} notification(s) older than {NOTIFICATION_RETENTION_DAYS} days.")
         return 0
     finally:
         engine.dispose()

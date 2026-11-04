@@ -1305,6 +1305,88 @@
         ],
         "type": "object"
       },
+      "Notification": {
+        "additionalProperties": false,
+        "properties": {
+          "accessLevel": {
+            "enum": [
+              "view",
+              "comment",
+              "edit",
+              "manage",
+              null
+            ],
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "actorName": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "createdAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "added",
+              "level_changed",
+              "removed",
+              "ownership"
+            ],
+            "type": "string"
+          },
+          "previousLevel": {
+            "enum": [
+              "view",
+              "comment",
+              "edit",
+              "manage",
+              null
+            ],
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "read": {
+            "type": "boolean"
+          },
+          "subjectId": {
+            "type": "string"
+          },
+          "subjectName": {
+            "type": "string"
+          },
+          "subjectType": {
+            "enum": [
+              "project",
+              "diagram"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "kind",
+          "subjectType",
+          "subjectId",
+          "subjectName",
+          "accessLevel",
+          "previousLevel",
+          "actorName",
+          "createdAt",
+          "read"
+        ],
+        "type": "object"
+      },
       "OtherEditor": {
         "additionalProperties": false,
         "properties": {
@@ -9944,6 +10026,127 @@
         ],
         "tags": [
           "AI"
+        ]
+      }
+    },
+    "/me/notifications": {
+      "get": {
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "notifications": {
+                      "items": {
+                        "$ref": "#/components/schemas/Notification"
+                      },
+                      "maxItems": 50,
+                      "type": "array"
+                    },
+                    "unreadCount": {
+                      "minimum": 0,
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "notifications",
+                    "unreadCount"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Default Response"
+          },
+          "4XX": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        },
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ],
+        "tags": [
+          "Notifications"
+        ]
+      }
+    },
+    "/me/notifications/read": {
+      "post": {
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "properties": {
+                  "ids": {
+                    "items": {
+                      "type": "string"
+                    },
+                    "maxItems": 50,
+                    "type": [
+                      "array",
+                      "null"
+                    ]
+                  }
+                },
+                "type": [
+                  "object",
+                  "null"
+                ]
+              }
+            }
+          },
+          "required": false
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "unreadCount": {
+                      "minimum": 0,
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "unreadCount"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Default Response"
+          },
+          "4XX": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        },
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ],
+        "tags": [
+          "Notifications"
         ]
       }
     },

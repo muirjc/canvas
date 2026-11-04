@@ -42,6 +42,7 @@ import { InAppNavigationContext } from '../ui/InAppLink';
 import { Modal } from '../ui/Modal';
 import { CopyLinkButton } from '../ui/CopyLinkButton';
 import { MembersDialog } from '../projects/MembersDialog';
+import { NotificationsContext, useNotificationsState } from '../notifications/NotificationsContext';
 import { AI_CHAT_DISABLED_MESSAGE } from '../ai/ai-status-messages';
 
 export function App() {
@@ -54,6 +55,7 @@ export function App() {
     // Only the diagram Create with AI just opened gets the Chat tab; any later open starts on DSL.
     if (!diagram) setOpenDiagramOnChat(false);
   }, [diagram]);
+  const notificationsState = useNotificationsState(Boolean(user && !user.mustChangePassword && !user.mustEnrollMfa));
   const [pickingType, setPickingType] = useState(false);
   const [importing, setImporting] = useState(false);
   const [importingTemplate, setImportingTemplate] = useState(false);
@@ -680,6 +682,7 @@ export function App() {
   }
 
   return (
+    <NotificationsContext.Provider value={notificationsState}>
     <InAppNavigationContext.Provider value={inAppNavigation}>
     <AppShell
       user={user}
@@ -770,5 +773,6 @@ export function App() {
       )}
     </AppShell>
     </InAppNavigationContext.Provider>
+    </NotificationsContext.Provider>
   );
 }

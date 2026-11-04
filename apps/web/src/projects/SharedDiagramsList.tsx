@@ -1,5 +1,6 @@
 import type { SharedDiagramDto } from '../app/api';
 import { Icon } from '../ui/Icon';
+import { useNotifications } from '../notifications/NotificationsContext';
 
 export interface SharedDiagramsListProps {
   diagrams: SharedDiagramDto[];
@@ -13,6 +14,10 @@ export interface SharedDiagramsListProps {
  * if any, is currently in view.
  */
 export function SharedDiagramsList({ diagrams, onOpenDiagram }: SharedDiagramsListProps) {
+  const { notifications, markRead } = useNotifications();
+  // canvas-2h2w.4: unread "added" / "level changed" notifications mark a diagram as new to this person.
+  const unreadFor = (diagramId: string) =>
+    notifications.filter((n) => !n.read && n.subjectType === 'diagram' && n.subjectId === diagramId && (n.kind === 'added' || n.kind === 'level_changed'));
   return (
     <section className="stack" data-testid="shared-diagrams">
       <h2 className="section-label">Shared with me</h2>
@@ -21,7 +26,14 @@ export function SharedDiagramsList({ diagrams, onOpenDiagram }: SharedDiagramsLi
           <li key={diagram.diagramId} className="row" data-testid={`shared-diagram-${diagram.diagramId}`}>
             <Icon name="diamond" />
             <span className="row__main">
-              <span className="row__title">{diagram.diagramName}</span>
+              <span className="row__title">
+                {diagram.diagramName}
+                {unreadFor(diagram.diagramId).length > 0 && (
+                <span className="tag--new" data-testid={`shared-new-${diagram.diagramId}`}>
+                  New
+                </span>
+              )}
+              </span>
               <span className="meta">
                 {/* Read-only text, deliberately not a link (feature 007's FR-013a, narrowed for
                     this one disclosure) — never the diagram's other diagrams, members, or a way
@@ -40,7 +52,10 @@ export function SharedDiagramsList({ diagrams, onOpenDiagram }: SharedDiagramsLi
                 className="btn btn--tertiary btn--compact"
                 data-testid={`open-shared-diagram-${diagram.diagramId}`}
                 aria-label={`Open diagram ${diagram.diagramName}`}
-                onClick={() => onOpenDiagram(diagram.diagramId)}
+                onClick={() => {
+                  void markRead(unreadFor(diagram.diagramId).map((n) => n.id));
+                  onOpenDiagram(diagram.diagramId);
+                }}
               >
                 Open
               </button>

@@ -96,6 +96,17 @@ tests are NON-NEGOTIABLE and must exist (and fail) before implementing any diagr
 work — see `.specify/memory/constitution.md` Principle IV.
 
 ## Recent Changes
+- `canvas-2h2w.4`: **in-app notifications about access** (decided with the user: in-app only, quiet, no opt-out;
+  email stays canvas-q9v). Table `notifications` (Postgres `0035`, SQLite `0023`): kind `added` | `level_changed` |
+  `removed` | `ownership`, subject (project|diagram, no FK; `subject_name` snapshotted so a later rename never
+  reaches someone who lost access), levels, actor, `read_at`. `canvas_api/notifications.py` `notify()` is called
+  inside the change's transaction from routes/sharing.py (`_share` when the level changes, `revoke_share`,
+  `transfer_ownership`); nobody is told about their own change. `GET /me/notifications` (newest 50 + unreadCount),
+  `POST /me/notifications/read` (`{ids}` or nothing = all; others'/malformed ids ignored). Purge: with a purged
+  diagram/project, and older than 90 days (nightly job; prints a line); deleted users' rows go. Web:
+  `notifications/` (context polled every 60 s while visible + on focus, bell + panel in the header, sentences in
+  `notification-text.ts`), "New" tag on Shared with me (`shared-new-<id>`). Tests: `test_notifications.py`,
+  `notifications.test.tsx`, e2e `notifications.spec.ts`.
 - `canvas-7p3y`: **the Mermaid version is recorded and shown.** `packages/diagram-core/src/mermaid-version.ts`:
   `MERMAID_SYNTAX_VERSION` ('11.15', the release whose syntax the parsers follow; Canvas doesn't run mermaid.js),
   `GITHUB_MERMAID_VERSION` (hand-recorded with its check date; GitHub draws submitted diagrams), and

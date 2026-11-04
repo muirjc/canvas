@@ -205,6 +205,7 @@ _REMOVED_WITH_USER = (
     text("DELETE FROM user_mfa WHERE user_id = :id"),
     text("DELETE FROM local_credentials WHERE user_id = :id"),
     text("DELETE FROM users_personas WHERE user_id = :id"),
+    text("DELETE FROM notifications WHERE user_id = :id"),  # canvas-2h2w.4
 )
 
 

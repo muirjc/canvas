@@ -61,6 +61,16 @@ more access to that one diagram without the whole project.
 You need **edit** access to share a diagram or remove someone's access; the **Share** button only
 appears for people who have it. Anyone can see who has access.
 
+## Notifications
+
+The bell in the header tells you when someone adds you to a project, shares a diagram with you, changes or removes your access, or makes you an owner. A number on the bell shows how many you haven't read.
+
+Select the bell to see them, newest first. Select one to open the project or diagram. You can also choose **Mark all as read**. A notification about removed access has nothing to open.
+
+A diagram that was shared with you, or whose access changed, shows a **New** tag in **Shared with me** until you open it.
+
+Canvas keeps notifications for 90 days. It doesn't send email about this yet.
+
 ## Exporting
 
 **Export** in the editor downloads the diagram as:

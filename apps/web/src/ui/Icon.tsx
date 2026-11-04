@@ -24,6 +24,7 @@ export type IconName =
   | 'group'
   | 'chevron-down'
   | 'chevron-right'
+  | 'bell'
   | 'close'
   | 'check'
   | 'warning'
@@ -58,6 +59,7 @@ const PATHS: Record<IconName, { d: string; filled?: boolean }[]> = {
   group: [{ d: 'M2.5 2.5h4v4h-4zM9.5 9.5h4v4h-4zM6.5 4.5h3v5h-3' }],
   'chevron-down': [{ d: 'M4 6l4 4 4-4' }],
   'chevron-right': [{ d: 'M6 4l4 4-4 4' }],
+  bell: [{ d: 'M3.5 11.5h9l-1-1.5V6.5a3.5 3.5 0 0 0-7 0V10l-1 1.5ZM6.5 13.5a1.5 1.5 0 0 0 3 0' }],
   close: [{ d: 'M4 4l8 8M12 4l-8 8' }],
   check: [{ d: 'M3.5 8.5 6.5 11.5 12.5 5' }],
   warning: [{ d: 'M8 2.5 14.5 13.5h-13ZM8 6.5v3M8 11.5v.5' }],
