@@ -127,6 +127,21 @@ def test_the_ai_operations() -> None:
     assert core.ai_prompt("sequence", None, EMPTY_SEQUENCE)["currentDiagram"].startswith("Current shapes:\n(none yet)")
 
 
+def test_auto_layout() -> None:
+    """canvas-p2g8.2: the editor's Auto Layout; an unarranged family comes back as it was; a model missing its
+    lists is an error, as TypeScript throws there."""
+    model = core.parse("flowchart", "flowchart TD\n  A --> B\n  A --> C\n")["model"]
+    laid = core.auto_layout(model, "LR", "flowchart")
+    assert laid["direction"] == "LR"
+    positions = {n["id"]: n["position"] for n in laid["nodes"]}
+    assert positions["A"]["x"] == 40
+    assert positions["B"]["x"] > positions["A"]["x"]
+    assert positions["C"]["x"] == positions["B"]["x"]
+    assert core.auto_layout(EMPTY_SEQUENCE, None, "sequence") == EMPTY_SEQUENCE
+    with pytest.raises(DiagramCoreError, match=r"^diagram-core auto-layout: KeyError$"):
+        core.auto_layout({"diagramTypeId": "flowchart"}, None, "flowchart")
+
+
 def test_supplied_ids_apply_only_inside_their_block() -> None:
     call = ("sequence", None, EMPTY_SEQUENCE, "addNode", {"shape": "person"})
     with ids_from(["n-supplied"]):

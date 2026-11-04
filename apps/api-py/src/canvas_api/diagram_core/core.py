@@ -16,6 +16,7 @@ from typing import Any, cast
 
 from canvas_api.diagram_core.ai import list_tools, prompt_sections, run_tool
 from canvas_api.diagram_core.architecture import parse_architecture, serialize_architecture
+from canvas_api.diagram_core.auto_layout import auto_layout
 from canvas_api.diagram_core.c4 import parse_c4, serialize_c4
 from canvas_api.diagram_core.detect import detect_dsl_family
 from canvas_api.diagram_core.embeds import update_embeds
@@ -150,6 +151,12 @@ class DiagramCore:
         """A Markdown document's diagram embeds brought up to date: {markdown, changed, results}."""
         only_set = None if only is None else set(only)
         return _native("embeds", lambda: update_embeds(markdown, doc_path, sources, only_set))
+
+    def auto_layout(self, model: JsonObject, direction: str | None, family: str) -> JsonObject:
+        """The model as the editor's Auto Layout leaves it (canvas-p2g8.2): new node positions, group positions and
+        sizes, and for flowchart/ERD/UML the direction (`direction`, else the model's, else TD). A family Auto Layout
+        doesn't arrange (sequence, or one it doesn't know) comes back unchanged, as in TypeScript."""
+        return cast(JsonObject, _native("auto-layout", lambda: to_js_json(auto_layout(model, direction, family))))
 
     # --- the library admin ---------------------------------------------------------------------------------------
 

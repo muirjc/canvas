@@ -89,6 +89,25 @@ describe('diagram-core bridge', () => {
     expect((await post('icon-refs', { diagrams: [{ family: 'flowchart' }] })).status).toBe(400);
   });
 
+  it('runs Auto Layout, the same answer every time (canvas-p2g8.2)', async () => {
+    const node = (id: string) => ({ id, label: id, shape: 'rectangle', position: { x: 0, y: 0 } });
+    const model = {
+      diagramTypeId: 'flowchart',
+      nodes: ['S', 'A', 'B'].map(node),
+      edges: [['S', 'A'], ['S', 'B'], ['A', 'B']].map(([sourceId, targetId]) => ({ id: `${sourceId}${targetId}`, sourceId, targetId })),
+      containers: [],
+    };
+    const laid = (await post('auto-layout', { model, direction: 'TD', family: 'flowchart' })).json.model as typeof model & { direction: string };
+    expect(laid.direction).toBe('TD');
+    expect(laid.nodes.map((n) => [n.id, n.position])).toEqual([['S', { x: 40, y: 40 }], ['A', { x: 93, y: 160 }], ['B', { x: 40, y: 280 }]]);
+    // An unrelated layout in between doesn't change the answer (dagre's own state is off).
+    await post('auto-layout', { model: { ...model, edges: [{ id: 'BA', sourceId: 'B', targetId: 'A' }] }, family: 'flowchart' });
+    expect((await post('auto-layout', { model, direction: 'TD', family: 'flowchart' })).json.model).toEqual(laid);
+    // Sequence diagrams are left alone; a missing family is a bad request.
+    expect((await post('auto-layout', { model, family: 'sequence' })).json.model).toEqual(model);
+    expect((await post('auto-layout', { model })).status).toBe(400);
+  });
+
   it('answers /health', async () => {
     expect(await (await fetch(`${base}/health`)).json()).toEqual({ status: 'ok' });
   });
