@@ -321,3 +321,27 @@ describe('getDslFamily', () => {
     for (const id of ['constructor', 'toString', '__proto__', 'hasOwnProperty']) expect(getDslFamily(id)).toBeUndefined();
   });
 });
+
+describe('earlier layouts (canvas-p2g8.2)', () => {
+  // dagre keeps the previous layout in module state (_oldGraph/_rawOldNodes) unless told not to: after laying out
+  // B -> A, a later A -> B with a shortcut S -> B came out with B above A. A layout depends on its input alone.
+  const plain = (id: string) => ({ id, label: id, shape: 'rectangle' as const, position: { x: 0, y: 0 } });
+  const model = (ids: string[], links: [string, string][]): DiagramModel => ({
+    diagramTypeId: 'flowchart',
+    nodes: ids.map(plain),
+    edges: links.map(([sourceId, targetId]) => ({ id: `${sourceId}${targetId}`, sourceId, targetId })),
+    containers: [],
+  });
+  const positions = (m: DiagramModel) => m.nodes.map((n) => [n.id, n.position]);
+
+  it('an unrelated layout run first does not change the result, nor does running it twice', () => {
+    const x = model(['S', 'A', 'B'], [['S', 'A'], ['S', 'B'], ['A', 'B']]);
+    const first = positions(autoLayout(x, 'TD'));
+    autoLayout(model(['B', 'A'], [['B', 'A']]), 'TD');
+    const afterOther = positions(autoLayout(x, 'TD'));
+    expect(afterOther).toEqual(first);
+    expect(positions(autoLayout(x, 'TD'))).toEqual(first);
+    const at = (id: string) => autoLayout(x, 'TD').nodes.find((n) => n.id === id)!.position;
+    expect(at('B').y).toBeGreaterThan(at('A').y);
+  });
+});

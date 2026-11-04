@@ -1,4 +1,5 @@
 import {
+  autoLayout,
   checkStandardDefinition,
   createEmptyDiagramModel,
   getTemplateCompiler,
@@ -14,6 +15,7 @@ import {
   updateEmbeds,
   validate,
   type DiagramModel,
+  type FlowchartDirection,
   type EmbedSource,
   type IconShapeLibraryManifest,
   type StandardRules,
@@ -160,4 +162,10 @@ export const handlers: Record<string, (body: Body) => unknown> = {
       return [...parsed.model.nodes, ...parsed.model.containers].flatMap((e) => (e.icon ? [e.icon] : []));
     }),
   }),
+
+  /** canvas-p2g8.2: { model, direction?, family } -> { model }: the editor's Auto Layout. */
+  'auto-layout': (body) => {
+    const direction = typeof body.direction === 'string' ? (body.direction as FlowchartDirection) : undefined;
+    return { model: autoLayout(obj<DiagramModel>(body, 'model'), direction, str(body, 'family')) };
+  },
 };

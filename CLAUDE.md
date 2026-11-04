@@ -96,6 +96,34 @@ tests are NON-NEGOTIABLE and must exist (and fail) before implementing any diagr
 work — see `.specify/memory/constitution.md` Principle IV.
 
 ## Recent Changes
+- `canvas-p2g8.2` part 1 (AI layout tools): **Auto Layout runs in Python, giving TypeScript's answer exactly**, so
+  the AI chat's arrange tool (part 2) can put a diagram where the editor's button would.
+  **User-visible fix in TypeScript first:** dagre 3.1.0 keeps the previous layout in module state (`_oldGraph`/
+  `_rawOldNodes`): it reverses edges and reorders nodes to suit the last graph with the same ids. So the result
+  depended on what the tab had laid out before (after laying out `B -> A`, a later `S -> A, S -> B, A -> B` drew
+  B above A). `autoLayout` now calls `dagre.layout(g, { useDynamic: false })`. Auto Layout depends on the diagram
+  alone, so a diagram can come out differently from before. Regression test in `auto-layout.test.ts`.
+  **The port:**
+  - `diagram_core/auto_layout.py` ports auto-layout.ts: levels bottom-up, the `#` keys, the `from->to` text
+    de-dup (collisions included), an edge to an undeclared id adding an empty 0x0 node as graphlib does, and
+    JS `Math.round`.
+  - `diagram_core/dagre/` ports the dagre path it reaches, with MIT `LICENSE` and a THIRD-PARTY-NOTICES entry:
+    graphlib's Graph (insertion-ordered dicts; no key is integer-like, so JS object order is plain insertion
+    order), DFS acyclic, network simplex, normalize, ordering (barycenter, the reversed-pair handling, cross
+    count, sweeps) and Brandes-Koepf with balance, rankdir transforms and translate.
+  - Left out, as no-ops for this input: clusters, self-loops, edge labels and points, empty-rank removal, and
+    the dynamic paths.
+  - `DiagramCore.auto_layout`.
+  **Parity:**
+  - `tests/data/auto_layout_vectors.json` (`make_auto_layout_vectors.ts`): every corpus case in every
+    direction, 400 seeded random models and 300 dagre-only graphs.
+  - A seeded native-vs-bridge fuzz over whole models (new bridge op `auto-layout`).
+  - The tests were checked against deliberate bugs.
+  **Pitfalls:**
+  - Undirected-graph edge ids and BK conflicts compare ids as JS strings (UTF-16 units, `js_string_gt`).
+  - The `asNonCompoundGraph` copies are rebuilt, not reused: predecessor order differs after edge removals.
+  - dagre recurses as deep as the longest path, so `layout()` raises the recursion limit to 20,000.
+  - Plain dagre throws (edge clipping) on `ranksep: 0` with zero-height nodes; Auto Layout's ranksep is 60.
 - `canvas-4e0`: **admin pages are in-app screens.** `Location` gained `{ screen: 'admin', page, userId? }`
   (`ADMIN_PAGES` in navigation.ts; `?admin=true`/unknown = standards; `?admin=` still wins; `userId` only for
   the audit log). App's separate `adminParam` state is gone. Links that move within the app use

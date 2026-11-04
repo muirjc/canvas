@@ -27,6 +27,7 @@ icon libraries in it are the manifests the architecture template compiler needs)
 | `svg-sanitize-strict` | same                                             | same (a custom manifest's artwork, checked strictly)                                                 |
 | `load-library`        | `{ manifest }`                                   | `{ ok: true, library }` (validated, artwork sanitized) or `{ ok: false, error }`                     |
 | `icon-refs`           | `{ diagrams: [{ family, dsl }] }`                | `{ refs: [IconRef[] or null] }` (each diagram's icon references; null when it doesn't parse)         |
+| `auto-layout`         | `{ model, direction?, family }`                  | `{ model }` (the editor's Auto Layout)                                                               |
 
 `GET /health` answers `{ "status": "ok" }`. Bad input is a 400 with `{ error }`; nothing is logged
 but the startup line.

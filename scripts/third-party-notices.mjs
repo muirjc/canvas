@@ -25,6 +25,7 @@ import { fileURLToPath } from 'node:url';
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 // canvas-dyvn: the font PNG exports draw their text in.
 const FONT_LICENSE = join(ROOT, 'apps/api-py/src/canvas_api/fonts/OFL.txt');
+const DAGRE_LICENSE = join(ROOT, 'apps/api-py/src/canvas_api/diagram_core/dagre/LICENSE');
 const OUTPUT = join(ROOT, 'THIRD-PARTY-NOTICES.md');
 const PY_PROJECT = join(ROOT, 'apps', 'api-py');
 const PY_SITE_PACKAGES = join(PY_PROJECT, '.venv', 'lib', 'python3.13', 'site-packages');
@@ -383,10 +384,18 @@ function render({ packages, platformBinaries, pyPackages, pyNotInstalled }) {
     '  <https://github.com/liberationfonts/liberation-fonts>): the font PNG exports draw their text',
     '  in, bundled in the API image (`apps/api-py/src/canvas_api/fonts`), unmodified, under the SIL',
     '  Open Font License 1.1 (its text is below and beside the font files, in `OFL.txt`).',
+    '- **dagre** (`@dagrejs/dagre` 3.1.0 with the `@dagrejs/graphlib` it bundles;',
+    '  <https://github.com/dagrejs/dagre>): `apps/api-py/src/canvas_api/diagram_core/dagre/` is a',
+    "  Python port of the part of its layout Canvas's Auto Layout uses, under the MIT License (its",
+    '  text is below and beside the port, in `LICENSE`).',
     '',
     '### Liberation Sans licence',
     '',
     fence(readFileSync(FONT_LICENSE, 'utf8').replace(/\r\n?/g, '\n').trim()),
+    '',
+    '### dagre licence',
+    '',
+    fence(readFileSync(DAGRE_LICENSE, 'utf8').replace(/\r\n?/g, '\n').trim()),
     '',
     '## npm packages',
     '',

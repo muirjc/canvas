@@ -129,3 +129,12 @@ class DiagramBridge:
     def icon_refs(self, diagrams: list[JsonObject]) -> list[list[JsonObject] | None]:
         """Each diagram's icon references (None when it doesn't parse)."""
         return cast(list[list[JsonObject] | None], self._post("icon-refs", {"diagrams": diagrams})["refs"])
+
+    # canvas-p2g8.2: Auto Layout (the AI chat's arrange tool must match the editor's button).
+
+    def auto_layout(self, model: JsonObject, direction: str | None, family: str) -> JsonObject:
+        """The model as the editor's Auto Layout leaves it."""
+        body: JsonObject = {"model": model, "family": family}
+        if direction is not None:
+            body["direction"] = direction
+        return cast(JsonObject, self._post("auto-layout", body)["model"])

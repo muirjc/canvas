@@ -145,7 +145,9 @@ export function autoLayout(model: DiagramModel, direction?: FlowchartDirection, 
       seenEdges.add(key);
       g.setEdge(dagreKey(from), dagreKey(to));
     }
-    if (children.length > 0) dagre.layout(g);
+    // canvas-p2g8.2: useDynamic false, or dagre carries _oldGraph/_rawOldNodes from its previous call into this one
+    // (edge reversal and ordering hints), so a layout depended on what the tab had laid out before.
+    if (children.length > 0) dagre.layout(g, { useDynamic: false });
 
     const positions = new Map<string, Position>();
     let minX = Infinity;
