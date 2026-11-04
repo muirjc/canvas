@@ -96,6 +96,16 @@ tests are NON-NEGOTIABLE and must exist (and fail) before implementing any diagr
 work — see `.specify/memory/constitution.md` Principle IV.
 
 ## Recent Changes
+- `canvas-p2g8.2` part 2: **the AI chat can lay diagrams out.** New tools (every family but sequence, whose layout
+  is computed): `moveElements`, `alignElements`, `distributeElements`, `placeRelative` (pure ops in
+  `diagram_core/layout_ops.py`; bounds = the drawn `node_size`/`container_size`; a group moves with its contents;
+  an unknown id refuses the whole call) and `arrange` = `auto_layout` (part 1's port, so it equals the toolbar's
+  Auto Layout; `direction` only where Auto Layout uses one). `addNode`/`addElement` take an optional
+  `near: {anchorId, side}`. `describe_model(model, rules, family)` now gives each shape's/group's position and
+  size, its group, and a "Current groups" section. The AI vectors are golden output now:
+  `uv run python -m tests.data.update_ai_vectors` rewrites tool lists, descriptions and the unavailable-tool
+  error only (it reproduces the old file exactly on the old code); new tools are tested in
+  `tests/test_ai_layout_tools.py`.
 - `canvas-p2g8.2` part 1 (AI layout tools): **Auto Layout runs in Python, giving TypeScript's answer exactly**, so
   the AI chat's arrange tool (part 2) can put a diagram where the editor's button would.
   **User-visible fix in TypeScript first:** dagre 3.1.0 keeps the previous layout in module state (`_oldGraph`/

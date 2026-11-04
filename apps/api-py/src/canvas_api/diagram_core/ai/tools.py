@@ -14,7 +14,9 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from canvas_api.diagram_core import diagram_ops as ops
+from canvas_api.diagram_core import layout_ops
 from canvas_api.diagram_core.ai.schema import Arr, Bool, Enum, Num, Obj, Schema, Str
+from canvas_api.diagram_core.auto_layout import auto_layout, auto_layout_uses_direction, supports_auto_layout
 from canvas_api.diagram_core.c4 import C4_BOUNDARY_ROLES, C4_ELEMENT_ROLES
 from canvas_api.diagram_core.erd import ER_SOURCE_CARDINALITY_TOKENS, ER_TARGET_CARDINALITY_TOKENS
 from canvas_api.diagram_core.family_capabilities import FAMILY_NODE_SHAPES, FAMILY_SUPPORTS_ELEMENT_KINDS
@@ -50,6 +52,10 @@ CONNECTOR_LINE_STYLE_OPTIONS: dict[str, tuple[str, ...]] = {
     "sequence": ("solid", "dotted"),
 }
 GROUPABLE_FAMILIES = frozenset({"architecture", "c4", "uml", "sequence"})
+SIDES = ("above", "below", "left", "right")
+ALIGNMENTS = ("left", "center", "right", "top", "middle", "bottom")
+#: The directions the editor's Auto Layout button offers (TB is the same as TD).
+LAYOUT_DIRECTIONS = ("TD", "LR", "BT", "RL")
 CONTAINER_ROLE_OPTIONS: dict[str, tuple[str, ...]] = {
     "c4": C4_BOUNDARY_ROLES,
     "uml": ("namespace", "note"),
@@ -126,6 +132,32 @@ def create_tools(family: str, rules: JsonObj | None = None) -> dict[str, Tool]:
 
     def not_found(state: State, name: str, what: str, item_id: Any) -> JsonObj:
         return record(state, name, False, f"No {what} with id '{_q(item_id)}' was found.")
+
+    positioned = family in layout_ops.POSITIONED_FAMILIES
+
+    def near_schema() -> dict[str, Schema]:
+        """canvas-p2g8.2: where to put a new shape, instead of the next free grid slot."""
+        if not positioned:
+            return {}
+        return {
+            "near": Obj.of(
+                anchorId=Str().describe("The id of an existing shape or group to place the new shape next to."),
+                side=Enum(values=SIDES).describe("Which side of it."),
+            )
+            .opt()
+            .describe("Place the new shape next to an existing one. Omit to put it in the next free grid slot."),
+        }
+
+    def check_near(state: State, name: str, args: JsonObj) -> JsonObj | None:
+        near = args.get("near")
+        if near is not None and layout_ops.find_element(state.model, near["anchorId"]) is None:
+            return not_found(state, name, "shape or group", near["anchorId"])
+        return None
+
+    def apply_near(state: State, args: JsonObj, new_id: str) -> None:
+        near = args.get("near")
+        if near is not None:
+            state.model = layout_ops.place_relative(state.model, new_id, near["side"], near["anchorId"])
 
     tools: dict[str, Tool] = {}
 
@@ -271,8 +303,12 @@ def create_tools(family: str, rules: JsonObj | None = None) -> dict[str, Tool]:
     if not strict_kinds and node_shapes:
 
         def add_node(state: State, args: JsonObj) -> JsonObj:
+            if refused := check_near(state, "addNode", args):
+                return refused
             state.model = ops.add_node(state.model, {"shape": args["shape"], "label": args.get("label")})
-            return {**record(state, "addNode", True), "nodeId": state.model["nodes"][-1]["id"]}
+            node_id = state.model["nodes"][-1]["id"]
+            apply_near(state, args, node_id)
+            return {**record(state, "addNode", True), "nodeId": node_id}
 
         tools["addNode"] = Tool(
             "Add a new shape to the flowchart. Returns the new shape's id — use it (not the label) "
@@ -280,6 +316,7 @@ def create_tools(family: str, rules: JsonObj | None = None) -> dict[str, Tool]:
             Obj.of(
                 shape=Enum(values=tuple(node_shapes)).describe("The shape to draw."),
                 label=Str().opt().describe('Text shown on the shape. Defaults to "New Node" if omitted.'),
+                **near_schema(),
             ),
             add_node,
         )
@@ -297,6 +334,8 @@ def create_tools(family: str, rules: JsonObj | None = None) -> dict[str, Tool]:
             blocked = kind_add_blocked_reason(state.model, rules, definition) if rules else None
             if blocked:
                 return record(state, "addElement", False, blocked)
+            if refused := check_near(state, "addElement", args):
+                return refused
             opts: JsonObj = {"label": args.get("label")}
             if family == "architecture":
                 opts["fallbackShape"] = "icon"
@@ -304,6 +343,7 @@ def create_tools(family: str, rules: JsonObj | None = None) -> dict[str, Tool]:
                 opts["rules"] = rules
             added = add_element_of_kind(state.model, definition, opts)
             state.model = added["model"]
+            apply_near(state, args, added["nodeId"])
             return {**record(state, "addElement", True), "nodeId": added["nodeId"]}
 
         tools["addElement"] = Tool(
@@ -312,6 +352,7 @@ def create_tools(family: str, rules: JsonObj | None = None) -> dict[str, Tool]:
             Obj.of(
                 kind=kind_enum,
                 label=Str().opt().describe("Text shown on the element. Defaults to the kind name."),
+                **near_schema(),
             ),
             add_element,
         )
@@ -541,6 +582,121 @@ def create_tools(family: str, rules: JsonObj | None = None) -> dict[str, Tool]:
             "depending on the diagram type). Returns the new container's id.",
             Obj.of(**group_shape),
             group_into_container,
+        )
+
+    # --- canvas-p2g8.2: layout -----------------------------------------------------------------------------------
+
+    if positioned:
+
+        def missing(state: State, name: str, ids: list[str]) -> JsonObj | None:
+            """All-or-nothing: an unknown id refuses the whole call before anything moves."""
+            for element_id in ids:
+                if layout_ops.find_element(state.model, element_id) is None:
+                    return not_found(state, name, "shape or group", element_id)
+            return None
+
+        def move_elements(state: State, args: JsonObj) -> JsonObj:
+            moves = args["moves"]
+            if refused := missing(state, "moveElements", [m["id"] for m in moves]):
+                return refused
+            for move in moves:
+                state.model = layout_ops.move_element(state.model, move["id"], move["x"], move["y"])
+            return record(state, "moveElements", True)
+
+        tools["moveElements"] = Tool(
+            "Move shapes or groups to exact positions (the top-left corner, in the same units as the positions in "
+            "the diagram summary). A group's contents move with it.",
+            Obj.of(
+                moves=Arr(
+                    item=Obj.of(
+                        id=Str().describe("The id of a shape or group."),
+                        x=Num().describe("The new left edge."),
+                        y=Num().describe("The new top edge."),
+                    ),
+                    min_items=1,
+                ).describe("The moves to make."),
+            ),
+            move_elements,
+        )
+
+        def align(state: State, args: JsonObj) -> JsonObj:
+            if refused := missing(state, "alignElements", args["ids"]):
+                return refused
+            state.model = layout_ops.align_elements(state.model, args["ids"], args["alignment"])
+            return record(state, "alignElements", True)
+
+        tools["alignElements"] = Tool(
+            "Line up shapes or groups: left/right/top/bottom move each one's edge to the outermost one's; "
+            "center/middle put their centres on the middle of the selection across or down.",
+            Obj.of(
+                ids=Arr(item=Str(), min_items=2).describe("The ids of the shapes or groups to line up."),
+                alignment=Enum(values=ALIGNMENTS).describe("Which edge or centre line to line them up on."),
+            ),
+            align,
+        )
+
+        def distribute(state: State, args: JsonObj) -> JsonObj:
+            if refused := missing(state, "distributeElements", args["ids"]):
+                return refused
+            state.model = layout_ops.distribute_elements(state.model, args["ids"], args["axis"])
+            return record(state, "distributeElements", True)
+
+        tools["distributeElements"] = Tool(
+            "Space three or more shapes or groups evenly across (horizontal) or down (vertical), keeping the "
+            "first and last where they are.",
+            Obj.of(
+                ids=Arr(item=Str(), min_items=3).describe("The ids of the shapes or groups to space out."),
+                axis=Enum(values=("horizontal", "vertical")).describe("Across or down."),
+            ),
+            distribute,
+        )
+
+        def place(state: State, args: JsonObj) -> JsonObj:
+            element_id, anchor_id = args["elementId"], args["anchorId"]
+            if refused := missing(state, "placeRelative", [element_id, anchor_id]):
+                return refused
+            if element_id == anchor_id:
+                return record(state, "placeRelative", False, "A shape can't be placed next to itself.")
+            gap = args.get("gap")
+            state.model = layout_ops.place_relative(
+                state.model, element_id, args["side"], anchor_id, layout_ops.DEFAULT_GAP if gap is None else gap
+            )
+            return record(state, "placeRelative", True)
+
+        tools["placeRelative"] = Tool(
+            "Move a shape or group next to another one (above, below, left or right of it), centred on it.",
+            Obj.of(
+                elementId=Str().describe("The id of the shape or group to move."),
+                side=Enum(values=SIDES).describe("Which side of the anchor to put it on."),
+                anchorId=Str().describe("The id of the shape or group to put it next to."),
+                gap=Num().opt().describe(f"The space between them. Defaults to {layout_ops.DEFAULT_GAP}."),
+            ),
+            place,
+        )
+
+    if supports_auto_layout(family):
+        uses_direction = auto_layout_uses_direction(family)
+
+        def arrange(state: State, args: JsonObj) -> JsonObj:
+            state.model = auto_layout(state.model, args.get("direction") if uses_direction else None, family)
+            return record(state, "arrange", True)
+
+        arrange_shape: dict[str, Schema] = {}
+        if uses_direction:
+            arrange_shape["direction"] = (
+                Enum(values=LAYOUT_DIRECTIONS)
+                .opt()
+                .describe(
+                    "Which way the arrows flow: TD top to bottom, LR left to right, BT bottom to top, RL right to "
+                    "left. Defaults to the diagram's current direction."
+                )
+            )
+        tools["arrange"] = Tool(
+            "Lay the whole diagram out automatically, as the editor's Auto Layout button does: connected shapes "
+            "in ranks along the flow, few crossings, every group sized around its contents. Use it after adding "
+            "several shapes, or when asked to tidy up; then fine-tune with the other layout tools if needed.",
+            Obj.of(**arrange_shape),
+            arrange,
         )
 
     if family == "sequence":

@@ -51,5 +51,5 @@ def prompt_sections(family: str, rules: JsonObj | None, model: JsonObj) -> JsonO
     return {
         "primer": primer_for(family),
         "standard": build_standard_prompt(rules, family) if rules else None,
-        "currentDiagram": describe_model(model, rules),
+        "currentDiagram": describe_model(model, rules, family),
     }
