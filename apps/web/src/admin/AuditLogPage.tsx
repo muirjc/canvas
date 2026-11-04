@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { api, type AuditEventDto } from '../app/api';
+import { InAppLink } from '../ui/InAppLink';
 
 const PAGE_SIZE = 50;
 
@@ -160,9 +161,9 @@ function aboutText(event: AuditEventDto): string {
   return event.targetEmail ?? email ?? '—';
 }
 
-/** Admin-only, newest-first record of sign-in and account-management events (canvas-ez1.4). */
-export function AuditLogPage() {
-  const userId = new URLSearchParams(window.location.search).get('userId') ?? undefined;
+/** Admin-only, newest-first record of sign-in and account-management events (canvas-ez1.4). `userId`:
+ *  only that user's events (?admin=audit&userId=, from the Users page). */
+export function AuditLogPage({ userId }: { userId?: string }) {
   const [events, setEvents] = useState<AuditEventDto[]>([]);
   const [loading, setLoading] = useState(true);
   const [hasMore, setHasMore] = useState(false);
@@ -183,9 +184,11 @@ export function AuditLogPage() {
   };
 
   useEffect(() => {
+    // Reloaded when the filter changes: "View activity" and "Show all activity" are in-app navigations
+    // to the same page (canvas-4e0), so the page stays mounted.
+    setEvents([]);
     void load();
-    // Loaded once per page visit; the filter comes from the address.
-  }, []);
+  }, [userId]);
 
   const formatter = new Intl.DateTimeFormat(undefined, { dateStyle: 'medium', timeStyle: 'medium' });
 
@@ -196,7 +199,7 @@ export function AuditLogPage() {
       </h1>
       {userId && (
         <p className="meta">
-          Showing activity for one user. <a href="?admin=audit">Show all activity</a>
+          Showing activity for one user. <InAppLink to={{ screen: 'admin', page: 'audit' }}>Show all activity</InAppLink>
         </p>
       )}
       {error && <p role="alert">{error}</p>}

@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import {
+  ADMIN_PAGES,
   isBareAddress,
   locationToSearch,
   parseLocation,
@@ -47,6 +48,43 @@ describe('parseLocation / locationToSearch', () => {
     expect(sameLocation({ screen: 'project', projectId: P1 }, { screen: 'project', projectId: P1 })).toBe(true);
     expect(sameLocation({ screen: 'project', projectId: P1 }, { screen: 'project', projectId: P2 })).toBe(false);
     expect(sameLocation({ screen: 'projects' }, { screen: 'project', projectId: P1 })).toBe(false);
+  });
+});
+
+describe('admin pages (canvas-4e0)', () => {
+  const U1 = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+
+  it('each admin page is a location, to its address and back', () => {
+    for (const page of ADMIN_PAGES) {
+      const location = { screen: 'admin', page } as const;
+      expect(locationToSearch(location)).toBe(`?admin=${page}`);
+      expect(parseLocation(locationToSearch(location))).toEqual(location);
+    }
+  });
+
+  it('the audit log can be filtered to one user; other pages and malformed ids drop the filter', () => {
+    const filtered = { screen: 'admin', page: 'audit', userId: U1 } as const;
+    expect(locationToSearch(filtered)).toBe(`?admin=audit&userId=${U1}`);
+    expect(parseLocation(`?admin=audit&userId=${U1}`)).toEqual(filtered);
+    expect(parseLocation(`?admin=users&userId=${U1}`)).toEqual({ screen: 'admin', page: 'users' });
+    expect(parseLocation('?admin=audit&userId=x')).toEqual({ screen: 'admin', page: 'audit' });
+  });
+
+  it('?admin=true and an unknown page are the standards page, as before', () => {
+    expect(parseLocation('?admin=true')).toEqual({ screen: 'admin', page: 'standards' });
+    expect(parseLocation('?admin=nope')).toEqual({ screen: 'admin', page: 'standards' });
+  });
+
+  it('an admin page wins over the other parameters, as before', () => {
+    expect(parseLocation(`?admin=users&projectId=${P1}`)).toEqual({ screen: 'admin', page: 'users' });
+    expect(parseLocation(`?diagramId=${D1}&admin=overview`)).toEqual({ screen: 'admin', page: 'overview' });
+  });
+
+  it('sameLocation compares the page and the filter', () => {
+    expect(sameLocation({ screen: 'admin', page: 'users' }, { screen: 'admin', page: 'users' })).toBe(true);
+    expect(sameLocation({ screen: 'admin', page: 'users' }, { screen: 'admin', page: 'audit' })).toBe(false);
+    expect(sameLocation({ screen: 'admin', page: 'audit' }, { screen: 'admin', page: 'audit', userId: U1 })).toBe(false);
+    expect(sameLocation({ screen: 'admin', page: 'overview' }, { screen: 'projects' })).toBe(false);
   });
 });
 

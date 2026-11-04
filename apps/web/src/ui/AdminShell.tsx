@@ -1,8 +1,10 @@
 import type { ReactNode } from 'react';
+import type { AdminPage } from '../app/navigation';
+import { InAppLink } from './InAppLink';
 
 /** The ten admin destinations, in the order they appear in the navigation. `param` is the
  *  `?admin=` value that reaches each one (`?admin=true` is a legacy alias for `standards`). */
-export const ADMIN_DESTINATIONS = [
+export const ADMIN_DESTINATIONS: readonly { id: string; param: AdminPage; label: string }[] = [
   { id: 'overview', param: 'overview', label: 'Overview' },
   { id: 'standards', param: 'standards', label: 'Standards' },
   { id: 'users', param: 'users', label: 'Users' },
@@ -13,7 +15,7 @@ export const ADMIN_DESTINATIONS = [
   { id: 'libraries', param: 'libraries', label: 'Libraries' },
   { id: 'github', param: 'github', label: 'GitHub' },
   { id: 'audit', param: 'audit', label: 'Audit log' },
-] as const;
+];
 
 export interface AdminShellProps {
   /** The `?admin=` value currently being viewed, used to mark the active destination. */
@@ -44,15 +46,15 @@ export function AdminShell({ activeParam, children }: AdminShellProps) {
             const isActive = destination.param === activeParam;
             return (
               <li key={destination.id}>
-                <a
+                <InAppLink
                   className="admin-nav__link"
                   data-testid={`admin-nav-${destination.id}`}
-                  href={`?admin=${destination.param}`}
+                  to={{ screen: 'admin', page: destination.param }}
                   // Exposes the current destination to assistive technology, not by colour alone.
                   aria-current={isActive ? 'page' : undefined}
                 >
                   {destination.label}
-                </a>
+                </InAppLink>
               </li>
             );
           })}

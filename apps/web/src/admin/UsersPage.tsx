@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { api, type UserRecordDto } from '../app/api';
 import { Icon } from '../ui/Icon';
+import { InAppLink } from '../ui/InAppLink';
 import { Modal } from '../ui/Modal';
 
 const ROLES = ['admin', 'architect', 'viewer'] as const;
@@ -164,14 +165,14 @@ export function UsersPage() {
               )}
               {localAuthEnabled && (
                 <td>
-                  <a
+                  <InAppLink
                     className="btn btn--secondary btn--compact"
                     data-testid={`view-activity-${user.id}`}
-                    href={`?admin=audit&userId=${encodeURIComponent(user.id)}`}
+                    to={{ screen: 'admin', page: 'audit', userId: user.id }}
                     aria-label={`View activity for ${user.name}`}
                   >
                     View activity
-                  </a>{' '}
+                  </InAppLink>{' '}
                   {user.locked && (
                     <button
                       type="button"

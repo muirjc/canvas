@@ -38,6 +38,7 @@ import { CreateViaChatDialog } from '../ai/CreateViaChatDialog';
 import { PersonaAdminPage } from '../ai/PersonaAdminPage';
 import { Icon } from '../ui/Icon';
 import { ADMIN_DESTINATIONS, AdminShell } from '../ui/AdminShell';
+import { InAppNavigationContext } from '../ui/InAppLink';
 import { Modal } from '../ui/Modal';
 import { CopyLinkButton } from '../ui/CopyLinkButton';
 import { MembersDialog } from '../projects/MembersDialog';
@@ -174,17 +175,6 @@ export function App() {
     };
   }, [user, signedInFully]);
 
-  // canvas-513: the admin page being shown (?admin=...), as state rather than re-read from the
-  // address on each render. Entering admin is a full page load (a plain link); leaving it is an
-  // in-app navigation that clears this -- before, navigate() saw the admin address as "already on
-  // the project list" (no projectId), changed nothing, and the header's Projects link did nothing.
-  const [adminParam, setAdminParamState] = useState<string | null>(() => new URLSearchParams(window.location.search).get('admin'));
-  const adminParamRef = useRef(adminParam);
-  const setAdminParam = (value: string | null) => {
-    adminParamRef.current = value;
-    setAdminParamState(value);
-  };
-
   /** Shows a location without touching the address (the address is already right, or written by
    *  the caller). */
   const applyLocation = (to: Location) => {
@@ -211,17 +201,18 @@ export function App() {
       setPendingNav({ to, viaHistory: false, draft: Boolean(diagramEditorRef.current?.isUnsavedDraft()) });
       return;
     }
-    // Leaving an admin page is always a navigation, even to the same Browse location (canvas-513).
-    const leavingAdmin = adminParamRef.current !== null;
     if (options.replace) window.history.replaceState(null, '', urlFor(to));
-    else if (leavingAdmin || !sameLocation(from, to)) {
+    else if (!sameLocation(from, to)) {
       window.history.pushState(null, '', urlFor(to));
       focusAfterNavigation.current = true;
     }
-    if (leavingAdmin) setAdminParam(null);
     setError(null);
     applyLocation(to);
   };
+
+  // canvas-4e0: links inside screens (the admin navigation, the header's Admin link, links between admin
+  // pages) navigate through navigate(), not a page load.
+  const inAppNavigation = { navigate: (to: Location) => navigate(to), hrefFor: urlFor };
 
   // Back/Forward: show what the address now names. A popstate can't be cancelled, so leaving a
   // dirty editor this way puts the editor's address back and asks; confirming goes back again.
@@ -239,8 +230,6 @@ export function App() {
       }
       setError(null);
       focusAfterNavigation.current = true;
-      // Back/Forward may land on (or leave) an admin page's history entry (canvas-513).
-      setAdminParam(new URLSearchParams(window.location.search).get('admin'));
       applyLocation(to);
     };
     window.addEventListener('popstate', onPopState);
@@ -263,7 +252,7 @@ export function App() {
   // A deep link opened in a fresh tab: put the top level underneath it, so Back goes up within the
   // app rather than leaving it (design §2).
   useEffect(() => {
-    if (window.history.length !== 1 || adminParam || parseLocation(window.location.search).screen === 'projects') return;
+    if (window.history.length !== 1 || parseLocation(window.location.search).screen === 'projects') return;
     const deepLink = window.location.href;
     window.history.replaceState(null, '', window.location.pathname);
     window.history.pushState(null, '', deepLink);
@@ -285,7 +274,7 @@ export function App() {
   // rather than a dead screen (feature 007 FR-013). A project that is theirs -- however it was
   // reached, link included -- becomes the landing hint for next time (design decision 2).
   useEffect(() => {
-    if (projects === null || adminParam || location.screen !== 'project') return;
+    if (projects === null || location.screen !== 'project') return;
     if (projects.some((p) => p.id === location.projectId)) {
       writeLastProjectId(location.projectId);
       return;
@@ -331,9 +320,9 @@ export function App() {
   // canvas-t3b.3: each screen names itself in the tab title -- the cheapest reliable cue for a
   // screen-reader user that the view changed (design: Accessibility and focus).
   useEffect(() => {
-    if (adminParam && user?.role === 'admin') {
+    if (location.screen === 'admin' && user?.role === 'admin') {
       // canvas-4pw: admin pages name themselves too.
-      const page = ADMIN_DESTINATIONS.find((d) => d.param === (adminParam === 'true' ? 'standards' : adminParam));
+      const page = ADMIN_DESTINATIONS.find((d) => d.param === location.page);
       document.title = `${page?.label ?? 'Standards'} – Admin – Canvas`;
       return;
     }
@@ -348,7 +337,17 @@ export function App() {
               ? `${findHelpPage(location.page, user?.role === 'admin')?.title ?? 'Help'} – Help`
               : 'Projects';
     document.title = name ? `${name} – Canvas` : 'Canvas';
-  }, [location, diagram?.name, currentProject?.name, adminParam, user?.role]);
+  }, [location, diagram?.name, currentProject?.name, user?.role]);
+
+  // An admin page is only for admins (the API refuses everyone else too): anyone else gets what the rest of
+  // the address names (a project, say), as before admin pages were locations, without the admin part.
+  useEffect(() => {
+    if (!user || user.role === 'admin' || location.screen !== 'admin') return;
+    const params = new URLSearchParams(window.location.search);
+    params.delete('admin');
+    params.delete('userId');
+    navigate(parseLocation(`?${params.toString()}`), { replace: true, force: true });
+  }, [user, location]);
 
   // ?account=password only exists for Canvas-password accounts; for anyone else show the top level.
   useEffect(() => {
@@ -378,7 +377,7 @@ export function App() {
     focusHeading();
     // A further navigation mid-retry must not let this one's timer steal focus later.
     return () => window.clearTimeout(timer);
-  }, [location, adminParam]);
+  }, [location]);
 
   /** Opens a diagram the app already has (just created or imported) without fetching it again. */
   const showDiagram = (loaded: DiagramDto) => {
@@ -437,7 +436,6 @@ export function App() {
     setError(null);
     setProjects(null);
     setSharedLoaded(false);
-    setAdminParam(null);
     setPendingNav(null);
     // Signing back in starts from a bare address again, landing rules included.
     window.history.replaceState(null, '', window.location.pathname);
@@ -466,22 +464,23 @@ export function App() {
   }
 
   let content: React.ReactNode;
-  if (adminParam && user.role === 'admin') {
+  if (location.screen === 'admin' && user.role === 'admin') {
+    const page = location.page;
     let adminScreen: React.ReactNode;
-    if (adminParam === 'users') adminScreen = <UsersPage />;
-    else if (adminParam === 'overview') adminScreen = <AdminOverview />;
-    else if (adminParam === 'deleted') adminScreen = <DeletedDiagramsPage />;
-    else if (adminParam === 'deleted-projects') adminScreen = <DeletedProjectsPage />;
-    else if (adminParam === 'ai-usage') adminScreen = <AiUsagePage />;
-    else if (adminParam === 'audit') adminScreen = <AuditLogPage />;
-    else if (adminParam === 'libraries') adminScreen = <LibrariesAdminPage />;
-    else if (adminParam === 'github') adminScreen = <GitHubAdminPage />;
-    else if (adminParam === 'ai-personas') adminScreen = <PersonaAdminPage />;
+    if (page === 'users') adminScreen = <UsersPage />;
+    else if (page === 'overview') adminScreen = <AdminOverview />;
+    else if (page === 'deleted') adminScreen = <DeletedDiagramsPage />;
+    else if (page === 'deleted-projects') adminScreen = <DeletedProjectsPage />;
+    else if (page === 'ai-usage') adminScreen = <AiUsagePage />;
+    else if (page === 'audit') adminScreen = <AuditLogPage {...(location.userId ? { userId: location.userId } : {})} />;
+    else if (page === 'libraries') adminScreen = <LibrariesAdminPage />;
+    else if (page === 'github') adminScreen = <GitHubAdminPage />;
+    else if (page === 'ai-personas') adminScreen = <PersonaAdminPage />;
     else adminScreen = <StandardsAdminPage />;
     // Wrapping here rather than inside each screen is what centres and navigates all five
     // without any of them being edited (research §10).
     content = (
-      <AdminShell activeParam={adminParam === 'true' ? 'standards' : adminParam}>
+      <AdminShell activeParam={page}>
         {adminScreen}
       </AdminShell>
     );
@@ -681,12 +680,13 @@ export function App() {
   }
 
   return (
+    <InAppNavigationContext.Provider value={inAppNavigation}>
     <AppShell
       user={user}
       onSignOut={handleSignOut}
       // canvas-t3b.4: the header names its sections, no project (design §4).
       currentSection={
-        adminParam && user.role === 'admin'
+        location.screen === 'admin'
           ? 'admin'
           : location.screen === 'diagram'
             ? null
@@ -769,5 +769,6 @@ export function App() {
         </Modal>
       )}
     </AppShell>
+    </InAppNavigationContext.Provider>
   );
 }
