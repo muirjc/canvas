@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any -- a one-off generator writing loosely typed JSON vectors. */
-// Regenerates auto_layout_vectors.json (canvas-p2g8.2): what the TypeScript diagram-core's autoLayout returns, and
+// Regenerates auto_layout_vectors.json (canvas-p2g8.2; C4 side hints canvas-rqm6): what the TypeScript diagram-core's autoLayout returns, and
 // what dagre.layout (with Auto Layout's options) returns on its own, for tests/test_diagram_core_auto_layout.py.
 // - "models": every golden-corpus case that parses, with every direction its family offers, plus seeded random
 //   models (DAGs and cycles, isolated nodes, duplicate and self edges, edges to unknown ids, groups nested several
@@ -86,6 +86,26 @@ it('gen', () => {
       ],
       edges: [link('a', 'b', 1), link('b', 'c', 2), link('c', 'd', 3), link('d', 'e', 4), link('e', 'f', 5), link('f', 'a', 6), link('a', 'empty', 7)],
     }],
+    // canvas-rqm6: side hints. A chain of rows, a contradiction, a hint against a plain edge, Lay_* only.
+    ['hand-hints-rows', {
+      nodes: ['a', 'b', 'c', 'd', 'e', 'f'].map((i) => box(i)),
+      edges: [
+        { ...link('a', 'b', 1), layoutHint: 'right' },
+        { ...link('b', 'c', 2), layoutHint: 'right' },
+        { ...link('d', 'a', 3), layoutHint: 'left' },
+        { ...link('c', 'a', 4), layoutHint: 'right' },
+        { ...link('a', 'e', 5), layoutHint: 'up' },
+        link('e', 'f', 6),
+      ],
+      layoutHints: [{ from: 'f', to: 'b', direction: 'down' }, { from: 'f', to: 'e', direction: 'left' }, { from: 'x', to: 'a', direction: 'up' }],
+    }],
+    // Hints across groups place the groups; a hint inside a group with its own direction.
+    ['hand-hints-groups', {
+      nodes: [box('a', 'g1'), box('b', 'g1'), box('c', 'g2'), box('d')],
+      containers: [{ id: 'g1', label: 'g1', direction: 'LR' }, { id: 'g2', label: 'g2' }],
+      edges: [{ ...link('a', 'b', 1), layoutHint: 'down' }, { ...link('b', 'c', 2), layoutHint: 'left' }, { ...link('d', 'c', 3), layoutHint: 'up' }],
+      layoutHints: [{ from: 'g1', to: 'd', direction: 'right' }],
+    }],
   ];
   for (const [name, partial] of handMade) {
     for (const direction of DIRECTIONS) add(name, { diagramTypeId: 'flowchart', containers: [], ...partial }, 'flowchart', direction);
@@ -101,6 +121,7 @@ it('gen', () => {
   const LABELS = ['A', '', 'Two words', 'A label long enough to wrap over several lines of text', 'a<br/>b<br/>c'];
   const SIZES = [{ width: 0, height: 0 }, { width: 1, height: 500 }, { width: 2.5, height: 13.7 }, { width: 1000, height: 3 }, { width: 140, height: 60 }];
   const FAMILIES = ['flowchart', 'flowchart', 'c4', 'erd', 'uml', 'architecture', 'sequence'];
+  const HINTS = ['up', 'down', 'left', 'right', 'up', 'down', 'left', 'right', 'sideways', 'constructor'];
   const GROUP_DIRECTIONS = [undefined, undefined, 'TD', 'TB', 'LR', 'BT', 'RL', 'XX'];
 
   for (let k = 0; k < 400; k++) {
@@ -132,11 +153,21 @@ it('gen', () => {
       let t = pick(ends);
       // A DAG: edges only go forward in declaration order (unless this model may have cycles).
       if (!cyclic && nodeIds.includes(s) && nodeIds.includes(t) && nodeIds.indexOf(s) > nodeIds.indexOf(t)) [s, t] = [t, s];
-      edges.push({ id: `e${i}`, sourceId: s, targetId: t, ...(chance(0.2) ? { sourceAnchor: pick(['T', 'B', 'L', 'R']) } : {}) });
+      edges.push({
+        id: `e${i}`,
+        sourceId: s,
+        targetId: t,
+        ...(chance(0.2) ? { sourceAnchor: pick(['T', 'B', 'L', 'R']) } : {}),
+        // canvas-rqm6: side hints (and a few values that aren't sides).
+        ...(chance(0.3) ? { layoutHint: pick(HINTS) } : {}),
+      });
       if (chance(0.1)) edges.push({ id: `d${i}`, sourceId: s, targetId: t });
     }
     const family = pick(FAMILIES);
     const model: any = { diagramTypeId: family, nodes, edges, containers };
+    if (chance(0.3)) {
+      model.layoutHints = Array.from({ length: 1 + int(4) }, () => ({ from: pick(ends), to: pick(ends), direction: pick(HINTS) }));
+    }
     if (chance(0.3)) model.direction = pick(['TD', 'LR', 'BT', 'RL', 'TB']);
     add(`random-${k}`, model, family, pick(DIRECTIONS));
   }

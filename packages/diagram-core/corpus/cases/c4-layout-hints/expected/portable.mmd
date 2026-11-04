@@ -1,0 +1,18 @@
+C4Container
+  title Layout hints
+  Person(u, "User")
+  System_Boundary(shop, "Shop") {
+    Container(web, "Web")
+    Container(api, "API")
+    ContainerDb(db, "Database")
+  }
+  System_Ext(pay, "Payments")
+  Rel(u, web, "uses")
+  Rel_Right(web, api, "calls")
+  Rel_D(api, db, "reads")
+  Rel_L(api, pay, "charges")
+  Rel_Up(pay, u, "emails")
+  BiRel(web, db, "syncs")
+  Rel_Back(db, web, "reports")
+  Lay_R(u, pay)
+  Lay_U(db, web)

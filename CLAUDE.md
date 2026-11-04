@@ -96,6 +96,16 @@ tests are NON-NEGOTIABLE and must exist (and fail) before implementing any diagr
 work — see `.specify/memory/constitution.md` Principle IV.
 
 ## Recent Changes
+- `canvas-rqm6` part 1: **Auto Layout follows C4's side hints.** `DiagramEdge.layoutHint` ('up'|'down'|'left'|
+  'right', from `Rel_U/D/L/R` and the long forms) and `DiagramModel.layoutHints` (`Lay_U/D/L/R`, `{from, to,
+  direction}`) are parsed and saved back (`Rel_U`.., `Lay_*` after the Rel lines; BiRel drops a hint). Before, saving
+  turned them into plain `Rel` and dropped `Lay_*`. In `autoLayout` (TS `auto-layout.ts`, Python `auto_layout.py`,
+  per level, hints mapped to that level's items): a hint ALONG the layout direction orients its connector for dagre
+  (`Rel_U` in TD ranks the target first); one ACROSS it joins the two into a line (a row in TD/BT, a column in
+  LR/RL), lines joined end to end in hint order (connectors first, then Lay_*), a hint inside one line skipped, so
+  contradictions can't loop; dagre places each line as one box (members `nodesep` apart, centred across). No hints =
+  exactly the old layout. Vectors: `make_auto_layout_vectors.ts` adds hinted random models and two hand-made cases;
+  corpus `c4-layout-hints`. Pinning (part 2) is next.
 - `canvas-p2g8.2` part 2: **the AI chat can lay diagrams out.** New tools (every family but sequence, whose layout
   is computed): `moveElements`, `alignElements`, `distributeElements`, `placeRelative` (pure ops in
   `diagram_core/layout_ops.py`; bounds = the drawn `node_size`/`container_size`; a group moves with its contents;

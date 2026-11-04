@@ -55,8 +55,12 @@ restore is stopped and says who.
 - **Auto Layout:** arranges the whole diagram for you, inside groups and boundaries too, and resizes
   each group to fit. Pick a direction (top-down, left-to-right and so on) first; a group with its
   own direction keeps it. Architecture diagrams follow their own hints instead (which side each
-  connector leaves from, and `align` lines), so they have no direction choice. It's a normal edit:
-  Save keeps it, and you can still move things afterwards.
+  connector leaves from, and `align` lines), so they have no direction choice. In C4 diagrams it
+  follows the side hints in the text: `Rel_D`/`Rel_U` put the target below or above,
+  `Rel_R`/`Rel_L` to the right or left (side by side in a row, when the layout runs top-down), and
+  `Lay_D`/`Lay_U`/`Lay_R`/`Lay_L` do the same without drawing a line. Hints that contradict each
+  other can't all be met, so some are skipped. It's a normal edit: Save keeps it, and you can still
+  move things afterwards.
 
 Sequence diagrams work differently: the layout follows the order of messages, so you don't drag.
 The **Tools** section adds notes, loop/alt/opt blocks, activations and numbering.

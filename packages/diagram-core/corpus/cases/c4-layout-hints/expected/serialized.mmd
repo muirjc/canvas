@@ -1,0 +1,45 @@
+---
+canvas:
+  positions:
+    u:
+      x: 620
+      y: 40
+    web:
+      x: 60
+      y: 90
+    api:
+      x: 240
+      y: 90
+    db:
+      x: 420
+      y: 90
+    pay:
+      x: 800
+      y: 40
+  styles: {}
+  edgeStyles: {}
+  containers:
+    shop:
+      x: 40
+      y: 40
+      width: 540
+      height: 130
+---
+C4Container
+title Layout hints
+System_Boundary(shop, "Shop") {
+  Container(web, "Web")
+  Container(api, "API")
+  ContainerDb(db, "Database")
+}
+Person(u, "User")
+System_Ext(pay, "Payments")
+Rel(u, web, "uses")
+Rel_R(web, api, "calls")
+Rel_D(api, db, "reads")
+Rel_L(api, pay, "charges")
+Rel_U(pay, u, "emails")
+BiRel(web, db, "syncs")
+Rel(web, db, "reports")
+Lay_R(u, pay)
+Lay_U(db, web)

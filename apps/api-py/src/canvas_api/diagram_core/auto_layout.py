@@ -10,6 +10,7 @@ Math.round. Top level is None (TypeScript's undefined).
 from __future__ import annotations
 
 import math
+from collections.abc import Callable
 from typing import Any
 
 from canvas_api.diagram_core.architecture_layout import compute_architecture_layout
@@ -143,28 +144,75 @@ def auto_layout(model: Model, direction: str | None = None, family: str = "flowc
         if level_direction is None:
             level_direction = resolved_direction
 
+        rankdir = _to_dagre_rankdir(level_direction)
+
+        # canvas-rqm6: C4's side hints. One along the layout's direction orients its connector for ranking; one
+        # across it puts the two items side by side in a line (a row top-down, a column across), placed as one box.
+        line_of = _build_lines(model, level, rankdir, at_level, size_of)
+        across = "width" if rankdir in ("TB", "BT") else "height"
+        line_sizes: dict[str, Size] = {}
+        offsets: dict[str, float] = {}
+        for line in {id(line): line for line in line_of.values()}.values():
+            length: float = 0
+            depth: float = 0
+            for item_id in line:
+                size = size_of[item_id]
+                offsets[item_id] = length
+                length += size[across] + DEFAULT_NODESEP
+                depth = max(depth, size["height"] if across == "width" else size["width"])
+            length -= DEFAULT_NODESEP
+            line_sizes[line[0]] = (
+                {"width": length, "height": depth} if across == "width" else {"width": depth, "height": length}
+            )
+
+        def rep_of(item_id: str) -> str:
+            line = line_of.get(item_id)
+            return line[0] if line is not None else item_id
+
         g = Graph()
         g.label = {
-            "rankdir": _to_dagre_rankdir(level_direction),
+            "rankdir": rankdir,
             "nodesep": DEFAULT_NODESEP,
             "ranksep": DEFAULT_RANKSEP,
             "marginx": 0,
             "marginy": 0,
         }
         for item_id in children:
-            g.set_node(_dagre_key(item_id), dict(size_of[item_id]))
+            if rep_of(item_id) != item_id:
+                continue
+            g.set_node(_dagre_key(item_id), dict(line_sizes.get(item_id) or size_of[item_id]))
         seen_edges: set[str] = set()
+
+        def rank(source: str, target: str) -> None:
+            a, b = rep_of(source), rep_of(target)
+            if a == b:
+                return
+            key = f"{a}->{b}"
+            if key in seen_edges:
+                return
+            seen_edges.add(key)
+            g.set_edge(_dagre_key(a), _dagre_key(b))
+
         for edge in model["edges"]:
             # Only connectors whose ends both sit inside this level rank its items.
             source = at_level(edge.get("sourceId"), level)
             target = at_level(edge.get("targetId"), level)
             if not source or not target or source == target:
                 continue
-            key = f"{source}->{target}"
-            if key in seen_edges:
+            if _hint_role(edge.get("layoutHint"), rankdir) == "backward":
+                rank(target, source)
+            else:
+                rank(source, target)
+        for hint in model.get("layoutHints") or []:
+            source = at_level(hint.get("from"), level)
+            target = at_level(hint.get("to"), level)
+            if not source or not target or source == target or source not in size_of or target not in size_of:
                 continue
-            seen_edges.add(key)
-            g.set_edge(_dagre_key(source), _dagre_key(target))
+            role = _hint_role(hint.get("direction"), rankdir)
+            if role == "forward":
+                rank(source, target)
+            elif role == "backward":
+                rank(target, source)
         if children:
             layout(g)
 
@@ -172,10 +220,20 @@ def auto_layout(model: Model, direction: str | None = None, family: str = "flowc
         min_x = min_y = math.inf
         max_x = max_y = -math.inf
         for item_id in children:
-            laid = g.node(_dagre_key(item_id))
             size = size_of[item_id]
-            x = (laid["x"] if laid.get("x") is not None else size["width"] / 2) - size["width"] / 2
-            y = (laid["y"] if laid.get("y") is not None else size["height"] / 2) - size["height"] / 2
+            rep = rep_of(item_id)
+            box = line_sizes.get(rep) or size
+            laid = g.node(_dagre_key(rep))
+            x = (laid["x"] if laid.get("x") is not None else box["width"] / 2) - box["width"] / 2
+            y = (laid["y"] if laid.get("y") is not None else box["height"] / 2) - box["height"] / 2
+            if item_id in line_of:
+                # A member of a line: its place along the line, centred across it.
+                if across == "width":
+                    x += offsets[item_id]
+                    y += (box["height"] - size["height"]) / 2
+                else:
+                    x += (box["width"] - size["width"]) / 2
+                    y += offsets[item_id]
             positions[item_id] = {"x": x, "y": y}
             min_x = min(min_x, x)
             min_y = min(min_y, y)
@@ -214,6 +272,52 @@ def auto_layout(model: Model, direction: str | None = None, family: str = "flowc
 
     place(None, ORIGIN)
     return with_direction(_apply_positions(model, node_positions, container_positions, container_sizes))
+
+
+def _hint_role(direction: Any, rankdir: str) -> str | None:
+    """canvas-rqm6: what a side hint means in a layout running `rankdir`: "forward"/"backward" along it (the target
+    ranks after or before the source), "after"/"before" across it (in a row or column). None for no side."""
+    vertical = rankdir in ("TB", "BT")
+    if direction == "down":
+        return ("forward" if rankdir == "TB" else "backward") if vertical else "after"
+    if direction == "up":
+        return ("backward" if rankdir == "TB" else "forward") if vertical else "before"
+    if direction == "right":
+        return "after" if vertical else "forward" if rankdir == "LR" else "backward"
+    if direction == "left":
+        return "before" if vertical else "backward" if rankdir == "LR" else "forward"
+    return None
+
+
+def _build_lines(
+    model: Model,
+    level: str | None,
+    rankdir: str,
+    at_level: Callable[[Any, str | None], str | None],
+    size_of: dict[str, Size],
+) -> dict[str, list[str]]:
+    """canvas-rqm6: the rows (or columns) a level's across-the-layout hints ask for: each item in one maps to the
+    whole line, in order. Hints in order (connectors, then Lay_*); one joins two lines end to end, which keeps every
+    hint already taken; one between two items already in a line is skipped."""
+    line_of: dict[str, list[str]] = {}
+    hints = [(e.get("sourceId"), e.get("targetId"), e.get("layoutHint")) for e in model["edges"]]
+    hints += [(h.get("from"), h.get("to"), h.get("direction")) for h in model.get("layoutHints") or []]
+    for source_id, target_id, direction in hints:
+        role = _hint_role(direction, rankdir)
+        if role not in ("after", "before"):
+            continue
+        source = at_level(source_id, level)
+        target = at_level(target_id, level)
+        if not source or not target or source == target or source not in size_of or target not in size_of:
+            continue
+        a = line_of.get(source) or [source]
+        b = line_of.get(target) or [target]
+        if a is b:
+            continue
+        joined = a + b if role == "after" else b + a
+        for item_id in joined:
+            line_of[item_id] = joined
+    return line_of
 
 
 def _architecture_auto_layout(model: Model) -> Model:
