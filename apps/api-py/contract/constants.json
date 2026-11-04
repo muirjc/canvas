@@ -17,7 +17,8 @@
     "deployment",
     "cloud-infrastructure",
     "erd",
-    "uml"
+    "uml",
+    "state"
   ],
   "dslFamilies": [
     "flowchart",
@@ -25,7 +26,8 @@
     "architecture",
     "sequence",
     "erd",
-    "uml"
+    "uml",
+    "state"
   ],
   "personas": [
     "Business",

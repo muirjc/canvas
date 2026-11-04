@@ -552,6 +552,23 @@ def parse_state(dsl: str) -> dict[str, Any]:
 # --- serializing -----------------------------------------------------------------------------------
 
 PSEUDO_ROLE_KEYWORD = {"choice": "choice", "fork": "fork", "join": "join"}
+#: canvas-bnnh part 2: a node drawn in the editor or by the AI may have only a shape; its role follows from it.
+SHAPE_ROLE = {"state-start": "start", "state-end": "end", "fork-bar": "fork", "diamond": "choice"}
+NOTE_ROLES = ("note-left", "note-right")
+
+
+def _role_of(node: dict[str, Any]) -> str:
+    role = node.get("role")
+    if role is not None:
+        return str(role)
+    shape = node.get("shape")
+    return SHAPE_ROLE[shape] if isinstance(shape, str) and shape in SHAPE_ROLE else "state"
+
+
+def _is_composite(container: dict[str, Any]) -> bool:
+    """Any group that isn't a region or a note (a group drawn in the editor has no role)."""
+    role = container.get("role")
+    return role != "region" and role not in NOTE_ROLES
 
 
 def _quotable(text: str) -> bool:
@@ -577,7 +594,7 @@ def serialize_state(model: dict[str, Any]) -> str:
     containers: list[dict[str, Any]] = model.get("containers") or []
 
     def is_pseudo(node: dict[str, Any]) -> bool:
-        return node.get("role") in ("start", "end")
+        return _role_of(node) in ("start", "end")
 
     lines: list[str] = []
     if model.get("mermaidConfigDirective"):
@@ -613,6 +630,25 @@ def serialize_state(model: dict[str, Any]) -> str:
     def child_containers(scope: str | None) -> list[dict[str, Any]]:
         return [c for c in containers if scope_of(c.get("parentContainerId")) == scope]
 
+    containers_by_id: dict[str, dict[str, Any]] = {}
+    for container in containers:
+        containers_by_id.setdefault(container["id"], container)
+
+    def container_of_element(element_id: Any) -> Any:
+        node = node_by_id.get(element_id)
+        if node is not None:
+            return scope_of(node.get("containerId"))
+        group = containers_by_id.get(element_id)
+        return scope_of(group.get("parentContainerId")) if group is not None else None
+
+    def edge_scope(edge: dict[str, Any]) -> Any:
+        """The scope a connector was read from; one drawn in the editor goes where both its ends are."""
+        own = scope_of(edge.get("containerId"))
+        if own is not None:
+            return own
+        source = container_of_element(edge.get("sourceId"))
+        return source if source is not None and source == container_of_element(edge.get("targetId")) else None
+
     emitted_edges: list[dict[str, Any]] = []
     emitted_notes: list[dict[str, Any]] = []
     mentioned = {endpoint for edge in edges for endpoint in (edge.get("sourceId"), edge.get("targetId"))}
@@ -632,7 +668,8 @@ def serialize_state(model: dict[str, Any]) -> str:
         walk(container_id)
         first = _LAST
         for edge in edges:
-            if edge.get("containerId") and edge["containerId"] in inside:
+            scope = edge_scope(edge)
+            if scope and scope in inside:
                 first = min(first, edge_index[edge.get("id")])
         return first
 
@@ -661,7 +698,7 @@ def serialize_state(model: dict[str, Any]) -> str:
         for node in in_scope(nodes, scope):
             if is_pseudo(node):
                 continue
-            keyword = PSEUDO_ROLE_KEYWORD.get(node["role"]) if node.get("role") else None
+            keyword = PSEUDO_ROLE_KEYWORD.get(_role_of(node))
             if keyword:
                 lines.append(f"{indent}state {node['id']} <<{keyword}>>")
                 continue
@@ -675,10 +712,10 @@ def serialize_state(model: dict[str, Any]) -> str:
                     lines.append(f"{indent}{node['id']} : {js_trim(text)}")
         # Connectors and composite blocks in the order the connectors were read (see state.ts).
         items: list[tuple[int, int, Any]] = []
-        for edge in in_scope(edges, scope):
+        for edge in [e for e in edges if edge_scope(e) == scope]:
             items.append((edge_index.get(edge.get("id"), _LAST), len(items), ("edge", edge)))
         for container in child_containers(scope):
-            if container.get("role") == "composite":
+            if _is_composite(container):
                 items.append((first_edge_within(container["id"]), len(items), ("composite", container)))
         for _key, _order, (kind, item) in sorted(items, key=lambda entry: (entry[0], entry[1])):
             if kind == "edge":
@@ -686,7 +723,7 @@ def serialize_state(model: dict[str, Any]) -> str:
             else:
                 emit_composite(item, indent)
         for note in child_containers(scope):
-            if note.get("role") not in ("note-left", "note-right"):
+            if note.get("role") not in NOTE_ROLES:
                 continue
             attached = note.get("attachedNodeIds") or []
             target = attached[0] if attached else None

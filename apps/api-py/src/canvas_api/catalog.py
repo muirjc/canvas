@@ -7,7 +7,7 @@ tests/test_contract.py, so a family, persona or built-in diagram type added ther
 from __future__ import annotations
 
 #: packages/diagram-core/src/dsl/registry.ts dslFamilies, in its order (error messages list them).
-DSL_FAMILIES: tuple[str, ...] = ("flowchart", "c4", "architecture", "sequence", "erd", "uml")
+DSL_FAMILIES: tuple[str, ...] = ("flowchart", "c4", "architecture", "sequence", "erd", "uml", "state")
 
 #: apps/api/src/seed/diagram-types.seed.ts PERSONAS.
 PERSONAS: tuple[str, ...] = ("Business", "Enterprise", "Solution", "Technical")
@@ -32,6 +32,7 @@ BUILTIN_DIAGRAM_TYPE_IDS: tuple[str, ...] = (
     "cloud-infrastructure",
     "erd",
     "uml",
+    "state",
 )
 
 #: packages/diagram-core/src/standards/schema.ts RULE_IDS: what a standard's severityOverrides may name.

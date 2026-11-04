@@ -27,6 +27,7 @@ __all__ = [
     "add_edge",
     "add_node",
     "add_point_marker_container",
+    "add_state_node",
     "assign_edge_to_container",
     "assign_node_to_container",
     "generate_id",
@@ -140,6 +141,44 @@ def add_node(model: Obj, node_input: Obj) -> Obj:
     node: Obj = {"id": generate_id("n"), "label": "New Node" if label is None else label}
     _copy_given(node, node_input, ("shape",))
     node["position"] = {"x": 40 + (index % 5) * 160, "y": 40 + (index // 5) * 120}
+    return {**model, "nodes": [*model["nodes"], node]}
+
+
+STATE_KIND_SHAPE = {
+    "state": "rounded-rectangle",
+    "start": "state-start",
+    "end": "state-end",
+    "choice": "diamond",
+    "fork": "fork-bar",
+    "join": "fork-bar",
+}
+
+
+def state_pseudo_id(kind: str, container_id: str | None = None) -> str:
+    """The id a start or end point has in a scope (`root_start` at the top), as the state parser names it."""
+    return f"{container_id if container_id is not None else 'root'}_{kind}"
+
+
+def add_state_node(model: Obj, node_input: Obj) -> Obj:
+    """canvas-bnnh (diagram-ops.ts addStateNode): a state, or a start/end/choice/fork/join point, with the role and
+    shape the state DSL writes back. A scope has one start and one end, so adding one that exists changes nothing."""
+    kind = node_input["kind"]
+    container_id = node_input.get("containerId")
+    pseudo = kind in ("start", "end")
+    node_id = state_pseudo_id(kind, container_id) if pseudo else generate_id("s")
+    if pseudo and any(n.get("id") == node_id for n in model["nodes"]):
+        return model
+    index = len(model["nodes"])
+    label = node_input.get("label")
+    node: Obj = {
+        "id": node_id,
+        "label": ("New State" if label is None else label) if kind == "state" else "",
+        "shape": STATE_KIND_SHAPE[kind],
+        "role": kind,
+        "position": {"x": 40 + (index % 5) * 160, "y": 40 + (index // 5) * 120},
+    }
+    if container_id:
+        node["containerId"] = container_id
     return {**model, "nodes": [*model["nodes"], node]}
 
 

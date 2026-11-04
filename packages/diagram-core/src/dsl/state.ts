@@ -519,12 +519,19 @@ export function parseState(dsl: string): ParseResult {
 // --- serializing -----------------------------------------------------------------------------------
 
 const PSEUDO_ROLE_KEYWORD: Record<string, string> = { choice: 'choice', fork: 'fork', join: 'join' };
+/** canvas-bnnh part 2: a node drawn in the editor or by the AI may have only a shape; its role follows from it. */
+const SHAPE_ROLE: Record<string, string> = { 'state-start': 'start', 'state-end': 'end', 'fork-bar': 'fork', diamond: 'choice' };
+const roleOf = (node: DiagramNode): string =>
+  node.role ?? (Object.prototype.hasOwnProperty.call(SHAPE_ROLE, node.shape) ? SHAPE_ROLE[node.shape] : 'state');
+const NOTE_ROLES = new Set(['note-left', 'note-right']);
+/** Any group that isn't a region or a note is a composite state (a group drawn in the editor has no role). */
+const isComposite = (container: DiagramContainer) => container.role !== 'region' && !NOTE_ROLES.has(container.role ?? '');
 
 /** Text that fits `state "…" as id` (no quote) and stays on one line. */
 const quotable = (text: string) => !text.includes('"') && !/[\r\n]/.test(text);
 
 export function serializeState(model: DiagramModel): string {
-  const isPseudo = (node: DiagramNode) => node.role === 'start' || node.role === 'end';
+  const isPseudo = (node: DiagramNode) => roleOf(node) === 'start' || roleOf(node) === 'end';
   const lines: string[] = [];
   if (model.mermaidConfigDirective) lines.push(model.mermaidConfigDirective);
   lines.push('stateDiagram-v2');
@@ -544,6 +551,19 @@ export function serializeState(model: DiagramModel): string {
   };
   const inScope = <T extends { containerId?: string }>(items: T[], scope: string | undefined) =>
     items.filter((item) => (item.containerId && containerIds.has(item.containerId) ? item.containerId : undefined) === scope);
+  // A connector is written in the scope it was read from; one drawn in the editor (no scope yet) goes where
+  // both its ends are, when that's the same group.
+  const containerOfElement = (id: string) => {
+    const node = nodeById.get(id);
+    if (node) return node.containerId && containerIds.has(node.containerId) ? node.containerId : undefined;
+    const group = model.containers.find((c) => c.id === id);
+    return group?.parentContainerId && containerIds.has(group.parentContainerId) ? group.parentContainerId : undefined;
+  };
+  const edgeScope = (edge: DiagramEdge) => {
+    if (edge.containerId && containerIds.has(edge.containerId)) return edge.containerId;
+    const source = containerOfElement(edge.sourceId);
+    return source !== undefined && source === containerOfElement(edge.targetId) ? source : undefined;
+  };
   const childContainers = (scope: string | undefined) =>
     model.containers.filter((c) => (c.parentContainerId && containerIds.has(c.parentContainerId) ? c.parentContainerId : undefined) === scope);
   const emittedEdges: DiagramEdge[] = [];
@@ -560,7 +580,10 @@ export function serializeState(model: DiagramModel): string {
     };
     walk(containerId);
     let first = Number.MAX_SAFE_INTEGER;
-    for (const edge of model.edges) if (edge.containerId && inside.has(edge.containerId)) first = Math.min(first, edgeIndex.get(edge.id)!);
+    for (const edge of model.edges) {
+      const scope = edgeScope(edge);
+      if (scope && inside.has(scope)) first = Math.min(first, edgeIndex.get(edge.id)!);
+    }
     return first;
   };
   const emitComposite = (container: DiagramContainer, indent: string) => {
@@ -579,7 +602,8 @@ export function serializeState(model: DiagramModel): string {
   const emitScope = (scope: string | undefined, indent: string): void => {
     for (const node of inScope(model.nodes, scope)) {
       if (isPseudo(node)) continue;
-      const keyword = node.role ? PSEUDO_ROLE_KEYWORD[node.role] : undefined;
+      const role = roleOf(node);
+      const keyword = Object.prototype.hasOwnProperty.call(PSEUDO_ROLE_KEYWORD, role) ? PSEUDO_ROLE_KEYWORD[role] : undefined;
       if (keyword) {
         lines.push(`${indent}state ${node.id} <<${keyword}>>`);
         continue;
@@ -596,7 +620,7 @@ export function serializeState(model: DiagramModel): string {
     // Connectors and composite blocks in the order the connectors were read (a block goes where its
     // first connector was), so reading this text back gives every connector the same id (`e<n>`).
     const items: { key: number; emit: () => void }[] = [];
-    for (const edge of inScope(model.edges, scope)) {
+    for (const edge of model.edges.filter((e) => edgeScope(e) === scope)) {
       items.push({
         key: edgeIndex.get(edge.id) ?? Number.MAX_SAFE_INTEGER,
         emit: () => {
@@ -607,12 +631,12 @@ export function serializeState(model: DiagramModel): string {
       });
     }
     for (const container of childContainers(scope)) {
-      if (container.role === 'composite') items.push({ key: firstEdgeWithin(container.id), emit: () => emitComposite(container, indent) });
+      if (isComposite(container)) items.push({ key: firstEdgeWithin(container.id), emit: () => emitComposite(container, indent) });
     }
     // A stable sort: equal keys (composites with no connectors) keep their order.
     items.sort((a, b) => a.key - b.key).forEach((item) => item.emit());
     for (const note of childContainers(scope)) {
-      if (note.role !== 'note-left' && note.role !== 'note-right') continue;
+      if (!NOTE_ROLES.has(note.role ?? '')) continue;
       const target = note.attachedNodeIds?.[0];
       if (!target) continue;
       const side = note.role === 'note-left' ? 'left' : 'right';

@@ -96,6 +96,16 @@ tests are NON-NEGOTIABLE and must exist (and fail) before implementing any diagr
 work — see `.specify/memory/constitution.md` Principle IV.
 
 ## Recent Changes
+- `canvas-bnnh` part 2: **State Diagram is a diagram type.** Seed `state` ("State Diagram", Solution/Technical,
+  family `state`) + a descriptive starter standard; `DSL_FAMILIES`/`BUILTIN_DIAGRAM_TYPE_IDS`/constants.json/
+  `FAMILY_DEFAULT_TYPE` include it. diagram-core: `addStateNode(model, {kind, label?, containerId?})` +
+  `statePseudoId` (TS + Python `add_state_node`; one start/end per scope, an existing one = no change; ops vectors
+  regenerated with it); the state serializer now takes a node's role from its shape when it has none, writes any
+  group that isn't a region/note as a composite, and puts a scope-less connector inside the group both ends share.
+  AI: state family gets `addState` (kind/label/groupId/near) instead of addNode, `groupIntoContainer` (kind
+  composite), connectors may end on a composite, layout tools (POSITIONED_FAMILIES), a primer. Web: see the editor
+  changes (state toolbar, pseudo-state shapes, connectors to composites). Tests: `tests/test_ai_state_tools.py`
+  (AI build + API create/save/export), stripped-role fuzz in test_diagram_core_state.py, dsl-state.test.ts.
 - `canvas-bnnh` part 1: **diagram-core reads, writes, draws and lays out Mermaid state diagrams** (`stateDiagram-v2`
   and `stateDiagram`, Mermaid 12.3 syntax; TS `dsl/state.ts`, Python `diagram_core/state.py`, family `state`). Not
   a diagram type yet (part 2: editor, seed type, standards, AI, docs). Model: states = nodes (role `state`,

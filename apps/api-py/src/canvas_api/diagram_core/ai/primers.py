@@ -59,6 +59,18 @@ PRIMERS: dict[str, str] = {
         "and may carry a cardinality label at either end. Related classes can be grouped into a "
         "namespace, and a note can be attached to a class or stand alone to hold free-form commentary."
     ),
+    # canvas-bnnh: Mermaid state diagrams.
+    "state": (
+        "This is a state diagram: the states something can be in and the transitions between them. Add each "
+        "element with addState and the right kind: a state (a named rounded box), the start point (a black dot "
+        "every flow begins from) and the end point (a ringed dot), a choice (a small diamond where the path "
+        "splits on a condition -- label each outgoing transition with its condition), or a fork and a join (bars "
+        "that split into, and later rejoin, paths that run at the same time). There is one start and one end per "
+        "diagram and per composite state. Label transitions with the event that causes them. Related states can "
+        "be grouped into a composite state (a group, made with groupIntoContainer, kind composite), which may "
+        "have its own start and end inside it, and a transition may lead into or out of a composite state as a "
+        "whole."
+    ),
 }
 
 

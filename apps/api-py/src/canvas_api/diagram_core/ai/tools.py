@@ -51,7 +51,7 @@ CONNECTOR_LINE_STYLE_OPTIONS: dict[str, tuple[str, ...]] = {
     "flowchart": ("solid", "dotted", "thick", "invisible"),
     "sequence": ("solid", "dotted"),
 }
-GROUPABLE_FAMILIES = frozenset({"architecture", "c4", "uml", "sequence"})
+GROUPABLE_FAMILIES = frozenset({"architecture", "c4", "uml", "sequence", "state"})
 SIDES = ("above", "below", "left", "right")
 ALIGNMENTS = ("left", "center", "right", "top", "middle", "bottom")
 #: The directions the editor's Auto Layout button offers (TB is the same as TD).
@@ -60,7 +60,11 @@ CONTAINER_ROLE_OPTIONS: dict[str, tuple[str, ...]] = {
     "c4": C4_BOUNDARY_ROLES,
     "uml": ("namespace", "note"),
     "sequence": ("box",),
+    # canvas-bnnh: grouping states makes a composite state.
+    "state": ("composite",),
 }
+#: canvas-bnnh: what addState adds to a state diagram.
+STATE_KINDS = ("state", "start", "end", "choice", "fork", "join")
 
 
 @dataclass
@@ -178,7 +182,12 @@ def create_tools(family: str, rules: JsonObj | None = None) -> dict[str, Tool]:
     def add_edge(state: State, args: JsonObj) -> JsonObj:
         model = state.model
         source, target = args["sourceId"], args["targetId"]
-        missing = [i for i in (source, target) if not _has(model["nodes"], i)]
+        # canvas-bnnh: in a state diagram a connector may also end on a composite state (a group).
+        missing = [
+            i
+            for i in (source, target)
+            if not _has(model["nodes"], i) and not (family == "state" and _has(model["containers"], i))
+        ]
         if missing:
             return not_found(state, "addEdge", "shape", missing[0])
         rule = None
@@ -300,7 +309,43 @@ def create_tools(family: str, rules: JsonObj | None = None) -> dict[str, Tool]:
     )
 
     # Under a strict standard, free-form shapes would only produce unknown-kind violations.
-    if not strict_kinds and node_shapes:
+    if family == "state":
+
+        def add_state(state: State, args: JsonObj) -> JsonObj:
+            if refused := check_near(state, "addState", args):
+                return refused
+            group = args.get("groupId")
+            if group is not None and not _has(state.model["containers"], group):
+                return not_found(state, "addState", "group", group)
+            before = state.model
+            state.model = ops.add_state_node(
+                state.model, {"kind": args["kind"], "label": args.get("label"), "containerId": group}
+            )
+            if args["kind"] in ("start", "end"):
+                node_id = ops.state_pseudo_id(args["kind"], group)
+            else:
+                node_id = state.model["nodes"][-1]["id"]
+            if state.model is not before:
+                apply_near(state, args, node_id)
+            return {**record(state, "addState", True), "nodeId": node_id}
+
+        tools["addState"] = Tool(
+            "Add a state, or a start, end, choice, fork or join point, to the state diagram. Returns its id -- use it "
+            "as sourceId/targetId in addEdge. A diagram (and each composite state) has one start and one end: adding "
+            "one that exists returns the existing one's id.",
+            Obj.of(
+                kind=Enum(values=STATE_KINDS).describe(
+                    "state (a named state), start or end (the black dot / ringed dot), choice (a decision diamond),"
+                    " fork or join (a bar that splits into, or joins, parallel paths)."
+                ),
+                label=Str().opt().describe('The state\'s name (states only). Defaults to "New State".'),
+                groupId=Str().opt().describe("The id of the composite state to put it in, if any."),
+                **near_schema(),
+            ),
+            add_state,
+        )
+
+    if not strict_kinds and node_shapes and family != "state":
 
         def add_node(state: State, args: JsonObj) -> JsonObj:
             if refused := check_near(state, "addNode", args):

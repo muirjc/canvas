@@ -33,7 +33,7 @@ Alignment = Literal["left", "center", "right", "top", "middle", "bottom"]
 Axis = Literal["horizontal", "vertical"]
 Side = Literal["above", "below", "left", "right"]
 #: Families whose shapes have stored positions: not sequence, whose layout is computed from the message order.
-POSITIONED_FAMILIES = frozenset({"flowchart", "c4", "architecture", "erd", "uml"})
+POSITIONED_FAMILIES = frozenset({"flowchart", "c4", "architecture", "erd", "uml", "state"})
 #: The gap placeRelative leaves when none is given: about the space Auto Layout leaves between ranks.
 DEFAULT_GAP = 60
 

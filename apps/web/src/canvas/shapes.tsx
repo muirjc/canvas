@@ -1,4 +1,4 @@
-import { clampPersonHeadRadius, iconNodeSize, plainNodeSize, resolveNodeFillStroke, tableNodeLayout, type DiagramNode, type NodeShape } from '@canvas/diagram-core';
+import { clampPersonHeadRadius, iconNodeSize, plainNodeSize, pseudoStateSize, resolveNodeFillStroke, tableNodeLayout, type DiagramNode, type NodeShape } from '@canvas/diagram-core';
 
 export const DEFAULT_NODE_SIZE = { width: 140, height: 60 };
 
@@ -16,6 +16,9 @@ export const DEFAULT_NODE_SIZE = { width: 140, height: 60 };
 export function nodeSize(node: DiagramNode): { width: number; height: number } {
   if (node.shape === 'icon' && !node.size) return iconNodeSize(node);
   if (!node.size) {
+    // canvas-bnnh: a state diagram's start/end dot, fork/join bar and choice diamond — the shared size.
+    const pseudo = pseudoStateSize(node);
+    if (pseudo) return pseudo;
     const tableLayout = tableNodeLayout(node);
     if (tableLayout) return { width: tableLayout.width, height: tableLayout.height };
     return plainNodeSize(node);
@@ -70,6 +73,27 @@ export function renderNodeShape(node: DiagramNode, selected: boolean, diagramTyp
         .join(' ');
       return <polygon points={points} fill={fill} stroke={stroke} strokeWidth={strokeWidth} />;
     }
+    // canvas-bnnh: mirrors svg-renderer.ts's renderNodeShape state cases exactly (SC-004). The dot and
+    // bar are filled with the stroke colour.
+    case 'state-start':
+      return <ellipse cx={x + width / 2} cy={y + height / 2} rx={width / 2} ry={height / 2} fill={stroke} stroke={stroke} strokeWidth={strokeWidth} />;
+    case 'state-end':
+      return (
+        <g>
+          <ellipse cx={x + width / 2} cy={y + height / 2} rx={width / 2} ry={height / 2} fill="none" stroke={stroke} strokeWidth={strokeWidth} />
+          <ellipse
+            cx={x + width / 2}
+            cy={y + height / 2}
+            rx={Math.max(width / 2 - 4, 1)}
+            ry={Math.max(height / 2 - 4, 1)}
+            fill={stroke}
+            stroke={stroke}
+            strokeWidth={strokeWidth}
+          />
+        </g>
+      );
+    case 'fork-bar':
+      return <rect x={x} y={y} width={width} height={height} rx={2} ry={2} fill={stroke} stroke={stroke} strokeWidth={strokeWidth} />;
     case 'person': {
       // canvas-wrk: this case was simply missing before — fell through to the plain-rectangle
       // `default` case, which is exactly the bug report ("the person shape is still a
@@ -301,5 +325,8 @@ export function getAddableShapes(dslFamily: string): { shape: NodeShape; label: 
   // architecture "shape" with no icon) gets its own dedicated Add Junction button instead, not a
   // slot in this grid.
   if (dslFamily === 'architecture') return [];
+  // canvas-bnnh: a state diagram's elements (state, start, end, choice, fork, join) have their own
+  // toolbar section (STATE_NODE_KINDS in Canvas.tsx, via addStateNode); the generic shapes don't apply.
+  if (dslFamily === 'state') return [];
   return UNIVERSAL_SHAPES;
 }

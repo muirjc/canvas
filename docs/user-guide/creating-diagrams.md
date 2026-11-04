@@ -15,7 +15,7 @@ shapes, connectors and rules apply. Types include:
 - **Flowchart:** Generic Flowchart, and the business types built on it: Business Capability Map,
   Value Chain, Value Stream, Application Landscape, Roadmap, Solution Architecture.
 - **C4:** Context, Container, Component, Code, Deployment.
-- **Others:** Sequence, Entity-Relationship (ERD), UML Class, and Network, Deployment and Cloud
+- **Others:** Sequence, State, Entity-Relationship (ERD), UML Class, and Network, Deployment and Cloud
   Infrastructure diagrams.
 
 The list starts with the types for your personas (Business, Enterprise, Solution or Technical), which

@@ -161,3 +161,44 @@ describe('state diagrams: drawing and Auto Layout', () => {
     expect(node(laid, 'A').position.x).toBeGreaterThan(node(laid, 'root_start').position.x);
   });
 });
+
+describe('state diagrams: built in the editor or by the AI (canvas-bnnh part 2)', () => {
+  it('addStateNode gives each kind its role and shape; a scope has one start and one end', async () => {
+    const { addStateNode, statePseudoId } = await import('../../src/model/diagram-ops.js');
+    let m: DiagramModel = { diagramTypeId: 'state', nodes: [], edges: [], containers: [] };
+    for (const kind of ['state', 'start', 'end', 'choice', 'fork', 'join', 'start'] as const) m = addStateNode(m, { kind });
+    expect(m.nodes.map((n) => [n.role, n.shape, n.label])).toEqual([
+      ['state', 'rounded-rectangle', 'New State'],
+      ['start', 'state-start', ''],
+      ['end', 'state-end', ''],
+      ['choice', 'diamond', ''],
+      ['fork', 'fork-bar', ''],
+      ['join', 'fork-bar', ''],
+    ]);
+    expect(m.nodes[1].id).toBe(statePseudoId('start'));
+    expect(addStateNode(m, { kind: 'start', containerId: 'G' }).nodes.at(-1)!.id).toBe('G_start');
+  });
+
+  it('a node with only a shape, a group with no role and a connector with no scope still save as Mermaid', () => {
+    const model: DiagramModel = {
+      diagramTypeId: 'state',
+      nodes: [
+        { id: 'go', label: '', shape: 'state-start', position: { x: 0, y: 0 }, containerId: 'G' },
+        { id: 'a', label: 'a', shape: 'rounded-rectangle', position: { x: 0, y: 0 }, containerId: 'G' },
+        { id: 'bar', label: '', shape: 'fork-bar', position: { x: 0, y: 0 } },
+      ],
+      containers: [{ id: 'G', label: 'Group', position: { x: 0, y: 0 } }],
+      edges: [
+        { id: 'x1', sourceId: 'go', targetId: 'a' },
+        { id: 'x2', sourceId: 'G', targetId: 'bar' },
+      ],
+    };
+    const text = serializeState(model);
+    expect(text).toContain('  state "Group" as G {\n    [*] --> a\n  }\n');
+    expect(text).toContain('  state bar <<fork>>\n');
+    expect(text).toContain('  G --> bar\n');
+    const again = parse(text);
+    expect(container(again, 'G').role).toBe('composite');
+    expect(node(again, 'G_start').containerId).toBe('G');
+  });
+});
