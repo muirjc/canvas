@@ -70,22 +70,42 @@ def get_active_standard(conn: Connection, diagram_type_id: str) -> ActiveStandar
     return ActiveStandard(int(row.version), rules_of(conn, row), str(row.id), row.name, row.description)
 
 
-def rules_of(conn: Connection, row: Any) -> dict[str, Any]:
-    """A standards row's StandardRules (standard.service.ts toRecord)."""
-    allowed = [
-        r.shape_id
-        for r in conn.execute(
-            text("SELECT shape_id FROM standard_allowed_shapes WHERE standard_id = :id ORDER BY position"),
-            {"id": row.id},
-        )
-    ]
-    mandatory = [
-        r.shape_id
-        for r in conn.execute(
-            text("SELECT shape_id FROM standard_mandatory_shapes WHERE standard_id = :id ORDER BY position"),
-            {"id": row.id},
-        )
-    ]
+#: A standard's shape lists, each in its stored order.
+_ALLOWED_OF = text("SELECT shape_id FROM standard_allowed_shapes WHERE standard_id = :id ORDER BY position")
+_MANDATORY_OF = text("SELECT shape_id FROM standard_mandatory_shapes WHERE standard_id = :id ORDER BY position")
+#: Every version's shape lists for a diagram type at once (canvas-y3qt: one query per table, not per version).
+_ALLOWED_FOR_TYPE = text(
+    "SELECT s.standard_id, s.shape_id FROM standard_allowed_shapes s JOIN standards t ON t.id = s.standard_id"
+    " WHERE t.diagram_type_id = :type ORDER BY s.position"
+)
+_MANDATORY_FOR_TYPE = text(
+    "SELECT s.standard_id, s.shape_id FROM standard_mandatory_shapes s JOIN standards t ON t.id = s.standard_id"
+    " WHERE t.diagram_type_id = :type ORDER BY s.position"
+)
+
+#: (allowed, mandatory) shape ids of one standard.
+Shapes = tuple[list[str], list[str]]
+
+
+def _shapes_of(conn: Connection, standard_id: Any) -> Shapes:
+    allowed = [r.shape_id for r in conn.execute(_ALLOWED_OF, {"id": standard_id})]
+    mandatory = [r.shape_id for r in conn.execute(_MANDATORY_OF, {"id": standard_id})]
+    return allowed, mandatory
+
+
+def _shapes_for_type(conn: Connection, diagram_type_id: str) -> dict[str, Shapes]:
+    """Each of a type's standards' shape lists, by standard id (a standard with none is absent)."""
+    found: dict[str, Shapes] = {}
+    for index, query in enumerate((_ALLOWED_FOR_TYPE, _MANDATORY_FOR_TYPE)):
+        for r in conn.execute(query, {"type": diagram_type_id}):
+            found.setdefault(str(r.standard_id), ([], []))[index].append(r.shape_id)
+    return found
+
+
+def rules_of(conn: Connection, row: Any, shapes: Shapes | None = None) -> dict[str, Any]:
+    """A standards row's StandardRules (standard.service.ts toRecord). `shapes`: its shape lists when
+    already read (a list of versions reads them all at once); otherwise read here."""
+    allowed, mandatory = shapes if shapes is not None else _shapes_of(conn, row.id)
     rules: dict[str, Any] = {
         "allowedShapeIds": allowed,
         "mandatoryShapeIds": mandatory,
@@ -99,13 +119,13 @@ def rules_of(conn: Connection, row: Any) -> dict[str, Any]:
     return rules
 
 
-def standard_record(conn: Connection, row: Any) -> dict[str, Any]:
+def standard_record(conn: Connection, row: Any, shapes: Shapes | None = None) -> dict[str, Any]:
     return {
         "id": str(row.id),
         "diagramTypeId": row.diagram_type_id,
         "version": int(row.version),
         "status": row.status,
-        "rules": rules_of(conn, row),
+        "rules": rules_of(conn, row, shapes),
         "name": row.name,
         "description": row.description,
         "publishedAt": to_api(row.published_at),
@@ -124,7 +144,10 @@ def active_standard_record(conn: Connection, diagram_type_id: str) -> dict[str, 
 
 
 def standards_for_type(conn: Connection, diagram_type_id: str) -> list[dict[str, Any]]:
-    return [standard_record(conn, row) for row in conn.execute(_FOR_TYPE, {"type": diagram_type_id}).all()]
+    """Every version, newest first: three queries however many versions there are."""
+    rows = conn.execute(_FOR_TYPE, {"type": diagram_type_id}).all()
+    shapes = _shapes_for_type(conn, diagram_type_id) if rows else {}
+    return [standard_record(conn, row, shapes.get(str(row.id), ([], []))) for row in rows]
 
 
 # --- writing ------------------------------------------------------------------------------------------
