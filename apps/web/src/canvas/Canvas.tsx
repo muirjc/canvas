@@ -40,6 +40,10 @@ import {
   clipEdgeEndpoint,
   clipToAnchorSide,
   architectureEndpointBox,
+  containerAsEndpoint,
+  pseudoStateSize,
+  addStateNode,
+  statePseudoId,
   computeBounds,
   computeLegendEntries,
   legendLayout,
@@ -185,6 +189,16 @@ const C4_BOUNDARY_LABELS: Record<(typeof C4_BOUNDARY_ROLES)[number], string> = {
   'enterprise-boundary': 'Enterprise Boundary',
   'deployment-node': 'Deployment Node',
 };
+// canvas-bnnh: the state diagram's toolbar: each adds one element through addStateNode.
+const STATE_NODE_KINDS: { kind: 'state' | 'start' | 'end' | 'choice' | 'fork' | 'join'; label: string; title: string }[] = [
+  { kind: 'state', label: 'State', title: 'Add a state' },
+  { kind: 'start', label: 'Start', title: 'Add the start point (one per diagram or composite state)' },
+  { kind: 'end', label: 'End', title: 'Add the end point (one per diagram or composite state)' },
+  { kind: 'choice', label: 'Choice', title: 'Add a choice (a decision with several outgoing transitions)' },
+  { kind: 'fork', label: 'Fork', title: 'Add a fork bar (one transition splits into parallel ones)' },
+  { kind: 'join', label: 'Join', title: 'Add a join bar (parallel transitions come back together)' },
+];
+
 const CONTAINER_ROLE_OPTIONS: Partial<Record<string, { value: string; label: string }[]>> = {
   uml: [
     { value: 'namespace', label: 'Namespace' },
@@ -1572,6 +1586,15 @@ export function Canvas({ model: modelProp, onChange: onChangeProp, dslFamily, to
     onChange(addNode(model, { shape }));
   };
 
+  // canvas-bnnh: a state diagram's element goes into the selected composite state, else the top level.
+  const stateScopeId =
+    dslFamily === 'state' && selectedContainerId && model.containers.some((c) => c.id === selectedContainerId && c.role !== 'region' && !c.role?.startsWith('note'))
+      ? selectedContainerId
+      : undefined;
+  const handleAddStateNode = (kind: (typeof STATE_NODE_KINDS)[number]['kind']) => {
+    onChange(addStateNode(model, { kind, ...(stateScopeId ? { containerId: stateScopeId } : {}) }));
+  };
+
   // canvas-8o01/thia: why this kind can't be added now (its Max count, or a full kind group).
   const blockedReason = (kind: ElementKind, ignoreNodeId?: string) =>
     standardRules ? kindAddBlockedReason(model, standardRules, kind, ignoreNodeId) : undefined;
@@ -1787,6 +1810,7 @@ export function Canvas({ model: modelProp, onChange: onChangeProp, dslFamily, to
   // role concept at all (erd, architecture, flowchart) get undefined, exactly today's behavior.
   const roleForNewContainer = (): string | undefined => {
     if (dslFamily === 'sequence') return 'box';
+    if (dslFamily === 'state') return 'composite';
     return containerRoleOptions ? containerRoleChoice : undefined;
   };
 
@@ -1797,7 +1821,13 @@ export function Canvas({ model: modelProp, onChange: onChangeProp, dslFamily, to
   const handleContainerPointerDown = (container: DiagramContainer) => (event: React.PointerEvent) => {
     // Containers sit behind shapes; a pointer-down that reached here is on the container itself.
     event.stopPropagation();
-    if (connectMode) return;
+    // canvas-bnnh: a state diagram's connector may start or end on a composite state; the click goes
+    // through the node path, which only needs an id.
+    if (connectMode) {
+      const endpoint = dslFamily === 'state' && container.role !== 'region' && !container.role?.startsWith('note') ? containerAsEndpoint(container) : undefined;
+      if (endpoint) handleNodePointerDown(endpoint)(event);
+      return;
+    }
     setSelectedContainerId(container.id);
     setSelectedIds(new Set());
     setSelectedEdgeId(null);
@@ -2698,6 +2728,31 @@ export function Canvas({ model: modelProp, onChange: onChangeProp, dslFamily, to
           </div>
         </div>
       )}
+      {dslFamily === 'state' && (
+        <div className="rail-section" data-testid="state-toolbar">
+          <p className="section-label rail-section__label">{stateScopeId ? 'State elements (in selected composite)' : 'State elements'}</p>
+          <div className="tool-list">
+            {STATE_NODE_KINDS.map(({ kind, label, title }) => {
+              // A scope has one start and one end; adding another would do nothing.
+              const exists =
+                (kind === 'start' || kind === 'end') && model.nodes.some((n) => n.id === statePseudoId(kind, stateScopeId));
+              return (
+                <button
+                  key={kind}
+                  type="button"
+                  className="btn btn--secondary"
+                  data-testid={`add-state-${kind}`}
+                  disabled={exists}
+                  title={exists ? `There is already a ${label.toLowerCase()} point here` : title}
+                  onClick={() => handleAddStateNode(kind)}
+                >
+                  {label}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
       {addableShapes.length > 0 && (
         <div className="rail-section">
           <p className="section-label rail-section__label">Shapes</p>
@@ -2746,7 +2801,7 @@ export function Canvas({ model: modelProp, onChange: onChangeProp, dslFamily, to
               its own dedicated connect-mode picker below instead — none of the three families'
               arrowhead is a plain directional choice (ER's is crow's-foot cardinality; UML's is the
               relationship kind itself; architecture's is 'source'|'target' only, never 'both'). */}
-          {connectMode && dslFamily !== 'erd' && dslFamily !== 'uml' && dslFamily !== 'architecture' && (
+          {connectMode && dslFamily !== 'erd' && dslFamily !== 'uml' && dslFamily !== 'architecture' && dslFamily !== 'state' && (
             <label className="field__label" htmlFor="connect-arrow-style">
               Direction
               <select
@@ -2975,7 +3030,7 @@ export function Canvas({ model: modelProp, onChange: onChangeProp, dslFamily, to
             onClick={handleAddContainer}
           >
             <Icon name="group" />
-            Add Container
+            {dslFamily === 'state' ? 'Add Composite State' : 'Add Container'}
           </button>
           <button
             type="button"
@@ -2985,7 +3040,7 @@ export function Canvas({ model: modelProp, onChange: onChangeProp, dslFamily, to
             onClick={groupSelected}
           >
             <Icon name="group" />
-            Group into Container
+            {dslFamily === 'state' ? 'Group as Composite' : 'Group into Container'}
           </button>
           <button
             type="button"
@@ -3441,7 +3496,7 @@ export function Canvas({ model: modelProp, onChange: onChangeProp, dslFamily, to
           // the selection-blue stroke (a container can be selected AND a live drop target at the
           // same time, e.g. re-nesting a container that was already selected).
           const isDropTarget = containerDropTargetId === container.id;
-          const stroke = isDropTarget ? CONTAINER_DROP_TARGET_STROKE : isSelected ? SELECTION_STROKE : isLabeledControlFlowBlock ? CONTROL_FLOW_STROKE : roleStyle.stroke;
+          const stroke = isDropTarget ? CONTAINER_DROP_TARGET_STROKE : isSelected || (connectMode && connectSourceId === container.id) ? SELECTION_STROKE : isLabeledControlFlowBlock ? CONTROL_FLOW_STROKE : roleStyle.stroke;
           const dasharray = isDropTarget ? undefined : isLabeledControlFlowBlock ? CONTROL_FLOW_DASHARRAY : roleStyle.strokeDasharray;
           // canvas-7vs.9: a leader line from this container's center to each attached node's own
           // position — a sequence note's target is its participant's lifeline (already resolved
@@ -3466,6 +3521,7 @@ export function Canvas({ model: modelProp, onChange: onChangeProp, dslFamily, to
             <g
               key={container.id}
               data-testid={`container-${container.id}`}
+              data-connect-source={connectMode && connectSourceId === container.id ? 'true' : undefined}
               onPointerDown={handleContainerPointerDown(container)}
               onDoubleClick={(event) => {
                 event.stopPropagation();
@@ -3520,7 +3576,19 @@ export function Canvas({ model: modelProp, onChange: onChangeProp, dslFamily, to
                   href={iconMarkupToDataUri(containerIconMarkup)}
                 />
               )}
-              {editingContainerId !== container.id && (
+              {/* canvas-bnnh: a state diagram's note holds a paragraph: wrapped and centred in its box,
+                  as the export draws it (svg-renderer.ts renderContainer). */}
+              {editingContainerId !== container.id && dslFamily === 'state' && (container.role === 'note-left' || container.role === 'note-right') && (
+                renderLabelLines(
+                  container.position.x + size.width / 2,
+                  container.position.y + size.height / 2,
+                  container.label,
+                  12,
+                  true,
+                  Math.max(size.width - 16, 40),
+                )
+              )}
+              {editingContainerId !== container.id && !(dslFamily === 'state' && (container.role === 'note-left' || container.role === 'note-right')) && (
                 <text
                   x={headerLayout ? headerLayout.labelX : container.position.x + 8}
                   y={container.position.y + (isLabeledControlFlowBlock ? 14 : roleStyle.headerBand ? 14 : 16)}
@@ -3598,8 +3666,10 @@ export function Canvas({ model: modelProp, onChange: onChangeProp, dslFamily, to
         })}
 
         {model.edges.map((edge) => {
-          const source = model.nodes.find((n) => n.id === edge.sourceId);
-          const target = model.nodes.find((n) => n.id === edge.targetId);
+          // canvas-bnnh: a state diagram's connector may end on a composite state (a container),
+          // drawn to its box exactly as the export does.
+          const source = model.nodes.find((n) => n.id === edge.sourceId) ?? containerAsEndpoint(containersById.get(edge.sourceId));
+          const target = model.nodes.find((n) => n.id === edge.targetId) ?? containerAsEndpoint(containersById.get(edge.targetId));
           if (!source || !target) return null;
           // canvas-7vs.1: a sequence message's endpoints come straight from the computed lifeline
           // x-positions and the message's own computed row — never from node.position (a
@@ -3925,6 +3995,9 @@ export function Canvas({ model: modelProp, onChange: onChangeProp, dslFamily, to
           // tableNodeLayout calculation, so canvas and export agree (SC-004).
           const tableLayout = tableNodeLayout(node);
           const describedLayout = describedNodeLayout(node);
+          // canvas-bnnh: a state diagram's start/end dot, fork/join bar and choice diamond carry no text
+          // (as in the export), so nothing to rename or label-edit either.
+          const isPseudoState = Boolean(pseudoStateSize(node)) && !node.label;
           return (
             <g
               key={node.id}
@@ -3937,7 +4010,7 @@ export function Canvas({ model: modelProp, onChange: onChangeProp, dslFamily, to
               onPointerLeave={() => setHoveredId((current) => (current === node.id ? null : current))}
               onDoubleClick={(event) => {
                 event.stopPropagation();
-                if (!readOnly) setEditingNodeId(node.id);
+                if (!readOnly && !isPseudoState) setEditingNodeId(node.id);
               }}
               style={{ cursor: connectMode ? 'crosshair' : lifeline ? 'default' : 'move' }}
             >
@@ -3996,6 +4069,7 @@ export function Canvas({ model: modelProp, onChange: onChangeProp, dslFamily, to
                 </>
               )}
               {editingNodeId !== node.id &&
+                !isPseudoState &&
                 (iconMarkup && iconLayout
                   ? renderLabelLines(
                       iconLayout.labelX,
@@ -4063,6 +4137,7 @@ export function Canvas({ model: modelProp, onChange: onChangeProp, dslFamily, to
               )}
               {editingNodeId !== node.id &&
                 !connectMode &&
+                !isPseudoState &&
                 (hoveredId === node.id || selectedIds.has(node.id)) &&
                 renderEditAffordance(
                   node.id,
@@ -4079,6 +4154,7 @@ export function Canvas({ model: modelProp, onChange: onChangeProp, dslFamily, to
                 )}
               {editingNodeId !== node.id &&
                 !connectMode &&
+                !isPseudoState &&
                 (hoveredId === node.id || selectedIds.has(node.id)) &&
                 renderStyleAffordance(
                   node.id,

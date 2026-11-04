@@ -145,6 +145,14 @@ def _differences(bridge: DiagramBridge, dsl: str) -> list[str]:
         model = json.loads(json.dumps(parsed["model"]))
         if serialize_state(model) != bridge.serialize("state", model):
             found.append("serialize")
+        # As the editor or the AI builds them: some roles and connector scopes missing (canvas-bnnh part 2).
+        stripped = json.loads(json.dumps(model))
+        for element in [*stripped["nodes"], *stripped["containers"], *stripped["edges"]]:
+            if len(json.dumps(element)) % 3 == 0:
+                element.pop("role", None)
+                element.pop("containerId", None)
+        if serialize_state(stripped) != bridge.serialize("state", stripped):
+            found.append("serialize (roles/scopes stripped)")
         if core.render_svg(model) != bridge.render_svg(model):
             found.append("render")
         laid = json.loads(json.dumps(to_js_json(core.auto_layout(model, "LR", "state"))))

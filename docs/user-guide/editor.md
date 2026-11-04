@@ -69,6 +69,28 @@ restore is stopped and says who.
 Sequence diagrams work differently: the layout follows the order of messages, so you don't drag.
 The **Tools** section adds notes, loop/alt/opt blocks, activations and numbering.
 
+### State diagrams
+
+A State diagram shows the states something can be in and how it moves between them. Instead of
+**Shapes**, the left rail has a **State elements** section:
+
+- **State:** a rounded box with a name. Rename it with the pencil.
+- **Start** and **End:** the filled dot where the flow begins and the ringed dot where it finishes.
+  Each draws without a label. There is one of each per diagram, and one per composite state, so the
+  button switches off once it's there.
+- **Choice:** a small diamond where the flow takes one of several routes.
+- **Fork** and **Join:** a bar where one transition splits into parallel ones, and a bar where they
+  come back together.
+- **Composite state:** a state that contains other states. **Add Composite State** draws a box, and
+  **Group as Composite** puts the selected states inside one. Select a composite state first and the
+  State elements buttons add to it, with its own Start and End. A connector can start or end on the
+  composite state's box: click **Connect**, then the composite state's title bar.
+- **Notes:** written in the DSL tab (`note right of Idle : text`) and drawn beside the state.
+
+Use **Connect** to draw transitions and double-click one to give it a label. **Auto Layout** works
+here too. The DSL tab takes Mermaid `stateDiagram-v2` text, following Mermaid 12's state diagram
+syntax.
+
 ## Zoom
 
 The controls at the bottom-left of the canvas zoom the drawing from 25% to 400%: **−** and **+**

@@ -417,6 +417,16 @@ STARTER_STANDARDS: list[dict[str, Any]] = [
         ),
     ),
     _standard(
+        "state",
+        "State Diagram (starter)",
+        "States as today. Edit to add rules.",
+        _descriptive_starter(
+            "state",
+            "A state diagram shows the states something can be in and the events that move it between them. Start"
+            " from the start point, label every transition with its event, and use choice points for conditions.",
+        ),
+    ),
+    _standard(
         "network",
         "Network Diagram (starter)",
         "Services and junctions as today. Edit to add rules.",

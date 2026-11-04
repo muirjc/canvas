@@ -789,3 +789,43 @@ export function setPinned(model: DiagramModel, ids: string[], pinned: boolean): 
   const { pinned: _old, ...rest } = model;
   return next.length > 0 ? { ...rest, pinned: next } : rest;
 }
+
+/** canvas-bnnh: what can be added to a state diagram. */
+export type StateNodeKind = 'state' | 'start' | 'end' | 'choice' | 'fork' | 'join';
+
+const STATE_KIND_SHAPE: Record<StateNodeKind, DiagramNode['shape']> = {
+  state: 'rounded-rectangle',
+  start: 'state-start',
+  end: 'state-end',
+  choice: 'diamond',
+  fork: 'fork-bar',
+  join: 'fork-bar',
+};
+
+/** The id a start or end point has in a scope (`root_start` at the top), as the state parser names it. */
+export function statePseudoId(kind: 'start' | 'end', containerId?: string): string {
+  return `${containerId ?? 'root'}_${kind}`;
+}
+
+/**
+ * canvas-bnnh: adds a state, or a start, end, choice, fork or join point, to a state diagram, with the role
+ * and shape the state DSL writes back. A scope has one start and one end (they're all `[*]` in Mermaid), so
+ * adding one that exists leaves the model as it is. The new node's id: `statePseudoId` for start/end, else
+ * the last node's.
+ */
+export function addStateNode(model: DiagramModel, input: { kind: StateNodeKind; label?: string; containerId?: string }): DiagramModel {
+  const { kind, containerId } = input;
+  const pseudo = kind === 'start' || kind === 'end';
+  const id = pseudo ? statePseudoId(kind, containerId) : generateId('s');
+  if (pseudo && model.nodes.some((n) => n.id === id)) return model;
+  const index = model.nodes.length;
+  const node: DiagramNode = {
+    id,
+    label: kind === 'state' ? (input.label ?? 'New State') : '',
+    shape: STATE_KIND_SHAPE[kind],
+    role: kind,
+    position: { x: 40 + (index % 5) * 160, y: 40 + Math.floor(index / 5) * 120 },
+    ...(containerId ? { containerId } : {}),
+  };
+  return { ...model, nodes: [...model.nodes, node] };
+}
