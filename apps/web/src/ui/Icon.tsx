@@ -32,6 +32,7 @@ export type IconName =
   | 'pencil'
   | 'palette'
   | 'layout'
+  | 'pin'
   | 'info'
   | 'rows'
   | 'tag'
@@ -70,6 +71,8 @@ const PATHS: Record<IconName, { d: string; filled?: boolean }[]> = {
   palette: [{ d: 'M8 1.5c0 0 5.3 6.4 5.3 9.3a5.3 5.3 0 0 1-10.6 0c0-2.9 5.3-9.3 5.3-9.3Z', filled: true }],
   // Auto Layout — a small hierarchy/tree glyph (one box branching to two) suggesting "arrange
   // into ranks", distinct from `group`'s overlapping-boxes grouping metaphor.
+  // canvas-rqm6: push-pin — Pin/Unpin toggle.
+  pin: [{ d: 'M9.5 2 14 6.5l-2 .5-2.5 2.5v2.5L4.5 7.5H7L9.5 5 10 3ZM6 10l-3.5 3.5' }],
   layout: [{ d: 'M6 2h4v3h-4zM2 11h4v3h-4zM10 11h4v3h-4zM8 5v3M8 8 4 11M8 8 12 11' }],
   // canvas-hbk: Diagram Details trigger — a circled "i", distinct from `warning`'s triangle. The
   // dot is a zero-length stroked segment, rendered as a circle by the shared strokeLinecap="round".

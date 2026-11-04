@@ -10,6 +10,7 @@ import math
 from typing import Any
 
 from canvas_api.diagram_core import layout_ops
+from canvas_api.diagram_core.auto_layout import pinned_element_ids
 from canvas_api.diagram_core.family_capabilities import FAMILY_SUPPORTS_ELEMENT_KINDS
 from canvas_api.diagram_core.jsvalues import js_template, js_truthy
 from canvas_api.diagram_core.standards import validate
@@ -52,6 +53,8 @@ def describe_model(model: Obj, rules: Obj | None = None, family: str | None = No
     each element's kind and the first ten violations too. For a family with stored positions (not sequence),
     each shape's and group's position and size, and the groups with what they contain (canvas-p2g8.2)."""
     positioned = family in layout_ops.POSITIONED_FAMILIES
+    # canvas-rqm6: pinned shapes and groups stay put when the diagram is arranged.
+    pinned = set(pinned_element_ids(model)) if positioned else set()
     node_lines = []
     for n in model["nodes"]:
         kind = ""
@@ -59,7 +62,8 @@ def describe_model(model: Obj, rules: Obj | None = None, family: str | None = No
             kind = f", kind: {_t(n, 'role')}{' external' if js_truthy(n.get('external')) else ''}"
         where = _placement(model, n.get("id")) if positioned else ""
         inside = f", in {_t(n, 'containerId')}" if positioned and js_truthy(n.get("containerId")) else ""
-        node_lines.append(f'- {_t(n, "id")}: "{_t(n, "label")}" ({_t(n, "shape")}{kind}){where}{inside}')
+        pin = ", pinned" if isinstance(n.get("id"), str) and n["id"] in pinned else ""
+        node_lines.append(f'- {_t(n, "id")}: "{_t(n, "label")}" ({_t(n, "shape")}{kind}){where}{inside}{pin}')
     edge_lines = []
     for e in model["edges"]:
         label = f' ("{_t(e, "label")}")' if js_truthy(e.get("label")) else ""
@@ -72,7 +76,9 @@ def describe_model(model: Obj, rules: Obj | None = None, family: str | None = No
         for c in model["containers"]:
             role = f" ({_t(c, 'role')})" if js_truthy(c.get("role")) else ""
             parent = f", in {_t(c, 'parentContainerId')}" if js_truthy(c.get("parentContainerId")) else ""
-            group_lines.append(f'- {_t(c, "id")}: "{_t(c, "label")}"{role}{_placement(model, c.get("id"))}{parent}')
+            pin = ", pinned" if isinstance(c.get("id"), str) and c["id"] in pinned else ""
+            where = _placement(model, c.get("id"))
+            group_lines.append(f'- {_t(c, "id")}: "{_t(c, "label")}"{role}{where}{parent}{pin}')
         summary += "\n\nCurrent groups:\n" + "\n".join(group_lines)
     if rules is not None:
         violations = validate(model, rules)[:10]

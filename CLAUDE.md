@@ -96,6 +96,17 @@ tests are NON-NEGOTIABLE and must exist (and fail) before implementing any diagr
 work — see `.specify/memory/constitution.md` Principle IV.
 
 ## Recent Changes
+- `canvas-rqm6` part 2: **pinned shapes and groups.** `DiagramModel.pinned` (ids), front matter `canvas.pinned`
+  in every family but sequence (`readPinned`/`withPinned` in front-matter.ts, `read_pinned`/`with_pinned` in Python;
+  ids the diagram lacks, duplicates and non-strings dropped on read AND write). `setPinned(model, ids, pinned)`
+  (diagram-ops.ts). `autoLayout` ends with `anchorToPins` (TS and Python, every family incl. architecture): the new
+  layout is shifted by the pins' average move (`Math.round`), then each pin -- and everything inside a pinned group,
+  any depth -- is put back as the ORIGINAL element (Auto Layout only changes positions/sizes). Decided with the
+  user: several pins far apart can leave a shape on top of a pin. Dragging still moves pinned things. Editor:
+  Pin/Unpin button after Auto Layout (`pin-toggle`, acts on the selected group or the selected shapes) and a pin
+  badge (`pin-badge-<id>`, editor only, not in exports). AI: `describe_model` adds `, pinned`; `arrange` says pins
+  stay. Vectors: pins in random/hand-made auto-layout models; corpus `flowchart-pinned`, `c4-pinned`; e2e
+  `pin-elements.spec.ts`.
 - `canvas-rqm6` part 1: **Auto Layout follows C4's side hints.** `DiagramEdge.layoutHint` ('up'|'down'|'left'|
   'right', from `Rel_U/D/L/R` and the long forms) and `DiagramModel.layoutHints` (`Lay_U/D/L/R`, `{from, to,
   direction}`) are parsed and saved back (`Rel_U`.., `Lay_*` after the Rel lines; BiRel drops a hint). Before, saving

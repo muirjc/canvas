@@ -1,5 +1,5 @@
 import { isAllowedLinkHref, type DiagramContainer, type DiagramModel, type DiagramNode, type NodeShape } from '../model/diagram-model.js';
-import { joinFrontMatter, type CanvasFrontMatter, withLegend } from './front-matter.js';
+import { joinFrontMatter, type CanvasFrontMatter, withLegend, withPinned } from './front-matter.js';
 
 const SHAPE_DELIMITERS: Record<NodeShape, [string, string]> = {
   rectangle: ['[', ']'],
@@ -156,5 +156,5 @@ export function serializeFlowchart(model: DiagramModel): string {
   }
 
   const body = `${bodyLines.join('\n')}\n`;
-  return joinFrontMatter(withLegend(frontMatter, model), body);
+  return joinFrontMatter(withPinned(withLegend(frontMatter, model), model), body);
 }

@@ -20,6 +20,8 @@ export interface CanvasFrontMatter {
     kinds?: Record<string, string>;
     /** canvas-ltk: the diagram's legend (validated by readLegend). */
     legend?: unknown;
+    /** canvas-rqm6: ids of the shapes and groups Auto Layout leaves where they are (validated by readPinned). */
+    pinned?: unknown;
   };
 }
 
@@ -151,4 +153,24 @@ export function readLegend(frontMatter: CanvasFrontMatter): DiagramLegend | unde
 export function withLegend(frontMatter: CanvasFrontMatter, model: Pick<DiagramModel, 'legend'>): CanvasFrontMatter {
   if (!model.legend) return frontMatter;
   return { ...frontMatter, canvas: { ...(frontMatter.canvas ?? {}), legend: model.legend } };
+}
+
+/** canvas-rqm6: the pinned ids from front matter: strings naming a shape or group the model has, each once, in
+ *  order. Undefined when there are none (anything else in the list is dropped, never a parse error). */
+export function readPinned(frontMatter: CanvasFrontMatter, model: Pick<DiagramModel, 'nodes' | 'containers'>): string[] | undefined {
+  return pinnedIds(frontMatter.canvas?.pinned, model);
+}
+
+/** canvas-rqm6: adds the model's pinned ids to a serializer's front matter (only ids it still has). */
+export function withPinned(frontMatter: CanvasFrontMatter, model: Pick<DiagramModel, 'nodes' | 'containers' | 'pinned'>): CanvasFrontMatter {
+  const pinned = pinnedIds(model.pinned, model);
+  if (!pinned) return frontMatter;
+  return { ...frontMatter, canvas: { ...(frontMatter.canvas ?? {}), pinned } };
+}
+
+function pinnedIds(raw: unknown, model: Pick<DiagramModel, 'nodes' | 'containers'>): string[] | undefined {
+  if (!Array.isArray(raw)) return undefined;
+  const known = new Set<string>([...model.nodes.map((n) => n.id), ...model.containers.map((c) => c.id)]);
+  const ids = [...new Set(raw.filter((id): id is string => typeof id === 'string' && known.has(id)))];
+  return ids.length > 0 ? ids : undefined;
 }

@@ -778,3 +778,14 @@ export function setSequenceAutonumber(model: DiagramModel, patch: SequenceAutonu
   }
   return { ...model, sequenceAutonumber: { start: patch.start, step: patch.step } };
 }
+
+/**
+ * canvas-rqm6: pins (or unpins) shapes and groups, so Auto Layout leaves them where they are.
+ * Newly pinned ids go at the end; the field is dropped when nothing is pinned.
+ */
+export function setPinned(model: DiagramModel, ids: string[], pinned: boolean): DiagramModel {
+  const current = Array.isArray(model.pinned) ? model.pinned : [];
+  const next = pinned ? [...current, ...ids.filter((id, i) => !current.includes(id) && ids.indexOf(id) === i)] : current.filter((id) => !ids.includes(id));
+  const { pinned: _old, ...rest } = model;
+  return next.length > 0 ? { ...rest, pinned: next } : rest;
+}

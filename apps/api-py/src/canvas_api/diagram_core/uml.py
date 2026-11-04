@@ -17,10 +17,12 @@ from canvas_api.diagram_core.front_matter import (
     canvas_section,
     join_front_matter,
     read_legend,
+    read_pinned,
     section,
     split_front_matter,
     strip_trailing_comment,
     with_legend,
+    with_pinned,
 )
 from canvas_api.diagram_core.model import create_empty_diagram_model
 from canvas_api.github.jstext import JS_WHITESPACE, js_trim
@@ -470,6 +472,8 @@ def parse_uml(dsl: str) -> dict[str, Any]:
             "legend": read_legend(front_matter),
         }
     )
+    if pinned := read_pinned(front_matter, model):
+        model["pinned"] = pinned
     return {"model": model}
 
 
@@ -573,4 +577,4 @@ def serialize_uml(model: dict[str, Any]) -> str:
         else:
             lines.append(f'note "{_js_text(container.get("label"))}"')
 
-    return join_front_matter(with_legend(front_matter, model), "\n".join(lines) + "\n")
+    return join_front_matter(with_pinned(with_legend(front_matter, model), model), "\n".join(lines) + "\n")

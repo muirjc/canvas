@@ -15,6 +15,7 @@ from typing import Any
 
 from canvas_api.diagram_core.architecture_layout import compute_architecture_layout
 from canvas_api.diagram_core.dagre import Graph, layout
+from canvas_api.diagram_core.front_matter import pinned_ids
 from canvas_api.diagram_core.jsvalues import js_template
 from canvas_api.diagram_core.sizes import node_size
 from canvas_api.diagram_core.svg_render import container_size
@@ -68,8 +69,77 @@ def auto_layout(model: Model, direction: str | None = None, family: str = "flowc
     if not supports_auto_layout(family):
         return model
     if family == "architecture":
-        return _architecture_auto_layout(model)
+        return _anchor_to_pins(model, _architecture_auto_layout(model))
+    laid = _layout_with_dagre(model, direction, family)
+    return _anchor_to_pins(model, laid)
 
+
+def pinned_element_ids(model: Model) -> list[str]:
+    """The shapes and groups a model pins (canvas-rqm6): ids it has, each once, in order."""
+    return pinned_ids(model.get("pinned"), model) or []
+
+
+def _anchor_to_pins(model: Model, laid: Model) -> Model:
+    """canvas-rqm6: keeps pinned shapes and groups where they were. The new layout is shifted by the pins' average
+    move (rounded), so with one pin everything is arranged around it; then every pin goes back exactly as it was, a
+    pinned group with its size and everything inside it. Auto Layout changes only positions and group sizes, so
+    "as it was" is simply the original element."""
+    pins = pinned_element_ids(model)
+    if not pins:
+        return laid
+    before = {n["id"]: n.get("position") for n in model["nodes"]} | {
+        c["id"]: c.get("position") for c in model["containers"]
+    }
+    after = {n["id"]: n.get("position") for n in laid["nodes"]} | {
+        c["id"]: c.get("position") for c in laid["containers"]
+    }
+    sum_x = sum_y = 0.0
+    counted = 0
+    for pin in pins:
+        start, end = before.get(pin), after.get(pin)
+        if start is None or end is None:  # a position is an object, never falsy in JavaScript
+            continue
+        sum_x += start["x"] - end["x"]
+        sum_y += start["y"] - end["y"]
+        counted += 1
+    dx = js_round(sum_x / counted) if counted else 0
+    dy = js_round(sum_y / counted) if counted else 0
+
+    pinned = set(pins)
+    parent_of = {c["id"]: c.get("parentContainerId") for c in model["containers"]} | {
+        n["id"]: n.get("containerId") for n in model["nodes"]
+    }
+
+    def stays(item_id: Any) -> bool:
+        seen: set[Any] = set()
+        current = item_id
+        while current is not None and current not in seen:
+            if current in pinned:
+                return True
+            seen.add(current)
+            current = parent_of.get(current)
+        return False
+
+    original_nodes = {n["id"]: n for n in model["nodes"]}
+    original_containers = {c["id"]: c for c in model["containers"]}
+
+    def shifted(element: dict[str, Any], originals: dict[str, Any]) -> dict[str, Any]:
+        original = originals.get(element["id"])
+        if original is not None and stays(element["id"]):
+            return original  # type: ignore[no-any-return]
+        position = element.get("position")
+        if position is None:
+            return element
+        return {**element, "position": {"x": position["x"] + dx, "y": position["y"] + dy}}
+
+    return {
+        **laid,
+        "nodes": [shifted(n, original_nodes) for n in laid["nodes"]],
+        "containers": [shifted(c, original_containers) for c in laid["containers"]],
+    }
+
+
+def _layout_with_dagre(model: Model, direction: str | None, family: str) -> Model:
     resolved_direction = direction if direction is not None else model.get("direction")
     if resolved_direction is None:
         resolved_direction = "TD"

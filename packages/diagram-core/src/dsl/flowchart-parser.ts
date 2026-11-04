@@ -8,7 +8,7 @@ import {
   type NodeShape,
   type NodeStyle,
 } from '../model/diagram-model.js';
-import { splitFrontMatter, stripTrailingComment, readLegend, NO_ENTRIES } from './front-matter.js';
+import { splitFrontMatter, stripTrailingComment, readLegend, readPinned, NO_ENTRIES } from './front-matter.js';
 import type { ParseError, ParseResult } from './types.js';
 import { computeContainmentLayout } from '../model/containment-layout.js';
 
@@ -609,5 +609,7 @@ export function parseFlowchart(dsl: string): ParseResult {
   model.containers = Array.from(containersById.values());
   model.edges = edges;
   model.legend = readLegend(frontMatter);
+  const pinned = readPinned(frontMatter, model);
+  if (pinned) model.pinned = pinned;
   return { model };
 }

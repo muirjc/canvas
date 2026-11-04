@@ -694,7 +694,8 @@ def create_tools(family: str, rules: JsonObj | None = None) -> dict[str, Tool]:
         tools["arrange"] = Tool(
             "Lay the whole diagram out automatically, as the editor's Auto Layout button does: connected shapes "
             "in ranks along the flow, few crossings, every group sized around its contents. Use it after adding "
-            "several shapes, or when asked to tidy up; then fine-tune with the other layout tools if needed.",
+            "several shapes, or when asked to tidy up; then fine-tune with the other layout tools if needed. "
+            "Shapes and groups marked pinned stay where they are; everything else is arranged around them.",
             Obj.of(**arrange_shape),
             arrange,
         )

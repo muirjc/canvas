@@ -1,0 +1,78 @@
+{
+  "containers": [
+    {
+      "id": "g",
+      "label": "Group",
+      "position": {
+        "x": 600,
+        "y": 20
+      },
+      "size": {
+        "height": 180,
+        "width": 260
+      }
+    }
+  ],
+  "diagramTypeId": "flowchart",
+  "direction": "TD",
+  "edges": [
+    {
+      "id": "e1",
+      "sourceId": "a",
+      "targetId": "b"
+    },
+    {
+      "id": "e2",
+      "sourceId": "b",
+      "targetId": "c"
+    },
+    {
+      "id": "e3",
+      "sourceId": "c",
+      "targetId": "d"
+    }
+  ],
+  "nodes": [
+    {
+      "id": "a",
+      "label": "Start",
+      "position": {
+        "x": 40,
+        "y": 40
+      },
+      "shape": "rectangle"
+    },
+    {
+      "id": "b",
+      "label": "Pinned",
+      "position": {
+        "x": 400,
+        "y": 300
+      },
+      "shape": "rectangle"
+    },
+    {
+      "id": "c",
+      "label": "End",
+      "position": {
+        "x": 40,
+        "y": 200
+      },
+      "shape": "rectangle"
+    },
+    {
+      "containerId": "g",
+      "id": "d",
+      "label": "Inside",
+      "position": {
+        "x": 40,
+        "y": 40
+      },
+      "shape": "rectangle"
+    }
+  ],
+  "pinned": [
+    "b",
+    "g"
+  ]
+}

@@ -60,7 +60,11 @@ restore is stopped and says who.
   `Rel_R`/`Rel_L` to the right or left (side by side in a row, when the layout runs top-down), and
   `Lay_D`/`Lay_U`/`Lay_R`/`Lay_L` do the same without drawing a line. Hints that contradict each
   other can't all be met, so some are skipped. It's a normal edit: Save keeps it, and you can still
-  move things afterwards.
+  move things afterwards. To keep something where it is, select shapes or a group and choose
+  **Pin** (a small pin shows on each). Auto Layout then leaves pinned shapes where they are and
+  arranges the rest around them; a pinned group keeps everything inside it. You can still drag
+  pinned shapes, and **Unpin** lets Auto Layout move them again. With several pins far apart, a
+  shape can end up on top of a pinned one.
 
 Sequence diagrams work differently: the layout follows the order of messages, so you don't drag.
 The **Tools** section adds notes, loop/alt/opt blocks, activations and numbering.
