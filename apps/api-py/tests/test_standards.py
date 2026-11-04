@@ -17,14 +17,11 @@ Left out:
 
 from __future__ import annotations
 
-from collections.abc import Iterator
-from contextlib import contextmanager
 from typing import Any
 
 import pytest
-from sqlalchemy import Engine, event
 
-from tests.api import MISSING_ID, Api, User
+from tests.api import MISSING_ID, Api, User, counting_queries
 
 V2_BODY: dict[str, Any] = {
     "name": "Process Map Rules",
@@ -205,21 +202,6 @@ def test_versions_count_up_per_diagram_type_and_list_newest_first(api: Api, admi
     assert [first["version"], second["version"], other["version"]] == [1, 2, 1]
     assert [s["version"] for s in versions(api, admin)] == [2, 1]
     assert [s["id"] for s in versions(api, admin, "other-flow")] == [other["id"]]
-
-
-@contextmanager
-def counting_queries(engine: Engine) -> Iterator[list[str]]:
-    """The SQL statements run on `engine` inside the block."""
-    statements: list[str] = []
-
-    def record(_conn: Any, _cursor: Any, statement: str, *_args: Any) -> None:
-        statements.append(statement)
-
-    event.listen(engine, "before_cursor_execute", record)
-    try:
-        yield statements
-    finally:
-        event.remove(engine, "before_cursor_execute", record)
 
 
 def test_listing_versions_takes_the_same_queries_however_many_there_are(api: Api, admin: User) -> None:

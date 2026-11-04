@@ -23,7 +23,6 @@ from canvas_api.access import (
     project_exists,
     require_diagram_access,
     require_project_access,
-    resolve_diagram_access,
     resolve_project_access,
 )
 from canvas_api.auth.roles import AdminUser, CurrentUser
@@ -398,9 +397,9 @@ def search(
 def read(id: str, user: CurrentUser, db: Db) -> dict[str, Any]:
     """With the caller's own access level, so the editor knows whether they may comment or edit."""
     with db.connect() as conn:
-        require_diagram_access(conn, user.id, id, "view")
+        level = require_diagram_access(conn, user.id, id, "view")
         diagram = get_diagram(conn, id)
-        return {"diagram": {**diagram, "accessLevel": resolve_diagram_access(conn, user.id, id)}}
+        return {"diagram": {**diagram, "accessLevel": level}}
 
 
 @router.patch("/diagrams/{id}")

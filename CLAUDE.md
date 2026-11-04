@@ -96,6 +96,14 @@ tests are NON-NEGOTIABLE and must exist (and fail) before implementing any diagr
 work — see `.specify/memory/constitution.md` Principle IV.
 
 ## Recent Changes
+- `canvas-qeo8`: **fewer queries per request.** A diagram read went from 16 statements to 6, presence from
+  ~13 to 8. (1) `current_user` writes the session only when that moves its stored expiry by
+  `TOUCH_INTERVAL_MS` (60 s) or more, or the session changed (other callers of `save_session` always write);
+  the cookie still goes out on every response, so idle expiry can end up to a minute early. (2) `access.py`:
+  `require_diagram_access` reads the diagram row once (owner, project, draft), the role once, and the user's
+  project + diagram grants in one query (`_GRANTS`), and RETURNS the level, so GET /diagrams/:id no longer
+  resolves it twice. Tests: `test_reading_a_diagram_works_out_access_once` (no statement runs twice, no
+  session write), the session throttle test; `counting_queries` moved to tests/api.py.
 - `canvas-y3qt`: **the standards list reads shapes in two queries, not two per version.**
   `standards_for_type` fetches every version's allowed/mandatory shapes for the type at once
   (`_shapes_for_type`, a JOIN on standards.diagram_type_id) and hands them to `standard_record`/`rules_of`
