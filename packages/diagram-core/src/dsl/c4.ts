@@ -1,5 +1,5 @@
 import { createEmptyDiagramModel, type DiagramContainer, type DiagramModel, type DiagramNode, type LayoutDirection, type LayoutHint, type NodeStyle } from '../model/diagram-model.js';
-import { splitFrontMatter, joinFrontMatter, stripTrailingComment, type CanvasFrontMatter, readLegend, withLegend, NO_ENTRIES } from './front-matter.js';
+import { splitFrontMatter, joinFrontMatter, stripTrailingComment, type CanvasFrontMatter, readLegend, readPinned, withLegend, withPinned, NO_ENTRIES } from './front-matter.js';
 import type { ParseError, ParseResult } from './types.js';
 import { computeContainmentLayout } from '../model/containment-layout.js';
 
@@ -606,6 +606,8 @@ export function parseC4(dsl: string): ParseResult {
   model.mermaidConfigDirective = mermaidConfigDirective;
   model.legend = readLegend(frontMatter);
   if (layoutHints.length > 0) model.layoutHints = layoutHints;
+  const pinned = readPinned(frontMatter, model);
+  if (pinned) model.pinned = pinned;
   return { model };
 }
 
@@ -736,5 +738,5 @@ export function serializeC4(model: import('../model/diagram-model.js').DiagramMo
     if (suffix) lines.push(`Lay_${suffix}(${hint.from}, ${hint.to})`);
   }
 
-  return joinFrontMatter(withLegend(frontMatter, model), `${lines.join('\n')}\n`);
+  return joinFrontMatter(withPinned(withLegend(frontMatter, model), model), `${lines.join('\n')}\n`);
 }

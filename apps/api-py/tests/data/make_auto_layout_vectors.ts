@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any -- a one-off generator writing loosely typed JSON vectors. */
-// Regenerates auto_layout_vectors.json (canvas-p2g8.2; C4 side hints canvas-rqm6): what the TypeScript diagram-core's autoLayout returns, and
+// Regenerates auto_layout_vectors.json (canvas-p2g8.2; C4 side hints and pins canvas-rqm6): what the TypeScript diagram-core's autoLayout returns, and
 // what dagre.layout (with Auto Layout's options) returns on its own, for tests/test_diagram_core_auto_layout.py.
 // - "models": every golden-corpus case that parses, with every direction its family offers, plus seeded random
 //   models (DAGs and cycles, isolated nodes, duplicate and self edges, edges to unknown ids, groups nested several
@@ -106,6 +106,23 @@ it('gen', () => {
       edges: [{ ...link('a', 'b', 1), layoutHint: 'down' }, { ...link('b', 'c', 2), layoutHint: 'left' }, { ...link('d', 'c', 3), layoutHint: 'up' }],
       layoutHints: [{ from: 'g1', to: 'd', direction: 'right' }],
     }],
+    // canvas-rqm6: a pinned group with nested contents, a pinned shape inside an unpinned group, two pins.
+    ['hand-pins', {
+      nodes: [{ ...box('a', 'g'), position: { x: 700, y: 20 } }, box('b', 'h'), box('c'), { ...box('d'), position: { x: -50, y: 333 } }],
+      containers: [
+        { id: 'g', label: 'g', position: { x: 600, y: 0 }, size: { width: 300, height: 200 } },
+        { id: 'h', label: 'h', parentContainerId: 'g', position: { x: 610, y: 90 } },
+        { id: 'k', label: 'k', position: { x: 5, y: 5 } },
+      ],
+      edges: [link('a', 'b', 1), link('b', 'c', 2), link('c', 'd', 3)],
+      pinned: ['g', 'd'],
+    }],
+    ['hand-pin-in-group', {
+      nodes: [box('a', 'g'), { ...box('b', 'g'), position: { x: 250, y: 410 } }, box('c')],
+      containers: [{ id: 'g', label: 'g' }],
+      edges: [link('a', 'b', 1), link('b', 'c', 2)],
+      pinned: ['b', 'ghost', 'b'],
+    }],
   ];
   for (const [name, partial] of handMade) {
     for (const direction of DIRECTIONS) add(name, { diagramTypeId: 'flowchart', containers: [], ...partial }, 'flowchart', direction);
@@ -165,6 +182,8 @@ it('gen', () => {
     }
     const family = pick(FAMILIES);
     const model: any = { diagramTypeId: family, nodes, edges, containers };
+    // canvas-rqm6: pins (shapes, groups, unknown ids, duplicates).
+    if (chance(0.35)) model.pinned = Array.from({ length: 1 + int(3) }, () => pick([...nodeIds, ...groupIds, 'ghost']));
     if (chance(0.3)) {
       model.layoutHints = Array.from({ length: 1 + int(4) }, () => ({ from: pick(ends), to: pick(ends), direction: pick(HINTS) }));
     }

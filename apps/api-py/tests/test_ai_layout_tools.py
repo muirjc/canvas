@@ -202,3 +202,27 @@ def test_arrange_keeps_the_current_direction_when_none_is_given() -> None:
 
 def test_sequence_diagrams_have_no_arrange() -> None:
     assert "arrange" not in [t["name"] for t in list_tools("sequence", None)]
+
+
+# --- pinned shapes (canvas-rqm6) ----------------------------------------------------------------------------------
+
+
+def test_the_model_is_told_which_shapes_and_groups_are_pinned() -> None:
+    group = {"id": "g", "label": "G", "position": {"x": 0, "y": 0}, "size": {"width": 300, "height": 200}}
+    model = {**flowchart(node("a", 0, 0), node("b", 400, 0), containers=[group]), "pinned": ["b", "g", "ghost"]}
+    described = prompt_sections("flowchart", None, model)["currentDiagram"]
+    assert '- a: "A" (rectangle) at (0, 0), size 100x50\n' in described
+    assert '- b: "B" (rectangle) at (400, 0), size 100x50, pinned' in described
+    assert '- g: "G" at (0, 0), size 300x200, pinned' in described
+    arrange = next(t for t in list_tools("flowchart", None) if t["name"] == "arrange")
+    assert "pinned stay where they are" in arrange["description"]
+
+
+def test_arrange_leaves_pinned_shapes_where_they_are() -> None:
+    core = DiagramCore()
+    model = core.parse("flowchart", "flowchart TD\n  A --> B --> C\n")["model"]
+    moved = [{**n, "position": {"x": 900, "y": 700}} if n["id"] == "B" else n for n in model["nodes"]]
+    model = {**model, "nodes": moved}
+    result = call({**model, "pinned": ["B"]}, "arrange", {})
+    assert positions(result["model"])["B"] == (900, 700)
+    assert result["model"] == core.auto_layout({**model, "pinned": ["B"]}, None, "flowchart")

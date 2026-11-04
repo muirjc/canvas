@@ -1,0 +1,38 @@
+---
+canvas:
+  positions:
+    a:
+      x: 40
+      y: 40
+    b:
+      x: 400
+      y: 300
+    c:
+      x: 40
+      y: 200
+    d:
+      x: 40
+      y: 40
+  containers:
+    g:
+      x: 600
+      y: 20
+      width: 260
+      height: 180
+  styles: {}
+  edgeStyles: {}
+  icons: {}
+  pinned:
+    - b
+    - g
+---
+flowchart TD
+subgraph g [Group]
+  d[Inside]
+end
+  a[Start]
+  b[Pinned]
+  c[End]
+  a --> b
+  b --> c
+  c --> d

@@ -53,6 +53,7 @@ import {
   CONTROL_FLOW_TAB_FILL,
   sanitizeSvgFragment,
   autoLayout,
+  setPinned,
   autoLayoutUsesDirection,
   supportsAutoLayout,
   iconLibraryOffered,
@@ -1605,6 +1606,16 @@ export function Canvas({ model: modelProp, onChange: onChangeProp, dslFamily, to
 
   const handleAutoLayout = () => {
     onChange(autoLayout(model, layoutDirection, dslFamily));
+  };
+
+  // canvas-rqm6: pin/unpin the current selection (shapes via selectedIds, or the selected group).
+  // Ids the diagram doesn't have are dropped by diagram-core, so a stale selection is harmless.
+  const pinnedIdSet = new Set(model.pinned ?? []);
+  const pinSelectionIds = selectedContainerId ? [selectedContainerId] : [...selectedIds];
+  const selectionAllPinned = pinSelectionIds.length > 0 && pinSelectionIds.every((id) => pinnedIdSet.has(id));
+  const handleTogglePin = () => {
+    if (pinSelectionIds.length === 0) return;
+    onChange(setPinned(model, pinSelectionIds, !selectionAllPinned));
   };
 
   const toClientPoint = (event: React.PointerEvent): { x: number; y: number } => {
@@ -3231,6 +3242,19 @@ export function Canvas({ model: modelProp, onChange: onChangeProp, dslFamily, to
                 <Icon name="layout" />
                 Auto Layout
               </button>
+              {/* canvas-rqm6: pinned shapes/groups stay put when Auto Layout runs. */}
+              <button
+                type="button"
+                className="btn btn--secondary"
+                data-testid="pin-toggle"
+                aria-pressed={selectionAllPinned}
+                disabled={pinSelectionIds.length === 0}
+                title="Pinned shapes stay put when you use Auto Layout"
+                onClick={handleTogglePin}
+              >
+                <Icon name="pin" />
+                {selectionAllPinned ? 'Unpin' : 'Pin'}
+              </button>
             </>
           )}
         </div>
@@ -4194,6 +4218,23 @@ export function Canvas({ model: modelProp, onChange: onChangeProp, dslFamily, to
                   onClose={() => setEditingLinkNodeId(null)}
                 />
               )}
+            </g>
+          );
+        })}
+
+        {/* canvas-rqm6: pin badges (editor affordance only; the exported SVG doesn't draw them). */}
+        {(model.pinned ?? []).map((pinId) => {
+          const pn = model.nodes.find((n) => n.id === pinId);
+          const pc = pn ? undefined : model.containers.find((c) => c.id === pinId);
+          const at = pn?.position ?? pc?.position;
+          if (!at) return null;
+          return (
+            <g key={`pin-badge-${pinId}`} data-testid={`pin-badge-${pinId}`} transform={`translate(${at.x + 2} ${at.y + 2})`} style={{ pointerEvents: 'none' }}>
+              <title>Pinned</title>
+              <circle cx={8} cy={8} r={9} fill="#ffffff" stroke={SELECTION_STROKE} strokeWidth={1} />
+              <g transform="translate(1.6 1.6) scale(0.9)" fill="none" stroke={SELECTION_STROKE} strokeWidth={1.4} strokeLinecap="round" strokeLinejoin="round">
+                <path d="M9.5 2 14 6.5l-2 .5-2.5 2.5v2.5L4.5 7.5H7L9.5 5 10 3ZM6 10l-3.5 3.5" />
+              </g>
             </g>
           );
         })}

@@ -14,10 +14,13 @@ from canvas_api.github.jstext import js_slice, js_trim
 __all__ = [
     "FRONT_MATTER_PATTERN",
     "join_front_matter",
+    "pinned_ids",
     "read_legend",
+    "read_pinned",
     "split_front_matter",
     "strip_trailing_comment",
     "with_legend",
+    "with_pinned",
 ]
 
 FRONT_MATTER_PATTERN = re.compile(r"^---\r?\n([\s\S]*?)\r?\n---\r?\n?")
@@ -186,3 +189,28 @@ def read_legend(front_matter: Any) -> dict[str, Any] | None:
         if entries:
             legend["extra"] = entries
     return legend
+
+
+# --- pinned shapes and groups (canvas-rqm6) -----------------------------------------------------------
+
+
+def pinned_ids(raw: Any, model: dict[str, Any]) -> list[str] | None:
+    """Strings naming a shape or group the model has, each once, in order; None when there are none."""
+    if not isinstance(raw, list):
+        return None
+    known = {n.get("id") for n in model["nodes"]} | {c.get("id") for c in model["containers"]}
+    ids = list(dict.fromkeys(i for i in raw if isinstance(i, str) and i in known))
+    return ids or None
+
+
+def read_pinned(front_matter: Any, model: dict[str, Any]) -> list[str] | None:
+    """The pinned ids from front matter (anything else in the list is dropped, never a parse error)."""
+    return pinned_ids(canvas_section(front_matter).get("pinned"), model)
+
+
+def with_pinned(front_matter: dict[str, Any], model: dict[str, Any]) -> dict[str, Any]:
+    """Adds the model's pinned ids (only ones it still has) to a serializer's front matter."""
+    pinned = pinned_ids(model.get("pinned"), model)
+    if not pinned:
+        return front_matter
+    return {**front_matter, "canvas": {**(front_matter.get("canvas") or {}), "pinned": pinned}}

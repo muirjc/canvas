@@ -16,10 +16,12 @@ from canvas_api.diagram_core.front_matter import (
     canvas_section,
     join_front_matter,
     read_legend,
+    read_pinned,
     section,
     split_front_matter,
     strip_trailing_comment,
     with_legend,
+    with_pinned,
 )
 from canvas_api.diagram_core.jsvalues import js_parse_float, js_parse_int
 from canvas_api.diagram_core.model import create_empty_diagram_model, is_allowed_link_href, url_protocol
@@ -482,6 +484,8 @@ def parse_flowchart(dsl: str) -> dict[str, Any]:
             "legend": read_legend(front_matter),
         }
     )
+    if pinned := read_pinned(front_matter, model):
+        model["pinned"] = pinned
     return {"model": model}
 
 
@@ -634,4 +638,4 @@ def serialize_flowchart(model: dict[str, Any]) -> str:
         if click:
             body_lines.append(click)
     body = "\n".join(body_lines) + "\n"
-    return join_front_matter(with_legend(front_matter, model), body)
+    return join_front_matter(with_pinned(with_legend(front_matter, model), model), body)

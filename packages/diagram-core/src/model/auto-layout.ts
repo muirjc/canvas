@@ -71,7 +71,82 @@ const dagreKey = (id: string): string => `#${id}`;
 
 export function autoLayout(model: DiagramModel, direction?: FlowchartDirection, family = 'flowchart'): DiagramModel {
   if (!supportsAutoLayout(family)) return model;
-  if (family === 'architecture') return architectureAutoLayout(model);
+  return anchorToPins(model, family === 'architecture' ? architectureAutoLayout(model) : layoutWithDagre(model, direction, family));
+}
+
+/** The shapes and groups a model pins (canvas-rqm6): ids it has, each once, in order. */
+export function pinnedElementIds(model: Pick<DiagramModel, 'nodes' | 'containers' | 'pinned'>): string[] {
+  if (!Array.isArray(model.pinned)) return [];
+  const known = new Set<string>([...model.nodes.map((n) => n.id), ...model.containers.map((c) => c.id)]);
+  return [...new Set(model.pinned.filter((id) => typeof id === 'string' && known.has(id)))];
+}
+
+/**
+ * canvas-rqm6: keeps pinned shapes and groups where they were. The new layout is shifted by the
+ * pins' average move (rounded), so with one pin everything is arranged around it; then every pin
+ * goes back exactly where it was, a pinned group with its size and everything inside it. With
+ * several pins far apart, a pin can end up on top of another shape (decided with the user).
+ */
+function anchorToPins(model: DiagramModel, laid: DiagramModel): DiagramModel {
+  const pins = pinnedElementIds(model);
+  if (pins.length === 0) return laid;
+  const before = new Map<string, Position | undefined>([
+    ...model.nodes.map((n): [string, Position | undefined] => [n.id, n.position]),
+    ...model.containers.map((c): [string, Position | undefined] => [c.id, c.position]),
+  ]);
+  const after = new Map<string, Position | undefined>([
+    ...laid.nodes.map((n): [string, Position | undefined] => [n.id, n.position]),
+    ...laid.containers.map((c): [string, Position | undefined] => [c.id, c.position]),
+  ]);
+  let sumX = 0;
+  let sumY = 0;
+  let counted = 0;
+  for (const id of pins) {
+    const from = before.get(id);
+    const to = after.get(id);
+    if (!from || !to) continue;
+    sumX += from.x - to.x;
+    sumY += from.y - to.y;
+    counted += 1;
+  }
+  const dx = counted > 0 ? Math.round(sumX / counted) : 0;
+  const dy = counted > 0 ? Math.round(sumY / counted) : 0;
+
+  // What stays: the pins, and everything inside a pinned group (at any depth).
+  const pinned = new Set(pins);
+  const parentOf = new Map<string, string | undefined>([
+    ...model.containers.map((c): [string, string | undefined] => [c.id, c.parentContainerId]),
+    ...model.nodes.map((n): [string, string | undefined] => [n.id, n.containerId]),
+  ]);
+  const stays = (id: string): boolean => {
+    const seen = new Set<string>();
+    let current: string | undefined = id;
+    while (current !== undefined && !seen.has(current)) {
+      if (pinned.has(current)) return true;
+      seen.add(current);
+      current = parentOf.get(current);
+    }
+    return false;
+  };
+  // Auto Layout changes only positions and group sizes, so what stays is simply the element as it was.
+  const originalContainers = new Map(model.containers.map((c) => [c.id, c]));
+  const originalNodes = new Map(model.nodes.map((n) => [n.id, n]));
+  return {
+    ...laid,
+    nodes: laid.nodes.map((node) => {
+      const original = originalNodes.get(node.id);
+      if (original && stays(node.id)) return original;
+      return node.position ? { ...node, position: { x: node.position.x + dx, y: node.position.y + dy } } : node;
+    }),
+    containers: laid.containers.map((container) => {
+      const original = originalContainers.get(container.id);
+      if (original && stays(container.id)) return original;
+      return container.position ? { ...container, position: { x: container.position.x + dx, y: container.position.y + dy } } : container;
+    }),
+  };
+}
+
+function layoutWithDagre(model: DiagramModel, direction: FlowchartDirection | undefined, family: string): DiagramModel {
 
   const resolvedDirection = direction ?? model.direction ?? 'TD';
   const withDirection = (m: DiagramModel): DiagramModel => (FAMILIES_WITH_DIRECTION.has(family) ? { ...m, direction: resolvedDirection } : m);

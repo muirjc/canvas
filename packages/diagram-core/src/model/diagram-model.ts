@@ -396,6 +396,9 @@ export interface DiagramModel {
    *  `direction`'s own front-matter-free flowchart/ER precedent this mirrors) — this app has no
    *  auto-layout for architecture diagrams yet, so it doesn't drive positioning. */
   architectureAlignments?: { axis: 'row' | 'column'; ids: string[] }[];
+  /** canvas-rqm6: ids of the shapes and groups Auto Layout leaves where they are (front matter `canvas.pinned`;
+   *  every family but sequence). A pinned group keeps its size and everything inside it. Dragging still moves them. */
+  pinned?: ElementId[];
   /** canvas-rqm6: C4 only -- `Lay_U/D/L/R(from, to)`: put `to` above/below/left/right of `from`,
    *  with no line drawn. Auto Layout follows them, like a connector's `layoutHint`. */
   layoutHints?: LayoutHint[];
