@@ -1,5 +1,8 @@
 """canvas-1bty.15.7 (phase 11g-2): the AI chat's tools and prompt sections, native, against TypeScript.
 
+Since the TypeScript copy is gone (canvas-1bty.16) the vectors are golden output, changed on purpose with
+tests/data/update_ai_vectors.py (tool lists, descriptions, the unavailable-tool error; never the runs otherwise).
+
 tests/data/ai_tools_vectors.json (see make_ai_tools_vectors.ts there) holds what the diagram bridge's AI operations
 answer: every family's tool list (JSON Schemas included) under several standards, the prompt sections, and seeded
 random tool-call sequences on corpus diagrams, invalid input included. Python must give the same JSON text: tool
@@ -79,10 +82,14 @@ def test_every_tool_call_matches_typescript(run: dict[str, Any], monkeypatch: py
         assert _digest(model) == step["hash"], where
 
 
+#: Tools added after the runs were recorded (canvas-p2g8.2); tests/test_ai_layout_tools.py runs them.
+LATER_TOOLS = {"moveElements", "alignElements", "distributeElements", "placeRelative", "arrange"}
+
+
 def test_the_vectors_reach_every_tool_and_kind_of_answer() -> None:
     names = {t["name"] for t in DATA["toolDefs"]}
     called = {s["name"] for r in DATA["runs"] for s in r["steps"]}
-    assert names <= called
+    assert names - LATER_TOOLS <= called
     errors = {s["error"].split(":")[0].split("'")[0] for r in DATA["runs"] for s in r["steps"] if "error" in s}
     assert any(e.startswith("Invalid input for tool") for e in errors)
     assert "Model tried to call unavailable tool " in errors

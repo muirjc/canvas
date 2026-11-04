@@ -11,6 +11,10 @@ The **Chat** tab in the editor lets you change a diagram by describing the chang
 - **The AI knows the diagram type and your standard.** It uses the right shapes and element
   kinds, and only the colours the standard allows. It also tries to fix any issues its own edits
   cause.
+- **The AI can arrange the diagram.** Ask it to tidy up, or to put one shape beside another ("put
+  the database under the API", "line these up", "space them out"). It can run the same Auto Layout
+  as the toolbar button, then fine-tune positions. Sequence diagrams are laid out automatically, so
+  this doesn't apply to them.
 - **Under each reply**, a note says what changed: "2 changes made to the diagram". It also lists any
   change it couldn't make, and why.
 - **The conversation is saved with the diagram.** Anyone who can edit the diagram sees it and can

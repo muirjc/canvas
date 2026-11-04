@@ -6,8 +6,10 @@ template, as JavaScript writes it)."""
 
 from __future__ import annotations
 
+import math
 from typing import Any
 
+from canvas_api.diagram_core import layout_ops
 from canvas_api.diagram_core.family_capabilities import FAMILY_SUPPORTS_ELEMENT_KINDS
 from canvas_api.diagram_core.jsvalues import js_template, js_truthy
 from canvas_api.diagram_core.standards import validate
@@ -32,15 +34,32 @@ def _list(value: Any) -> list[Any]:
     return value if isinstance(value, list) else []
 
 
-def describe_model(model: Obj, rules: Obj | None = None) -> str:
+def _num(value: Any) -> str:
+    """A coordinate, rounded to a whole number (half up, as JavaScript's Math.round)."""
+    return str(math.floor(value + 0.5)) if isinstance(value, int | float) and math.isfinite(value) else "?"
+
+
+def _placement(model: Obj, element_id: Any) -> str:
+    """canvas-p2g8.2: " at (x, y), size wxh" -- where it is drawn, so the model can reason about layout."""
+    box = layout_ops.bounds_of(model, element_id) if isinstance(element_id, str) else None
+    if box is None:
+        return ""
+    return f" at ({_num(box['x'])}, {_num(box['y'])}), size {_num(box['width'])}x{_num(box['height'])}"
+
+
+def describe_model(model: Obj, rules: Obj | None = None, family: str | None = None) -> str:
     """A short summary of the diagram, so the model can refer to shapes and connectors by id; under a standard,
-    each element's kind and the first ten violations too."""
+    each element's kind and the first ten violations too. For a family with stored positions (not sequence),
+    each shape's and group's position and size, and the groups with what they contain (canvas-p2g8.2)."""
+    positioned = family in layout_ops.POSITIONED_FAMILIES
     node_lines = []
     for n in model["nodes"]:
         kind = ""
         if js_truthy(rules) and js_truthy(n.get("role")):
             kind = f", kind: {_t(n, 'role')}{' external' if js_truthy(n.get('external')) else ''}"
-        node_lines.append(f'- {_t(n, "id")}: "{_t(n, "label")}" ({_t(n, "shape")}{kind})')
+        where = _placement(model, n.get("id")) if positioned else ""
+        inside = f", in {_t(n, 'containerId')}" if positioned and js_truthy(n.get("containerId")) else ""
+        node_lines.append(f'- {_t(n, "id")}: "{_t(n, "label")}" ({_t(n, "shape")}{kind}){where}{inside}')
     edge_lines = []
     for e in model["edges"]:
         label = f' ("{_t(e, "label")}")' if js_truthy(e.get("label")) else ""
@@ -48,6 +67,13 @@ def describe_model(model: Obj, rules: Obj | None = None) -> str:
     nodes = "\n".join(node_lines) or "(none yet)"
     edges = "\n".join(edge_lines) or "(none yet)"
     summary = f"Current shapes:\n{nodes}\n\nCurrent connectors:\n{edges}"
+    if positioned and model.get("containers"):
+        group_lines = []
+        for c in model["containers"]:
+            role = f" ({_t(c, 'role')})" if js_truthy(c.get("role")) else ""
+            parent = f", in {_t(c, 'parentContainerId')}" if js_truthy(c.get("parentContainerId")) else ""
+            group_lines.append(f'- {_t(c, "id")}: "{_t(c, "label")}"{role}{_placement(model, c.get("id"))}{parent}')
+        summary += "\n\nCurrent groups:\n" + "\n".join(group_lines)
     if rules is not None:
         violations = validate(model, rules)[:10]
         if violations:
