@@ -28,6 +28,8 @@ FAMILY_NODE_SHAPES: dict[str, tuple[str, ...]] = {
     "erd": ("rectangle",),
     "uml": ("rectangle",),
     "architecture": ("icon", "circle"),
+    # canvas-bnnh: a state, a choice, a fork/join bar, and the start/end pseudo-states.
+    "state": ("rounded-rectangle", "diamond", "fork-bar", "state-start", "state-end"),
 }
 
 #: Families whose DSL can carry an element kind (flowchart `:::kind`, C4 role + `_Ext`, architecture front matter).

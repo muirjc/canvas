@@ -30,6 +30,7 @@ from canvas_api.diagram_core.sizes import (
     TABLE_ROW_PADDING_X,
     TABLE_ROW_PADDING_Y,
     node_size,
+    pseudo_state_size,
     split_label_lines,
     table_rows,
 )
@@ -345,6 +346,19 @@ def icon_node_layout(node: Node) -> dict[str, Any]:
 def container_size(container: Container) -> Any:
     size = container.get("size")
     return DEFAULT_CONTAINER_SIZE if size is None else size
+
+
+def container_as_endpoint(container: Container | None) -> Node | None:
+    """canvas-bnnh: a state diagram's connector may end on a composite state: drawn to its box, as a rectangle."""
+    if container is None:
+        return None
+    return {
+        "id": container["id"],
+        "label": container.get("label"),
+        "shape": "rectangle",
+        "position": container["position"],
+        "size": container_size(container),
+    }
 
 
 def _node_center(node: Node) -> Point:
@@ -692,6 +706,16 @@ def _render_node_shape(node: Node, diagram_type_id: Any = None) -> str:
 
     if shape == "circle":
         return ellipse(width / 2, height / 2, fill)
+    # canvas-bnnh: state diagrams' pseudo-states, drawn in the stroke colour.
+    if shape == "state-start":
+        return ellipse(width / 2, height / 2, stroke)
+    if shape == "state-end":
+        return ellipse(width / 2, height / 2, "none") + ellipse(_max(width / 2 - 4, 1), _max(height / 2 - 4, 1), stroke)
+    if shape == "fork-bar":
+        return (
+            f'<rect x="{_t(x)}" y="{_t(y)}" width="{_t(width)}" height="{_t(height)}" rx="2" ry="2" '
+            f'fill="{stroke}" stroke="{stroke}" />'
+        )
     if shape == "diamond":
         points = [(x + width / 2, y), (x + width, y + height / 2), (x + width / 2, y + height), (x, y + height / 2)]
         return _polygon(points, fill, stroke)
@@ -851,6 +875,9 @@ def _render_node(node: Node, resolve_icon: IconResolver | None = None, diagram_t
             + "</g>",
         )
 
+    # canvas-bnnh: pseudo-states carry no text.
+    if pseudo_state_size(node) is not None and not js_truthy(node.get("label")):
+        return _wrap_node_link(node, open_g + _render_node_shape(node, diagram_type_id) + "</g>")
     icon: Any = node.get("icon")
     raw_label = f"{_t(node['label'])} [{_template_field(icon, 'iconId')}]" if js_truthy(icon) else node["label"]
     plain_fill = resolve_node_fill_stroke(node, diagram_type_id)["fill"]
@@ -894,6 +921,11 @@ def container_role_style(role: Any) -> dict[str, Any]:
         return {"defaultFill": "none", "stroke": "#999999", "strokeDasharray": "2,3"}
     if role == "namespace":
         return {"defaultFill": "#f7f7f7", "stroke": "#555555", "headerBand": True}
+    # canvas-bnnh: a composite state, and a concurrent region inside one.
+    if role == "composite":
+        return {"defaultFill": "#ffffff", "stroke": "#555555", "headerBand": True}
+    if role == "region":
+        return {"defaultFill": "none", "stroke": "#888888", "strokeDasharray": "6,4"}
     if js_truthy(role) and role in C4_BOUNDARY_ROLES:
         return {"defaultFill": "none", "stroke": "#444444", "strokeDasharray": "7.5,4.5"}
     return {"defaultFill": "none", "stroke": "#888888", "strokeDasharray": "6,4"}
@@ -927,7 +959,10 @@ def _container_header_layout(container: Container, header_band: bool, has_icon: 
 
 
 def _render_container(
-    container: Container, connector_targets: list[Point] | None = None, resolve_icon: IconResolver | None = None
+    container: Container,
+    connector_targets: list[Point] | None = None,
+    resolve_icon: IconResolver | None = None,
+    paragraph_note: bool = False,
 ) -> str:
     x, y = container["position"]["x"], container["position"]["y"]
     size = container.get("size")
@@ -958,10 +993,14 @@ def _render_container(
         if header_band
         else ""
     )
-    text = (
-        f'<text x="{_t(header["labelX"])}" y="{_t(header["labelY"])}" font-size="12" '
-        f"font-family='{FONT_FAMILY}'>{escape_xml(container['label'])}</text>"
-    )
+    if paragraph_note and container.get("role") in ("note-left", "note-right"):
+        # canvas-bnnh: a state diagram's note holds a paragraph, wrapped and centred.
+        text = _render_label_text(x + width / 2, y + height / 2, container["label"], 12, True, _max(width - 16, 40))
+    else:
+        text = (
+            f'<text x="{_t(header["labelX"])}" y="{_t(header["labelY"])}" font-size="12" '
+            f"font-family='{FONT_FAMILY}'>{escape_xml(container['label'])}</text>"
+        )
     return f'<g data-container-id="{escape_xml(container["id"])}">{connectors}{box}{band}{icon_part}{text}</g>'
 
 
@@ -982,8 +1021,12 @@ def _stroke_attributes(edge: Edge, dashed: bool) -> tuple[str, str]:
 
 
 def _render_edge(edge: Edge, nodes_by_id: dict[str, Node], containers_by_id: dict[str, Container]) -> str:
-    source = nodes_by_id.get(edge.get("sourceId"))  # type: ignore[arg-type]
-    target = nodes_by_id.get(edge.get("targetId"))  # type: ignore[arg-type]
+    source = nodes_by_id.get(edge.get("sourceId")) or container_as_endpoint(  # type: ignore[arg-type]
+        containers_by_id.get(edge.get("sourceId"))  # type: ignore[arg-type]
+    )
+    target = nodes_by_id.get(edge.get("targetId")) or container_as_endpoint(  # type: ignore[arg-type]
+        containers_by_id.get(edge.get("targetId"))  # type: ignore[arg-type]
+    )
     if source is None or target is None:
         return ""
     start = _node_center(source)
@@ -1356,6 +1399,7 @@ def _render_diagram_svg(model: Model, resolve_icon: IconResolver | None, standar
                 if node_id in nodes_by_id
             ],
             resolve_icon,
+            True,
         )
         for c in model["containers"]
     )

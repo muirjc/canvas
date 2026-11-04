@@ -1,0 +1,154 @@
+---
+canvas:
+  positions:
+    root_start:
+      x: 388
+      y: 40
+    First_start:
+      x: 60
+      y: 90
+    fir:
+      x: 124
+      y: 90
+    First_end:
+      x: 304
+      y: 90
+    Second_start:
+      x: 472
+      y: 90
+    sec:
+      x: 536
+      y: 90
+    Second_end:
+      x: 716
+      y: 90
+    Third_start:
+      x: 1104
+      y: 90
+    thi:
+      x: 1168
+      y: 90
+    Third_end:
+      x: 1348
+      y: 90
+    Inner_start:
+      x: 840
+      y: 140
+    deep:
+      x: 904
+      y: 140
+    Active__region1_start:
+      x: 80
+      y: 380
+    NumLockOff:
+      x: 144
+      y: 380
+    NumLockOn:
+      x: 324
+      y: 380
+    Active__region2_start:
+      x: 544
+      y: 380
+    CapsLockOff:
+      x: 608
+      y: 380
+    CapsLockOn:
+      x: 788
+      y: 380
+    Active__region3_start:
+      x: 80
+      y: 550
+    ScrollLockOff:
+      x: 144
+      y: 550
+    x:
+      x: 60
+      y: 740
+    y:
+      x: 240
+      y: 740
+  containers:
+    First:
+      x: 40
+      y: 40
+      width: 308
+      height: 130
+    Second:
+      x: 452
+      y: 40
+      width: 308
+      height: 130
+    Third:
+      x: 800
+      y: 40
+      width: 592
+      height: 200
+    Inner:
+      x: 820
+      y: 90
+      width: 244
+      height: 130
+    Active:
+      x: 40
+      y: 280
+      width: 928
+      height: 370
+    NamedComposite:
+      x: 40
+      y: 690
+      width: 360
+      height: 130
+    Active__region1:
+      x: 60
+      y: 330
+      width: 424
+      height: 130
+    Active__region2:
+      x: 524
+      y: 330
+      width: 424
+      height: 130
+    Active__region3:
+      x: 60
+      y: 500
+      width: 244
+      height: 130
+  styles: {}
+  edgeStyles: {}
+---
+stateDiagram-v2
+  direction LR
+  [*] --> First
+  First --> Second
+  First --> Third
+  state First {
+    direction TB
+    [*] --> fir
+    fir --> [*]
+  }
+  state Second {
+    [*] --> sec
+    sec --> [*]
+  }
+  state "The third one" as Third {
+    [*] --> thi
+    thi --> [*]
+    state Inner {
+      [*] --> deep
+    }
+    thi --> Inner : dive
+  }
+  state Active {
+    [*] --> NumLockOff
+    NumLockOff --> NumLockOn : EvNumLockPressed
+    NumLockOn --> NumLockOff : EvNumLockPressed
+    --
+    [*] --> CapsLockOff
+    CapsLockOff --> CapsLockOn : EvCapsLockPressed
+    --
+    [*] --> ScrollLockOff
+  }
+  Third --> Active
+  state "Another Composite" as NamedComposite {
+    x --> y
+  }

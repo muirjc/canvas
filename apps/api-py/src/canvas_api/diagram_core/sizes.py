@@ -194,11 +194,26 @@ def plain_node_size(node: Node) -> dict[str, float]:
     return {"width": width, "height": max(DEFAULT_NODE_SIZE["height"], content_height)}
 
 
+def pseudo_state_size(node: Node) -> dict[str, float] | None:
+    """canvas-bnnh: a state diagram's start/end dot, fork/join bar and choice diamond (small, no label)."""
+    shape = node.get("shape")
+    if shape in ("state-start", "state-end"):
+        return {"width": 24, "height": 24}
+    if shape == "fork-bar":
+        return {"width": 80, "height": 10}
+    if shape == "diamond" and node.get("role") == "choice":
+        return {"width": 40, "height": 40}
+    return None
+
+
 def node_size(node: Node) -> dict[str, float]:
     size = node.get("size")
     if node.get("shape") == "icon" and not size:
         return icon_node_size(node)
     if not size:
+        pseudo = pseudo_state_size(node)
+        if pseudo is not None:
+            return pseudo
         rows = table_rows(node)
         if rows:
             return _table_node_size(node, rows)

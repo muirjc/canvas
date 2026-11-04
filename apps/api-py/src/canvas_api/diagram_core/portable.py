@@ -18,7 +18,7 @@ __all__ = ["NATIVE_PORTABLE_FAMILIES", "to_portable_mermaid"]
 
 COMMENT = "%% Colours for Mermaid tools outside Canvas (added on export)."
 #: Families with a native portable form: all of them (sequence and architecture get no style lines).
-NATIVE_PORTABLE_FAMILIES = {"flowchart", "c4", "erd", "uml", "sequence", "architecture", None}
+NATIVE_PORTABLE_FAMILIES = {"flowchart", "c4", "erd", "uml", "sequence", "architecture", "state", None}
 _TRAILING_SPACE = re.compile(f"[{JS_WHITESPACE}]+\\Z")
 
 
@@ -48,6 +48,7 @@ def _with_style_lines(dsl: str, family: str | None) -> str:
     # import time keeps `detect`-only callers light.
     from canvas_api.diagram_core.c4 import parse_c4
     from canvas_api.diagram_core.erd import parse_erd
+    from canvas_api.diagram_core.state import parse_state
     from canvas_api.diagram_core.uml import parse_uml
 
     if family == "flowchart":
@@ -58,14 +59,39 @@ def _with_style_lines(dsl: str, family: str | None) -> str:
         lines = _node_style_lines(parse_erd(dsl), "")
     elif family == "uml":
         lines = _node_style_lines(parse_uml(dsl), "")
+    elif family == "state":
+        lines = _state_lines(parse_state(dsl))
     else:
         lines = []
     if not lines:
         return dsl
     # Flowcharts are written indented; the other families' serializers write flush left.
-    indent = "  " if family == "flowchart" else ""
+    indent = "  " if family in ("flowchart", "state") else ""
     trimmed = _TRAILING_SPACE.sub("", dsl)
     return f"{trimmed}\n{indent}{COMMENT}\n" + "\n".join(lines) + "\n"
+
+
+def _state_lines(result: dict[str, Any]) -> list[str]:
+    """canvas-bnnh: one classDef per distinct colouring, assigned to its states (not start/end points or composite
+    states, which Mermaid's classes don't apply to)."""
+    if "model" not in result:
+        return []
+    class_of: dict[str, str] = {}
+    members: dict[str, list[str]] = {}
+    for node in result["model"]["nodes"]:
+        if node.get("role") in ("start", "end"):
+            continue
+        props = _style_props(node.get("style"))
+        if not props:
+            continue
+        if props not in class_of:
+            class_of[props] = f"canvasStyle{len(class_of) + 1}"
+        members.setdefault(class_of[props], []).append(node["id"])
+    out: list[str] = []
+    for props, name in class_of.items():
+        out.append(f"  classDef {name} {props}")
+        out.append(f"  class {','.join(members[name])} {name}")
+    return out
 
 
 def _node_style_lines(result: dict[str, Any], indent: str) -> list[str]:

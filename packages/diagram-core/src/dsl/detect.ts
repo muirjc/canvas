@@ -10,6 +10,8 @@ const HEADER_TO_FAMILY: Array<{ pattern: RegExp; family: string }> = [
   { pattern: /^erDiagram$/, family: 'erd' },
   { pattern: /^classDiagram$/, family: 'uml' },
   { pattern: /^architecture-beta$/, family: 'architecture' },
+  // canvas-bnnh: Mermaid's grammar takes either header, in any case.
+  { pattern: /^stateDiagram(?:-v2)?$/i, family: 'state' },
 ];
 
 /**

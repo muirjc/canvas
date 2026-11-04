@@ -1,0 +1,118 @@
+{
+  "containers": [
+    {
+      "attachedNodeIds": [
+        "Idle"
+      ],
+      "id": "note1",
+      "label": "waiting",
+      "position": {
+        "x": 120,
+        "y": 120
+      },
+      "role": "note-left",
+      "size": {
+        "height": 60,
+        "width": 160
+      }
+    }
+  ],
+  "diagramTypeId": "state",
+  "edges": [
+    {
+      "arrow": "target",
+      "id": "e1",
+      "sourceId": "root_start",
+      "targetId": "Idle"
+    },
+    {
+      "arrow": "target",
+      "id": "e2",
+      "label": "start",
+      "sourceId": "Idle",
+      "style": {
+        "strokeColor": "#1565c0"
+      },
+      "targetId": "Busy"
+    },
+    {
+      "arrow": "target",
+      "id": "e3",
+      "sourceId": "Busy",
+      "targetId": "choice1"
+    },
+    {
+      "arrow": "target",
+      "id": "e4",
+      "label": "again",
+      "sourceId": "choice1",
+      "targetId": "Idle"
+    },
+    {
+      "arrow": "target",
+      "id": "e5",
+      "label": "done",
+      "sourceId": "choice1",
+      "targetId": "root_end"
+    }
+  ],
+  "nodes": [
+    {
+      "id": "root_start",
+      "label": "",
+      "position": {
+        "x": 40,
+        "y": 40
+      },
+      "role": "start",
+      "shape": "state-start"
+    },
+    {
+      "id": "Idle",
+      "label": "Idle",
+      "position": {
+        "x": 120,
+        "y": 30
+      },
+      "role": "state",
+      "shape": "rounded-rectangle"
+    },
+    {
+      "id": "Busy",
+      "label": "Busy",
+      "position": {
+        "x": 320,
+        "y": 30
+      },
+      "role": "state",
+      "shape": "rounded-rectangle",
+      "style": {
+        "fillColor": "#ffe0b2",
+        "strokeColor": "#e65100"
+      }
+    },
+    {
+      "id": "choice1",
+      "label": "",
+      "position": {
+        "x": 330,
+        "y": 160
+      },
+      "role": "choice",
+      "shape": "diamond"
+    },
+    {
+      "id": "root_end",
+      "label": "",
+      "position": {
+        "x": 520,
+        "y": 40
+      },
+      "role": "end",
+      "shape": "state-end"
+    }
+  ],
+  "pinned": [
+    "Idle"
+  ]
+}

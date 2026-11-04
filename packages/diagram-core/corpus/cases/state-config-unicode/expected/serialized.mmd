@@ -1,0 +1,58 @@
+---
+canvas:
+  positions:
+    root_start:
+      x: 500
+      y: 40
+    Ébauche:
+      x: 764
+      y: 40
+    Publié:
+      x: 240
+      y: 210
+    Retiré:
+      x: 420
+      y: 210
+    Vieux:
+      x: 60
+      y: 90
+    Ancien:
+      x: 240
+      y: 90
+    root_end:
+      x: 600
+      y: 210
+  containers:
+    Archive:
+      x: 40
+      y: 40
+      width: 420
+      height: 130
+    Empty:
+      x: 564
+      y: 40
+      width: 160
+      height: 100
+    note1:
+      x: 40
+      y: 210
+      width: 160
+      height: 100
+  styles: {}
+  edgeStyles: {}
+---
+%%{init: {'theme': 'dark'}}%%
+stateDiagram-v2
+  direction RL
+  [*] --> Ébauche
+  Ébauche --> Publié : publier
+  Publié --> Retiré
+  Retiré --> [*]
+  state Archive {
+    direction LR
+    Vieux
+    Ancien : très ancien
+  }
+  state "Vide" as Empty {
+  }
+  note right of Publié : visible à tous

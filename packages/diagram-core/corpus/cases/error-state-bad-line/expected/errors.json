@@ -1,0 +1,19 @@
+{
+  "errors": [
+    {
+      "content": "    A -> B",
+      "line": 3,
+      "message": "Could not interpret line as a state, transition, note or composite state."
+    },
+    {
+      "content": "    click A call doEvil()",
+      "line": 4,
+      "message": "\"click <id> call ...\" is not supported (it runs script); use \"click <id> href \\\"<url>\\\"\"."
+    },
+    {
+      "content": "    --",
+      "line": 5,
+      "message": "\"--\" (concurrent regions) only belongs inside a composite state."
+    }
+  ]
+}

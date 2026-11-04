@@ -96,9 +96,10 @@ export function stripTrailingComment(line: string): string {
 }
 
 export function joinFrontMatter(frontMatter: CanvasFrontMatter, body: string): string {
-  const hasContent = Object.keys(frontMatter.canvas ?? {}).some(
-    (key) => Object.keys((frontMatter.canvas as Record<string, unknown>)[key] ?? {}).length > 0,
-  );
+  // canvas-bnnh: a key beside `canvas` (a state diagram's `title`) is content too.
+  const hasContent =
+    Object.keys(frontMatter).some((key) => key !== 'canvas') ||
+    Object.keys(frontMatter.canvas ?? {}).some((key) => Object.keys((frontMatter.canvas as Record<string, unknown>)[key] ?? {}).length > 0);
   if (!hasContent) {
     return body;
   }

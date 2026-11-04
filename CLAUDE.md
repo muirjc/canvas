@@ -96,6 +96,23 @@ tests are NON-NEGOTIABLE and must exist (and fail) before implementing any diagr
 work — see `.specify/memory/constitution.md` Principle IV.
 
 ## Recent Changes
+- `canvas-bnnh` part 1: **diagram-core reads, writes, draws and lays out Mermaid state diagrams** (`stateDiagram-v2`
+  and `stateDiagram`, Mermaid 12.3 syntax; TS `dsl/state.ts`, Python `diagram_core/state.py`, family `state`). Not
+  a diagram type yet (part 2: editor, seed type, standards, AI, docs). Model: states = nodes (role `state`,
+  rounded-rectangle; `state "Label" as id` = label, `id : text` lines = description); `[*]` = one start/end per
+  scope (`root_start`/`<container>_start`, shapes `state-start`/`state-end`); `<<choice>>` (small unlabelled diamond),
+  `<<fork>>`/`<<join>>` (`fork-bar`); composite = container role `composite` (connectors may END ON IT: renderers
+  draw to its box via `containerAsEndpoint`); `--` regions = child containers `<id>__region<n>` (role `region`);
+  notes = containers `note-left`/`note-right` attached to a state (`note<n>`, wrapped text in the non-sequence render
+  path only). An edge's `containerId` = the scope it was written in; the serializer emits composite blocks where
+  their first connector was, so edge ids (`e<n>`, text order) survive a save; edgeStyles/note ids are keyed by the
+  emitted order. classDef/class/`:::`/style fold into front-matter styles (empty classes add nothing); `click href`
+  uses the link check, `call` refused; title in front matter (`joinFrontMatter` now writes non-canvas keys);
+  `hide empty description`/`scale` accepted, not kept. Portable export colours states with `classDef canvasStyleN`.
+  Auto Layout covers `state` (and writes its direction). Also fixed in Python's jsyaml: a `\uD83C\uDFA8` escape
+  pair loads as one character (was two lone surrogates). Tests: corpus `state-*` (8) + 2 error cases,
+  `dsl-state.test.ts`, `tests/test_diagram_core_state.py` (400 generated diagrams vs the bridge: parse, serialize,
+  render, Auto Layout, portable; caught 2 deliberate bugs). Mermaid version notes gained a State entry.
 - `canvas-2h2w.3`: **share with Entra groups** (decided with the user: build now, verify live later with Azure on
   Entra; only groups ASSIGNED TO THE CANVAS APP). Setting `ENTRA_GROUPS=true` (deploy.sh `CANVAS_ENTRA_GROUPS`,
   bicep `entraGroups`), only with Entra sign-in; `/auth/config` `groupsEnabled`. Migrations Postgres `0036`, SQLite

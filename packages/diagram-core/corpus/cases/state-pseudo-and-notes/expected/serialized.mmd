@@ -1,0 +1,95 @@
+---
+canvas:
+  positions:
+    if_state:
+      x: 240
+      y: 40
+    root_start:
+      x: 520
+      y: 40
+    IsPositive:
+      x: 584
+      y: 40
+    "False":
+      x: 764
+      y: 40
+    "True":
+      x: 40
+      y: 180
+    fork_state:
+      x: 220
+      y: 180
+    State2:
+      x: 340
+      y: 180
+    State3:
+      x: 520
+      y: 180
+    join_state:
+      x: 700
+      y: 180
+    State4:
+      x: 820
+      y: 180
+    root_end:
+      x: 40
+      y: 280
+    OldStyle:
+      x: 104
+      y: 280
+    State1:
+      x: 184
+      y: 280
+    s2:
+      x: 424
+      y: 280
+    s3:
+      x: 604
+      y: 280
+    s4:
+      x: 844
+      y: 280
+  containers:
+    note1:
+      x: 40
+      y: 40
+      width: 160
+      height: 100
+    note2:
+      x: 320
+      y: 40
+      width: 160
+      height: 100
+  styles: {}
+  edgeStyles: {}
+---
+stateDiagram-v2
+  accTitle: Order lifecycle
+  accDescr: How an order moves from placed to closed
+  state if_state <<choice>>
+  state fork_state <<fork>>
+  state join_state <<join>>
+  state OldStyle <<choice>>
+  State1 : The state with a note
+  state "This is a state description" as s2
+  s3 : first line
+  s3 : second line
+  state "Alias" as s4
+  s4 : with a description
+  [*] --> IsPositive
+  IsPositive --> if_state
+  if_state --> False : if n < 0
+  if_state --> True : if n >= 0
+  [*] --> fork_state
+  fork_state --> State2
+  fork_state --> State3
+  State2 --> join_state
+  State3 --> join_state
+  join_state --> State4
+  State4 --> [*]
+  State1 --> State2
+  note right of State1
+    Important information! You can write
+    notes: even with a colon.
+  end note
+  note left of State2 : This is the note to the left.

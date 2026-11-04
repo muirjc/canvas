@@ -18,7 +18,7 @@ describe('Mermaid version', () => {
   });
 
   it('has a note entry for every family Canvas reads', () => {
-    expect(MERMAID_SUPPORT_NOTES.map((n) => n.family).sort()).toEqual(['architecture', 'c4', 'erd', 'flowchart', 'sequence', 'uml']);
+    expect(MERMAID_SUPPORT_NOTES.map((n) => n.family).sort()).toEqual(['architecture', 'c4', 'erd', 'flowchart', 'sequence', 'state', 'uml']);
   });
 
   it.each([
@@ -29,6 +29,7 @@ describe('Mermaid version', () => {
     ['sequence', 'sequenceDiagram\n  A ->>() B: hi\n'],
     ['sequence', 'sequenceDiagram\n  participant A\n  link A: Dash @ https://example.org\n'],
     ['uml', 'classDiagram\n  class A["Label"]\n'],
+    ['state', 'stateDiagram-v2\n  note "floating" as N\n'],
   ])('%s: still not read, as the notes say: %j', (family, dsl) => {
     expect(parses(family, dsl)).toBe(false);
   });
@@ -37,6 +38,7 @@ describe('Mermaid version', () => {
     ['flowchart', 'flowchart TD\n  A\n  click A href "https://example.org"\n'],
     ['c4', 'C4Deployment\n  Node_L(n, "N") {\n  }\n  UpdateLayoutConfig($c4ShapeInRow="3")\n'],
     ['architecture', 'architecture-beta\n  service s(logos:aws-lambda)[S]\n'],
+    ['state', 'stateDiagram-v2\n  hide empty description\n  scale 600 width\n  A --> B\n'],
   ])('%s: read, as the notes say: %j', (family, dsl) => {
     expect(parses(family, dsl)).toBe(true);
   });

@@ -367,8 +367,21 @@ function tableNodeSize(node: DiagramNode, rows: string[]): Size {
 // can size dagre's input nodes identically to how this renderer and the canvas already do, rather
 // than adding a third hand-copied {140, 60} default (shapes.tsx has its own copy with a "must
 // match" comment — this avoids a fourth).
+/** canvas-bnnh: a state diagram's start/end dot, fork/join bar and choice diamond are small and have no
+ *  label, as Mermaid draws them. Undefined for every other node. */
+export function pseudoStateSize(node: DiagramNode): Size | undefined {
+  if (node.shape === 'state-start' || node.shape === 'state-end') return { width: 24, height: 24 };
+  if (node.shape === 'fork-bar') return { width: 80, height: 10 };
+  if (node.shape === 'diamond' && node.role === 'choice') return { width: 40, height: 40 };
+  return undefined;
+}
+
 export function nodeSize(node: DiagramNode): Size {
   if (node.shape === 'icon' && !node.size) return iconNodeSize(node);
+  if (!node.size) {
+    const pseudo = pseudoStateSize(node);
+    if (pseudo) return pseudo;
+  }
   if (!node.size) {
     const rows = tableRows(node);
     if (rows.length > 0) return tableNodeSize(node, rows);
@@ -462,6 +475,13 @@ export function iconNodeLayout(node: DiagramNode): {
 
 export function containerSize(container: DiagramContainer): Size {
   return container.size ?? DEFAULT_CONTAINER_SIZE;
+}
+
+/** canvas-bnnh: a state diagram's connector may end on a composite state (a group): it's drawn to the
+ *  group's box, as to a rectangle of that size. Exported so the interactive canvas does the same. */
+export function containerAsEndpoint(container: DiagramContainer | undefined): DiagramNode | undefined {
+  if (!container) return undefined;
+  return { id: container.id, label: container.label, shape: 'rectangle', position: container.position, size: containerSize(container) };
 }
 
 function nodeCenter(node: DiagramNode): { x: number; y: number } {
@@ -861,6 +881,17 @@ function renderNodeShape(node: DiagramNode, diagramTypeId?: string): string {
   switch (node.shape) {
     case 'circle':
       return `<ellipse cx="${x + width / 2}" cy="${y + height / 2}" rx="${width / 2}" ry="${height / 2}" fill="${fill}" stroke="${stroke}" />`;
+    // canvas-bnnh: state diagrams' pseudo-states, drawn in the stroke colour (a filled dot, a ringed dot,
+    // a solid bar).
+    case 'state-start':
+      return `<ellipse cx="${x + width / 2}" cy="${y + height / 2}" rx="${width / 2}" ry="${height / 2}" fill="${stroke}" stroke="${stroke}" />`;
+    case 'state-end':
+      return [
+        `<ellipse cx="${x + width / 2}" cy="${y + height / 2}" rx="${width / 2}" ry="${height / 2}" fill="none" stroke="${stroke}" />`,
+        `<ellipse cx="${x + width / 2}" cy="${y + height / 2}" rx="${Math.max(width / 2 - 4, 1)}" ry="${Math.max(height / 2 - 4, 1)}" fill="${stroke}" stroke="${stroke}" />`,
+      ].join('');
+    case 'fork-bar':
+      return `<rect x="${x}" y="${y}" width="${width}" height="${height}" rx="2" ry="2" fill="${stroke}" stroke="${stroke}" />`;
     case 'diamond': {
       const points = [
         [x + width / 2, y],
@@ -1075,6 +1106,10 @@ function renderNode(node: DiagramNode, resolveIcon?: IconResolver, diagramTypeId
     );
   }
 
+  // canvas-bnnh: pseudo-states carry no text.
+  if (pseudoStateSize(node) && !node.label) {
+    return wrapNodeLink(node, [`<g data-node-id="${escapeXml(node.id)}">`, renderNodeShape(node, diagramTypeId), '</g>'].join(''));
+  }
   const rawLabel = node.icon ? `${node.label} [${node.icon.iconId}]` : node.label;
   const { fill: plainFill } = resolveNodeFillStroke(node, diagramTypeId);
   const described = describedNodeLayout(node);
@@ -1145,6 +1180,10 @@ export function containerRoleStyle(role: string | undefined): ContainerRoleStyle
   // "the same kind of thing" as a control-flow block when both appear in one diagram.
   if (role === 'box') return { defaultFill: 'none', stroke: '#999999', strokeDasharray: '2,3' };
   if (role === 'namespace') return { defaultFill: '#f7f7f7', stroke: '#555555', headerBand: true };
+  // canvas-bnnh: a composite state is a solid box with its name on top; a concurrent region inside one is
+  // marked off by a dashed line.
+  if (role === 'composite') return { defaultFill: '#ffffff', stroke: '#555555', headerBand: true };
+  if (role === 'region') return { defaultFill: 'none', stroke: '#888888', strokeDasharray: '6,4' };
   if (role && C4_BOUNDARY_ROLES.has(role)) return { defaultFill: 'none', stroke: '#444444', strokeDasharray: '7.5,4.5' };
   return { defaultFill: 'none', stroke: '#888888', strokeDasharray: '6,4' };
 }
@@ -1209,6 +1248,7 @@ function renderContainer(
   container: DiagramContainer,
   connectorTargets: { x: number; y: number }[] = [],
   resolveIcon?: IconResolver,
+  paragraphNote = false,
 ): string {
   const { x, y } = container.position;
   const { width, height } = container.size ?? { width: 300, height: 200 };
@@ -1235,12 +1275,18 @@ function renderContainer(
       '</g>',
     ].join('');
   }
+  // canvas-bnnh: a state diagram's note holds a paragraph: wrapped and centred in its box. (Sequence
+  // notes come through here too, from their own layout, and keep the corner label.)
+  const text =
+    paragraphNote && (container.role === 'note-left' || container.role === 'note-right')
+      ? renderLabelText(x + width / 2, y + height / 2, container.label, 12, true, Math.max(width - 16, 40))
+      : `<text x="${header.labelX}" y="${header.labelY}" font-size="12" font-family='${FONT_FAMILY}'>${escapeXml(container.label)}</text>`;
   return [
     `<g data-container-id="${escapeXml(container.id)}">`,
     connectorMarkup,
     `<rect x="${x}" y="${y}" width="${width}" height="${height}" fill="${fill}" stroke="${roleStyle.stroke}"${dasharray} />`,
     renderContainerIcon(header, iconMarkup),
-    `<text x="${header.labelX}" y="${header.labelY}" font-size="12" font-family='${FONT_FAMILY}'>${escapeXml(container.label)}</text>`,
+    text,
     '</g>',
   ].join('');
 }
@@ -1250,8 +1296,8 @@ function renderEdge(
   nodesById: Map<string, DiagramNode>,
   containersById: Map<string, DiagramContainer>,
 ): string {
-  const source = nodesById.get(edge.sourceId);
-  const target = nodesById.get(edge.targetId);
+  const source = nodesById.get(edge.sourceId) ?? containerAsEndpoint(containersById.get(edge.sourceId));
+  const target = nodesById.get(edge.targetId) ?? containerAsEndpoint(containersById.get(edge.targetId));
   if (!source || !target) return '';
   const from = nodeCenter(source);
   const to = nodeCenter(target);
@@ -1623,7 +1669,7 @@ function renderDiagramSvg(model: DiagramModel, resolveIcon: IconResolver | undef
         .map((id) => nodesById.get(id))
         .filter((n): n is DiagramNode => n !== undefined)
         .map((n) => nodeCenter(n));
-      return renderContainer(c, targets, resolveIcon);
+      return renderContainer(c, targets, resolveIcon, true);
     })
     .join('');
   const edgeMarkup = model.edges.map((e) => renderEdge(e, nodesById, containersById)).join('');

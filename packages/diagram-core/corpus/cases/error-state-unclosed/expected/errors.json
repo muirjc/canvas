@@ -1,0 +1,14 @@
+{
+  "errors": [
+    {
+      "content": "    note right of a",
+      "line": 4,
+      "message": "Note has no \"end note\"."
+    },
+    {
+      "content": "    state Open {",
+      "line": 2,
+      "message": "Composite state \"Open\" has no closing \"}\"."
+    }
+  ]
+}

@@ -29,6 +29,7 @@ from canvas_api.diagram_core.model import create_empty_diagram_model
 from canvas_api.diagram_core.portable import to_portable_mermaid
 from canvas_api.diagram_core.sequence import parse_sequence, serialize_sequence
 from canvas_api.diagram_core.standards import check_standard_definition, validate
+from canvas_api.diagram_core.state import parse_state, serialize_state
 from canvas_api.diagram_core.svg_import import SvgImportError, prepare_uploaded_svg, sanitize_icon_markup_strict
 from canvas_api.diagram_core.svg_render import render_to_svg
 from canvas_api.diagram_core.templates import compile_template
@@ -47,7 +48,7 @@ __all__ = [
 JsonObject = dict[str, Any]
 
 #: Every family diagram-core has (dsl/registry.ts).
-KNOWN_FAMILIES = ("flowchart", "c4", "architecture", "sequence", "erd", "uml")
+KNOWN_FAMILIES = ("flowchart", "c4", "architecture", "sequence", "erd", "uml", "state")
 PARSERS: dict[str, Callable[[str], dict[str, Any]]] = {
     "flowchart": parse_flowchart,
     "c4": parse_c4,
@@ -55,6 +56,7 @@ PARSERS: dict[str, Callable[[str], dict[str, Any]]] = {
     "sequence": parse_sequence,
     "erd": parse_erd,
     "uml": parse_uml,
+    "state": parse_state,
 }
 SERIALIZERS: dict[str, Callable[[dict[str, Any]], str]] = {
     "flowchart": serialize_flowchart,
@@ -63,6 +65,7 @@ SERIALIZERS: dict[str, Callable[[dict[str, Any]], str]] = {
     "sequence": serialize_sequence,
     "erd": serialize_erd,
     "uml": serialize_uml,
+    "state": serialize_state,
 }
 
 

@@ -1,0 +1,47 @@
+---
+canvas:
+  positions:
+    root_start:
+      x: 40
+      y: 40
+    Still:
+      x: 104
+      y: 40
+    root_end:
+      x: 284
+      y: 40
+    Moving:
+      x: 348
+      y: 40
+    Crash:
+      x: 528
+      y: 40
+  containers: {}
+  styles:
+    root_start:
+      fillColor: white
+    Still:
+      strokeColor: "#00f"
+      strokeDasharray: 5 5
+    Crash:
+      fillColor: "#f00"
+      strokeWidth: 2
+      strokeColor: yellow
+  edgeStyles: {}
+---
+stateDiagram-v2
+  accTitle: This is the accessible title
+  accDescr {
+    A longer description
+    over two lines
+  }
+  direction TB
+  [*] --> Still
+  Still --> [*]
+  Still --> Moving
+  Moving --> Still
+  Moving --> Crash
+  Crash --> [*]
+  Crash --> Moving
+  click Still "https://example.org/still" "Still state"
+  click Moving href "https://example.org/moving"

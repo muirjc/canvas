@@ -1,0 +1,11 @@
+stateDiagram-v2
+  [*] --> Idle
+  Idle --> Busy : start
+  state choice1 <<choice>>
+  Busy --> choice1
+  choice1 --> Idle : again
+  choice1 --> [*] : done
+  note left of Idle : waiting
+  %% Colours for Mermaid tools outside Canvas (added on export).
+  classDef canvasStyle1 fill:#ffe0b2,stroke:#e65100
+  class Busy canvasStyle1

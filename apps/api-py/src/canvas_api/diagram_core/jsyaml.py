@@ -176,7 +176,10 @@ _SHOW = str.maketrans(_BREAKS_BACK)
 
 def _restore(value: Any) -> Any:
     if isinstance(value, str):
-        return value.translate(_SHOW)
+        # canvas-bnnh: PyYAML decodes a `🎨` escape pair as two lone surrogates; JavaScript strings are
+        # UTF-16, so there it is the one character. Valid pairs are rejoined; a lone surrogate stays as it is.
+        joined = value.encode("utf-16-le", errors="surrogatepass").decode("utf-16-le", errors="surrogatepass")
+        return joined.translate(_SHOW)
     if isinstance(value, dict):
         return {_restore(k): _restore(v) for k, v in value.items()}
     if isinstance(value, list):

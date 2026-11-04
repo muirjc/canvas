@@ -17,6 +17,8 @@ HEADER_TO_FAMILY: list[tuple[re.Pattern[str], str]] = [
     (re.compile("^erDiagram$"), "erd"),
     (re.compile("^classDiagram$"), "uml"),
     (re.compile("^architecture-beta$"), "architecture"),
+    # canvas-bnnh: either header, in any case (Mermaid's grammar).
+    (re.compile("^stateDiagram(?:-v2)?$", re.IGNORECASE | re.ASCII), "state"),
 ]
 
 

@@ -55,7 +55,12 @@ export type NodeShape =
   | 'parallelogram-alt'
   | 'trapezoid'
   | 'trapezoid-alt'
-  | 'asymmetric';
+  | 'asymmetric'
+  // canvas-bnnh: state diagrams' start ([*] as a source: a filled dot), end ([*] as a target: a ringed dot)
+  // and fork/join bar.
+  | 'state-start'
+  | 'state-end'
+  | 'fork-bar';
 
 /** An ER entity attribute: a typed field with zero or more key constraints (ERD only). */
 export interface EntityAttribute {
