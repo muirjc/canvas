@@ -1,0 +1,22 @@
+C4Deployment
+  title Canvas on Azure (infra/azure)
+  Deployment_Node(azure, "Azure subscription", "canvas-rg") {
+    Deployment_Node(env, "Container Apps environment", "VNet-integrated") {
+      Container(apiapp, "canvas-api", "Container App, image canvas-api-py", "API plus the built web app; IP allow-list, scale to zero")
+      Container(jobsapp, "Jobs", "Container Apps jobs", "migration, seed, purge (nightly), github-sync (15 min), bootstrap admin")
+    }
+    Deployment_Node(data, "Private network") {
+      ContainerDb(pg, "canvas-postgres", "PostgreSQL Flexible Server", "No public access")
+    }
+    Container(kv, "Key Vault", "Azure Key Vault", "Secrets, read with the managed identity")
+    Container(acr, "Container registry", "ACR", "canvas-api-py images")
+    Container(insights, "Application Insights", "Log Analytics workspace", "Workbook and p95 alert")
+    Container(storage, "Storage static website", "Azure Storage", "Redirects the old address")
+  }
+  System_Ext(entra, "Microsoft Entra ID", "App registration, roles, federated credential")
+  Rel(apiapp, pg, "SQL", "private DNS")
+  Rel(jobsapp, pg, "SQL")
+  Rel(apiapp, kv, "Secrets", "managed identity")
+  Rel(acr, apiapp, "Image pulls")
+  Rel(apiapp, insights, "Telemetry")
+  Rel(apiapp, entra, "Sign-in")

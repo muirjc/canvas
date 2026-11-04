@@ -1,0 +1,20 @@
+---
+title: GitHub submission
+---
+stateDiagram-v2
+  [*] --> Open : submit
+  state Open {
+    [*] --> Pending
+    Pending --> ChangesRequested : review asks for changes
+    Pending --> ReviewApproved : review approves
+    ChangesRequested --> Pending : resubmit
+    ReviewApproved --> Pending : resubmit
+  }
+  state outcome <<choice>>
+  Open --> outcome : status sync
+  outcome --> Merged : merged
+  outcome --> Closed : closed
+  Open --> Withdrawn : withdraw
+  Merged --> [*]
+  Closed --> [*]
+  Withdrawn --> [*]

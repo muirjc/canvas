@@ -1,0 +1,19 @@
+sequenceDiagram
+  title Submitting a diagram for approval on GitHub
+  actor U as Architect
+  participant A as API
+  participant G as GitHub
+  participant J as Status sync job
+  actor R as Reviewer
+  U->>A: POST /diagrams/:id/submission
+  A->>A: Must-fix violations block the submission
+  A->>G: Branch, commit README, Mermaid, SVG, standard and validator
+  A->>G: Open the pull request
+  G-->>A: PR number
+  R->>G: Review, checks run the Canvas validator
+  loop every 15 minutes, and on refresh in the editor
+    J->>G: Pull request, reviews, checks
+    J->>J: Merged is approved, closed is rejected
+  end
+  U->>A: Resubmit after changes
+  A->>G: New commit on the same pull request (unchanged tree is up to date)

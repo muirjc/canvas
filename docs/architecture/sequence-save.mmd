@@ -1,0 +1,21 @@
+sequenceDiagram
+  title Saving a diagram (compare-and-set)
+  actor U as Editor
+  participant W as Web app
+  participant A as API
+  participant C as diagram-core
+  participant D as Database
+  U->>W: Save
+  W->>A: PATCH /diagrams/:id with dslContent and baseVersionId
+  A->>D: Check edit access (one grants query)
+  A->>C: Parse and validate against the published standard
+  C-->>A: Model and violations
+  A->>D: Insert version, set current_version_id where it still equals baseVersionId
+  alt someone saved first
+    D-->>A: No row updated
+    A-->>W: 409 version_conflict, who saved and when
+    W->>U: Save mine anyway, load theirs, or keep editing
+  else base still current
+    D-->>A: Updated
+    A-->>W: 200, new currentVersionId
+  end

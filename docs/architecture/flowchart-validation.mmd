@@ -1,0 +1,14 @@
+flowchart TD
+  start([Diagram text changes]) --> parse[Parse with diagram-core]
+  parse --> ok{Parses?}
+  ok -- No --> syntax[Show line errors in the DSL tab]
+  ok -- Yes --> standard{Diagram type has a published standard?}
+  standard -- No --> none[No issues]
+  standard -- Yes --> rules[Check shapes, icon libraries, colours, fonts]
+  rules --> kinds[Classify elements by kind; check counts and kind groups]
+  kinds --> connectors[Check connector rules and labels]
+  connectors --> sev[Apply severity overrides]
+  sev --> issues[Issues tab: Must fix, Warning, Info]
+  issues --> submit{Submitting to GitHub?}
+  submit -- Must fix present --> blocked[Submission refused]
+  submit -- Otherwise --> allowed[Submission goes ahead, warnings listed in the PR]

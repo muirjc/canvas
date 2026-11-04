@@ -1,0 +1,10 @@
+---
+title: Standard lifecycle
+---
+stateDiagram-v2
+  [*] --> Draft : create, clone, or revise a published one
+  Draft --> Draft : edit
+  Draft --> Published : publish
+  Published --> Retired : publish a newer version, or retire
+  Retired --> Draft : revise
+  note right of Published : one per diagram type, every diagram re-checked

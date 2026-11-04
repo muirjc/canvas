@@ -1,0 +1,90 @@
+classDiagram
+  direction LR
+  class DiagramModel {
+    +string diagramTypeId
+    +FlowchartDirection direction
+    +string title
+    +string[] pinned
+    +LayoutHint[] layoutHints
+  }
+  class DiagramNode {
+    +string id
+    +string label
+    +NodeShape shape
+    +string role
+    +Position position
+    +Size size
+    +string containerId
+    +string description
+  }
+  class DiagramEdge {
+    +string id
+    +string sourceId
+    +string targetId
+    +string label
+    +string arrow
+    +LayoutDirection layoutHint
+  }
+  class DiagramContainer {
+    +string id
+    +string label
+    +string role
+    +string parentContainerId
+    +string[] attachedNodeIds
+  }
+  class NodeStyle {
+    +string fillColor
+    +string strokeColor
+    +number strokeWidth
+    +string strokeDasharray
+  }
+  class NodeLink {
+    +string href
+    +string tooltip
+  }
+  class DiagramLegend {
+    +boolean visible
+    +string title
+  }
+  class StandardRules {
+    +NodeShape[] allowedShapeIds
+    +NodeShape[] mandatoryShapeIds
+    +string connectorPolicy
+    +boolean requireKnownKinds
+    +string guidance
+  }
+  class ElementKind {
+    +string id
+    +string label
+    +NodeShape[] shapes
+    +string[] approvedFills
+    +number minCount
+    +number maxCount
+  }
+  class KindGroup {
+    +string id
+    +string label
+    +string[] kindIds
+    +number minCount
+    +number maxCount
+  }
+  class ConnectorRule {
+    +string id
+    +string from
+    +string to
+    +boolean requireLabel
+  }
+  DiagramModel *-- DiagramNode : nodes
+  DiagramModel *-- DiagramEdge : edges
+  DiagramModel *-- DiagramContainer : containers
+  DiagramModel *-- DiagramLegend : legend
+  DiagramNode *-- NodeStyle : style
+  DiagramNode *-- NodeLink : link
+  DiagramEdge *-- NodeStyle : style
+  DiagramContainer *-- NodeStyle : style
+  StandardRules *-- ElementKind : elementKinds
+  StandardRules *-- KindGroup : kindGroups
+  StandardRules *-- ConnectorRule : connectorRules
+  KindGroup ..> ElementKind : counts
+  ConnectorRule ..> ElementKind : from and to
+  ElementKind ..> DiagramNode : classifies by role

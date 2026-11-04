@@ -1,0 +1,21 @@
+---
+title: Diagram lifecycle
+---
+stateDiagram-v2
+  [*] --> Draft : Create with AI
+  [*] --> Saved : New diagram or import
+  Draft --> Saved : first Save
+  Draft --> [*] : discarded, or purged after 24 hours
+  Saved --> Saved : Save (new version)
+  Saved --> Deleted : Delete
+  Deleted --> Saved : admin restores within 30 days
+  Deleted --> [*] : purged after 30 days
+  state Saved {
+    [*] --> NotSubmitted
+    NotSubmitted --> InReview : submit to GitHub
+    InReview --> Approved : pull request merged
+    InReview --> Rejected : pull request closed
+    InReview --> NotSubmitted : withdrawn
+    Approved --> InReview : resubmit
+    Rejected --> InReview : resubmit
+  }
