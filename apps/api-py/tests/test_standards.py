@@ -17,9 +17,12 @@ Left out:
 
 from __future__ import annotations
 
+from collections.abc import Iterator
+from contextlib import contextmanager
 from typing import Any
 
 import pytest
+from sqlalchemy import Engine, event
 
 from tests.api import MISSING_ID, Api, User
 
@@ -202,6 +205,50 @@ def test_versions_count_up_per_diagram_type_and_list_newest_first(api: Api, admi
     assert [first["version"], second["version"], other["version"]] == [1, 2, 1]
     assert [s["version"] for s in versions(api, admin)] == [2, 1]
     assert [s["id"] for s in versions(api, admin, "other-flow")] == [other["id"]]
+
+
+@contextmanager
+def counting_queries(engine: Engine) -> Iterator[list[str]]:
+    """The SQL statements run on `engine` inside the block."""
+    statements: list[str] = []
+
+    def record(_conn: Any, _cursor: Any, statement: str, *_args: Any) -> None:
+        statements.append(statement)
+
+    event.listen(engine, "before_cursor_execute", record)
+    try:
+        yield statements
+    finally:
+        event.remove(engine, "before_cursor_execute", record)
+
+
+def test_listing_versions_takes_the_same_queries_however_many_there_are(api: Api, admin: User) -> None:
+    """canvas-y3qt: the list read each version's shape lists separately (2 queries a version; 158 versions
+    took ~80 ms). Signing in reads the session, so count against a baseline with one version."""
+    shapes = {"allowedShapeIds": ["rectangle", "diamond"], "mandatoryShapeIds": ["rectangle"]}
+    new_standard(api, admin, shapes)
+    with counting_queries(api.engine) as one:
+        assert len(versions(api, admin)) == 1
+    for _ in range(5):
+        new_standard(api, admin, shapes)
+    with counting_queries(api.engine) as six:
+        assert len(versions(api, admin)) == 6
+    assert len(six) == len(one)
+
+
+def test_every_listed_version_keeps_its_own_shapes_in_order(api: Api, admin: User) -> None:
+    api.diagram_type("other-flow", name="Other")
+    first = new_standard(api, admin, {"allowedShapeIds": ["diamond", "rectangle"], "mandatoryShapeIds": ["diamond"]})
+    second = new_standard(api, admin, {"allowedShapeIds": ["circle"], "mandatoryShapeIds": []})
+    new_standard(api, admin, {"allowedShapeIds": ["stadium"], "mandatoryShapeIds": ["stadium"]}, "other-flow")
+    third = new_standard(api, admin, {})
+    listed = {s["id"]: s["rules"] for s in versions(api, admin)}
+    assert listed[first["id"]]["allowedShapeIds"] == ["diamond", "rectangle"]
+    assert listed[first["id"]]["mandatoryShapeIds"] == ["diamond"]
+    assert listed[second["id"]]["allowedShapeIds"] == ["circle"]
+    assert listed[second["id"]]["mandatoryShapeIds"] == []
+    assert listed[third["id"]]["allowedShapeIds"] == []
+    assert {s["id"]: s["rules"] for s in versions(api, admin)} == listed
 
 
 def test_a_diagram_type_with_no_standards_lists_none(api: Api, admin: User) -> None:

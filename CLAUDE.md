@@ -96,6 +96,12 @@ tests are NON-NEGOTIABLE and must exist (and fail) before implementing any diagr
 work — see `.specify/memory/constitution.md` Principle IV.
 
 ## Recent Changes
+- `canvas-y3qt`: **the standards list reads shapes in two queries, not two per version.**
+  `standards_for_type` fetches every version's allowed/mandatory shapes for the type at once
+  (`_shapes_for_type`, a JOIN on standards.diagram_type_id) and hands them to `standard_record`/`rules_of`
+  (which still read them per standard when called alone). 158 versions: Postgres 56 -> 4 ms, SQLite 12 -> 2 ms.
+  Test: `test_listing_versions_takes_the_same_queries_however_many_there_are` counts statements with a
+  SQLAlchemy `before_cursor_execute` listener (`counting_queries` in tests/test_standards.py).
 - `canvas-dyvn`: **PNG exports draw their text.** resvg ran with system fonts off and no font, so every label was
   silently dropped. The API now bundles Liberation Sans Regular + Bold 2.1 (`apps/api-py/src/canvas_api/fonts`,
   SIL OFL 1.1, `OFL.txt` beside them, and in THIRD-PARTY-NOTICES.md) and `routes/export.py` passes them to
