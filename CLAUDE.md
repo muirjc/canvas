@@ -96,6 +96,16 @@ tests are NON-NEGOTIABLE and must exist (and fail) before implementing any diagr
 work — see `.specify/memory/constitution.md` Principle IV.
 
 ## Recent Changes
+- `canvas-7p3y`: **the Mermaid version is recorded and shown.** `packages/diagram-core/src/mermaid-version.ts`:
+  `MERMAID_SYNTAX_VERSION` ('11.15', the release whose syntax the parsers follow; Canvas doesn't run mermaid.js),
+  `GITHUB_MERMAID_VERSION` (hand-recorded with its check date; GitHub draws submitted diagrams), and
+  `MERMAID_SUPPORT_NOTES` per family. `mermaid-version.test.ts` pins the values and checks each "not read" note
+  still fails to parse (and each "read" one parses), so notes can't go stale. Shown on the Admin overview (decided
+  with the user: overview page, recorded GitHub value, docs + dry-run report). Mermaid 12 changed default layout/
+  look (ELK), not syntax. Upgrade process: docs/admin-guide/operations.md "Moving to a newer Mermaid version"
+  (keep reading old forms; no per-diagram syntax version). Dry run: `python -m canvas_api.jobs.syntax_report`
+  (read-only, no migrations; lists diagrams the build can't open -- exit 1 -- or would rewrite on next save;
+  `--json`; skips the bin and unsaved drafts).
 - `canvas-rqm6` part 2: **pinned shapes and groups.** `DiagramModel.pinned` (ids), front matter `canvas.pinned`
   in every family but sequence (`readPinned`/`withPinned` in front-matter.ts, `read_pinned`/`with_pinned` in Python;
   ids the diagram lacks, duplicates and non-strings dropped on read AND write). `setPinned(model, ids, pinned)`

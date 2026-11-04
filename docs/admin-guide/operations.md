@@ -13,9 +13,45 @@ environment. The tasks an admin is most likely to need:
 | **The only admin is locked out**: `reset-admin.sh` | RUNBOOK → "A lone admin who can't sign in" |
 | The encryption key for two-step verification | RUNBOOK → "Rotating the MFA key" (don't rotate it routinely) |
 | Entra app registration, roles and assignment | RUNBOOK → "Entra ID SSO" |
+| Move Canvas to a newer **Mermaid version** | [Below](#moving-to-a-newer-mermaid-version) |
 
 Each night (03:00 UTC) a clean-up job permanently removes diagrams and projects deleted more than 30
 days ago, and unsaved new diagrams abandoned for more than a day. It doesn't run while Canvas is
 paused.
 
 When Canvas is **paused** to save costs, the site shows "Canvas is paused" until someone resumes it.
+
+## Moving to a newer Mermaid version
+
+Canvas doesn't run Mermaid. It has its own reader and writer for Mermaid's syntax, which follows one
+Mermaid release, shown on the admin **Overview** page with what it doesn't read yet. GitHub draws
+submitted diagrams with real Mermaid, at whatever version GitHub runs. Moving Canvas to a newer
+Mermaid version is a code change, made by whoever develops Canvas:
+
+1. **Read Mermaid's release notes** between the two versions. For each diagram type Canvas supports
+   (flowchart, sequence, class, ER, C4, architecture), list new syntax, removed syntax, and changes
+   in meaning. Changes to how Mermaid lays out or colours diagrams don't affect Canvas's own
+   drawing, but they do change how exports look on GitHub.
+2. **Keep reading the old forms.** A saved diagram is plain text, so it only breaks if Canvas stops
+   reading something it used to read. Add new syntax; don't remove old syntax. If Mermaid itself
+   drops a form, Canvas keeps reading it and writes the new form when the diagram is next saved.
+3. **Add the support with tests first**: a parse and save round-trip test, a golden corpus case,
+   and the same change in the Python copy of diagram-core (the server's), which the corpus and the
+   comparison tests check.
+4. **Check the export**: open a few exported `.mmd` files in the new Mermaid (mermaid.live, or a
+   GitHub Markdown preview) to confirm they still draw.
+5. **Run the dry-run report** with the new code against the live database (or a recent copy) before
+   releasing: `python -m canvas_api.jobs.syntax_report` (see the RUNBOOK's Jobs table). It lists
+   every saved diagram the new code can't open, and every one whose text it would write differently
+   on the next save. "Can't open" must be zero before release. Rewrites are expected when the
+   saved form changes on purpose; check a few by hand.
+6. **Update the recorded versions** in `packages/diagram-core/src/mermaid-version.ts`: the syntax
+   version, the notes on what isn't read yet, and GitHub's version with the date you checked it (put
+   a `mermaid` block containing `info` in a GitHub Markdown preview and it prints the version). A
+   test pins these values, so the change is deliberate.
+7. **Say what changed** in the release notes: new syntax people can use, and any diagram that will
+   look different on GitHub.
+
+If a future Mermaid change ever made old diagrams unreadable in a way Canvas can't keep supporting,
+the report's list is the starting point: rewrite them in one go, or list them for their owners.
+That hasn't been needed so far, so Canvas doesn't store a syntax version per diagram.
