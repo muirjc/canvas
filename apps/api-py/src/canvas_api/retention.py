@@ -55,15 +55,16 @@ _ABANDONED_DRAFTS = {
 }
 
 #: A diagram's dependents, then the diagram, as purgeDiagrams does. diagram_versions, presence
-#: (diagram_edit_sessions) and GitHub submissions cascade with the diagram; chat history and share grants (a
-#: polymorphic subject_id with no foreign key) don't. Comments and their read markers are deleted explicitly,
-#: replies before their thread roots.
+#: (diagram_edit_sessions) and GitHub submissions cascade with the diagram; chat history, share grants and
+#: notifications (a polymorphic subject_id with no foreign key) don't. Comments and their read markers are
+#: deleted explicitly, replies before their thread roots.
 #: current_version_id is cleared first so no engine has to order the diagram <-> version references itself.
 _DELETE_DIAGRAM = (
     text("UPDATE diagrams SET current_version_id = NULL WHERE id = :id"),
     text("DELETE FROM chat_messages WHERE diagram_chat_id IN (SELECT id FROM diagram_chats WHERE diagram_id = :id)"),
     text("DELETE FROM diagram_chats WHERE diagram_id = :id"),
     text("DELETE FROM share_grants WHERE subject_type = 'diagram' AND subject_id = :id"),
+    text("DELETE FROM notifications WHERE subject_type = 'diagram' AND subject_id = :id"),  # canvas-2h2w.4
     text("DELETE FROM diagram_comment_reads WHERE diagram_id = :id"),
     text("DELETE FROM diagram_comments WHERE diagram_id = :id AND thread_root_id IS NOT NULL"),
     text("DELETE FROM diagram_comments WHERE diagram_id = :id"),
@@ -178,6 +179,10 @@ def purge_expired_projects(engine: Engine) -> ProjectPurgeResult:
             for project_id in ready:
                 conn.execute(
                     text("DELETE FROM share_grants WHERE subject_type = 'project' AND subject_id = :id"),
+                    {"id": project_id},
+                )
+                conn.execute(
+                    text("DELETE FROM notifications WHERE subject_type = 'project' AND subject_id = :id"),
                     {"id": project_id},
                 )
                 conn.execute(text("DELETE FROM projects WHERE id = :id"), {"id": project_id})

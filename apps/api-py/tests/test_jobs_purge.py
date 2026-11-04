@@ -346,6 +346,7 @@ def test_the_job_purges_diagrams_then_projects_and_reports_the_skipped(
         f"  {ids['empty']}",
         "Skipped 1 expired project(s) still in use:",
         f"  {ids['busy']} (still contains diagrams)",
+        "Removed 0 notification(s) older than 90 days.",  # canvas-2h2w.4
     ]
     assert ids["recent"] in diagram_ids(api)
 
@@ -355,6 +356,7 @@ def test_the_job_purges_diagrams_then_projects_and_reports_the_skipped(
         "No projects past their 30-day retention window — nothing to purge.",
         "Skipped 1 expired project(s) still in use:",
         f"  {ids['busy']} (still contains diagrams)",
+        "Removed 0 notification(s) older than 90 days.",
     ]
 
 

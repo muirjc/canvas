@@ -1,6 +1,7 @@
 import { api, type SessionUser } from './api';
 import { Icon } from '../ui/Icon';
 import { InAppLink } from '../ui/InAppLink';
+import { NotificationsBell } from '../notifications/NotificationsBell';
 
 export interface AppShellProps {
   user: SessionUser;
@@ -109,6 +110,7 @@ export function AppShell({ user, onSignOut, currentSection, projectsHref, onNavi
         </nav>
         )}
         <span className="cluster">
+          {!minimal && <NotificationsBell />}
           <span className="meta">{user.email}</span>
           <button type="button" className="btn btn--secondary btn--compact" data-testid="sign-out" onClick={handleSignOut}>
             Sign Out

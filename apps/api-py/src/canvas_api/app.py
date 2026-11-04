@@ -30,6 +30,7 @@ from canvas_api.routes import (
     github,
     libraries,
     library_admin,
+    notifications,
     projects,
     sharing,
     standards,
@@ -121,6 +122,7 @@ def create_app(
         github,
         ai,
         library_admin,
+        notifications,
     ):
         app.include_router(group.router)
 

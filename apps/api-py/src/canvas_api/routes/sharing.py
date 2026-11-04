@@ -30,6 +30,7 @@ from canvas_api.auth.roles import CurrentUser
 from canvas_api.auth.session import SessionUser
 from canvas_api.db import get_engine
 from canvas_api.errors import ApiError
+from canvas_api.notifications import notify
 from canvas_api.timestamps import to_api
 
 router = APIRouter(tags=["Sharing"])
@@ -141,6 +142,18 @@ def _share(
                 "by": user.id,
             },
         ).one()
+        if previous != level:
+            # canvas-2h2w.4: tell them (a re-share at the same level changes nothing, so says nothing).
+            notify(
+                conn,
+                user_id=grantee,
+                kind="level_changed" if previous else "added",
+                actor_user_id=user.id,
+                subject_type=subject_type,
+                subject_id=subject_id,
+                access_level=level,
+                previous_level=previous,
+            )
         if subject_type == "project" and previous != level:
             record_audit(
                 conn,
@@ -251,6 +264,15 @@ def revoke_share(id: str, request: Request, user: CurrentUser, db: Db) -> Respon
         if grant.access_level == "manage" and not access_at_least(level, "manage"):
             raise ApiError(403, "Only the owner or someone with Manage access can remove Manage access.")
         conn.execute(text("DELETE FROM share_grants WHERE id = :id"), {"id": id})
+        notify(
+            conn,
+            user_id=str(grant.grantee_user_id),
+            kind="removed",
+            actor_user_id=user.id,
+            subject_type=grant.subject_type,
+            subject_id=str(grant.subject_id),
+            previous_level=grant.access_level,
+        )
         if grant.subject_type == "project":
             record_audit(
                 conn,
@@ -348,6 +370,9 @@ def transfer_ownership(id: str, request: Request, user: CurrentUser, db: Db, bod
                     " ON CONFLICT (subject_type, subject_id, grantee_user_id) DO UPDATE SET access_level = 'manage'"
                 ),
                 {"gid": str(uuid4()), "id": id, "previous": previous, "by": user.id},
+            )
+            notify(
+                conn, user_id=new_owner, kind="ownership", actor_user_id=user.id, subject_type="project", subject_id=id
             )
             record_audit(
                 conn,
