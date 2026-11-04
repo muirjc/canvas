@@ -1,5 +1,6 @@
 import { api, type SessionUser } from './api';
 import { Icon } from '../ui/Icon';
+import { InAppLink } from '../ui/InAppLink';
 
 export interface AppShellProps {
   user: SessionUser;
@@ -66,14 +67,14 @@ export function AppShell({ user, onSignOut, currentSection, projectsHref, onNavi
             Projects
           </a>
           {user.role === 'admin' && (
-            <a
+            <InAppLink
               className="app-nav__link"
-              href="?admin=overview"
+              to={{ screen: 'admin', page: 'overview' }}
               data-testid="nav-admin"
               aria-current={currentSection === 'admin' ? 'page' : undefined}
             >
               Admin
-            </a>
+            </InAppLink>
           )}
           {user.localAccount && accountHref && (
             <a

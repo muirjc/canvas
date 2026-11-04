@@ -96,6 +96,14 @@ tests are NON-NEGOTIABLE and must exist (and fail) before implementing any diagr
 work — see `.specify/memory/constitution.md` Principle IV.
 
 ## Recent Changes
+- `canvas-4e0`: **admin pages are in-app screens.** `Location` gained `{ screen: 'admin', page, userId? }`
+  (`ADMIN_PAGES` in navigation.ts; `?admin=true`/unknown = standards; `?admin=` still wins; `userId` only for
+  the audit log). App's separate `adminParam` state is gone. Links that move within the app use
+  `ui/InAppLink` (plain click = `navigate()`, so history, focus, titles and the unsaved-changes dialog; a
+  modified click is the browser's; outside App's `InAppNavigationContext` it's a plain link): the header's
+  Admin link, the admin nav, Users "View activity", Audit "Show all activity", the persona page's AI usage
+  link. `AuditLogPage` takes `userId` as a prop and reloads when it changes. A non-admin on `?admin=` gets
+  the rest of the address (`admin`/`userId` removed, replaceState), e.g. the project they were on.
 - `canvas-62y`: **the contract describes requests too, and tests hold them to it.** Added the 8 missing request
   bodies (AI persona/reference-material create+edit, `/auth/local/login`, standards create/PUT via a new
   `StandardBody` component generated from `standards_schema.py`, legacy `POST /libraries`). `check_contract`

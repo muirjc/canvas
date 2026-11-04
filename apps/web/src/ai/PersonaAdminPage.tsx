@@ -13,6 +13,7 @@ import { groupPersonasByCategory } from './persona-grouping';
 import { ConfirmDialog } from '../canvas/ConfirmDialog';
 import { ExpandableTextField } from '../ui/ExpandableTextField';
 import { Icon } from '../ui/Icon';
+import { InAppLink } from '../ui/InAppLink';
 
 const CATEGORIES = ['Business', 'Enterprise', 'Solution', 'Technical'] as const;
 
@@ -395,7 +396,7 @@ export function PersonaAdminPage() {
             {unpriced && (
               <p role="status" data-testid="ai-model-unpriced-warning">
                 {effectiveModelId} has no price set — costs won't be estimated on the{' '}
-                <a href="?admin=ai-usage">AI usage page</a>.
+                <InAppLink to={{ screen: 'admin', page: 'ai-usage' }}>AI usage page</InAppLink>.
               </p>
             )}
             <p className="meta" data-testid="ai-model-effective">

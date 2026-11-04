@@ -4,6 +4,22 @@
  * state, the history writes and the unsaved-changes guard.
  */
 
+/** canvas-4e0: the admin console's pages, each a `?admin=` value. `?admin=true` (and anything unknown)
+ *  is the standards page, as it always was. */
+export const ADMIN_PAGES = [
+  'overview',
+  'standards',
+  'users',
+  'deleted',
+  'deleted-projects',
+  'ai-personas',
+  'ai-usage',
+  'libraries',
+  'github',
+  'audit',
+] as const;
+export type AdminPage = (typeof ADMIN_PAGES)[number];
+
 export type Location =
   | { screen: 'projects' }
   | { screen: 'project'; projectId: string }
@@ -11,7 +27,9 @@ export type Location =
   /** ?account=password: the signed-in user's own change-password screen. */
   | { screen: 'account' }
   /** canvas-fkp: ?help=<page>[&section=<heading id>]: in-app Help ('user', 'user/editor', 'admin/people'...). */
-  | { screen: 'help'; page: string; section?: string };
+  | { screen: 'help'; page: string; section?: string }
+  /** canvas-4e0: an admin page, an in-app screen like the rest; the audit log can show one user's events. */
+  | { screen: 'admin'; page: AdminPage; userId?: string };
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -22,6 +40,13 @@ const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{
  */
 export function parseLocation(search: string): Location {
   const params = new URLSearchParams(search);
+  // An admin page wins over everything else, as it did when App read ?admin= on its own.
+  const admin = params.get('admin');
+  if (admin) {
+    const page: AdminPage = (ADMIN_PAGES as readonly string[]).includes(admin) ? (admin as AdminPage) : 'standards';
+    const userId = params.get('userId');
+    return page === 'audit' && userId && UUID_PATTERN.test(userId) ? { screen: 'admin', page, userId } : { screen: 'admin', page };
+  }
   const diagramId = params.get('diagramId');
   if (diagramId && UUID_PATTERN.test(diagramId)) return { screen: 'diagram', diagramId };
   const projectId = params.get('projectId');
@@ -46,6 +71,9 @@ export function locationToSearch(location: Location): string {
   if (location.screen === 'diagram') return `?diagramId=${encodeURIComponent(location.diagramId)}`;
   if (location.screen === 'project') return `?projectId=${encodeURIComponent(location.projectId)}`;
   if (location.screen === 'account') return '?account=password';
+  if (location.screen === 'admin') {
+    return `?admin=${location.page}${location.userId ? `&userId=${encodeURIComponent(location.userId)}` : ''}`;
+  }
   if (location.screen === 'help') {
     return `?help=${location.page}${location.section ? `&section=${encodeURIComponent(location.section)}` : ''}`;
   }
@@ -57,6 +85,7 @@ export function sameLocation(a: Location, b: Location): boolean {
   if (a.screen === 'project' && b.screen === 'project') return a.projectId === b.projectId;
   if (a.screen === 'diagram' && b.screen === 'diagram') return a.diagramId === b.diagramId;
   if (a.screen === 'help' && b.screen === 'help') return a.page === b.page && a.section === b.section;
+  if (a.screen === 'admin' && b.screen === 'admin') return a.page === b.page && a.userId === b.userId;
   return true;
 }
 
