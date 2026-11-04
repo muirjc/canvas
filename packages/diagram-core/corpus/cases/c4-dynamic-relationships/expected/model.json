@@ -26,48 +26,56 @@
     {
       "id": "e4",
       "label": "down",
+      "layoutHint": "down",
       "sourceId": "a",
       "targetId": "b"
     },
     {
       "id": "e5",
       "label": "down long",
+      "layoutHint": "down",
       "sourceId": "a",
       "targetId": "b"
     },
     {
       "id": "e6",
       "label": "left",
+      "layoutHint": "left",
       "sourceId": "a",
       "targetId": "b"
     },
     {
       "id": "e7",
       "label": "left long",
+      "layoutHint": "left",
       "sourceId": "a",
       "targetId": "b"
     },
     {
       "id": "e8",
       "label": "right",
+      "layoutHint": "right",
       "sourceId": "a",
       "targetId": "b"
     },
     {
       "id": "e9",
       "label": "right long",
+      "layoutHint": "right",
       "sourceId": "a",
       "targetId": "b"
     },
     {
       "id": "e10",
       "label": "up",
+      "layoutHint": "up",
       "sourceId": "a",
       "targetId": "b"
     },
     {
       "id": "e11",
       "label": "up long",
+      "layoutHint": "up",
       "sourceId": "a",
       "targetId": "b"
     },
@@ -76,6 +84,18 @@
       "label": "",
       "sourceId": "a",
       "targetId": "b"
+    }
+  ],
+  "layoutHints": [
+    {
+      "direction": "right",
+      "from": "a",
+      "to": "b"
+    },
+    {
+      "direction": "down",
+      "from": "u",
+      "to": "a"
     }
   ],
   "nodes": [

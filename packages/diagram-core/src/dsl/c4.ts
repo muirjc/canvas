@@ -1,4 +1,4 @@
-import { createEmptyDiagramModel, type DiagramContainer, type DiagramModel, type DiagramNode, type NodeStyle } from '../model/diagram-model.js';
+import { createEmptyDiagramModel, type DiagramContainer, type DiagramModel, type DiagramNode, type LayoutDirection, type LayoutHint, type NodeStyle } from '../model/diagram-model.js';
 import { splitFrontMatter, joinFrontMatter, stripTrailingComment, type CanvasFrontMatter, readLegend, withLegend, NO_ENTRIES } from './front-matter.js';
 import type { ParseError, ParseResult } from './types.js';
 import { computeContainmentLayout } from '../model/containment-layout.js';
@@ -189,16 +189,32 @@ const UPDATE_ELEMENT_STYLE = new RegExp(`^UpdateElementStyle\\(\\s*(${ID})\\s*,\
 const UPDATE_REL_STYLE = new RegExp(`^UpdateRelStyle\\(\\s*(${ID})\\s*,\\s*(${ID})\\s*,\\s*(.+)\\)$`);
 // UpdateLayoutConfig is a pure layout hint (shapes/boundaries per row) with no rendering
 // equivalent in this app (no row-wrapping layout engine for C4) -- accepted so a real file using
-// it doesn't hard-error, but deliberately not modeled or round-tripped, same treatment as the
-// Rel_U/D/L/R directional hints below.
+// it doesn't hard-error, but deliberately not modeled or round-tripped.
 const UPDATE_LAYOUT_CONFIG = /^UpdateLayoutConfig\(.*\)$/;
-// jmuir-dtu.21: Lay_U/Lay_D/Lay_L/Lay_R(elementId1, elementId2) -- explicit layout hints between
-// two elements, same pure-layout-no-rendering-equivalent treatment as UpdateLayoutConfig/Rel_U/D/
-// L/R above. Scoped to exactly these 4 short forms (not Up/Down/Left/Right long forms like Rel's
-// own directional variants) -- unlike Rel_U/D/L/R, Mermaid's own docs/grammar don't document a
-// long-form Lay_ alias, so inventing one here would be a guess, not a confirmed-against-real-
-// grammar addition.
-const LAY_HINT = new RegExp(`^Lay_[UDLR]\\(\\s*(${ID})\\s*,\\s*(${ID})\\s*\\)$`);
+// jmuir-dtu.21: Lay_U/Lay_D/Lay_L/Lay_R(elementId1, elementId2) -- layout hints between two
+// elements, no line drawn. Only these 4 short forms: Mermaid documents no long-form Lay_ alias.
+// canvas-rqm6: kept as `DiagramModel.layoutHints` and followed by Auto Layout.
+const LAY_HINT = new RegExp(`^Lay_([UDLR])\\(\\s*(${ID})\\s*,\\s*(${ID})\\s*\\)$`);
+
+// canvas-rqm6: the side each directional Rel_*/Lay_* names (the macro's suffix), and back.
+const HINT_DIRECTIONS: Record<string, LayoutDirection> = {
+  U: 'up',
+  Up: 'up',
+  D: 'down',
+  Down: 'down',
+  L: 'left',
+  Left: 'left',
+  R: 'right',
+  Right: 'right',
+};
+const HINT_SUFFIX: Record<LayoutDirection, string> = { up: 'U', down: 'D', left: 'L', right: 'R' };
+const hintSuffix = (direction: unknown): string | undefined =>
+  typeof direction === 'string' && Object.prototype.hasOwnProperty.call(HINT_SUFFIX, direction) ? HINT_SUFFIX[direction as LayoutDirection] : undefined;
+/** The side a Rel_* kind names, if any (own keys only: `Rel_constructor` is no kind anyway). */
+const hintOf = (kind: string): LayoutDirection | undefined => {
+  const suffix = kind.startsWith('Rel_') ? kind.slice(4) : '';
+  return Object.prototype.hasOwnProperty.call(HINT_DIRECTIONS, suffix) ? HINT_DIRECTIONS[suffix] : undefined;
+};
 
 const ELEMENT_TO_ROLE: Record<string, string> = {
   Person: 'person',
@@ -384,6 +400,7 @@ export function parseC4(dsl: string): ParseResult {
   let accTitle: string | undefined;
   let accDescr: string | undefined;
   let mermaidConfigDirective: string | undefined;
+  const layoutHints: LayoutHint[] = [];
 
   for (let i = 0; i < lines.length; i += 1) {
     const rawLine = lines[i];
@@ -463,9 +480,9 @@ export function parseC4(dsl: string): ParseResult {
       // label) — swap the endpoints, same trick canvas-7rr's "Reversed" edge direction picker
       // uses, needing no special arrow value. Rel_U/D/L/R (and their Up/Down/Left/Right long
       // forms) are pure layout-position hints in real Mermaid (where the "to" element should sit
-      // relative to "from") with no equivalent in this app's rendering — parsed successfully so a
-      // real file using them doesn't hard-error, but otherwise treated as a plain Rel.
+      // relative to "from"): canvas-rqm6 keeps them as `layoutHint`, which Auto Layout follows.
       const isBack = kind === 'Rel_Back';
+      const layoutHint = hintOf(kind);
       const edgeId = `e${edgeCounter}`;
       edges.push({
         id: edgeId,
@@ -476,6 +493,7 @@ export function parseC4(dsl: string): ParseResult {
         style: edgeStyles[edgeId],
         ...(relArgs.techn ? { technology: relArgs.techn } : {}),
         ...(relArgs.descr ? { description: relArgs.descr } : {}),
+        ...(layoutHint ? { layoutHint } : {}),
       });
       continue;
     }
@@ -500,7 +518,10 @@ export function parseC4(dsl: string): ParseResult {
       continue;
     }
 
-    if (LAY_HINT.test(line)) {
+    const layMatch = line.match(LAY_HINT);
+    if (layMatch) {
+      const [, suffix, from, to] = layMatch;
+      layoutHints.push({ from, to, direction: HINT_DIRECTIONS[suffix] });
       continue;
     }
 
@@ -584,6 +605,7 @@ export function parseC4(dsl: string): ParseResult {
   model.accDescr = accDescr;
   model.mermaidConfigDirective = mermaidConfigDirective;
   model.legend = readLegend(frontMatter);
+  if (layoutHints.length > 0) model.layoutHints = layoutHints;
   return { model };
 }
 
@@ -701,14 +723,17 @@ export function serializeC4(model: import('../model/diagram-model.js').DiagramMo
     if (!emitted.has(node.id)) lines.push(elementLine(node));
   }
   for (const edge of model.edges) {
-    // Rel_Back/Rel_U/D/L/R aren't distinguishable after parse (Rel_Back is folded into a plain
-    // swapped-endpoint edge, same as flowchart's "Reversed" picker; the directional hints carry
-    // no model state at all) — round-trips as a semantically equivalent plain Rel/BiRel, matching
-    // this app's established DSL-fidelity convention (front matter is the canonical round-trip
-    // mechanism; a directive that only maps to existing model fields re-serializes in its
-    // canonical form, not byte-for-byte, same as style/classDef/linkStyle before it).
-    const kind = edge.arrow === 'both' ? 'BiRel' : 'Rel';
+    // Rel_Back is folded into a plain swapped-endpoint edge at parse (same as flowchart's
+    // "Reversed" picker), so it comes back as Rel. canvas-rqm6: a layout hint comes back as
+    // Rel_U/D/L/R (the short form); BiRel has no directional form, so a bidirectional connector
+    // keeps BiRel and drops the hint.
+    const suffix = hintSuffix(edge.layoutHint);
+    const kind = edge.arrow === 'both' ? 'BiRel' : suffix ? `Rel_${suffix}` : 'Rel';
     lines.push(`${kind}(${edge.sourceId}, ${edge.targetId}, "${edge.label ?? ''}"${optionalArgs([edge.technology, edge.description])})`);
+  }
+  for (const hint of model.layoutHints ?? []) {
+    const suffix = hintSuffix(hint.direction);
+    if (suffix) lines.push(`Lay_${suffix}(${hint.from}, ${hint.to})`);
   }
 
   return joinFrontMatter(withLegend(frontMatter, model), `${lines.join('\n')}\n`);

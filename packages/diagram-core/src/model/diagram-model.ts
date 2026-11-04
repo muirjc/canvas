@@ -189,6 +189,16 @@ export function isAllowedLinkHref(href: string): boolean {
   return url.protocol === 'http:' || url.protocol === 'https:';
 }
 
+/** canvas-rqm6: a side, as C4's Rel_U/D/L/R and Lay_U/D/L/R name them. */
+export type LayoutDirection = 'up' | 'down' | 'left' | 'right';
+
+/** canvas-rqm6: a layout-only hint between two elements (C4's `Lay_*`). */
+export interface LayoutHint {
+  from: ElementId;
+  to: ElementId;
+  direction: LayoutDirection;
+}
+
 export interface DiagramEdge {
   id: ElementId;
   sourceId: ElementId;
@@ -256,6 +266,9 @@ export interface DiagramEdge {
   /** Sequence diagrams only: id of the control-flow-block/branch DiagramContainer this message
    * is nested inside, if any — mirrors DiagramNode.containerId's meaning. */
   containerId?: ElementId;
+  /** canvas-rqm6: C4 only -- where the target should sit relative to the source (`Rel_U`/`Rel_D`/
+   *  `Rel_L`/`Rel_R` and their long forms). Auto Layout follows it; it changes nothing else. */
+  layoutHint?: LayoutDirection;
   /** canvas-1u2: C4 Rel family only -- the relationship's technology (4th argument or `$techn`). */
   technology?: string;
   /** canvas-1u2: C4 Rel family only -- the relationship's description (5th argument or `$descr`). */
@@ -383,6 +396,9 @@ export interface DiagramModel {
    *  `direction`'s own front-matter-free flowchart/ER precedent this mirrors) — this app has no
    *  auto-layout for architecture diagrams yet, so it doesn't drive positioning. */
   architectureAlignments?: { axis: 'row' | 'column'; ids: string[] }[];
+  /** canvas-rqm6: C4 only -- `Lay_U/D/L/R(from, to)`: put `to` above/below/left/right of `from`,
+   *  with no line drawn. Auto Layout follows them, like a connector's `layoutHint`. */
+  layoutHints?: LayoutHint[];
   /** jmuir-dtu.18: a `%%{init: {...}}%%` (or other `%%{...}%%`) Mermaid config/theme directive,
    *  preserved verbatim — not modeled (this app has no theming concept to parse it into), same
    *  "accept, don't model, don't lose it" treatment as `architectureAlignments` above. Before this

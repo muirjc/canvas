@@ -130,20 +130,62 @@ export function autoLayout(model: DiagramModel, direction?: FlowchartDirection, 
     }
     const levelDirection = (level !== undefined ? containersById.get(level)?.direction : undefined) ?? resolvedDirection;
 
+    const rankdir = toDagreRankDir(levelDirection);
+
+    // canvas-rqm6: C4's side hints. One along the layout's direction orients its connector for
+    // ranking; one across it puts the two items side by side in a line (a row when the layout
+    // runs top-down, a column when it runs across), which dagre then places as one box.
+    const lineOf = buildLines(model, level, rankdir, atLevel, sizeOf);
+    const across = rankdir === 'TB' || rankdir === 'BT' ? 'width' : 'height';
+    const lineSizes = new Map<string, Size>();
+    const offsets = new Map<string, number>();
+    for (const line of new Set(lineOf.values())) {
+      let length = 0;
+      let depth = 0;
+      for (const id of line) {
+        const size = sizeOf.get(id)!;
+        offsets.set(id, length);
+        length += size[across] + DEFAULT_NODESEP;
+        depth = Math.max(depth, across === 'width' ? size.height : size.width);
+      }
+      length -= DEFAULT_NODESEP;
+      lineSizes.set(line[0], across === 'width' ? { width: length, height: depth } : { width: depth, height: length });
+    }
+    const repOf = (id: string): string => lineOf.get(id)?.[0] ?? id;
+
     const g = new dagre.graphlib.Graph();
-    g.setGraph({ rankdir: toDagreRankDir(levelDirection), nodesep: DEFAULT_NODESEP, ranksep: DEFAULT_RANKSEP, marginx: 0, marginy: 0 });
+    g.setGraph({ rankdir, nodesep: DEFAULT_NODESEP, ranksep: DEFAULT_RANKSEP, marginx: 0, marginy: 0 });
     g.setDefaultEdgeLabel(() => ({}));
-    for (const id of children) g.setNode(dagreKey(id), { ...sizeOf.get(id)! });
+    for (const id of children) {
+      const rep = repOf(id);
+      if (rep !== id) continue;
+      g.setNode(dagreKey(id), { ...(lineSizes.get(id) ?? sizeOf.get(id)!) });
+    }
     const seenEdges = new Set<string>();
+    const rank = (from: string, to: string) => {
+      const a = repOf(from);
+      const b = repOf(to);
+      if (a === b) return;
+      const key = `${a}->${b}`;
+      if (seenEdges.has(key)) return;
+      seenEdges.add(key);
+      g.setEdge(dagreKey(a), dagreKey(b));
+    };
     for (const edge of model.edges) {
       // Only connectors whose ends both sit inside this level rank its items.
       const from = atLevel(edge.sourceId, level);
       const to = atLevel(edge.targetId, level);
       if (!from || !to || from === to) continue;
-      const key = `${from}->${to}`;
-      if (seenEdges.has(key)) continue;
-      seenEdges.add(key);
-      g.setEdge(dagreKey(from), dagreKey(to));
+      if (hintRole(edge.layoutHint, rankdir) === 'backward') rank(to, from);
+      else rank(from, to);
+    }
+    for (const hint of model.layoutHints ?? []) {
+      const from = atLevel(hint.from, level);
+      const to = atLevel(hint.to, level);
+      if (!from || !to || from === to || !sizeOf.has(from) || !sizeOf.has(to)) continue;
+      const role = hintRole(hint.direction, rankdir);
+      if (role === 'forward') rank(from, to);
+      else if (role === 'backward') rank(to, from);
     }
     // canvas-p2g8.2: useDynamic false, or dagre carries _oldGraph/_rawOldNodes from its previous call into this one
     // (edge reversal and ordering hints), so a layout depended on what the tab had laid out before.
@@ -155,10 +197,22 @@ export function autoLayout(model: DiagramModel, direction?: FlowchartDirection, 
     let maxX = -Infinity;
     let maxY = -Infinity;
     for (const id of children) {
-      const laid = g.node(dagreKey(id));
       const size = sizeOf.get(id)!;
-      const x = (laid?.x ?? size.width / 2) - size.width / 2;
-      const y = (laid?.y ?? size.height / 2) - size.height / 2;
+      const rep = repOf(id);
+      const box = lineSizes.get(rep) ?? size;
+      const laid = g.node(dagreKey(rep));
+      let x = (laid?.x ?? box.width / 2) - box.width / 2;
+      let y = (laid?.y ?? box.height / 2) - box.height / 2;
+      if (lineOf.has(id)) {
+        // A member of a line: its place along the line, centred across it.
+        if (across === 'width') {
+          x += offsets.get(id)!;
+          y += (box.height - size.height) / 2;
+        } else {
+          x += (box.width - size.width) / 2;
+          y += offsets.get(id)!;
+        }
+      }
       positions.set(id, { x, y });
       minX = Math.min(minX, x);
       minY = Math.min(minY, y);
@@ -205,6 +259,61 @@ export function autoLayout(model: DiagramModel, direction?: FlowchartDirection, 
   place(undefined, ORIGIN);
 
   return withDirection(applyPositions(model, nodePositions, containerPositions, containerSizes));
+}
+
+type HintRole = 'forward' | 'backward' | 'after' | 'before';
+
+/** canvas-rqm6: what a side hint means in a layout running `rankdir`: along it (the target ranks
+ *  after the source, or before it) or across it (the target goes after or before the source in a
+ *  row or column). Undefined for no hint, or a value that isn't a side. */
+function hintRole(direction: string | undefined, rankdir: 'TB' | 'BT' | 'LR' | 'RL'): HintRole | undefined {
+  const vertical = rankdir === 'TB' || rankdir === 'BT';
+  switch (direction) {
+    case 'down':
+      return vertical ? (rankdir === 'TB' ? 'forward' : 'backward') : 'after';
+    case 'up':
+      return vertical ? (rankdir === 'TB' ? 'backward' : 'forward') : 'before';
+    case 'right':
+      return vertical ? 'after' : rankdir === 'LR' ? 'forward' : 'backward';
+    case 'left':
+      return vertical ? 'before' : rankdir === 'LR' ? 'backward' : 'forward';
+    default:
+      return undefined;
+  }
+}
+
+/**
+ * canvas-rqm6: the rows (or columns) a level's across-the-layout hints ask for: each item in one
+ * maps to the whole line, in order. Hints are taken in order (connectors first, then Lay_*); one
+ * joins two lines end to end, the target's after the source's or before it, which keeps every
+ * hint already taken. A hint between two items already in one line is skipped, so contradicting
+ * hints can't loop.
+ */
+function buildLines(
+  model: DiagramModel,
+  level: string | undefined,
+  rankdir: 'TB' | 'BT' | 'LR' | 'RL',
+  atLevel: (id: string, level: string | undefined) => string | undefined,
+  sizeOf: Map<string, Size>,
+): Map<string, string[]> {
+  const lineOf = new Map<string, string[]>();
+  const hints = [
+    ...model.edges.map((edge) => ({ from: edge.sourceId, to: edge.targetId, direction: edge.layoutHint as string | undefined })),
+    ...(model.layoutHints ?? []),
+  ];
+  for (const hint of hints) {
+    const role = hintRole(hint.direction, rankdir);
+    if (role !== 'after' && role !== 'before') continue;
+    const from = atLevel(hint.from, level);
+    const to = atLevel(hint.to, level);
+    if (!from || !to || from === to || !sizeOf.has(from) || !sizeOf.has(to)) continue;
+    const a = lineOf.get(from) ?? [from];
+    const b = lineOf.get(to) ?? [to];
+    if (a === b) continue;
+    const joined = role === 'after' ? [...a, ...b] : [...b, ...a];
+    for (const id of joined) lineOf.set(id, joined);
+  }
+  return lineOf;
 }
 
 function architectureAutoLayout(model: DiagramModel): DiagramModel {

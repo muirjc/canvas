@@ -121,7 +121,24 @@ MERMAID_CONFIG_DIRECTIVE_PATTERN = re.compile(f"^%%\\{{{DOT}*\\}}%%\\Z")
 UPDATE_ELEMENT_STYLE = re.compile(f"^UpdateElementStyle\\({S}*({ID}){S}*,{S}*({DOT}+)\\)\\Z")
 UPDATE_REL_STYLE = re.compile(f"^UpdateRelStyle\\({S}*({ID}){S}*,{S}*({ID}){S}*,{S}*({DOT}+)\\)\\Z")
 UPDATE_LAYOUT_CONFIG = re.compile(f"^UpdateLayoutConfig\\({DOT}*\\)\\Z")
-LAY_HINT = re.compile(f"^Lay_[UDLR]\\({S}*({ID}){S}*,{S}*({ID}){S}*\\)\\Z")
+LAY_HINT = re.compile(f"^Lay_([UDLR])\\({S}*({ID}){S}*,{S}*({ID}){S}*\\)\\Z")
+#: canvas-rqm6: the side each directional Rel_*/Lay_* names (the macro's suffix), and back.
+HINT_DIRECTIONS = {
+    "U": "up",
+    "Up": "up",
+    "D": "down",
+    "Down": "down",
+    "L": "left",
+    "Left": "left",
+    "R": "right",
+    "Right": "right",
+}
+HINT_SUFFIX = {"up": "U", "down": "D", "left": "L", "right": "R"}
+
+
+def _hint_suffix(direction: Any) -> str | None:
+    return HINT_SUFFIX.get(direction) if isinstance(direction, str) else None
+
 
 ELEMENT_TO_ROLE = {kind: kind.split("_")[0].removesuffix("Db").removesuffix("Queue").lower() for kind in ELEMENT_KINDS}
 C4_ELEMENT_ROLES = ("person", "system", "container", "component")
@@ -260,6 +277,7 @@ def parse_c4(dsl: str) -> dict[str, Any]:
     edge_counter = 0
     pending_element_styles: list[tuple[str, str | None, str | None]] = []
     pending_rel_styles: list[tuple[str, str, str | None]] = []
+    layout_hints: list[dict[str, Any]] = []
     title = acc_title = acc_descr = config_directive = None
 
     def current_container() -> str | None:
@@ -348,6 +366,8 @@ def parse_c4(dsl: str) -> dict[str, Any]:
                 edge["technology"] = rel_args["techn"]
             if rel_args.get("descr"):
                 edge["description"] = rel_args["descr"]
+            if kind.startswith("Rel_") and kind[4:] in HINT_DIRECTIONS:
+                edge["layoutHint"] = HINT_DIRECTIONS[kind[4:]]
             edges.append(edge)
             continue
 
@@ -361,7 +381,11 @@ def parse_c4(dsl: str) -> dict[str, Any]:
             pending_rel_styles.append((m.group(1), m.group(2), margs.get("lineColor")))
             continue
 
-        if UPDATE_LAYOUT_CONFIG.match(line) or LAY_HINT.match(line):
+        if UPDATE_LAYOUT_CONFIG.match(line):
+            continue
+
+        if m := LAY_HINT.match(line):
+            layout_hints.append({"from": m.group(2), "to": m.group(3), "direction": HINT_DIRECTIONS[m.group(1)]})
             continue
 
         if m := BOUNDARY_START.match(line):
@@ -449,6 +473,8 @@ def parse_c4(dsl: str) -> dict[str, Any]:
             "legend": read_legend(front_matter),
         }
     )
+    if layout_hints:
+        model["layoutHints"] = layout_hints
     return {"model": model}
 
 
@@ -599,12 +625,18 @@ def serialize_c4(model: dict[str, Any]) -> str:
         if node.get("id") not in emitted:
             lines.append(_element_line(node))
     for edge in edges:
-        kind = "BiRel" if edge.get("arrow") == "both" else "Rel"
+        # canvas-rqm6: a layout hint comes back as Rel_U/D/L/R; BiRel has no directional form.
+        suffix = _hint_suffix(edge.get("layoutHint"))
+        kind = "BiRel" if edge.get("arrow") == "both" else f"Rel_{suffix}" if suffix else "Rel"
         label = edge.get("label")
         lines.append(
             f"{kind}({_js_text(edge.get('sourceId'))}, {_js_text(edge.get('targetId'))}, "
             f'"{"" if label is None else _js_text(label)}"'
             f"{_optional_args([edge.get('technology'), edge.get('description')])})"
         )
+
+    for hint in model.get("layoutHints") or []:
+        if suffix := _hint_suffix(hint.get("direction")):
+            lines.append(f"Lay_{suffix}({_js_text(hint.get('from'))}, {_js_text(hint.get('to'))})")
 
     return join_front_matter(with_legend(front_matter, model), "\n".join(lines) + "\n")
