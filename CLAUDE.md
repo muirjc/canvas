@@ -105,7 +105,8 @@ work — see `.specify/memory/constitution.md` Principle IV.
   look (ELK), not syntax. Upgrade process: docs/admin-guide/operations.md "Moving to a newer Mermaid version"
   (keep reading old forms; no per-diagram syntax version). Dry run: `python -m canvas_api.jobs.syntax_report`
   (read-only, no migrations; lists diagrams the build can't open -- exit 1 -- or would rewrite on next save;
-  `--json`; skips the bin and unsaved drafts).
+  `--json`; skips the bin and unsaved drafts). Local databases only: the Azure DB is private to its VNet; an Azure
+  job is canvas-dfam, for when a real syntax change needs it (user chose this).
 - `canvas-rqm6` part 2: **pinned shapes and groups.** `DiagramModel.pinned` (ids), front matter `canvas.pinned`
   in every family but sequence (`readPinned`/`withPinned` in front-matter.ts, `read_pinned`/`with_pinned` in Python;
   ids the diagram lacks, duplicates and non-strings dropped on read AND write). `setPinned(model, ids, pinned)`

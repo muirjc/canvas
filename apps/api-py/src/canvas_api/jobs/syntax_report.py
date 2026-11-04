@@ -1,8 +1,8 @@
 """Mermaid syntax dry run (canvas-7p3y): reads every saved diagram with THIS build's diagram-core and lists the
-ones it can't open, and the ones whose saved text it would write differently on the next save. Run it with a new
-release's image against the live database BEFORE releasing a change to the Mermaid syntax Canvas reads or writes
-(docs/admin-guide/operations.md, "Moving to a newer Mermaid version"). Read-only: it runs no migrations and
-changes nothing.
+ones it can't open, and the ones whose saved text it would write differently on the next save. Run it with the new code
+BEFORE releasing a change to the Mermaid syntax Canvas reads or writes (docs/admin-guide/operations.md, "Moving to a
+newer Mermaid version"). Local databases only for now: the Azure database is private to its VNet (decided with the
+user: add an Azure job when a real syntax change needs one). Read-only: it runs no migrations and changes nothing.
 
 Usage:
   python -m canvas_api.jobs.syntax_report           # a summary, then one line per diagram that needs a look
