@@ -2,7 +2,9 @@ import { useEffect, useState } from 'react';
 import { HelpLink } from '../help/HelpLink';
 import { api, type AccessLevel, type ShareGrantDto } from '../app/api';
 import { Modal } from '../ui/Modal';
+import { Icon } from '../ui/Icon';
 import { PersonPicker, type PickerUser } from './PersonPicker';
+import { GROUPS_HINT, useGroupsEnabled, type PickerGroup } from './groups';
 
 export interface ShareDialogProps {
   diagramId: string;
@@ -18,7 +20,8 @@ export function ShareDialog({ diagramId, currentUserId, onClose }: ShareDialogPr
   const [grants, setGrants] = useState<ShareGrantDto[]>([]);
   const [error, setError] = useState<string | null>(null);
 
-  const [selected, setSelected] = useState<PickerUser | null>(null);
+  const [selected, setSelected] = useState<PickerUser | PickerGroup | null>(null);
+  const groupsEnabled = useGroupsEnabled();
 
   const refresh = () => {
     api.listDiagramShares(diagramId).then(({ grants }) => setGrants(grants));
@@ -26,6 +29,10 @@ export function ShareDialog({ diagramId, currentUserId, onClose }: ShareDialogPr
 
   useEffect(refresh, [diagramId]);
 
+  const groupDisabledReason = (groupId: string): string | null => {
+    const grant = grants.find((g) => g.granteeGroupId === groupId);
+    return grant ? `has ${grant.accessLevel} access` : null;
+  };
   const grantFor = (userId: string) => grants.find((g) => g.granteeUserId === userId);
   // Already-shared users and the signed-in user are listed but not pickable: Share would only
   // duplicate or silently re-level a grant; to change a level, revoke and share again.
@@ -35,6 +42,13 @@ export function ShareDialog({ diagramId, currentUserId, onClose }: ShareDialogPr
   const handleShare = async () => {
     setError(null);
     try {
+      if (selected && 'kind' in selected) {
+        await api.createDiagramShare(diagramId, { groupId: selected.id }, accessLevel);
+        setEmail('');
+        setSelected(null);
+        refresh();
+        return;
+      }
       let userId = selected?.id;
       if (!userId) {
         // Fallback: a full email typed without picking (people the list doesn't show).
@@ -84,6 +98,8 @@ export function ShareDialog({ diagramId, currentUserId, onClose }: ShareDialogPr
           onSelectedChange={setSelected}
           disabledReason={disabledReason}
           selectedVerb="Sharing with"
+          groupsEnabled={groupsEnabled}
+          groupDisabledReason={groupDisabledReason}
         />
         <div className="field">
           <label className="field__label" htmlFor="share-access-level">
@@ -105,32 +121,44 @@ export function ShareDialog({ diagramId, currentUserId, onClose }: ShareDialogPr
           Share
         </button>
       </div>
+      {groupsEnabled && (
+        <p className="meta" data-testid="share-groups-hint">
+          {GROUPS_HINT}
+        </p>
+      )}
       {error && (
         <p role="alert" data-testid="share-error">
           {error}
         </p>
       )}
       <ul className="share-grants" data-testid="share-grants">
-        {grants.map((grant) => (
-          <li key={grant.id} className="row" data-testid={`share-grant-${grant.granteeUserId}`}>
-            <span className="row__main">
-              <span className="row__title">
-                {grant.granteeName || grant.granteeEmail
-                  ? [grant.granteeName, grant.granteeEmail].filter(Boolean).join(' — ')
-                  : grant.granteeUserId}
+        {grants.map((grant) => {
+          const isGroup = grant.granteeGroupId !== null;
+          const key = isGroup ? `group-${grant.granteeGroupId}` : String(grant.granteeUserId);
+          return (
+            <li key={grant.id} className="row" data-testid={`share-grant-${key}`}>
+              <span className="row__main">
+                <span className="row__title">
+                  {isGroup && <Icon name="users" />}
+                  {isGroup
+                    ? grant.granteeName || 'Unnamed group'
+                    : grant.granteeName || grant.granteeEmail
+                      ? [grant.granteeName, grant.granteeEmail].filter(Boolean).join(' — ')
+                      : grant.granteeUserId}
+                </span>
+                <span className="meta">{isGroup ? `Group · ${grant.accessLevel}` : grant.accessLevel}</span>
               </span>
-              <span className="meta">{grant.accessLevel}</span>
-            </span>
-            <button
-              type="button"
-              className="btn btn--tertiary-danger btn--compact"
-              data-testid={`revoke-share-${grant.granteeUserId}`}
-              onClick={() => api.revokeShare(grant.id).then(refresh)}
-            >
-              Revoke
-            </button>
-          </li>
-        ))}
+              <button
+                type="button"
+                className="btn btn--tertiary-danger btn--compact"
+                data-testid={`revoke-share-${key}`}
+                onClick={() => api.revokeShare(grant.id).then(refresh)}
+              >
+                Revoke
+              </button>
+            </li>
+          );
+        })}
       </ul>
     </Modal>
   );

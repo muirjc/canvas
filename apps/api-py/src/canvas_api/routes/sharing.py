@@ -11,13 +11,15 @@ from __future__ import annotations
 from typing import Annotated, Any, Literal
 from uuid import uuid4
 
-from fastapi import APIRouter, Depends, Request, Response
-from pydantic import BaseModel, Field, StrictStr
+import structlog
+from fastapi import APIRouter, Depends, Query, Request, Response
+from pydantic import BaseModel, Field, StrictStr, model_validator
 from sqlalchemy import Connection, Engine, text
 
 from canvas_api.access import (
     AccessLevel,
     access_at_least,
+    highest_access,
     project_access_for_user,
     project_exists,
     require_diagram_access,
@@ -26,13 +28,16 @@ from canvas_api.access import (
     resolve_project_access,
 )
 from canvas_api.audit import client_ip, record_audit
+from canvas_api.auth.graph import EntraGroup, GraphClient, GraphError
 from canvas_api.auth.roles import CurrentUser
 from canvas_api.auth.session import SessionUser
 from canvas_api.db import get_engine
 from canvas_api.errors import ApiError
+from canvas_api.groups import remember_group
 from canvas_api.notifications import notify
 from canvas_api.timestamps import to_api
 
+log = structlog.get_logger()
 router = APIRouter(tags=["Sharing"])
 Db = Annotated[Engine, Depends(get_engine)]
 
@@ -41,14 +46,25 @@ SubjectType = Literal["diagram", "project"]
 MANAGE_LEVEL: dict[str, AccessLevel] = {"project": "manage", "diagram": "edit"}
 
 
-class DiagramShareBody(BaseModel):
-    granteeUserId: StrictStr = Field(min_length=1)
+class _Grantee(BaseModel):
+    """A person (`granteeUserId`) or, canvas-2h2w.3, an Entra group assigned to Canvas (`granteeGroupId`)."""
+
+    granteeUserId: StrictStr | None = Field(default=None, min_length=1)
+    granteeGroupId: StrictStr | None = Field(default=None, min_length=1, max_length=64)
+
+    @model_validator(mode="after")
+    def _exactly_one(self) -> _Grantee:
+        if (self.granteeUserId is None) == (self.granteeGroupId is None):
+            raise ValueError("Give exactly one of granteeUserId and granteeGroupId.")
+        return self
+
+
+class DiagramShareBody(_Grantee):
     #: A diagram share stops at Edit.
     accessLevel: Literal["view", "comment", "edit"]
 
 
-class ProjectShareBody(BaseModel):
-    granteeUserId: StrictStr = Field(min_length=1)
+class ProjectShareBody(_Grantee):
     accessLevel: Literal["view", "comment", "edit", "manage"]
 
 
@@ -86,7 +102,8 @@ def _grant(row: Any) -> dict[str, Any]:
         "id": str(row.id),
         "subjectType": row.subject_type,
         "subjectId": str(row.subject_id),
-        "granteeUserId": str(row.grantee_user_id),
+        "granteeUserId": None if row.grantee_user_id is None else str(row.grantee_user_id),
+        "granteeGroupId": row.grantee_group_id,
         "accessLevel": row.access_level,
         "grantedByUserId": str(row.granted_by_user_id),
         "createdAt": to_api(row.created_at),
@@ -99,18 +116,29 @@ def _share(
     user: SessionUser,
     subject_type: SubjectType,
     subject_id: str,
-    grantee: str,
+    body: _Grantee,
     level: str,
 ) -> dict[str, Any]:
     with db.begin() as conn:
         _guard(conn, subject_type, user, subject_id, MANAGE_LEVEL[subject_type])
-        existing = conn.execute(
-            text(
-                "SELECT access_level FROM share_grants"
-                " WHERE subject_type = :type AND subject_id = :id AND grantee_user_id = :grantee"
-            ),
-            {"type": subject_type, "id": subject_id, "grantee": grantee},
-        ).first()
+        # After the access check, so nobody without it can make Canvas ask Microsoft (usually cached anyway).
+        group = _shareable_group(request, body.granteeGroupId) if body.granteeGroupId is not None else None
+        if group is not None:
+            existing = conn.execute(
+                text(
+                    "SELECT access_level FROM share_grants"
+                    " WHERE subject_type = :type AND subject_id = :id AND grantee_group_id = :grantee"
+                ),
+                {"type": subject_type, "id": subject_id, "grantee": group.id},
+            ).first()
+        else:
+            existing = conn.execute(
+                text(
+                    "SELECT access_level FROM share_grants"
+                    " WHERE subject_type = :type AND subject_id = :id AND grantee_user_id = :grantee"
+                ),
+                {"type": subject_type, "id": subject_id, "grantee": body.granteeUserId},
+            ).first()
         previous = existing.access_level if existing else None
         # Only someone with Manage hands out Manage or changes someone's Manage (an editor can't promote
         # themselves, or demote a manager by re-sharing lower).
@@ -118,52 +146,86 @@ def _share(
             _access_to(conn, subject_type, user.id, subject_id), "manage"
         ):
             raise ApiError(403, "Only the owner or someone with Manage access can give or change Manage access.")
-        # Org-internal only: the grantee must be an active user of this deployment.
-        active = conn.execute(
-            text("SELECT id FROM users WHERE id = :id AND active = :yes"), {"id": grantee, "yes": True}
-        ).first()
-        if active is None:
-            raise ApiError(400, f"No active user with id {grantee}")
-        row = conn.execute(
-            text(
-                "INSERT INTO share_grants"
-                " (id, subject_type, subject_id, grantee_user_id, access_level, granted_by_user_id)"
-                " VALUES (:gid, :type, :id, :grantee, :level, :by)"
-                " ON CONFLICT (subject_type, subject_id, grantee_user_id)"
-                " DO UPDATE SET access_level = excluded.access_level"
-                " RETURNING id, subject_type, subject_id, grantee_user_id, access_level, granted_by_user_id, created_at"
-            ),
-            {
-                "gid": str(uuid4()),
-                "type": subject_type,
-                "id": subject_id,
-                "grantee": grantee,
-                "level": level,
-                "by": user.id,
-            },
-        ).one()
-        if previous != level:
-            # canvas-2h2w.4: tell them (a re-share at the same level changes nothing, so says nothing).
-            notify(
-                conn,
-                user_id=grantee,
-                kind="level_changed" if previous else "added",
-                actor_user_id=user.id,
-                subject_type=subject_type,
-                subject_id=subject_id,
-                access_level=level,
-                previous_level=previous,
-            )
+        params = {"gid": str(uuid4()), "type": subject_type, "id": subject_id, "level": level, "by": user.id}
+        if group is not None:
+            remember_group(conn, group)
+            row = conn.execute(_INSERT_GROUP_GRANT, {**params, "grantee": group.id}).one()
+        else:
+            # Org-internal only: the grantee must be an active user of this deployment.
+            active = conn.execute(
+                text("SELECT id FROM users WHERE id = :id AND active = :yes"),
+                {"id": body.granteeUserId, "yes": True},
+            ).first()
+            if active is None:
+                raise ApiError(400, f"No active user with id {body.granteeUserId}")
+            row = conn.execute(_INSERT_USER_GRANT, {**params, "grantee": body.granteeUserId}).one()
+            if previous != level:
+                # canvas-2h2w.4: tell them (a re-share at the same level changes nothing, so says nothing). A
+                # group isn't told: Canvas only knows the members who have signed in (canvas-2h2w.3).
+                notify(
+                    conn,
+                    user_id=str(body.granteeUserId),
+                    kind="level_changed" if previous else "added",
+                    actor_user_id=user.id,
+                    subject_type=subject_type,
+                    subject_id=subject_id,
+                    access_level=level,
+                    previous_level=previous,
+                )
         if subject_type == "project" and previous != level:
             record_audit(
                 conn,
                 "project_member_changed" if previous else "project_member_added",
                 actor_user_id=user.id,
-                target_user_id=grantee,
+                target_user_id=body.granteeUserId,
                 ip=client_ip(request),
-                detail={"projectId": subject_id, "level": level, **({"from": previous} if previous else {})},
+                detail={
+                    "projectId": subject_id,
+                    "level": level,
+                    **({"from": previous} if previous else {}),
+                    **({"groupId": group.id, "groupName": group.display_name} if group else {}),
+                },
             )
         return {"grant": _grant(row)}
+
+
+_INSERT_USER_GRANT = text(
+    "INSERT INTO share_grants"
+    " (id, subject_type, subject_id, grantee_user_id, access_level, granted_by_user_id)"
+    " VALUES (:gid, :type, :id, :grantee, :level, :by)"
+    " ON CONFLICT (subject_type, subject_id, grantee_user_id)"
+    " DO UPDATE SET access_level = excluded.access_level"
+    " RETURNING id, subject_type, subject_id, grantee_user_id, grantee_group_id, access_level, granted_by_user_id,"
+    " created_at"
+)
+_INSERT_GROUP_GRANT = text(
+    "INSERT INTO share_grants"
+    " (id, subject_type, subject_id, grantee_group_id, access_level, granted_by_user_id)"
+    " VALUES (:gid, :type, :id, :grantee, :level, :by)"
+    " ON CONFLICT (subject_type, subject_id, grantee_group_id) WHERE grantee_group_id IS NOT NULL"
+    " DO UPDATE SET access_level = excluded.access_level"
+    " RETURNING id, subject_type, subject_id, grantee_user_id, grantee_group_id, access_level, granted_by_user_id,"
+    " created_at"
+)
+
+
+def _graph(request: Request) -> GraphClient:
+    graph: GraphClient | None = request.app.state.graph_client
+    if graph is None:
+        raise ApiError(400, "Sharing with groups isn't turned on.")
+    return graph
+
+
+def _shareable_group(request: Request, group_id: str) -> EntraGroup:
+    """The group, if it's one assigned to Canvas (checked with Microsoft each time it's shared with)."""
+    try:
+        group = _graph(request).find(group_id)
+    except GraphError as error:
+        log.warning("Microsoft Graph lookup failed", err=str(error))
+        raise ApiError(503, "Couldn't check the group with Microsoft. Try again later.") from error
+    if group is None:
+        raise ApiError(400, f"No group with id {group_id} is assigned to Canvas.")
+    return group
 
 
 def _list(db: Engine, user: SessionUser, subject_type: SubjectType, subject_id: str) -> dict[str, Any]:
@@ -172,9 +234,11 @@ def _list(db: Engine, user: SessionUser, subject_type: SubjectType, subject_id: 
         _guard(conn, subject_type, user, subject_id, "view")
         rows = conn.execute(
             text(
-                "SELECT g.id, g.subject_type, g.subject_id, g.grantee_user_id, g.access_level,"
-                " g.granted_by_user_id, g.created_at, u.name AS grantee_name, u.email AS grantee_email"
+                "SELECT g.id, g.subject_type, g.subject_id, g.grantee_user_id, g.grantee_group_id, g.access_level,"
+                " g.granted_by_user_id, g.created_at, COALESCE(u.name, eg.display_name) AS grantee_name,"
+                " u.email AS grantee_email"
                 " FROM share_grants g LEFT JOIN users u ON u.id = g.grantee_user_id"
+                " LEFT JOIN entra_groups eg ON eg.id = g.grantee_group_id"
                 " WHERE g.subject_type = :type AND g.subject_id = :id ORDER BY g.created_at"
             ),
             {"type": subject_type, "id": subject_id},
@@ -184,7 +248,7 @@ def _list(db: Engine, user: SessionUser, subject_type: SubjectType, subject_id: 
 
 @router.post("/diagrams/{id}/shares", status_code=201)
 def share_diagram(id: str, request: Request, user: CurrentUser, db: Db, body: DiagramShareBody) -> dict[str, Any]:
-    return _share(request, db, user, "diagram", id, body.granteeUserId, body.accessLevel)
+    return _share(request, db, user, "diagram", id, body, body.accessLevel)
 
 
 @router.get("/diagrams/{id}/shares")
@@ -194,7 +258,7 @@ def list_diagram_shares(id: str, user: CurrentUser, db: Db) -> dict[str, Any]:
 
 @router.post("/projects/{id}/shares", status_code=201)
 def share_project(id: str, request: Request, user: CurrentUser, db: Db, body: ProjectShareBody) -> dict[str, Any]:
-    return _share(request, db, user, "project", id, body.granteeUserId, body.accessLevel)
+    return _share(request, db, user, "project", id, body, body.accessLevel)
 
 
 @router.get("/projects/{id}/shares")
@@ -214,7 +278,8 @@ def shared_diagrams(user: CurrentUser, db: Db) -> dict[str, Any]:
                 " sg.created_at AS shared_at"
                 " FROM share_grants sg JOIN diagrams d ON d.id = sg.subject_id"
                 " JOIN projects p ON p.id = d.project_id JOIN users u ON u.id = sg.granted_by_user_id"
-                " WHERE sg.subject_type = 'diagram' AND sg.grantee_user_id = :uid"
+                " WHERE sg.subject_type = 'diagram' AND (sg.grantee_user_id = :uid"
+                " OR sg.grantee_group_id IN (SELECT group_id FROM user_group_memberships WHERE user_id = :uid))"
                 " AND d.deleted_at IS NULL AND d.draft = :no ORDER BY d.name, d.id"
             ),
             {"uid": user.id, "no": False},
@@ -225,6 +290,13 @@ def shared_diagrams(user: CurrentUser, db: Db) -> dict[str, Any]:
         entry = projects.get(project_id)
         return entry is not None and entry.membership is not None and access_at_least(entry.level, level)
 
+    # canvas-2h2w.3: a diagram shared with them and with one of their groups is listed once, at the higher level.
+    best: dict[str, Any] = {}
+    for r in rows:
+        key = str(r.diagram_id)
+        if key not in best or highest_access(best[key].access_level, r.access_level) != best[key].access_level:
+            best[key] = r
+    rows = [r for r in rows if best[str(r.diagram_id)] is r]
     return {
         "diagrams": [
             {
@@ -248,7 +320,10 @@ def revoke_share(id: str, request: Request, user: CurrentUser, db: Db) -> Respon
     """Removing a share needs the same access as giving it."""
     with db.begin() as conn:
         grant = conn.execute(
-            text("SELECT subject_type, subject_id, access_level, grantee_user_id FROM share_grants WHERE id = :id"),
+            text(
+                "SELECT subject_type, subject_id, access_level, grantee_user_id, grantee_group_id"
+                " FROM share_grants WHERE id = :id"
+            ),
             {"id": id},
         ).first()
         if grant is None:
@@ -264,23 +339,28 @@ def revoke_share(id: str, request: Request, user: CurrentUser, db: Db) -> Respon
         if grant.access_level == "manage" and not access_at_least(level, "manage"):
             raise ApiError(403, "Only the owner or someone with Manage access can remove Manage access.")
         conn.execute(text("DELETE FROM share_grants WHERE id = :id"), {"id": id})
-        notify(
-            conn,
-            user_id=str(grant.grantee_user_id),
-            kind="removed",
-            actor_user_id=user.id,
-            subject_type=grant.subject_type,
-            subject_id=str(grant.subject_id),
-            previous_level=grant.access_level,
-        )
+        if grant.grantee_user_id is not None:
+            notify(
+                conn,
+                user_id=str(grant.grantee_user_id),
+                kind="removed",
+                actor_user_id=user.id,
+                subject_type=grant.subject_type,
+                subject_id=str(grant.subject_id),
+                previous_level=grant.access_level,
+            )
         if grant.subject_type == "project":
             record_audit(
                 conn,
                 "project_member_removed",
                 actor_user_id=user.id,
-                target_user_id=str(grant.grantee_user_id),
+                target_user_id=None if grant.grantee_user_id is None else str(grant.grantee_user_id),
                 ip=client_ip(request),
-                detail={"projectId": str(grant.subject_id), "from": grant.access_level},
+                detail={
+                    "projectId": str(grant.subject_id),
+                    "from": grant.access_level,
+                    **({"groupId": grant.grantee_group_id} if grant.grantee_group_id else {}),
+                },
             )
     return Response(status_code=204)
 
@@ -301,9 +381,11 @@ def list_project_members(conn: Connection, project_id: str) -> dict[str, Any]:
         raise ApiError(404, f"No project with id {project_id}")
     rows = conn.execute(
         text(
-            "SELECT g.id, g.grantee_user_id, g.access_level, u.name, u.email"
+            "SELECT g.id, g.grantee_user_id, g.grantee_group_id, g.access_level,"
+            " COALESCE(u.name, eg.display_name) AS name, u.email"
             " FROM share_grants g LEFT JOIN users u ON u.id = g.grantee_user_id"
-            " WHERE g.subject_type = 'project' AND g.subject_id = :id ORDER BY u.name, g.id"
+            " LEFT JOIN entra_groups eg ON eg.id = g.grantee_group_id"
+            " WHERE g.subject_type = 'project' AND g.subject_id = :id ORDER BY name, g.id"
         ),
         {"id": project_id},
     ).all()
@@ -312,7 +394,9 @@ def list_project_members(conn: Connection, project_id: str) -> dict[str, Any]:
         "members": [
             {
                 "grantId": str(r.id),
-                "userId": str(r.grantee_user_id),
+                "userId": None if r.grantee_user_id is None else str(r.grantee_user_id),
+                # canvas-2h2w.3: a group member entry (userId null, email null, name = the group's).
+                "groupId": r.grantee_group_id,
                 "name": r.name,
                 "email": r.email,
                 "accessLevel": r.access_level,
@@ -383,3 +467,23 @@ def transfer_ownership(id: str, request: Request, user: CurrentUser, db: Db, bod
                 detail={"projectId": id, "from": previous},
             )
         return list_project_members(conn, id)
+
+
+# --- Entra groups (canvas-2h2w.3) ---------------------------------------------------------------------------
+
+
+@router.get("/groups")
+def search_groups(
+    request: Request, _user: CurrentUser, q: Annotated[str, Query(max_length=100)] = ""
+) -> dict[str, Any]:
+    """The Entra groups assigned to Canvas whose name contains `q` (all of them, up to 50, for none), for the
+    share pickers. 400 when sharing with groups is off."""
+    graph = _graph(request)
+    try:
+        groups = graph.assigned_groups()
+    except GraphError as error:
+        log.warning("Microsoft Graph lookup failed", err=str(error))
+        raise ApiError(503, "Couldn't list the groups from Microsoft. Try again later.") from error
+    needle = q.strip().casefold()
+    matched = [g for g in groups if needle in g.display_name.casefold()][:50]
+    return {"groups": [{"id": g.id, "displayName": g.display_name} for g in matched]}

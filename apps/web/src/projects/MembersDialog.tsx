@@ -3,7 +3,9 @@ import { HelpLink } from '../help/HelpLink';
 import { accessAtLeast, api, ApiError, type AccessLevel, type ProjectMembersDto } from '../app/api';
 import { Modal } from '../ui/Modal';
 import { ConfirmDialog } from '../canvas/ConfirmDialog';
+import { Icon } from '../ui/Icon';
 import { PersonPicker, type PickerUser } from './PersonPicker';
+import { GROUPS_HINT, useGroupsEnabled, type PickerGroup } from './groups';
 
 export interface MembersDialogProps {
   projectId: string;
@@ -34,7 +36,8 @@ export function MembersDialog({ projectId, projectName, currentUser, onClose, on
   const [loadError, setLoadError] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [text, setText] = useState('');
-  const [selected, setSelected] = useState<PickerUser | null>(null);
+  const [selected, setSelected] = useState<PickerUser | PickerGroup | null>(null);
+  const groupsEnabled = useGroupsEnabled();
   const [level, setLevel] = useState<AccessLevel>('edit');
   const [busy, setBusy] = useState(false);
   const [transferTo, setTransferTo] = useState<{ userId: string; name: string } | null>(null);
@@ -53,6 +56,9 @@ export function MembersDialog({ projectId, projectName, currentUser, onClose, on
 
   const canManage = accessAtLeast(data?.yourAccess, 'manage');
   const canTransfer = data !== null && (data.owner.id === currentUser.id || currentUser.role === 'admin');
+  const groupMemberFor = (groupId: string) => data?.members.find((m) => m.groupId === groupId);
+  const groupDisabledReason = (groupId: string): string | null =>
+    groupMemberFor(groupId) ? `already ${groupMemberFor(groupId)!.accessLevel}` : null;
   const memberFor = (userId: string) => data?.members.find((m) => m.userId === userId);
 
   const disabledReason = (userId: string): string | null =>
@@ -74,6 +80,14 @@ export function MembersDialog({ projectId, projectName, currentUser, onClose, on
 
   const add = () =>
     run(async () => {
+      if (selected && 'kind' in selected) {
+        const reason = groupDisabledReason(selected.id);
+        if (reason) throw new Error(`${selected.name} is ${reason}. Change its level in the list instead.`);
+        await api.setProjectMember(projectId, { groupId: selected.id }, level);
+        setText('');
+        setSelected(null);
+        return;
+      }
       let userId = selected?.id;
       if (!userId) {
         const { user } = await api.lookupUserByEmail(text.trim());
@@ -135,6 +149,8 @@ export function MembersDialog({ projectId, projectName, currentUser, onClose, on
             onSelectedChange={setSelected}
             disabledReason={disabledReason}
             selectedVerb="Adding"
+            groupsEnabled={groupsEnabled}
+            groupDisabledReason={groupDisabledReason}
           />
           <div className="field">
             <label className="field__label" htmlFor="member-level">
@@ -152,6 +168,11 @@ export function MembersDialog({ projectId, projectName, currentUser, onClose, on
             Add
           </button>
         </form>
+      )}
+      {canManage && groupsEnabled && (
+        <p className="meta" data-testid="members-groups-hint">
+          {GROUPS_HINT}
+        </p>
       )}
 
       {error && (
@@ -172,25 +193,35 @@ export function MembersDialog({ projectId, projectName, currentUser, onClose, on
             </span>
           </li>
           {data.members.map((member) => {
-            const name = who(member.name, member.email, member.userId);
+            const isGroup = member.groupId !== null;
+            const memberKey = isGroup ? `group-${member.groupId}` : String(member.userId);
+            const name = isGroup ? member.name || 'Unnamed group' : who(member.name, member.email, member.userId ?? '');
+            // Level changes and removal address the grant itself, so they work the same for a group.
+            const setLevel = (accessLevel: AccessLevel) =>
+              api.setProjectMember(projectId, isGroup ? { groupId: member.groupId! } : member.userId!, accessLevel);
             return (
-              <li key={member.grantId} className="row" data-testid={`member-${member.userId}`}>
+              <li key={member.grantId} className="row" data-testid={`member-${memberKey}`}>
                 <span className="row__main">
                   <span className="row__title">
+                    {isGroup && <Icon name="users" />}
                     {name}
                     {member.userId === currentUser.id && ' (you)'}
                   </span>
+                  {isGroup && <span className="meta">Group</span>}
                   {!canManage && <span className="meta">{LEVELS.find((l) => l.value === member.accessLevel)?.label}</span>}
                 </span>
                 {canManage && (
                   <span className="row__actions">
                     <select
                       aria-label={`Access for ${name}`}
-                      data-testid={`member-level-${member.userId}`}
+                      data-testid={`member-level-${memberKey}`}
                       value={member.accessLevel}
                       disabled={busy}
                       onChange={(e) =>
-                        void run(() => api.setProjectMember(projectId, member.userId, e.target.value as AccessLevel), member.userId === currentUser.id ? onAccessChanged : undefined)
+                        void run(
+                          () => setLevel(e.target.value as AccessLevel),
+                          member.userId === currentUser.id ? onAccessChanged : undefined,
+                        )
                       }
                     >
                       {LEVELS.map((l) => (
@@ -199,13 +230,13 @@ export function MembersDialog({ projectId, projectName, currentUser, onClose, on
                         </option>
                       ))}
                     </select>
-                    {canTransfer && (
+                    {canTransfer && !isGroup && member.userId && (
                       <button
                         type="button"
                         className="btn btn--tertiary btn--compact"
-                        data-testid={`member-make-owner-${member.userId}`}
+                        data-testid={`member-make-owner-${memberKey}`}
                         disabled={busy}
-                        onClick={() => setTransferTo({ userId: member.userId, name })}
+                        onClick={() => setTransferTo({ userId: member.userId!, name })}
                       >
                         Make owner
                       </button>
@@ -213,10 +244,12 @@ export function MembersDialog({ projectId, projectName, currentUser, onClose, on
                     <button
                       type="button"
                       className="btn btn--tertiary-danger btn--compact"
-                      data-testid={`member-remove-${member.userId}`}
+                      data-testid={`member-remove-${memberKey}`}
                       aria-label={`Remove ${name}`}
                       disabled={busy}
-                      onClick={() => void run(() => api.revokeShare(member.grantId), member.userId === currentUser.id ? onAccessChanged : undefined)}
+                      onClick={() =>
+                        void run(() => api.revokeShare(member.grantId), member.userId === currentUser.id ? onAccessChanged : undefined)
+                      }
                     >
                       Remove
                     </button>

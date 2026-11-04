@@ -457,6 +457,7 @@ def test_local_mode_reports_local_sign_in_only_and_the_entra_routes_do_not_exist
         "oidcEnabled": False,
         "localAuthEnabled": True,
         "mfaRequired": True,
+        "groupsEnabled": False,
     }
     assert site.login("local@example.com", "local-pass")[0].status_code == 200
     assert site.get("/auth/login", absent=True).status_code == 404
@@ -473,6 +474,7 @@ def test_entra_mode_without_allow_local_auth_has_no_local_sign_in_route(make_sit
         "oidcEnabled": False,
         "localAuthEnabled": False,
         "mfaRequired": False,
+        "groupsEnabled": False,
     }
     assert site.login("local@example.com", "local-pass", absent=True)[0].status_code == 404
 
@@ -483,4 +485,5 @@ def test_entra_mode_with_oidc_settings_reports_sso_enabled(sso: Site) -> None:
         "oidcEnabled": True,
         "localAuthEnabled": False,
         "mfaRequired": False,
+        "groupsEnabled": False,
     }

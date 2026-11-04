@@ -22,6 +22,7 @@ export type IconName =
   | 'trash'
   | 'arrow-right'
   | 'group'
+  | 'users'
   | 'chevron-down'
   | 'chevron-right'
   | 'bell'
@@ -57,6 +58,12 @@ const PATHS: Record<IconName, { d: string; filled?: boolean }[]> = {
   trash: [{ d: 'M2.5 4.5h11M6 4.5V3h4v1.5M4 4.5l.6 8.2a1 1 0 0 0 1 .8h4.8a1 1 0 0 0 1-.8L12 4.5' }],
   'arrow-right': [{ d: 'M2.5 8h11M9.5 4l4 4-4 4' }],
   group: [{ d: 'M2.5 2.5h4v4h-4zM9.5 9.5h4v4h-4zM6.5 4.5h3v5h-3' }],
+  // canvas-2h2w.3: an Entra group of people — two heads and shoulders; distinct from `group`'s
+  // container-boxes metaphor.
+  users: [
+    { d: 'M6 7.5a2.25 2.25 0 1 0 0-4.5 2.25 2.25 0 0 0 0 4.5ZM1.75 13.5c0-2.3 1.9-4 4.25-4s4.25 1.7 4.25 4' },
+    { d: 'M10.5 3.2a2.25 2.25 0 0 1 0 4.1M11.5 9.7c1.6.4 2.75 1.8 2.75 3.8' },
+  ],
   'chevron-down': [{ d: 'M4 6l4 4 4-4' }],
   'chevron-right': [{ d: 'M6 4l4 4-4 4' }],
   bell: [{ d: 'M3.5 11.5h9l-1-1.5V6.5a3.5 3.5 0 0 0-7 0V10l-1 1.5ZM6.5 13.5a1.5 1.5 0 0 0 3 0' }],

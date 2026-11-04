@@ -63,11 +63,20 @@ def _user_role(conn: Connection, user_id: str) -> str | None:
     return None if row is None else str(row.role)
 
 
-#: A user's grants on a set of projects and (optionally) one diagram, in one query.
+#: A user's grants on a set of projects and (optionally) one diagram, in one query. canvas-2h2w.3: a grant reaches
+#: a person directly or through an Entra group they were in at their last sign-in (in both statements here).
 _GRANTS = text(
-    "SELECT subject_type, access_level FROM share_grants WHERE grantee_user_id = :uid AND ("
+    "SELECT subject_type, access_level FROM share_grants"
+    " WHERE (grantee_user_id = :uid"
+    " OR grantee_group_id IN (SELECT group_id FROM user_group_memberships WHERE user_id = :uid)) AND ("
     " (subject_type = 'project' AND subject_id IN :ids) OR (subject_type = 'diagram' AND subject_id = :diagram))"
 ).bindparams(bindparam("ids", expanding=True))
+#: A user's grants on every project.
+_PROJECT_GRANTS = text(
+    "SELECT subject_id, access_level FROM share_grants WHERE subject_type = 'project'"
+    " AND (grantee_user_id = :uid"
+    " OR grantee_group_id IN (SELECT group_id FROM user_group_memberships WHERE user_id = :uid))"
+)
 #: No diagram: a value no subject_id has (ids are UUIDs), so only project grants match.
 _NO_DIAGRAM = "00000000-0000-0000-0000-000000000000"
 
@@ -82,7 +91,8 @@ def _project_level(
     grants = conn.execute(
         _GRANTS, {"uid": user_id, "ids": ids or [_NO_DIAGRAM], "diagram": diagram_id or _NO_DIAGRAM}
     ).all()
-    diagram_grant = next((str(g.access_level) for g in grants if g.subject_type == "diagram"), None)
+    # A person can hold a diagram grant directly and through groups: the highest counts.
+    diagram_grant = highest_access(*(g.access_level for g in grants if g.subject_type == "diagram"))
     if not chain:
         return None, diagram_grant
     owns = any(str(row.owner_id) == user_id for row in chain)
@@ -110,14 +120,13 @@ def project_access_for_user(conn: Connection, user_id: str) -> dict[str, Project
     projects = conn.execute(text("SELECT id, parent_project_id, owner_id FROM projects WHERE deleted_at IS NULL")).all()
     role = _user_role(conn, user_id)
     grants = conn.execute(
-        text(
-            "SELECT subject_id, access_level FROM share_grants"
-            " WHERE subject_type = 'project' AND grantee_user_id = :uid"
-        ),
+        _PROJECT_GRANTS,
         {"uid": user_id},
     ).all()
     by_id = {str(p.id): p for p in projects}
-    grant_for = {str(g.subject_id): str(g.access_level) for g in grants}
+    grant_for: dict[str, str] = {}
+    for g in grants:  # direct and group grants on one project: the highest counts
+        grant_for[str(g.subject_id)] = highest_access(grant_for.get(str(g.subject_id)), g.access_level) or "view"
     result: dict[str, ProjectAccess] = {}
     for project in projects:
         owns = False

@@ -80,6 +80,12 @@ class Settings(BaseSettings):
     oidc_client_auth_setting: str | None = Field(default=None, alias="OIDC_CLIENT_AUTH")
     #: The user-assigned managed identity's client id.
     azure_client_id: str | None = Field(default=None, alias="AZURE_CLIENT_ID")
+    #: canvas-2h2w.3: "true" lets people share with Entra groups assigned to the Canvas app. Needs Entra sign-in,
+    #: the app registration's groupMembershipClaims set to ApplicationGroup, and Graph's Application.Read.All
+    #: (application permission, admin consent) for the group picker (RUNBOOK, "Entra groups").
+    entra_groups_setting: str | None = Field(default=None, alias="ENTRA_GROUPS")
+    #: Microsoft Graph, overridable for a sovereign cloud.
+    graph_api_url: str = Field(default="https://graph.microsoft.com/v1.0", alias="GRAPH_API_URL")
 
     # canvas-1bty.14: this service is the front door. It serves the built web app and answers the paused page
     # while the environment is paused.
@@ -162,6 +168,11 @@ class Settings(BaseSettings):
             redirect_uri=self.oidc_redirect_uri,
             managed_identity_client_id=self.azure_client_id if managed else None,
         )
+
+    @property
+    def entra_groups(self) -> bool:
+        """Sharing with Entra groups is on: asked for, and Entra sign-in is configured."""
+        return self.entra_groups_setting == "true" and self.oidc is not None
 
     @property
     def web_origin_list(self) -> list[str]:

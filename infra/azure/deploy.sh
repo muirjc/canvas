@@ -163,6 +163,19 @@ case "$OIDC_CLIENT_AUTH" in
   *) echo "ERROR: CANVAS_OIDC_CLIENT_AUTH must be secret or managed-identity (got: $OIDC_CLIENT_AUTH)." >&2; exit 1 ;;
 esac
 
+# canvas-2h2w.3: CANVAS_ENTRA_GROUPS=true lets people share with Entra groups assigned to the Canvas app
+# (Entra sign-in only). Cached like the auth mode. The deploy prints the one-time Entra steps it needs.
+ENTRA_GROUPS_FILE="$SECRETS_DIR/entra-groups"
+if [[ -n "${CANVAS_ENTRA_GROUPS:-}" ]]; then
+  printf '%s' "$CANVAS_ENTRA_GROUPS" > "$ENTRA_GROUPS_FILE"
+  chmod 600 "$ENTRA_GROUPS_FILE"
+fi
+ENTRA_GROUPS="$(cat "$ENTRA_GROUPS_FILE" 2>/dev/null || echo false)"
+case "$ENTRA_GROUPS" in
+  true|false) ;;
+  *) echo "ERROR: CANVAS_ENTRA_GROUPS must be true or false (got: $ENTRA_GROUPS)." >&2; exit 1 ;;
+esac
+
 if [[ -n "${ENTRA_CLIENT_SECRET:-}" ]]; then
   printf '%s' "$ENTRA_CLIENT_SECRET" > "$OIDC_CLIENT_SECRET_FILE"
   chmod 600 "$OIDC_CLIENT_SECRET_FILE"
@@ -458,7 +471,7 @@ az deployment sub what-if \
     webOrigin="$WEB_ORIGIN" grantAcrPull="$GRANT_ACR_PULL" \
     entraTenantId="$ENTRA_TENANT_ID" entraClientId="$ENTRA_CLIENT_ID" aiProvider="$AI_PROVIDER" \
     allowedIpRanges="$ALLOWED_IPS_JSON" authMode="$AUTH_MODE" adminEmail="$ADMIN_EMAIL" oidcClientAuth="$OIDC_CLIENT_AUTH" \
-    githubAppId="$GITHUB_APP_ID"
+    entraGroups="$ENTRA_GROUPS" githubAppId="$GITHUB_APP_ID"
 
 echo
 if [[ "$WHAT_IF_ONLY" == true ]]; then
@@ -485,7 +498,7 @@ az deployment sub create \
     webOrigin="$WEB_ORIGIN" grantAcrPull="$GRANT_ACR_PULL" \
     entraTenantId="$ENTRA_TENANT_ID" entraClientId="$ENTRA_CLIENT_ID" aiProvider="$AI_PROVIDER" \
     allowedIpRanges="$ALLOWED_IPS_JSON" authMode="$AUTH_MODE" adminEmail="$ADMIN_EMAIL" oidcClientAuth="$OIDC_CLIENT_AUTH" \
-    githubAppId="$GITHUB_APP_ID" \
+    entraGroups="$ENTRA_GROUPS" githubAppId="$GITHUB_APP_ID" \
   --output table
 
 STORAGE_ACCOUNT="$(az deployment sub show --name "canvas-foundation" --query "properties.outputs.storageAccountName.value" -o tsv)"
@@ -712,6 +725,15 @@ if [[ "$OIDC_CLIENT_AUTH" == managed-identity ]]; then
   echo "One-time, on the app registration (re-run only if canvas-identity is recreated):"
   echo "  az ad app federated-credential create --id \"$ENTRA_CLIENT_ID\" --parameters '{\"name\":\"canvas-api-managed-identity\",\"issuer\":\"https://login.microsoftonline.com/${TENANT_FOR_FIC}/v2.0\",\"subject\":\"${MI_PRINCIPAL_ID}\",\"audiences\":[\"api://AzureADTokenExchange\"]}'"
   echo "Then delete the app registration's old client secret(s) -- nothing uses them any more."
+  echo
+fi
+if [[ "$ENTRA_GROUPS" == true ]]; then
+  # canvas-2h2w.3: the token must carry the person's assigned groups, and the group picker reads Graph.
+  echo "Sharing with Entra groups is on (CANVAS_ENTRA_GROUPS=true). One-time, on the app registration:"
+  echo "  az ad app update --id \"$ENTRA_CLIENT_ID\" --set groupMembershipClaims=ApplicationGroup"
+  echo "  az ad app permission add --id \"$ENTRA_CLIENT_ID\" --api 00000003-0000-0000-c000-000000000000 --api-permissions 9a5d68dd-52b0-4cc2-bd40-abcf44ac3a30=Role"
+  echo "  az ad app permission admin-consent --id \"$ENTRA_CLIENT_ID\"   # needs a tenant admin"
+  echo "Then assign the groups people may share with to the Canvas enterprise application (RUNBOOK, \"Entra groups\")."
   echo
 fi
 echo "App roles (admin/architect/viewer -- apps/api-py/src/canvas_api/auth/roles.py's Role) and user/group"

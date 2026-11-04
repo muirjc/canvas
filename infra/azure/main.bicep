@@ -74,6 +74,9 @@ param githubApiUrl string = 'https://api.github.com'
 @allowed(['secret', 'managed-identity'])
 param oidcClientAuth string = 'secret'
 
+@description('canvas-2h2w.3: share with Entra groups assigned to the Canvas app (Entra sign-in only).')
+param entraGroups bool = false
+
 resource rg 'Microsoft.Resources/resourceGroups@2023-07-01' = {
   name: resourceGroupName
   location: location
@@ -177,6 +180,7 @@ module apiApp 'modules/apiapp.bicep' = {
     entraClientId: entraClientId
     oidcRedirectUri: oidcRedirectUri
     oidcClientAuth: oidcClientAuth
+    entraGroups: entraGroups
     identityClientId: keyVault.outputs.identityClientId
     allowedIpRanges: allowedIpRanges
   }

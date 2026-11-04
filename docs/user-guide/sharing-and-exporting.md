@@ -18,6 +18,21 @@ The owner, members with **Manage**, and admins can:
 
 Everyone else sees the list but can't change it. Each change is recorded in the admin audit log.
 
+## Sharing with a group
+
+If your organisation signs in with Microsoft and your admin has turned group sharing on, the
+**Members** and **Share** pickers also list **groups**, marked with a group icon and "Group". Pick a
+group instead of a person, choose a level and add it. Everyone in the group then gets that access.
+
+- Only groups your admin has made available to Canvas appear. If a group you need is missing, ask
+  your admin.
+- People get the access **the next time they sign in with Microsoft**. If someone leaves the group,
+  they lose it at their next sign-in.
+- A group share doesn't send notifications: Canvas only knows the group members who have already
+  signed in.
+- You can change a group's level or remove it from the list, just as for a person. A group can't
+  become a project's owner.
+
 ## Copying a link
 
 **Copy link** (in the editor, and on a project's page) copies the address of that diagram or

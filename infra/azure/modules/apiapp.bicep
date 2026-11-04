@@ -59,6 +59,9 @@ param oidcRedirectUri string
 @description('canvas-1bty.13: OIDC_CLIENT_AUTH: secret or managed-identity.')
 param oidcClientAuth string = 'secret'
 
+@description('canvas-2h2w.3: ENTRA_GROUPS: share with Entra groups assigned to the Canvas app.')
+param entraGroups bool = false
+
 @description('canvas-1bty.13: the managed identity\'s client id (AZURE_CLIENT_ID), for managed-identity sign-in.')
 param identityClientId string = ''
 
@@ -170,6 +173,7 @@ resource apiApp 'Microsoft.App/containerApps@2025-01-01' = {
             { name: 'OIDC_CLIENT_ID', value: entraClientId }
             { name: 'OIDC_CLIENT_SECRET', secretRef: 'oidc-client-secret' }
             { name: 'OIDC_CLIENT_AUTH', value: oidcClientAuth }
+            { name: 'ENTRA_GROUPS', value: entraGroups ? 'true' : 'false' }
             { name: 'AZURE_CLIENT_ID', value: identityClientId }
             { name: 'OIDC_REDIRECT_URI', value: oidcRedirectUri }
             { name: 'MFA_ENCRYPTION_KEY', secretRef: 'mfa-encryption-key' }

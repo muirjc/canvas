@@ -24,6 +24,16 @@ Canvas.
 With Entra sign-in, the role comes from the person's app role in Entra each time they sign in.
 Change it there.
 
+## Sharing with Entra groups
+
+With Entra sign-in, Canvas can also let people share a project or diagram with a **group**. Whoever
+runs Canvas turns this on (RUNBOOK, "Entra groups"). Only the groups assigned to the Canvas app in
+Entra are offered, so you decide which teams appear: assign a group in the Entra portal (Enterprise
+applications → Canvas → Users and groups), and it shows in the share dialogs within a few minutes.
+
+Group membership is read when someone signs in. Adding someone to a group gives them its access at
+their next sign-in; removing them takes effect at their next sign-in, or when their session ends.
+
 ## Adding someone (Canvas accounts)
 
 1. **Add user**, then enter their email, name and role.
