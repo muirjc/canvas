@@ -35,3 +35,4 @@ export * from './template/types.js';
 export * from './template/markdown-table.js';
 export * from './template/template-registry.js';
 export * from './template/c4-context-template-compiler.js';
+export * from './mermaid-version.js';

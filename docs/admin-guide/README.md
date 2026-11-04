@@ -8,7 +8,7 @@ applies to you too.
 
 | Page | What it's for | Guide |
 |---|---|---|
-| **Overview** | Counts of users, standards and icon libraries (the cards open their pages); **Settings**: show or hide the editor's **Share** button | [Settings](#settings) |
+| **Overview** | Counts of users, standards and icon libraries (the cards open their pages); **Settings**: show or hide the editor's **Share** button; the **Mermaid version** Canvas follows and the one GitHub uses | [Settings](#settings), [Mermaid version](#mermaid-version) |
 | **Users** | Add people, roles, passwords, unlock, two-step verification, deactivate, delete | [Managing people](people.md) |
 | **Standards** | The rules diagrams are checked against, and the diagram types themselves | [Standards and diagram types](standards-and-diagram-types.md) |
 | **Libraries** | The icon and shape libraries in the palette: import your own, retire, choose where they're offered | [Icon and shape libraries](libraries.md) |
@@ -39,3 +39,12 @@ Canvas runs in one of two sign-in modes, chosen when it's deployed:
   approved networks.
 
 Some Users-page actions (passwords, unlock, two-step verification) only exist with Canvas accounts.
+
+## Mermaid version
+
+The **Mermaid version** section of the Overview page shows two versions. The first is the Mermaid
+release whose syntax Canvas reads and writes. The second is the version GitHub draws diagrams with
+(where submitted diagrams are shown), with the date someone last checked it. When GitHub's is a newer
+major version, diagrams still open there but can be laid out or coloured differently. **What Canvas
+doesn't read yet** lists, per diagram type, the Mermaid syntax Canvas doesn't read or draw. To move to
+a newer Mermaid version, see [Moving to a newer Mermaid version](operations.md#moving-to-a-newer-mermaid-version).

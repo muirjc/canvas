@@ -43,6 +43,7 @@ describe('help content', () => {
       ['user/sharing-and-exporting', 'project-members'],
       ['admin/standards-and-diagram-types', 'what-a-standard-says'],
       ['admin/standards-and-diagram-types', 'what-authors-can-add'],
+      ['admin/operations', 'moving-to-a-newer-mermaid-version'],
     ];
     for (const [page, section] of links) {
       const md = findHelpPage(page, true)!.markdown;
