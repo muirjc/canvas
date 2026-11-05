@@ -337,3 +337,36 @@ def test_native_flowchart_matches_the_bridge_on_generated_diagrams(bridge: Diagr
         if found:
             failures.append(f"seed={seed} index={index} differs in {found}:\n{dsl!r}")
     assert not failures, "\n\n".join(failures[:3])
+
+
+HEADERS = [
+    "flowchart TD",
+    "graph lr",
+    "C4Dynamic",
+    "sequenceDiagram",
+    "erDiagram",
+    "classDiagram",
+    "architecture-beta",
+    "stateDiagram-v2",
+    "pie",
+]
+BEFORE_HEADER = [
+    "",
+    "%%{init: {'theme': 'dark'}}%%",
+    "  %%{init: {}}%%  ",
+    "%%{x}%%\n%%{y}%%",
+    "%% a comment",
+    "%%{not closed",
+    "%%{a\u2028b}%%",
+    "%%{}%%x",
+    "\n\n%%{init: {}}%%\n",
+]
+
+
+@pytest.mark.parametrize("header", HEADERS)
+def test_detection_passes_over_config_directives_as_typescript_does(bridge: DiagramBridge, header: str) -> None:
+    """canvas-zayd: a `%%{...}%%` line before the header is passed over; a comment or anything else isn't."""
+    for before in BEFORE_HEADER:
+        for front_matter in ("", "---\ncanvas: {}\n---\n"):
+            dsl = f"{front_matter}{before}\n{header}\n"
+            assert detect_dsl_family(dsl) == bridge.detect(dsl), repr(dsl)

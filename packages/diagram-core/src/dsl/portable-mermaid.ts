@@ -41,8 +41,7 @@ export interface PortableMermaidOptions {
 }
 
 export function toPortableMermaid(dsl: string, options: PortableMermaidOptions = {}): string {
-  // The family is read once, from the text as saved: a rewritten text can start with a `%%{init}%%` line, which
-  // detection doesn't look past.
+  // The family is read once, from the text as saved, and used for both steps.
   const family = detectDslFamily(dsl);
   const portable = withStyleLines(withMermaidForms(dsl, family), family);
   return options.stripFrontMatter ? removeCanvasFrontMatter(portable) : portable;

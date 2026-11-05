@@ -1,0 +1,40 @@
+{
+  "containers": [],
+  "diagramTypeId": "c4-context",
+  "edges": [
+    {
+      "id": "e1",
+      "label": "buys",
+      "sourceId": "u",
+      "targetId": "s"
+    }
+  ],
+  "mermaidConfigDirective": "%%{init: {'theme': 'dark'}}%%",
+  "nodes": [
+    {
+      "c4TypeLabel": "Person",
+      "id": "u",
+      "label": "User",
+      "position": {
+        "x": 40,
+        "y": 40
+      },
+      "role": "person",
+      "shape": "person"
+    },
+    {
+      "c4TypeLabel": "Software System",
+      "id": "s",
+      "label": "Shop",
+      "position": {
+        "x": 220,
+        "y": 40
+      },
+      "role": "system",
+      "shape": "rectangle",
+      "style": {
+        "fillColor": "#123456"
+      }
+    }
+  ]
+}
