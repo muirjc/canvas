@@ -1,0 +1,22 @@
+This package, the EXT2 filesystem utilities, are made available under
+the GNU Public License version 2, with the exception of the lib/ext2fs
+and lib/e2p libraries, which are made available under the GNU Library
+General Public License Version 2, the lib/uuid library which is made
+available under a BSD-style license and the lib/et and lib/ss
+libraries which are made available under an MIT-style license.  Please
+see lib/uuid/COPYING for more details for the license for the files
+comprising the libuuid library, and the source file headers of the
+libet and libss libraries for more information.
+
+lib/et/com_err.c (libcom_err), e2fsprogs v1.42.9:
+
+Copyright 1987, 1988 by MIT Student Information Processing Board.
+
+Permission to use, copy, modify, and distribute this software and
+its documentation for any purpose is hereby granted, provided that
+the names of M.I.T. and the M.I.T. S.I.P.B. not be used in
+advertising or publicity pertaining to distribution of the software
+without specific, written prior permission.  M.I.T. and the
+M.I.T. S.I.P.B. make no representations about the suitability of
+this software for any purpose.  It is provided "as is" without
+express or implied warranty.

@@ -100,6 +100,14 @@ tests are NON-NEGOTIABLE and must exist (and fail) before implementing any diagr
 work — see `.specify/memory/constitution.md` Principle IV.
 
 ## Recent Changes
+- `canvas-c8zl`: **THIRD-PARTY-NOTICES covers the C libraries psycopg-binary bundles** (decided with the user:
+  licence texts, image unchanged). `licenses/psycopg-binary/manifest.json` maps each `psycopg_binary.libs` file
+  stem to its library, exact version and reviewed licence text(s) in that folder: libpq 18.6, OpenSSL 3.5.8,
+  OpenLDAP 2.6.14 (psycopg's own build, tag 3.3.6), libxcrypt 4.5.2 (manylinux2014 image), and the CentOS 7
+  packages from the wheel's auditwheel SBOM (krb5 1.15.1, Cyrus SASL 2.1.26, PCRE 8.32, keyutils 1.5.8, libcom_err
+  1.42.9, libselinux 2.5). scripts/third-party-notices.mjs renders a "C libraries bundled in psycopg-binary"
+  section and fails `licenses:check` when the wheel version differs from the manifest's, or a bundled file and the
+  list disagree -- bumping psycopg means re-reviewing these.
 - `canvas-rfds`: **the AI primer drift guard is back, in Python.** `tests/test_ai_primer_coverage.py` walks every AI
   tool's input schema per family (`list_tools`) and requires each enum value to be named in that family's primer
   (`primer_for`; case-insensitive, hyphens as spaces), so a new shape/arrow/kind can't ship without the model being
