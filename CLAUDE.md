@@ -100,6 +100,14 @@ tests are NON-NEGOTIABLE and must exist (and fail) before implementing any diagr
 work — see `.specify/memory/constitution.md` Principle IV.
 
 ## Recent Changes
+- `canvas-xpuk`: **connector labels in state diagrams no longer pile up.** svg-renderer.ts exports
+  `edgeLabelPlacement(mid, laneShift)` (Python `edge_label_placement`): a lone connector's label is unchanged; one of
+  several between the same two shapes goes on its own outer side (`text-anchor` start/end beside an up-down or
+  slanted line, below/above a level one). A connector to or from a group (composite state) labels the middle of
+  the clipped line, not of the centres. `selfLoopGeometry` keeps a loop at the corner of a big box
+  (`min(w/4, 40)`, `min(h/4, 40)`; boxes up to 160 unchanged). Canvas.tsx uses the same helpers. Still open: two
+  different pairs fanning from one state can meet between them (no general label collision avoidance).
+  Tests: `edge-label-placement.test.ts`; 7 corpus renders changed.
 - `canvas-ltfa`: **a flowchart node's later definition wins, as in Mermaid.** `a --> b` then `b{Question?} --> c`
   left b a plain box labelled `b` (ensureNode only set label/shape on creation). `matchNodeToken` /
   `_match_node_token` now say whether a token was explicit (a shape and text); an explicit mention, on its own line

@@ -77,19 +77,46 @@ export function splitLabelLines(label: string, maxWidth?: number, fontSize?: num
  *  vertically centering the whole stacked block around `y` instead of just the first line.
  *  `maxWidth`, when supplied, word-wraps a too-long label to fit (canvas-3zb) instead of letting
  *  it overflow the node's box. */
-function renderLabelText(x: number, y: number, label: string, fontSize: number, centered: boolean, maxWidth?: number, textColor = '#000000'): string {
+function renderLabelText(
+  x: number,
+  y: number,
+  label: string,
+  fontSize: number,
+  centered: boolean,
+  maxWidth?: number,
+  textColor = '#000000',
+  anchor: LabelAnchor = 'middle',
+): string {
   const fillAttr = ` fill="${textColor}"`;
   const lines = splitLabelLines(label, maxWidth, fontSize);
   if (lines.length === 1) {
     const baseline = centered ? ' dominant-baseline="middle"' : '';
-    return `<text x="${x}" y="${y}"${baseline} text-anchor="middle" font-size="${fontSize}" font-family='${FONT_FAMILY}'${fillAttr}>${escapeXml(label)}</text>`;
+    return `<text x="${x}" y="${y}"${baseline} text-anchor="${anchor}" font-size="${fontSize}" font-family='${FONT_FAMILY}'${fillAttr}>${escapeXml(label)}</text>`;
   }
   const lineHeightEm = 1.2;
   const firstDy = centered ? (-(lines.length - 1) * lineHeightEm) / 2 : 0;
   const tspans = lines
     .map((line, i) => `<tspan x="${x}" dy="${i === 0 ? firstDy : lineHeightEm}em">${escapeXml(line)}</tspan>`)
     .join('');
-  return `<text x="${x}" y="${y}" text-anchor="middle" font-size="${fontSize}" font-family='${FONT_FAMILY}'${fillAttr}>${tspans}</text>`;
+  return `<text x="${x}" y="${y}" text-anchor="${anchor}" font-size="${fontSize}" font-family='${FONT_FAMILY}'${fillAttr}>${tspans}</text>`;
+}
+
+export type LabelAnchor = 'start' | 'middle' | 'end';
+
+/**
+ * canvas-xpuk: where a connector's label goes, from the point it labels and the connector's lane shift (canvas-y2yf).
+ * A connector alone keeps its label centred just above that point. One of several between the same two shapes puts
+ * its label on its own outer side, aligned away from the others -- centred labels on lines 18px apart overlapped
+ * (`submit` / `withdrawn`). Exported so the canvas places labels the same way (SC-004).
+ */
+export function edgeLabelPlacement(mid: Point, shift: Point): { x: number; y: number; anchor: LabelAnchor } {
+  const length = Math.hypot(shift.x, shift.y);
+  if (length === 0) return { x: mid.x, y: mid.y - 4, anchor: 'middle' };
+  const nx = shift.x / length;
+  const ny = shift.y / length;
+  // A line that runs up and down (or slanted) gets its label beside it; one that runs across, above or below it.
+  if (Math.abs(nx) >= 0.5) return { x: mid.x + nx * 6, y: mid.y + ny * 6 + 4, anchor: nx > 0 ? 'start' : 'end' };
+  return { x: mid.x, y: ny > 0 ? mid.y + 16 : mid.y - 8, anchor: 'middle' };
 }
 
 // canvas-23t.5: an icon node with no explicit size used to fall back to DEFAULT_NODE_SIZE — a box
@@ -1339,10 +1366,11 @@ export function laneShift(edge: DiagramEdge, lane: { index: number; count: numbe
  *  little larger), and where its label goes. Shared with the canvas. */
 export function selfLoopGeometry(position: Point, size: Size, index: number): { path: string; labelX: number; labelY: number } {
   const reach = 32 + index * PARALLEL_EDGE_GAP;
-  const startX = position.x + (size.width * 3) / 4;
+  // canvas-xpuk: on a big box (a composite state) the loop stays at the corner instead of sweeping across it.
+  const startX = position.x + size.width - Math.min(size.width / 4, 40);
   const startY = position.y;
   const endX = position.x + size.width;
-  const endY = position.y + size.height / 4;
+  const endY = position.y + Math.min(size.height / 4, 40);
   const path = `M ${startX} ${startY} C ${startX} ${startY - reach}, ${endX + reach} ${endY}, ${endX} ${endY}`;
   return { path, labelX: endX + reach / 2 + 4, labelY: startY - reach / 2 - 4 };
 }
@@ -1400,7 +1428,14 @@ function renderEdge(
       : clipEdgeEndpoint(targetBox.center, targetBox.size, targetBox.shape, sourceBox.center.x, sourceBox.center.y),
     shift,
   );
-  const label = edge.label ? renderLabelText(midX, midY - 4, edge.label, 12, false) : '';
+  // canvas-xpuk: a connector to or from a group (a composite state) labels the middle of the line as drawn: the
+  // group's centre is far from its edge, so the centres' midpoint left the label away from the line.
+  const touchesGroup = !nodesById.has(edge.sourceId) || !nodesById.has(edge.targetId);
+  const labelPoint = edgeLabelPlacement(
+    touchesGroup ? { x: (clippedFrom.x + clippedTo.x) / 2, y: (clippedFrom.y + clippedTo.y) / 2 } : { x: midX, y: midY },
+    shift,
+  );
+  const label = edge.label ? renderLabelText(labelPoint.x, labelPoint.y, edge.label, 12, false, undefined, undefined, labelPoint.anchor) : '';
   const technology = edgeTechnologyLayout(edge, midX, midY);
   const technologyMarkup = technology
     ? `<text x="${technology.x}" y="${technology.y}" text-anchor="middle" font-size="${technology.fontSize}" font-family='${FONT_FAMILY}' fill="#555555">${escapeXml(technology.text)}</text>`
