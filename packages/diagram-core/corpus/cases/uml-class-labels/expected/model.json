@@ -1,0 +1,77 @@
+{
+  "containers": [],
+  "diagramTypeId": "uml",
+  "edges": [
+    {
+      "id": "e1",
+      "sourceId": "Animal",
+      "targetId": "Car",
+      "umlRelationKind": "association"
+    },
+    {
+      "id": "e2",
+      "sourceId": "Car",
+      "targetId": "Square",
+      "umlRelationKind": "inheritance"
+    }
+  ],
+  "nodes": [
+    {
+      "id": "Animal",
+      "label": "Animal with a label",
+      "position": {
+        "x": 40,
+        "y": 40
+      },
+      "role": "class",
+      "shape": "rectangle"
+    },
+    {
+      "id": "Car",
+      "label": "Car with *! symbols",
+      "members": [
+        {
+          "kind": "attribute",
+          "name": "wheels",
+          "type": "int",
+          "visibility": "+"
+        },
+        {
+          "kind": "method",
+          "name": "drive",
+          "params": "",
+          "returnType": "void",
+          "visibility": "+"
+        }
+      ],
+      "position": {
+        "x": 220,
+        "y": 40
+      },
+      "role": "class",
+      "shape": "rectangle"
+    },
+    {
+      "id": "Square",
+      "label": "A square",
+      "position": {
+        "x": 424.96000000000004,
+        "y": 40
+      },
+      "role": "class",
+      "shape": "rectangle",
+      "umlGenericParameter": "Shape",
+      "umlStereotype": "interface"
+    },
+    {
+      "id": "Plain",
+      "label": "Plain",
+      "position": {
+        "x": 604.96,
+        "y": 40
+      },
+      "role": "class",
+      "shape": "rectangle"
+    }
+  ]
+}

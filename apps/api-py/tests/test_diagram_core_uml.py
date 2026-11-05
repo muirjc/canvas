@@ -146,6 +146,8 @@ def _line(rnd: random.Random) -> list[str]:
     cid = rnd.choice(IDS)
     generic = rnd.choice(["", "", "~T~", "~Key, Value~"])
     stereo = rnd.choice(["", "", " <<interface>>", " <<service>>"])
+    # canvas-8wxq: class display labels.
+    generic += rnd.choice(["", "", '["A label"]', '["x * y"]', '[""]'])
     if r < 0.25:
         return [_rel(rnd)]
     if r < 0.35:

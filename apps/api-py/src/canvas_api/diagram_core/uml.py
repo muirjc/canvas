@@ -34,8 +34,9 @@ DOT = "[^\\n\\r\\u2028\\u2029]"  # JavaScript's .
 W = "[A-Za-z0-9_]"  # JavaScript's \w
 ID = "[A-Za-z0-9_]+"
 
-CLASS_BLOCK_START = re.compile(f"^class{S}+({ID})(?:~([^~]+)~)?(?:{S}+<<({W}+)>>)?{S}*\\{{\\Z")
-CLASS_DECL = re.compile(f"^class{S}+({ID})(?:~([^~]+)~)?(?:{S}+<<({W}+)>>)?\\Z")
+# canvas-8wxq: `class Animal["Animal with a label"]`, a display label (uml.ts).
+CLASS_BLOCK_START = re.compile(f'^class{S}+({ID})(?:~([^~]+)~)?(?:\\["([^"]*)"\\])?(?:{S}+<<({W}+)>>)?{S}*\\{{\\Z')
+CLASS_DECL = re.compile(f'^class{S}+({ID})(?:~([^~]+)~)?(?:\\["([^"]*)"\\])?(?:{S}+<<({W}+)>>)?\\Z')
 STANDALONE_ANNOTATION = re.compile(f"^<<({W}+)>>{S}+({ID})\\Z")
 BODY_ANNOTATION = re.compile(f"^<<({W}+)>>\\Z")
 BLOCK_END = re.compile("^\\}\\Z")
@@ -86,6 +87,7 @@ CLASSDEF_DIRECTIVE = re.compile(f"^classDef{S}+({ID}){S}+({DOT}+?);?\\Z")
 CLASS_ASSIGN_DIRECTIVE = re.compile(f"^class{S}+((?:{ID})(?:{S}*,{S}*{ID})*){S}+({ID}){S}*;?\\Z")
 CLASS_SHORTHAND = re.compile(f"^({ID}):::({ID}(?:{S}*,{S}*{ID})*)\\Z")
 
+_LINE_BREAK = re.compile("[\\r\\n]")
 _LINE_SPLIT = re.compile(r"\r?\n")
 _SPACES = re.compile(f"{S}+")
 _VISIBILITY = re.compile(r"^[+\-#~]")
@@ -365,11 +367,15 @@ def parse_uml(dsl: str) -> dict[str, Any]:
             ensure_class(m.group(2), m.group(1), current_namespace_id())
             continue
         if m := CLASS_BLOCK_START.match(line):
-            ensure_class(m.group(1), m.group(3), current_namespace_id(), m.group(2))
+            ensure_class(m.group(1), m.group(4), current_namespace_id(), m.group(2))
+            if m.group(3) is not None:
+                nodes_by_id[m.group(1)]["label"] = m.group(3)
             inside_class_body = (m.group(1), i + 1, raw_line)
             continue
         if m := CLASS_DECL.match(line):
-            ensure_class(m.group(1), m.group(3), current_namespace_id(), m.group(2))
+            ensure_class(m.group(1), m.group(4), current_namespace_id(), m.group(2))
+            if m.group(3) is not None:
+                nodes_by_id[m.group(1)]["label"] = m.group(3)
             continue
 
         if m := STYLE_DIRECTIVE.match(line):
@@ -523,11 +529,16 @@ def serialize_uml(model: dict[str, Any]) -> str:
     def class_lines(node: dict[str, Any]) -> list[str]:
         generic_part = f"~{node['umlGenericParameter']}~" if node.get("umlGenericParameter") else ""
         annotation_part = f" <<{node['umlStereotype']}>>" if node.get("umlStereotype") else ""
+        label: Any = node.get("label")
+        keep_label = isinstance(label, str) and bool(label) and label != node["id"]
+        if keep_label and ('"' in label or _LINE_BREAK.search(label)):
+            keep_label = False
+        label_part = f'["{label}"]' if keep_label else ""
         members = node.get("members")
         if not members:
-            return [f"class {node['id']}{generic_part}{annotation_part}"]
+            return [f"class {node['id']}{generic_part}{label_part}{annotation_part}"]
         return [
-            f"class {node['id']}{generic_part}{annotation_part} {{",
+            f"class {node['id']}{generic_part}{label_part}{annotation_part} {{",
             *(_serialize_member_line(member) for member in members),
             "}",
         ]

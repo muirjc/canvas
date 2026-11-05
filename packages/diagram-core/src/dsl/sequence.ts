@@ -1,9 +1,12 @@
 import {
   createEmptyDiagramModel,
+  isAllowedLinkHref,
   type DiagramContainer,
+  type DiagramEdge,
   type DiagramModel,
   type DiagramNode,
   type NodeStyle,
+  type SequenceHalfArrow,
 } from '../model/diagram-model.js';
 import { splitFrontMatter, joinFrontMatter, stripTrailingComment, type CanvasFrontMatter, NO_ENTRIES } from './front-matter.js';
 import type { ParseError, ParseResult } from './types.js';
@@ -20,9 +23,37 @@ const PARTICIPANT_PATTERN = new RegExp(`^(participant|actor)\\s+(${ID})(?:\\s+as
 // TARGET, '-' deactivates the SOURCE (confirmed against Mermaid's own sequenceDiagram.jison
 // grammar: the '+' rule's activeStart targets actor2/$4, the target; the '-' rule's activeEnd
 // targets actor/$1, the SOURCE -- an asymmetry easy to get backwards by eye alone).
-const ARROW_TOKEN = String.raw`<<-->>|<<->>|-->>|->>|--x|-x|--\)|-\)|-->|->`;
-const MESSAGE_PATTERN = new RegExp(`^(${ID})\\s*(${ARROW_TOKEN})\\s*([+-])?\\s*(${ID})\\s*:\\s*(.+)$`);
-const ARROW_TOKEN_TO_STYLE: Record<string, { lineStyle: 'solid' | 'dotted'; arrow: 'none' | 'target' | 'both' | 'cross' | 'open' }> = {
+// canvas-8wxq: Mermaid 11.12's half arrows -- `-|\` top half, `-|/` bottom half, `/|-` and `\|-` the same at the
+// source (reverse), `-\\` `-//` `//-` `\\-` the single-barb ("stick") forms; `--` for dotted. Longer tokens first.
+const HALF_ARROW_TOKENS: Record<string, SequenceHalfArrow> = {
+  '-|\\': 'half-top',
+  '-|/': 'half-bottom',
+  '/|-': 'half-top-reverse',
+  '\\|-': 'half-bottom-reverse',
+  '-\\\\': 'stick-top',
+  '-//': 'stick-bottom',
+  '//-': 'stick-top-reverse',
+  '\\\\-': 'stick-bottom-reverse',
+};
+const regexEscape = (token: string) => token.replace(/[\\^$.*+?()[\]{}|/-]/g, '\\$&');
+const HALF_ARROW_ALTERNATIVES = Object.keys(HALF_ARROW_TOKENS).flatMap((token) => {
+  // The dotted form doubles the dash: `--|\` from `-|\`, `/|--` from `/|-`.
+  const dotted = token.startsWith('-') ? `-${token}` : `${token}-`;
+  return [regexEscape(dotted), regexEscape(token)];
+});
+const ARROW_TOKEN = [...HALF_ARROW_ALTERNATIVES, String.raw`<<-->>|<<->>|-->>|->>|--x|-x|--\)|-\)|-->|->`].join('|');
+// canvas-8wxq: `()` on either side of the arrow is a central connection (`A()->>B`, `A->>()B`).
+const MESSAGE_PATTERN = new RegExp(`^(${ID})\\s*(\\(\\))?(${ARROW_TOKEN})(\\(\\))?\\s*([+-])?\\s*(${ID})\\s*:\\s*(.+)$`);
+// canvas-8wxq: participant link menus. `link A: Dashboard @ https://...`; `links A: {"Dashboard": "https://..."}`.
+const LINK_PATTERN = new RegExp(`^link\\s+(${ID})\\s*:\\s*(.+?)\\s*@\\s*(\\S+)$`);
+const LINKS_PATTERN = new RegExp(`^links\\s+(${ID})\\s*:\\s*(\\{.*\\})$`);
+const ARROW_TOKEN_TO_STYLE: Record<string, { lineStyle: 'solid' | 'dotted'; arrow: NonNullable<DiagramEdge['arrow']> }> = {
+  ...Object.fromEntries(
+    Object.entries(HALF_ARROW_TOKENS).flatMap(([token, arrow]) => [
+      [token, { lineStyle: 'solid' as const, arrow }],
+      [token.startsWith('-') ? `-${token}` : `${token}-`, { lineStyle: 'dotted' as const, arrow }],
+    ]),
+  ),
   '<<-->>': { lineStyle: 'dotted', arrow: 'both' },
   '<<->>': { lineStyle: 'solid', arrow: 'both' },
   '-->>': { lineStyle: 'dotted', arrow: 'target' },
@@ -119,9 +150,11 @@ export function parseSequence(dsl: string): ParseResult {
     label?: string;
     sequenceOrder: number;
     containerId?: string;
-    arrow?: 'none' | 'target' | 'both' | 'cross' | 'open';
+    arrow?: DiagramEdge['arrow'];
     lineStyle?: 'solid' | 'dotted';
     style?: NodeStyle;
+    centralSource?: boolean;
+    centralTarget?: boolean;
   }[] = [];
   let headerSeen = false;
   let edgeCounter = 0;
@@ -366,9 +399,47 @@ export function parseSequence(dsl: string): ParseResult {
       continue;
     }
 
+    const linkMatch = line.match(LINK_PATTERN);
+    if (linkMatch) {
+      const [, id, label, href] = linkMatch;
+      if (!isAllowedLinkHref(href)) {
+        errors.push({ line: i + 1, content: rawLine, message: `Link "${href}" is not allowed: only http(s) URLs or relative paths.` });
+        continue;
+      }
+      ensureParticipant(id);
+      const node = nodesById.get(id)!;
+      node.sequenceLinks = [...(node.sequenceLinks ?? []), { label, href }];
+      continue;
+    }
+
+    const linksMatch = line.match(LINKS_PATTERN);
+    if (linksMatch) {
+      const [, id, json] = linksMatch;
+      let entries: [string, unknown][] | undefined;
+      try {
+        const parsed: unknown = JSON.parse(json);
+        if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) entries = Object.entries(parsed);
+      } catch {
+        entries = undefined;
+      }
+      if (!entries || entries.some(([, href]) => typeof href !== 'string')) {
+        errors.push({ line: i + 1, content: rawLine, message: 'links needs a JSON object of "label": "url" pairs.' });
+        continue;
+      }
+      const refused = entries.find(([, href]) => !isAllowedLinkHref(href as string));
+      if (refused) {
+        errors.push({ line: i + 1, content: rawLine, message: `Link "${refused[1] as string}" is not allowed: only http(s) URLs or relative paths.` });
+        continue;
+      }
+      ensureParticipant(id);
+      const node = nodesById.get(id)!;
+      node.sequenceLinks = [...(node.sequenceLinks ?? []), ...entries.map(([label, href]) => ({ label, href: href as string }))];
+      continue;
+    }
+
     const messageMatch = line.match(MESSAGE_PATTERN);
     if (messageMatch) {
-      const [, source, arrowToken, activationSign, target, label] = messageMatch;
+      const [, source, centralSource, arrowToken, centralTarget, activationSign, target, label] = messageMatch;
       ensureParticipant(source);
       ensureParticipant(target);
       edgeCounter += 1;
@@ -383,6 +454,8 @@ export function parseSequence(dsl: string): ParseResult {
         containerId: currentContainerId(),
         arrow: style.arrow,
         lineStyle: style.lineStyle,
+        ...(centralSource ? { centralSource: true } : {}),
+        ...(centralTarget ? { centralTarget: true } : {}),
       });
       // '+' activates the arrow's TARGET; '-' deactivates the arrow's SOURCE (see
       // MESSAGE_PATTERN's own comment for why these aren't symmetric) — re-serializes as the
@@ -447,6 +520,8 @@ const ARROW_STYLE_TO_TOKEN: Record<string, string> = {
   'open|solid': '-)',
   'none|dotted': '-->',
   'none|solid': '->',
+  // canvas-8wxq: the half arrows, both ways round.
+  ...Object.fromEntries(Object.entries(ARROW_TOKEN_TO_STYLE).map(([token, style]) => [`${style.arrow}|${style.lineStyle}`, token]).filter(([key]) => key.includes('half') || key.includes('stick'))),
 };
 
 function serializeContainer(container: DiagramContainer, model: DiagramModel, indent: string): string[] {
@@ -489,7 +564,11 @@ function emitScope(containerId: string | undefined, model: DiagramModel, indent:
   for (const edge of model.edges) {
     if (edge.containerId === containerId) {
       const token = ARROW_STYLE_TO_TOKEN[`${edge.arrow ?? 'target'}|${edge.lineStyle ?? 'solid'}`] ?? '->>';
-      items.push({ order: edge.sequenceOrder ?? 0, lines: [`${indent}${edge.sourceId}${token}${edge.targetId}: ${edge.label ?? ''}`] });
+      const central = (on: boolean | undefined) => (on ? '()' : '');
+      items.push({
+        order: edge.sequenceOrder ?? 0,
+        lines: [`${indent}${edge.sourceId}${central(edge.centralSource)}${token}${central(edge.centralTarget)}${edge.targetId}: ${edge.label ?? ''}`],
+      });
     }
   }
   for (const container of model.containers) {
@@ -549,6 +628,12 @@ export function serializeSequence(model: DiagramModel): string {
     if (boxedNodeIds.has(node.id) || createdNodeIds.has(node.id)) continue;
     const alias = node.label !== node.id ? ` as ${node.label}` : '';
     lines.push(`${node.role === 'actor' ? 'actor' : 'participant'} ${node.id}${alias}`);
+  }
+  // canvas-8wxq: participant link menus, one `link` line per entry (a `links` JSON line reads back the same).
+  for (const node of model.nodes) {
+    for (const link of node.sequenceLinks ?? []) {
+      if (isAllowedLinkHref(link.href) && !/\s/.test(link.href) && !/[\r\n]/.test(link.label)) lines.push(`link ${node.id}: ${link.label} @ ${link.href}`);
+    }
   }
   lines.push(...emitScope(undefined, model, ''));
 

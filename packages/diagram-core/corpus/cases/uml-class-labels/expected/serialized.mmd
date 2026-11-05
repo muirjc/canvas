@@ -1,0 +1,28 @@
+---
+canvas:
+  positions:
+    Animal:
+      x: 40
+      y: 40
+    Car:
+      x: 220
+      y: 40
+    Square:
+      x: 424.96000000000004
+      y: 40
+    Plain:
+      x: 604.96
+      y: 40
+  styles: {}
+  containers: {}
+---
+classDiagram
+class Animal["Animal with a label"]
+class Car["Car with *! symbols"] {
+  +int wheels
+  +drive() void
+}
+class Square~Shape~["A square"] <<interface>>
+class Plain
+Animal --> Car
+Car <|-- Square

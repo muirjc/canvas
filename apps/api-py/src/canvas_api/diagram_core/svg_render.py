@@ -1275,6 +1275,47 @@ def _render_sequence_lifeline(node: Node, layout: dict[str, Any], resolve_icon: 
     return line + _render_node(positioned, resolve_icon)
 
 
+_HALF_ARROW = re.compile(r"^(half|stick)-(top|bottom)(-reverse)?\Z")
+
+
+def sequence_message_glyphs(edge: Edge, start: Point, start_dir: int, end: Point, end_dir: int) -> list[dict[str, Any]]:
+    """canvas-8wxq (svg-renderer.ts sequenceMessageGlyphs): a half arrowhead or barb, and central-connection circles."""
+    glyphs: list[dict[str, Any]] = []
+    arrow = edge.get("arrow")
+    match = _HALF_ARROW.match(arrow) if isinstance(arrow, str) else None
+    if match:
+        form, side, reverse = match.groups()
+        tip = start if reverse else end
+        direction = start_dir if reverse else end_dir
+        back = tip["x"] - direction * 9
+        barb = {"x": back, "y": tip["y"] + (-5 if side == "top" else 5)}
+        if form == "half":
+            glyphs.append({"kind": "half", "points": [tip, barb, {"x": back, "y": tip["y"]}]})
+        else:
+            glyphs.append({"kind": "stick", "from": tip, "to": barb})
+    if js_truthy(edge.get("centralSource")):
+        glyphs.append({"kind": "central", "cx": start["x"], "cy": start["y"], "r": 4})
+    if js_truthy(edge.get("centralTarget")):
+        glyphs.append({"kind": "central", "cx": end["x"], "cy": end["y"], "r": 4})
+    return glyphs
+
+
+def _render_sequence_glyph(glyph: dict[str, Any], stroke: str) -> str:
+    if glyph["kind"] == "half":
+        points = " ".join(f"{_t(p['x'])},{_t(p['y'])}" for p in glyph["points"])
+        return f'<polygon points="{points}" fill="{stroke}" stroke="{stroke}" />'
+    if glyph["kind"] == "stick":
+        start, end = glyph["from"], glyph["to"]
+        return (
+            f'<line x1="{_t(start["x"])}" y1="{_t(start["y"])}" x2="{_t(end["x"])}" y2="{_t(end["y"])}" '
+            f'stroke="{stroke}" />'
+        )
+    return (
+        f'<circle cx="{_t(glyph["cx"])}" cy="{_t(glyph["cy"])}" r="{_t(glyph["r"])}" fill="#ffffff" '
+        f'stroke="{stroke}" />'
+    )
+
+
 def _render_sequence_message(edge: Edge, layout: dict[str, Any]) -> str:
     message = layout["messages"].get(edge["id"])
     source = layout["lifelines"].get(edge.get("sourceId"))
@@ -1285,7 +1326,8 @@ def _render_sequence_message(edge: Edge, layout: dict[str, Any]) -> str:
     stroke = "#333333" if stroke_color is None else _t(stroke_color)
     stroke_width, stroke_dasharray = _stroke_attributes(edge, False)
     arrow = edge.get("arrow")
-    marker_end = "" if arrow == "none" else ' marker-end="url(#arrowhead)"'
+    is_half = isinstance(arrow, str) and _HALF_ARROW.match(arrow) is not None
+    marker_end = "" if arrow == "none" or is_half else ' marker-end="url(#arrowhead)"'
     marker_start = ' marker-start="url(#arrowhead)"' if arrow == "both" else ""
     y = message["y"]
     is_self = js_truthy(message.get("isSelfMessage"))
@@ -1301,7 +1343,15 @@ def _render_sequence_message(edge: Edge, layout: dict[str, Any]) -> str:
             f'<line x1="{_t(source["x"])}" y1="{_t(y)}" x2="{_t(target["x"])}" y2="{_t(y)}" stroke="{stroke}"'
             f"{stroke_width}{stroke_dasharray}{marker_start}{marker_end} />"
         )
-    return f'<g data-edge-id="{escape_xml(edge["id"])}">{line}{label}</g>'
+    if is_self:
+        glyphs = sequence_message_glyphs(edge, {"x": source["x"], "y": y}, -1, {"x": source["x"], "y": y + 20}, -1)
+    else:
+        rightward = target["x"] >= source["x"]
+        glyphs = sequence_message_glyphs(
+            edge, {"x": source["x"], "y": y}, -1 if rightward else 1, {"x": target["x"], "y": y}, 1 if rightward else -1
+        )
+    glyph_markup = "".join(_render_sequence_glyph(glyph, stroke) for glyph in glyphs)
+    return f'<g data-edge-id="{escape_xml(edge["id"])}">{line}{glyph_markup}{label}</g>'
 
 
 def _render_sequence_activation(container: Container, layout: dict[str, Any]) -> str:

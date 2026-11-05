@@ -16,7 +16,7 @@ from typing import Any
 
 import pytest
 
-from canvas_api.diagram_core import canonical_json
+from canvas_api.diagram_core import DiagramCore, canonical_json
 from canvas_api.diagram_core.detect import detect_dsl_family
 from canvas_api.diagram_core.jsvalues import to_js_json
 from canvas_api.diagram_core.jsyaml import YamlError
@@ -96,6 +96,8 @@ def test_an_explicit_autonumber_without_numbers_round_trips() -> None:
 IDS = ["A", "B", "C", "Alice", "bob_2", "_x", "10", "constructor", "toString", "__proto__"]
 LABELS = ["hi", "two words", "with: colon", "émoji 🎨", "a<br/>b", "  spaced  ", "x %% y", "1", "end", "#hash"]
 ARROWS = ["->", "-->", "->>", "-->>", "-x", "--x", "-)", "--)", "<<->>", "<<-->>", "=>", "-->>>"]
+#: canvas-8wxq: Mermaid 11.12 half arrows (solid and dotted).
+ARROWS += ["-|\\", "--|\\", "-|/", "/|-", "/|--", "\\|-", "-\\\\", "--//", "//-", "\\\\--", "-|"]
 BLOCKS = ["loop", "alt", "opt", "par", "critical", "break", "rect"]
 
 
@@ -108,7 +110,20 @@ def _line(rnd: random.Random, in_block: str | None) -> str:
     sp = rnd.choice(["", " ", "  "])
     if r < 0.35:
         sign = rnd.choice(["", "", "+", "-", " + "])
-        return f"{_id(rnd)}{sp}{rnd.choice(ARROWS)}{sign}{sp}{_id(rnd)}{sp}:{sp}{rnd.choice(LABELS)}"
+        central = rnd.choice(["", "", "", "()"]), rnd.choice(["", "", "", "()"])
+        arrow = f"{central[0]}{rnd.choice(ARROWS)}{central[1]}"
+        return f"{_id(rnd)}{sp}{arrow}{sign}{sp}{_id(rnd)}{sp}:{sp}{rnd.choice(LABELS)}"
+    if r < 0.4:
+        # canvas-8wxq: participant link menus, safe and unsafe.
+        url = rnd.choice(["https://x.org/a", "/docs", "javascript:alert(1)", "https://x.org/a b"])
+        return rnd.choice(
+            [
+                f"link {_id(rnd)}{sp}:{sp}{rnd.choice(LABELS)} @ {url}",
+                f'links {_id(rnd)}: {{"A": "{url}", "2": "/two", "1": "https://one.org"}}',
+                f"links {_id(rnd)}: [1]",
+                f'links {_id(rnd)}: {{"n": NaN}}',
+            ]
+        )
     if r < 0.45:
         alias = rnd.choice(["", f" as {rnd.choice(LABELS)}", " as", " AS x"])
         return f"{rnd.choice(['participant', 'actor', 'Participant'])} {_id(rnd)}{alias}"
@@ -196,6 +211,9 @@ def _differences(bridge: DiagramBridge, dsl: str) -> list[str]:
         model = json.loads(json.dumps(parsed["model"]))
         if serialize_sequence(model) != bridge.serialize("sequence", model):
             found.append("serialize")
+        # canvas-8wxq: the drawing too (half arrows and central connections draw their own glyphs).
+        if DiagramCore().render_svg(model) != bridge.render_svg(model):
+            found.append("render")
     return found
 
 

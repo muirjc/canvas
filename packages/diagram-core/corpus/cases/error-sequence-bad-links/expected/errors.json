@@ -1,0 +1,19 @@
+{
+  "errors": [
+    {
+      "content": "  links A: {\"Bad\": \"javascript:alert(1)\"}",
+      "line": 2,
+      "message": "Link \"javascript:alert(1)\" is not allowed: only http(s) URLs or relative paths."
+    },
+    {
+      "content": "  links B: [1, 2]",
+      "line": 3,
+      "message": "Could not interpret line as a participant, message, or directive: \"links B: [1, 2]\""
+    },
+    {
+      "content": "  link C: Evil @ data:text/html,x",
+      "line": 4,
+      "message": "Link \"data:text/html,x\" is not allowed: only http(s) URLs or relative paths."
+    }
+  ]
+}

@@ -782,23 +782,18 @@ describe('sequence parser: actor keyword, arrow tokens, activation, rect/box, au
     });
   });
 
-  // jmuir-dtu.4.1 implemented create/destroy (see the "create/destroy participants" describe
-  // block below) -- superseding jmuir-dtu.4's own "still out of scope" guards for them. Only the
-  // half-arrow tokens remain genuinely deferred (see jmuir-dtu.4.1's own decision notes: too
-  // new/niche relative to their implementation cost, a closed decision, not a further-deferred
-  // one) and actor link/links menu directives (deferred pending flowchart's own not-yet-
-  // implemented click/href security design, jmuir-dzd grouping G).
-  describe('out-of-scope constructs still fail to parse', () => {
-    it('a half-arrow token (e.g. "-|\\") is not silently accepted', () => {
-      const dsl = 'sequenceDiagram\nparticipant A\nparticipant B\nA-|\\B: msg\n';
-      const result = parseSequence(dsl);
-      expect(isParseSuccess(result)).toBe(false);
+  // canvas-8wxq (Mermaid 12): half arrows and link menus, deferred by jmuir-dtu.4.1, are read now (link menus
+  // with flowchart's http(s)-only link check). These used to assert that both failed to parse.
+  describe('Mermaid 11.12+ constructs (canvas-8wxq)', () => {
+    it('a half-arrow token (e.g. "-|\\") is a half arrow', () => {
+      const result = parseSequence('sequenceDiagram\nparticipant A\nparticipant B\nA-|\\B: msg\n');
+      expect(isParseSuccess(result) && result.model.edges[0].arrow).toBe('half-top');
     });
 
-    it('an actor "link" directive is not silently accepted', () => {
-      const dsl = 'sequenceDiagram\nactor A\nlink A: Dashboard @ https://example.com\n';
-      const result = parseSequence(dsl);
-      expect(isParseSuccess(result)).toBe(false);
+    it('an actor "link" directive is kept, and an unsafe link refused', () => {
+      const result = parseSequence('sequenceDiagram\nactor A\nlink A: Dashboard @ https://example.com\n');
+      expect(isParseSuccess(result) && result.model.nodes[0].sequenceLinks).toEqual([{ label: 'Dashboard', href: 'https://example.com' }]);
+      expect(isParseSuccess(parseSequence('sequenceDiagram\nactor A\nlink A: Bad @ javascript:alert(1)\n'))).toBe(false);
     });
   });
 });

@@ -35,12 +35,12 @@ export const MERMAID_SUPPORT_NOTES: readonly MermaidSupportNote[] = [
   {
     family: 'sequence',
     label: 'Sequence',
-    notes: ['Not read: half arrows (-|\\ and similar), central connections (->>()), and participant link/links menus.'],
+    notes: ['Read but not drawn: participant link menus (link / links); they are kept and exported.'],
   },
   {
     family: 'uml',
     label: 'Class (UML)',
-    notes: ['Not read: class display labels (class A["Label"]).'],
+    notes: [],
   },
   {
     family: 'erd',
