@@ -24,6 +24,7 @@ from canvas_api.diagram_core.architecture_layout import compute_architecture_lay
 from canvas_api.diagram_core.detect import detect_dsl_family
 from canvas_api.diagram_core.jsvalues import to_js_json
 from canvas_api.diagram_core.jsyaml import YamlError
+from canvas_api.diagram_core.portable import to_portable_mermaid
 from tests.diagram_bridge import DiagramBridge
 
 CORPUS = Path(__file__).resolve().parents[3] / "packages" / "diagram-core" / "corpus"
@@ -167,7 +168,10 @@ def _diagram(rnd: random.Random) -> str:
         ids = rnd.sample(IDS, rnd.randint(1, 4))
         canvas: dict[str, Any] = {}
         if rnd.random() < 0.7:
-            canvas["positions"] = {i: {"x": rnd.randint(0, 900), "y": rnd.choice([40, 40.5])} for i in ids}
+            # Positions on a small grid, so two shapes often sit level, in line or diagonal (side ties).
+            canvas["positions"] = {
+                i: {"x": rnd.choice([0, 100, 200, 300.5]), "y": rnd.choice([40, 140, 240, 40.5])} for i in ids
+            }
         if rnd.random() < 0.4:
             canvas["containers"] = {rnd.choice(GROUPS): {"x": 10, "y": 20, "width": 300, "height": 200}}
         if rnd.random() < 0.4:
@@ -219,6 +223,11 @@ def _differences(bridge: DiagramBridge, dsl: str) -> list[str]:
         again = to_js_json(parse_architecture(serialized))
         if canonical_json(again) != canonical_json(bridge.parse("architecture", serialized)):
             found.append("reparse")
+        # canvas-0t84: the export fills in connector sides from where the shapes sit, on saved text too.
+        for text in (dsl, serialized):
+            for strip in (False, True):
+                if to_portable_mermaid(text, strip) != bridge.portable(text, strip_front_matter=strip):
+                    found.append(f"portable(strip={strip})")
     return found
 
 
@@ -232,3 +241,29 @@ def test_native_architecture_matches_the_bridge_on_generated_diagrams(bridge: Di
         if found:
             failures.append(f"seed={seed} index={index} differs in {found}:\n{dsl!r}")
     assert not failures, "\n\n".join(failures[:3])
+
+
+GROUP_END = """---
+canvas:
+  positions:
+    a: {x: 500, y: 40}
+    b: {x: 700, y: 300}
+  containers:
+    g: {x: 0, y: 0, width: 600, height: 600}
+---
+architecture-beta
+group g(cloud)[G]
+service a(server)[A] in g
+service b(server)[B]
+a{group} --> b
+a --> b
+"""
+
+
+def test_a_group_end_takes_its_side_from_the_group(bridge: DiagramBridge) -> None:
+    """canvas-0t84: from the group's middle, b is to the right; from a's, it is below. Only the first
+    a->b connector is kept (Mermaid names both `a-b`)."""
+    portable = to_portable_mermaid(GROUP_END, True)
+    assert portable == bridge.portable(GROUP_END, strip_front_matter=True)
+    assert "a{group}:R --> L:b" in portable
+    assert "a:B" not in portable

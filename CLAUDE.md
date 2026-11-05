@@ -96,6 +96,15 @@ tests are NON-NEGOTIABLE and must exist (and fail) before implementing any diagr
 work — see `.specify/memory/constitution.md` Principle IV.
 
 ## Recent Changes
+- `canvas-0t84` part 1: **architecture exports draw in real Mermaid.** `toPortableMermaid` (TS) / `to_portable_mermaid`
+  (Python) now rewrite text Mermaid refuses, export only (`withMermaidForms` / `_with_mermaid_forms`; saved DSL
+  unchanged). Architecture, when needed (else the text is untouched): connectors and align ids naming missing
+  services dropped; only the first connector per `source-target` (Mermaid's edge id; a second throws); each
+  missing side faces the other end (centers: node position + nodeSize/2, or the group's box for `{group}`;
+  |dx| >= |dy| -> R/L else B/T, ties R/B; loop R->T; a given side kept), then `serializeArchitecture`. Real
+  Mermaid 12.3/12.2 render of every corpus export: all architecture cases now draw (96/116 on 12.3). Tests:
+  `portable-architecture.test.ts`, architecture fuzz compares portable (both strip modes, grid positions for ties),
+  `test_a_group_end_takes_its_side_from_the_group`.
 - `canvas-8wxq.1`: **Canvas follows Mermaid 12.3.** `MERMAID_SYNTAX_VERSION` '12.3' (was '11.15'); GitHub still draws
   with 12.2.0 (read from viewscreen's mermaidMarkdown bundle, checked 2026-11-05), so the Admin overview's
   major-version note no longer shows. 12.3 syntax added: an edge id straight after a shape (`A[x]e1@--> B`; a bare

@@ -27,8 +27,89 @@ def to_portable_mermaid(dsl: str, strip_front_matter: bool = False) -> str | Non
     family = detect_dsl_family(dsl)
     if family not in NATIVE_PORTABLE_FAMILIES:
         return None
-    portable = _with_style_lines(dsl, family)
+    portable = _with_style_lines(_with_mermaid_forms(dsl, family), family)
     return _remove_canvas_front_matter(portable) if strip_front_matter else portable
+
+
+def _with_mermaid_forms(dsl: str, family: str | None) -> str:
+    """canvas-0t84: text real Mermaid refuses, rewritten for the export (the saved diagram is unchanged).
+    Architecture: every connector needs a side on both ends; a missing side faces the other end."""
+    if family != "architecture":
+        return dsl
+    from canvas_api.diagram_core.architecture import parse_architecture, serialize_architecture
+
+    result = parse_architecture(dsl)
+    if "model" not in result:
+        return dsl
+    model = result["model"]
+    # Ids of services that don't exist (a connector to one, an align row naming one) are left out too.
+    ids = {node["id"] for node in model["nodes"]}
+    # Mermaid names a connector after its ends (`a-b`) and refuses a second one with that name: keep the first.
+    names: set[str] = set()
+    edges = []
+    for edge in model["edges"]:
+        name = f"{edge['sourceId']}-{edge['targetId']}"
+        if edge["sourceId"] in ids and edge["targetId"] in ids and name not in names:
+            names.add(name)
+            edges.append(edge)
+    old_alignments = model.get("architectureAlignments") or []
+    alignments = [
+        {**alignment, "ids": [i for i in alignment["ids"] if i in ids]}
+        for alignment in old_alignments
+        if len([i for i in alignment["ids"] if i in ids]) >= 2
+    ]
+    unchanged = (
+        len(edges) == len(model["edges"])
+        and all(edge.get("sourceAnchor") and edge.get("targetAnchor") for edge in edges)
+        and len(alignments) == len(old_alignments)
+        and all(len(new["ids"]) == len(old["ids"]) for new, old in zip(alignments, old_alignments, strict=True))
+    )
+    if unchanged:
+        return dsl
+    rewritten = {**model, "edges": [_with_sides(model, edge) for edge in edges]}
+    if model.get("architectureAlignments") is not None:
+        rewritten["architectureAlignments"] = alignments
+    return serialize_architecture(rewritten)
+
+
+_OPPOSITE = {"T": "B", "B": "T", "L": "R", "R": "L"}
+
+
+def _end_center(model: dict[str, Any], node_id: str, is_group: Any) -> tuple[float, float] | None:
+    from canvas_api.diagram_core.sizes import node_size
+    from canvas_api.diagram_core.svg_render import container_size
+
+    node = next((n for n in model["nodes"] if n["id"] == node_id), None)
+    if node is None:
+        return None
+    group = None
+    if is_group and node.get("containerId"):
+        group = next((c for c in model["containers"] if c["id"] == node["containerId"]), None)
+    if group is not None:
+        size = container_size(group)
+        return group["position"]["x"] + size["width"] / 2, group["position"]["y"] + size["height"] / 2
+    size = node_size(node)
+    return node["position"]["x"] + size["width"] / 2, node["position"]["y"] + size["height"] / 2
+
+
+def _with_sides(model: dict[str, Any], edge: dict[str, Any]) -> dict[str, Any]:
+    if edge.get("sourceAnchor") and edge.get("targetAnchor"):
+        return edge
+    start = _end_center(model, edge["sourceId"], edge.get("sourceIsGroup"))
+    end = _end_center(model, edge["targetId"], edge.get("targetIsGroup"))
+    if start is None or end is None:
+        return edge
+    if edge["sourceId"] == edge["targetId"] and (not edge.get("sourceIsGroup")) == (not edge.get("targetIsGroup")):
+        source, target = "R", "T"  # a loop: out of the right, back in at the top
+    else:
+        dx, dy = end[0] - start[0], end[1] - start[1]
+        source = ("R" if dx >= 0 else "L") if abs(dx) >= abs(dy) else ("B" if dy >= 0 else "T")
+        target = _OPPOSITE[source]
+    return {
+        **edge,
+        "sourceAnchor": edge.get("sourceAnchor") or source,
+        "targetAnchor": edge.get("targetAnchor") or target,
+    }
 
 
 def _remove_canvas_front_matter(dsl: str) -> str:
