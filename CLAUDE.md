@@ -100,6 +100,11 @@ tests are NON-NEGOTIABLE and must exist (and fail) before implementing any diagr
 work — see `.specify/memory/constitution.md` Principle IV.
 
 ## Recent Changes
+- `canvas-rfds`: **the AI primer drift guard is back, in Python.** `tests/test_ai_primer_coverage.py` walks every AI
+  tool's input schema per family (`list_tools`) and requires each enum value to be named in that family's primer
+  (`primer_for`; case-insensitive, hyphens as spaces), so a new shape/arrow/kind can't ship without the model being
+  told. Exempt: values under `side`, `alignment`, `axis`, `direction` (the layout tools' self-describing geometry);
+  a test checks those properties exist. No gaps today. (The TypeScript original went with apps/api.)
 - `canvas-xpuk`: **connector labels in state diagrams no longer pile up.** svg-renderer.ts exports
   `edgeLabelPlacement(mid, laneShift)` (Python `edge_label_placement`): a lone connector's label is unchanged; one of
   several between the same two shapes goes on its own outer side (`text-anchor` start/end beside an up-down or
