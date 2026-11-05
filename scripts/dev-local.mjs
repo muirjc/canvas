@@ -20,6 +20,8 @@ const WINDOWS = process.platform === 'win32';
 function run(command, args, options) {
   const result = spawnSync(command, args, { stdio: 'inherit', shell: WINDOWS, ...options });
   if (result.status !== 0) {
+    // A local developer tool reporting which of its own commands failed; no user data.
+    // bearer:disable javascript_lang_logger_leak
     console.error(`\n${command} ${args.join(' ')} failed (exit ${result.status ?? result.signal}).`);
     process.exit(result.status ?? 1);
   }
@@ -65,6 +67,8 @@ function start(name, command, args, options) {
     stream.on('data', (chunk) => {
       const lines = (pending + chunk).split(/\r?\n/);
       pending = lines.pop() ?? '';
+      // Passing the API's and Vite's own output through to the developer's terminal is the point of this script.
+      // bearer:disable javascript_lang_logger_leak
       for (const line of lines) console.log(`[${name}] ${line}`);
     });
   }
@@ -102,6 +106,8 @@ function stop(code) {
 }
 for (const child of children) {
   child.on('exit', (code) => {
+    // An exit code only.
+    // bearer:disable javascript_lang_logger_leak
     if (!stopping) console.error(`\nA process stopped (exit ${code}); stopping the other.`);
     stop(code ?? 1);
   });
@@ -109,5 +115,7 @@ for (const child of children) {
 process.on('SIGINT', () => stop(0));
 process.on('SIGTERM', () => stop(0));
 
+// The local addresses (port numbers) only.
+// bearer:disable javascript_lang_logger_leak
 console.log(`\nCanvas: http://localhost:${WEB_PORT}  (API http://localhost:${API_PORT}). Ctrl-C stops both.`);
 console.log('Demo sign-in, once the demo data is seeded: admin@example.com / admin-dev-password.\n');

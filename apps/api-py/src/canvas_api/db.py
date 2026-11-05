@@ -34,7 +34,9 @@ def create_db_engine(settings: Settings) -> Engine:
         # One shared connection for :memory: (each new connection would be an empty database).
         memory = settings.database_url == ":memory:"
         if not memory:
-            # canvas-mywp: SQLite won't create a missing folder, so a fresh `./data/canvas.db` failed to open.
+            # canvas-mywp: SQLite won't create a missing folder, so a fresh `./data/canvas.db` failed to open. The path
+            # is the operator's own DATABASE_URL setting, never request input.
+            # bearer:disable python_lang_path_traversal
             Path(settings.database_url).parent.mkdir(parents=True, exist_ok=True)
         engine = create_engine(
             sqlalchemy_url(settings),
