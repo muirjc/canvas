@@ -1,13 +1,12 @@
 architecture-beta
-  group g(cloud)[G]
-  service a(server)[A]
-  service b(server)[B]
-  service c(server)[C]
-  service d(server)[D]
-  service e(server)[E] in g
-  service f(server)[F] in g
-  align row a b c
-  align column a d
-  align column e   f
-  align row a e
-  align row nothere a
+group g(cloud)[G]
+service a(server)[A]
+service b(server)[B]
+service c(server)[C]
+service d(server)[D]
+service e(server)[E] in g
+service f(server)[F] in g
+align row a b c
+align column a d
+align column e f
+align row a e

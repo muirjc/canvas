@@ -1,4 +1,6 @@
-import type { DiagramEdge, NodeStyle } from '../model/diagram-model.js';
+import type { DiagramEdge, DiagramModel, NodeStyle } from '../model/diagram-model.js';
+import { containerSize, nodeSize } from '../render/svg-renderer.js';
+import { parseArchitecture, serializeArchitecture } from './architecture.js';
 import { detectDslFamily } from './detect.js';
 import { parseFlowchart } from './flowchart-parser.js';
 import { parseC4 } from './c4.js';
@@ -37,8 +39,82 @@ export interface PortableMermaidOptions {
 }
 
 export function toPortableMermaid(dsl: string, options: PortableMermaidOptions = {}): string {
-  const portable = withStyleLines(dsl);
+  const portable = withStyleLines(withMermaidForms(dsl));
   return options.stripFrontMatter ? removeCanvasFrontMatter(portable) : portable;
+}
+
+/**
+ * canvas-0t84: Canvas reads (and writes back) some text real Mermaid refuses. The export rewrites it into a form
+ * Mermaid draws; the saved diagram is unchanged. Architecture: Mermaid needs a side on both ends of every
+ * connector (`a:R --> L:b`), and Canvas's Connect leaves them unset -- each missing side faces the other end, as
+ * the shapes sit in Canvas; and ids of services that don't exist are left out.
+ */
+function withMermaidForms(dsl: string): string {
+  if (detectDslFamily(dsl) !== 'architecture') return dsl;
+  const result = parseArchitecture(dsl);
+  if (!isParseSuccess(result)) return dsl;
+  const { model } = result;
+  // Typed text can also name a service that doesn't exist (a connector to it, an align row with it); Mermaid
+  // refuses the whole diagram, so the export leaves those out.
+  const ids = new Set(model.nodes.map((n) => n.id));
+  // Mermaid also names a connector after its ends (`a-b`) and refuses a second one with the same name, so only
+  // the first connector each way between two services is kept.
+  const names = new Set<string>();
+  const edges = model.edges.filter((edge) => {
+    const name = `${edge.sourceId}-${edge.targetId}`;
+    if (!ids.has(edge.sourceId) || !ids.has(edge.targetId) || names.has(name)) return false;
+    names.add(name);
+    return true;
+  });
+  const alignments = (model.architectureAlignments ?? [])
+    .map((alignment) => ({ ...alignment, ids: alignment.ids.filter((id) => ids.has(id)) }))
+    .filter((alignment) => alignment.ids.length >= 2);
+  const unchanged =
+    edges.length === model.edges.length &&
+    edges.every((edge) => edge.sourceAnchor && edge.targetAnchor) &&
+    alignments.length === (model.architectureAlignments ?? []).length &&
+    alignments.every((alignment, i) => alignment.ids.length === model.architectureAlignments![i].ids.length);
+  if (unchanged) return dsl;
+  return serializeArchitecture({
+    ...model,
+    edges: edges.map((edge) => withSides(model, edge)),
+    ...(model.architectureAlignments ? { architectureAlignments: alignments } : {}),
+  });
+}
+
+type Side = 'T' | 'B' | 'L' | 'R';
+const OPPOSITE: Record<Side, Side> = { T: 'B', B: 'T', L: 'R', R: 'L' };
+
+/** The middle of a connector's end as Canvas draws it: the service, or its group for a `{group}` end. */
+function endCenter(model: DiagramModel, id: string, isGroup: boolean | undefined): { x: number; y: number } | undefined {
+  const node = model.nodes.find((n) => n.id === id);
+  if (!node) return undefined;
+  const group = isGroup && node.containerId ? model.containers.find((c) => c.id === node.containerId) : undefined;
+  if (group) {
+    const size = containerSize(group);
+    return { x: group.position.x + size.width / 2, y: group.position.y + size.height / 2 };
+  }
+  const size = nodeSize(node);
+  return { x: node.position.x + size.width / 2, y: node.position.y + size.height / 2 };
+}
+
+function withSides(model: DiagramModel, edge: DiagramEdge): DiagramEdge {
+  if (edge.sourceAnchor && edge.targetAnchor) return edge;
+  const from = endCenter(model, edge.sourceId, edge.sourceIsGroup);
+  const to = endCenter(model, edge.targetId, edge.targetIsGroup);
+  if (!from || !to) return edge;
+  let source: Side;
+  let target: Side;
+  if (edge.sourceId === edge.targetId && !edge.sourceIsGroup === !edge.targetIsGroup) {
+    // A loop: out of the right, back in at the top.
+    [source, target] = ['R', 'T'];
+  } else {
+    const dx = to.x - from.x;
+    const dy = to.y - from.y;
+    source = Math.abs(dx) >= Math.abs(dy) ? (dx >= 0 ? 'R' : 'L') : dy >= 0 ? 'B' : 'T';
+    target = OPPOSITE[source];
+  }
+  return { ...edge, sourceAnchor: edge.sourceAnchor || source, targetAnchor: edge.targetAnchor || target };
 }
 
 /** The front matter minus its `canvas:` key; dropped entirely when nothing else is left. */

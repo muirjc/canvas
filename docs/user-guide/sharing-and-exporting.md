@@ -92,7 +92,10 @@ Canvas keeps notifications for 90 days. It doesn't send email about this yet.
 - **Mermaid** (`.mmd`): the text, to use in other tools or documentation that renders Mermaid.
   Colours are written so other tools can show them where Mermaid allows (see
   [What reviewers see on GitHub](submitting-for-approval.md#what-reviewers-see-on-github)). Other
-  tools arrange the shapes themselves.
+  tools arrange the shapes themselves. In an architecture diagram, Mermaid needs to know which side
+  of each shape a connector leaves and joins: where you didn't choose one, the export uses the side
+  facing the other shape. Mermaid allows one connector each way between two shapes, so any extra
+  ones are left out of the file (they stay in your diagram).
 - **SVG**: a sharp, scalable picture for documents and wikis.
 - **PNG**: an image. Its text is drawn in Liberation Sans, so it can look slightly different from the editor, which uses your system's font.
 
