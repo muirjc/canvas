@@ -23,7 +23,17 @@ from canvas_api.diagram_core.front_matter import (
     with_legend,
     with_pinned,
 )
-from canvas_api.diagram_core.jsvalues import js_parse_float, js_parse_int
+from canvas_api.diagram_core.jsvalues import js_parse_float, js_parse_int, js_template, js_truthy
+from canvas_api.diagram_core.mermaid_shape_data import (
+    MERMAID_NAME,
+    MERMAID_SHAPE_NAME,
+    SHAPE_DATA_INNER_SOURCE,
+    SHAPE_DATA_SOURCE,
+    data_entries,
+    format_shape_data,
+    mermaid_shape_to_canvas,
+    parse_shape_data,
+)
 from canvas_api.diagram_core.model import create_empty_diagram_model, is_allowed_link_href, url_protocol
 from canvas_api.github.jstext import JS_WHITESPACE, js_trim
 
@@ -63,7 +73,9 @@ SHAPE_SUFFIX = (
     rf"\[\\{_D}+?\\\]|\[/{_D}+?\\\]|\[\\{_D}+?/\]|>{_D}+?\]|\(\({_D}+?\)\)|\{{{_D}+?\}}|\({_D}+?\)|\[{_D}+?\]"
 )
 CLASS_SUFFIX = f"(?::::{ID}(?:{S}*,{S}*{ID})*)?"
-TOKEN = f"{ID}(?:{SHAPE_SUFFIX})?{CLASS_SUFFIX}"
+TOKEN = f"{ID}(?:(?:{SHAPE_SUFFIX})?{CLASS_SUFFIX}|{CLASS_SUFFIX}{SHAPE_DATA_SOURCE})"
+EDGE_ID = f"(?:{S}+({ID})@|{S}*)"
+SHAPE_DATA_TOKEN = re.compile(f"^({ID})(?::::({ID}(?:{S}*,{S}*{ID})*))?@\\{{({SHAPE_DATA_INNER_SOURCE})\\}}$")
 
 #: The ten connector tokens and the (lineStyle, arrow) each names; the default (solid, forward) is unset.
 EDGE_CONNECTORS: list[tuple[str, str | None, str | None]] = [
@@ -81,13 +93,13 @@ EDGE_CONNECTORS: list[tuple[str, str | None, str | None]] = [
 CONNECTOR_BY_TOKEN = {token: (line_style, arrow) for token, line_style, arrow in EDGE_CONNECTORS}
 CONNECTOR_ALTERNATION = "|".join(re.escape(token) for token, _, _ in EDGE_CONNECTORS)
 
-EDGE_WITH_PIPE_LABEL = re.compile(f"^({TOKEN}){S}*({CONNECTOR_ALTERNATION}){S}*\\|({DOT}+?)\\|{S}*({TOKEN})$")
-EDGE_INLINE_LABEL_SOLID = re.compile(f"^({TOKEN}){S}*--{S}*({DOT}+?){S}*-->{S}*({TOKEN})$")
-EDGE_INLINE_LABEL_DOTTED = re.compile(f"^({TOKEN}){S}*-\\.{S}*({DOT}+?){S}*\\.->{S}*({TOKEN})$")
-EDGE_INLINE_LABEL_THICK = re.compile(f"^({TOKEN}){S}*=={S}*({DOT}+?){S}*==>{S}*({TOKEN})$")
+EDGE_WITH_PIPE_LABEL = re.compile(f"^({TOKEN}){EDGE_ID}({CONNECTOR_ALTERNATION}){S}*\\|({DOT}+?)\\|{S}*({TOKEN})$")
+EDGE_INLINE_LABEL_SOLID = re.compile(f"^({TOKEN}){EDGE_ID}--{S}*({DOT}+?){S}*-->{S}*({TOKEN})$")
+EDGE_INLINE_LABEL_DOTTED = re.compile(f"^({TOKEN}){EDGE_ID}-\\.{S}*({DOT}+?){S}*\\.->{S}*({TOKEN})$")
+EDGE_INLINE_LABEL_THICK = re.compile(f"^({TOKEN}){EDGE_ID}=={S}*({DOT}+?){S}*==>{S}*({TOKEN})$")
 EDGE_FAN_OUT = re.compile(f"^({TOKEN}){S}*({CONNECTOR_ALTERNATION}){S}*({TOKEN}(?:{S}*&{S}*{TOKEN})+)$")
-EDGE_NO_LABEL = re.compile(f"^({TOKEN}){S}*({CONNECTOR_ALTERNATION}){S}*({TOKEN})$")
-CHAIN_HOP = re.compile(f"^({TOKEN}){S}*({CONNECTOR_ALTERNATION}){S}*")
+EDGE_NO_LABEL = re.compile(f"^({TOKEN}){EDGE_ID}({CONNECTOR_ALTERNATION}){S}*({TOKEN})$")
+CHAIN_HOP = re.compile(f"^({TOKEN}){EDGE_ID}({CONNECTOR_ALTERNATION}){S}*")
 BARE_TOKEN = re.compile(f"^({TOKEN})$")
 
 SUBGRAPH_START = re.compile(f"^subgraph{S}+({ID})(?:{S}*\\[({DOT}+)\\])?$")
@@ -159,25 +171,28 @@ def _merge(base: dict[str, Any] | None, patch: dict[str, Any]) -> dict[str, Any]
     return {**(base or {}), **patch}
 
 
-def _match_node_token(token: str) -> tuple[str, str, str, str | None] | None:
+def _match_node_token(token: str) -> tuple[str, str, str, str | None, str | None] | None:
+    with_data = SHAPE_DATA_TOKEN.match(token)
+    if with_data:
+        return with_data.group(1), with_data.group(1), "rectangle", with_data.group(2), with_data.group(3)
     for shape, regex in NODE_PATTERNS:
         match = regex.match(token)
         if match:
-            return match.group(1), match.group(2), shape, match.group(3)
+            return match.group(1), match.group(2), shape, match.group(3), None
     bare = BARE_ID.match(token)
     if bare:
-        return bare.group(1), bare.group(1), "rectangle", bare.group(2)
+        return bare.group(1), bare.group(1), "rectangle", bare.group(2), None
     return None
 
 
-def _try_parse_chain(line: str) -> list[tuple[str, str, str]] | None:
-    hops: list[tuple[str, str]] = []
+def _try_parse_chain(line: str) -> list[tuple[str, str | None, str, str]] | None:
+    hops: list[tuple[str, str | None, str]] = []
     remaining = line
     while True:
         match = CHAIN_HOP.match(remaining)
         if not match:
             break
-        hops.append((match.group(1), match.group(2)))
+        hops.append((match.group(1), match.group(2), match.group(3)))
         remaining = remaining[match.end() :]
     if len(hops) < 2:
         return None
@@ -185,7 +200,7 @@ def _try_parse_chain(line: str) -> list[tuple[str, str, str]] | None:
     if not final:
         return None
     tokens = [h[0] for h in hops] + [final.group(1)]
-    return [(tokens[i], hop[1], tokens[i + 1]) for i, hop in enumerate(hops)]
+    return [(tokens[i], hop[1], hop[2], tokens[i + 1]) for i, hop in enumerate(hops)]
 
 
 def _first_class(class_names: str) -> str:
@@ -214,6 +229,8 @@ def parse_flowchart(dsl: str) -> dict[str, Any]:
     nodes_by_id: dict[str, dict[str, Any]] = {}
     containers_by_id: dict[str, dict[str, Any]] = {}
     edges: list[dict[str, Any]] = []
+    edges_by_mermaid_id: dict[str, dict[str, Any]] = {}
+    current: dict[str, Any] = {"index": 0, "text": ""}  # the line being read, for errors found at an edge's ends
     container_stack: list[str] = []
     style_directives: list[tuple[str, str]] = []
     link_style_directives: list[tuple[list[int] | None, str]] = []
@@ -247,34 +264,70 @@ def parse_flowchart(dsl: str) -> dict[str, Any]:
             node["containerId"] = current_container()
         return node
 
+    def apply_shape_data(node: dict[str, Any], inner: str) -> None:
+        parsed = parse_shape_data(inner)
+        error = parsed.get("error")
+        for key, value in parsed.get("entries", []):
+            if key == "shape":
+                if not isinstance(value, str) or not MERMAID_NAME.match(value):
+                    error = f'"{js_template(value)}" is not a shape name'
+                    break
+                node["mermaidShape"] = value
+                node["shape"] = mermaid_shape_to_canvas(value, js_truthy(icons.get(node["id"])))
+            elif key == "label":
+                node["label"] = js_template(value)
+            elif key == "img" and (not isinstance(value, str) or not is_allowed_link_href(value)):
+                error = '"img" must be an http(s) or relative address'
+                break
+            else:
+                node["mermaidData"] = {**(node.get("mermaidData") or {}), key: value}
+        if error:
+            message = f"In {node['id']}@{{ … }}: {error}."
+            errors.append({"line": current["index"] + 1, "content": current["text"], "message": message})
+
     def resolve_endpoint(token: str) -> str:
         parsed = _match_node_token(token)
         if parsed is None:
             return token
-        node_id, label, shape, class_name = parsed
-        ensure_node(node_id, label, shape)
+        node_id, label, shape, class_name, data = parsed
+        node = ensure_node(node_id, label, shape)
+        if data is not None:
+            apply_shape_data(node, data)
         if class_name:
             class_assignments.append(([node_id], _first_class(class_name)))
         return node_id
 
-    def push_edge(source: str, connector: str, target: str, label: str | None = None) -> None:
+    def push_edge(
+        source: str, connector: str, target: str, label: str | None = None, mermaid_id: str | None = None
+    ) -> None:
         nonlocal edge_counter
         line_style, arrow = CONNECTOR_BY_TOKEN[connector]
         edge_counter += 1
         edge_id = f"e{edge_counter}"
-        edges.append(
-            {
-                "id": edge_id,
-                "sourceId": resolve_endpoint(source),
-                "targetId": resolve_endpoint(target),
-                "label": label,
-                "style": edge_styles.get(edge_id),
-                "arrow": arrow,
-                "lineStyle": line_style,
-            }
-        )
+        edge: dict[str, Any] = {
+            "id": edge_id,
+            "sourceId": resolve_endpoint(source),
+            "targetId": resolve_endpoint(target),
+            "label": label,
+            "style": edge_styles.get(edge_id),
+            "arrow": arrow,
+            "lineStyle": line_style,
+        }
+        if mermaid_id is not None:
+            if mermaid_id in edges_by_mermaid_id:
+                errors.append(
+                    {
+                        "line": current["index"] + 1,
+                        "content": current["text"],
+                        "message": f'Edge id "{mermaid_id}" is used twice.',
+                    }
+                )
+            edge["mermaidId"] = mermaid_id
+            edges_by_mermaid_id[mermaid_id] = edge
+        edges.append(edge)
 
     for i, raw_line in enumerate(lines):
+        current["index"], current["text"] = i, raw_line
         line = js_trim(raw_line)
         if not line:
             continue
@@ -378,28 +431,54 @@ def parse_flowchart(dsl: str) -> dict[str, Any]:
             continue
 
         if m := EDGE_WITH_PIPE_LABEL.match(line):
-            push_edge(m.group(1), m.group(2), m.group(4), m.group(3))
+            push_edge(m.group(1), m.group(3), m.group(5), m.group(4), m.group(2))
             continue
         chain = _try_parse_chain(line)
         if chain:
-            for source, connector, target in chain:
-                push_edge(source, connector, target)
+            for source, mermaid_id, connector, target in chain:
+                push_edge(source, connector, target, None, mermaid_id)
             continue
         if m := EDGE_FAN_OUT.match(line):
             for target in (js_trim(t) for t in m.group(3).split("&")):
                 push_edge(m.group(1), m.group(2), target)
             continue
         if m := EDGE_INLINE_LABEL_SOLID.match(line):
-            push_edge(m.group(1), "-->", m.group(3), m.group(2))
+            push_edge(m.group(1), "-->", m.group(4), m.group(3), m.group(2))
             continue
         if m := EDGE_INLINE_LABEL_DOTTED.match(line):
-            push_edge(m.group(1), "-.->", m.group(3), m.group(2))
+            push_edge(m.group(1), "-.->", m.group(4), m.group(3), m.group(2))
             continue
         if m := EDGE_INLINE_LABEL_THICK.match(line):
-            push_edge(m.group(1), "==>", m.group(3), m.group(2))
+            push_edge(m.group(1), "==>", m.group(4), m.group(3), m.group(2))
             continue
         if m := EDGE_NO_LABEL.match(line):
-            push_edge(m.group(1), m.group(2), m.group(3))
+            push_edge(m.group(1), m.group(3), m.group(4), None, m.group(2))
+            continue
+
+        if m := SHAPE_DATA_TOKEN.match(line):
+            data_id, class_names, inner = m.group(1), m.group(2), m.group(3)
+            edge = edges_by_mermaid_id.get(data_id) if class_names is None else None
+            if edge is not None:
+                parsed = parse_shape_data(inner)
+                if "error" in parsed:
+                    errors.append(
+                        {"line": i + 1, "content": raw_line, "message": f"In {data_id}@{{ … }}: {parsed['error']}."}
+                    )
+                else:
+                    for key, value in parsed["entries"]:
+                        edge["mermaidData"] = {**(edge.get("mermaidData") or {}), key: value}
+            elif data_id in containers_by_id:
+                errors.append(
+                    {
+                        "line": i + 1,
+                        "content": raw_line,
+                        "message": f"Subgraph options ({data_id}@{{ … }}) are not read yet.",
+                    }
+                )
+            else:
+                apply_shape_data(ensure_node(data_id, data_id, "rectangle"), inner)
+                if class_names:
+                    class_assignments.append(([data_id], _first_class(class_names)))
             continue
 
         matched = False
@@ -532,10 +611,33 @@ def _js_text(value: Any) -> str:
     return str(value)
 
 
+def _shape_data(node: dict[str, Any]) -> str | None:
+    extra = [
+        (key, value)
+        for key, value in data_entries(node.get("mermaidData"), ("shape", "label"))
+        if key != "img" or (isinstance(value, str) and is_allowed_link_href(value))
+    ]
+    mermaid_shape = node.get("mermaidShape")
+    named = mermaid_shape if isinstance(mermaid_shape, str) and MERMAID_NAME.match(mermaid_shape) else None
+    if named is None and not extra:
+        return None
+    entries: list[tuple[str, Any]] = []
+    if named is not None and mermaid_shape_to_canvas(named, js_truthy(node.get("icon"))) == node["shape"]:
+        entries.append(("shape", named))
+    elif named is not None or node["shape"] != "rectangle":
+        entries.append(("shape", MERMAID_SHAPE_NAME.get(node["shape"], "rect")))
+    if node.get("label") != node["id"]:
+        entries.append(("label", node.get("label")))
+    return format_shape_data(entries + extra)
+
+
 def _serialize_node(node: dict[str, Any]) -> str:
-    open_, close = SHAPE_DELIMITERS[node["shape"]]
     role = node.get("role")
     kind_suffix = f":::{role}" if role and _CLASS_TOKEN.match(role) else ""
+    data = _shape_data(node)
+    if data is not None:
+        return f"  {node['id']}{kind_suffix}{data}"
+    open_, close = SHAPE_DELIMITERS[node["shape"]]
     return f"  {node['id']}{open_}{_js_text(node.get('label'))}{close}{kind_suffix}"
 
 
@@ -561,8 +663,24 @@ def _connector_for(edge: dict[str, Any]) -> str:
     return CONNECTOR_TOKENS[line_style][arrow]
 
 
-def _serialize_edge(edge: dict[str, Any]) -> str:
-    connector = _connector_for(edge)
+_EDGE_ID = re.compile("^[A-Za-z0-9_]+\\Z")
+
+
+def _edge_ids(edges: list[dict[str, Any]]) -> list[str | None]:
+    used: set[str] = set()
+    out: list[str | None] = []
+    for edge in edges:
+        mermaid_id = edge.get("mermaidId")
+        if not isinstance(mermaid_id, str) or not _EDGE_ID.match(mermaid_id) or mermaid_id in used:
+            out.append(None)
+            continue
+        used.add(mermaid_id)
+        out.append(mermaid_id)
+    return out
+
+
+def _serialize_edge(edge: dict[str, Any], mermaid_id: str | None) -> str:
+    connector = (f"{mermaid_id}@" if mermaid_id is not None else "") + _connector_for(edge)
     label = edge.get("label")
     if label:
         return f"  {edge['sourceId']} {connector}|{label}| {edge['targetId']}"
@@ -635,8 +753,13 @@ def serialize_flowchart(model: dict[str, Any]) -> str:
     for node in nodes:
         if node["id"] not in emitted:
             body_lines.append(_serialize_node(node))
-    for edge in edges:
-        body_lines.append(_serialize_edge(edge))
+    ids = _edge_ids(edges)
+    for edge, mermaid_id in zip(edges, ids, strict=True):
+        body_lines.append(_serialize_edge(edge, mermaid_id))
+    for edge, mermaid_id in zip(edges, ids, strict=True):
+        entries = data_entries(edge.get("mermaidData"))
+        if mermaid_id is not None and entries:
+            body_lines.append(f"  {mermaid_id}{format_shape_data(entries)}")
     for node in nodes:
         click = _serialize_click_href(node)
         if click:

@@ -152,7 +152,16 @@ export interface DiagramNode {
   link?: NodeLink;
   /** canvas-8wxq: sequence participants only -- their `link` / `links` menu (http(s) or relative only). */
   sequenceLinks?: ParticipantLink[];
+  /** canvas-8wxq: flowchart only -- the shape name written in `A@{ shape: … }` (Mermaid 11.3+), kept so a
+   *  save writes it back. `shape` holds the nearest shape Canvas draws (see `mermaidShapeToCanvas`). */
+  mermaidShape?: string;
+  /** canvas-8wxq: flowchart only -- the other `@{ }` keys (icon, img, form, pos, h, w, constraint, …), kept in
+   *  order and written back, not drawn. */
+  mermaidData?: MermaidData;
 }
+
+/** canvas-8wxq: the values of a Mermaid `@{ key: value }` block (a YAML flow mapping). */
+export type MermaidData = Record<string, string | number | boolean>;
 
 export interface NodeLink {
   href: string;
@@ -302,6 +311,10 @@ export interface DiagramEdge {
   technology?: string;
   /** canvas-1u2: C4 Rel family only -- the relationship's description (5th argument or `$descr`). */
   description?: string;
+  /** canvas-8wxq: flowchart only -- the edge's Mermaid id (`A e1@--> B`). Canvas's own `id` stays positional. */
+  mermaidId?: string;
+  /** canvas-8wxq: flowchart only -- `e1@{ animate: true, curve: linear, … }`, kept and written back, not drawn. */
+  mermaidData?: MermaidData;
 }
 
 /** A visual grouping/boundary (e.g., a C4 "System Boundary" or a Mermaid subgraph). */
