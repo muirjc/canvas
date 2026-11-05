@@ -1,0 +1,80 @@
+{
+  "containers": [],
+  "diagramTypeId": "flowchart",
+  "direction": "TD",
+  "edges": [
+    {
+      "id": "e1",
+      "sourceId": "a",
+      "targetId": "b"
+    },
+    {
+      "id": "e2",
+      "label": "Yes",
+      "sourceId": "b",
+      "targetId": "c"
+    },
+    {
+      "id": "e3",
+      "sourceId": "d",
+      "targetId": "e"
+    }
+  ],
+  "nodes": [
+    {
+      "id": "a",
+      "label": "a",
+      "position": {
+        "x": 40,
+        "y": 40
+      },
+      "shape": "rectangle"
+    },
+    {
+      "id": "b",
+      "label": "Question?",
+      "position": {
+        "x": 220,
+        "y": 40
+      },
+      "shape": "diamond"
+    },
+    {
+      "id": "c",
+      "label": "Store",
+      "position": {
+        "x": 400,
+        "y": 40
+      },
+      "shape": "cylinder"
+    },
+    {
+      "id": "d",
+      "label": "Second",
+      "position": {
+        "x": 580,
+        "y": 40
+      },
+      "shape": "rounded-rectangle"
+    },
+    {
+      "id": "e",
+      "label": "e",
+      "position": {
+        "x": 760,
+        "y": 40
+      },
+      "shape": "rectangle"
+    },
+    {
+      "id": "f",
+      "label": "Rounded",
+      "position": {
+        "x": 940,
+        "y": 40
+      },
+      "role": "warm",
+      "shape": "stadium"
+    }
+  ]
+}

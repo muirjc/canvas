@@ -100,6 +100,12 @@ tests are NON-NEGOTIABLE and must exist (and fail) before implementing any diagr
 work — see `.specify/memory/constitution.md` Principle IV.
 
 ## Recent Changes
+- `canvas-ltfa`: **a flowchart node's later definition wins, as in Mermaid.** `a --> b` then `b{Question?} --> c`
+  left b a plain box labelled `b` (ensureNode only set label/shape on creation). `matchNodeToken` /
+  `_match_node_token` now say whether a token was explicit (a shape and text); an explicit mention, on its own line
+  or as an edge end, updates an existing node's label and shape (icon tie-break as on creation). Bare ids,
+  `A:::cls`, `A@{…}` keys and implicit edge ends don't. Corpus `flowchart-later-definition`;
+  `flowchart-comments-and-directives` now shows `C[Done]`.
 - `canvas-3vcj` part 2 + `canvas-rshf`: **the architecture diagrams are on Azure** (project "Canvas solution
   architecture", owned by the perf-test account; 18 diagrams imported through the API after Auto Layout). New
   `docs/architecture/flowchart-access.mmd` (how a diagram's access level is worked out). Found: Auto Layout's
