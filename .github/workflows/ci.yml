@@ -312,3 +312,37 @@ jobs:
           version: ${{ env.BEARER_VERSION }}
           skip-path: node_modules,dist,playwright-report,test-results
           severity: critical
+
+  # canvas-xl3a.2/.3: the Windows installer (packaging/windows), built and then installed, started, signed in to,
+  # upgraded and uninstalled on a clean Windows runner. The installer is kept as an artifact for a week.
+  windows-installer:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+      - run: npm ci
+      - name: Install uv
+        run: pipx install uv==0.13.1
+      - name: Inno Setup
+        shell: pwsh
+        run: |
+          if (-not (Test-Path "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe")) { choco install innosetup --no-progress -y }
+      - name: Build the installer
+        shell: pwsh
+        run: ./packaging/windows/build.ps1 -Version "0.1.0-ci.${{ github.run_number }}"
+      - name: Smoke test
+        shell: pwsh
+        run: ./packaging/windows/smoke-test.ps1 -Installer (Get-Item packaging/windows/out/CanvasSetup-*.exe).FullName
+      - name: Keep the installer and the logs
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: windows-installer
+          path: |
+            packaging/windows/out/CanvasSetup-*.exe
+            packaging/windows/out/smoke-logs/
+          retention-days: 7
+          if-no-files-found: ignore

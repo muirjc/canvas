@@ -100,6 +100,22 @@ tests are NON-NEGOTIABLE and must exist (and fail) before implementing any diagr
 work — see `.specify/memory/constitution.md` Principle IV.
 
 ## Recent Changes
+- `canvas-xl3a.2` + `.3` (Windows installer): **`packaging/windows/`**. `build.ps1` (Windows PowerShell 5.1 or pwsh;
+  needs uv, `npm ci`, Inno Setup 6 unless `-SkipInstaller`; `-WebDist` takes a prebuilt same-origin web build):
+  python-build-standalone CPython 3.13.17 (release 20261021, stripped, sha256 pinned in the script) to
+  `stage\python`, the locked production deps via `uv export --frozen --no-dev` WITHOUT psycopg (SQLite only), the
+  API to `stage\app\{src,migrations}` + VERSION, `canvas.pth` (`..\..\..\app\src`) so the private Python finds
+  canvas_api, the web app (VITE_API_BASE_URL empty, set through node: PS 5.1 deletes an empty env var) to
+  `stage\app\web`, licences to `stage\licenses`; then ISCC. `canvas.iss`: per user (`PrivilegesRequired=lowest`,
+  %LOCALAPPDATA%\Programs\Canvas), Start menu Canvas / Stop Canvas (`pythonw -m canvas_api.desktop open|stop`),
+  first-install wizard page for the first admin (email + temporary password, checked with a COPY of the password
+  policy -- `tests/test_windows_installer.py` fails when it drifts) written as ASCII-escaped JSON to
+  first-admin.json; silent installs never take a password (Setup logs its command line). Upgrades stop Canvas
+  (PrepareToInstall), replace python/app whole and keep the data; uninstall stops it and asks before deleting
+  %LOCALAPPDATA%\Canvas. CI job `windows-installer` builds it and runs `smoke-test.ps1` (install, first start,
+  sign-in, shortcuts, upgrade over a running copy, stop, uninstall keeps data); artifact kept 7 days. First start
+  on a fresh PC was ~60 s (seed 1 s; the rest importing freshly unpacked files, likely the virus scanner; warm
+  import 4 s, mostly `anthropic`). Unsigned (SmartScreen warns). SBOM is canvas-xl3a.5.
 - `canvas-xl3a.1` (Windows installer, phase 1; decided with the user: one person on their own PC, a Setup .exe, a
   Start-menu launcher, local accounts with the first admin set up on first run): **`canvas_api.desktop`** --
   `python -m canvas_api.desktop start|open [--no-browser] | stop | status`. Per-user data folder
