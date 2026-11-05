@@ -44,7 +44,7 @@ Canvas supports two database engines, selected by `DB_CLIENT`:
 
 |                 | PostgreSQL (`DB_CLIENT=postgres`, the default)                                   | SQLite (`DB_CLIENT=sqlite`)                                                                |
 | --------------- | -------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------ |
-| Setup           | `docker compose up -d` (or any reachable Postgres 16 server)                     | None: Python's built-in `sqlite3`; `DATABASE_URL` is a file path (or `:memory:`)           |
+| Setup           | `docker compose up -d` (or any reachable Postgres 16 server)                     | None: Python's built-in `sqlite3`; `DATABASE_URL` is a file path (or `:memory:`); the local default in `.env.example` |
 | Migrations      | `apps/api-py/migrations/*.sql` (incremental files)                               | `apps/api-py/migrations/sqlite/*.sql` (a squashed `0001_init.sql`, then incremental files) |
 | Recommended for | Any deployment with concurrent writers, including the Azure reference deployment | Local dev, evaluation, and small/single-team self-hosted use **only**                      |
 
@@ -66,43 +66,33 @@ A few other disclosed, by-design differences between the two engines:
 purge, bootstrap-admin and e2e-reset jobs apply them first too. A new migration is a new `.sql`
 file in both folders.
 
-Running against SQLite with no Postgres/Docker at all (SQLite won't create a missing parent
-directory, so create `data/` first):
+Local runs use SQLite by default (`apps/api-py/.env.example`: `DB_CLIENT=sqlite`,
+`DATABASE_URL=./data/canvas.db`, relative to `apps/api-py`). The API and every job create the file's folder if
+it's missing (canvas-mywp). For a throwaway database, `DATABASE_URL=:memory:` (lost when the process exits).
+
+### Running locally without containers (Linux, macOS, Windows)
+
+`npm run dev:local` (`scripts/dev-local.mjs`, canvas-mywp) is the whole local setup: Node 22 and
+[uv](https://docs.astral.sh/uv/) are the only requirements (uv fetches Python 3.13), with no Docker, WSL2 or
+database server. It reads `apps/api-py/.env` (copied from `.env.example` on first run; the process environment
+wins over it), builds `packages/diagram-core` if needed, seeds demo data when the SQLite database is new (else
+applies pending migrations), then runs the API and the web app together with `[api]` / `[web]` output; Ctrl-C
+stops both. Options: `API_PORT` / `WEB_PORT` (default 3000 / 5173; the web origin is added to `WEB_ORIGINS` and
+the web app pointed at the API port), `--seed` to run `seed_demo` again (only adds what's missing).
 
 ```bash
-cd apps/api-py
-mkdir -p data
-# in .env:
-#   DB_CLIENT=sqlite
-#   DATABASE_URL=./data/canvas.db   # or :memory: for a throwaway database (lost when the process exits)
-uv run --env-file .env python -m canvas_api.jobs.seed_demo
-uv run --env-file .env uvicorn canvas_api.main:app --port 3000 --reload
-```
-
-### Running on Windows without Docker
-
-SQLite mode needs neither Docker nor WSL2. The same steps in PowerShell (install
-[uv](https://docs.astral.sh/uv/) first; it fetches Python 3.13 itself):
-
-```powershell
-git clone <repo> ; cd canvas
 npm install
-npm run build --workspace=@canvas/diagram-core           # before running or building the web app
-cd apps/api-py
-uv sync
-Copy-Item .env.example .env
-# edit .env: DB_CLIENT=sqlite, DATABASE_URL=./data/canvas.db, ALLOW_LOCAL_AUTH=true,
-# SESSION_SECRET=<any 32+ character string>
-New-Item -ItemType Directory -Force data
-uv run --env-file .env python -m canvas_api.jobs.seed_demo     # prints admin login + a demo project id
-uv run --env-file .env uvicorn canvas_api.main:app --port 3000 # separate terminal
-cd ../.. ; npm run dev --workspace=@canvas/web                  # separate terminal
+npm run dev:local
 ```
 
-Sign in at `http://localhost:5173/?projectId=<seed-printed-id>` with `admin@example.com` /
-`admin-dev-password` and create a diagram to confirm everything works end to end.
+Sign in at `http://localhost:5173` with `admin@example.com` / `admin-dev-password`.
+
+To serve everything from one process instead (as in Azure): `npm run build --workspace=@canvas/web` and set
+`WEB_DIST_DIR=../web/dist` in `apps/api-py/.env`; the API then serves the web app on its own port.
 
 ## Starting everything from a cold clone
+
+`npm run dev:local` (above) does all of this with SQLite. With PostgreSQL by hand:
 
 ```bash
 docker compose up -d                                   # Postgres on host port 5433
@@ -528,15 +518,17 @@ Setup for admins is in `docs/admin-guide/github.md`; the design is in `docs/gith
 
 ## Resetting state
 
-- **Wipe and reseed the dev database**: `docker compose down -v && docker compose up -d`, then
-  re-run the `seed_demo` job (it migrates first).
+- **Wipe and reseed the dev database**: SQLite: delete `apps/api-py/data/canvas.db` and run
+  `npm run dev:local` (a new database is seeded). Postgres: `docker compose down -v && docker compose up -d`,
+  then re-run the `seed_demo` job (it migrates first).
 - **The e2e "Smoke Test" project** is cleared automatically before every local Playwright run
   (canvas-fbv): the global setup (`apps/web/tests/e2e/global-setup.ts`) runs the `e2e_reset` job,
   which permanently deletes every diagram in that seeded project (live or soft-deleted, with their
   chats and share grants), then `seed_demo`. Don't keep diagrams you care about in "Smoke Test". Skip
   it with `E2E_KEEP_DATA=1` (e.g. to inspect what the previous run left); CI never runs it (fresh
-  database). Projects created by specs elsewhere are not touched. The global setup uses
-  `DATABASE_URL`/`SESSION_SECRET` from your shell, else the local defaults above.
+  database). Projects created by specs elsewhere are not touched. The global setup runs the jobs in
+  `apps/api-py` with the settings of `apps/api-py/.env` (the database the local API uses, SQLite or Postgres);
+  your shell's variables win over it (canvas-mywp).
 - **Re-run seed only** (idempotent — matches existing users/project by email/name instead of
   duplicating): `uv run --env-file .env python -m canvas_api.jobs.seed_demo` in `apps/api-py`.
 - **Purge now**: `uv run --env-file .env python -m canvas_api.jobs.purge --dry-run` lists what would

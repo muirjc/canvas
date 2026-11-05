@@ -1,12 +1,16 @@
 import { execSync } from 'node:child_process';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { readEnvFile } from '../../../../scripts/dotenv.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 // apps/web/tests/e2e -> apps/web/tests -> apps/web -> apps -> repo root
 const REPO_ROOT = path.resolve(__dirname, '../../../..');
-/** A Python job in apps/api-py (canvas-1bty.16), run from the repo root. */
-const PY_JOB = 'uv run --project apps/api-py python -m canvas_api.jobs.';
+/** canvas-mywp: the jobs run from apps/api-py, as the API does, so a relative SQLite path (./data/canvas.db)
+ *  means the same file. */
+const API_DIR = path.join(REPO_ROOT, 'apps', 'api-py');
+/** A Python job in apps/api-py (canvas-1bty.16). */
+const PY_JOB = 'uv run python -m canvas_api.jobs.';
 
 /**
  * canvas-i86: every e2e spec reads `process.env.E2E_PROJECT_ID`, skipping itself if it's unset —
@@ -31,12 +35,20 @@ export default function globalSetup(): void {
   // these two explicitly. Falls back to this repo's own standard local dev values (used
   // consistently everywhere else — apps/api-py/.env.example, RUNBOOK.md) if a developer hasn't already
   // exported their own.
+  // canvas-mywp: apps/api-py/.env (the settings the local API runs with) fills in what the environment doesn't
+  // set, so the jobs use the API's own database, SQLite or Postgres, with no variables to export by hand.
+  const fileEnv: Record<string, string> = readEnvFile(path.join(API_DIR, '.env'));
   const env = {
+    ...fileEnv,
     ...process.env,
     DATABASE_URL:
-      process.env.DATABASE_URL ?? 'postgres://canvas:canvas_dev_password@localhost:5433/canvas',
+      process.env.DATABASE_URL ??
+      fileEnv.DATABASE_URL ??
+      'postgres://canvas:canvas_dev_password@localhost:5433/canvas',
     SESSION_SECRET:
-      process.env.SESSION_SECRET ?? 'change-me-to-a-random-string-of-at-least-32-characters',
+      process.env.SESSION_SECRET ??
+      fileEnv.SESSION_SECRET ??
+      'change-me-to-a-random-string-of-at-least-32-characters',
   };
 
   // canvas-fbv: each local run used to leave hundreds of diagrams in the shared "Smoke Test"
@@ -44,7 +56,7 @@ export default function globalSetup(): void {
   // runs only: CI starts from an empty database. E2E_KEEP_DATA=1 skips it, e.g. to inspect what
   // a previous run left behind.
   if (!process.env.CI && !process.env.E2E_KEEP_DATA) {
-    const reset = execSync(`${PY_JOB}e2e_reset`, { cwd: REPO_ROOT, encoding: 'utf-8', env });
+    const reset = execSync(`${PY_JOB}e2e_reset`, { cwd: API_DIR, encoding: 'utf-8', env });
     const summary = reset.match(/e2e reset: .*/);
     if (summary) console.log(summary[0]);
   }
@@ -52,7 +64,7 @@ export default function globalSetup(): void {
   if (process.env.E2E_PROJECT_ID) return;
 
   const output = execSync(`${PY_JOB}seed_demo`, {
-    cwd: REPO_ROOT,
+    cwd: API_DIR,
     encoding: 'utf-8',
     env,
   });

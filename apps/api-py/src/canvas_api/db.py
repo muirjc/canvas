@@ -5,6 +5,8 @@ Core only, never the ORM (Constitution Principle VI: a query compiler, not an OR
 
 from __future__ import annotations
 
+from pathlib import Path
+
 from fastapi import Request
 from sqlalchemy import Engine, create_engine, event
 from sqlalchemy.pool import StaticPool
@@ -31,6 +33,9 @@ def create_db_engine(settings: Settings) -> Engine:
     if settings.db_client == "sqlite":
         # One shared connection for :memory: (each new connection would be an empty database).
         memory = settings.database_url == ":memory:"
+        if not memory:
+            # canvas-mywp: SQLite won't create a missing folder, so a fresh `./data/canvas.db` failed to open.
+            Path(settings.database_url).parent.mkdir(parents=True, exist_ok=True)
         engine = create_engine(
             sqlalchemy_url(settings),
             connect_args={"check_same_thread": False},
