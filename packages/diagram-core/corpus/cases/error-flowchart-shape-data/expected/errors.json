@@ -1,0 +1,39 @@
+{
+  "errors": [
+    {
+      "content": "  A@{ shape }",
+      "line": 2,
+      "message": "In A@{ … }: Expected \":\" after \"shape\"."
+    },
+    {
+      "content": "  B@{ shape: \"not a name\" }",
+      "line": 3,
+      "message": "In B@{ … }: \"not a name\" is not a shape name."
+    },
+    {
+      "content": "  C@{ label: \"x\", label: \"y\" }",
+      "line": 4,
+      "message": "In C@{ … }: \"label\" is given twice."
+    },
+    {
+      "content": "  D@{ img: \"javascript:alert(1)\" }",
+      "line": 5,
+      "message": "In D@{ … }: \"img\" must be an http(s) or relative address."
+    },
+    {
+      "content": "  F e1@--> G",
+      "line": 7,
+      "message": "Edge id \"e1\" is used twice."
+    },
+    {
+      "content": "  S@{ view: collapsed }",
+      "line": 11,
+      "message": "Subgraph options (S@{ … }) are not read yet."
+    },
+    {
+      "content": "  I e9@--> J & K",
+      "line": 12,
+      "message": "Could not interpret line as a node, edge, or subgraph: \"I e9@--> J & K\""
+    }
+  ]
+}

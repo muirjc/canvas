@@ -1,0 +1,71 @@
+---
+canvas:
+  positions:
+    start:
+      x: 40
+      y: 40
+    orders:
+      x: 220
+      y: 40
+    check:
+      x: 400
+      y: 40
+    report:
+      x: 580
+      y: 40
+    cloud:
+      x: 760
+      y: 40
+    user:
+      x: 940
+      y: 40
+    logo:
+      x: 40
+      y: 140
+    plain:
+      x: 220
+      y: 140
+    sub:
+      x: 400
+      y: 140
+    fork:
+      x: 580
+      y: 140
+    lean:
+      x: 700
+      y: 140
+    odd:
+      x: 880
+      y: 140
+    trap:
+      x: 40
+      y: 240
+    number:
+      x: 220
+      y: 240
+  containers: {}
+  styles: {}
+  edgeStyles: {}
+  icons: {}
+---
+flowchart LR
+  start@{ shape: sm-circ, label: "Start" }
+  orders@{ shape: cyl, label: "Orders \"live\"" }
+  check:::decision@{ shape: diam, label: "Is it 'ok'?" }
+  report@{ shape: doc }
+  cloud@{ shape: cloud, label: "Cloud" }
+  user@{ label: "User", icon: "fa:user", form: "circle", pos: "t", h: 60 }
+  logo@{ label: "Logo", img: "https://example.org/logo.png", w: 60, h: 60, constraint: "on" }
+  plain@{ shape: hex, label: "Plain box" }
+  sub@{ shape: subprocess, label: "Sub" }
+  fork@{ shape: fork }
+  lean@{ shape: lean-l, label: "Out" }
+  odd@{ shape: odd, label: "Odd" }
+  trap@{ shape: trap-t, label: "Manual" }
+  number@{ label: "42", flag: true, ratio: -0.5 }
+  start --> orders
+  orders --> check
+  check --> sub
+  check --> fork
+  check -->|yes| lean
+  odd -.-> trap

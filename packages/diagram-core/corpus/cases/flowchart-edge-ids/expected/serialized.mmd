@@ -1,0 +1,53 @@
+---
+canvas:
+  positions:
+    A:
+      x: 40
+      y: 40
+    B:
+      x: 220
+      y: 40
+    C:
+      x: 400
+      y: 40
+    D:
+      x: 580
+      y: 40
+    E:
+      x: 760
+      y: 40
+    F:
+      x: 940
+      y: 40
+    G:
+      x: 40
+      y: 140
+    H:
+      x: 220
+      y: 140
+  containers: {}
+  styles: {}
+  edgeStyles:
+    e2:
+      strokeColor: "#f00"
+  icons: {}
+---
+flowchart LR
+  A[A]
+  B[B]
+  C[C]
+  D[D]
+  E[E]
+  F[F]
+  G[G]
+  H[H]
+  A e1@--> B
+  B e2@==> C
+  C e3@-.->|maybe| D
+  D e4@-->|text| E
+  E e5@--> F
+  F e6@--> G
+  G --> H
+  e1@{ animate: true }
+  e2@{ animation: "fast" }
+  e3@{ curve: "linear", step: 2 }

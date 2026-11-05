@@ -131,6 +131,13 @@ The DSL tab reads Mermaid's newer sequence-diagram syntax: half arrows (such as 
 connections (`A->>()B`) and participant `link` menus (http and https links only; they're kept and
 exported, but Canvas doesn't show them as a menu). Class diagrams read `class A["Display label"]`.
 
+Flowcharts read Mermaid's newer shape syntax, `A@{ shape: cyl, label: "Orders" }`, with any of
+Mermaid's shape names. Shapes Canvas has no drawing of (such as `doc`, `cloud` or `flag`), and icon
+and image nodes (`icon:`, `img:`), are drawn as the nearest Canvas shape; the Mermaid name is kept,
+so the exported text still has it. Image addresses must be http or https links. Edge ids
+(`A e1@--> B`) and edge options such as `e1@{ animate: true }` are kept and exported; Canvas doesn't
+animate or curve edges. Subgraph options (`one@{ view: collapsed }`) aren't read yet.
+
 ## The Issues tab: standards
 
 If a standard applies to the diagram type, the **Issues** tab lists where the diagram breaks it,

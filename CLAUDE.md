@@ -96,6 +96,20 @@ tests are NON-NEGOTIABLE and must exist (and fail) before implementing any diagr
 work — see `.specify/memory/constitution.md` Principle IV.
 
 ## Recent Changes
+- `canvas-8wxq` part 2 (Mermaid 12.x): **flowchart `@{ … }` shape data and edge ids.** `dsl/mermaid-shape-data.ts`
+  / Python `mermaid_shape_data.py`: the `@{ key: value }` block (YAML flow subset: double-quoted with `\" \\ \n \t
+  \r`, single-quoted, bare true/false/number(<=9.6 digits)/text; a key twice, a missing colon or value = error),
+  `mermaidShapeToCanvas` (every Mermaid shape name/alias -> nearest Canvas shape, unknown names -> rectangle),
+  `MERMAID_SHAPE_NAME` (written when the shape was changed in Canvas). `A@{…}` / `A:::kind@{…}` as a line or an
+  edge end (class BEFORE the block, as Mermaid's grammar has it): `node.mermaidShape` (as written) + `shape`,
+  `label`, other keys in `node.mermaidData`; applied over an existing node; `img` must pass `isAllowedLinkHref`.
+  Edge ids `A e1@--> B` on every edge form but fan-out: `edge.mermaidId` (Canvas's `e<n>` ids unchanged), a
+  repeated id = error; a later `e1@{…}` line = `edge.mermaidData` (before the edge exists it's a node, as in
+  Mermaid); `one@{…}` on a subgraph = "not read yet" error. Serializer writes them back (edge options after the
+  edges). Not drawn: edge animate/curve/step, icon/img. Corpus `flowchart-mermaid12-shapes`,
+  `flowchart-edge-ids`, `error-flowchart-shape-data`; `dsl-flowchart-mermaid12.test.ts`; the flowchart parity fuzz
+  generates the syntax and also serializes edited models (reshaped nodes, odd labels, duplicate/bad edge ids).
+  Found: canvas-sfz7 (`--->` long links misread).
 - `canvas-8wxq` part 1 (Mermaid 12.x): **class display labels and sequence half arrows, central connections and link
   menus.** UML: `class A["Label"]` (also with `~T~`, `<<x>>`, a body) sets the label; written back when it differs
   from the id. Sequence: `DiagramEdge.arrow` gains `SequenceHalfArrow` values (`half|stick`-`top|bottom`[`-reverse`],

@@ -58,6 +58,45 @@ LABELS = [
 ]
 CONN = ["-->", "---", "-.->", "-.-", "==>", "===", "<-->", "<-.->", "<==>", "~~~"]
 CLASSES = ["primary", "kind_a", "k2"]
+# canvas-8wxq: Mermaid 11.3+ `@{ … }` blocks and edge ids.
+SHAPE_NAMES = ["rect", "cyl", "database", "diam", "doc", "cloud", "fork", "lean-l", "trap-t", "odd", "unknown-x", "Hex"]
+LABEL_VALUES = [
+    '"Text"',
+    r'"say \"hi\""',
+    r'"back\\slash"',
+    r'"line\nbreak"',
+    '"a, b"',
+    '"{x}"',
+    '"A-->B"',
+    "'it''s'",
+    "''",
+]
+BARE_VALUES = ["Bare text", "42", "1.50", "-0", "true", "0.000001", "1234567890", "12.1234567"]
+DATA_ENTRIES = [
+    lambda r: f"shape: {r.choice(SHAPE_NAMES)}",
+    lambda r: f"label: {r.choice(LABEL_VALUES + BARE_VALUES)}",
+    lambda r: 'icon: "fa:user"',
+    lambda r: (
+        f'img: "{r.choice(["https://x.example/a.png", "/a.png", "https://y.example/b.svg", "javascript:alert(1)"])}"'
+    ),
+    lambda r: f"{r.choice(['h', 'w'])}: {r.choice(['60', '0.5', 'big', '0.000001', '-0', '123456789.123456'])}",
+    lambda r: f"{r.choice(['animate', 'flag'])}: {r.choice(['true', 'false'])}",
+    lambda r: f"{r.choice(['curve', 'animation'])}: {r.choice(['linear', 'fast', '"natural"'])}",
+    lambda r: f"step: {r.randint(-1, 3)}",
+    lambda r: r.choice(["constructor: 1", "__proto__: 2"]),
+]
+BAD_ENTRIES = ["shape: 1", "shape: true", 'shape: "two words"', "shape: -x", "shape", "label:", "9key: x", "a: b c: d"]
+
+
+def shape_data(rnd: random.Random) -> str:
+    entries = [rnd.choice(DATA_ENTRIES)(rnd) for _ in range(rnd.randint(0, 3))]
+    if rnd.random() < 0.08:
+        entries.insert(rnd.randint(0, len(entries)), rnd.choice(BAD_ENTRIES))
+    return "@{" + rnd.choice([" ", "", "  "]) + ", ".join(entries) + rnd.choice([" }", "}"])
+
+
+def edge_id(rnd: random.Random) -> str:
+    return f" e{rnd.randint(1, 3)}@" if rnd.random() < 0.3 else " "
 
 
 def ident(rnd: random.Random) -> str:
@@ -66,6 +105,8 @@ def ident(rnd: random.Random) -> str:
 
 def token(rnd: random.Random) -> str:
     i = ident(rnd)
+    if rnd.random() < 0.15:
+        return i + (":::" + rnd.choice(CLASSES) if rnd.random() < 0.2 else "") + shape_data(rnd)
     if rnd.random() < 0.35:
         o, c = rnd.choice(SHAPES)
         i += f"{o}{rnd.choice(LABELS)}{c}"
@@ -79,17 +120,17 @@ def line(rnd: random.Random) -> str:
     if r < 0.25:
         return token(rnd)
     if r < 0.45:
-        return f"{token(rnd)} {rnd.choice(CONN)} {token(rnd)}"
+        return f"{token(rnd)}{edge_id(rnd)}{rnd.choice(CONN)} {token(rnd)}"
     if r < 0.52:
-        return f"{token(rnd)} {rnd.choice(CONN)}|{rnd.choice(LABELS)}| {token(rnd)}"
+        return f"{token(rnd)}{edge_id(rnd)}{rnd.choice(CONN)}|{rnd.choice(LABELS)}| {token(rnd)}"
     if r < 0.57:
-        return f"{token(rnd)} -- {rnd.choice(LABELS)} --> {token(rnd)}"
+        return f"{token(rnd)}{edge_id(rnd)}-- {rnd.choice(LABELS)} --> {token(rnd)}"
     if r < 0.6:
         return f"{token(rnd)} -. {rnd.choice(LABELS)} .-> {token(rnd)}"
     if r < 0.63:
         return f"{token(rnd)} == text ==> {token(rnd)}"
     if r < 0.68:
-        return f"{token(rnd)} {rnd.choice(CONN)} {token(rnd)} {rnd.choice(CONN)} {token(rnd)}"
+        return f"{token(rnd)}{edge_id(rnd)}{rnd.choice(CONN)} {token(rnd)}{edge_id(rnd)}{rnd.choice(CONN)} {token(rnd)}"
     if r < 0.72:
         return f"{token(rnd)} {rnd.choice(CONN)} {token(rnd)} & {token(rnd)}"
     if r < 0.75:
@@ -121,7 +162,9 @@ def line(rnd: random.Random) -> str:
         return f"{token(rnd)} --> {token(rnd)} %% trailing"
     if r < 0.93:
         return "%%{init: {'theme': 'dark'}}%%"
-    if r < 0.95:
+    if r < 0.955:
+        return f"{rnd.choice([ident(rnd), 'e1', 'e2', 'e3', 'S1'])}{shape_data(rnd)}"
+    if r < 0.96:
         return "this is not valid ;;"
     return ""
 
@@ -169,6 +212,8 @@ def diagram(rnd: random.Random) -> str:
         else:
             out.append(("  " * depth) + line(rnd))
     out += ["end"] * depth if rnd.random() < 0.9 else []
+    for _ in range(rnd.choice([0, 0, 1, 2])):
+        out.append(f"e{rnd.randint(1, 3)}{shape_data(rnd)}")
     return "\n".join(out) + rnd.choice(["\n", "", "\r\n"])
 
 
@@ -201,6 +246,19 @@ def _differences(bridge: DiagramBridge, dsl: str) -> list[str]:
         model = json.loads(json.dumps(parsed["model"]))
         if serialize_flowchart(model) != bridge.serialize("flowchart", model):
             found.append("serialize")
+        # Edited in Canvas after reading: shapes changed, odd labels, and edge ids and options the parser would
+        # refuse (a model can be built without it).
+        for index, node in enumerate(model["nodes"]):
+            node["shape"] = ["hexagon", "rectangle", "icon", "cylinder", "fork-bar"][index % 5]
+            if index % 3 == 0:
+                node["label"] = 'cr\r "q" \\ end'
+            if index % 4 == 1:
+                node["mermaidData"] = {"img": "javascript:x", "9bad": 1, "w": 1e-7, "ok": "yes"}
+        for index, edge in enumerate(model["edges"]):
+            edge["mermaidId"] = ["e1", "e1", "bad id", None, "e2"][index % 5]
+            edge["mermaidData"] = {"animate": True, "n": 0.000001} if index % 2 else None
+        if serialize_flowchart(model) != bridge.serialize("flowchart", model):
+            found.append("serialize-reshaped")
         if to_portable_mermaid(dsl, False) != bridge.portable(dsl):
             found.append("portable")
         if to_portable_mermaid(dsl, True) != bridge.portable(dsl, strip_front_matter=True):

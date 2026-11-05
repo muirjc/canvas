@@ -1,0 +1,12 @@
+flowchart TD
+  A@{ shape }
+  B@{ shape: "not a name" }
+  C@{ label: "x", label: "y" }
+  D@{ img: "javascript:alert(1)" }
+  E e1@--> F
+  F e1@--> G
+  subgraph S
+    H
+  end
+  S@{ view: collapsed }
+  I e9@--> J & K

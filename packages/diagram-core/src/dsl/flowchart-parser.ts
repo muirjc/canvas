@@ -4,6 +4,7 @@ import {
   type DiagramContainer,
   type DiagramNode,
   type FlowchartDirection,
+  type MermaidData,
   type NodeLink,
   type NodeShape,
   type NodeStyle,
@@ -11,6 +12,7 @@ import {
 import { splitFrontMatter, stripTrailingComment, readLegend, readPinned, NO_ENTRIES } from './front-matter.js';
 import type { ParseError, ParseResult } from './types.js';
 import { computeContainmentLayout } from '../model/containment-layout.js';
+import { MERMAID_NAME, SHAPE_DATA_INNER_SOURCE, SHAPE_DATA_SOURCE, mermaidShapeToCanvas, parseShapeData } from './mermaid-shape-data.js';
 
 const ID = String.raw`[A-Za-z0-9_]+`;
 
@@ -53,7 +55,12 @@ const SHAPE_SUFFIX = String.raw`\[\[.+?\]\]|\(\(\(.+?\)\)\)|\{\{.+?\}\}|\(\[.+?\
 // own source/connector/target capture groups), an extra capturing group here would shift every
 // one of those indices.
 const CLASS_SUFFIX = String.raw`(?::::${ID}(?:\s*,\s*${ID})*)?`;
-const TOKEN = String.raw`${ID}(?:${SHAPE_SUFFIX})?${CLASS_SUFFIX}`;
+// canvas-8wxq: or `A@{ shape: … }` (Mermaid 11.3+), a class going before the block as Mermaid's grammar has it.
+const TOKEN = String.raw`${ID}(?:(?:${SHAPE_SUFFIX})?${CLASS_SUFFIX}|${CLASS_SUFFIX}${SHAPE_DATA_SOURCE})`;
+// canvas-8wxq: an edge id (`A e1@--> B`), written between the source and the connector.
+const EDGE_ID = String.raw`(?:\s+(${ID})@|\s*)`;
+// `A@{ … }` / `A:::kind@{ … }` as a token or a statement of its own, and `e1@{ … }` for an edge.
+const SHAPE_DATA_TOKEN = new RegExp(`^(${ID})(?::::(${ID}(?:\\s*,\\s*${ID})*))?@\\{(${SHAPE_DATA_INNER_SOURCE})\\}$`);
 
 // Grouping B (docs/flowchart-completeness-brief.md): the ten flowchart connector tokens, each
 // naming a (lineStyle, arrow) pair. `lineStyle`/`arrow` are left undefined on the parsed edge for
@@ -84,29 +91,31 @@ function escapeRegex(value: string): string {
 // longest-first anyway as the clearer convention to read.
 const CONNECTOR_ALTERNATION = EDGE_CONNECTORS.map((c) => escapeRegex(c.token)).join('|');
 
-const EDGE_WITH_PIPE_LABEL = new RegExp(`^(${TOKEN})\\s*(${CONNECTOR_ALTERNATION})\\s*\\|(.+?)\\|\\s*(${TOKEN})$`);
+const EDGE_WITH_PIPE_LABEL = new RegExp(`^(${TOKEN})${EDGE_ID}(${CONNECTOR_ALTERNATION})\\s*\\|(.+?)\\|\\s*(${TOKEN})$`);
 // Inline (embedded) labels: `A -- text --> B` / `A -. text .-> B` / `A == text ==> B` — one
 // regex per line style since the opening and closing halves of the connector must match (a
 // single alternation of independent opens/closes could not enforce that pairing).
-const EDGE_INLINE_LABEL_SOLID = new RegExp(`^(${TOKEN})\\s*--\\s*(.+?)\\s*-->\\s*(${TOKEN})$`);
-const EDGE_INLINE_LABEL_DOTTED = new RegExp(`^(${TOKEN})\\s*-\\.\\s*(.+?)\\s*\\.->\\s*(${TOKEN})$`);
-const EDGE_INLINE_LABEL_THICK = new RegExp(`^(${TOKEN})\\s*==\\s*(.+?)\\s*==>\\s*(${TOKEN})$`);
+const EDGE_INLINE_LABEL_SOLID = new RegExp(`^(${TOKEN})${EDGE_ID}--\\s*(.+?)\\s*-->\\s*(${TOKEN})$`);
+const EDGE_INLINE_LABEL_DOTTED = new RegExp(`^(${TOKEN})${EDGE_ID}-\\.\\s*(.+?)\\s*\\.->\\s*(${TOKEN})$`);
+const EDGE_INLINE_LABEL_THICK = new RegExp(`^(${TOKEN})${EDGE_ID}==\\s*(.+?)\\s*==>\\s*(${TOKEN})$`);
 // Fan-out: `A --> B & C & ...` — one connector, an "&"-separated list of targets.
 const EDGE_FAN_OUT = new RegExp(`^(${TOKEN})\\s*(${CONNECTOR_ALTERNATION})\\s*(${TOKEN}(?:\\s*&\\s*${TOKEN})+)$`);
-const EDGE_NO_LABEL = new RegExp(`^(${TOKEN})\\s*(${CONNECTOR_ALTERNATION})\\s*(${TOKEN})$`);
+const EDGE_NO_LABEL = new RegExp(`^(${TOKEN})${EDGE_ID}(${CONNECTOR_ALTERNATION})\\s*(${TOKEN})$`);
 // Chained edges: `A --> B --> C` — peels one `TOKEN CONNECTOR` hop off the front at a time; each
 // hop's connector is independent, so a chain may mix line styles (`A --> B -.-> C`).
-const CHAIN_HOP = new RegExp(`^(${TOKEN})\\s*(${CONNECTOR_ALTERNATION})\\s*`);
+const CHAIN_HOP = new RegExp(`^(${TOKEN})${EDGE_ID}(${CONNECTOR_ALTERNATION})\\s*`);
 const BARE_TOKEN = new RegExp(`^(${TOKEN})$`);
 
 /** Only a genuine 2+-hop chain is reported; a single hop is just an ordinary edge, already
  *  handled by EDGE_NO_LABEL (and friends) without going through this slower path. */
-function tryParseChain(line: string): { sourceToken: string; connectorToken: string; targetToken: string }[] | null {
-  const hops: { sourceToken: string; connectorToken: string }[] = [];
+function tryParseChain(
+  line: string,
+): { sourceToken: string; edgeId?: string; connectorToken: string; targetToken: string }[] | null {
+  const hops: { sourceToken: string; edgeId?: string; connectorToken: string }[] = [];
   let remaining = line;
   let match: RegExpMatchArray | null;
   while ((match = remaining.match(CHAIN_HOP))) {
-    hops.push({ sourceToken: match[1], connectorToken: match[2] });
+    hops.push({ sourceToken: match[1], edgeId: match[2], connectorToken: match[3] });
     remaining = remaining.slice(match[0].length);
   }
   if (hops.length < 2) return null;
@@ -114,7 +123,7 @@ function tryParseChain(line: string): { sourceToken: string; connectorToken: str
   if (!finalMatch) return null;
 
   const tokens = [...hops.map((h) => h.sourceToken), finalMatch[1]];
-  return hops.map((hop, i) => ({ sourceToken: tokens[i], connectorToken: hop.connectorToken, targetToken: tokens[i + 1] }));
+  return hops.map((hop, i) => ({ sourceToken: tokens[i], edgeId: hop.edgeId, connectorToken: hop.connectorToken, targetToken: tokens[i + 1] }));
 }
 const SUBGRAPH_START = new RegExp(`^subgraph\\s+(${ID})(?:\\s*\\[(.+)\\])?$`);
 const SUBGRAPH_END = /^end$/;
@@ -188,8 +197,11 @@ function parseStyleProps(propsRaw: string): NodeStyle {
   return style;
 }
 
-/** Parses a single edge-endpoint token into its id and (if inline-declared) shape/label/class. */
-function matchNodeToken(token: string): { id: string; label: string; shape: NodeShape; className?: string } | null {
+/** Parses a single edge-endpoint token into its id and (if inline-declared) shape/label/class, or its
+ *  `@{ … }` block (canvas-8wxq). */
+function matchNodeToken(token: string): { id: string; label: string; shape: NodeShape; className?: string; data?: string } | null {
+  const withData = token.match(SHAPE_DATA_TOKEN);
+  if (withData) return { id: withData[1], label: withData[1], shape: 'rectangle', className: withData[2], data: withData[3] };
   for (const { shape, regex } of NODE_PATTERNS) {
     const match = token.match(regex);
     if (match) {
@@ -240,7 +252,13 @@ export function parseFlowchart(dsl: string): ParseResult {
     style?: NodeStyle;
     arrow?: EdgeArrow;
     lineStyle?: EdgeLineStyle;
+    mermaidId?: string;
+    mermaidData?: MermaidData;
   }[] = [];
+  const edgesByMermaidId = new Map<string, (typeof edges)[number]>();
+  // The line being read, for errors found while handling an edge's ends.
+  let lineIndex = 0;
+  let lineText = '';
   const containerStack: string[] = [];
   const styleDirectives: { nodeId: string; propsRaw: string }[] = [];
   const linkStyleDirectives: { indices: number[] | 'default'; propsRaw: string }[] = [];
@@ -281,21 +299,46 @@ export function parseFlowchart(dsl: string): ParseResult {
     return node;
   };
 
+  // canvas-8wxq: `A@{ shape: …, label: …, … }` -- applied over an existing node too, as Mermaid does.
+  const applyShapeData = (node: DiagramNode, inner: string): void => {
+    const parsed = parseShapeData(inner);
+    let error = 'error' in parsed ? parsed.error : undefined;
+    for (const [key, value] of 'entries' in parsed ? parsed.entries : []) {
+      if (key === 'shape') {
+        if (typeof value !== 'string' || !MERMAID_NAME.test(value)) {
+          error = `"${String(value)}" is not a shape name`;
+          break;
+        }
+        node.mermaidShape = value;
+        node.shape = mermaidShapeToCanvas(value, !!icons[node.id]);
+      } else if (key === 'label') {
+        node.label = String(value);
+      } else if (key === 'img' && (typeof value !== 'string' || !isAllowedLinkHref(value))) {
+        error = '"img" must be an http(s) or relative address';
+        break;
+      } else {
+        node.mermaidData = { ...node.mermaidData, [key]: value };
+      }
+    }
+    if (error) errors.push({ line: lineIndex + 1, content: lineText, message: `In ${node.id}@{ … }: ${error}.` });
+  };
+
   const resolveEdgeEndpoint = (token: string): string => {
     const parsed = matchNodeToken(token);
     if (!parsed) return token;
-    ensureNode(parsed.id, parsed.label, parsed.shape);
+    const node = ensureNode(parsed.id, parsed.label, parsed.shape);
+    if (parsed.data !== undefined) applyShapeData(node, parsed.data);
     if (parsed.className) {
       classAssignments.push({ nodeIds: [parsed.id], className: parsed.className.split(',')[0].trim() });
     }
     return parsed.id;
   };
 
-  const pushEdge = (sourceToken: string, connectorToken: string, targetToken: string, label?: string): void => {
+  const pushEdge = (sourceToken: string, connectorToken: string, targetToken: string, label?: string, mermaidId?: string): void => {
     const connector = CONNECTOR_BY_TOKEN.get(connectorToken)!;
     edgeCounter += 1;
     const id = `e${edgeCounter}`;
-    edges.push({
+    const edge: (typeof edges)[number] = {
       id,
       sourceId: resolveEdgeEndpoint(sourceToken),
       targetId: resolveEdgeEndpoint(targetToken),
@@ -303,11 +346,21 @@ export function parseFlowchart(dsl: string): ParseResult {
       style: edgeStyles[id],
       arrow: connector.arrow,
       lineStyle: connector.lineStyle,
-    });
+    };
+    if (mermaidId !== undefined) {
+      if (edgesByMermaidId.has(mermaidId)) {
+        errors.push({ line: lineIndex + 1, content: lineText, message: `Edge id "${mermaidId}" is used twice.` });
+      }
+      edge.mermaidId = mermaidId;
+      edgesByMermaidId.set(mermaidId, edge);
+    }
+    edges.push(edge);
   };
 
   for (let i = 0; i < lines.length; i += 1) {
     const rawLine = lines[i];
+    lineIndex = i;
+    lineText = rawLine;
     let line = rawLine.trim();
     if (!line) continue;
 
@@ -464,8 +517,8 @@ export function parseFlowchart(dsl: string): ParseResult {
 
     const pipeEdge = line.match(EDGE_WITH_PIPE_LABEL);
     if (pipeEdge) {
-      const [, source, connector, label, target] = pipeEdge;
-      pushEdge(source, connector, target, label);
+      const [, source, edgeId, connector, label, target] = pipeEdge;
+      pushEdge(source, connector, target, label, edgeId);
       continue;
     }
     // Chained (`A --> B --> C`) and fan-out (`A --> B & C`) must be tried before the inline-label
@@ -476,7 +529,7 @@ export function parseFlowchart(dsl: string): ParseResult {
     // inline-labeled edge (its `--`/`-.`/`==` open is never itself a complete connector token).
     const chain = tryParseChain(line);
     if (chain) {
-      for (const hop of chain) pushEdge(hop.sourceToken, hop.connectorToken, hop.targetToken);
+      for (const hop of chain) pushEdge(hop.sourceToken, hop.connectorToken, hop.targetToken, undefined, hop.edgeId);
       continue;
     }
     const fanOut = line.match(EDGE_FAN_OUT);
@@ -487,26 +540,45 @@ export function parseFlowchart(dsl: string): ParseResult {
     }
     const inlineSolid = line.match(EDGE_INLINE_LABEL_SOLID);
     if (inlineSolid) {
-      const [, source, label, target] = inlineSolid;
-      pushEdge(source, '-->', target, label);
+      const [, source, edgeId, label, target] = inlineSolid;
+      pushEdge(source, '-->', target, label, edgeId);
       continue;
     }
     const inlineDotted = line.match(EDGE_INLINE_LABEL_DOTTED);
     if (inlineDotted) {
-      const [, source, label, target] = inlineDotted;
-      pushEdge(source, '-.->', target, label);
+      const [, source, edgeId, label, target] = inlineDotted;
+      pushEdge(source, '-.->', target, label, edgeId);
       continue;
     }
     const inlineThick = line.match(EDGE_INLINE_LABEL_THICK);
     if (inlineThick) {
-      const [, source, label, target] = inlineThick;
-      pushEdge(source, '==>', target, label);
+      const [, source, edgeId, label, target] = inlineThick;
+      pushEdge(source, '==>', target, label, edgeId);
       continue;
     }
     const plainEdge = line.match(EDGE_NO_LABEL);
     if (plainEdge) {
-      const [, source, connector, target] = plainEdge;
-      pushEdge(source, connector, target);
+      const [, source, edgeId, connector, target] = plainEdge;
+      pushEdge(source, connector, target, undefined, edgeId);
+      continue;
+    }
+
+    // canvas-8wxq: `A@{ … }` on its own line: an edge's options when an edge already has that id (as in
+    // Mermaid), refused for a subgraph (`one@{ view: collapsed }` isn't read yet), else a node's shape data.
+    const shapeData = line.match(SHAPE_DATA_TOKEN);
+    if (shapeData) {
+      const [, id, classNames, inner] = shapeData;
+      const edge = classNames === undefined ? edgesByMermaidId.get(id) : undefined;
+      if (edge) {
+        const parsed = parseShapeData(inner);
+        if ('error' in parsed) errors.push({ line: i + 1, content: rawLine, message: `In ${id}@{ … }: ${parsed.error}.` });
+        else for (const [key, value] of parsed.entries) edge.mermaidData = { ...edge.mermaidData, [key]: value };
+      } else if (containersById.has(id)) {
+        errors.push({ line: i + 1, content: rawLine, message: `Subgraph options (${id}@{ … }) are not read yet.` });
+      } else {
+        applyShapeData(ensureNode(id, id, 'rectangle'), inner);
+        if (classNames) classAssignments.push({ nodeIds: [id], className: classNames.split(',')[0].trim() });
+      }
       continue;
     }
 

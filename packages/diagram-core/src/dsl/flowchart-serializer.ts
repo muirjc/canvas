@@ -1,5 +1,6 @@
 import { isAllowedLinkHref, type DiagramContainer, type DiagramModel, type DiagramNode, type NodeShape } from '../model/diagram-model.js';
 import { joinFrontMatter, type CanvasFrontMatter, withLegend, withPinned } from './front-matter.js';
+import { MERMAID_NAME, MERMAID_SHAPE_NAME, dataEntries, formatShapeData, mermaidShapeToCanvas } from './mermaid-shape-data.js';
 
 const SHAPE_DELIMITERS: Record<NodeShape, [string, string]> = {
   rectangle: ['[', ']'],
@@ -29,9 +30,27 @@ const SHAPE_DELIMITERS: Record<NodeShape, [string, string]> = {
 // over the node's own front-matter style, resetting a user-chosen swatch on every reload.
 const CLASS_TOKEN = /^[A-Za-z0-9_]+$/;
 
+// canvas-8wxq: a node read from `A@{ … }` is written back that way. Its Mermaid shape name is kept while it
+// still fits the node's shape; once the shape is changed in Canvas, the shape's own Mermaid name is written.
+function shapeData(node: DiagramNode): string | undefined {
+  // An image address is checked again, as for click links: the model can be built without the parser.
+  const extra = dataEntries(node.mermaidData, ['shape', 'label']).filter(
+    ([key, value]) => key !== 'img' || (typeof value === 'string' && isAllowedLinkHref(value)),
+  );
+  const named = typeof node.mermaidShape === 'string' && MERMAID_NAME.test(node.mermaidShape) ? node.mermaidShape : undefined;
+  if (named === undefined && extra.length === 0) return undefined;
+  const entries: [string, unknown][] = [];
+  if (named !== undefined && mermaidShapeToCanvas(named, !!node.icon) === node.shape) entries.push(['shape', named]);
+  else if (named !== undefined || node.shape !== 'rectangle') entries.push(['shape', Object.hasOwn(MERMAID_SHAPE_NAME, node.shape) ? MERMAID_SHAPE_NAME[node.shape] : 'rect']);
+  if (node.label !== node.id) entries.push(['label', node.label]);
+  return formatShapeData([...entries, ...extra]);
+}
+
 function serializeNode(node: DiagramNode): string {
-  const [open, close] = SHAPE_DELIMITERS[node.shape];
   const kindSuffix = node.role && CLASS_TOKEN.test(node.role) ? `:::${node.role}` : '';
+  const data = shapeData(node);
+  if (data !== undefined) return `  ${node.id}${kindSuffix}${data}`;
+  const [open, close] = SHAPE_DELIMITERS[node.shape];
   return `  ${node.id}${open}${node.label}${close}${kindSuffix}`;
 }
 
@@ -78,8 +97,21 @@ function connectorFor(edge: DiagramModel['edges'][number]): string {
   return CONNECTOR_TOKENS[lineStyle][arrow];
 }
 
-function serializeEdge(edge: DiagramModel['edges'][number]): string {
-  const connector = connectorFor(edge);
+const EDGE_ID = /^[A-Za-z0-9_]+$/;
+
+/** canvas-8wxq: each edge's Mermaid id worth writing (a valid id, the first edge to use it). */
+function edgeIds(edges: DiagramModel['edges']): (string | undefined)[] {
+  const used = new Set<string>();
+  return edges.map((edge) => {
+    const id = edge.mermaidId;
+    if (typeof id !== 'string' || !EDGE_ID.test(id) || used.has(id)) return undefined;
+    used.add(id);
+    return id;
+  });
+}
+
+function serializeEdge(edge: DiagramModel['edges'][number], mermaidId: string | undefined): string {
+  const connector = `${mermaidId !== undefined ? `${mermaidId}@` : ''}${connectorFor(edge)}`;
   return edge.label
     ? `  ${edge.sourceId} ${connector}|${edge.label}| ${edge.targetId}`
     : `  ${edge.sourceId} ${connector} ${edge.targetId}`;
@@ -151,9 +183,13 @@ export function serializeFlowchart(model: DiagramModel): string {
       bodyLines.push(serializeNode(node));
     }
   }
-  for (const edge of model.edges) {
-    bodyLines.push(serializeEdge(edge));
-  }
+  const ids = edgeIds(model.edges);
+  model.edges.forEach((edge, i) => bodyLines.push(serializeEdge(edge, ids[i])));
+  // canvas-8wxq: an edge's options follow the edges, as Mermaid applies them only to an edge already read.
+  model.edges.forEach((edge, i) => {
+    const entries = dataEntries(edge.mermaidData);
+    if (ids[i] !== undefined && entries.length > 0) bodyLines.push(`  ${ids[i]}${formatShapeData(entries)}`);
+  });
   for (const node of model.nodes) {
     const clickLine = serializeClickHref(node);
     if (clickLine) bodyLines.push(clickLine);

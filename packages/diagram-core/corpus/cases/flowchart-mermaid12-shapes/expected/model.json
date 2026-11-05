@@ -1,0 +1,195 @@
+{
+  "containers": [],
+  "diagramTypeId": "flowchart",
+  "direction": "LR",
+  "edges": [
+    {
+      "id": "e1",
+      "sourceId": "start",
+      "targetId": "orders"
+    },
+    {
+      "id": "e2",
+      "sourceId": "orders",
+      "targetId": "check"
+    },
+    {
+      "id": "e3",
+      "sourceId": "check",
+      "targetId": "sub"
+    },
+    {
+      "id": "e4",
+      "sourceId": "check",
+      "targetId": "fork"
+    },
+    {
+      "id": "e5",
+      "label": "yes",
+      "sourceId": "check",
+      "targetId": "lean"
+    },
+    {
+      "id": "e6",
+      "lineStyle": "dotted",
+      "sourceId": "odd",
+      "targetId": "trap"
+    }
+  ],
+  "nodes": [
+    {
+      "id": "start",
+      "label": "Start",
+      "mermaidShape": "sm-circ",
+      "position": {
+        "x": 40,
+        "y": 40
+      },
+      "shape": "circle"
+    },
+    {
+      "id": "orders",
+      "label": "Orders \"live\"",
+      "mermaidShape": "cyl",
+      "position": {
+        "x": 220,
+        "y": 40
+      },
+      "shape": "cylinder"
+    },
+    {
+      "id": "check",
+      "label": "Is it 'ok'?",
+      "mermaidShape": "diam",
+      "position": {
+        "x": 400,
+        "y": 40
+      },
+      "role": "decision",
+      "shape": "diamond"
+    },
+    {
+      "id": "report",
+      "label": "report",
+      "mermaidShape": "doc",
+      "position": {
+        "x": 580,
+        "y": 40
+      },
+      "shape": "rectangle"
+    },
+    {
+      "id": "cloud",
+      "label": "Cloud",
+      "mermaidShape": "cloud",
+      "position": {
+        "x": 760,
+        "y": 40
+      },
+      "shape": "rectangle"
+    },
+    {
+      "id": "user",
+      "label": "User",
+      "mermaidData": {
+        "form": "circle",
+        "h": 60,
+        "icon": "fa:user",
+        "pos": "t"
+      },
+      "position": {
+        "x": 940,
+        "y": 40
+      },
+      "shape": "rectangle"
+    },
+    {
+      "id": "logo",
+      "label": "Logo",
+      "mermaidData": {
+        "constraint": "on",
+        "h": 60,
+        "img": "https://example.org/logo.png",
+        "w": 60
+      },
+      "position": {
+        "x": 40,
+        "y": 140
+      },
+      "shape": "rectangle"
+    },
+    {
+      "id": "plain",
+      "label": "Plain box",
+      "mermaidShape": "hex",
+      "position": {
+        "x": 220,
+        "y": 140
+      },
+      "shape": "hexagon"
+    },
+    {
+      "id": "sub",
+      "label": "Sub",
+      "mermaidShape": "subprocess",
+      "position": {
+        "x": 400,
+        "y": 140
+      },
+      "shape": "subroutine"
+    },
+    {
+      "id": "fork",
+      "label": "fork",
+      "mermaidShape": "fork",
+      "position": {
+        "x": 580,
+        "y": 140
+      },
+      "shape": "fork-bar"
+    },
+    {
+      "id": "lean",
+      "label": "Out",
+      "mermaidShape": "lean-l",
+      "position": {
+        "x": 700,
+        "y": 140
+      },
+      "shape": "parallelogram-alt"
+    },
+    {
+      "id": "odd",
+      "label": "Odd",
+      "mermaidShape": "odd",
+      "position": {
+        "x": 880,
+        "y": 140
+      },
+      "shape": "asymmetric"
+    },
+    {
+      "id": "trap",
+      "label": "Manual",
+      "mermaidShape": "trap-t",
+      "position": {
+        "x": 40,
+        "y": 240
+      },
+      "shape": "trapezoid-alt"
+    },
+    {
+      "id": "number",
+      "label": "42",
+      "mermaidData": {
+        "flag": true,
+        "ratio": -0.5
+      },
+      "position": {
+        "x": 220,
+        "y": 240
+      },
+      "shape": "rectangle"
+    }
+  ]
+}

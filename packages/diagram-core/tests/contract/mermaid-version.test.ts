@@ -22,8 +22,7 @@ describe('Mermaid version', () => {
   });
 
   it.each([
-    ['flowchart', 'flowchart TD\n  A@{ shape: rect, label: "x" }\n'],
-    ['flowchart', 'flowchart TD\n  A e1@--> B\n'],
+    ['flowchart', 'flowchart TD\n  subgraph one\n    A\n  end\n  one@{ view: collapsed }\n'],
     ['flowchart', 'flowchart TD\n  A\n  click A call cb()\n'],
     ['state', 'stateDiagram-v2\n  note "floating" as N\n'],
   ])('%s: still not read, as the notes say: %j', (family, dsl) => {
@@ -32,6 +31,8 @@ describe('Mermaid version', () => {
 
   it.each([
     ['flowchart', 'flowchart TD\n  A\n  click A href "https://example.org"\n'],
+    ['flowchart', 'flowchart TD\n  A@{ shape: doc, label: "x" }\n  B@{ icon: "fa:user", img: "https://example.org/a.png" }\n'],
+    ['flowchart', 'flowchart TD\n  A e1@--> B\n  e1@{ animate: true, animation: fast, curve: linear, step: 1 }\n'],
     ['c4', 'C4Deployment\n  Node_L(n, "N") {\n  }\n  UpdateLayoutConfig($c4ShapeInRow="3")\n'],
     ['architecture', 'architecture-beta\n  service s(logos:aws-lambda)[S]\n'],
     ['state', 'stateDiagram-v2\n  hide empty description\n  scale 600 width\n  A --> B\n'],
