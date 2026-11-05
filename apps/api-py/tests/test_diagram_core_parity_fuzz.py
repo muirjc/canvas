@@ -80,6 +80,10 @@ INLINE_CLOSE = {
     "==": ["==>", "===>", "===", "===="],
 }
 TRICKY_EDGES = [
+    "A[x]e1@--> B",
+    "Ae1@--> B",
+    "A((c))e2@-.-> B{d}e3@==> C",
+    "A@{ shape: bpmn-gateway }e1@--> B",
     "E --> F ---> G",
     "A --> b c --> B",
     "A ==> x y ==> B",
@@ -92,7 +96,23 @@ TRICKY_EDGES = [
 ]
 CLASSES = ["primary", "kind_a", "k2"]
 # canvas-8wxq: Mermaid 11.3+ `@{ … }` blocks and edge ids.
-SHAPE_NAMES = ["rect", "cyl", "database", "diam", "doc", "cloud", "fork", "lean-l", "trap-t", "odd", "unknown-x", "Hex"]
+SHAPE_NAMES = [
+    "bpmn-start",
+    "bpmn-gateway",
+    "bpmn-annotation",
+    "rect",
+    "cyl",
+    "database",
+    "diam",
+    "doc",
+    "cloud",
+    "fork",
+    "lean-l",
+    "trap-t",
+    "odd",
+    "unknown-x",
+    "Hex",
+]
 LABEL_VALUES = [
     '"Text"',
     r'"say \"hi\""',
@@ -129,7 +149,9 @@ def shape_data(rnd: random.Random) -> str:
 
 
 def edge_id(rnd: random.Random) -> str:
-    return f" e{rnd.randint(1, 3)}@" if rnd.random() < 0.3 else " "
+    r = rnd.random()
+    # Mermaid 12.3: no space is fine after a shape (`A[x]e1@-->`), not after a bare id (`Ae1@` is one name).
+    return f" e{rnd.randint(1, 3)}@" if r < 0.25 else f"e{rnd.randint(1, 3)}@" if r < 0.33 else " "
 
 
 def ident(rnd: random.Random) -> str:

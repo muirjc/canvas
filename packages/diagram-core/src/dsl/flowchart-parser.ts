@@ -57,8 +57,9 @@ const SHAPE_SUFFIX = String.raw`\[\[.+?\]\]|\(\(\(.+?\)\)\)|\{\{.+?\}\}|\(\[.+?\
 const CLASS_SUFFIX = String.raw`(?::::${ID}(?:\s*,\s*${ID})*)?`;
 // canvas-8wxq: or `A@{ shape: … }` (Mermaid 11.3+), a class going before the block as Mermaid's grammar has it.
 const TOKEN = String.raw`${ID}(?:(?:${SHAPE_SUFFIX})?${CLASS_SUFFIX}|${CLASS_SUFFIX}${SHAPE_DATA_SOURCE})`;
-// canvas-8wxq: an edge id (`A e1@--> B`), written between the source and the connector.
-const EDGE_ID = String.raw`(?:\s+(${ID})@|\s*)`;
+// canvas-8wxq: an edge id (`A e1@--> B`), written between the source and the connector; since Mermaid 12.3
+// also straight after a shape (`A[x]e1@--> B`). A bare id needs the space (`Ae1@` would be one name).
+const EDGE_ID = String.raw`(?:(?:\s+|(?<=[\])}]))(${ID})@|\s*)`;
 // `A@{ … }` / `A:::kind@{ … }` as a token or a statement of its own, and `e1@{ … }` for an edge.
 const SHAPE_DATA_TOKEN = new RegExp(`^(${ID})(?::::(${ID}(?:\\s*,\\s*${ID})*))?@\\{(${SHAPE_DATA_INNER_SOURCE})\\}$`);
 

@@ -96,6 +96,16 @@ tests are NON-NEGOTIABLE and must exist (and fail) before implementing any diagr
 work — see `.specify/memory/constitution.md` Principle IV.
 
 ## Recent Changes
+- `canvas-8wxq.1`: **Canvas follows Mermaid 12.3.** `MERMAID_SYNTAX_VERSION` '12.3' (was '11.15'); GitHub still draws
+  with 12.2.0 (read from viewscreen's mermaidMarkdown bundle, checked 2026-11-05), so the Admin overview's
+  major-version note no longer shows. 12.3 syntax added: an edge id straight after a shape (`A[x]e1@--> B`; a bare
+  id still needs the space, `EDGE_ID` lookbehind on `]`/`)`/`}`) and the BPMN shape names (`bpmn-start` ...
+  nearest Canvas shape; GitHub's 12.2 can't draw them). Corpus `flowchart-mermaid12-3`. Export check: every
+  corpus case's saved text exported (`stripFrontMatter`) and rendered in real Mermaid 12.3.0/12.2.0 in Chromium:
+  25 of 116 don't draw (architecture connectors without sides, C4 `Lay_*` and empty boundaries, ER unquoted
+  labels/aliases, flowchart body `title`/`\"`, sequence notes over 3+, UML `:` labels/empty namespaces/`note ""`),
+  filed as canvas-0t84. Dry run on the local DB: 0 unopenable, 1,075 rewrites (1,009 front matter added,
+  66 sequence participant spacing; none from this change).
 - `canvas-sfz7`: **flowchart longer links.** Connectors follow Mermaid's LINK rule at any length (`--->`, `----`,
   `-..->`, `===>`, `<--->`, `~~~~`; no `x`/`o` ends): one regex alternation (arrowed form before open form) +
   `readConnector` (TS) / `_read_connector` (Python), length as Mermaid's destructEndLink (dots for dotted, else

@@ -125,7 +125,7 @@ test("the Overview's counts are cards; those with an admin page open it", async 
   await expect(page.getByTestId('overview-card-libraries')).toHaveAttribute('href', '?admin=libraries');
   // canvas-7p3y: the Mermaid version panel.
   await expect(page.getByTestId('mermaid-version-panel')).toBeVisible();
-  await expect(page.getByTestId('mermaid-syntax-version')).toContainText('Mermaid 11.15');
+  await expect(page.getByTestId('mermaid-syntax-version')).toContainText('Mermaid 12.3');
 
   await users.click();
   await expect(page).toHaveURL(/admin=users/);
