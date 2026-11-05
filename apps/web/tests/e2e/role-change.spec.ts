@@ -122,7 +122,13 @@ test('changing your own role reloads to the sign-in screen', async ({ browser })
   await self.page.goto('/?admin=users');
   const role = self.page.getByTestId(`user-role-${self.id}`);
   await expect(role).toHaveValue('admin');
+  // canvas-hl75: once the page knows which row is yours, that row has no Delete button.
+  await expect(self.page.getByTestId(`delete-user-${self.id}`)).toHaveCount(0);
+  const patched = self.page.waitForResponse(
+    (res) => res.request().method() === 'PATCH' && res.url().endsWith(`/admin/users/${self.id}`),
+  );
   await role.selectOption('architect');
+  expect((await patched).status()).toBe(200);
   await expect(self.page.getByTestId('login-email')).toBeVisible();
   await expect(self.page.getByTestId('sign-out')).toHaveCount(0);
 

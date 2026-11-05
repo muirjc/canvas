@@ -100,6 +100,12 @@ tests are NON-NEGOTIABLE and must exist (and fail) before implementing any diagr
 work — see `.specify/memory/constitution.md` Principle IV.
 
 ## Recent Changes
+- `canvas-hl75` + `canvas-op8q` (flaky e2e): **changing your own role always lands on sign-in.** UsersPage's
+  `update()` compared against `currentUserId`, loaded separately by `api.me()`; a change made before that answered
+  refreshed the list instead of reloading (a real race, not only a test one). It now resolves `me` first. The
+  role-change spec waits for the page to know your row (no `delete-user-<you>` button) and for the PATCH's 200;
+  project-context's Projects list gets 30 s (GET /projects, fetched once at sign-in, is slow late in a CI run).
+  Unit test `users-page-role.test.tsx`.
 - `canvas-ra0g`: **the first save of an imported diagram is already stable.** Writers group elements (a boundary's
   shapes inside its block, a state's declaration before the transitions), so the model's order wasn't the text's and
   the front matter came out reordered on the second save (a no-op save showed a diff in version history / GitHub
