@@ -25,6 +25,7 @@ from canvas_api.diagram_core.front_matter import (
     with_pinned,
 )
 from canvas_api.diagram_core.model import create_empty_diagram_model
+from canvas_api.diagram_core.read_order import in_read_order
 from canvas_api.github.jstext import JS_WHITESPACE, js_trim
 
 __all__ = ["UML_RELATION_KINDS", "parse_uml", "serialize_uml"]
@@ -503,6 +504,11 @@ def _container_meta(container: dict[str, Any]) -> dict[str, Any]:
 
 
 def serialize_uml(model: dict[str, Any]) -> str:
+    """The model as Mermaid text, in the order reading it back gives (canvas-ra0g: see read_order)."""
+    return _write_uml(in_read_order(model, parse_uml, _write_uml))
+
+
+def _write_uml(model: dict[str, Any]) -> str:
     nodes = model.get("nodes") or []
     edges = model.get("edges") or []
     containers = model.get("containers") or []

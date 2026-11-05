@@ -1,3 +1,5 @@
+import { inReadOrder } from './read-order.js';
+import { parseFlowchart } from './flowchart-parser.js';
 import { isAllowedLinkHref, type DiagramContainer, type DiagramModel, type DiagramNode, type NodeShape } from '../model/diagram-model.js';
 import { joinFrontMatter, type CanvasFrontMatter, withLegend, withPinned } from './front-matter.js';
 import { MAX_LINK_LENGTH, MERMAID_NAME, MERMAID_SHAPE_NAME, dataEntries, formatShapeData, mermaidShapeToCanvas } from './mermaid-shape-data.js';
@@ -147,7 +149,12 @@ function serializeContainer(
  * Serializes a DiagramModel back to Mermaid `flowchart` DSL (+ canvas front-matter for
  * positions/sizes/styles/icons that classic Mermaid grammar has no room for).
  */
+/** Writes the model as Mermaid text, in the order reading it back gives (canvas-ra0g: see inReadOrder). */
 export function serializeFlowchart(model: DiagramModel): string {
+  return writeFlowchart(inReadOrder(model, parseFlowchart, writeFlowchart));
+}
+
+function writeFlowchart(model: DiagramModel): string {
   const frontMatter: CanvasFrontMatter = {
     canvas: {
       positions: Object.fromEntries(model.nodes.map((n) => [n.id, n.position])),

@@ -17,6 +17,7 @@
 //   the canonical record, the class lines aren't written back. `click` links use the shared link check.
 // - `title` comes from the front matter (Mermaid's only title form for state diagrams); `hide empty
 //   description` and `scale` are accepted and not kept (no rendering equivalent here).
+import { inReadOrder } from './read-order.js';
 import {
   createEmptyDiagramModel,
   isAllowedLinkHref,
@@ -530,7 +531,12 @@ const isComposite = (container: DiagramContainer) => container.role !== 'region'
 /** Text that fits `state "…" as id` (no quote) and stays on one line. */
 const quotable = (text: string) => !text.includes('"') && !/[\r\n]/.test(text);
 
+/** Writes the model as Mermaid text, in the order reading it back gives (canvas-ra0g: see inReadOrder). */
 export function serializeState(model: DiagramModel): string {
+  return writeState(inReadOrder(model, parseState, writeState));
+}
+
+function writeState(model: DiagramModel): string {
   const isPseudo = (node: DiagramNode) => roleOf(node) === 'start' || roleOf(node) === 'end';
   const lines: string[] = [];
   if (model.mermaidConfigDirective) lines.push(model.mermaidConfigDirective);

@@ -1,3 +1,4 @@
+import { inReadOrder } from './read-order.js';
 import { createEmptyDiagramModel, type ClassMember, type DiagramContainer, type DiagramModel, type DiagramNode, type NodeStyle } from '../model/diagram-model.js';
 import { splitFrontMatter, joinFrontMatter, stripTrailingComment, type CanvasFrontMatter, readLegend, readPinned, withLegend, withPinned, NO_ENTRIES } from './front-matter.js';
 import type { FlowchartDirection } from '../model/diagram-model.js';
@@ -570,7 +571,12 @@ export function parseUml(dsl: string): ParseResult {
   return { model };
 }
 
+/** Writes the model as Mermaid text, in the order reading it back gives (canvas-ra0g: see inReadOrder). */
 export function serializeUml(model: DiagramModel): string {
+  return writeUml(inReadOrder(model, parseUml, writeUml));
+}
+
+function writeUml(model: DiagramModel): string {
   const frontMatter: CanvasFrontMatter = {
     canvas: {
       positions: Object.fromEntries(model.nodes.map((n) => [n.id, n.position])),
