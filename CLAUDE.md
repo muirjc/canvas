@@ -96,6 +96,15 @@ tests are NON-NEGOTIABLE and must exist (and fail) before implementing any diagr
 work — see `.specify/memory/constitution.md` Principle IV.
 
 ## Recent Changes
+- `canvas-y2yf`: **connectors sharing the same two shapes no longer draw on top of each other; a connector back to
+  its own shape is a loop** (it drew nothing). svg-renderer.ts exports `edgeLanes(edges)` (index/count per unordered
+  pair, in model order), `laneShift(edge, lane, from, to, fromSize, toSize)` (perpendicular to the pair's axis from
+  the id that sorts first -- JS `<`, so A->B and B->A separate; `PARALLEL_EDGE_GAP` 18, squeezed to fit 80% of the
+  narrower shape across the line) and `selfLoopGeometry(position, size, index)` (a cubic loop off the top-right
+  corner, bigger per extra loop). `renderEdge` shifts centers and the clipped endpoints by the lane; sequence keeps
+  its own path. Python `svg_render.py` mirrors it (`edge_lanes`, `lane_shift` with `js_string_gt`,
+  `self_loop_geometry`); the canvas uses the same helpers. 12 corpus renders changed (every case with repeated
+  connectors). Tests: `parallel-connectors.test.ts`; the render fuzz caught a deliberately wrong gap (26 failures).
 - `canvas-3vcj` part 1: **Canvas documented as Canvas diagrams** in `docs/architecture/` (README index): C4
   context/container/component, C4 Deployment of infra/azure, ERD (from the real schema), UML class of diagram-core's
   model, 4 sequences (sign-in + MFA, compare-and-set save, AI chat turn, GitHub approval), 3 flowcharts (validation,

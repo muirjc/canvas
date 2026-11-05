@@ -14,6 +14,7 @@ from collections.abc import Callable
 from typing import Any
 
 from canvas_api.diagram_core.colors import resolve_node_fill_stroke
+from canvas_api.diagram_core.dagre.graph import js_string_gt
 from canvas_api.diagram_core.jsvalues import js_template, js_truthy
 from canvas_api.diagram_core.legend import LEGEND_METRICS, compute_legend_entries, legend_layout
 from canvas_api.diagram_core.model import is_allowed_link_href
@@ -1020,7 +1021,97 @@ def _stroke_attributes(edge: Edge, dashed: bool) -> tuple[str, str]:
     return stroke_width, stroke_dasharray
 
 
-def _render_edge(edge: Edge, nodes_by_id: dict[str, Node], containers_by_id: dict[str, Container]) -> str:
+#: canvas-y2yf: the gap between connectors that join the same two shapes.
+PARALLEL_EDGE_GAP = 18
+
+
+def _js_less(a: Any, b: Any) -> bool:
+    """JavaScript's `a < b` for two ids (strings compare by UTF-16 code unit)."""
+    if isinstance(a, str) and isinstance(b, str):
+        return js_string_gt(b, a)
+    return False
+
+
+def edge_lanes(edges: list[Edge]) -> dict[Any, dict[str, int]]:
+    """canvas-y2yf (svg-renderer.ts edgeLanes): each connector's place among those joining the same two shapes."""
+    pairs: dict[str, list[Any]] = {}
+    for edge in edges:
+        source, target = edge.get("sourceId"), edge.get("targetId")
+        a, b = (source, target) if _js_less(source, target) else (target, source)
+        pairs.setdefault(f"{js_template(a)}\u0000{js_template(b)}", []).append(edge.get("id"))
+    lanes: dict[Any, dict[str, int]] = {}
+    for ids in pairs.values():
+        for index, edge_id in enumerate(ids):
+            lanes[edge_id] = {"index": index, "count": len(ids)}
+    return lanes
+
+
+def lane_shift(
+    edge: Edge, lane: dict[str, int] | None, start: Point, end: Point, start_size: Any, end_size: Any
+) -> Point:
+    """canvas-y2yf (laneShift): how far to move a connector sideways for its lane."""
+    if lane is None or lane["count"] < 2:
+        return {"x": 0, "y": 0}
+    forward = _js_less(edge.get("sourceId"), edge.get("targetId"))
+    dx = end["x"] - start["x"] if forward else start["x"] - end["x"]
+    dy = end["y"] - start["y"] if forward else start["y"] - end["y"]
+    length = js_hypot(dx, dy)
+    if length == 0:
+        return {"x": 0, "y": 0}
+    px, py = -dy / length, dx / length
+
+    def across(size: Any) -> float:
+        return float(abs(px) * size["width"] + abs(py) * size["height"])
+
+    gap = _min(PARALLEL_EDGE_GAP, (0.8 * _min(across(start_size), across(end_size))) / (lane["count"] - 1))
+    offset = (lane["index"] - (lane["count"] - 1) / 2) * gap
+    return {"x": px * offset, "y": py * offset}
+
+
+def self_loop_geometry(position: Point, size: Any, index: int) -> dict[str, Any]:
+    """canvas-y2yf (selfLoopGeometry): a loop off the shape's top-right corner, and where its label goes."""
+    reach = 32 + index * PARALLEL_EDGE_GAP
+    start_x = position["x"] + (size["width"] * 3) / 4
+    start_y = position["y"]
+    end_x = position["x"] + size["width"]
+    end_y = position["y"] + size["height"] / 4
+    path = (
+        f"M {_t(start_x)} {_t(start_y)} C {_t(start_x)} {_t(start_y - reach)}, {_t(end_x + reach)} {_t(end_y)}, "
+        f"{_t(end_x)} {_t(end_y)}"
+    )
+    return {"path": path, "labelX": end_x + reach / 2 + 4, "labelY": start_y - reach / 2 - 4}
+
+
+def _move_by(point: Point, shift: Point) -> Point:
+    if shift["x"] == 0 and shift["y"] == 0:
+        return point
+    return {"x": point["x"] + shift["x"], "y": point["y"] + shift["y"]}
+
+
+def _render_self_loop(edge: Edge, node: Node, index: int) -> str:
+    loop = self_loop_geometry(node["position"], node_size(node), index)
+    invisible = edge.get("lineStyle") == "invisible"
+    stroke_color = _get(_style(edge), "strokeColor")
+    stroke = "none" if invisible else ("#333333" if stroke_color is None else _t(stroke_color))
+    stroke_width, stroke_dasharray = _stroke_attributes(edge, False)
+    marker = "" if invisible or edge.get("arrow") == "none" else ' marker-end="url(#arrowhead)"'
+    label = (
+        _render_label_text(loop["labelX"], loop["labelY"], edge["label"], 12, False)
+        if js_truthy(edge.get("label"))
+        else ""
+    )
+    return (
+        f'<g data-edge-id="{escape_xml(edge["id"])}"><path d="{loop["path"]}" fill="none" stroke="{stroke}"'
+        f"{stroke_width}{stroke_dasharray}{marker} />{label}</g>"
+    )
+
+
+def _render_edge(
+    edge: Edge,
+    nodes_by_id: dict[str, Node],
+    containers_by_id: dict[str, Container],
+    lane: dict[str, int] | None = None,
+) -> str:
     source = nodes_by_id.get(edge.get("sourceId")) or container_as_endpoint(  # type: ignore[arg-type]
         containers_by_id.get(edge.get("sourceId"))  # type: ignore[arg-type]
     )
@@ -1029,8 +1120,12 @@ def _render_edge(edge: Edge, nodes_by_id: dict[str, Node], containers_by_id: dic
     )
     if source is None or target is None:
         return ""
-    start = _node_center(source)
-    end = _node_center(target)
+    if edge.get("sourceId") == edge.get("targetId"):
+        return _render_self_loop(edge, source, lane["index"] if lane is not None else 0)
+    center_start, center_end = _node_center(source), _node_center(target)
+    shift = lane_shift(edge, lane, center_start, center_end, node_size(source), node_size(target))
+    start = {"x": center_start["x"] + shift["x"], "y": center_start["y"] + shift["y"]}
+    end = {"x": center_end["x"] + shift["x"], "y": center_end["y"] + shift["y"]}
     mid_x = (start["x"] + end["x"]) / 2
     mid_y = (start["y"] + end["y"]) / 2
     source_box = _architecture_endpoint_box(source, edge.get("sourceIsGroup"), containers_by_id)
@@ -1048,6 +1143,7 @@ def _render_edge(edge: Edge, nodes_by_id: dict[str, Node], containers_by_id: dic
     )
     if clipped_from is None or clipped_to is None:
         raise TypeError("anchor is not T, B, L or R")  # TypeScript reads .x of undefined
+    clipped_from, clipped_to = _move_by(clipped_from, shift), _move_by(clipped_to, shift)
     label = _render_label_text(mid_x, mid_y - 4, edge["label"], 12, False) if js_truthy(edge.get("label")) else ""
     technology = edge.get("technology")
     technology_markup = (
@@ -1403,7 +1499,10 @@ def _render_diagram_svg(model: Model, resolve_icon: IconResolver | None, standar
         )
         for c in model["containers"]
     )
-    edge_markup = "".join(_render_edge(e, nodes_by_id, containers_by_id) for e in model["edges"])
+    lanes = edge_lanes(model["edges"])
+    edge_markup = "".join(
+        _render_edge(e, nodes_by_id, containers_by_id, lanes.get(e.get("id"))) for e in model["edges"]
+    )
     diagram_type_id = model.get("diagramTypeId")
     node_markup = "".join(_render_node(n, resolve_icon, diagram_type_id) for n in model["nodes"])
     return (

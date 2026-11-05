@@ -1291,16 +1291,91 @@ function renderContainer(
   ].join('');
 }
 
+/** canvas-y2yf: the gap between connectors that join the same two shapes. */
+export const PARALLEL_EDGE_GAP = 18;
+
+/**
+ * canvas-y2yf: connectors that join the same two shapes (either way round) share a "pair" and each gets a
+ * lane -- its place (`index`) among the pair's `count` connectors -- so they don't draw on top of each other
+ * (`laneShift`). A shape's loops back to itself are a pair too, each loop a bit larger. Shared by both
+ * renderers and the canvas (SC-004).
+ */
+export function edgeLanes(edges: readonly DiagramEdge[]): Map<string, { index: number; count: number }> {
+  const pairs = new Map<string, string[]>();
+  for (const edge of edges) {
+    const [a, b] = edge.sourceId < edge.targetId ? [edge.sourceId, edge.targetId] : [edge.targetId, edge.sourceId];
+    const key = `${a}\u0000${b}`;
+    const list = pairs.get(key) ?? [];
+    list.push(edge.id);
+    pairs.set(key, list);
+  }
+  const lanes = new Map<string, { index: number; count: number }>();
+  for (const ids of pairs.values()) ids.forEach((id, index) => lanes.set(id, { index, count: ids.length }));
+  return lanes;
+}
+
+/**
+ * canvas-y2yf: how far to move a connector sideways for its lane: perpendicular to the pair's axis, measured
+ * from the shape whose id sorts first (so A->B and B->A move apart, not together). The lanes are
+ * PARALLEL_EDGE_GAP apart, closer when that's needed to keep them all within 80% of the narrower shape's
+ * width across the line. Zero for a lone connector.
+ */
+export function laneShift(edge: DiagramEdge, lane: { index: number; count: number } | undefined, from: Point, to: Point, fromSize: Size, toSize: Size): Point {
+  if (!lane || lane.count < 2) return { x: 0, y: 0 };
+  const forward = edge.sourceId < edge.targetId;
+  const dx = forward ? to.x - from.x : from.x - to.x;
+  const dy = forward ? to.y - from.y : from.y - to.y;
+  const length = Math.hypot(dx, dy);
+  if (length === 0) return { x: 0, y: 0 };
+  const px = -dy / length;
+  const py = dx / length;
+  const across = (size: Size) => Math.abs(px) * size.width + Math.abs(py) * size.height;
+  const gap = Math.min(PARALLEL_EDGE_GAP, (0.8 * Math.min(across(fromSize), across(toSize))) / (lane.count - 1));
+  const offset = (lane.index - (lane.count - 1) / 2) * gap;
+  return { x: px * offset, y: py * offset };
+}
+
+/** canvas-y2yf: a connector from a shape back to itself: a loop off its top-right corner (each further loop a
+ *  little larger), and where its label goes. Shared with the canvas. */
+export function selfLoopGeometry(position: Point, size: Size, index: number): { path: string; labelX: number; labelY: number } {
+  const reach = 32 + index * PARALLEL_EDGE_GAP;
+  const startX = position.x + (size.width * 3) / 4;
+  const startY = position.y;
+  const endX = position.x + size.width;
+  const endY = position.y + size.height / 4;
+  const path = `M ${startX} ${startY} C ${startX} ${startY - reach}, ${endX + reach} ${endY}, ${endX} ${endY}`;
+  return { path, labelX: endX + reach / 2 + 4, labelY: startY - reach / 2 - 4 };
+}
+
+const moveBy = (point: Point, shift: Point): Point => (shift.x === 0 && shift.y === 0 ? point : { x: point.x + shift.x, y: point.y + shift.y });
+
+function renderSelfLoop(edge: DiagramEdge, node: DiagramNode, index: number): string {
+  const loop = selfLoopGeometry(node.position, nodeSize(node), index);
+  const isInvisible = edge.lineStyle === 'invisible';
+  const stroke = isInvisible ? 'none' : (edge.style?.strokeColor ?? '#333333');
+  const width = edge.style?.strokeWidth ?? (edge.lineStyle === 'thick' ? DEFAULT_THICK_STROKE_WIDTH : undefined);
+  const dash = edge.style?.strokeDasharray ?? (edge.lineStyle === 'dotted' ? DEFAULT_DOTTED_DASHARRAY : undefined);
+  const marker = isInvisible || edge.arrow === 'none' ? '' : ' marker-end="url(#arrowhead)"';
+  const label = edge.label ? renderLabelText(loop.labelX, loop.labelY, edge.label, 12, false) : '';
+  return `<g data-edge-id="${escapeXml(edge.id)}"><path d="${loop.path}" fill="none" stroke="${stroke}"${width ? ` stroke-width="${width}"` : ''}${dash ? ` stroke-dasharray="${dash}"` : ''}${marker} />${label}</g>`;
+}
+
 function renderEdge(
   edge: DiagramModel['edges'][number],
   nodesById: Map<string, DiagramNode>,
   containersById: Map<string, DiagramContainer>,
+  lane?: { index: number; count: number },
 ): string {
   const source = nodesById.get(edge.sourceId) ?? containerAsEndpoint(containersById.get(edge.sourceId));
   const target = nodesById.get(edge.targetId) ?? containerAsEndpoint(containersById.get(edge.targetId));
   if (!source || !target) return '';
-  const from = nodeCenter(source);
-  const to = nodeCenter(target);
+  // canvas-y2yf: a loop back to the same shape (it used to draw a zero-length, invisible line).
+  if (edge.sourceId === edge.targetId) return renderSelfLoop(edge, source, lane?.index ?? 0);
+  const center = { from: nodeCenter(source), to: nodeCenter(target) };
+  // canvas-y2yf: connectors sharing the same two shapes each move sideways into their own lane.
+  const shift = laneShift(edge, lane, center.from, center.to, nodeSize(source), nodeSize(target));
+  const from = { x: center.from.x + shift.x, y: center.from.y + shift.y };
+  const to = { x: center.to.x + shift.x, y: center.to.y + shift.y };
   const midX = (from.x + to.x) / 2;
   const midY = (from.y + to.y) / 2;
   // canvas-1rq: clip each endpoint to its own node's boundary so the arrowhead lands in open
@@ -1313,12 +1388,18 @@ function renderEdge(
   const targetBox = architectureEndpointBox(target, edge.targetIsGroup, containersById);
   // canvas-7vs.6: an explicit :T/:B/:L/:R anchor hint pins the endpoint to that side instead of
   // clipEdgeEndpoint's direction-toward-the-other-node default.
-  const clippedFrom = edge.sourceAnchor
-    ? clipToAnchorSide(sourceBox.center, sourceBox.size, edge.sourceAnchor)
-    : clipEdgeEndpoint(sourceBox.center, sourceBox.size, sourceBox.shape, targetBox.center.x, targetBox.center.y);
-  const clippedTo = edge.targetAnchor
-    ? clipToAnchorSide(targetBox.center, targetBox.size, edge.targetAnchor)
-    : clipEdgeEndpoint(targetBox.center, targetBox.size, targetBox.shape, sourceBox.center.x, sourceBox.center.y);
+  const clippedFrom = moveBy(
+    edge.sourceAnchor
+      ? clipToAnchorSide(sourceBox.center, sourceBox.size, edge.sourceAnchor)
+      : clipEdgeEndpoint(sourceBox.center, sourceBox.size, sourceBox.shape, targetBox.center.x, targetBox.center.y),
+    shift,
+  );
+  const clippedTo = moveBy(
+    edge.targetAnchor
+      ? clipToAnchorSide(targetBox.center, targetBox.size, edge.targetAnchor)
+      : clipEdgeEndpoint(targetBox.center, targetBox.size, targetBox.shape, sourceBox.center.x, sourceBox.center.y),
+    shift,
+  );
   const label = edge.label ? renderLabelText(midX, midY - 4, edge.label, 12, false) : '';
   const technology = edgeTechnologyLayout(edge, midX, midY);
   const technologyMarkup = technology
@@ -1672,7 +1753,8 @@ function renderDiagramSvg(model: DiagramModel, resolveIcon: IconResolver | undef
       return renderContainer(c, targets, resolveIcon, true);
     })
     .join('');
-  const edgeMarkup = model.edges.map((e) => renderEdge(e, nodesById, containersById)).join('');
+  const lanes = edgeLanes(model.edges);
+  const edgeMarkup = model.edges.map((e) => renderEdge(e, nodesById, containersById, lanes.get(e.id))).join('');
   const nodeMarkup = model.nodes.map((n) => renderNode(n, resolveIcon, model.diagramTypeId)).join('');
 
   return [
