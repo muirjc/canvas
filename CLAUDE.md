@@ -100,6 +100,14 @@ tests are NON-NEGOTIABLE and must exist (and fail) before implementing any diagr
 work — see `.specify/memory/constitution.md` Principle IV.
 
 ## Recent Changes
+- `canvas-ra0g`: **the first save of an imported diagram is already stable.** Writers group elements (a boundary's
+  shapes inside its block, a state's declaration before the transitions), so the model's order wasn't the text's and
+  the front matter came out reordered on the second save (a no-op save showed a diff in version history / GitHub
+  PRs). `dsl/read-order.ts` `inReadOrder` (Python `read_order.in_read_order`): write, read back, re-sort nodes and
+  containers by first appearance in the read model (missing ids last, stable), write again. `serializeFlowchart`,
+  `serializeC4`, `serializeErd`, `serializeUml`, `serializeState` wrap their old bodies (`writeX` / `_write_x`)
+  this way (one extra parse + write per save). The golden corpus now requires saving the saved text to change
+  nothing (it used to allow one reorder); 22 cases' `serialized.mmd` reordered.
 - `canvas-8ucs`: **the Mermaid export always writes the diagram again in Canvas's own form** (decided with the
   user: anything Canvas opens draws in Mermaid; typed comments/spacing are left out of the file only).
   `withMermaidForms` / `_with_mermaid_forms` no longer return the text when nothing needs fixing; state diagrams are

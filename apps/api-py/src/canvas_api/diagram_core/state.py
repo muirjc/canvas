@@ -27,6 +27,7 @@ from canvas_api.diagram_core.front_matter import (
 )
 from canvas_api.diagram_core.jsvalues import js_truthy
 from canvas_api.diagram_core.model import create_empty_diagram_model, is_allowed_link_href
+from canvas_api.diagram_core.read_order import in_read_order
 from canvas_api.github.jstext import JS_WHITESPACE, js_trim
 
 __all__ = ["parse_state", "serialize_state"]
@@ -589,6 +590,11 @@ def _direction_word(direction: str) -> str:
 
 
 def serialize_state(model: dict[str, Any]) -> str:
+    """The model as Mermaid text, in the order reading it back gives (canvas-ra0g: see read_order)."""
+    return _write_state(in_read_order(model, parse_state, _write_state))
+
+
+def _write_state(model: dict[str, Any]) -> str:
     nodes: list[dict[str, Any]] = model.get("nodes") or []
     edges: list[dict[str, Any]] = model.get("edges") or []
     containers: list[dict[str, Any]] = model.get("containers") or []

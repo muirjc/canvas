@@ -36,6 +36,7 @@ from canvas_api.diagram_core.mermaid_shape_data import (
     parse_shape_data,
 )
 from canvas_api.diagram_core.model import create_empty_diagram_model, is_allowed_link_href, url_protocol
+from canvas_api.diagram_core.read_order import in_read_order
 from canvas_api.github.jstext import JS_WHITESPACE, js_trim
 
 __all__ = ["parse_flowchart", "serialize_flowchart"]
@@ -731,6 +732,11 @@ def _entries(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
 
 
 def serialize_flowchart(model: dict[str, Any]) -> str:
+    """The model as Mermaid text, in the order reading it back gives (canvas-ra0g: see read_order)."""
+    return _write_flowchart(in_read_order(model, parse_flowchart, _write_flowchart))
+
+
+def _write_flowchart(model: dict[str, Any]) -> str:
     containers = model.get("containers") or []
     nodes = model.get("nodes") or []
     edges = model.get("edges") or []

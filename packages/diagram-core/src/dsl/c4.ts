@@ -1,3 +1,4 @@
+import { inReadOrder } from './read-order.js';
 import { createEmptyDiagramModel, type DiagramContainer, type DiagramModel, type DiagramNode, type LayoutDirection, type LayoutHint, type NodeStyle } from '../model/diagram-model.js';
 import { splitFrontMatter, joinFrontMatter, stripTrailingComment, type CanvasFrontMatter, readLegend, readPinned, withLegend, withPinned, NO_ENTRIES } from './front-matter.js';
 import type { ParseError, ParseResult } from './types.js';
@@ -657,7 +658,12 @@ function baseElementKindFor(node: DiagramNode): string {
   return 'System';
 }
 
+/** Writes the model as Mermaid text, in the order reading it back gives (canvas-ra0g: see inReadOrder). */
 export function serializeC4(model: import('../model/diagram-model.js').DiagramModel): string {
+  return writeC4(inReadOrder(model, parseC4, writeC4));
+}
+
+function writeC4(model: import('../model/diagram-model.js').DiagramModel): string {
   const frontMatter: CanvasFrontMatter = {
     canvas: {
       positions: Object.fromEntries(model.nodes.map((n) => [n.id, n.position])),

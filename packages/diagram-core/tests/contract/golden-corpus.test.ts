@@ -92,8 +92,8 @@ describe('golden corpus (canvas-1bty.5)', () => {
       expect(content, `${name}/expected/${file}`).toBe(readFileSync(join(expectedDir, file), 'utf8'));
     }
 
-    // Round trips keep every element, and settle: serializing the serialized output again changes
-    // nothing. (The first round trip may reorder elements declared inside groups -- canvas-ra0g.)
+    // Round trips keep every element, and the first one already settles: saving the saved text again
+    // changes nothing (canvas-ra0g: it used to reorder elements declared inside groups).
     if ('serialized.mmd' in actual) {
       const family = getDslFamily(detectDslFamily(input)!)!;
       const once = family.parse(actual['serialized.mmd']);
@@ -104,9 +104,7 @@ describe('golden corpus (canvas-1bty.5)', () => {
       const byId = <T extends { id: string }>(items: T[]) => canonicalJson([...items].sort((a, b) => a.id.localeCompare(b.id)));
       expect(byId(once.model.nodes), `${name}: nodes`).toBe(byId(original.model.nodes));
       expect(byId(once.model.edges), `${name}: edges`).toBe(byId(original.model.edges));
-      const second = family.serialize(once.model);
-      const twice = family.parse(second);
-      expect(isParseSuccess(twice) && family.serialize(twice.model), `${name}: settles after one round trip`).toBe(second);
+      expect(family.serialize(once.model), `${name}: saving the saved text again changes nothing`).toBe(actual['serialized.mmd']);
     }
   });
 });
