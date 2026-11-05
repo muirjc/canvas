@@ -1,14 +1,14 @@
 flowchart TD
-  subgraph valueOf [Group]
-    constructor[Start] --> toString
-  end
+subgraph valueOf [Group]
+  constructor[Start]
+  toString[toString]
+end
+  __proto__[__proto__]:::constructor
+  hasOwnProperty[hasOwnProperty]
+  isPrototypeOf[isPrototypeOf]:::toString
+  constructor --> toString
   __proto__ --> hasOwnProperty
   hasOwnProperty --> isPrototypeOf
-  style hasOwnProperty fill:#00ff00
-  style propertyIsEnumerable fill:#123456
-  classDef constructor fill:#0000ff
-  class __proto__ constructor
-  class isPrototypeOf toString
   %% Colours for Mermaid tools outside Canvas (added on export).
   style toString fill:#ffcc00
   style __proto__ fill:#0000ff

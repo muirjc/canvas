@@ -12,7 +12,8 @@ export const MERMAID_SYNTAX_VERSION = '12.3';
  * The Mermaid version GitHub draws diagrams with (pull requests, READMEs), recorded by hand: put a
  * ```mermaid block containing `info` in any GitHub Markdown preview and it prints the version.
  * Mermaid 12 changed how diagrams are laid out and coloured by default (ELK layout for flowchart,
- * class and ER diagrams), not the syntax.
+ * class and ER diagrams), not the syntax. canvas-8ucs: apps/web's `mermaid` devDependency is this version too
+ * (mermaid-export.spec.ts draws every corpus export with it and checks the two match).
  */
 export const GITHUB_MERMAID_VERSION = { version: '12.2.0', checkedOn: '2026-11-05' } as const;
 

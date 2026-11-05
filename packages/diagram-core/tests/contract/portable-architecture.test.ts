@@ -23,9 +23,15 @@ function exportOf(positions: Record<string, [number, number]>, edges: string, ex
 }
 
 describe('portable architecture export (canvas-0t84)', () => {
-  it('returns the text unchanged, byte for byte, when every connector has both sides', () => {
+  it('writes a connector that already has both sides as Canvas writes it (the serializer output, stable on a second export)', () => {
     const dsl = dslWith({ a: [0, 0], b: [500, 0] }, `${TWO}a:R --> L:b\n`);
-    expect(toPortableMermaid(dsl)).toBe(dsl);
+    const parsed = parseArchitecture(dsl);
+    expect(isParseSuccess(parsed)).toBe(true);
+    if (!isParseSuccess(parsed)) throw new Error('unreachable');
+    const out = toPortableMermaid(dsl);
+    expect(out).toBe(serializeArchitecture(parsed.model));
+    expect(out).toContain('a:R --> L:b');
+    expect(toPortableMermaid(out)).toBe(out);
   });
 
   it.each([

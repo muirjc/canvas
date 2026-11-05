@@ -1,22 +1,22 @@
 classDiagram
-  namespace Domain {
-    class Customer {
-      +String name
-      +String email
-      +placeOrder(Order o) bool
-    }
-    class Order
-    namespace Billing {
-      class Invoice
-      class Payment
-      class Refund
-      class Ledger
-      class Account
-      class Statement
-    }
+namespace Domain {
+  class Customer {
+    +String name
+    +String email
+    +placeOrder(Order o) bool
   }
-  class Standalone
-  class Another
-  note "free note"
-  Customer --> Order
-  Invoice --> Payment
+  class Order
+  namespace Billing {
+    class Invoice
+    class Payment
+    class Refund
+    class Ledger
+    class Account
+    class Statement
+  }
+}
+class Standalone
+class Another
+Customer --> Order
+Invoice --> Payment
+note "free note"

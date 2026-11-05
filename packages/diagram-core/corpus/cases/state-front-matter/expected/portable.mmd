@@ -1,7 +1,7 @@
 stateDiagram-v2
+  state choice1 <<choice>>
   [*] --> Idle
   Idle --> Busy : start
-  state choice1 <<choice>>
   Busy --> choice1
   choice1 --> Idle : again
   choice1 --> [*] : done

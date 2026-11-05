@@ -1,11 +1,11 @@
 architecture-beta
-  group toString(cloud)[Cloud]
-  service constructor(server)[Server] in toString
-  service __proto__(database)[DB] in toString
-  junction valueOf
-  service hasOwnProperty(disk)[Disk]
-  service isPrototypeOf(internet)[Net]
-  constructor:R --> L:__proto__
-  __proto__:B -- T:valueOf
-  valueOf:R -- L:hasOwnProperty
-  isPrototypeOf{group}:B --> T:constructor{group}
+group toString(cloud)[Cloud]
+service constructor(server)[Server] in toString
+service __proto__(database)[DB] in toString
+junction valueOf
+service hasOwnProperty(disk)[Disk]
+service isPrototypeOf(internet)[Net]
+constructor:R --> L:__proto__
+__proto__:B -- T:valueOf
+valueOf:R -- L:hasOwnProperty
+isPrototypeOf{group}:B --> T:constructor{group}

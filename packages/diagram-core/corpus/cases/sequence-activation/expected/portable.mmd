@@ -1,11 +1,16 @@
 sequenceDiagram
-  participant Client
-  participant Server
-  activate Client
-  Client->>+Server: request
-  Server->>+Server: nested
-  Server-->>-Server: done
-  Server-->>-Client: response
-  deactivate Client
-  activate Ghost
-  deactivate Ghost
+participant Client
+participant Server
+participant Ghost
+activate Client
+Client->>Server: request
+activate Server
+Server->>Server: nested
+activate Server
+Server-->>Server: done
+deactivate Server
+Server-->>Client: response
+deactivate Server
+deactivate Client
+activate Ghost
+deactivate Ghost

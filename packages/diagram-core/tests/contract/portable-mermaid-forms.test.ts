@@ -1,10 +1,15 @@
 import { describe, expect, it } from 'vitest';
 import { toPortableMermaid } from '../../src/dsl/portable-mermaid.js';
-import { DEFAULT_RELATIONSHIP_LABEL } from '../../src/dsl/erd.js';
+import { DEFAULT_RELATIONSHIP_LABEL, parseErd, serializeErd } from '../../src/dsl/erd.js';
+import { parseC4, serializeC4 } from '../../src/dsl/c4.js';
+import { parseUml, serializeUml } from '../../src/dsl/uml.js';
+import { parseFlowchart } from '../../src/dsl/flowchart-parser.js';
+import { serializeFlowchart } from '../../src/dsl/flowchart-serializer.js';
+import { isParseSuccess } from '../../src/dsl/types.js';
 
 /**
  * canvas-0t84 part 2: Canvas reads (and writes back) forms real Mermaid refuses, so exported .mmd files did not
- * draw. The export rewrites them; a text needing no rewrite comes back byte for byte.
+ * draw. The export rewrites them; text that parses is always written again in Canvas's form.
  */
 
 const C4 = (body: string): string => `C4Container\n  title T\n${body}`;
@@ -12,9 +17,14 @@ const C4 = (body: string): string => `C4Container\n  title T\n${body}`;
 describe('portable C4 export', () => {
   const BASE = C4('  Person(u, "User")\n  System(s, "S")\n  Rel_U(u, s, "uses")\n');
 
-  it('keeps text without Lay_ hints or empty boundaries byte for byte (Rel_U stays)', () => {
-    expect(toPortableMermaid(BASE)).toBe(BASE);
-    expect(toPortableMermaid(BASE)).toContain('Rel_U(');
+  it('writes text without Lay_ hints or empty boundaries as the C4 serializer does, and a second export is stable (Rel_U stays)', () => {
+    const parsed = parseC4(BASE);
+    expect(isParseSuccess(parsed)).toBe(true);
+    if (!isParseSuccess(parsed)) throw new Error('unreachable');
+    const out = toPortableMermaid(BASE);
+    expect(out).toBe(serializeC4(parsed.model));
+    expect(out).toContain('Rel_U(u, s, "uses")');
+    expect(toPortableMermaid(out)).toBe(out);
   });
 
   it('drops Lay_U/D/L/R lines but keeps Rel_ direction hints', () => {
@@ -43,7 +53,10 @@ describe('portable C4 export', () => {
 
   it('keeps a boundary that holds an element', () => {
     const dsl = C4('  System_Boundary(b, "B") {\n    Container(c, "C")\n  }\n');
-    expect(toPortableMermaid(dsl)).toBe(dsl);
+    const out = toPortableMermaid(dsl);
+    expect(out).toContain('System_Boundary(b, "B")');
+    expect(out).toContain('Container(c, "C")');
+    expect(toPortableMermaid(out)).toBe(out);
   });
 
   it('writes no YAML anchors for a fresh import whose elements keep the placeholder position', () => {
@@ -55,9 +68,16 @@ describe('portable C4 export', () => {
 });
 
 describe('portable ER export', () => {
-  it('returns a diagram with no relationships and no aliases unchanged', () => {
+  it('writes a diagram with no relationships and no aliases as the ER serializer does, entity and attribute kept', () => {
     const dsl = 'erDiagram\n  CUSTOMER {\n    string name\n  }\n';
-    expect(toPortableMermaid(dsl)).toBe(dsl);
+    const parsed = parseErd(dsl);
+    expect(isParseSuccess(parsed)).toBe(true);
+    if (!isParseSuccess(parsed)) throw new Error('unreachable');
+    const out = toPortableMermaid(dsl);
+    expect(out).toBe(serializeErd(parsed.model));
+    expect(out).toContain('CUSTOMER {');
+    expect(out).toContain('string name');
+    expect(toPortableMermaid(out)).toBe(out);
   });
 
   it('quotes every relationship label, even a single word', () => {
@@ -92,9 +112,15 @@ describe('portable ER export', () => {
 });
 
 describe('portable class diagram export', () => {
-  it('returns text with nothing to rewrite unchanged', () => {
+  it('writes text with nothing to adjust as the class serializer does, and a second export is stable', () => {
     const dsl = 'classDiagram\n  class A\n  class B\n  A --> B : uses\n';
-    expect(toPortableMermaid(dsl)).toBe(dsl);
+    const parsed = parseUml(dsl);
+    expect(isParseSuccess(parsed)).toBe(true);
+    if (!isParseSuccess(parsed)) throw new Error('unreachable');
+    const out = toPortableMermaid(dsl);
+    expect(out).toBe(serializeUml(parsed.model));
+    expect(out).toContain('A --> B : uses');
+    expect(toPortableMermaid(out)).toBe(out);
   });
 
   it('writes each `:` in a relationship label as #58;', () => {
@@ -133,9 +159,12 @@ describe('style lines on a rewritten text that starts with a config directive', 
 describe('portable sequence export', () => {
   const HEAD = 'sequenceDiagram\n  participant A\n  participant B\n  participant C\n  participant D\n';
 
-  it('leaves a note over one or two participants unchanged', () => {
+  it('keeps a note over one or two participants on those participants, and a second export is stable', () => {
     const dsl = `${HEAD}  Note over A,B: two\n  Note over C: one\n`;
-    expect(toPortableMermaid(dsl)).toBe(dsl);
+    const out = toPortableMermaid(dsl);
+    expect(out).toMatch(/Note over A,\s?B: two/);
+    expect(out).toMatch(/Note over C: one/);
+    expect(toPortableMermaid(out)).toBe(out);
   });
 
   it('spans a note over more than two participants from the first to the last declared', () => {
@@ -146,9 +175,22 @@ describe('portable sequence export', () => {
 });
 
 describe('portable flowchart export', () => {
-  it('returns text with no title and no quote in a label unchanged', () => {
+  it('writes text with no title and no quote in a label as the flowchart serializer does, and a second export is stable', () => {
     const dsl = 'flowchart TD\n  A[One] --> B[Two]\n';
-    expect(toPortableMermaid(dsl)).toBe(dsl);
+    const parsed = parseFlowchart(dsl);
+    expect(isParseSuccess(parsed)).toBe(true);
+    if (!isParseSuccess(parsed)) throw new Error('unreachable');
+    const out = toPortableMermaid(dsl, { stripFrontMatter: true });
+    expect(out.trimEnd()).toBe(serializeFlowchart(parsed.model).replace(/^---\n[\s\S]*?\n---\n/, '').trimEnd());
+    expect(toPortableMermaid(out, { stripFrontMatter: true })).toBe(out);
+  });
+
+  it('writes a typed flowchart with a trailing comment and odd spacing in Canvas form, without the comment', () => {
+    const dsl = 'flowchart TD\n   A[One]    -->   B[Two]   %% trailing note\n%% whole-line comment\n';
+    const out = toPortableMermaid(dsl, { stripFrontMatter: true });
+    expect(out).not.toContain('%%');
+    expect(out).not.toContain('trailing');
+    expect(out).toBe('flowchart TD\n  A[One]\n  B[Two]\n  A --> B\n');
   });
 
   it('moves a body title into the front matter as its first key', () => {

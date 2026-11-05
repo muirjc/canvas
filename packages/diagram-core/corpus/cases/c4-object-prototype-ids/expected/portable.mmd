@@ -1,15 +1,11 @@
 C4Context
-  Person(constructor, "Customer")
-  System_Boundary(toString, "Bank") {
-    System(__proto__, "Core")
-  }
-  System_Ext(hasOwnProperty, "Mail")
-  Rel(constructor, __proto__, "Uses")
-  Rel(__proto__, hasOwnProperty, "Sends")
-  UpdateElementStyle(valueOf, $bgColor="#ff0000")
-  UpdateElementStyle(constructor, $bgColor="#00ff00")
-  UpdateRelStyle(constructor, __proto__, $lineColor="#0000ff")
-  UpdateRelStyle(toString, valueOf, $lineColor="#0000ff")
+System_Boundary(toString, "Bank") {
+  System(__proto__, "Core")
+}
+Person(constructor, "Customer")
+System_Ext(hasOwnProperty, "Mail")
+Rel(constructor, __proto__, "Uses")
+Rel(__proto__, hasOwnProperty, "Sends")
 %% Colours for Mermaid tools outside Canvas (added on export).
 UpdateElementStyle(constructor, $bgColor="#00ff00")
 UpdateRelStyle(constructor, __proto__, $lineColor="#0000ff")

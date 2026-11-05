@@ -38,8 +38,10 @@ Mermaid version is a code change, made by whoever develops Canvas:
 3. **Add the support with tests first**: a parse and save round-trip test, a golden corpus case,
    and the same change in the Python copy of diagram-core (the server's), which the corpus and the
    comparison tests check.
-4. **Check the export**: open a few exported `.mmd` files in the new Mermaid (mermaid.live, or a
-   GitHub Markdown preview) to confirm they still draw.
+4. **Check the export**: the e2e test `apps/web/tests/e2e/mermaid-export.spec.ts` draws every
+   golden-corpus diagram's export in real Mermaid, at the version GitHub runs (the `mermaid`
+   devDependency of `apps/web`). It fails when GitHub's recorded version and that devDependency
+   differ, so move them together; it lists the few cases that can't draw and why.
 5. **Run the dry-run report** with the new code: `python -m canvas_api.jobs.syntax_report` (see the
    RUNBOOK's Jobs table). It lists every saved diagram the new code can't open, and every one whose
    text it would write differently on the next save. "Can't open" must be zero before release.
@@ -50,7 +52,8 @@ Mermaid version is a code change, made by whoever develops Canvas:
 6. **Update the recorded versions** in `packages/diagram-core/src/mermaid-version.ts`: the syntax
    version, the notes on what isn't read yet, and GitHub's version with the date you checked it (put
    a `mermaid` block containing `info` in a GitHub Markdown preview and it prints the version). A
-   test pins these values, so the change is deliberate.
+   test pins these values, so the change is deliberate. When GitHub's version changes, update the
+   `mermaid` devDependency of `apps/web` to the same version (step 4's test checks they match).
 7. **Say what changed** in the release notes: new syntax people can use, and any diagram that will
    look different on GitHub.
 

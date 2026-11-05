@@ -1,14 +1,28 @@
-graph BT
-  a1[Rect] --> a2(Round)
-  a2 --> a3([Stadium])
-  a3 --> a4[[Sub]]
-  a4 --> a5[(DB)]
-  a5 --> a6((Circle))
-  a6 --> a7(((Double)))
-  a7 --> a8{Decision}
-  a8 --> a9{{Hex}}
-  a9 --> b1[/Par/]
-  b1 --> b2[\Alt par\]
-  b2 --> b3[/Trap\]
-  b3 --> b4[\InvTrap/]
-  b4 --> b5>Flag]
+flowchart BT
+  a1[Rect]
+  a2(Round)
+  a3([Stadium])
+  a4[[Sub]]
+  a5[(DB)]
+  a6((Circle))
+  a7(((Double)))
+  a8{Decision}
+  a9{{Hex}}
+  b1[/Par/]
+  b2[\Alt par\]
+  b3[/Trap\]
+  b4[\InvTrap/]
+  b5>Flag]
+  a1 --> a2
+  a2 --> a3
+  a3 --> a4
+  a4 --> a5
+  a5 --> a6
+  a6 --> a7
+  a7 --> a8
+  a8 --> a9
+  a9 --> b1
+  b1 --> b2
+  b2 --> b3
+  b3 --> b4
+  b4 --> b5

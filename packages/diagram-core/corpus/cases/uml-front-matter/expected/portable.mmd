@@ -3,16 +3,16 @@ config:
   theme: forest
 ---
 classDiagram
-  namespace Pkg {
-    class A
-    namespace Sub {
-      class C
-    }
+namespace Pkg {
+  class A
+  namespace Sub {
+    class C
   }
-  class B
-  A --> B
-  note for B "positioned"
-  note "unpositioned"
-  class D
+}
+class B
+class D
+A --> B
+note for B "positioned"
+note "unpositioned"
 %% Colours for Mermaid tools outside Canvas (added on export).
 style A fill:#abcdef

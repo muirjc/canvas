@@ -1,13 +1,15 @@
 sequenceDiagram
-  rect rgb(191, 223, 255)
-    A->>B: blue
-    rect rgba(0, 0, 255, .1)
-      B->>A: nested
-    end
+participant A
+participant B
+rect rgb(191, 223, 255)
+  A->>B: blue
+  rect rgba(0, 0, 255, .1)
+    B->>A: nested
   end
-  rect
-    A->>B: no color
-  end
-  rect #ff0000
-    A->>B: hex
-  end
+end
+rect rgb(0, 0, 0)
+  A->>B: no color
+end
+rect #ff0000
+  A->>B: hex
+end

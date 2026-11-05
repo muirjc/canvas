@@ -3,6 +3,10 @@
 Auto-generated from all feature plans. Last updated: 2026-10-02
 
 ## Active Technologies
+- `mermaid` (`12.2.0`, exact) added to `apps/web` as a **test-only devDependency** (canvas-8ucs) -- the version
+  GitHub runs (`GITHUB_MERMAID_VERSION`), used only by `tests/e2e/mermaid-export.spec.ts` to draw every corpus
+  export in Chromium. Not shipped; not in the notices. Lockfile: npm dropped rollup's platform packages when it
+  was added -- they were put back by hand (check `@rollup/rollup-*` entries survive any lockfile regeneration).
 - `qrcode` (`1.5.4`, exact) added to `apps/web` (canvas-ez1.5, two-step verification) — renders
   the authenticator-app set-up QR code client-side. Its only use; TOTP itself is implemented
   in-house (`apps/api/src/auth/totp.ts`, RFC 6238 on `node:crypto`), no OTP library.
@@ -96,6 +100,14 @@ tests are NON-NEGOTIABLE and must exist (and fail) before implementing any diagr
 work — see `.specify/memory/constitution.md` Principle IV.
 
 ## Recent Changes
+- `canvas-8ucs`: **the Mermaid export always writes the diagram again in Canvas's own form** (decided with the
+  user: anything Canvas opens draws in Mermaid; typed comments/spacing are left out of the file only).
+  `withMermaidForms` / `_with_mermaid_forms` no longer return the text when nothing needs fixing; state diagrams are
+  re-serialized too; text that doesn't parse goes out as is. `withOriginalKeys` / `_with_original_keys` put the
+  original front matter's own Mermaid keys (title, config) back first (a moved flowchart title wins). CI check:
+  `apps/web/tests/e2e/mermaid-export.spec.ts` (no app needed) draws every corpus case's export, typed and saved, in
+  Mermaid 12.2.0 (devDependency, must equal `GITHUB_MERMAID_VERSION`) with a `KNOWN_FAILURES` list (BPMN on 12.2,
+  `constructor` ids, an image URL) that also fails when a listed case starts drawing.
 - `canvas-zayd`: **family detection passes over `%%{...}%%` config directives** before the header (TS `detect.ts`
   `CONFIG_DIRECTIVE`, Python `_CONFIG_DIRECTIVE`, JS `.` spelled out). Canvas's own serializers write the directive
   first, so text Canvas wrote couldn't be detected (import, syntax_report). Plain `%%` comments before the header

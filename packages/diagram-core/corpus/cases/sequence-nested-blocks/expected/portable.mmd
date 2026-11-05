@@ -1,32 +1,36 @@
 sequenceDiagram
-  loop outer
-    A->>B: one
-    alt first
-      B->>A: two
-      opt maybe
-        A->>C: three
-      end
+participant A
+participant B
+participant C
+participant D
+loop outer
+  A->>B: one
+  alt first
+    B->>A: two
+    opt maybe
+      A->>C: three
+    end
     else second
       B->>C: four
     else
       B->>A: five
-    end
-    par
-      A->>B: p1
+  end
+  par
+    A->>B: p1
     and second branch
       A->>C: p2
     and
       A->>D: p3
-    end
-    critical
-      A->>B: c
+  end
+  critical
+    A->>B: c
     option timeout
       A->>C: t
-    end
-    break
-      A->>B: stop
-    end
   end
-  loop
-    A->>B: no label
+  break
+    A->>B: stop
   end
+end
+loop
+  A->>B: no label
+end

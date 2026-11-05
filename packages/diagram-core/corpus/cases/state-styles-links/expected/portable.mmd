@@ -1,26 +1,19 @@
-stateDiagram
-    direction TB
-    accTitle: This is the accessible title
-    accDescr {
-        A longer description
-        over two lines
-    }
-    classDef notMoving fill:white
-    classDef movement font-style:italic
-    classDef badBadEvent fill:#f00,color:white,font-weight:bold,stroke-width:2px,stroke:yellow;
-    [*]:::notMoving --> Still
-    Still --> [*]
-    Still --> Moving:::movement
-    Moving --> Still
-    Moving --> Crash
-    Crash:::badBadEvent --> [*]
-    class Moving, Crash movement
-    style Still stroke:#00f,stroke-dasharray:5 5
-    click Still href "https://example.org/still" "Still state"
-    click Moving "https://example.org/moving"
-    %% a comment line
-    # a hash comment
-    Crash --> Moving %% trailing comment
+stateDiagram-v2
+  accTitle: This is the accessible title
+  accDescr {
+    A longer description
+    over two lines
+  }
+  direction TB
+  [*] --> Still
+  Still --> [*]
+  Still --> Moving
+  Moving --> Still
+  Moving --> Crash
+  Crash --> [*]
+  Crash --> Moving
+  click Still "https://example.org/still" "Still state"
+  click Moving href "https://example.org/moving"
   %% Colours for Mermaid tools outside Canvas (added on export).
   classDef canvasStyle1 stroke:#00f,stroke-dasharray:5 5
   class Still canvasStyle1

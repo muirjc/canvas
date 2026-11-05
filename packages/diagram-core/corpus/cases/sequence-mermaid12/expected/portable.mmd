@@ -1,19 +1,21 @@
 sequenceDiagram
-  participant A as Alice
-  participant B
-  actor C
-  link A: Dashboard @ https://dash.example.org/alice
-  links B: {"Wiki": "https://wiki.example.org", "Docs": "/docs/b"}
-  A-|\B: top half
-  A--|/B: bottom half, dotted
-  B/|-A: reverse top
-  B\|--A: reverse bottom, dotted
-  A-\\C: stick top
-  C--//A: stick bottom, dotted
-  A//-C: reverse stick top
-  C\\-A: reverse stick bottom
-  A->>()B: central at the target
-  B()->>A: central at the source
-  A()-x()C: central both
-  A-|\A: to itself
-  A->>+B: activate
+participant A as Alice
+participant B
+actor C
+link A: Dashboard @ https://dash.example.org/alice
+link B: Wiki @ https://wiki.example.org
+link B: Docs @ /docs/b
+A-|\B: top half
+A--|/B: bottom half, dotted
+B/|-A: reverse top
+B\|--A: reverse bottom, dotted
+A-\\C: stick top
+C--//A: stick bottom, dotted
+A//-C: reverse stick top
+C\\-A: reverse stick bottom
+A->>()B: central at the target
+B()->>A: central at the source
+A()-x()C: central both
+A-|\A: to itself
+A->>B: activate
+activate B
