@@ -100,6 +100,13 @@ tests are NON-NEGOTIABLE and must exist (and fail) before implementing any diagr
 work — see `.specify/memory/constitution.md` Principle IV.
 
 ## Recent Changes
+- `canvas-3vcj` part 2 + `canvas-rshf`: **the architecture diagrams are on Azure** (project "Canvas solution
+  architecture", owned by the perf-test account; 18 diagrams imported through the API after Auto Layout). New
+  `docs/architecture/flowchart-access.mmd` (how a diagram's access level is worked out). Found: Auto Layout's
+  top-down direction is `TD`, which ER/class serializers wrote as `direction TD`, which their parsers (and Mermaid)
+  refuse -- such a diagram couldn't be reopened. Both now read `TD` and write `TB` (TS + Python; corpus
+  `erd-direction-td`, `uml-direction-td`). Also filed: canvas-ltfa (a flowchart node's later shape/label is ignored
+  after a bare first mention), canvas-xpuk (state diagram label overlaps).
 - `canvas-hl75` + `canvas-op8q` (flaky e2e): **changing your own role always lands on sign-in.** UsersPage's
   `update()` compared against `currentUserId`, loaded separately by `api.me()`; a change made before that answered
   refreshed the list instead of reloading (a real race, not only a test one). It now resolves `me` first. The

@@ -57,7 +57,8 @@ RECOGNIZED_KEYS = {"PK", "FK", "UK"}
 ALIAS_BLOCK_START = re.compile(f"^({ID}){S}*\\[([^\\]]+)\\]{S}*\\{{\\Z")
 ALIAS_PATTERN = re.compile(f"^({ID}){S}*\\[([^\\]]+)\\]\\Z")
 BARE_ENTITY = re.compile(f"^({ID})\\Z")
-DIRECTION_PATTERN = re.compile(f"^direction{S}+(TB|BT|LR|RL)\\Z", _ASCII_I)
+# TD isn't Mermaid's here (only TB), but Auto Layout's top-down wrote it (canvas-rshf): read, written as TB.
+DIRECTION_PATTERN = re.compile(f"^direction{S}+(TB|TD|BT|LR|RL)\\Z", _ASCII_I)
 TITLE_PATTERN = re.compile(f"^title{S}+({DOT}+)\\Z")
 ACC_TITLE_PATTERN = re.compile(f"^accTitle{S}*:{S}*({DOT}+)\\Z")
 ACC_DESCR_PATTERN = re.compile(f"^accDescr{S}*:{S}*({DOT}+)\\Z")
@@ -347,7 +348,7 @@ def _write_erd(model: dict[str, Any]) -> str:
     if model.get("accDescr"):
         lines.append(f"accDescr: {model['accDescr']}")
     if model.get("direction"):
-        lines.append(f"direction {model['direction']}")
+        lines.append("direction " + ("TB" if model["direction"] == "TD" else str(model["direction"])))
 
     declared: set[str] = set()
     for node in nodes:

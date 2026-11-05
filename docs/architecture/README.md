@@ -21,6 +21,7 @@ with the code when the architecture changes.
 | [flowchart-validation.mmd](flowchart-validation.mmd) | Flowchart | Checking a diagram against its standard |
 | [flowchart-auto-layout.mmd](flowchart-auto-layout.mmd) | Flowchart | How Auto Layout arranges a diagram |
 | [flowchart-purge.mmd](flowchart-purge.mmd) | Flowchart | The nightly clean-up job |
+| [flowchart-access.mmd](flowchart-access.mmd) | Flowchart | What someone may do with a diagram (View, Comment, Edit, Manage) |
 | [state-diagram-lifecycle.mmd](state-diagram-lifecycle.mmd) | State | A diagram from draft to purged, and its GitHub review |
 | [state-standard-lifecycle.mmd](state-standard-lifecycle.mmd) | State | A standard's versions |
 | [state-github-submission.mmd](state-github-submission.mmd) | State | A pull request's life |
