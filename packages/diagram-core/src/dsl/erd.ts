@@ -49,7 +49,8 @@ const ALIAS_PATTERN = new RegExp(`^(${ID})\\s*\\[([^\\]]+)\\]$`);
 // round-trips instead of silently vanishing on serialize (FR-003: no element is silently dropped).
 const BARE_ENTITY = new RegExp(`^(${ID})$`);
 // direction TB|BT|LR|RL — top-level only (ER has no subgraph-equivalent nesting to scope it to).
-const DIRECTION_PATTERN = /^direction\s+(TB|BT|LR|RL)$/i;
+// TD isn't Mermaid's here (only TB), but Auto Layout's top-down wrote it (canvas-rshf), so it is read too.
+const DIRECTION_PATTERN = /^direction\s+(TB|TD|BT|LR|RL)$/i;
 const TITLE_PATTERN = /^title\s+(.+)$/;
 // jmuir-dtu.17: same cross-family precedent as TITLE_PATTERN. Single-line colon form only; the
 // multi-line `accDescr { ... }` block form is out of scope (a clean parse error, not a silent
@@ -394,7 +395,7 @@ function writeErd(model: DiagramModel): string {
   if (model.mermaidConfigDirective) lines.unshift(model.mermaidConfigDirective);
   if (model.accTitle) lines.push(`accTitle: ${model.accTitle}`);
   if (model.accDescr) lines.push(`accDescr: ${model.accDescr}`);
-  if (model.direction) lines.push(`direction ${model.direction}`);
+  if (model.direction) lines.push(`direction ${model.direction === 'TD' ? 'TB' : model.direction}`);
 
   const declared = new Set<string>();
   const declarationFor = (node: DiagramNode): string => (node.label !== node.id ? `${node.id}[${node.label}]` : node.id);

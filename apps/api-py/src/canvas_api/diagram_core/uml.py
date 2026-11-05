@@ -77,7 +77,8 @@ NOTE_STANDALONE = re.compile(f'^note{S}+"([^"]*)"\\Z')
 NAMESPACE_START = re.compile(f'^namespace{S}+({ID}(?:\\.{ID})*)(?:\\["([^"]*)"\\])?{S}*\\{{\\Z')
 
 # re.ASCII: JavaScript's /i (no u flag) folds only ASCII letters here; Python's would also fold U+0130/U+0131 to "i".
-DIRECTION_PATTERN = re.compile(f"^direction{S}+(TB|BT|LR|RL)\\Z", re.IGNORECASE | re.ASCII)
+# TD isn't Mermaid's here (only TB), but Auto Layout's top-down wrote it (canvas-rshf): read, written as TB.
+DIRECTION_PATTERN = re.compile(f"^direction{S}+(TB|TD|BT|LR|RL)\\Z", re.IGNORECASE | re.ASCII)
 TITLE_PATTERN = re.compile(f"^title{S}+({DOT}+)\\Z")
 ACC_TITLE_PATTERN = re.compile(f"^accTitle{S}*:{S}*({DOT}+)\\Z")
 ACC_DESCR_PATTERN = re.compile(f"^accDescr{S}*:{S}*({DOT}+)\\Z")
@@ -530,7 +531,7 @@ def _write_uml(model: dict[str, Any]) -> str:
     if model.get("accDescr"):
         lines.append(f"accDescr: {model['accDescr']}")
     if model.get("direction"):
-        lines.append(f"direction {model['direction']}")
+        lines.append("direction " + ("TB" if model["direction"] == "TD" else str(model["direction"])))
 
     def class_lines(node: dict[str, Any]) -> list[str]:
         generic_part = f"~{node['umlGenericParameter']}~" if node.get("umlGenericParameter") else ""

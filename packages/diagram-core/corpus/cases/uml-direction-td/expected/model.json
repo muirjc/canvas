@@ -1,0 +1,35 @@
+{
+  "containers": [],
+  "diagramTypeId": "uml",
+  "direction": "TD",
+  "edges": [
+    {
+      "id": "e1",
+      "sourceId": "Animal",
+      "targetId": "Dog",
+      "umlRelationKind": "inheritance"
+    }
+  ],
+  "nodes": [
+    {
+      "id": "Animal",
+      "label": "Animal",
+      "position": {
+        "x": 40,
+        "y": 40
+      },
+      "role": "class",
+      "shape": "rectangle"
+    },
+    {
+      "id": "Dog",
+      "label": "Dog",
+      "position": {
+        "x": 220,
+        "y": 40
+      },
+      "role": "class",
+      "shape": "rectangle"
+    }
+  ]
+}

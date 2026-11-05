@@ -1,0 +1,25 @@
+flowchart TD
+  start([Someone opens a diagram]) --> signedIn{Signed in?}
+  signedIn -->|No| signIn[/Sent to sign-in/]
+  signedIn -->|Yes| exists{Diagram exists and not in the bin?}
+  exists -->|No| notFound[/Not found/]
+  exists -->|Yes| draft{Someone else's unsaved AI draft?}
+  draft -->|Yes| notFound
+  draft -->|No| base[Start at View: everyone signed in can read]
+  base --> project{Access through the project or a parent?}
+  project -->|Owner or admin| manage[Manage]
+  project -->|Shared| grant[The share's level, to them or their Entra group]
+  project -->|Neither| keep[View]
+  manage --> share{Shared on the diagram, to them or their group?}
+  grant --> share
+  keep --> share
+  share -->|Yes| diagramShare[The share's level, at most Edit]
+  share -->|No| owner{Owns the diagram?}
+  diagramShare --> owner
+  owner -->|Yes| ownerManage[Manage]
+  owner -->|No| highest[Take the highest level found]
+  ownerManage --> highest
+  highest --> viewer{Role is viewer?}
+  viewer -->|Yes| cap[Capped at Comment]
+  viewer -->|No| level([View, Comment, Edit or Manage])
+  cap --> level

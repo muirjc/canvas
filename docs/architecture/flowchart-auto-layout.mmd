@@ -7,8 +7,8 @@ flowchart TD
   hints --> dagre[dagre ranks and orders each level, in that group's own direction]
   dagre --> size[Size each group around its contents]
   size --> place[Place levels top-down into absolute positions]
-  arch --> pins
-  place --> pins{Anything pinned?}
+  arch --> pins{Anything pinned?}
+  place --> pins
   pins -- No --> done([New positions, a normal edit])
   pins -- Yes --> shift[Shift by the pins' average move, put each pin back]
   shift --> done

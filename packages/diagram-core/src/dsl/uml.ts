@@ -102,7 +102,8 @@ const NOTE_STANDALONE = /^note\s+"([^"]*)"$/;
 // id) -- a real but rare edge case, not worth a synthetic disambiguating suffix for this pass.
 const NAMESPACE_START = new RegExp(`^namespace\\s+(${ID}(?:\\.${ID})*)(?:\\["([^"]*)"\\])?\\s*\\{$`);
 
-const DIRECTION_PATTERN = /^direction\s+(TB|BT|LR|RL)$/i;
+// TD isn't Mermaid's here (only TB), but Auto Layout's top-down wrote it (canvas-rshf), so it is read too.
+const DIRECTION_PATTERN = /^direction\s+(TB|TD|BT|LR|RL)$/i;
 const TITLE_PATTERN = /^title\s+(.+)$/;
 // jmuir-dtu.17: same cross-family precedent as TITLE_PATTERN. Single-line colon form only; the
 // multi-line `accDescr { ... }` block form is out of scope (a clean parse error, not a silent
@@ -604,7 +605,7 @@ function writeUml(model: DiagramModel): string {
   if (model.mermaidConfigDirective) lines.unshift(model.mermaidConfigDirective);
   if (model.accTitle) lines.push(`accTitle: ${model.accTitle}`);
   if (model.accDescr) lines.push(`accDescr: ${model.accDescr}`);
-  if (model.direction) lines.push(`direction ${model.direction}`);
+  if (model.direction) lines.push(`direction ${model.direction === 'TD' ? 'TB' : model.direction}`);
 
   const classLines = (node: DiagramNode): string[] => {
     const genericPart = node.umlGenericParameter ? `~${node.umlGenericParameter}~` : '';
