@@ -129,6 +129,19 @@ begin
     Result := 'The password can''t contain your email address.';
 end;
 
+{ C as four hexadecimal digits (Pascal Script has no IntToHex). }
+function Hex4(C: Integer): String;
+var
+  I: Integer;
+begin
+  Result := '';
+  for I := 1 to 4 do
+  begin
+    Result := Copy('0123456789abcdef', (C mod 16) + 1, 1) + Result;
+    C := C div 16;
+  end;
+end;
+
 { A JSON string, ASCII only: SaveStringToFile writes ANSI text, so anything else is written as \u escapes. }
 function JsonString(S: String): String;
 var
@@ -143,7 +156,7 @@ begin
     else if S[I] = '\' then
       Result := Result + '\\'
     else if (C < 32) or (C > 126) then
-      Result := Result + '\u' + IntToHex(C, 4)
+      Result := Result + '\u' + Hex4(C)
     else
       Result := Result + S[I];
   end;
