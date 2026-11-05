@@ -38,6 +38,9 @@ import {
   plainLabelCenterY,
   edgeTechnologyLayout,
   clipEdgeEndpoint,
+  edgeLanes,
+  laneShift,
+  selfLoopGeometry,
   clipToAnchorSide,
   architectureEndpointBox,
   containerAsEndpoint,
@@ -1227,6 +1230,7 @@ export function Canvas({ model: modelProp, onChange: onChangeProp, dslFamily, to
   // canvas-hzf: a C4 element's type line ("[Software System]") is derived from its role; refresh it
   // here so a kind picked in the editor shows at once, not only after the next reload/parse.
   const model = useMemo(() => (dslFamily === 'c4' ? withC4TypeLabels(modelProp) : modelProp), [modelProp, dslFamily]);
+  const edgeLaneMap = useMemo(() => edgeLanes(model.edges), [model.edges]);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   // canvas-tfr: element kinds from the active standard (only for families whose DSL carries them).
   const standardKinds: ElementKind[] =
@@ -3666,6 +3670,7 @@ export function Canvas({ model: modelProp, onChange: onChangeProp, dslFamily, to
         })}
 
         {model.edges.map((edge) => {
+          const lane = edgeLaneMap.get(edge.id);
           // canvas-bnnh: a state diagram's connector may end on a composite state (a container),
           // drawn to its box exactly as the export does.
           const source = model.nodes.find((n) => n.id === edge.sourceId) ?? containerAsEndpoint(containersById.get(edge.sourceId));
@@ -3679,16 +3684,24 @@ export function Canvas({ model: modelProp, onChange: onChangeProp, dslFamily, to
           const sourceLifeline = sequenceLayout?.lifelines.get(edge.sourceId);
           const targetLifeline = sequenceLayout?.lifelines.get(edge.targetId);
           const isSequenceSelfMessage = Boolean(sequenceMessage?.isSelfMessage);
-          const from =
+          const centerFrom =
             sequenceMessage && sourceLifeline
               ? { x: sourceLifeline.x, y: sequenceMessage.y }
               : { x: source.position.x + nodeSize(source).width / 2, y: source.position.y + nodeSize(source).height / 2 };
-          const to =
+          const centerTo =
             sequenceMessage && targetLifeline
               ? { x: targetLifeline.x, y: sequenceMessage.y }
               : { x: target.position.x + nodeSize(target).width / 2, y: target.position.y + nodeSize(target).height / 2 };
-          const midX = isSequenceSelfMessage ? from.x + SELF_MESSAGE_LOOP_WIDTH / 2 : (from.x + to.x) / 2;
-          const midY = (from.y + to.y) / 2;
+          // canvas-y2yf: same as svg-renderer.ts's renderEdge -- a loop for a shape joined to itself, and
+          // a sideways shift for connectors that join the same two shapes. Sequence diagrams keep their own path.
+          const isLoop = !sequenceMessage && edge.sourceId === edge.targetId;
+          const loop = isLoop ? selfLoopGeometry(source.position, nodeSize(source), lane?.index ?? 0) : null;
+          const shift =
+            sequenceMessage || isLoop ? { x: 0, y: 0 } : laneShift(edge, lane, centerFrom, centerTo, nodeSize(source), nodeSize(target));
+          const from = { x: centerFrom.x + shift.x, y: centerFrom.y + shift.y };
+          const to = { x: centerTo.x + shift.x, y: centerTo.y + shift.y };
+          const midX = loop ? loop.labelX : isSequenceSelfMessage ? from.x + SELF_MESSAGE_LOOP_WIDTH / 2 : (from.x + to.x) / 2;
+          const midY = loop ? loop.labelY + 4 : (from.y + to.y) / 2;
           // canvas-1rq: clip each endpoint to its own node's boundary — otherwise the arrowhead
           // (and the line segment inside each node) is hidden underneath the node's opaque fill,
           // since nodes render on top of edges. Must match svg-renderer.ts exactly (SC-004).
@@ -3700,16 +3713,21 @@ export function Canvas({ model: modelProp, onChange: onChangeProp, dslFamily, to
           const targetBox = architectureEndpointBox(target, edge.targetIsGroup, containersById);
           // canvas-7vs.6: an explicit :T/:B/:L/:R anchor hint pins the endpoint to that side
           // instead of clipEdgeEndpoint's direction-toward-the-other-node default.
+          const shifted = (p: { x: number; y: number }) => (shift.x === 0 && shift.y === 0 ? p : { x: p.x + shift.x, y: p.y + shift.y });
           const clippedFrom = sequenceMessage
             ? from
-            : edge.sourceAnchor
-              ? clipToAnchorSide(sourceBox.center, sourceBox.size, edge.sourceAnchor)
-              : clipEdgeEndpoint(sourceBox.center, sourceBox.size, sourceBox.shape, targetBox.center.x, targetBox.center.y);
+            : shifted(
+                edge.sourceAnchor
+                  ? clipToAnchorSide(sourceBox.center, sourceBox.size, edge.sourceAnchor)
+                  : clipEdgeEndpoint(sourceBox.center, sourceBox.size, sourceBox.shape, targetBox.center.x, targetBox.center.y),
+              );
           const clippedTo = sequenceMessage
             ? to
-            : edge.targetAnchor
-              ? clipToAnchorSide(targetBox.center, targetBox.size, edge.targetAnchor)
-              : clipEdgeEndpoint(targetBox.center, targetBox.size, targetBox.shape, sourceBox.center.x, sourceBox.center.y);
+            : shifted(
+                edge.targetAnchor
+                  ? clipToAnchorSide(targetBox.center, targetBox.size, edge.targetAnchor)
+                  : clipEdgeEndpoint(targetBox.center, targetBox.size, targetBox.shape, sourceBox.center.x, sourceBox.center.y),
+              );
           const isEditingThisEdge = editingEdgeId === edge.id;
           const isSelected = selectedEdgeId === edge.id;
           // canvas-xig: centered under the connector's midpoint, clamped/flipped by popupPosition
@@ -3759,6 +3777,15 @@ export function Canvas({ model: modelProp, onChange: onChangeProp, dslFamily, to
                   strokeDasharray={edge.style?.strokeDasharray ?? (edge.lineStyle === 'dotted' ? DEFAULT_DOTTED_DASHARRAY : undefined)}
                   markerEnd={edge.arrow === 'none' ? undefined : 'url(#arrow)'}
                 />
+              ) : loop ? (
+                <path
+                  d={loop.path}
+                  fill="none"
+                  stroke={isSelected ? SELECTION_STROKE : edge.lineStyle === 'invisible' ? 'none' : (edge.style?.strokeColor ?? '#333')}
+                  strokeWidth={isSelected ? 2 : (edge.style?.strokeWidth ?? (edge.lineStyle === 'thick' ? DEFAULT_THICK_STROKE_WIDTH : undefined))}
+                  strokeDasharray={edge.style?.strokeDasharray ?? (edge.lineStyle === 'dotted' ? DEFAULT_DOTTED_DASHARRAY : undefined)}
+                  markerEnd={edge.lineStyle === 'invisible' || edge.arrow === 'none' ? undefined : 'url(#arrow)'}
+                />
               ) : (
                 <line
                   x1={clippedFrom.x}
@@ -3806,15 +3833,15 @@ export function Canvas({ model: modelProp, onChange: onChangeProp, dslFamily, to
                   connector's own geometry has a zero-height/width bounding box, which is not a
                   reliable click (or double-click) target for a user or for automated testing. */}
               <rect
-                x={Math.min(from.x, to.x) - 10}
-                y={Math.min(from.y, to.y) - 10}
+                x={loop ? source.position.x + nodeSize(source).width / 2 : Math.min(from.x, to.x) - 10}
+                y={loop ? source.position.y - 50 : Math.min(from.y, to.y) - 10}
                 // canvas-7vs.1: a self-message's hit target must cover its loop's visible extent
                 // (to the right and below `from`), not just the zero-size from===to point.
-                width={(isSequenceSelfMessage ? SELF_MESSAGE_LOOP_WIDTH : Math.max(Math.abs(to.x - from.x), 1)) + 20}
-                height={(isSequenceSelfMessage ? 20 : Math.max(Math.abs(to.y - from.y), 1)) + 20}
+                width={loop ? nodeSize(source).width / 2 + 80 : (isSequenceSelfMessage ? SELF_MESSAGE_LOOP_WIDTH : Math.max(Math.abs(to.x - from.x), 1)) + 20}
+                height={loop ? nodeSize(source).height / 4 + 50 : (isSequenceSelfMessage ? 20 : Math.max(Math.abs(to.y - from.y), 1)) + 20}
                 fill="transparent"
               />
-              {!isEditingThisEdge && edge.label && renderLabelLines(midX, midY - 4, edge.label, 12, false)}
+              {!isEditingThisEdge && edge.label && renderLabelLines(midX, loop ? loop.labelY : midY - 4, edge.label, 12, false)}
               {(() => {
                 // canvas-8th: a C4 relationship's [technology], from the export's own layout.
                 const technology = edgeTechnologyLayout(edge, midX, midY);
