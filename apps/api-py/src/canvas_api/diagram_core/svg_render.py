@@ -164,13 +164,14 @@ def _render_label_text(
     centered: bool,
     max_width: float | None = None,
     text_color: str = "#000000",
+    anchor: str = "middle",
 ) -> str:
     fill_attr = f' fill="{_t(text_color)}"'
     lines = split_label_lines(label, max_width, font_size if max_width is not None else None)
     if len(lines) == 1:
         baseline = ' dominant-baseline="middle"' if centered else ""
         return (
-            f'<text x="{_t(x)}" y="{_t(y)}"{baseline} text-anchor="middle" font-size="{_t(font_size)}" '
+            f'<text x="{_t(x)}" y="{_t(y)}"{baseline} text-anchor="{anchor}" font-size="{_t(font_size)}" '
             f"font-family='{FONT_FAMILY}'{fill_attr}>{escape_xml(label)}</text>"
         )
     line_height_em = 1.2
@@ -180,9 +181,22 @@ def _render_label_text(
         for i, line in enumerate(lines)
     )
     return (
-        f'<text x="{_t(x)}" y="{_t(y)}" text-anchor="middle" font-size="{_t(font_size)}" '
+        f'<text x="{_t(x)}" y="{_t(y)}" text-anchor="{anchor}" font-size="{_t(font_size)}" '
         f"font-family='{FONT_FAMILY}'{fill_attr}>{tspans}</text>"
     )
+
+
+def edge_label_placement(mid: Point, shift: Point) -> dict[str, Any]:
+    """canvas-xpuk (edgeLabelPlacement): a lone connector's label sits centred above its point; one of several
+    between the same two shapes goes on its own outer side, aligned away from the others."""
+    length = js_hypot(shift["x"], shift["y"])
+    if length == 0:
+        return {"x": mid["x"], "y": mid["y"] - 4, "anchor": "middle"}
+    nx = shift["x"] / length
+    ny = shift["y"] / length
+    if abs(nx) >= 0.5:
+        return {"x": mid["x"] + nx * 6, "y": mid["y"] + ny * 6 + 4, "anchor": "start" if nx > 0 else "end"}
+    return {"x": mid["x"], "y": mid["y"] + 16 if ny > 0 else mid["y"] - 8, "anchor": "middle"}
 
 
 # --- node geometry ----------------------------------------------------------------------------------------------
@@ -1071,10 +1085,11 @@ def lane_shift(
 def self_loop_geometry(position: Point, size: Any, index: int) -> dict[str, Any]:
     """canvas-y2yf (selfLoopGeometry): a loop off the shape's top-right corner, and where its label goes."""
     reach = 32 + index * PARALLEL_EDGE_GAP
-    start_x = position["x"] + (size["width"] * 3) / 4
+    # canvas-xpuk: on a big box (a composite state) the loop stays at the corner.
+    start_x = position["x"] + size["width"] - _min(size["width"] / 4, 40)
     start_y = position["y"]
     end_x = position["x"] + size["width"]
-    end_y = position["y"] + size["height"] / 4
+    end_y = position["y"] + _min(size["height"] / 4, 40)
     path = (
         f"M {_t(start_x)} {_t(start_y)} C {_t(start_x)} {_t(start_y - reach)}, {_t(end_x + reach)} {_t(end_y)}, "
         f"{_t(end_x)} {_t(end_y)}"
@@ -1144,7 +1159,19 @@ def _render_edge(
     if clipped_from is None or clipped_to is None:
         raise TypeError("anchor is not T, B, L or R")  # TypeScript reads .x of undefined
     clipped_from, clipped_to = _move_by(clipped_from, shift), _move_by(clipped_to, shift)
-    label = _render_label_text(mid_x, mid_y - 4, edge["label"], 12, False) if js_truthy(edge.get("label")) else ""
+    # canvas-xpuk: a connector to or from a group labels the middle of the line as drawn.
+    touches_group = edge.get("sourceId") not in nodes_by_id or edge.get("targetId") not in nodes_by_id
+    label_mid = (
+        {"x": (clipped_from["x"] + clipped_to["x"]) / 2, "y": (clipped_from["y"] + clipped_to["y"]) / 2}
+        if touches_group
+        else {"x": mid_x, "y": mid_y}
+    )
+    placed = edge_label_placement(label_mid, shift)
+    label = (
+        _render_label_text(placed["x"], placed["y"], edge["label"], 12, False, None, "#000000", placed["anchor"])
+        if js_truthy(edge.get("label"))
+        else ""
+    )
     technology = edge.get("technology")
     technology_markup = (
         f'<text x="{_t(mid_x)}" y="{_t(mid_y + 10)}" text-anchor="middle" font-size="10" '

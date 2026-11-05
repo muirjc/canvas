@@ -40,6 +40,8 @@ import {
   clipEdgeEndpoint,
   edgeLanes,
   laneShift,
+  edgeLabelPlacement,
+  type LabelAnchor,
   selfLoopGeometry,
   clipToAnchorSide,
   architectureEndpointBox,
@@ -365,11 +367,12 @@ function renderLabelLines(
   centered: boolean,
   maxWidth?: number,
   fill = '#000000',
+  anchor: LabelAnchor = 'middle',
 ): JSX.Element {
   const lines = splitLabelLines(label, maxWidth, fontSize);
   if (lines.length === 1) {
     return (
-      <text x={x} y={y} textAnchor="middle" dominantBaseline={centered ? 'middle' : undefined} fontSize={fontSize} fill={fill}>
+      <text x={x} y={y} textAnchor={anchor} dominantBaseline={centered ? 'middle' : undefined} fontSize={fontSize} fill={fill}>
         {label}
       </text>
     );
@@ -377,7 +380,7 @@ function renderLabelLines(
   const lineHeightEm = 1.2;
   const firstDy = centered ? (-(lines.length - 1) * lineHeightEm) / 2 : 0;
   return (
-    <text x={x} y={y} textAnchor="middle" fontSize={fontSize} fill={fill}>
+    <text x={x} y={y} textAnchor={anchor} fontSize={fontSize} fill={fill}>
       {lines.map((line, i) => (
         <tspan key={i} x={x} dy={`${i === 0 ? firstDy : lineHeightEm}em`}>
           {line}
@@ -3701,8 +3704,6 @@ export function Canvas({ model: modelProp, onChange: onChangeProp, dslFamily, to
             sequenceMessage || isLoop ? { x: 0, y: 0 } : laneShift(edge, lane, centerFrom, centerTo, nodeSize(source), nodeSize(target));
           const from = { x: centerFrom.x + shift.x, y: centerFrom.y + shift.y };
           const to = { x: centerTo.x + shift.x, y: centerTo.y + shift.y };
-          const midX = loop ? loop.labelX : isSequenceSelfMessage ? from.x + SELF_MESSAGE_LOOP_WIDTH / 2 : (from.x + to.x) / 2;
-          const midY = loop ? loop.labelY + 4 : (from.y + to.y) / 2;
           // canvas-1rq: clip each endpoint to its own node's boundary — otherwise the arrowhead
           // (and the line segment inside each node) is hidden underneath the node's opaque fill,
           // since nodes render on top of edges. Must match svg-renderer.ts exactly (SC-004).
@@ -3729,6 +3730,18 @@ export function Canvas({ model: modelProp, onChange: onChangeProp, dslFamily, to
                   ? clipToAnchorSide(targetBox.center, targetBox.size, edge.targetAnchor)
                   : clipEdgeEndpoint(targetBox.center, targetBox.size, targetBox.shape, sourceBox.center.x, sourceBox.center.y),
               );
+          // canvas-xpuk: as svg-renderer.ts's renderEdge -- a connector to or from a group labels the middle of the
+          // line as drawn, and one of several between the same shapes puts its label on its own side.
+          const touchesGroup = !sequenceMessage && (!model.nodes.some((n) => n.id === edge.sourceId) || !model.nodes.some((n) => n.id === edge.targetId));
+          const midX = loop
+            ? loop.labelX
+            : isSequenceSelfMessage
+              ? from.x + SELF_MESSAGE_LOOP_WIDTH / 2
+              : touchesGroup
+                ? (clippedFrom.x + clippedTo.x) / 2
+                : (from.x + to.x) / 2;
+          const midY = loop ? loop.labelY + 4 : touchesGroup ? (clippedFrom.y + clippedTo.y) / 2 : (from.y + to.y) / 2;
+          const labelPlacement = loop || sequenceMessage ? null : edgeLabelPlacement({ x: midX, y: midY }, shift);
           const isEditingThisEdge = editingEdgeId === edge.id;
           const isSelected = selectedEdgeId === edge.id;
           // canvas-xig: centered under the connector's midpoint, clamped/flipped by popupPosition
@@ -3862,7 +3875,11 @@ export function Canvas({ model: modelProp, onChange: onChangeProp, dslFamily, to
                 height={loop ? nodeSize(source).height / 4 + 50 : (isSequenceSelfMessage ? 20 : Math.max(Math.abs(to.y - from.y), 1)) + 20}
                 fill="transparent"
               />
-              {!isEditingThisEdge && edge.label && renderLabelLines(midX, loop ? loop.labelY : midY - 4, edge.label, 12, false)}
+              {!isEditingThisEdge &&
+                edge.label &&
+                (labelPlacement
+                  ? renderLabelLines(labelPlacement.x, labelPlacement.y, edge.label, 12, false, undefined, undefined, labelPlacement.anchor)
+                  : renderLabelLines(midX, loop ? loop.labelY : midY - 4, edge.label, 12, false))}
               {(() => {
                 // canvas-8th: a C4 relationship's [technology], from the export's own layout.
                 const technology = edgeTechnologyLayout(edge, midX, midY);
