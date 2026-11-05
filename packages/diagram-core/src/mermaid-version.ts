@@ -6,7 +6,7 @@
  * package version. Changing it is a deliberate step of the upgrade process in
  * docs/admin-guide/operations.md ("Moving to a newer Mermaid version"); a test pins these values.
  */
-export const MERMAID_SYNTAX_VERSION = '11.15';
+export const MERMAID_SYNTAX_VERSION = '12.3';
 
 /**
  * The Mermaid version GitHub draws diagrams with (pull requests, READMEs), recorded by hand: put a
@@ -14,7 +14,7 @@ export const MERMAID_SYNTAX_VERSION = '11.15';
  * Mermaid 12 changed how diagrams are laid out and coloured by default (ELK layout for flowchart,
  * class and ER diagrams), not the syntax.
  */
-export const GITHUB_MERMAID_VERSION = { version: '12.2.0', checkedOn: '2026-10-31' } as const;
+export const GITHUB_MERMAID_VERSION = { version: '12.2.0', checkedOn: '2026-11-05' } as const;
 
 /** Per diagram family: Mermaid syntax Canvas doesn't read or doesn't draw yet. Checked by a test. */
 export interface MermaidSupportNote {

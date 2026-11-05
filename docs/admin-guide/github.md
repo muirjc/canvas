@@ -122,8 +122,10 @@ canvas_api.github.sync_run`) anywhere the API's settings are available.
 The `.mmd` file carries the diagram's colours as plain Mermaid lines where Mermaid has syntax for
 them: `style` lines in flowcharts, ER and class diagrams, `linkStyle` in flowcharts, and
 `UpdateElementStyle` / `UpdateRelStyle` in C4. GitHub draws Mermaid with its own copy of Mermaid
-(v12.2.0 when checked on 2026-10-31) and its own automatic layout, so positions never match Canvas.
-The README says so, and puts the Canvas-drawn SVG first as the picture to review.
+(v12.2.0 when checked on 2026-11-05) and its own automatic layout, so positions never match Canvas.
+The README says so, and puts the Canvas-drawn SVG first as the picture to review. Canvas follows
+Mermaid 12.3, which is newer than GitHub's copy: a flowchart using Mermaid 12.3's BPMN shapes
+(`A@{ shape: bpmn-gateway }`) draws in Canvas but not on GitHub until GitHub updates.
 
 Commits are made by the App, with a `Co-authored-by:` line naming the Canvas user who submitted.
 A diagram keeps the folder it was first submitted to, even if it's renamed later. Canvas never

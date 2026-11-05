@@ -124,6 +124,9 @@ const NEAREST: Record<string, NodeShape> = Object.assign(Object.create(null) as 
   odd: 'asymmetric',
   person: 'person',
   fork: 'fork-bar', join: 'fork-bar',
+  // Mermaid 12.3's BPMN shapes (registered, not in the docs' table yet).
+  'bpmn-start': 'circle', 'bpmn-intermediate': 'double-circle', 'bpmn-boundary': 'double-circle', 'bpmn-end': 'double-circle',
+  'bpmn-gateway': 'diamond', 'bpmn-activity': 'rounded-rectangle', 'bpmn-data-store': 'cylinder',
 });
 
 /** The shape Canvas draws for a Mermaid shape name (a node with an icon from a library is an icon node). */

@@ -75,7 +75,8 @@ SHAPE_SUFFIX = (
 )
 CLASS_SUFFIX = f"(?::::{ID}(?:{S}*,{S}*{ID})*)?"
 TOKEN = f"{ID}(?:(?:{SHAPE_SUFFIX})?{CLASS_SUFFIX}|{CLASS_SUFFIX}{SHAPE_DATA_SOURCE})"
-EDGE_ID = f"(?:{S}+({ID})@|{S}*)"
+#: Since Mermaid 12.3 an edge id may follow a shape with no space (`A[x]e1@--> B`); a bare id needs the space.
+EDGE_ID = f"(?:(?:{S}+|(?<=[\\])}}]))({ID})@|{S}*)"
 SHAPE_DATA_TOKEN = re.compile(f"^({ID})(?::::({ID}(?:{S}*,{S}*{ID})*))?@\\{{({SHAPE_DATA_INNER_SOURCE})\\}}$")
 
 #: canvas-sfz7: Mermaid's link tokens (its flow lexer's LINK rule, less the x/o ends), any length; the arrowed

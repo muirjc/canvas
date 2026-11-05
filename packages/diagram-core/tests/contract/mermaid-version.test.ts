@@ -11,10 +11,10 @@ const parses = (family: string, dsl: string) => isParseSuccess(getDslFamily(fami
 
 describe('Mermaid version', () => {
   it('is pinned', () => {
-    expect(MERMAID_SYNTAX_VERSION).toBe('11.15');
-    expect(GITHUB_MERMAID_VERSION).toEqual({ version: '12.2.0', checkedOn: '2026-10-31' });
+    expect(MERMAID_SYNTAX_VERSION).toBe('12.3');
+    expect(GITHUB_MERMAID_VERSION).toEqual({ version: '12.2.0', checkedOn: '2026-11-05' });
     expect(mermaidMajorVersion(GITHUB_MERMAID_VERSION.version)).toBe(12);
-    expect(mermaidMajorVersion(MERMAID_SYNTAX_VERSION)).toBe(11);
+    expect(mermaidMajorVersion(MERMAID_SYNTAX_VERSION)).toBe(12);
   });
 
   it('has a note entry for every family Canvas reads', () => {

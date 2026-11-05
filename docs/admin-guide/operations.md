@@ -29,7 +29,7 @@ submitted diagrams with real Mermaid, at whatever version GitHub runs. Moving Ca
 Mermaid version is a code change, made by whoever develops Canvas:
 
 1. **Read Mermaid's release notes** between the two versions. For each diagram type Canvas supports
-   (flowchart, sequence, class, ER, C4, architecture), list new syntax, removed syntax, and changes
+   (flowchart, sequence, class, ER, C4, architecture, state), list new syntax, removed syntax, and changes
    in meaning. Changes to how Mermaid lays out or colours diagrams don't affect Canvas's own
    drawing, but they do change how exports look on GitHub.
 2. **Keep reading the old forms.** A saved diagram is plain text, so it only breaks if Canvas stops

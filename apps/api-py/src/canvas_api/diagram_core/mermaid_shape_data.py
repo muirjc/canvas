@@ -159,6 +159,14 @@ _NEAREST: dict[str, str] = {
     "person": "person",
     "fork": "fork-bar",
     "join": "fork-bar",
+    # Mermaid 12.3's BPMN shapes (registered, not in the docs' table yet).
+    "bpmn-start": "circle",
+    "bpmn-intermediate": "double-circle",
+    "bpmn-boundary": "double-circle",
+    "bpmn-end": "double-circle",
+    "bpmn-gateway": "diamond",
+    "bpmn-activity": "rounded-rectangle",
+    "bpmn-data-store": "cylinder",
 }  # fmt: skip
 
 
