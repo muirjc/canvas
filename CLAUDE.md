@@ -100,6 +100,15 @@ tests are NON-NEGOTIABLE and must exist (and fail) before implementing any diagr
 work — see `.specify/memory/constitution.md` Principle IV.
 
 ## Recent Changes
+- `canvas-xl3a.1` (Windows installer, phase 1; decided with the user: one person on their own PC, a Setup .exe, a
+  Start-menu launcher, local accounts with the first admin set up on first run): **`canvas_api.desktop`** --
+  `python -m canvas_api.desktop start|open [--no-browser] | stop | status`. Per-user data folder
+  (CANVAS_DATA_DIR, else %LOCALAPPDATA%\Canvas / $XDG_DATA_HOME/canvas): settings.json (secrets + port 3888,
+  generated once, "env" overrides), SQLite canvas.db, logs/, canvas.pid. Seeds the catalog on first run and when
+  APP_ROOT/VERSION changes, else migrates; creates the first admin from first-admin.json (bootstrap_admin,
+  one-time password) and always deletes it; serves on 127.0.0.1 only with WEB_DIST_DIR, AUTH_MODE=local,
+  MFA_REQUIRED=false; single instance (a running copy just gets the browser opened); a taken port -> a free one,
+  saved. Tests `tests/test_desktop.py` (19, incl. end to end in a subprocess).
 - `canvas-mywp`: **`npm run dev:local` runs Canvas with no containers** (Linux/macOS/Windows; Node 22 + uv).
   `scripts/dev-local.mjs`: copies `apps/api-py/.env` from the example on first run, reads it (shell env wins;
   `scripts/dotenv.mjs` `readEnvFile`, typed by `dotenv.d.mts`), builds diagram-core if missing, seeds demo data
