@@ -1,7 +1,12 @@
 flowchart TD
+  A[A]
+  B[B]
+  C[C]
+  D[D]
+  E[E]
   A -->|pipe label| B
-  A -- inline label --> C
-  A -. dotted text .-> D
-  A == thick text ==> E
+  A -->|inline label| C
+  A -.->|dotted text| D
+  A ==>|thick text| E
   B ---|no arrow| C
   C -->|"quoted: label"| D

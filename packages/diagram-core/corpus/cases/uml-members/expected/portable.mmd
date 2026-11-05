@@ -1,19 +1,19 @@
 classDiagram
-  class BankAccount {
-    +String owner
-    +BigDecimal balance
-    -List~Transaction~ history
-    #Map~string, int~ limits
-    ~internalId
-    count$
-    +deposit(amount) bool
-    +withdraw(BigDecimal amount, String memo) BigDecimal
-    -audit()
-    +create()$
-    +compute()* int
-    +staticWithType() int$
-    +abstractThing() void*
-    +   spaced   (  a , b  )   Result
-    field*
-    +Type   name   $
-  }
+class BankAccount {
+  +String owner
+  +BigDecimal balance
+  -List~Transaction~ history
+  #Map~string, int~ limits
+  ~internalId
+  count$
+  +deposit(amount) bool
+  +withdraw(BigDecimal amount, String memo) BigDecimal
+  -audit()
+  +create()$
+  +compute() * int
+  +staticWithType() int$
+  +abstractThing() void*
+  +spaced(a , b) Result
+  field*
+  +Type name$
+}

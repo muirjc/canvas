@@ -1,5 +1,18 @@
-graph LR
-  %% every connector kind
+flowchart LR
+  A[A]
+  B[B]
+  C[C]
+  D[D]
+  E[E]
+  F[F]
+  G[G]
+  H[H]
+  P[P]
+  Q[Q]
+  R[R]
+  S[S]
+  T[T]
+  U[U]
   A -.-> B
   B ==> C
   C --- D
@@ -7,7 +20,9 @@ graph LR
   E ~~~ F
   F -.- G
   G === H
-  A -- label text --> C
+  A -->|label text| C
   A -->|piped label| D
-  P --> Q --> R
-  S --> T & U
+  P --> Q
+  Q --> R
+  S --> T
+  S --> U

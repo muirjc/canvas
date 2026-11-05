@@ -1,7 +1,11 @@
 flowchart TD
-  A[Start] --> B[End]
-  %% comment
+subgraph S [Group]
+  D[D]
+  E[E]
+end
+  A[Start]
+  B[End]
+  C[C]
+  A --> B
   B --> C
-  subgraph S [Group]
-    D --> E
-  end
+  D --> E

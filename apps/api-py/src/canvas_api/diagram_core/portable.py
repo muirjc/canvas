@@ -27,13 +27,15 @@ def to_portable_mermaid(dsl: str, strip_front_matter: bool = False) -> str | Non
     family = detect_dsl_family(dsl)
     if family not in NATIVE_PORTABLE_FAMILIES:
         return None
-    portable = _with_style_lines(_with_mermaid_forms(dsl, family), family)
+    rewritten = _with_mermaid_forms(dsl, family)
+    portable = _with_style_lines(dsl if rewritten == dsl else _with_original_keys(dsl, rewritten), family)
     return _remove_canvas_front_matter(portable) if strip_front_matter else portable
 
 
 def _with_mermaid_forms(dsl: str, family: str | None) -> str:
-    """canvas-0t84: text real Mermaid refuses, rewritten for the export (the saved diagram is unchanged).
-    Architecture: every connector needs a side on both ends; a missing side faces the other end."""
+    """canvas-0t84, canvas-8ucs: the export always writes the diagram again in Canvas's own form (so anything Canvas
+    opens draws in Mermaid), adjusting what Mermaid refuses. The saved diagram is unchanged; text Canvas can't read
+    is exported as it is. Architecture: a missing connector side faces the other end."""
     if family == "c4":
         return _c4_forms(dsl)
     if family == "erd":
@@ -44,6 +46,11 @@ def _with_mermaid_forms(dsl: str, family: str | None) -> str:
         return _sequence_forms(dsl)
     if family == "flowchart":
         return _flowchart_forms(dsl)
+    if family == "state":
+        from canvas_api.diagram_core.state import parse_state, serialize_state
+
+        result = parse_state(dsl)
+        return serialize_state(_defined(result["model"])) if "model" in result else dsl
     if family != "architecture":
         return dsl
     from canvas_api.diagram_core.architecture import parse_architecture, serialize_architecture
@@ -68,14 +75,6 @@ def _with_mermaid_forms(dsl: str, family: str | None) -> str:
         for alignment in old_alignments
         if len([i for i in alignment["ids"] if i in ids]) >= 2
     ]
-    unchanged = (
-        len(edges) == len(model["edges"])
-        and all(edge.get("sourceAnchor") and edge.get("targetAnchor") for edge in edges)
-        and len(alignments) == len(old_alignments)
-        and all(len(new["ids"]) == len(old["ids"]) for new, old in zip(alignments, old_alignments, strict=True))
-    )
-    if unchanged:
-        return dsl
     rewritten = {**model, "edges": [_with_sides(model, edge) for edge in edges]}
     if model.get("architectureAlignments") is not None:
         rewritten["architectureAlignments"] = alignments
@@ -117,8 +116,6 @@ def _c4_forms(dsl: str) -> str:
         return dsl
     model = result["model"]
     containers = _without_empty_groups(model, lambda _c: True)
-    if not (model.get("layoutHints") or []) and len(containers) == len(model["containers"]):
-        return dsl
     rest = {k: v for k, v in model.items() if k != "layoutHints"}
     return serialize_c4(_defined({**rest, "containers": containers}))
 
@@ -136,8 +133,6 @@ def _erd_forms(dsl: str) -> str:
     if "model" not in result:
         return dsl
     model = result["model"]
-    if not model["edges"] and all(node.get("label") == node["id"] for node in model["nodes"]):
-        return dsl
     nodes = [
         node if node.get("label") == node["id"] else {**node, "label": _quoted(node["label"])}
         for node in model["nodes"]
@@ -158,18 +153,14 @@ def _uml_forms(dsl: str) -> str:
     if "model" not in result:
         return dsl
     model = result["model"]
-    changed = False
     edges = []
     for edge in model["edges"]:
         label = edge.get("label")
         if isinstance(label, str) and ":" in label:
-            changed = True
             edge = {**edge, "label": label.replace(":", "#58;")}
         edges.append(edge)
     with_notes = [c for c in model["containers"] if c.get("role") != "note" or js_trim(c["label"]) != ""]
     containers = _without_empty_groups({**model, "containers": with_notes}, lambda c: c.get("role") == "namespace")
-    if not changed and len(containers) == len(model["containers"]):
-        return dsl
     return serialize_uml(_defined({**model, "edges": edges, "containers": containers}))
 
 
@@ -182,16 +173,14 @@ def _sequence_forms(dsl: str) -> str:
         return dsl
     model = result["model"]
     order = {node["id"]: index for index, node in enumerate(model["nodes"])}
-    changed = False
     containers = []
     for container in model["containers"]:
         ids = container.get("attachedNodeIds") or []
         if container.get("role") == "note-over" and len(ids) > 2:
-            changed = True
             ordered = sorted(ids, key=lambda i: order.get(i, 0))
             container = {**container, "attachedNodeIds": [ordered[0], ordered[-1]]}
         containers.append(container)
-    return serialize_sequence(_defined({**model, "containers": containers})) if changed else dsl
+    return serialize_sequence(_defined({**model, "containers": containers}))
 
 
 def _flowchart_forms(dsl: str) -> str:
@@ -203,18 +192,31 @@ def _flowchart_forms(dsl: str) -> str:
         return dsl
     model = result["model"]
     title = model.get("title")
-    changed = bool(title)
     nodes = []
     for node in model["nodes"]:
         label = node.get("label")
         if isinstance(label, str) and '"' in label:
-            changed = True
             node = {**node, "label": label.replace('"', "#quot;")}
         nodes.append(node)
-    if not changed:
-        return dsl
     text = serialize_flowchart(_defined({**model, "nodes": nodes, "title": None}))
     return _with_front_matter_title(text, title) if title else text
+
+
+def _front_matter_keys(text: str) -> dict[str, Any]:
+    match = FRONT_MATTER_PATTERN.match(text)
+    parsed = jsyaml.load(match.group(1)) if match else None
+    return dict(parsed) if isinstance(parsed, dict) else {}
+
+
+def _with_original_keys(original: str, rewritten: str) -> str:
+    """The rewritten text with the original front matter's own Mermaid keys (title, config, ...) put back first."""
+    keys = {k: v for k, v in _front_matter_keys(original).items() if k != "canvas"}
+    if not keys:
+        return rewritten
+    match = FRONT_MATTER_PATTERN.match(rewritten)
+    body = rewritten[match.end() :] if match else rewritten
+    merged = {**keys, **(_front_matter_keys(rewritten) if match else {})}
+    return f"---\n{jsyaml.dump(merged).rstrip(_TRAILING)}\n---\n{body}"
 
 
 def _with_front_matter_title(text: str, title: str) -> str:

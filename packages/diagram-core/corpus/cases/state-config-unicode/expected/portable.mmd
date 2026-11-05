@@ -1,15 +1,15 @@
-stateDiagram-v2
 %%{init: {'theme': 'dark'}}%%
-    direction RL
-    [*] --> Ébauche
-    Ébauche --> Publié : publier
-    Publié --> Retiré
-    state Archive {
-        direction LR
-        Vieux
-        Ancien : très ancien
-    }
-    state "Vide" as Empty {
-    }
-    Retiré --> [*]
-    note right of Publié : visible à tous
+stateDiagram-v2
+  direction RL
+  [*] --> Ébauche
+  Ébauche --> Publié : publier
+  Publié --> Retiré
+  Retiré --> [*]
+  state Archive {
+    direction LR
+    Vieux
+    Ancien : très ancien
+  }
+  state "Vide" as Empty {
+  }
+  note right of Publié : visible à tous

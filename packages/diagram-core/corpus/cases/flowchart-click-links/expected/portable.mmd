@@ -1,9 +1,22 @@
 flowchart LR
-  A --> B --> C --> D --> E --> F --> G --> H
-  click A href "https://example.com/a"
-  click B href "https://example.com/b" "Tooltip text"
-  click C href "https://example.com/c" "Tip" _blank
-  click F href "/relative/path" "Rel" _blank
-  click F href "/relative/path/again"
-  click G href "https://example.com:8080/path?q=1#frag"
-  click H href "//cdn.example.com/lib"
+  A[A]
+  B[B]
+  C[C]
+  D[D]
+  E[E]
+  F[F]
+  G[G]
+  H[H]
+  A --> B
+  B --> C
+  C --> D
+  D --> E
+  E --> F
+  F --> G
+  G --> H
+click A href "https://example.com/a"
+click B href "https://example.com/b" "Tooltip text"
+click C href "https://example.com/c" "Tip" _blank
+click F href "/relative/path/again"
+click G href "https://example.com:8080/path?q=1#frag"
+click H href "//cdn.example.com/lib"

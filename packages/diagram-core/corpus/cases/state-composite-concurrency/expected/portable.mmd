@@ -1,38 +1,36 @@
 stateDiagram-v2
-    direction LR
-    [*] --> First
-    First --> Second
-    First --> Third
-
-    state First {
-        direction TB
-        [*] --> fir
-        fir --> [*]
+  direction LR
+  [*] --> First
+  First --> Second
+  First --> Third
+  state First {
+    direction TB
+    [*] --> fir
+    fir --> [*]
+  }
+  state Second {
+    [*] --> sec
+    sec --> [*]
+  }
+  state "The third one" as Third {
+    [*] --> thi
+    thi --> [*]
+    state Inner {
+      [*] --> deep
     }
-    state Second {
-        [*] --> sec
-        sec --> [*]
-    }
-    state "The third one" as Third {
-        [*] --> thi
-        thi --> [*]
-        state Inner {
-            [*] --> deep
-        }
-        thi --> Inner : dive
-    }
-    state Active {
-        [*] --> NumLockOff
-        NumLockOff --> NumLockOn : EvNumLockPressed
-        NumLockOn --> NumLockOff : EvNumLockPressed
-        --
-        [*] --> CapsLockOff
-        CapsLockOff --> CapsLockOn : EvCapsLockPressed
-        --
-        [*] --> ScrollLockOff
-    }
-    Third --> Active
-    NamedComposite : Another Composite
-    state NamedComposite {
-        x --> y
-    }
+    thi --> Inner : dive
+  }
+  state Active {
+    [*] --> NumLockOff
+    NumLockOff --> NumLockOn : EvNumLockPressed
+    NumLockOn --> NumLockOff : EvNumLockPressed
+    --
+    [*] --> CapsLockOff
+    CapsLockOff --> CapsLockOn : EvCapsLockPressed
+    --
+    [*] --> ScrollLockOff
+  }
+  Third --> Active
+  state "Another Composite" as NamedComposite {
+    x --> y
+  }

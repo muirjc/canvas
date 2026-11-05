@@ -1,10 +1,11 @@
 classDiagram
-  namespace A {
-    namespace B.C {
+namespace A {
+  namespace B {
+    class Z
+    namespace C {
       class X
-      X --> Y
+      class Y
     }
   }
-  namespace A.B {
-    class Z
-  }
+}
+X --> Y

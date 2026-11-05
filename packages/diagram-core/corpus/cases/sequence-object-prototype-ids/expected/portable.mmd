@@ -1,13 +1,15 @@
 sequenceDiagram
-  participant constructor
-  actor toString as Tos
-  box Aqua valueOf
-    participant __proto__
-  end
-  constructor->>+toString: hi
-  toString-->>-constructor: ok
-  Note over __proto__: n
-  create participant hasOwnProperty
-  __proto__->>hasOwnProperty: new
-  destroy hasOwnProperty
-  hasOwnProperty-->>__proto__: bye
+box Aqua valueOf
+  participant __proto__
+end
+participant constructor
+actor toString as Tos
+constructor->>toString: hi
+activate toString
+toString-->>constructor: ok
+deactivate toString
+Note over __proto__: n
+create participant hasOwnProperty
+__proto__->>hasOwnProperty: new
+destroy hasOwnProperty
+hasOwnProperty-->>__proto__: bye

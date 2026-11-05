@@ -1,16 +1,16 @@
 architecture-beta
-  group cloud(cloud)[Cloud]
-  group inner(server)[Inner] in cloud
-  service api(server)[API] in cloud
-  service api2(internet)[API 2]
-  service db(database)[DB] in inner
-  service db2(logos:aws-s3)[Bucket]
-  service q(disk)[Queue]
-  service plain(virtual-machine)[VM]
-  junction j1
-  api:R --> L:db
-  api:B --> T:db2
-  db2:R -- L:api2
-  q:L <-- R:j1
-  j1:B --> T:api
-  plain:T --> B:api
+group cloud(cloud)[Cloud]
+group inner(server)[Inner] in cloud
+service api(server)[API] in cloud
+service api2(internet)[API 2]
+service db(database)[DB] in inner
+service db2(logos:aws-s3)[Bucket]
+service q(disk)[Queue]
+service plain(virtual-machine)[VM]
+junction j1
+api:R --> L:db
+api:B --> T:db2
+db2:R -- L:api2
+q:L <-- R:j1
+j1:B --> T:api
+plain:T --> B:api

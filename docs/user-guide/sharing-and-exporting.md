@@ -90,7 +90,9 @@ Canvas keeps notifications for 90 days. It doesn't send email about this yet.
 
 **Export** in the editor downloads the diagram as:
 - **Mermaid** (`.mmd`): the text, to use in other tools or documentation that renders Mermaid.
-  Colours are written so other tools can show them where Mermaid allows (see
+  The file is written fresh from your diagram in the form Mermaid reads, so anything Canvas opens
+  draws in Mermaid too. If you typed the text yourself in the DSL tab, your comments (`%%` lines)
+  and spacing aren't in the file; they stay in your diagram. Colours are written so other tools can show them where Mermaid allows (see
   [What reviewers see on GitHub](submitting-for-approval.md#what-reviewers-see-on-github)). Other
   tools arrange the shapes themselves. In an architecture diagram, Mermaid needs to know which side
   of each shape a connector leaves and joins: where you didn't choose one, the export uses the side

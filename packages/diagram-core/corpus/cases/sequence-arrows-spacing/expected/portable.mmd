@@ -1,15 +1,19 @@
 sequenceDiagram
-  A->B:solid open
-  A -->B : dotted open
-  A->>  B:   solid arrow
-  A-->>B: dotted arrow
-  A-xB: x
-  A--xB: dx
-  A-)B: o
-  A--)B: do
-  A<<->>B: both
-  A<<-->>B: dotted both
-  A->>A: self
-  A ->> + B : spaced plus
-  B -->> - A : spaced minus
-  A->>B: label with: colons and %% not a comment? no
+participant A
+participant B
+A->B: solid open
+A-->B: dotted open
+A->>B: solid arrow
+A-->>B: dotted arrow
+A-xB: x
+A--xB: dx
+A-)B: o
+A--)B: do
+A<<->>B: both
+A<<-->>B: dotted both
+A->>A: self
+A->>B: spaced plus
+activate B
+B-->>A: spaced minus
+deactivate B
+A->>B: label with: colons and

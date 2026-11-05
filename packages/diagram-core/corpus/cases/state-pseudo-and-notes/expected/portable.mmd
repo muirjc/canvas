@@ -1,31 +1,30 @@
 stateDiagram-v2
-    accTitle: Order lifecycle
-    accDescr: How an order moves from placed to closed
-    state if_state <<choice>>
-    [*] --> IsPositive
-    IsPositive --> if_state
-    if_state --> False: if n < 0
-    if_state --> True : if n >= 0
-    state fork_state <<fork>>
-    [*] --> fork_state
-    fork_state --> State2
-    fork_state --> State3
-    state join_state <<join>>
-    State2 --> join_state
-    State3 --> join_state
-    join_state --> State4
-    State4 --> [*]
-    state OldStyle [[choice]]
-    State1 : The state with a note
-    note right of State1
-        Important information! You can write
-        notes: even with a colon.
-    end note
-    State1 --> State2
-    note left of State2 : This is the note to the left.
-    state "This is a state description" as s2
-    s3 : first line
-    s3 : second line
-    state "Alias" as s4:with a description
-    hide empty description
-    scale 600 width
+  accTitle: Order lifecycle
+  accDescr: How an order moves from placed to closed
+  state if_state <<choice>>
+  state fork_state <<fork>>
+  state join_state <<join>>
+  state OldStyle <<choice>>
+  State1 : The state with a note
+  state "This is a state description" as s2
+  s3 : first line
+  s3 : second line
+  state "Alias" as s4
+  s4 : with a description
+  [*] --> IsPositive
+  IsPositive --> if_state
+  if_state --> False : if n < 0
+  if_state --> True : if n >= 0
+  [*] --> fork_state
+  fork_state --> State2
+  fork_state --> State3
+  State2 --> join_state
+  State3 --> join_state
+  join_state --> State4
+  State4 --> [*]
+  State1 --> State2
+  note right of State1
+    Important information! You can write
+    notes: even with a colon.
+  end note
+  note left of State2 : This is the note to the left.

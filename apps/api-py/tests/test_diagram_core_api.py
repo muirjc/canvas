@@ -37,7 +37,9 @@ def test_parsing_and_serializing() -> None:
     parsed = core.parse("flowchart", FLOWCHART)
     assert [n["id"] for n in parsed["model"]["nodes"]] == ["A", "B"]
     assert core.serialize("flowchart", parsed["model"]).startswith("---\ncanvas:")
-    assert core.portable(FLOWCHART).startswith("flowchart TD")
+    # canvas-8ucs: the export is written in Canvas's own form (front matter included unless stripped).
+    assert core.portable(FLOWCHART, strip_front_matter=True).startswith("flowchart TD")
+    assert "canvas:" in core.portable(FLOWCHART)
     assert core.detect_and_parse(FLOWCHART)["family"] == "flowchart"
     assert core.empty_dsl("flowchart", "flowchart").startswith("flowchart")
     assert [n["id"] for n in core.parse("sequence", SEQUENCE)["model"]["nodes"]] == ["A", "B"]

@@ -1,14 +1,21 @@
 flowchart LR
+  A[A]
+  B[B]
+  C[C]
+  D[D]
+  E[E]
+  F[F]
+  G[G]
+  H[H]
   A e1@--> B
   B e2@==> C
   C e3@-.->|maybe| D
-  D e4@-- text --> E
-  E e5@--> F e6@--> G
+  D e4@-->|text| E
+  E e5@--> F
+  F e6@--> G
   G --> H
   e1@{ animate: true }
-  e2@{ animation: fast }
-  e3@{ curve: linear, step: 1 }
-  e3@{ step: 2 }
-  linkStyle 1 stroke:#f00
+  e2@{ animation: "fast" }
+  e3@{ curve: "linear", step: 2 }
   %% Colours for Mermaid tools outside Canvas (added on export).
   linkStyle 1 stroke:#f00

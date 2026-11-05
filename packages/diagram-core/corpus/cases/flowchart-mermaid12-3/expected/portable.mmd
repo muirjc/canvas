@@ -1,12 +1,18 @@
 flowchart LR
-  A[Order]e1@--> B
-  C((Pay))e2@---> D
-  E@{ shape: bpmn-gateway, label: "Valid?" } e3@--> F
-  G@{ shape: bpmn-start }e4@--> E
+  A[Order]
+  B[B]
+  C((Pay))
+  D[D]
+  E@{ shape: bpmn-gateway, label: "Valid?" }
   F@{ shape: bpmn-activity, label: "Ship" }
+  G@{ shape: bpmn-start }
   H@{ shape: bpmn-end }
   I@{ shape: bpmn-data-store }
   J@{ shape: bpmn-annotation, label: "note" }
+  A e1@--> B
+  C e2@---> D
+  E e3@--> F
+  G e4@--> E
   F --> H
   e1@{ step: 1 }
   e3@{ step: 2 }

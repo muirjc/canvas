@@ -64,16 +64,25 @@ describe('toPortableMermaid', () => {
     expect(serializeFlowchart(reimported)).toBe(serializeFlowchart(original));
   });
 
-  it('a flowchart with nothing coloured is returned unchanged', () => {
-    const dsl = 'flowchart TD\n  A --> B\n';
-    expect(toPortableMermaid(dsl)).toBe(dsl);
+  it('a flowchart with nothing coloured is written in Canvas form with no style lines, and a second export is stable', () => {
+    const dsl = 'flowchart TD\n  A --> B   %% note\n';
+    const out = toPortableMermaid(dsl, { stripFrontMatter: true });
+    expect(out).not.toContain('%%');
+    expect(out).not.toMatch(/style /);
+    expect(out).toContain('A --> B');
+    expect(toPortableMermaid(out, { stripFrontMatter: true })).toBe(out);
   });
 
-  it('uncoloured diagrams of other families and unparseable input are returned unchanged', () => {
+  it('uncoloured diagrams of other families are written by their serializer; unparseable input and unknown families are returned as they are', () => {
     const c4 = 'C4Context\nSystem(s, "S")\n';
-    expect(toPortableMermaid(c4)).toBe(c4);
+    const parsed = parseC4(c4);
+    expect(isParseSuccess(parsed)).toBe(true);
+    if (!isParseSuccess(parsed)) throw new Error('unreachable');
+    expect(toPortableMermaid(c4)).toBe(serializeC4(parsed.model));
     const broken = 'flowchart TD\n  A -->\n';
     expect(toPortableMermaid(broken)).toBe(broken);
+    const unknown = 'gantt\n  title Plan\n';
+    expect(toPortableMermaid(unknown)).toBe(unknown);
   });
 });
 
@@ -106,9 +115,12 @@ describe('toPortableMermaid(dsl, { stripFrontMatter: true })', () => {
     expect(out.trimStart().startsWith('erDiagram')).toBe(true);
   });
 
-  it('leaves text without front matter as it was, and the default call keeps the front matter', () => {
+  it('text without front matter has none after stripping, and the default call keeps the canvas front matter', () => {
     const plain = 'flowchart TD\n  A --> B\n';
-    expect(toPortableMermaid(plain, { stripFrontMatter: true })).toBe(plain);
+    const stripped = toPortableMermaid(plain, { stripFrontMatter: true });
+    expect(stripped).not.toMatch(/^---/);
+    expect(stripped).not.toContain('canvas:');
+    expect(stripped).toContain('A --> B');
     expect(toPortableMermaid(savedDsl())).toContain('canvas:');
   });
 });
@@ -208,7 +220,7 @@ describe('toPortableMermaid: C4, ER and class diagrams (canvas-n85n)', () => {
     expect(out.match(/UpdateRelStyle\(a, b, \$lineColor="#17becf"\)/g)).toHaveLength(1);
   });
 
-  it('sequence and architecture diagrams are returned unchanged (no colour syntax in Mermaid)', () => {
+  it('adds no colour lines to sequence and architecture diagrams (no colour syntax in Mermaid), and Canvas-written text comes back as it was', () => {
     const seq = ok(parseSequence('sequenceDiagram\n  participant A\n  participant B\n  A->>B: hi\n'));
     seq.nodes[0].style = { fillColor: '#d62728' };
     const seqDsl = serializeSequence(seq);
