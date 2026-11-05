@@ -28,7 +28,7 @@ export const ER_TARGET_CARDINALITY_TOKENS = ['||', 'o|', '|{', 'o{'] as const;
 // zero-label form to fall back to. serializeErd must never emit one, regardless of how the edge
 // was created (e.g. the canvas's connect-mode gesture, which sets no label at all) or a
 // freshly-drawn relationship would fail to re-parse the very next time its own DSL is applied.
-const DEFAULT_RELATIONSHIP_LABEL = 'relates to';
+export const DEFAULT_RELATIONSHIP_LABEL = 'relates to';
 // CUSTOMER {
 const ENTITY_BLOCK_START = new RegExp(`^(${ID})\\s*\\{$`);
 const BLOCK_END = /^\}$/;

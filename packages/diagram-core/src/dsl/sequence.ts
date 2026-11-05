@@ -188,7 +188,7 @@ export function parseSequence(dsl: string): ParseResult {
         label: alias ?? id,
         shape: kind === 'actor' ? 'person' : 'rectangle',
         role: kind,
-        position: PLACEHOLDER_POSITION,
+        position: { ...PLACEHOLDER_POSITION },
         containerId: boxId,
       });
       return;
@@ -211,7 +211,7 @@ export function parseSequence(dsl: string): ParseResult {
       label: '',
       role,
       attachedNodeIds: [participantId],
-      position: PLACEHOLDER_POSITION,
+      position: { ...PLACEHOLDER_POSITION },
       parentContainerId: currentContainerId(),
       sequenceOrder: orderCounter++,
     });
@@ -290,7 +290,7 @@ export function parseSequence(dsl: string): ParseResult {
         id,
         label: title ?? '',
         role: 'box',
-        position: PLACEHOLDER_POSITION,
+        position: { ...PLACEHOLDER_POSITION },
         style: color ? { fillColor: color } : undefined,
       });
       openBox = { id, line: i + 1, content: rawLine };
@@ -309,7 +309,7 @@ export function parseSequence(dsl: string): ParseResult {
         label: text,
         role: NOTE_POSITION_TO_ROLE[position],
         attachedNodeIds: participantIds,
-        position: PLACEHOLDER_POSITION,
+        position: { ...PLACEHOLDER_POSITION },
         size: noteSize(text),
         parentContainerId: currentContainerId(),
         sequenceOrder: orderCounter++,
@@ -356,7 +356,7 @@ export function parseSequence(dsl: string): ParseResult {
         id,
         label: isRect ? '' : (arg ?? ''),
         role: keyword,
-        position: PLACEHOLDER_POSITION,
+        position: { ...PLACEHOLDER_POSITION },
         parentContainerId: currentContainerId(),
         sequenceOrder: orderCounter++,
         style: isRect && arg ? { fillColor: arg } : undefined,
@@ -375,7 +375,7 @@ export function parseSequence(dsl: string): ParseResult {
         id,
         label: label ?? '',
         role: keyword,
-        position: PLACEHOLDER_POSITION,
+        position: { ...PLACEHOLDER_POSITION },
         parentContainerId: parent.id,
         sequenceOrder: orderCounter++,
       });

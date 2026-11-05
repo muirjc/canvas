@@ -1,16 +1,21 @@
 flowchart LR
-  %% Mermaid 11.3+ shape data: names Canvas draws, aliases, and ones drawn as the nearest shape
   start@{ shape: sm-circ, label: "Start" }
-  orders@{ shape: database, label: "Orders \"live\"" }
-  check:::decision@{ shape: diam, label: 'Is it ''ok''?' }
+  orders@{ shape: cyl, label: "Orders #quot;live#quot;" }
+  check:::decision@{ shape: diam, label: "Is it 'ok'?" }
   report@{ shape: doc }
-  cloud@{ shape: cloud, label: Cloud }
-  user@{ icon: "fa:user", form: "circle", label: "User", pos: "t", h: 60 }
-  logo@{ img: "https://example.org/logo.png", label: "Logo", w: 60, h: 60, constraint: "on" }
-  plain[Plain box]
-  plain@{ shape: hex }
-  start --> orders@{ shape: cyl } --> check
-  check --> sub@{ shape: subprocess, label: "Sub" } & fork@{ shape: fork }
-  check -->|yes| lean@{ shape: lean-l, label: "Out" }
-  odd@{ shape: odd, label: "Odd" } -.-> trap@{ shape: trap-t, label: "Manual" }
-  number@{ label: 42, flag: true, ratio: -0.5 }
+  cloud@{ shape: cloud, label: "Cloud" }
+  user@{ label: "User", icon: "fa:user", form: "circle", pos: "t", h: 60 }
+  logo@{ label: "Logo", img: "https://example.org/logo.png", w: 60, h: 60, constraint: "on" }
+  plain@{ shape: hex, label: "Plain box" }
+  sub@{ shape: subprocess, label: "Sub" }
+  fork@{ shape: fork }
+  lean@{ shape: lean-l, label: "Out" }
+  odd@{ shape: odd, label: "Odd" }
+  trap@{ shape: trap-t, label: "Manual" }
+  number@{ label: "42", flag: true, ratio: -0.5 }
+  start --> orders
+  orders --> check
+  check --> sub
+  check --> fork
+  check -->|yes| lean
+  odd -.-> trap

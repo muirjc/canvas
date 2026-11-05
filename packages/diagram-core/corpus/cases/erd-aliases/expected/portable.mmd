@@ -1,11 +1,9 @@
 erDiagram
-  CUSTOMER ||--o{ ORDER : places
-  ORDER[Customer Order] {
-    string id PK
-  }
-  CUSTOMER[The Customer]
-  p[Person]
-  ORDER[Renamed Order]
-  q[Lonely]
-  INVOICE
-  ORDER ||--|| INVOICE : billed
+ORDER["Renamed Order"] {
+  string id PK
+}
+CUSTOMER["The Customer"]
+p["Person"]
+q["Lonely"]
+CUSTOMER ||--o{ ORDER : "places"
+ORDER ||--|| INVOICE : "billed"

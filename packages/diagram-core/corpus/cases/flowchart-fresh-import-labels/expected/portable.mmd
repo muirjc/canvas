@@ -1,9 +1,16 @@
 flowchart TD
-  A[A very long label that needs to wrap over several lines of the node box] --> B[Short]
-  B --> C[Line one<br/>Line two<BR>Line three]
-  C --> D["Quoted<br />label"]
-  D --> E[One-word-that-is-extraordinarily-long-without-any-spaces-at-all]
-  subgraph S [Group with a long caption]
-    F[Inside] --> G[Also inside]
-  end
+subgraph S [Group with a long caption]
+  F[Inside]
+  G[Also inside]
+end
+  A[A very long label that needs to wrap over several lines of the node box]
+  B[Short]
+  C[Line one<br/>Line two<BR>Line three]
+  D[#quot;Quoted<br />label#quot;]
+  E[One-word-that-is-extraordinarily-long-without-any-spaces-at-all]
+  A --> B
+  B --> C
+  C --> D
+  D --> E
+  F --> G
   E --> F

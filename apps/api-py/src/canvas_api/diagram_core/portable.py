@@ -11,8 +11,8 @@ from canvas_api.diagram_core import jsyaml
 from canvas_api.diagram_core.detect import detect_dsl_family
 from canvas_api.diagram_core.flowchart import parse_flowchart
 from canvas_api.diagram_core.front_matter import _TRAILING, FRONT_MATTER_PATTERN
-from canvas_api.diagram_core.jsvalues import to_js_json
-from canvas_api.github.jstext import JS_WHITESPACE, js_number
+from canvas_api.diagram_core.jsvalues import js_truthy, to_js_json
+from canvas_api.github.jstext import JS_WHITESPACE, js_number, js_trim
 
 __all__ = ["NATIVE_PORTABLE_FAMILIES", "to_portable_mermaid"]
 
@@ -34,6 +34,16 @@ def to_portable_mermaid(dsl: str, strip_front_matter: bool = False) -> str | Non
 def _with_mermaid_forms(dsl: str, family: str | None) -> str:
     """canvas-0t84: text real Mermaid refuses, rewritten for the export (the saved diagram is unchanged).
     Architecture: every connector needs a side on both ends; a missing side faces the other end."""
+    if family == "c4":
+        return _c4_forms(dsl)
+    if family == "erd":
+        return _erd_forms(dsl)
+    if family == "uml":
+        return _uml_forms(dsl)
+    if family == "sequence":
+        return _sequence_forms(dsl)
+    if family == "flowchart":
+        return _flowchart_forms(dsl)
     if family != "architecture":
         return dsl
     from canvas_api.diagram_core.architecture import parse_architecture, serialize_architecture
@@ -69,7 +79,151 @@ def _with_mermaid_forms(dsl: str, family: str | None) -> str:
     rewritten = {**model, "edges": [_with_sides(model, edge) for edge in edges]}
     if model.get("architectureAlignments") is not None:
         rewritten["architectureAlignments"] = alignments
-    return serialize_architecture(rewritten)
+    return serialize_architecture(_defined(rewritten))
+
+
+def _defined(value: Any) -> Any:
+    """A parsed model as TypeScript holds it: a None field is `undefined`, so it is left out (a serializer would
+    write it as null). NaN and the rest are kept as they are."""
+    if isinstance(value, dict):
+        return {k: _defined(v) for k, v in value.items() if v is not None}
+    if isinstance(value, list):
+        return [_defined(v) for v in value]
+    return value
+
+
+def _without_empty_groups(model: dict[str, Any], is_group: Any) -> list[dict[str, Any]]:
+    """Groups Mermaid can't draw empty, left out, and then any group they leave empty, and so on up."""
+    containers: list[dict[str, Any]] = model["containers"]
+    while True:
+        kept = [
+            c
+            for c in containers
+            if not is_group(c)
+            or any(n.get("containerId") == c["id"] for n in model["nodes"])
+            or any(child.get("parentContainerId") == c["id"] for child in containers)
+        ]
+        if len(kept) == len(containers):
+            return containers
+        containers = kept
+
+
+def _c4_forms(dsl: str) -> str:
+    """C4: `Lay_*` hints are C4-PlantUML's; an empty boundary doesn't parse."""
+    from canvas_api.diagram_core.c4 import parse_c4, serialize_c4
+
+    result = parse_c4(dsl)
+    if "model" not in result:
+        return dsl
+    model = result["model"]
+    containers = _without_empty_groups(model, lambda _c: True)
+    if not (model.get("layoutHints") or []) and len(containers) == len(model["containers"]):
+        return dsl
+    rest = {k: v for k, v in model.items() if k != "layoutHints"}
+    return serialize_c4(_defined({**rest, "containers": containers}))
+
+
+def _quoted(text: str) -> str:
+    """Text Mermaid reads inside double quotes, its own `"` written as the `#quot;` entity."""
+    return '"' + text.replace('"', "#quot;") + '"'
+
+
+def _erd_forms(dsl: str) -> str:
+    """ER: relationship labels and aliases quoted (a bare one can't be one of Mermaid's ER keywords)."""
+    from canvas_api.diagram_core.erd import DEFAULT_RELATIONSHIP_LABEL, parse_erd, serialize_erd
+
+    result = parse_erd(dsl)
+    if "model" not in result:
+        return dsl
+    model = result["model"]
+    if not model["edges"] and all(node.get("label") == node["id"] for node in model["nodes"]):
+        return dsl
+    nodes = [
+        node if node.get("label") == node["id"] else {**node, "label": _quoted(node["label"])}
+        for node in model["nodes"]
+    ]
+    edges = []
+    for edge in model["edges"]:
+        label = edge.get("label")
+        text = js_trim(label) if isinstance(label, str) else ""
+        edges.append({**edge, "label": _quoted(text or DEFAULT_RELATIONSHIP_LABEL)})
+    return serialize_erd(_defined({**model, "nodes": nodes, "edges": edges}))
+
+
+def _uml_forms(dsl: str) -> str:
+    """Class diagrams: `:` in a relationship label as `#58;`; empty namespaces and empty notes left out."""
+    from canvas_api.diagram_core.uml import parse_uml, serialize_uml
+
+    result = parse_uml(dsl)
+    if "model" not in result:
+        return dsl
+    model = result["model"]
+    changed = False
+    edges = []
+    for edge in model["edges"]:
+        label = edge.get("label")
+        if isinstance(label, str) and ":" in label:
+            changed = True
+            edge = {**edge, "label": label.replace(":", "#58;")}
+        edges.append(edge)
+    with_notes = [c for c in model["containers"] if c.get("role") != "note" or js_trim(c["label"]) != ""]
+    containers = _without_empty_groups({**model, "containers": with_notes}, lambda c: c.get("role") == "namespace")
+    if not changed and len(containers) == len(model["containers"]):
+        return dsl
+    return serialize_uml(_defined({**model, "edges": edges, "containers": containers}))
+
+
+def _sequence_forms(dsl: str) -> str:
+    """Sequence: a note over more than two participants spans the first to the last."""
+    from canvas_api.diagram_core.sequence import parse_sequence, serialize_sequence
+
+    result = parse_sequence(dsl)
+    if "model" not in result:
+        return dsl
+    model = result["model"]
+    order = {node["id"]: index for index, node in enumerate(model["nodes"])}
+    changed = False
+    containers = []
+    for container in model["containers"]:
+        ids = container.get("attachedNodeIds") or []
+        if container.get("role") == "note-over" and len(ids) > 2:
+            changed = True
+            ordered = sorted(ids, key=lambda i: order.get(i, 0))
+            container = {**container, "attachedNodeIds": [ordered[0], ordered[-1]]}
+        containers.append(container)
+    return serialize_sequence(_defined({**model, "containers": containers})) if changed else dsl
+
+
+def _flowchart_forms(dsl: str) -> str:
+    """Flowchart: the title moves to the front matter; `"` in a label is written `#quot;`."""
+    from canvas_api.diagram_core.flowchart import serialize_flowchart
+
+    result = parse_flowchart(dsl)
+    if "model" not in result:
+        return dsl
+    model = result["model"]
+    title = model.get("title")
+    changed = bool(title)
+    nodes = []
+    for node in model["nodes"]:
+        label = node.get("label")
+        if isinstance(label, str) and '"' in label:
+            changed = True
+            node = {**node, "label": label.replace('"', "#quot;")}
+        nodes.append(node)
+    if not changed:
+        return dsl
+    text = serialize_flowchart(_defined({**model, "nodes": nodes, "title": None}))
+    return _with_front_matter_title(text, title) if title else text
+
+
+def _with_front_matter_title(text: str, title: str) -> str:
+    match = FRONT_MATTER_PATTERN.match(text)
+    parsed = jsyaml.load(match.group(1)) if match else None
+    keys = parsed if isinstance(parsed, dict) else {}
+    rest = {k: v for k, v in keys.items() if k != "title"}
+    body = text[match.end() :] if match else text
+    return f"---\n{jsyaml.dump({'title': title, **rest}).rstrip(_TRAILING)}\n---\n{body}"
 
 
 _OPPOSITE = {"T": "B", "B": "T", "L": "R", "R": "L"}
@@ -195,10 +349,10 @@ def _c4_lines(result: dict[str, Any]) -> list[str]:
     model = result["model"]
     lines = []
     for node in model["nodes"]:
-        style = node.get("style") or {}
+        style = node.get("style") if isinstance(node.get("style"), dict) else {}
         args = [
-            f'$bgColor="{style["fillColor"]}"' if style.get("fillColor") else None,
-            f'$borderColor="{style["strokeColor"]}"' if style.get("strokeColor") else None,
+            f'$bgColor="{style["fillColor"]}"' if js_truthy(style.get("fillColor")) else None,
+            f'$borderColor="{style["strokeColor"]}"' if js_truthy(style.get("strokeColor")) else None,
         ]
         present = [a for a in args if a]
         if present:
@@ -207,8 +361,8 @@ def _c4_lines(result: dict[str, Any]) -> list[str]:
     for edge in model["edges"]:
         by_pair.setdefault((edge["sourceId"], edge["targetId"]), []).append(edge)
     for first, *rest in by_pair.values():
-        colour = (first.get("style") or {}).get("strokeColor")
-        if not colour or any((edge.get("style") or {}).get("strokeColor") != colour for edge in rest):
+        colour = _stroke_color(first)
+        if not js_truthy(colour) or any(_stroke_color(edge) != colour for edge in rest):
             continue
         lines.append(f'UpdateRelStyle({first["sourceId"]}, {first["targetId"]}, $lineColor="{colour}")')
     return lines
@@ -239,13 +393,19 @@ def _number_text(value: Any) -> str:
     return str(to_js_json(value))
 
 
-def _style_props(style: dict[str, Any] | None) -> str | None:
-    if not style:
+def _stroke_color(edge: dict[str, Any]) -> Any:
+    style = edge.get("style")
+    return style.get("strokeColor") if isinstance(style, dict) else None
+
+
+def _style_props(style: Any) -> str | None:
+    # A style that isn't an object (typed front matter can hold anything) has no colours, as in TypeScript.
+    if not isinstance(style, dict):
         return None
     props = []
-    if style.get("fillColor"):
+    if js_truthy(style.get("fillColor")):
         props.append(f"fill:{style['fillColor']}")
-    if style.get("strokeColor"):
+    if js_truthy(style.get("strokeColor")):
         props.append(f"stroke:{style['strokeColor']}")
     if style.get("strokeWidth") is not None:
         props.append(f"stroke-width:{_number_text(style['strokeWidth'])}px")

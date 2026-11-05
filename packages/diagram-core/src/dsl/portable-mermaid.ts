@@ -1,11 +1,13 @@
-import type { DiagramEdge, DiagramModel, NodeStyle } from '../model/diagram-model.js';
+import type { DiagramContainer, DiagramEdge, DiagramModel, NodeStyle } from '../model/diagram-model.js';
 import { containerSize, nodeSize } from '../render/svg-renderer.js';
 import { parseArchitecture, serializeArchitecture } from './architecture.js';
 import { detectDslFamily } from './detect.js';
 import { parseFlowchart } from './flowchart-parser.js';
-import { parseC4 } from './c4.js';
-import { parseErd } from './erd.js';
-import { parseUml } from './uml.js';
+import { serializeFlowchart } from './flowchart-serializer.js';
+import { parseC4, serializeC4 } from './c4.js';
+import { DEFAULT_RELATIONSHIP_LABEL, parseErd, serializeErd } from './erd.js';
+import { parseUml, serializeUml } from './uml.js';
+import { parseSequence, serializeSequence } from './sequence.js';
 import { parseState } from './state.js';
 import { isParseSuccess, type ParseResult } from './types.js';
 import { parse as parseYaml, stringify as stringifyYaml } from 'yaml';
@@ -39,7 +41,10 @@ export interface PortableMermaidOptions {
 }
 
 export function toPortableMermaid(dsl: string, options: PortableMermaidOptions = {}): string {
-  const portable = withStyleLines(withMermaidForms(dsl));
+  // The family is read once, from the text as saved: a rewritten text can start with a `%%{init}%%` line, which
+  // detection doesn't look past.
+  const family = detectDslFamily(dsl);
+  const portable = withStyleLines(withMermaidForms(dsl, family), family);
   return options.stripFrontMatter ? removeCanvasFrontMatter(portable) : portable;
 }
 
@@ -49,8 +54,142 @@ export function toPortableMermaid(dsl: string, options: PortableMermaidOptions =
  * connector (`a:R --> L:b`), and Canvas's Connect leaves them unset -- each missing side faces the other end, as
  * the shapes sit in Canvas; and ids of services that don't exist are left out.
  */
-function withMermaidForms(dsl: string): string {
-  if (detectDslFamily(dsl) !== 'architecture') return dsl;
+function withMermaidForms(dsl: string, family: ReturnType<typeof detectDslFamily>): string {
+  switch (family) {
+    case 'architecture':
+      return architectureForms(dsl);
+    case 'c4':
+      return c4Forms(dsl);
+    case 'erd':
+      return erdForms(dsl);
+    case 'uml':
+      return umlForms(dsl);
+    case 'sequence':
+      return sequenceForms(dsl);
+    case 'flowchart':
+      return flowchartForms(dsl);
+    default:
+      return dsl;
+  }
+}
+
+/** A model with its `null` fields left out, before it is written again: a `null` typed into the front matter (a
+ *  style's `strokeWidth: null`) means nothing set, and the server's copy can't tell it from a field never set. */
+function withoutNulls<T>(value: T): T {
+  if (Array.isArray(value)) return value.map(withoutNulls) as T;
+  if (value && typeof value === 'object') {
+    return Object.fromEntries(
+      Object.entries(value as Record<string, unknown>).filter(([, v]) => v !== null).map(([k, v]) => [k, withoutNulls(v)]),
+    ) as T;
+  }
+  return value;
+}
+
+/** Groups Mermaid can't draw empty (a C4 boundary, a class namespace), left out -- and then any group they leave
+ *  empty, and so on up. `isGroup` picks which containers count. */
+function withoutEmptyGroups(model: DiagramModel, isGroup: (c: DiagramContainer) => boolean): DiagramContainer[] {
+  let containers = model.containers;
+  for (;;) {
+    const kept = containers.filter(
+      (c) =>
+        !isGroup(c) ||
+        model.nodes.some((n) => n.containerId === c.id) ||
+        containers.some((child) => child.parentContainerId === c.id),
+    );
+    if (kept.length === containers.length) return containers;
+    containers = kept;
+  }
+}
+
+/** C4: `Lay_*` hints are C4-PlantUML's (Mermaid's lexer refuses them); an empty boundary doesn't parse. */
+function c4Forms(dsl: string): string {
+  const result = parseC4(dsl);
+  if (!isParseSuccess(result)) return dsl;
+  const { model } = result;
+  const containers = withoutEmptyGroups(model, () => true);
+  if ((model.layoutHints ?? []).length === 0 && containers.length === model.containers.length) return dsl;
+  const { layoutHints: _hints, ...rest } = model;
+  return serializeC4(withoutNulls({ ...rest, containers }));
+}
+
+/** Text Mermaid reads inside double quotes, its own `"` written as the `#quot;` entity. */
+const quoted = (text: string): string => `"${text.replace(/"/g, '#quot;')}"`;
+
+/** ER: relationship labels and aliases are quoted. A bare one must be a single word that isn't one of Mermaid's
+ *  ER keywords (`many`, `one`, `to`, `class`, a number, ...), so quoting them all is the safe form. */
+function erdForms(dsl: string): string {
+  const result = parseErd(dsl);
+  if (!isParseSuccess(result)) return dsl;
+  const { model } = result;
+  if (model.edges.length === 0 && model.nodes.every((node) => node.label === node.id)) return dsl;
+  const nodes = model.nodes.map((node) => (node.label === node.id ? node : { ...node, label: quoted(node.label) }));
+  const edges = model.edges.map((edge) => ({ ...edge, label: quoted(edge.label?.trim() || DEFAULT_RELATIONSHIP_LABEL) }));
+  return serializeErd(withoutNulls({ ...model, nodes, edges }));
+}
+
+/** Class diagrams: a `:` in a relationship label ends it early (written as `#58;`); an empty namespace or an
+ *  empty note doesn't parse. */
+function umlForms(dsl: string): string {
+  const result = parseUml(dsl);
+  if (!isParseSuccess(result)) return dsl;
+  const { model } = result;
+  let changed = false;
+  const edges = model.edges.map((edge) => {
+    if (!edge.label?.includes(':')) return edge;
+    changed = true;
+    return { ...edge, label: edge.label.replace(/:/g, '#58;') };
+  });
+  const withNotes = model.containers.filter((c) => c.role !== 'note' || c.label.trim() !== '');
+  const containers = withoutEmptyGroups({ ...model, containers: withNotes }, (c) => c.role === 'namespace');
+  if (!changed && containers.length === model.containers.length) return dsl;
+  return serializeUml(withoutNulls({ ...model, edges, containers }));
+}
+
+/** Sequence: a note goes over one participant or spans two; a note over more spans the first to the last. */
+function sequenceForms(dsl: string): string {
+  const result = parseSequence(dsl);
+  if (!isParseSuccess(result)) return dsl;
+  const { model } = result;
+  const order = new Map(model.nodes.map((node, index) => [node.id, index]));
+  let changed = false;
+  const containers = model.containers.map((container) => {
+    const ids = container.attachedNodeIds ?? [];
+    if (container.role !== 'note-over' || ids.length <= 2) return container;
+    changed = true;
+    const sorted = [...ids].sort((a, b) => (order.get(a) ?? 0) - (order.get(b) ?? 0));
+    return { ...container, attachedNodeIds: [sorted[0], sorted[sorted.length - 1]] };
+  });
+  return changed ? serializeSequence(withoutNulls({ ...model, containers })) : dsl;
+}
+
+/** Flowchart: Mermaid takes a flowchart's title from the front matter only, and a `"` inside a quoted label ends
+ *  it (written as `#quot;`). */
+function flowchartForms(dsl: string): string {
+  const result = parseFlowchart(dsl);
+  if (!isParseSuccess(result)) return dsl;
+  const { model } = result;
+  let changed = Boolean(model.title);
+  const nodes = model.nodes.map((node) => {
+    if (!node.label?.includes('"')) return node;
+    changed = true;
+    return { ...node, label: node.label.replace(/"/g, '#quot;') };
+  });
+  if (!changed) return dsl;
+  const text = serializeFlowchart(withoutNulls({ ...model, nodes, title: undefined }));
+  return model.title ? withFrontMatterTitle(text, model.title) : text;
+}
+
+/** The text with `title:` first in its front matter (made if there is none). */
+function withFrontMatterTitle(text: string, title: string): string {
+  const match = text.match(FRONT_MATTER_PATTERN);
+  const parsed: unknown = match ? parseYaml(match[1]) : undefined;
+  const keys = parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? (parsed as Record<string, unknown>) : {};
+  const { title: _old, ...rest } = keys;
+  const body = match ? text.slice(match[0].length) : text;
+  return `---\n${stringifyYaml({ title, ...rest }).trimEnd()}\n---\n${body}`;
+}
+
+function architectureForms(dsl: string): string {
   const result = parseArchitecture(dsl);
   if (!isParseSuccess(result)) return dsl;
   const { model } = result;
@@ -75,11 +214,13 @@ function withMermaidForms(dsl: string): string {
     alignments.length === (model.architectureAlignments ?? []).length &&
     alignments.every((alignment, i) => alignment.ids.length === model.architectureAlignments![i].ids.length);
   if (unchanged) return dsl;
-  return serializeArchitecture({
-    ...model,
-    edges: edges.map((edge) => withSides(model, edge)),
-    ...(model.architectureAlignments ? { architectureAlignments: alignments } : {}),
-  });
+  return serializeArchitecture(
+    withoutNulls({
+      ...model,
+      edges: edges.map((edge) => withSides(model, edge)),
+      ...(model.architectureAlignments ? { architectureAlignments: alignments } : {}),
+    }),
+  );
 }
 
 type Side = 'T' | 'B' | 'L' | 'R';
@@ -130,8 +271,7 @@ function removeCanvasFrontMatter(dsl: string): string {
 
 const COMMENT = '%% Colours for Mermaid tools outside Canvas (added on export).';
 
-function withStyleLines(dsl: string): string {
-  const family = detectDslFamily(dsl);
+function withStyleLines(dsl: string, family: ReturnType<typeof detectDslFamily>): string {
   const lines =
     family === 'flowchart' ? flowchartLines(parseFlowchart(dsl))
     : family === 'c4' ? c4Lines(parseC4(dsl))
@@ -219,7 +359,8 @@ function styleProps(style: NodeStyle | undefined): string | undefined {
   const props = [
     style.fillColor ? `fill:${style.fillColor}` : undefined,
     style.strokeColor ? `stroke:${style.strokeColor}` : undefined,
-    style.strokeWidth !== undefined ? `stroke-width:${style.strokeWidth}px` : undefined,
+    // A `strokeWidth: null` typed into the front matter is no width (it was written `nullpx`).
+    style.strokeWidth != null ? `stroke-width:${style.strokeWidth}px` : undefined,
     // Commas separate Mermaid style properties, so a "5,5" dasharray is written "5 5".
     style.strokeDasharray ? `stroke-dasharray:${style.strokeDasharray.replace(/,/g, ' ')}` : undefined,
   ].filter((prop): prop is string => prop !== undefined);

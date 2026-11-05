@@ -95,7 +95,11 @@ Canvas keeps notifications for 90 days. It doesn't send email about this yet.
   tools arrange the shapes themselves. In an architecture diagram, Mermaid needs to know which side
   of each shape a connector leaves and joins: where you didn't choose one, the export uses the side
   facing the other shape. Mermaid allows one connector each way between two shapes, so any extra
-  ones are left out of the file (they stay in your diagram).
+  ones are left out of the file (they stay in your diagram). The export also adjusts a few other
+  things Canvas reads but Mermaid doesn't: C4 layout hints (`Lay_R` and the like) and empty
+  boundaries or namespaces are left out, ER relationship labels are quoted, a flowchart's title
+  moves to the file's front matter, and a sequence note over three or more participants spans the
+  first to the last. Your diagram itself is unchanged.
 - **SVG**: a sharp, scalable picture for documents and wikis.
 - **PNG**: an image. Its text is drawn in Liberation Sans, so it can look slightly different from the editor, which uses your system's font.
 

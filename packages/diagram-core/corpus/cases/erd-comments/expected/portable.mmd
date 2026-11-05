@@ -1,8 +1,5 @@
 erDiagram
-  %% whole line comment
-  CUSTOMER ||--o{ ORDER : places %% why
-  CUSTOMER { %% block start comment
-    string id PK %% the key
-  }
-  ORDER %% bare
-  %%{init: {"theme": "dark"}}%% not a directive
+CUSTOMER {
+  string id PK
+}
+CUSTOMER ||--o{ ORDER : "places"
