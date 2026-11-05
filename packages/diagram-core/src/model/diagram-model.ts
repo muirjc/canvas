@@ -315,6 +315,9 @@ export interface DiagramEdge {
   mermaidId?: string;
   /** canvas-8wxq: flowchart only -- `e1@{ animate: true, curve: linear, … }`, kept and written back, not drawn. */
   mermaidData?: MermaidData;
+  /** canvas-sfz7: flowchart only -- a longer link's Mermaid length (`A ---> B` = 2; absent = 1, the plain link).
+   *  Mermaid lays such a link out longer; Canvas keeps and writes it back, Auto Layout doesn't use it. */
+  mermaidLength?: number;
 }
 
 /** A visual grouping/boundary (e.g., a C4 "System Boundary" or a Mermaid subgraph). */

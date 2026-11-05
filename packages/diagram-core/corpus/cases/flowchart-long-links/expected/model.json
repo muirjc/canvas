@@ -1,0 +1,196 @@
+{
+  "containers": [],
+  "diagramTypeId": "flowchart",
+  "direction": "TD",
+  "edges": [
+    {
+      "id": "e1",
+      "mermaidLength": 2,
+      "sourceId": "A",
+      "targetId": "B"
+    },
+    {
+      "id": "e2",
+      "mermaidLength": 3,
+      "sourceId": "B",
+      "targetId": "C"
+    },
+    {
+      "id": "e3",
+      "lineStyle": "dotted",
+      "mermaidLength": 2,
+      "sourceId": "C",
+      "targetId": "D"
+    },
+    {
+      "id": "e4",
+      "lineStyle": "thick",
+      "mermaidLength": 2,
+      "sourceId": "D",
+      "targetId": "E"
+    },
+    {
+      "arrow": "both",
+      "id": "e5",
+      "mermaidLength": 2,
+      "sourceId": "E",
+      "targetId": "F"
+    },
+    {
+      "arrow": "none",
+      "id": "e6",
+      "mermaidLength": 3,
+      "sourceId": "F",
+      "targetId": "G"
+    },
+    {
+      "arrow": "none",
+      "id": "e7",
+      "lineStyle": "dotted",
+      "mermaidLength": 3,
+      "sourceId": "G",
+      "targetId": "H"
+    },
+    {
+      "arrow": "none",
+      "id": "e8",
+      "lineStyle": "invisible",
+      "mermaidLength": 2,
+      "sourceId": "H",
+      "targetId": "I"
+    },
+    {
+      "id": "e9",
+      "mermaidId": "e1",
+      "sourceId": "E",
+      "targetId": "F"
+    },
+    {
+      "id": "e10",
+      "mermaidId": "e2",
+      "mermaidLength": 2,
+      "sourceId": "F",
+      "targetId": "G"
+    },
+    {
+      "id": "e11",
+      "label": "longer label",
+      "mermaidLength": 2,
+      "sourceId": "A",
+      "targetId": "C"
+    },
+    {
+      "id": "e12",
+      "label": "dotted label",
+      "lineStyle": "dotted",
+      "mermaidLength": 2,
+      "sourceId": "B",
+      "targetId": "D"
+    },
+    {
+      "id": "e13",
+      "label": "thick label",
+      "lineStyle": "thick",
+      "mermaidLength": 2,
+      "sourceId": "C",
+      "targetId": "E"
+    },
+    {
+      "arrow": "none",
+      "id": "e14",
+      "label": "no arrow",
+      "sourceId": "D",
+      "targetId": "F"
+    },
+    {
+      "id": "e15",
+      "label": "piped",
+      "mermaidLength": 2,
+      "sourceId": "G",
+      "targetId": "I"
+    }
+  ],
+  "nodes": [
+    {
+      "id": "A",
+      "label": "A",
+      "position": {
+        "x": 40,
+        "y": 40
+      },
+      "shape": "rectangle"
+    },
+    {
+      "id": "B",
+      "label": "B",
+      "position": {
+        "x": 220,
+        "y": 40
+      },
+      "shape": "rectangle"
+    },
+    {
+      "id": "C",
+      "label": "C",
+      "position": {
+        "x": 400,
+        "y": 40
+      },
+      "shape": "rectangle"
+    },
+    {
+      "id": "D",
+      "label": "D",
+      "position": {
+        "x": 580,
+        "y": 40
+      },
+      "shape": "rectangle"
+    },
+    {
+      "id": "E",
+      "label": "E",
+      "position": {
+        "x": 760,
+        "y": 40
+      },
+      "shape": "rectangle"
+    },
+    {
+      "id": "F",
+      "label": "F",
+      "position": {
+        "x": 940,
+        "y": 40
+      },
+      "shape": "rectangle"
+    },
+    {
+      "id": "G",
+      "label": "G",
+      "position": {
+        "x": 40,
+        "y": 140
+      },
+      "shape": "rectangle"
+    },
+    {
+      "id": "H",
+      "label": "H",
+      "position": {
+        "x": 220,
+        "y": 140
+      },
+      "shape": "rectangle"
+    },
+    {
+      "id": "I",
+      "label": "I",
+      "position": {
+        "x": 400,
+        "y": 140
+      },
+      "shape": "rectangle"
+    }
+  ]
+}

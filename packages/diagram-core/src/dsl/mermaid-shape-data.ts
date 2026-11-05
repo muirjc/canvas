@@ -9,6 +9,9 @@ export const SHAPE_DATA_INNER_SOURCE = String.raw`(?:[^{}"']|"(?:[^"\\]|\\.)*"|'
 /** The block itself. */
 export const SHAPE_DATA_SOURCE = String.raw`@\{${SHAPE_DATA_INNER_SOURCE}\}`;
 
+/** canvas-sfz7: the longest flowchart link length kept (a longer link is read, and written back, at this length). */
+export const MAX_LINK_LENGTH = 1000;
+
 /** A key or a shape name. */
 export const MERMAID_NAME = /^[A-Za-z][A-Za-z0-9_-]*$/;
 

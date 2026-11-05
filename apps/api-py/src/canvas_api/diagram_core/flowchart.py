@@ -25,6 +25,7 @@ from canvas_api.diagram_core.front_matter import (
 )
 from canvas_api.diagram_core.jsvalues import js_parse_float, js_parse_int, js_template, js_truthy
 from canvas_api.diagram_core.mermaid_shape_data import (
+    MAX_LINK_LENGTH,
     MERMAID_NAME,
     MERMAID_SHAPE_NAME,
     SHAPE_DATA_INNER_SOURCE,
@@ -77,26 +78,39 @@ TOKEN = f"{ID}(?:(?:{SHAPE_SUFFIX})?{CLASS_SUFFIX}|{CLASS_SUFFIX}{SHAPE_DATA_SOU
 EDGE_ID = f"(?:{S}+({ID})@|{S}*)"
 SHAPE_DATA_TOKEN = re.compile(f"^({ID})(?::::({ID}(?:{S}*,{S}*{ID})*))?@\\{{({SHAPE_DATA_INNER_SOURCE})\\}}$")
 
-#: The ten connector tokens and the (lineStyle, arrow) each names; the default (solid, forward) is unset.
-EDGE_CONNECTORS: list[tuple[str, str | None, str | None]] = [
-    ("<-.->", "dotted", "both"),
-    ("<-->", None, "both"),
-    ("<==>", "thick", "both"),
-    ("-.->", "dotted", None),
-    ("==>", "thick", None),
-    ("-->", None, None),
-    ("-.-", "dotted", "none"),
-    ("===", "thick", "none"),
-    ("---", None, "none"),
-    ("~~~", "invisible", "none"),
-]
-CONNECTOR_BY_TOKEN = {token: (line_style, arrow) for token, line_style, arrow in EDGE_CONNECTORS}
-CONNECTOR_ALTERNATION = "|".join(re.escape(token) for token, _, _ in EDGE_CONNECTORS)
+#: canvas-sfz7: Mermaid's link tokens (its flow lexer's LINK rule, less the x/o ends), any length; the arrowed
+#: form of each line before its open one, so `--->` is never read as `---` + `>`.
+CONNECTOR_ALTERNATION = "<-{2,}>|<={2,}>|<-\\.+->|-\\.+->|-\\.+-|-{2,}>|-{3,}|={2,}>|={3,}|~{3,}"
+
+
+def _read_connector(token: str) -> tuple[str | None, str | None, int]:
+    """(lineStyle, arrow, Mermaid length) of a link token, as Mermaid's destructEndLink works them out."""
+    both = token.startswith("<")
+    line = token[1 if both else 0 : -1]
+    dots = line.count(".")
+    length = min(dots if dots > 0 else len(line) - 1, MAX_LINK_LENGTH)
+    if token.startswith("~"):
+        line_style: str | None = "invisible"
+    elif "=" in line:
+        line_style = "thick"
+    else:
+        line_style = "dotted" if dots > 0 else None
+    arrow = "both" if both else None if token.endswith(">") else "none"
+    return line_style, arrow, length
+
 
 EDGE_WITH_PIPE_LABEL = re.compile(f"^({TOKEN}){EDGE_ID}({CONNECTOR_ALTERNATION}){S}*\\|({DOT}+?)\\|{S}*({TOKEN})$")
-EDGE_INLINE_LABEL_SOLID = re.compile(f"^({TOKEN}){EDGE_ID}--{S}*({DOT}+?){S}*-->{S}*({TOKEN})$")
-EDGE_INLINE_LABEL_DOTTED = re.compile(f"^({TOKEN}){EDGE_ID}-\\.{S}*({DOT}+?){S}*\\.->{S}*({TOKEN})$")
-EDGE_INLINE_LABEL_THICK = re.compile(f"^({TOKEN}){EDGE_ID}=={S}*({DOT}+?){S}*==>{S}*({TOKEN})$")
+#: The opener can't start a longer link and the label can't hold a whole one (canvas-sfz7).
+LABEL_TEXT = f"(?:(?!{CONNECTOR_ALTERNATION}){DOT})+?"
+EDGE_INLINE_LABEL_SOLID = re.compile(
+    f"^({TOKEN}){EDGE_ID}--(?![->]){S}*({LABEL_TEXT}){S}*(-{{2,}}>|-{{3,}}){S}*({TOKEN})$"
+)
+EDGE_INLINE_LABEL_DOTTED = re.compile(
+    f"^({TOKEN}){EDGE_ID}-\\.(?![.-]){S}*({LABEL_TEXT}){S}*(\\.+->|\\.+-){S}*({TOKEN})$"
+)
+EDGE_INLINE_LABEL_THICK = re.compile(
+    f"^({TOKEN}){EDGE_ID}==(?![=>]){S}*({LABEL_TEXT}){S}*(={{2,}}>|={{3,}}){S}*({TOKEN})$"
+)
 EDGE_FAN_OUT = re.compile(f"^({TOKEN}){S}*({CONNECTOR_ALTERNATION}){S}*({TOKEN}(?:{S}*&{S}*{TOKEN})+)$")
 EDGE_NO_LABEL = re.compile(f"^({TOKEN}){EDGE_ID}({CONNECTOR_ALTERNATION}){S}*({TOKEN})$")
 CHAIN_HOP = re.compile(f"^({TOKEN}){EDGE_ID}({CONNECTOR_ALTERNATION}){S}*")
@@ -301,7 +315,7 @@ def parse_flowchart(dsl: str) -> dict[str, Any]:
         source: str, connector: str, target: str, label: str | None = None, mermaid_id: str | None = None
     ) -> None:
         nonlocal edge_counter
-        line_style, arrow = CONNECTOR_BY_TOKEN[connector]
+        line_style, arrow, length = _read_connector(connector)
         edge_counter += 1
         edge_id = f"e{edge_counter}"
         edge: dict[str, Any] = {
@@ -313,6 +327,8 @@ def parse_flowchart(dsl: str) -> dict[str, Any]:
             "arrow": arrow,
             "lineStyle": line_style,
         }
+        if length > 1:
+            edge["mermaidLength"] = length
         if mermaid_id is not None:
             if mermaid_id in edges_by_mermaid_id:
                 errors.append(
@@ -443,13 +459,13 @@ def parse_flowchart(dsl: str) -> dict[str, Any]:
                 push_edge(m.group(1), m.group(2), target)
             continue
         if m := EDGE_INLINE_LABEL_SOLID.match(line):
-            push_edge(m.group(1), "-->", m.group(4), m.group(3), m.group(2))
+            push_edge(m.group(1), m.group(4), m.group(5), m.group(3), m.group(2))
             continue
         if m := EDGE_INLINE_LABEL_DOTTED.match(line):
-            push_edge(m.group(1), "-.->", m.group(4), m.group(3), m.group(2))
+            push_edge(m.group(1), "-" + m.group(4), m.group(5), m.group(3), m.group(2))
             continue
         if m := EDGE_INLINE_LABEL_THICK.match(line):
-            push_edge(m.group(1), "==>", m.group(4), m.group(3), m.group(2))
+            push_edge(m.group(1), m.group(4), m.group(5), m.group(3), m.group(2))
             continue
         if m := EDGE_NO_LABEL.match(line):
             push_edge(m.group(1), m.group(3), m.group(4), None, m.group(2))
@@ -595,12 +611,6 @@ SHAPE_DELIMITERS = {
 _CLASS_TOKEN = re.compile("^[A-Za-z0-9_]+$")
 _UNSAFE_LINK_TEXT = re.compile('["\\r\\n]')
 
-CONNECTOR_TOKENS = {
-    "solid": {"none": "---", "target": "-->", "both": "<-->"},
-    "dotted": {"none": "-.-", "target": "-.->", "both": "<-.->"},
-    "thick": {"none": "===", "target": "==>", "both": "<==>"},
-}
-
 
 def _js_text(value: Any) -> str:
     """A value in a template literal: `${value}` (undefined as "undefined")."""
@@ -655,12 +665,21 @@ def _serialize_click_href(node: dict[str, Any]) -> str | None:
     return f'click {node["id"]} href "{href}"{tooltip_part}{target_part}'
 
 
+def _link_length(value: Any) -> int:
+    is_number = isinstance(value, int | float) and not isinstance(value, bool)
+    return int(value) if is_number and float(value).is_integer() and 1 <= value <= MAX_LINK_LENGTH else 1
+
+
 def _connector_for(edge: dict[str, Any]) -> str:
+    length = _link_length(edge.get("mermaidLength"))
     if edge.get("lineStyle") == "invisible":
-        return "~~~"
-    line_style = str(edge.get("lineStyle") or "solid")
-    arrow = str(edge["arrow"]) if edge.get("arrow") in ("none", "both") else "target"
-    return CONNECTOR_TOKENS[line_style][arrow]
+        return "~" * (length + 2)
+    arrow = edge["arrow"] if edge.get("arrow") in ("none", "both") else "target"
+    start = "<" if arrow == "both" else ""
+    if edge.get("lineStyle") == "dotted":
+        return f"-{'.' * length}-" if arrow == "none" else f"{start}-{'.' * length}->"
+    dash = "=" if edge.get("lineStyle") == "thick" else "-"
+    return dash * (length + 2) if arrow == "none" else f"{start}{dash * (length + 1)}>"
 
 
 _EDGE_ID = re.compile("^[A-Za-z0-9_]+\\Z")

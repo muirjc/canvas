@@ -57,6 +57,39 @@ LABELS = [
     "  spaced  ",
 ]
 CONN = ["-->", "---", "-.->", "-.-", "==>", "===", "<-->", "<-.->", "<==>", "~~~"]
+# canvas-sfz7: longer links, and near misses that aren't links.
+CONN += [
+    "--->",
+    "----",
+    "-..->",
+    "-...-",
+    "===>",
+    "=====",
+    "<--->",
+    "<-..->",
+    "<====>",
+    "~~~~",
+    "--",
+    "<--",
+    "-.",
+    "=>",
+]
+INLINE_CLOSE = {
+    "--": ["-->", "--->", "---", "----"],
+    "-.": [".->", "..->", ".-", "...-"],
+    "==": ["==>", "===>", "===", "===="],
+}
+TRICKY_EDGES = [
+    "E --> F ---> G",
+    "A --> b c --> B",
+    "A ==> x y ==> B",
+    "A -.-> x y .-> B",
+    "A -..- x .-> B",
+    "A -- a --> B --> C",
+    "A --- x --> B",
+    "A -- x ---> B --> C",
+    "A -.- x .-> B",
+]
 CLASSES = ["primary", "kind_a", "k2"]
 # canvas-8wxq: Mermaid 11.3+ `@{ … }` blocks and edge ids.
 SHAPE_NAMES = ["rect", "cyl", "database", "diam", "doc", "cloud", "fork", "lean-l", "trap-t", "odd", "unknown-x", "Hex"]
@@ -128,7 +161,12 @@ def line(rnd: random.Random) -> str:
     if r < 0.6:
         return f"{token(rnd)} -. {rnd.choice(LABELS)} .-> {token(rnd)}"
     if r < 0.63:
-        return f"{token(rnd)} == text ==> {token(rnd)}"
+        opener = rnd.choice(list(INLINE_CLOSE))
+        if rnd.random() < 0.5:
+            return rnd.choice(TRICKY_EDGES)
+        return (
+            f"{token(rnd)}{edge_id(rnd)}{opener} {rnd.choice(LABELS)} {rnd.choice(INLINE_CLOSE[opener])} {token(rnd)}"
+        )
     if r < 0.68:
         return f"{token(rnd)}{edge_id(rnd)}{rnd.choice(CONN)} {token(rnd)}{edge_id(rnd)}{rnd.choice(CONN)} {token(rnd)}"
     if r < 0.72:
@@ -257,6 +295,7 @@ def _differences(bridge: DiagramBridge, dsl: str) -> list[str]:
         for index, edge in enumerate(model["edges"]):
             edge["mermaidId"] = ["e1", "e1", "bad id", None, "e2"][index % 5]
             edge["mermaidData"] = {"animate": True, "n": 0.000001} if index % 2 else None
+            edge["mermaidLength"] = [3, None, 0, 2.5, 1001, "4", True, 1000, 2.0][index % 9]
         if serialize_flowchart(model) != bridge.serialize("flowchart", model):
             found.append("serialize-reshaped")
         if to_portable_mermaid(dsl, False) != bridge.portable(dsl):

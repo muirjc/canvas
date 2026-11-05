@@ -1,0 +1,14 @@
+{
+  "errors": [
+    {
+      "content": "  A -- a --> B --> C",
+      "line": 2,
+      "message": "Could not interpret line as a node, edge, or subgraph: \"A -- a --> B --> C\""
+    },
+    {
+      "content": "  D --> b c --> E",
+      "line": 3,
+      "message": "Could not interpret line as a node, edge, or subgraph: \"D --> b c --> E\""
+    }
+  ]
+}

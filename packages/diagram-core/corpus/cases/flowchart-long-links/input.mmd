@@ -1,0 +1,15 @@
+flowchart TD
+  A ---> B
+  B ----> C
+  C -..-> D
+  D ===> E
+  E <---> F
+  F ----- G
+  G -...- H
+  H ~~~~ I
+  E e1@--> F e2@---> G
+  A -- longer label ---> C
+  B -. dotted label ..-> D
+  C == thick label ===> E
+  D -- no arrow --- F
+  G --->|piped| I

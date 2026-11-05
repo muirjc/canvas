@@ -1,6 +1,6 @@
 import { isAllowedLinkHref, type DiagramContainer, type DiagramModel, type DiagramNode, type NodeShape } from '../model/diagram-model.js';
 import { joinFrontMatter, type CanvasFrontMatter, withLegend, withPinned } from './front-matter.js';
-import { MERMAID_NAME, MERMAID_SHAPE_NAME, dataEntries, formatShapeData, mermaidShapeToCanvas } from './mermaid-shape-data.js';
+import { MAX_LINK_LENGTH, MERMAID_NAME, MERMAID_SHAPE_NAME, dataEntries, formatShapeData, mermaidShapeToCanvas } from './mermaid-shape-data.js';
 
 const SHAPE_DELIMITERS: Record<NodeShape, [string, string]> = {
   rectangle: ['[', ']'],
@@ -82,19 +82,20 @@ function serializeClickHref(node: DiagramNode): string | undefined {
   return `click ${node.id} href "${href}"${tooltipPart}${targetPart}`;
 }
 
-// Grouping B: which literal connector token represents a given (lineStyle, arrow) pair. Both
-// fields default to the common case (solid line, forward arrowhead) when unset on the edge.
-const CONNECTOR_TOKENS: Record<'solid' | 'dotted' | 'thick', Record<'none' | 'target' | 'both', string>> = {
-  solid: { none: '---', target: '-->', both: '<-->' },
-  dotted: { none: '-.-', target: '-.->', both: '<-.->' },
-  thick: { none: '===', target: '==>', both: '<==>' },
-};
+// Grouping B, canvas-sfz7: the link token for an edge's line style, arrowheads and Mermaid length. Both fields
+// default to the common case (solid line, forward arrowhead) when unset on the edge.
+function linkLength(value: unknown): number {
+  return typeof value === 'number' && Number.isInteger(value) && value >= 1 && value <= MAX_LINK_LENGTH ? value : 1;
+}
 
 function connectorFor(edge: DiagramModel['edges'][number]): string {
-  if (edge.lineStyle === 'invisible') return '~~~';
-  const lineStyle = edge.lineStyle ?? 'solid';
+  const length = linkLength(edge.mermaidLength);
+  if (edge.lineStyle === 'invisible') return '~'.repeat(length + 2);
   const arrow = edge.arrow === 'none' || edge.arrow === 'both' ? edge.arrow : 'target';
-  return CONNECTOR_TOKENS[lineStyle][arrow];
+  const start = arrow === 'both' ? '<' : '';
+  if (edge.lineStyle === 'dotted') return arrow === 'none' ? `-${'.'.repeat(length)}-` : `${start}-${'.'.repeat(length)}->`;
+  const dash = edge.lineStyle === 'thick' ? '=' : '-';
+  return arrow === 'none' ? dash.repeat(length + 2) : `${start}${dash.repeat(length + 1)}>`;
 }
 
 const EDGE_ID = /^[A-Za-z0-9_]+$/;

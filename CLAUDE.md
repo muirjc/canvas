@@ -96,6 +96,16 @@ tests are NON-NEGOTIABLE and must exist (and fail) before implementing any diagr
 work — see `.specify/memory/constitution.md` Principle IV.
 
 ## Recent Changes
+- `canvas-sfz7`: **flowchart longer links.** Connectors follow Mermaid's LINK rule at any length (`--->`, `----`,
+  `-..->`, `===>`, `<--->`, `~~~~`; no `x`/`o` ends): one regex alternation (arrowed form before open form) +
+  `readConnector` (TS) / `_read_connector` (Python), length as Mermaid's destructEndLink (dots for dotted, else
+  line length - 1). `DiagramEdge.mermaidLength` only when > 1, capped at `MAX_LINK_LENGTH` (1000,
+  mermaid-shape-data); the serializer writes it back (invalid = 1); Auto Layout ignores it. Inline labels take long
+  closes and arrowless closes (`A -- t --- B`). The bug: `E --> F ---> G` was read as one edge E->G labelled
+  `> F -`; now the inline opener can't start a longer link (`--(?![->])`, `-.(?![.-])`, `==(?![=>])`) and the
+  label can't hold a whole link, so `A -- a --> B --> C` is an error, not a misread. Corpus `flowchart-long-links`,
+  `error-flowchart-link-inside-label`; parity fuzz has long/near-miss connectors, tricky lines, bad
+  `mermaidLength` edits; `dsl-flowchart-long-links.test.ts`.
 - `canvas-8wxq` part 2 (Mermaid 12.x): **flowchart `@{ … }` shape data and edge ids.** `dsl/mermaid-shape-data.ts`
   / Python `mermaid_shape_data.py`: the `@{ key: value }` block (YAML flow subset: double-quoted with `\" \\ \n \t
   \r`, single-quoted, bare true/false/number(<=9.6 digits)/text; a key twice, a missing colon or value = error),
