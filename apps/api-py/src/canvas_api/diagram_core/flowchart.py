@@ -187,17 +187,18 @@ def _merge(base: dict[str, Any] | None, patch: dict[str, Any]) -> dict[str, Any]
     return {**(base or {}), **patch}
 
 
-def _match_node_token(token: str) -> tuple[str, str, str, str | None, str | None] | None:
+def _match_node_token(token: str) -> tuple[str, str, str, bool, str | None, str | None] | None:
+    """(id, label, shape, explicit, class, shape data); explicit = the token gave a shape and text (canvas-ltfa)."""
     with_data = SHAPE_DATA_TOKEN.match(token)
     if with_data:
-        return with_data.group(1), with_data.group(1), "rectangle", with_data.group(2), with_data.group(3)
+        return with_data.group(1), with_data.group(1), "rectangle", False, with_data.group(2), with_data.group(3)
     for shape, regex in NODE_PATTERNS:
         match = regex.match(token)
         if match:
-            return match.group(1), match.group(2), shape, match.group(3), None
+            return match.group(1), match.group(2), shape, True, match.group(3), None
     bare = BARE_ID.match(token)
     if bare:
-        return bare.group(1), bare.group(1), "rectangle", bare.group(2), None
+        return bare.group(1), bare.group(1), "rectangle", False, bare.group(2), None
     return None
 
 
@@ -261,7 +262,8 @@ def parse_flowchart(dsl: str) -> dict[str, Any]:
     def current_container() -> str | None:
         return container_stack[-1] if container_stack else None
 
-    def ensure_node(node_id: str, label: str, shape: str) -> dict[str, Any]:
+    def ensure_node(node_id: str, label: str, shape: str, explicit: bool = False) -> dict[str, Any]:
+        """canvas-ltfa: an explicit mention (a shape and text) updates a node already seen; the last one wins."""
         node = nodes_by_id.get(node_id)
         if node is None:
             node = {
@@ -276,8 +278,12 @@ def parse_flowchart(dsl: str) -> dict[str, Any]:
                 "containerId": current_container(),
             }
             nodes_by_id[node_id] = node
-        elif node.get("containerId") is None:
-            node["containerId"] = current_container()
+        else:
+            if node.get("containerId") is None:
+                node["containerId"] = current_container()
+            if explicit:
+                node["label"] = label
+                node["shape"] = "icon" if shape == "rectangle" and icons.get(node_id) else shape
         return node
 
     def apply_shape_data(node: dict[str, Any], inner: str) -> None:
@@ -305,8 +311,8 @@ def parse_flowchart(dsl: str) -> dict[str, Any]:
         parsed = _match_node_token(token)
         if parsed is None:
             return token
-        node_id, label, shape, class_name, data = parsed
-        node = ensure_node(node_id, label, shape)
+        node_id, label, shape, explicit, class_name, data = parsed
+        node = ensure_node(node_id, label, shape, explicit)
         if data is not None:
             apply_shape_data(node, data)
         if class_name:
@@ -503,7 +509,7 @@ def parse_flowchart(dsl: str) -> dict[str, Any]:
         for shape, regex in NODE_PATTERNS:
             m = regex.match(line)
             if m:
-                ensure_node(m.group(1), m.group(2), shape)
+                ensure_node(m.group(1), m.group(2), shape, True)
                 if m.group(3):
                     class_assignments.append(([m.group(1)], _first_class(m.group(3))))
                 matched = True

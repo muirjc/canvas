@@ -194,17 +194,19 @@ function parseStyleProps(propsRaw: string): NodeStyle {
 
 /** Parses a single edge-endpoint token into its id and (if inline-declared) shape/label/class, or its
  *  `@{ … }` block (canvas-8wxq). */
-function matchNodeToken(token: string): { id: string; label: string; shape: NodeShape; className?: string; data?: string } | null {
+function matchNodeToken(
+  token: string,
+): { id: string; label: string; shape: NodeShape; explicit: boolean; className?: string; data?: string } | null {
   const withData = token.match(SHAPE_DATA_TOKEN);
-  if (withData) return { id: withData[1], label: withData[1], shape: 'rectangle', className: withData[2], data: withData[3] };
+  if (withData) return { id: withData[1], label: withData[1], shape: 'rectangle', explicit: false, className: withData[2], data: withData[3] };
   for (const { shape, regex } of NODE_PATTERNS) {
     const match = token.match(regex);
     if (match) {
-      return { id: match[1], label: match[2], shape, className: match[3] };
+      return { id: match[1], label: match[2], shape, explicit: true, className: match[3] };
     }
   }
   const bare = token.match(BARE_ID);
-  if (bare) return { id: bare[1], label: bare[1], shape: 'rectangle', className: bare[2] };
+  if (bare) return { id: bare[1], label: bare[1], shape: 'rectangle', explicit: false, className: bare[2] };
   return null;
 }
 
@@ -271,7 +273,9 @@ export function parseFlowchart(dsl: string): ParseResult {
   let accDescr: string | undefined;
   let mermaidConfigDirective: string | undefined;
 
-  const ensureNode = (id: string, label: string, shape: NodeShape): DiagramNode => {
+  // canvas-ltfa: `explicit` = the token gave a shape and text (`A{Text}`), not a bare id. As in Mermaid, an explicit
+  // mention updates a node already seen (`a --> b` then `b{Question?} --> c`): the last definition wins.
+  const ensureNode = (id: string, label: string, shape: NodeShape, explicit = false): DiagramNode => {
     let node = nodesById.get(id);
     if (!node) {
       node = {
@@ -291,6 +295,10 @@ export function parseFlowchart(dsl: string): ParseResult {
       nodesById.set(id, node);
     } else {
       node.containerId = node.containerId ?? containerStack[containerStack.length - 1];
+      if (explicit) {
+        node.label = label;
+        node.shape = shape === 'rectangle' && icons[id] ? 'icon' : shape;
+      }
     }
     return node;
   };
@@ -322,7 +330,7 @@ export function parseFlowchart(dsl: string): ParseResult {
   const resolveEdgeEndpoint = (token: string): string => {
     const parsed = matchNodeToken(token);
     if (!parsed) return token;
-    const node = ensureNode(parsed.id, parsed.label, parsed.shape);
+    const node = ensureNode(parsed.id, parsed.label, parsed.shape, parsed.explicit);
     if (parsed.data !== undefined) applyShapeData(node, parsed.data);
     if (parsed.className) {
       classAssignments.push({ nodeIds: [parsed.id], className: parsed.className.split(',')[0].trim() });
@@ -584,7 +592,7 @@ export function parseFlowchart(dsl: string): ParseResult {
       const match = line.match(regex);
       if (match) {
         const [, id, label, className] = match;
-        ensureNode(id, label, shape);
+        ensureNode(id, label, shape, true);
         if (className) classAssignments.push({ nodeIds: [id], className: className.split(',')[0].trim() });
         matchedNode = true;
         break;
