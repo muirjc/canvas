@@ -96,6 +96,17 @@ tests are NON-NEGOTIABLE and must exist (and fail) before implementing any diagr
 work — see `.specify/memory/constitution.md` Principle IV.
 
 ## Recent Changes
+- `canvas-8wxq` part 1 (Mermaid 12.x): **class display labels and sequence half arrows, central connections and link
+  menus.** UML: `class A["Label"]` (also with `~T~`, `<<x>>`, a body) sets the label; written back when it differs
+  from the id. Sequence: `DiagramEdge.arrow` gains `SequenceHalfArrow` values (`half|stick`-`top|bottom`[`-reverse`],
+  tokens `-|\ -|/ /|- \|- -\\ -// //- \\-`, `--` = dotted); `centralSource`/`centralTarget` (`A()->>()B`);
+  `DiagramNode.sequenceLinks` from `link A: Label @ url` / `links A: {json}` (http(s)/relative only, else a parse
+  error; JSON object of strings; written back as `link` lines; Python orders integer-like JSON keys first, refuses
+  NaN). The export draws half arrowheads/barbs and central circles via the exported `sequenceMessageGlyphs` (no
+  marker for half arrows), shared with the canvas. Corpus `sequence-mermaid12`, `uml-class-labels`,
+  `error-sequence-bad-links`; the old "half arrows/links still fail" tests became feature tests; sequence/UML fuzz
+  generators produce the new syntax and the sequence fuzz now compares drawings. Mermaid version notes updated.
+  Extras found in the changelog are canvas-lwa4.
 - `canvas-y2yf`: **connectors sharing the same two shapes no longer draw on top of each other; a connector back to
   its own shape is a loop** (it drew nothing). svg-renderer.ts exports `edgeLanes(edges)` (index/count per unordered
   pair, in model order), `laneShift(edge, lane, from, to, fromSize, toSize)` (perpendicular to the pair's axis from

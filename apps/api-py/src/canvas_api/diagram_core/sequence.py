@@ -9,6 +9,7 @@ in TypeScript). As in flowchart.py, None in a model stands for JavaScript's `und
 
 from __future__ import annotations
 
+import json
 import re
 from typing import Any
 
@@ -19,8 +20,9 @@ from canvas_api.diagram_core.front_matter import (
     split_front_matter,
     strip_trailing_comment,
 )
-from canvas_api.diagram_core.jsvalues import js_parse_float
-from canvas_api.diagram_core.model import create_empty_diagram_model
+from canvas_api.diagram_core.jsvalues import js_parse_float, js_truthy
+from canvas_api.diagram_core.jsyaml import js_key_order
+from canvas_api.diagram_core.model import create_empty_diagram_model, is_allowed_link_href
 from canvas_api.github.jstext import JS_WHITESPACE, js_len, js_number, js_trim
 
 __all__ = ["parse_sequence", "serialize_sequence"]
@@ -31,10 +33,40 @@ ID = "[A-Za-z0-9_]+"
 
 PARTICIPANT_PATTERN = re.compile(f"^(participant|actor){S}+({ID})(?:{S}+as{S}+({DOT}+))?\\Z")
 #: Each literal token is distinct, so the alternation order only matters as it does in JavaScript (same order).
-ARROW_TOKEN = r"<<-->>|<<->>|-->>|->>|--x|-x|--\)|-\)|-->|->"  # noqa: S105 - not a password
-#: '+' activates the TARGET, '-' deactivates the SOURCE (Mermaid's sequenceDiagram.jison).
-MESSAGE_PATTERN = re.compile(f"^({ID}){S}*({ARROW_TOKEN}){S}*([+-])?{S}*({ID}){S}*:{S}*({DOT}+)\\Z")
+#: canvas-8wxq: Mermaid 11.12's half arrows (sequence.ts HALF_ARROW_TOKENS); `--` for the dotted form.
+HALF_ARROW_TOKENS = {
+    "-|\\": "half-top",
+    "-|/": "half-bottom",
+    "/|-": "half-top-reverse",
+    "\\|-": "half-bottom-reverse",
+    "-\\\\": "stick-top",
+    "-//": "stick-bottom",
+    "//-": "stick-top-reverse",
+    "\\\\-": "stick-bottom-reverse",
+}
+
+
+def _dotted(token: str) -> str:
+    return f"-{token}" if token.startswith("-") else f"{token}-"
+
+
+HALF_ARROW_ALTERNATIVES = [re.escape(t) for token in HALF_ARROW_TOKENS for t in (_dotted(token), token)]
+ARROW_TOKEN = "|".join([*HALF_ARROW_ALTERNATIVES, r"<<-->>|<<->>|-->>|->>|--x|-x|--\)|-\)|-->|->"])
+#: '+' activates the TARGET, '-' deactivates the SOURCE (Mermaid's sequenceDiagram.jison). canvas-8wxq: `()` on
+#: either side of the arrow is a central connection.
+MESSAGE_PATTERN = re.compile(f"^({ID}){S}*(\\(\\))?({ARROW_TOKEN})(\\(\\))?{S}*([+-])?{S}*({ID}){S}*:{S}*({DOT}+)\\Z")
+NS = f"[^{JS_WHITESPACE}]"  # JavaScript's \S
+#: canvas-8wxq: participant link menus.
+LINK_PATTERN = re.compile(f"^link{S}+({ID}){S}*:{S}*({DOT}+?){S}*@{S}*({NS}+)\\Z")
+LINKS_PATTERN = re.compile(f"^links{S}+({ID}){S}*:{S}*(\\{{{DOT}*\\}})\\Z")
+_HAS_SPACE = re.compile(S)
+_HAS_LINE_BREAK = re.compile("[\\r\\n]")
 ARROW_TOKEN_TO_STYLE: dict[str, tuple[str, str]] = {  # token -> (lineStyle, arrow)
+    **{
+        t: (style, arrow)
+        for token, arrow in HALF_ARROW_TOKENS.items()
+        for t, style in ((token, "solid"), (_dotted(token), "dotted"))
+    },
     "<<-->>": ("dotted", "both"),
     "<<->>": ("solid", "both"),
     "-->>": ("dotted", "target"),
@@ -310,8 +342,42 @@ def parse_sequence(dsl: str) -> dict[str, Any]:
             ensure_participant(m.group(2), m.group(1), m.group(3))
             continue
 
+        if m := LINK_PATTERN.match(line):
+            participant_id, link_label, href = m.groups()
+            if not is_allowed_link_href(href):
+                errors.append({"line": i + 1, "content": raw_line, "message": _refused_link(href)})
+                continue
+            ensure_participant(participant_id)
+            node = nodes_by_id[participant_id]
+            node["sequenceLinks"] = [*(node.get("sequenceLinks") or []), {"label": link_label, "href": href}]
+            continue
+
+        if m := LINKS_PATTERN.match(line):
+            participant_id, raw_json = m.groups()
+            entries = _json_entries(raw_json)
+            if entries is None or any(not isinstance(href, str) for _, href in entries):
+                errors.append(
+                    {
+                        "line": i + 1,
+                        "content": raw_line,
+                        "message": 'links needs a JSON object of "label": "url" pairs.',
+                    }
+                )
+                continue
+            refused = next((href for _, href in entries if not is_allowed_link_href(href)), None)
+            if refused is not None:
+                errors.append({"line": i + 1, "content": raw_line, "message": _refused_link(refused)})
+                continue
+            ensure_participant(participant_id)
+            node = nodes_by_id[participant_id]
+            node["sequenceLinks"] = [
+                *(node.get("sequenceLinks") or []),
+                *({"label": link_label, "href": href} for link_label, href in entries),
+            ]
+            continue
+
         if m := MESSAGE_PATTERN.match(line):
-            source, arrow_token, sign, target, label = m.groups()
+            source, central_source, arrow_token, central_target, sign, target, label = m.groups()
             ensure_participant(source)
             ensure_participant(target)
             edge_counter += 1
@@ -326,6 +392,8 @@ def parse_sequence(dsl: str) -> dict[str, Any]:
                     "containerId": current_container_id(),
                     "arrow": arrow,
                     "lineStyle": line_style,
+                    **({"centralSource": True} if central_source else {}),
+                    **({"centralTarget": True} if central_target else {}),
                 }
             )
             if sign == "+":
@@ -385,6 +453,32 @@ def parse_sequence(dsl: str) -> dict[str, Any]:
 # --- serialize ------------------------------------------------------------------------------------------------
 
 NOTE_ROLE_TO_KEYWORD = {"note-left": "Note left of", "note-right": "Note right of", "note-over": "Note over"}
+
+
+def _central(on: Any) -> str:
+    return "()" if js_truthy(on) else ""
+
+
+def _refused_link(href: str) -> str:
+    return f'Link "{href}" is not allowed: only http(s) URLs or relative paths.'
+
+
+def _reject_constant(name: str) -> Any:
+    raise ValueError(name)  # JSON.parse has no NaN or Infinity
+
+
+def _json_entries(text: str) -> list[tuple[str, Any]] | None:
+    """Object.entries(JSON.parse(text)) for an object (integer-like keys first, as JavaScript orders them); None
+    when it isn't valid JSON or isn't an object."""
+    try:
+        parsed = json.loads(text, parse_constant=_reject_constant)
+    except ValueError:
+        return None
+    if not isinstance(parsed, dict):
+        return None
+    return [(key, parsed[key]) for key in js_key_order(list(parsed))]
+
+
 ARROW_STYLE_TO_TOKEN = {f"{arrow}|{line_style}": token for token, (line_style, arrow) in ARROW_TOKEN_TO_STYLE.items()}
 
 
@@ -465,7 +559,8 @@ def _emit_scope(container_id: Any, model: dict[str, Any], indent: str) -> list[s
                 (
                     order if order is not None else 0,
                     [
-                        f"{indent}{_t(edge.get('sourceId'))}{token}{_t(edge.get('targetId'))}: "
+                        f"{indent}{_t(edge.get('sourceId'))}{_central(edge.get('centralSource'))}{token}"
+                        f"{_central(edge.get('centralTarget'))}{_t(edge.get('targetId'))}: "
                         f"{_t(label) if label is not None else ''}"
                     ],
                 )
@@ -524,6 +619,17 @@ def serialize_sequence(model: dict[str, Any]) -> str:
         if node.get("id") in boxed_node_ids or node.get("id") in created_node_ids:
             continue
         lines.append(f"{_participant_keyword(node)} {_t(node.get('id'))}{_alias(node)}")
+    # canvas-8wxq: participant link menus, one `link` line per entry.
+    for node in nodes:
+        for link in node.get("sequenceLinks") or []:
+            href, link_label = link.get("href"), link.get("label")
+            if (
+                isinstance(href, str)
+                and is_allowed_link_href(href)
+                and not _HAS_SPACE.search(href)
+                and not _HAS_LINE_BREAK.search(_t(link_label))
+            ):
+                lines.append(f"link {_t(node.get('id'))}: {_t(link_label)} @ {href}")
     lines.extend(_emit_scope(None, model, ""))
 
     return join_front_matter(front_matter, "\n".join(lines) + "\n")

@@ -127,6 +127,10 @@ your settings, so turning it back on restores the same legend. Sequence diagrams
 Every diagram is also Mermaid text. Edit either side and the other follows. Typing in the DSL tab
 updates the canvas; drawing updates the text. If the text has an error, the tab shows the line.
 
+The DSL tab reads Mermaid's newer sequence-diagram syntax: half arrows (such as `-|\`), central
+connections (`A->>()B`) and participant `link` menus (http and https links only; they're kept and
+exported, but Canvas doesn't show them as a menu). Class diagrams read `class A["Display label"]`.
+
 ## The Issues tab: standards
 
 If a standard applies to the diagram type, the **Issues** tab lists where the diagram breaks it,

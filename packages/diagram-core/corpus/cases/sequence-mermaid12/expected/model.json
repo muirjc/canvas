@@ -1,0 +1,189 @@
+{
+  "containers": [
+    {
+      "attachedNodeIds": [
+        "B"
+      ],
+      "id": "pt1",
+      "label": "",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "role": "activate",
+      "sequenceOrder": 13
+    }
+  ],
+  "diagramTypeId": "sequence",
+  "edges": [
+    {
+      "arrow": "half-top",
+      "id": "e1",
+      "label": "top half",
+      "lineStyle": "solid",
+      "sequenceOrder": 0,
+      "sourceId": "A",
+      "targetId": "B"
+    },
+    {
+      "arrow": "half-bottom",
+      "id": "e2",
+      "label": "bottom half, dotted",
+      "lineStyle": "dotted",
+      "sequenceOrder": 1,
+      "sourceId": "A",
+      "targetId": "B"
+    },
+    {
+      "arrow": "half-top-reverse",
+      "id": "e3",
+      "label": "reverse top",
+      "lineStyle": "solid",
+      "sequenceOrder": 2,
+      "sourceId": "B",
+      "targetId": "A"
+    },
+    {
+      "arrow": "half-bottom-reverse",
+      "id": "e4",
+      "label": "reverse bottom, dotted",
+      "lineStyle": "dotted",
+      "sequenceOrder": 3,
+      "sourceId": "B",
+      "targetId": "A"
+    },
+    {
+      "arrow": "stick-top",
+      "id": "e5",
+      "label": "stick top",
+      "lineStyle": "solid",
+      "sequenceOrder": 4,
+      "sourceId": "A",
+      "targetId": "C"
+    },
+    {
+      "arrow": "stick-bottom",
+      "id": "e6",
+      "label": "stick bottom, dotted",
+      "lineStyle": "dotted",
+      "sequenceOrder": 5,
+      "sourceId": "C",
+      "targetId": "A"
+    },
+    {
+      "arrow": "stick-top-reverse",
+      "id": "e7",
+      "label": "reverse stick top",
+      "lineStyle": "solid",
+      "sequenceOrder": 6,
+      "sourceId": "A",
+      "targetId": "C"
+    },
+    {
+      "arrow": "stick-bottom-reverse",
+      "id": "e8",
+      "label": "reverse stick bottom",
+      "lineStyle": "solid",
+      "sequenceOrder": 7,
+      "sourceId": "C",
+      "targetId": "A"
+    },
+    {
+      "arrow": "target",
+      "centralTarget": true,
+      "id": "e9",
+      "label": "central at the target",
+      "lineStyle": "solid",
+      "sequenceOrder": 8,
+      "sourceId": "A",
+      "targetId": "B"
+    },
+    {
+      "arrow": "target",
+      "centralSource": true,
+      "id": "e10",
+      "label": "central at the source",
+      "lineStyle": "solid",
+      "sequenceOrder": 9,
+      "sourceId": "B",
+      "targetId": "A"
+    },
+    {
+      "arrow": "cross",
+      "centralSource": true,
+      "centralTarget": true,
+      "id": "e11",
+      "label": "central both",
+      "lineStyle": "solid",
+      "sequenceOrder": 10,
+      "sourceId": "A",
+      "targetId": "C"
+    },
+    {
+      "arrow": "half-top",
+      "id": "e12",
+      "label": "to itself",
+      "lineStyle": "solid",
+      "sequenceOrder": 11,
+      "sourceId": "A",
+      "targetId": "A"
+    },
+    {
+      "arrow": "target",
+      "id": "e13",
+      "label": "activate",
+      "lineStyle": "solid",
+      "sequenceOrder": 12,
+      "sourceId": "A",
+      "targetId": "B"
+    }
+  ],
+  "nodes": [
+    {
+      "id": "A",
+      "label": "Alice",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "role": "participant",
+      "sequenceLinks": [
+        {
+          "href": "https://dash.example.org/alice",
+          "label": "Dashboard"
+        }
+      ],
+      "shape": "rectangle"
+    },
+    {
+      "id": "B",
+      "label": "B",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "role": "participant",
+      "sequenceLinks": [
+        {
+          "href": "https://wiki.example.org",
+          "label": "Wiki"
+        },
+        {
+          "href": "/docs/b",
+          "label": "Docs"
+        }
+      ],
+      "shape": "rectangle"
+    },
+    {
+      "id": "C",
+      "label": "C",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "role": "actor",
+      "shape": "person"
+    }
+  ]
+}

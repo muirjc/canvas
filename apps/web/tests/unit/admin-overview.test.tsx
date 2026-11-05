@@ -20,6 +20,6 @@ describe('AdminOverview Mermaid version panel', () => {
     expect(screen.getByTestId('github-mermaid-version').textContent).toContain('31 Oct 2026');
     expect(screen.getByTestId('mermaid-major-note').textContent).toContain('differently');
     expect(screen.getByText('Flowchart:')).toBeTruthy();
-    expect(screen.getByText(/Entity relationship has nothing missing/)).toBeTruthy();
+    expect(screen.getByText(/Class \(UML\), Entity relationship have nothing missing|Entity relationship, Class \(UML\) have nothing missing/)).toBeTruthy();
   });
 });

@@ -1,0 +1,10 @@
+classDiagram
+  class Animal["Animal with a label"]
+  class Car["Car with *! symbols"] {
+    +int wheels
+    +drive() void
+  }
+  class Square~Shape~["A square"] <<interface>>
+  class Plain
+  Animal --> Car
+  Car <|-- Square

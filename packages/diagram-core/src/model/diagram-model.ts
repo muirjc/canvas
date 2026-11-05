@@ -150,6 +150,8 @@ export interface DiagramNode {
    *  trust that a prior check already ran, since `link` is also settable directly through
    *  `diagram-ops.ts`/the AI tool layer, bypassing the parser's own validation entirely. */
   link?: NodeLink;
+  /** canvas-8wxq: sequence participants only -- their `link` / `links` menu (http(s) or relative only). */
+  sequenceLinks?: ParticipantLink[];
 }
 
 export interface NodeLink {
@@ -204,6 +206,24 @@ export interface LayoutHint {
   direction: LayoutDirection;
 }
 
+/** canvas-8wxq: Mermaid 11.12's sequence half arrows -- a filled half arrowhead or a single "stick" barb, above
+ *  (top) or below (bottom) the line, at the target, or at the source for the `-reverse` forms. */
+export type SequenceHalfArrow =
+  | 'half-top'
+  | 'half-bottom'
+  | 'stick-top'
+  | 'stick-bottom'
+  | 'half-top-reverse'
+  | 'half-bottom-reverse'
+  | 'stick-top-reverse'
+  | 'stick-bottom-reverse';
+
+/** canvas-8wxq: a sequence participant's link menu entry (`link A: Dashboard @ https://...`). */
+export interface ParticipantLink {
+  label: string;
+  href: string;
+}
+
 export interface DiagramEdge {
   id: ElementId;
   sourceId: ElementId;
@@ -215,7 +235,11 @@ export interface DiagramEdge {
    *  jmuir-dtu.4: sequence diagrams also use 'both' (`<<->>`/`<<-->>`), plus two sequence-only
    *  values: 'cross' (`-x`/`--x`, a failed/erroring message) and 'open' (`-)`/`--)`, an
    *  asynchronous message with an unfilled arrowhead). */
-  arrow?: 'none' | 'source' | 'target' | 'both' | 'cross' | 'open';
+  arrow?: 'none' | 'source' | 'target' | 'both' | 'cross' | 'open' | SequenceHalfArrow;
+  /** canvas-8wxq: sequence only -- Mermaid 11.12's central connections: `A()->>B` (at the source), `A->>()B`
+   *  (at the target); drawn as a small circle at that end. */
+  centralSource?: boolean;
+  centralTarget?: boolean;
   /** Flowchart only: the connector's line rendering — undefined means 'solid' (the default,
    *  ordinary `-->`). 'invisible' is Mermaid's `~~~`, used purely as a layout hint.
    *  jmuir-dtu.4: sequence diagrams reuse 'solid'/'dotted' for their own solid-vs-dashed arrow

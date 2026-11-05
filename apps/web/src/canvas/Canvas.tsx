@@ -51,6 +51,7 @@ import {
   computeLegendEntries,
   legendLayout,
   computeSequenceLayout,
+  sequenceMessageGlyphs,
   SELF_MESSAGE_LOOP_WIDTH,
   containerHeaderLayout,
   containerRoleStyle,
@@ -3753,6 +3754,16 @@ export function Canvas({ model: modelProp, onChange: onChangeProp, dslFamily, to
             umlMarkers?.source ? umlEndpointGlyph(clippedFrom, to.x - from.x, to.y - from.y, umlMarkers.source) : null,
             umlMarkers?.target ? umlEndpointGlyph(clippedTo, from.x - to.x, from.y - to.y, umlMarkers.target) : null,
           ].filter((glyph): glyph is UmlEndpointGlyph => glyph !== null);
+          // canvas-8wxq: mirrors svg-renderer.ts's renderSequenceMessage: a half arrow draws its own head
+          // and a central connection its circle, from the shared sequenceMessageGlyphs (SC-004).
+          const isHalfSequenceArrow = dslFamily === 'sequence' && /^(half|stick)-/.test(edge.arrow ?? '');
+          const sequenceGlyphList =
+            dslFamily === 'sequence'
+              ? isSequenceSelfMessage
+                ? sequenceMessageGlyphs(edge, { x: from.x, y: from.y }, -1, { x: from.x, y: from.y + 20 }, -1)
+                : sequenceMessageGlyphs(edge, { x: from.x, y: from.y }, to.x >= from.x ? -1 : 1, { x: to.x, y: from.y }, to.x >= from.x ? 1 : -1)
+              : [];
+          const sequenceGlyphStroke = isSelected ? SELECTION_STROKE : (edge.style?.strokeColor ?? '#333');
           return (
             <g
               key={edge.id}
@@ -3775,7 +3786,7 @@ export function Canvas({ model: modelProp, onChange: onChangeProp, dslFamily, to
                   stroke={isSelected ? SELECTION_STROKE : (edge.style?.strokeColor ?? '#333')}
                   strokeWidth={isSelected ? 2 : (edge.style?.strokeWidth ?? (edge.lineStyle === 'thick' ? DEFAULT_THICK_STROKE_WIDTH : undefined))}
                   strokeDasharray={edge.style?.strokeDasharray ?? (edge.lineStyle === 'dotted' ? DEFAULT_DOTTED_DASHARRAY : undefined)}
-                  markerEnd={edge.arrow === 'none' ? undefined : 'url(#arrow)'}
+                  markerEnd={edge.arrow === 'none' || isHalfSequenceArrow ? undefined : 'url(#arrow)'}
                 />
               ) : loop ? (
                 <path
@@ -3810,12 +3821,22 @@ export function Canvas({ model: modelProp, onChange: onChangeProp, dslFamily, to
                       : undefined
                   }
                   markerEnd={
-                    edge.lineStyle === 'invisible' || hasErCardinality || umlMarkers || edge.arrow === 'none'
+                    edge.lineStyle === 'invisible' || hasErCardinality || umlMarkers || edge.arrow === 'none' || isHalfSequenceArrow
                       ? undefined
                       : 'url(#arrow)'
                   }
                 />
               )}
+              {edge.lineStyle !== 'invisible' &&
+                sequenceGlyphList.map((glyph, i) =>
+                  glyph.kind === 'half' ? (
+                    <polygon key={`seq-glyph-${i}`} points={glyph.points.map((p) => `${p.x},${p.y}`).join(' ')} fill={sequenceGlyphStroke} stroke={sequenceGlyphStroke} />
+                  ) : glyph.kind === 'stick' ? (
+                    <line key={`seq-glyph-${i}`} x1={glyph.from.x} y1={glyph.from.y} x2={glyph.to.x} y2={glyph.to.y} stroke={sequenceGlyphStroke} />
+                  ) : (
+                    <circle key={`seq-glyph-${i}`} cx={glyph.cx} cy={glyph.cy} r={glyph.r} fill="#ffffff" stroke={sequenceGlyphStroke} />
+                  ),
+                )}
               {edge.lineStyle !== 'invisible' &&
                 hasErCardinality &&
                 renderCardinalityGlyphs(cardinalityGlyphList, isSelected ? SELECTION_STROKE : (edge.style?.strokeColor ?? '#333'))}

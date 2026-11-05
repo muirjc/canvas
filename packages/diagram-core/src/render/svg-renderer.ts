@@ -1526,6 +1526,50 @@ export function renderSequenceLifeline(node: DiagramNode, layout: SequenceLayout
  *  two lifelines at the message's computed row. No endpoint clipping needed (canvas-1rq's concern
  *  doesn't apply — a message is drawn below the header row, never underneath a node). Exported for
  *  canvas/export parity. */
+/** canvas-8wxq: a sequence message's half arrowhead and central-connection circles. */
+export type SequenceGlyph =
+  | { kind: 'half'; points: [Point, Point, Point] }
+  | { kind: 'stick'; from: Point; to: Point }
+  | { kind: 'central'; cx: number; cy: number; r: number };
+
+const HALF_ARROW_LENGTH = 9;
+const HALF_ARROW_HEIGHT = 5;
+const CENTRAL_RADIUS = 4;
+
+/**
+ * canvas-8wxq: what a sequence message draws at its ends besides the line: a half arrowhead or single barb
+ * (Mermaid 11.12's half arrows) pointing into the target, or into the source for a `-reverse` one, and a small
+ * circle at an end with a central connection. `startDir`/`endDir`: which way (+1 right, -1 left) the arrowhead
+ * at that end points. Shared with the canvas (SC-004).
+ */
+export function sequenceMessageGlyphs(edge: DiagramEdge, start: Point, startDir: number, end: Point, endDir: number): SequenceGlyph[] {
+  const glyphs: SequenceGlyph[] = [];
+  const arrow = edge.arrow ?? '';
+  const match = /^(half|stick)-(top|bottom)(-reverse)?$/.exec(arrow);
+  if (match) {
+    const [, form, side, reverse] = match;
+    const tip = reverse ? start : end;
+    const dir = reverse ? startDir : endDir;
+    const back = tip.x - dir * HALF_ARROW_LENGTH;
+    const barb = { x: back, y: tip.y + (side === 'top' ? -HALF_ARROW_HEIGHT : HALF_ARROW_HEIGHT) };
+    glyphs.push(form === 'half' ? { kind: 'half', points: [tip, barb, { x: back, y: tip.y }] } : { kind: 'stick', from: tip, to: barb });
+  }
+  if (edge.centralSource) glyphs.push({ kind: 'central', cx: start.x, cy: start.y, r: CENTRAL_RADIUS });
+  if (edge.centralTarget) glyphs.push({ kind: 'central', cx: end.x, cy: end.y, r: CENTRAL_RADIUS });
+  return glyphs;
+}
+
+function renderSequenceGlyph(glyph: SequenceGlyph, stroke: string): string {
+  switch (glyph.kind) {
+    case 'half':
+      return `<polygon points="${glyph.points.map((p) => `${p.x},${p.y}`).join(' ')}" fill="${stroke}" stroke="${stroke}" />`;
+    case 'stick':
+      return `<line x1="${glyph.from.x}" y1="${glyph.from.y}" x2="${glyph.to.x}" y2="${glyph.to.y}" stroke="${stroke}" />`;
+    case 'central':
+      return `<circle cx="${glyph.cx}" cy="${glyph.cy}" r="${glyph.r}" fill="#ffffff" stroke="${stroke}" />`;
+  }
+}
+
 export function renderSequenceMessage(edge: DiagramEdge, layout: SequenceLayout): string {
   const message = layout.messages.get(edge.id);
   const source = layout.lifelines.get(edge.sourceId);
@@ -1536,7 +1580,9 @@ export function renderSequenceMessage(edge: DiagramEdge, layout: SequenceLayout)
   const strokeWidth = strokeWidthValue ? ` stroke-width="${strokeWidthValue}"` : '';
   const dasharrayValue = edge.style?.strokeDasharray ?? (edge.lineStyle === 'dotted' ? DEFAULT_DOTTED_DASHARRAY : undefined);
   const strokeDasharray = dasharrayValue ? ` stroke-dasharray="${dasharrayValue}"` : '';
-  const markerEnd = edge.arrow === 'none' ? '' : ' marker-end="url(#arrowhead)"';
+  // canvas-8wxq: a half arrow draws its own head (sequenceMessageGlyphs), not the marker.
+  const isHalf = /^(half|stick)-/.test(edge.arrow ?? '');
+  const markerEnd = edge.arrow === 'none' || isHalf ? '' : ' marker-end="url(#arrowhead)"';
   const markerStart = edge.arrow === 'both' ? ' marker-start="url(#arrowhead)"' : '';
   const y = message.y;
   const labelX = message.isSelfMessage ? source.x + SELF_MESSAGE_LOOP_WIDTH / 2 : (source.x + target.x) / 2;
@@ -1544,7 +1590,11 @@ export function renderSequenceMessage(edge: DiagramEdge, layout: SequenceLayout)
   const lineMarkup = message.isSelfMessage
     ? `<path d="M ${source.x} ${y} H ${source.x + SELF_MESSAGE_LOOP_WIDTH} V ${y + SELF_MESSAGE_LOOP_DROP} H ${source.x}" fill="none" stroke="${stroke}"${strokeWidth}${strokeDasharray}${markerEnd} />`
     : `<line x1="${source.x}" y1="${y}" x2="${target.x}" y2="${y}" stroke="${stroke}"${strokeWidth}${strokeDasharray}${markerStart}${markerEnd} />`;
-  return `<g data-edge-id="${escapeXml(edge.id)}">${lineMarkup}${label}</g>`;
+  const glyphs = message.isSelfMessage
+    ? sequenceMessageGlyphs(edge, { x: source.x, y }, -1, { x: source.x, y: y + SELF_MESSAGE_LOOP_DROP }, -1)
+    : sequenceMessageGlyphs(edge, { x: source.x, y }, target.x >= source.x ? -1 : 1, { x: target.x, y }, target.x >= source.x ? 1 : -1);
+  const glyphMarkup = glyphs.map((glyph) => renderSequenceGlyph(glyph, stroke)).join('');
+  return `<g data-edge-id="${escapeXml(edge.id)}">${lineMarkup}${glyphMarkup}${label}</g>`;
 }
 
 /** canvas-7vs.1: activate/deactivate containers with a paired bar (layout.activations, keyed by

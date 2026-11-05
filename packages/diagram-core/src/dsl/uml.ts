@@ -16,8 +16,10 @@ const ID = String.raw`[A-Za-z0-9_]+`;
 // (`List~string~ items`), which already worked since a member's own type is captured as free text
 // with no `~` restriction. `[^~]+` (not `${ID}`) mirrors that same leniency, so a multi-parameter
 // generic like `Container~Key, Value~` is accepted too, not just a single bare identifier.
-const CLASS_BLOCK_START = new RegExp(`^class\\s+(${ID})(?:~([^~]+)~)?(?:\\s+<<(\\w+)>>)?\\s*\\{$`);
-const CLASS_DECL = new RegExp(`^class\\s+(${ID})(?:~([^~]+)~)?(?:\\s+<<(\\w+)>>)?$`);
+// canvas-8wxq: `class Animal["Animal with a label"]` (Mermaid's class display label) -- shown instead of the id,
+// which relationships keep using.
+const CLASS_BLOCK_START = new RegExp(`^class\\s+(${ID})(?:~([^~]+)~)?(?:\\["([^"]*)"\\])?(?:\\s+<<(\\w+)>>)?\\s*\\{$`);
+const CLASS_DECL = new RegExp(`^class\\s+(${ID})(?:~([^~]+)~)?(?:\\["([^"]*)"\\])?(?:\\s+<<(\\w+)>>)?$`);
 // <<Interface>> Duck -- the "separate line" annotation form (Mermaid's own docs example),
 // referencing the class by name rather than relying on body/decl-line adjacency. Order-
 // independent here like every other alias/annotation resolution in this codebase: it doesn't
@@ -445,16 +447,18 @@ export function parseUml(dsl: string): ParseResult {
 
     const blockStart = line.match(CLASS_BLOCK_START);
     if (blockStart) {
-      const [, id, genericParameter, annotation] = blockStart;
+      const [, id, genericParameter, label, annotation] = blockStart;
       ensureClass(id, annotation, currentNamespaceId(), genericParameter);
+      if (label !== undefined) nodesById.get(id)!.label = label;
       insideClassBody = { id, line: i + 1, content: rawLine };
       continue;
     }
 
     const decl = line.match(CLASS_DECL);
     if (decl) {
-      const [, id, genericParameter, annotation] = decl;
+      const [, id, genericParameter, label, annotation] = decl;
       ensureClass(id, annotation, currentNamespaceId(), genericParameter);
+      if (label !== undefined) nodesById.get(id)!.label = label;
       continue;
     }
 
@@ -599,10 +603,12 @@ export function serializeUml(model: DiagramModel): string {
   const classLines = (node: DiagramNode): string[] => {
     const genericPart = node.umlGenericParameter ? `~${node.umlGenericParameter}~` : '';
     const annotationPart = node.umlStereotype ? ` <<${node.umlStereotype}>>` : '';
+    // canvas-8wxq: a display label (a quote can't be written inside one, so such a label isn't kept).
+    const labelPart = node.label && node.label !== node.id && !node.label.includes('"') && !/[\r\n]/.test(node.label) ? `["${node.label}"]` : '';
     if (!node.members || node.members.length === 0) {
-      return [`class ${node.id}${genericPart}${annotationPart}`];
+      return [`class ${node.id}${genericPart}${labelPart}${annotationPart}`];
     }
-    const out = [`class ${node.id}${genericPart}${annotationPart} {`];
+    const out = [`class ${node.id}${genericPart}${labelPart}${annotationPart} {`];
     out.push(...node.members.map(serializeMemberLine));
     out.push('}');
     return out;
