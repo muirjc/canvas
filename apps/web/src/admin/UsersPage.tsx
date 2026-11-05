@@ -44,8 +44,11 @@ export function UsersPage() {
   const update = async (userId: string, body: { role?: string; active?: boolean }) => {
     setUpdateError(null);
     try {
+      // canvas-hl75: who "you" are loads separately; a change made before it arrives must still know, or changing
+      // your own role refreshed the list instead of going to sign-in.
+      const me = currentUserId ?? (await api.me().then(({ user }) => user.id).catch(() => null));
       await api.updateAdminUser(userId, body);
-      if (userId === currentUserId && body.role !== undefined) {
+      if (userId === me && body.role !== undefined) {
         window.location.reload();
         return;
       }

@@ -69,7 +69,10 @@ test('the project context survives a round trip through the admin console', asyn
   await expect(page.getByTestId('admin-shell')).toBeVisible();
 
   await page.getByTestId('nav-projects').click();
-  await expect(page.getByTestId('projects-page-list')).toBeVisible();
+  // canvas-op8q: the list comes from GET /projects, fetched once at sign-in; late in a CI run the shared database
+  // holds thousands of projects and that answer can take longer than the default 5 s. (It may already have
+  // arrived, so waiting for the response itself could hang.)
+  await expect(page.getByTestId('projects-page-list')).toBeVisible({ timeout: 30_000 });
   await expect(page.getByTestId('admin-shell')).toHaveCount(0);
   await page.getByTestId(`projects-page-open-${PROJECT_ID}`).click();
   await expect(page.getByTestId('new-diagram')).toBeVisible();
