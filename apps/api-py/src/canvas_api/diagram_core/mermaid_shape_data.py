@@ -14,6 +14,7 @@ from canvas_api.diagram_core.jsvalues import js_template
 from canvas_api.github.jstext import JS_WHITESPACE
 
 __all__ = [
+    "MAX_LINK_LENGTH",
     "MERMAID_NAME",
     "MERMAID_SHAPE_NAME",
     "SHAPE_DATA_INNER_SOURCE",
@@ -29,6 +30,9 @@ _DOT = "[^\\n\\r\\u2028\\u2029]"  # JavaScript's .
 
 SHAPE_DATA_INNER_SOURCE = f"(?:[^{{}}\"']|\"(?:[^\"\\\\]|\\\\{_DOT})*\"|'(?:[^']|'')*')*"
 SHAPE_DATA_SOURCE = f"@\\{{{SHAPE_DATA_INNER_SOURCE}\\}}"
+
+#: canvas-sfz7: the longest flowchart link length kept (a longer link is read, and written back, at this length).
+MAX_LINK_LENGTH = 1000
 
 MERMAID_NAME = re.compile("^[A-Za-z][A-Za-z0-9_-]*\\Z")
 

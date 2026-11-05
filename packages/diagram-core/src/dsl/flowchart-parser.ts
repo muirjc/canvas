@@ -12,7 +12,7 @@ import {
 import { splitFrontMatter, stripTrailingComment, readLegend, readPinned, NO_ENTRIES } from './front-matter.js';
 import type { ParseError, ParseResult } from './types.js';
 import { computeContainmentLayout } from '../model/containment-layout.js';
-import { MERMAID_NAME, SHAPE_DATA_INNER_SOURCE, SHAPE_DATA_SOURCE, mermaidShapeToCanvas, parseShapeData } from './mermaid-shape-data.js';
+import { MAX_LINK_LENGTH, MERMAID_NAME, SHAPE_DATA_INNER_SOURCE, SHAPE_DATA_SOURCE, mermaidShapeToCanvas, parseShapeData } from './mermaid-shape-data.js';
 
 const ID = String.raw`[A-Za-z0-9_]+`;
 
@@ -62,42 +62,36 @@ const EDGE_ID = String.raw`(?:\s+(${ID})@|\s*)`;
 // `A@{ … }` / `A:::kind@{ … }` as a token or a statement of its own, and `e1@{ … }` for an edge.
 const SHAPE_DATA_TOKEN = new RegExp(`^(${ID})(?::::(${ID}(?:\\s*,\\s*${ID})*))?@\\{(${SHAPE_DATA_INNER_SOURCE})\\}$`);
 
-// Grouping B (docs/flowchart-completeness-brief.md): the ten flowchart connector tokens, each
-// naming a (lineStyle, arrow) pair. `lineStyle`/`arrow` are left undefined on the parsed edge for
-// the default case (solid line, forward arrowhead) rather than filled in explicitly, so a plain
-// `A --> B` keeps round-tripping identically to how it always has.
-// 'target' (a plain forward arrowhead) is the default and so is never actually assigned here —
-// it's represented by leaving `arrow` undefined, not by a literal 'target' value.
+// Grouping B (docs/flowchart-completeness-brief.md), canvas-sfz7: Mermaid's link tokens (its flow lexer's LINK
+// rule, less the `x`/`o` ends Canvas doesn't draw) -- a solid, thick, dotted or invisible line with an arrowhead
+// at the end, at both ends (`<…>`) or none, made longer by repeating its middle character (`--->`, `====>`,
+// `-..->`, `~~~~`), which Mermaid takes as a layout hint. `lineStyle`/`arrow` are left undefined for the
+// default (solid line, forward arrowhead), so a plain `A --> B` round-trips as it always has.
 type EdgeArrow = 'none' | 'both';
 type EdgeLineStyle = 'dotted' | 'thick' | 'invisible';
-const EDGE_CONNECTORS: { token: string; lineStyle?: EdgeLineStyle; arrow?: EdgeArrow }[] = [
-  { token: '<-.->', lineStyle: 'dotted', arrow: 'both' },
-  { token: '<-->', arrow: 'both' },
-  { token: '<==>', lineStyle: 'thick', arrow: 'both' },
-  { token: '-.->', lineStyle: 'dotted' },
-  { token: '==>', lineStyle: 'thick' },
-  { token: '-->' },
-  { token: '-.-', lineStyle: 'dotted', arrow: 'none' },
-  { token: '===', lineStyle: 'thick', arrow: 'none' },
-  { token: '---', arrow: 'none' },
-  { token: '~~~', lineStyle: 'invisible', arrow: 'none' },
-];
-const CONNECTOR_BY_TOKEN = new Map(EDGE_CONNECTORS.map((c) => [c.token, c]));
-function escapeRegex(value: string): string {
-  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+// The arrowed form of each line before its open one, so `--->` is never read as `---` + `>`.
+const CONNECTOR_ALTERNATION = String.raw`<-{2,}>|<={2,}>|<-\.+->|-\.+->|-\.+-|-{2,}>|-{3,}|={2,}>|={3,}|~{3,}`;
+
+/** A link token's line style, arrowheads and Mermaid length (1 for `-->`, plus one per extra `-`, `=` or `.`),
+ *  worked out as Mermaid's destructEndLink does. */
+function readConnector(token: string): { lineStyle?: EdgeLineStyle; arrow?: EdgeArrow; length: number } {
+  const both = token.startsWith('<');
+  const line = token.slice(both ? 1 : 0, -1);
+  const dots = line.split('.').length - 1;
+  const length = Math.min(dots > 0 ? dots : line.length - 1, MAX_LINK_LENGTH);
+  const lineStyle = token.startsWith('~') ? 'invisible' : line.includes('=') ? 'thick' : dots > 0 ? 'dotted' : undefined;
+  return { lineStyle, arrow: both ? 'both' : token.endsWith('>') ? undefined : 'none', length };
 }
-// Every token here is a full, fixed literal (no two share a starting substring that would make
-// one shadow the other), so alternation order doesn't affect correctness — listed roughly
-// longest-first anyway as the clearer convention to read.
-const CONNECTOR_ALTERNATION = EDGE_CONNECTORS.map((c) => escapeRegex(c.token)).join('|');
 
 const EDGE_WITH_PIPE_LABEL = new RegExp(`^(${TOKEN})${EDGE_ID}(${CONNECTOR_ALTERNATION})\\s*\\|(.+?)\\|\\s*(${TOKEN})$`);
-// Inline (embedded) labels: `A -- text --> B` / `A -. text .-> B` / `A == text ==> B` — one
-// regex per line style since the opening and closing halves of the connector must match (a
-// single alternation of independent opens/closes could not enforce that pairing).
-const EDGE_INLINE_LABEL_SOLID = new RegExp(`^(${TOKEN})${EDGE_ID}--\\s*(.+?)\\s*-->\\s*(${TOKEN})$`);
-const EDGE_INLINE_LABEL_DOTTED = new RegExp(`^(${TOKEN})${EDGE_ID}-\\.\\s*(.+?)\\s*\\.->\\s*(${TOKEN})$`);
-const EDGE_INLINE_LABEL_THICK = new RegExp(`^(${TOKEN})${EDGE_ID}==\\s*(.+?)\\s*==>\\s*(${TOKEN})$`);
+// Inline (embedded) labels: `A -- text --> B` / `A -. text .-> B` / `A == text ==> B`, any length, with or
+// without an arrowhead — one regex per line style since the opening and closing halves of the connector must
+// match. canvas-sfz7: the opener can't be the start of a longer link (`E --> F ---> G` is a chain, not
+// `E --` + a label), and the label can't hold a whole link.
+const LABEL_TEXT = String.raw`(?:(?!${CONNECTOR_ALTERNATION}).)+?`;
+const EDGE_INLINE_LABEL_SOLID = new RegExp(`^(${TOKEN})${EDGE_ID}--(?![->])\\s*(${LABEL_TEXT})\\s*(-{2,}>|-{3,})\\s*(${TOKEN})$`);
+const EDGE_INLINE_LABEL_DOTTED = new RegExp(`^(${TOKEN})${EDGE_ID}-\\.(?![.-])\\s*(${LABEL_TEXT})\\s*(\\.+->|\\.+-)\\s*(${TOKEN})$`);
+const EDGE_INLINE_LABEL_THICK = new RegExp(`^(${TOKEN})${EDGE_ID}==(?![=>])\\s*(${LABEL_TEXT})\\s*(={2,}>|={3,})\\s*(${TOKEN})$`);
 // Fan-out: `A --> B & C & ...` — one connector, an "&"-separated list of targets.
 const EDGE_FAN_OUT = new RegExp(`^(${TOKEN})\\s*(${CONNECTOR_ALTERNATION})\\s*(${TOKEN}(?:\\s*&\\s*${TOKEN})+)$`);
 const EDGE_NO_LABEL = new RegExp(`^(${TOKEN})${EDGE_ID}(${CONNECTOR_ALTERNATION})\\s*(${TOKEN})$`);
@@ -252,6 +246,7 @@ export function parseFlowchart(dsl: string): ParseResult {
     style?: NodeStyle;
     arrow?: EdgeArrow;
     lineStyle?: EdgeLineStyle;
+    mermaidLength?: number;
     mermaidId?: string;
     mermaidData?: MermaidData;
   }[] = [];
@@ -335,7 +330,7 @@ export function parseFlowchart(dsl: string): ParseResult {
   };
 
   const pushEdge = (sourceToken: string, connectorToken: string, targetToken: string, label?: string, mermaidId?: string): void => {
-    const connector = CONNECTOR_BY_TOKEN.get(connectorToken)!;
+    const connector = readConnector(connectorToken);
     edgeCounter += 1;
     const id = `e${edgeCounter}`;
     const edge: (typeof edges)[number] = {
@@ -347,6 +342,7 @@ export function parseFlowchart(dsl: string): ParseResult {
       arrow: connector.arrow,
       lineStyle: connector.lineStyle,
     };
+    if (connector.length > 1) edge.mermaidLength = connector.length;
     if (mermaidId !== undefined) {
       if (edgesByMermaidId.has(mermaidId)) {
         errors.push({ line: lineIndex + 1, content: lineText, message: `Edge id "${mermaidId}" is used twice.` });
@@ -540,20 +536,20 @@ export function parseFlowchart(dsl: string): ParseResult {
     }
     const inlineSolid = line.match(EDGE_INLINE_LABEL_SOLID);
     if (inlineSolid) {
-      const [, source, edgeId, label, target] = inlineSolid;
-      pushEdge(source, '-->', target, label, edgeId);
+      const [, source, edgeId, label, close, target] = inlineSolid;
+      pushEdge(source, close, target, label, edgeId);
       continue;
     }
     const inlineDotted = line.match(EDGE_INLINE_LABEL_DOTTED);
     if (inlineDotted) {
-      const [, source, edgeId, label, target] = inlineDotted;
-      pushEdge(source, '-.->', target, label, edgeId);
+      const [, source, edgeId, label, close, target] = inlineDotted;
+      pushEdge(source, `-${close}`, target, label, edgeId);
       continue;
     }
     const inlineThick = line.match(EDGE_INLINE_LABEL_THICK);
     if (inlineThick) {
-      const [, source, edgeId, label, target] = inlineThick;
-      pushEdge(source, '==>', target, label, edgeId);
+      const [, source, edgeId, label, close, target] = inlineThick;
+      pushEdge(source, close, target, label, edgeId);
       continue;
     }
     const plainEdge = line.match(EDGE_NO_LABEL);

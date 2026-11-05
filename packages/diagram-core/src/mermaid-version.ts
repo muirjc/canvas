@@ -30,6 +30,7 @@ export const MERMAID_SUPPORT_NOTES: readonly MermaidSupportNote[] = [
     notes: [
       'Drawn as the nearest Canvas shape: the newer shapes Canvas has no drawing of (A@{ shape: doc }, cloud, flag, …) and icon or image nodes (icon:, img:); the Mermaid name and keys are kept and exported.',
       'Read but not drawn: edge options (e1@{ animate: true }, animation, curve, step); kept and exported.',
+      'Read but not used for layout: longer links (A ---> B, A -..-> B, A ===> B); the length is kept and exported.',
       'Not read: subgraph options (one@{ view: collapsed }).',
       'Refused on purpose: click … call (runs script); click … href links work.',
     ],

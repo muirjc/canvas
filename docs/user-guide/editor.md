@@ -138,6 +138,9 @@ so the exported text still has it. Image addresses must be http or https links. 
 (`A e1@--> B`) and edge options such as `e1@{ animate: true }` are kept and exported; Canvas doesn't
 animate or curve edges. Subgraph options (`one@{ view: collapsed }`) aren't read yet.
 
+Longer links (`A ---> B`, `A -..-> B`, `A ===> B`) are read too. In Mermaid the extra length spaces
+the shapes further apart; Canvas keeps it and exports it, but draws them like any other connector.
+
 ## The Issues tab: standards
 
 If a standard applies to the diagram type, the **Issues** tab lists where the diagram breaks it,
