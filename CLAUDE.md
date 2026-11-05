@@ -96,6 +96,21 @@ tests are NON-NEGOTIABLE and must exist (and fail) before implementing any diagr
 work — see `.specify/memory/constitution.md` Principle IV.
 
 ## Recent Changes
+- `canvas-0t84` part 2: **every family's export draws in real Mermaid.** `withMermaidForms(dsl, family)` (TS) /
+  `_with_mermaid_forms` (Python) re-serialize only when needed: C4 drops `Lay_*` (C4-PlantUML) and empty
+  boundaries (repeatedly); ER quotes EVERY relationship label and alias (`#quot;` inside; Mermaid's ER keywords
+  `many`/`one`/`to`/`class`/numbers can't be bare; empty -> `"relates to"`, `DEFAULT_RELATIONSHIP_LABEL` now
+  exported); class: `:` in labels -> `#58;`, empty notes and empty namespaces dropped; sequence: a note over 3+
+  participants spans first..last; flowchart: body `title` -> front matter `title:` (first key), `"` in labels ->
+  `#quot;`. The family for the style lines is read once from the original text (a rewritten text can start with
+  `%%{init}%%`, which detection misses: canvas-zayd). Before re-serializing, TS drops `null` fields
+  (`withoutNulls`) and Python `None` ones (`_defined`): Python can't tell null from undefined. `strokeWidth: null`
+  no longer writes `nullpx` (TS `!= null`); Python's style lines ignore non-object styles (it crashed). Parsers
+  (flowchart, C4, UML, sequence, state) give each placeholder-positioned element its own `{x:0,y:0}` (a shared
+  object made YAML anchors `&a1`/`*a1` in the front matter, and a mutation moved them all). Real Mermaid render of
+  every corpus case's saved-text export: 113/116 on 12.3 (left: Mermaid's own `constructor`-id crash, an image URL;
+  12.2 also can't draw BPMN shapes). The C4/ER/class/sequence fuzzers now compare exports (typed and saved text,
+  both strip modes). CI render check: canvas-8ucs.
 - `canvas-0t84` part 1: **architecture exports draw in real Mermaid.** `toPortableMermaid` (TS) / `to_portable_mermaid`
   (Python) now rewrite text Mermaid refuses, export only (`withMermaidForms` / `_with_mermaid_forms`; saved DSL
   unchanged). Architecture, when needed (else the text is untouched): connectors and align ids naming missing

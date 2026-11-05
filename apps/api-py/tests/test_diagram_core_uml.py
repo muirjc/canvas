@@ -23,6 +23,7 @@ from canvas_api.diagram_core import canonical_json
 from canvas_api.diagram_core.detect import detect_dsl_family
 from canvas_api.diagram_core.jsvalues import to_js_json
 from canvas_api.diagram_core.jsyaml import YamlError
+from canvas_api.diagram_core.portable import to_portable_mermaid
 from canvas_api.diagram_core.uml import parse_uml, serialize_uml
 from tests.diagram_bridge import DiagramBridge
 
@@ -254,6 +255,11 @@ def _differences(bridge: DiagramBridge, dsl: str) -> list[str]:
         model = json.loads(json.dumps(parsed["model"]))
         if serialize_uml(model) != bridge.serialize("uml", model):
             found.append("serialize")
+        # canvas-0t84: the export rewrites forms Mermaid refuses, on typed and on saved text.
+        for text in (dsl, serialize_uml(model)):
+            for strip in (False, True):
+                if to_portable_mermaid(text, strip) != bridge.portable(text, strip_front_matter=strip):
+                    found.append(f"portable(strip={strip})")
     return found
 
 

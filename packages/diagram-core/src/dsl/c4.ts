@@ -371,7 +371,7 @@ export function parseC4(dsl: string): ParseResult {
   const containerMeta = frontMatter.canvas?.containers ?? NO_ENTRIES;
   // canvas-m0g: a diagram with NO stored geometry at all (a fresh import/paste) gets a real
   // containment-aware auto-layout instead of the flat nextAutoPosition() counter — every
-  // node/container gets a PLACEHOLDER_POSITION below, replaced by computeContainmentLayout's
+  // node/container gets a { ...PLACEHOLDER_POSITION } below, replaced by computeContainmentLayout's
   // output in one post-pass once the whole tree is known. A diagram with SOME stored geometry
   // (a prior save) keeps the old per-element nextAutoPosition() fallback unchanged for whatever
   // individual element still lacks one — correctly laying out a fresh import's nested boundaries
@@ -460,7 +460,7 @@ export function parseC4(dsl: string): ParseResult {
         // canvas-tfr: the `_Ext` variants used to collapse silently onto their base kind; the flag
         // now survives so standards can tell an External System from an internal one.
         ...(kind.endsWith('_Ext') ? { external: true } : {}),
-        position: positions[id] ?? (isFreshImport ? PLACEHOLDER_POSITION : nextAutoPosition()),
+        position: positions[id] ?? (isFreshImport ? { ...PLACEHOLDER_POSITION } : nextAutoPosition()),
         style: styles[id],
         containerId: containerStack[containerStack.length - 1],
         ...(args.descr ? { description: args.descr } : {}),
@@ -541,7 +541,7 @@ export function parseC4(dsl: string): ParseResult {
         ...(args.type ? { boundaryType: args.type } : {}),
         ...(args.descr ? { description: args.descr } : {}),
         ...(tags.length > 0 ? { tags } : {}),
-        position: meta ? { x: meta.x, y: meta.y } : (isFreshImport ? PLACEHOLDER_POSITION : nextAutoPosition()),
+        position: meta ? { x: meta.x, y: meta.y } : (isFreshImport ? { ...PLACEHOLDER_POSITION } : nextAutoPosition()),
         size: meta?.width != null && meta?.height != null ? { width: meta.width, height: meta.height } : undefined,
         parentContainerId: containerStack[containerStack.length - 1],
       });
@@ -581,7 +581,7 @@ export function parseC4(dsl: string): ParseResult {
     }
   }
 
-  // canvas-m0g: fills in the PLACEHOLDER_POSITION every node/container above got, now that the
+  // canvas-m0g: fills in the { ...PLACEHOLDER_POSITION } every node/container above got, now that the
   // whole parentContainerId/containerId tree is known — the whole point of doing this as a
   // post-pass rather than inline is that a container's own size can't be known until every
   // descendant (parsed on later lines) already has a position.

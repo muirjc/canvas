@@ -271,7 +271,7 @@ export function parseUml(dsl: string): ParseResult {
         label: id,
         shape: 'rectangle',
         role: 'class',
-        position: positions[id] ?? (isFreshImport ? PLACEHOLDER_POSITION : nextPosition()),
+        position: positions[id] ?? (isFreshImport ? { ...PLACEHOLDER_POSITION } : nextPosition()),
         style: styles[id],
         containerId,
         umlStereotype: annotation,
@@ -382,7 +382,7 @@ export function parseUml(dsl: string): ParseResult {
             id: currentId,
             label: isLeaf && bracketLabel !== undefined ? bracketLabel : segments[segIdx],
             role: 'namespace',
-            position: meta ? { x: meta.x, y: meta.y } : (isFreshImport ? PLACEHOLDER_POSITION : nextPosition()),
+            position: meta ? { x: meta.x, y: meta.y } : (isFreshImport ? { ...PLACEHOLDER_POSITION } : nextPosition()),
             size: meta?.width != null && meta?.height != null ? { width: meta.width, height: meta.height } : undefined,
             parentContainerId: parentId,
           });
@@ -417,7 +417,7 @@ export function parseUml(dsl: string): ParseResult {
         label: text,
         role: 'note',
         attachedNodeIds: [classId],
-        position: meta ? { x: meta.x, y: meta.y } : (isFreshImport ? PLACEHOLDER_POSITION : nextPosition()),
+        position: meta ? { x: meta.x, y: meta.y } : (isFreshImport ? { ...PLACEHOLDER_POSITION } : nextPosition()),
         size: meta?.width != null && meta?.height != null ? { width: meta.width, height: meta.height } : undefined,
       });
       continue;
@@ -432,7 +432,7 @@ export function parseUml(dsl: string): ParseResult {
         label: noteStandalone[1],
         role: 'note',
         attachedNodeIds: [],
-        position: meta ? { x: meta.x, y: meta.y } : (isFreshImport ? PLACEHOLDER_POSITION : nextPosition()),
+        position: meta ? { x: meta.x, y: meta.y } : (isFreshImport ? { ...PLACEHOLDER_POSITION } : nextPosition()),
         size: meta?.width != null && meta?.height != null ? { width: meta.width, height: meta.height } : undefined,
       });
       continue;

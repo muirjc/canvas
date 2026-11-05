@@ -1,16 +1,36 @@
 classDiagram
-  A <|-- B
-  C *-- D
-  E o-- F
-  G --> H
-  I -- J
-  K ..> L
-  M ..|> N
-  O .. P
-  Q ()-- R
-  S --() T
-  A "1" --> "*" B : has many
-  C "0..1" *-- D
-  E o-- "many" F
-  G"1"-->"2"H:tight
-  I -- J : label with : colon
+class A
+class B
+class C
+class D
+class E
+class F
+class G
+class H
+class I
+class J
+class K
+class L
+class M
+class N
+class O
+class P
+class Q
+class R
+class S
+class T
+A <|-- B
+C *-- D
+E o-- F
+G --> H
+I -- J
+K ..> L
+M ..|> N
+O .. P
+Q ()-- R
+S --() T
+A "1" --> "*" B : has many
+C "0..1" *-- D
+E o-- "many" F
+G "1" --> "2" H : tight
+I -- J : label with #58; colon

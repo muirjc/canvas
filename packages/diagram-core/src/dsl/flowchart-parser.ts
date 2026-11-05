@@ -283,7 +283,7 @@ export function parseFlowchart(dsl: string): ParseResult {
         // unambiguous shape (e.g. an explicit cylinder `[(label)]`) is never overridden: a node
         // can validly carry icon metadata without its shape being 'icon'.
         shape: shape === 'rectangle' && icons[id] ? 'icon' : shape,
-        position: positions[id] ?? (isFreshImport ? PLACEHOLDER_POSITION : nextAutoPosition()),
+        position: positions[id] ?? (isFreshImport ? { ...PLACEHOLDER_POSITION } : nextAutoPosition()),
         style: styles[id],
         icon: icons[id],
         containerId: containerStack[containerStack.length - 1],
@@ -405,7 +405,7 @@ export function parseFlowchart(dsl: string): ParseResult {
       containersById.set(id, {
         id,
         label: label ?? id,
-        position: meta ? { x: meta.x, y: meta.y } : (isFreshImport ? PLACEHOLDER_POSITION : nextAutoPosition()),
+        position: meta ? { x: meta.x, y: meta.y } : (isFreshImport ? { ...PLACEHOLDER_POSITION } : nextAutoPosition()),
         size: meta?.width != null && meta?.height != null ? { width: meta.width, height: meta.height } : undefined,
         parentContainerId: containerStack[containerStack.length - 1],
       });

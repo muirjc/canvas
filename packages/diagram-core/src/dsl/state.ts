@@ -122,7 +122,7 @@ export function parseState(dsl: string): ParseResult {
     autoCounter += 1;
     return position;
   };
-  const place = (id: string) => positions[id] ?? (isFreshImport ? PLACEHOLDER_POSITION : nextPosition());
+  const place = (id: string) => positions[id] ?? (isFreshImport ? { ...PLACEHOLDER_POSITION } : nextPosition());
 
   const errors: ParseError[] = [];
   const nodes = new Map<string, DiagramNode>();
@@ -171,7 +171,7 @@ export function parseState(dsl: string): ParseResult {
     }
     const id = pseudoId(kind, scope);
     if (!nodes.has(id)) {
-      nodes.set(id, { id, label: '', shape: ROLE_SHAPE[kind], role: kind, position: PLACEHOLDER_POSITION });
+      nodes.set(id, { id, label: '', shape: ROLE_SHAPE[kind], role: kind, position: { ...PLACEHOLDER_POSITION } });
       nodeScope.set(id, scopeKey(scope));
     }
     return id;
@@ -190,7 +190,7 @@ export function parseState(dsl: string): ParseResult {
             label: openNote.text.join('\n').trim(),
             role: `note-${openNote.side}`,
             attachedNodeIds: [openNote.target],
-            position: PLACEHOLDER_POSITION,
+            position: { ...PLACEHOLDER_POSITION },
           },
           scope: scopeKey(scope),
         });
@@ -287,7 +287,7 @@ export function parseState(dsl: string): ParseResult {
           label: m[3].trim(),
           role: `note-${m[1].toLowerCase()}`,
           attachedNodeIds: [m[2]],
-          position: PLACEHOLDER_POSITION,
+          position: { ...PLACEHOLDER_POSITION },
         },
         scope: scopeKey(scope),
       });
@@ -317,7 +317,7 @@ export function parseState(dsl: string): ParseResult {
         id,
         label: label ?? earlier?.description ?? id,
         role: 'composite',
-        position: meta ? { x: meta.x, y: meta.y } : PLACEHOLDER_POSITION,
+        position: meta ? { x: meta.x, y: meta.y } : { ...PLACEHOLDER_POSITION },
         ...savedSize(meta),
         ...(earlier?.style ? { style: earlier.style } : styles[id] ? { style: styles[id] } : {}),
       });
@@ -419,7 +419,7 @@ export function parseState(dsl: string): ParseResult {
         label: '',
         role: 'region',
         parentContainerId: id,
-        position: meta ? { x: meta.x, y: meta.y } : PLACEHOLDER_POSITION,
+        position: meta ? { x: meta.x, y: meta.y } : { ...PLACEHOLDER_POSITION },
         ...savedSize(meta),
       });
       containerOfScope.set(`${id}\u0000${k}`, regionId);
@@ -474,7 +474,7 @@ export function parseState(dsl: string): ParseResult {
     containers.push({
       ...container,
       attachedNodeIds: container.attachedNodeIds!.map((id) => (composites.has(id) ? id : (renamed.get(id) ?? id))),
-      position: meta ? { x: meta.x, y: meta.y } : PLACEHOLDER_POSITION,
+      position: meta ? { x: meta.x, y: meta.y } : { ...PLACEHOLDER_POSITION },
       ...savedSize(meta),
       ...(parentContainerId ? { parentContainerId } : {}),
     });

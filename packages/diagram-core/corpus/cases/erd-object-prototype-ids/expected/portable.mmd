@@ -1,16 +1,11 @@
 erDiagram
-  constructor ||--o{ toString : places
-  toString {
-    string __proto__ PK
-  }
-  hasOwnProperty[Alias Name]
-  __proto__ ||--|| constructor : has
-  style constructor fill:#ff0000
-  style valueOf fill:#00ff00
-  classDef valueOf fill:#0000ff
-  class toString valueOf
-  class hasOwnProperty isPrototypeOf
+toString {
+  string __proto__ PK
+}
+hasOwnProperty["Alias Name"]
+constructor ||--o{ toString : "places"
+__proto__ ||--|| constructor : "has"
 %% Colours for Mermaid tools outside Canvas (added on export).
-style constructor fill:#ff0000
 style toString fill:#0000ff
+style constructor fill:#ff0000
 style __proto__ fill:#ffeeee
