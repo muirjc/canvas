@@ -27,6 +27,8 @@ const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const FONT_LICENSE = join(ROOT, 'apps/api-py/src/canvas_api/fonts/OFL.txt');
 const DAGRE_LICENSE = join(ROOT, 'apps/api-py/src/canvas_api/diagram_core/dagre/LICENSE');
 const OUTPUT = join(ROOT, 'THIRD-PARTY-NOTICES.md');
+// canvas-c8zl: the C libraries psycopg-binary bundles, with their reviewed licence texts.
+const BUNDLED_DIR = join(ROOT, 'licenses', 'psycopg-binary');
 const PY_PROJECT = join(ROOT, 'apps', 'api-py');
 const PY_SITE_PACKAGES = join(PY_PROJECT, '.venv', 'lib', 'python3.13', 'site-packages');
 
@@ -62,7 +64,7 @@ const EXCEPTIONS = new Map([
   ],
   [
     'psycopg-binary',
-    "LGPL-3.0-only: psycopg's C speed-ups, used unmodified as a separately installed library. The wheel also bundles libpq, OpenSSL, krb5, cyrus-sasl, OpenLDAP, PCRE, keyutils, libcom_err, libselinux and libxcrypt shared libraries (all under permissive or LGPL licences, used unmodified) but ships no licence text for them.",
+    "LGPL-3.0-only: psycopg's C speed-ups, used unmodified as a separately installed library. The wheel also bundles C shared libraries (libpq, OpenSSL, krb5, cyrus-sasl, OpenLDAP, PCRE, keyutils, libcom_err, libselinux, libxcrypt; permissive, public-domain or LGPL, used unmodified) but ships no licence text for them: see 'C libraries bundled in psycopg-binary' below.",
   ],
 ]);
 
@@ -187,6 +189,42 @@ function collect() {
     ...collectPython(problems),
     problems,
   };
+}
+
+/**
+ * canvas-c8zl: the C libraries in psycopg-binary's `psycopg_binary.libs`, from licenses/psycopg-binary/manifest.json,
+ * each with its licence text. The list was reviewed for one wheel version: a different version, a bundled file the
+ * list doesn't name, or a listed library the wheel no longer bundles is a problem, so the review is redone.
+ */
+function collectBundled(pyPackages, problems) {
+  const manifest = JSON.parse(readFileSync(join(BUNDLED_DIR, 'manifest.json'), 'utf8'));
+  const wheel = pyPackages.find((p) => p.name === 'psycopg-binary');
+  if (!wheel) return [];
+  if (wheel.version !== manifest.psycopgBinaryVersion) {
+    problems.push(
+      `psycopg-binary ${wheel.version}: its bundled C libraries were reviewed for ${manifest.psycopgBinaryVersion}; ` +
+        'review them again and update licenses/psycopg-binary/ (versions and licence texts)',
+    );
+  }
+  const libsDir = join(PY_SITE_PACKAGES, 'psycopg_binary.libs');
+  const bundled = existsSync(libsDir)
+    ? readdirSync(libsDir).map((file) => ({ file, stem: (file.match(/^(.+?)-[0-9a-f]{8}\.so/) ?? [])[1] ?? file }))
+    : [];
+  if (bundled.length === 0) problems.push('psycopg-binary: psycopg_binary.libs not found (run `uv sync` in apps/api-py first)');
+  const listed = new Set(manifest.libraries.flatMap((lib) => lib.files));
+  for (const { file, stem } of bundled) {
+    if (!listed.has(stem)) problems.push(`psycopg-binary bundles ${file}, which licenses/psycopg-binary/manifest.json doesn't list`);
+  }
+  const present = new Set(bundled.map((b) => b.stem));
+  for (const stem of listed) {
+    if (bundled.length > 0 && !present.has(stem)) {
+      problems.push(`licenses/psycopg-binary/manifest.json lists ${stem}, which psycopg-binary no longer bundles`);
+    }
+  }
+  return manifest.libraries.map((lib) => ({
+    ...lib,
+    texts: lib.texts.map((file) => ({ file, text: readFileSync(join(BUNDLED_DIR, file), 'utf8').replace(/\r\n?/g, '\n').trim() })),
+  }));
 }
 
 // Evaluates a uv.lock environment marker (`a == 'x' and b != 'y' or ...`) for PY_ENVIRONMENT.
@@ -356,7 +394,7 @@ function renderTexts(out, packages, declaredIn) {
   }
 }
 
-function render({ packages, platformBinaries, pyPackages, pyNotInstalled }) {
+function render({ packages, platformBinaries, pyPackages, pyNotInstalled, bundled }) {
   const out = [];
   out.push(
     '# Third-party notices',
@@ -447,10 +485,29 @@ function render({ packages, platformBinaries, pyPackages, pyNotInstalled }) {
   }
   out.push('## Python licence texts', '');
   renderTexts(out, pyPackages, 'metadata');
+  if (bundled.length > 0) {
+    out.push(
+      '## C libraries bundled in psycopg-binary',
+      '',
+      "psycopg-binary's wheel carries these shared libraries in `psycopg_binary.libs`, unmodified, without their",
+      'licence texts; the texts below were taken from each project at the version bundled',
+      '(`licenses/psycopg-binary/`).',
+      '',
+      '| Library | Version | Licence |',
+      '| --- | --- | --- |',
+      ...bundled.map((lib) => `| ${lib.name} | ${lib.version} | ${lib.licence} |`),
+      '',
+    );
+    for (const lib of bundled) {
+      out.push(`### ${lib.name} ${lib.version}`, '', `Licence: ${lib.licence}`, `Source: ${lib.source}`, '');
+      for (const { file, text } of lib.texts) out.push(`\`${file}\`:`, '', fence(text), '');
+    }
+  }
   return out.join('\n');
 }
 
 const result = collect();
+result.bundled = collectBundled(result.pyPackages, result.problems);
 if (result.problems.length > 0) {
   console.error('Third-party licence check failed:');
   for (const problem of result.problems) console.error(`  - ${problem}`);
