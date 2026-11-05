@@ -22,10 +22,15 @@ HEADER_TO_FAMILY: list[tuple[re.Pattern[str], str]] = [
 ]
 
 
+#: canvas-zayd: a `%%{init: ...}%%` directive may come before the header (Canvas's serializers write it there).
+_CONFIG_DIRECTIVE = re.compile("^%%\\{[^\\n\\r\u2028\u2029]*\\}%%\\Z")
+
+
 def detect_dsl_family(dsl: str) -> str | None:
     """The family, or None for empty or unrecognized input."""
     _, body = split_front_matter(dsl)
-    first = next((t for t in (js_trim(line) for line in re.split(r"\r?\n", body)) if t), None)
+    lines = (js_trim(line) for line in re.split(r"\r?\n", body))
+    first = next((t for t in lines if t and not _CONFIG_DIRECTIVE.match(t)), None)
     if first is None:
         return None
     return next((family for pattern, family in HEADER_TO_FAMILY if pattern.match(first)), None)

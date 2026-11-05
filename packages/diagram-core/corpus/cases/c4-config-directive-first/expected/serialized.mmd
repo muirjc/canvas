@@ -1,0 +1,20 @@
+---
+canvas:
+  positions:
+    u:
+      x: 40
+      y: 40
+    s:
+      x: 220
+      y: 40
+  styles:
+    s:
+      fillColor: "#123456"
+  edgeStyles: {}
+  containers: {}
+---
+%%{init: {'theme': 'dark'}}%%
+C4Context
+Person(u, "User")
+System(s, "Shop")
+Rel(u, s, "buys")

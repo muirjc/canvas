@@ -21,12 +21,16 @@ const HEADER_TO_FAMILY: Array<{ pattern: RegExp; family: string }> = [
  * else can happen. Returns undefined for unrecognized/empty input (FR-019: reported specifically,
  * never silently guessed).
  */
+// canvas-zayd: a `%%{init: ...}%%` config directive may come before the header (Mermaid allows it, and Canvas's
+// own serializers write it there), so it is passed over. A plain `%%` comment is not: the parsers refuse one there.
+const CONFIG_DIRECTIVE = /^%%\{.*\}%%$/;
+
 export function detectDslFamily(dsl: string): string | undefined {
   const { body } = splitFrontMatter(dsl);
   const firstLine = body
     .split(/\r?\n/)
     .map((line) => line.trim())
-    .find((line) => line.length > 0);
+    .find((line) => line.length > 0 && !CONFIG_DIRECTIVE.test(line));
   if (!firstLine) return undefined;
 
   return HEADER_TO_FAMILY.find(({ pattern }) => pattern.test(firstLine))?.family;

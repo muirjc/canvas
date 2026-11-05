@@ -96,6 +96,11 @@ tests are NON-NEGOTIABLE and must exist (and fail) before implementing any diagr
 work — see `.specify/memory/constitution.md` Principle IV.
 
 ## Recent Changes
+- `canvas-zayd`: **family detection passes over `%%{...}%%` config directives** before the header (TS `detect.ts`
+  `CONFIG_DIRECTIVE`, Python `_CONFIG_DIRECTIVE`, JS `.` spelled out). Canvas's own serializers write the directive
+  first, so text Canvas wrote couldn't be detected (import, syntax_report). Plain `%%` comments before the header
+  are still not passed over (the parsers refuse them). Corpus `c4-config-directive-first`,
+  `erd-config-directive-first`; `test_detection_passes_over_config_directives_as_typescript_does`.
 - `canvas-0t84` part 2: **every family's export draws in real Mermaid.** `withMermaidForms(dsl, family)` (TS) /
   `_with_mermaid_forms` (Python) re-serialize only when needed: C4 drops `Lay_*` (C4-PlantUML) and empty
   boundaries (repeatedly); ER quotes EVERY relationship label and alias (`#quot;` inside; Mermaid's ER keywords
