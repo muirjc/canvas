@@ -59,38 +59,36 @@ backend (`apps/api`) was removed in November 2026; its last version is at tag `t
 
 ## Getting started
 
-Requirements: Node.js 22 LTS and npm (for the web app), [uv](https://docs.astral.sh/uv/) (it
-installs Python 3.13 for you), and **either** Docker (for PostgreSQL, the default) **or** nothing
-extra (SQLite).
+Requirements: Node.js 22 LTS and npm (for the web app) and [uv](https://docs.astral.sh/uv/) (it installs
+Python 3.13 for you). No Docker or database server: local runs use SQLite by default. Works the same on
+Linux, macOS and Windows.
 
 ```bash
 git clone https://github.com/muirjc/canvas.git
 cd canvas
 npm install
-
-# Start PostgreSQL (host port 5433, to avoid colliding with a local Postgres on 5432)
-docker compose up -d
-
-# Build the shared package first: apps/web resolves it via its built dist/ output
-npm run build --workspace=@canvas/diagram-core
-
-cd apps/api-py
-uv sync
-cp .env.example .env        # local defaults; ALLOW_LOCAL_AUTH=true for the demo logins
-uv run --env-file .env python -m canvas_api.jobs.seed_demo   # migrates, seeds; prints logins + a project id
-uv run --env-file .env uvicorn canvas_api.main:app --port 3000 --reload   # http://localhost:3000
-
-# In another terminal, from the repository root:
-npm run dev --workspace=@canvas/web     # http://localhost:5173
+npm run dev:local        # API on http://localhost:3000 + web app on http://localhost:5173; Ctrl-C stops both
 ```
 
-Then open `http://localhost:5173/?projectId=<the id printed by seed_demo>` and sign in with the
-printed admin credentials.
+The first run creates `apps/api-py/.env` from `.env.example`, builds `packages/diagram-core`, creates the SQLite
+database (`apps/api-py/data/canvas.db`) and seeds demo data, printing the logins and a demo project id. Open
+`http://localhost:5173` and sign in as `admin@example.com` / `admin-dev-password`. Later runs apply any new
+migrations and start both. `API_PORT` / `WEB_PORT` pick other ports; `npm run dev:local -- --seed` adds missing
+demo data again.
 
-**No Docker/Postgres at all?** In `apps/api-py/.env` set `DB_CLIENT=sqlite` and
-`DATABASE_URL=./data/canvas.db` (run `mkdir -p data` in `apps/api-py` first), skip
-`docker compose up -d`, and run the same commands. See `RUNBOOK.md`'s "Database engine" section for
-the SQLite vs. PostgreSQL trade-off.
+**PostgreSQL instead?** `docker compose up -d` (host port 5433) or any Postgres 16, then in `apps/api-py/.env`
+switch to the commented Postgres lines and run `npm run dev:local -- --seed` once. See `RUNBOOK.md`'s
+"Database engine" section for the SQLite vs. PostgreSQL trade-off (SQLite: one writer at a time).
+
+Running the pieces by hand instead (two terminals):
+
+```bash
+npm run build --workspace=@canvas/diagram-core
+cd apps/api-py && uv sync && cp .env.example .env
+uv run --env-file .env python -m canvas_api.jobs.seed_demo                # migrates, seeds; prints logins
+uv run --env-file .env uvicorn canvas_api.main:app --port 3000 --reload   # terminal 1
+npm run dev --workspace=@canvas/web                                       # terminal 2, repository root
+```
 
 See **[RUNBOOK.md](RUNBOOK.md)** for day-to-day operational commands, troubleshooting, Entra ID
 SSO setup, and environment variable reference, and `specs/*/quickstart.md` for a step-by-step

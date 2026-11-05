@@ -100,6 +100,15 @@ tests are NON-NEGOTIABLE and must exist (and fail) before implementing any diagr
 work — see `.specify/memory/constitution.md` Principle IV.
 
 ## Recent Changes
+- `canvas-mywp`: **`npm run dev:local` runs Canvas with no containers** (Linux/macOS/Windows; Node 22 + uv).
+  `scripts/dev-local.mjs`: copies `apps/api-py/.env` from the example on first run, reads it (shell env wins;
+  `scripts/dotenv.mjs` `readEnvFile`, typed by `dotenv.d.mts`), builds diagram-core if missing, seeds demo data
+  for a new SQLite file else runs `migrate`, then runs uvicorn (`--reload`) and Vite with `[api]`/`[web]` output,
+  each in its own process group so Ctrl-C/SIGTERM stops both (taskkill /T on Windows). `API_PORT`/`WEB_PORT`,
+  `--seed`. `.env.example` now defaults to SQLite (`./data/canvas.db`); `db.create_db_engine` creates the SQLite
+  file's folder. The e2e global setup reads `apps/api-py/.env` and runs its jobs from `apps/api-py` (a relative
+  SQLite path meant a different file from the repo root). README "Getting started" and RUNBOOK rewritten around
+  it. Groundwork for canvas-xl3a (Windows installer).
 - `canvas-c8zl`: **THIRD-PARTY-NOTICES covers the C libraries psycopg-binary bundles** (decided with the user:
   licence texts, image unchanged). `licenses/psycopg-binary/manifest.json` maps each `psycopg_binary.libs` file
   stem to its library, exact version and reviewed licence text(s) in that folder: libpq 18.6, OpenSSL 3.5.8,
