@@ -53,7 +53,7 @@ export const MERMAID_SUPPORT_NOTES: readonly MermaidSupportNote[] = [
   {
     family: 'erd',
     label: 'Entity relationship',
-    notes: ['Not read yet: subgraphs (subgraph Sales … end).'],
+    notes: [],
   },
   {
     family: 'c4',

@@ -48,7 +48,9 @@ PRIMERS: dict[str, str] = {
         "optional decoration. Each end of a relationship carries its own crow's-foot cardinality token: "
         "on the source side, || (exactly one), |o (zero or one), }| (one or many), or }o (zero or many); "
         "on the target side, || (exactly one), o| (zero or one), |{ (one or many), or o{ (zero or many). "
-        "A relationship is also either identifying (a solid line) or non-identifying (a dotted line)."
+        "A relationship is also either identifying (a solid line) or non-identifying (a dotted line). "
+        "Related entities can be grouped into a subgraph (a group, made with groupIntoContainer), and a "
+        "relationship may start or end on a subgraph: use its group id as the sourceId or targetId."
     ),
     "uml": (
         "This is a UML class diagram. Each class (drawn as a rectangle) has a name and zero or more "

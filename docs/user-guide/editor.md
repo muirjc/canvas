@@ -49,8 +49,8 @@ restore is stopped and says who.
 - **Connect:** click **Connect**, then the first shape, then the second. While connecting you can
   choose the arrow direction (forward, reversed, both or none). Some types add more choices, such as
   cardinality for ERD and UML class diagrams. In C4 diagrams a relationship can also start or end on a
-  boundary: click the boundary's box instead of a shape (state diagrams allow the same with a
-  composite state).
+  boundary, and in ER diagrams on a subgraph: click the group's box instead of a shape (state diagrams
+  allow the same with a composite state).
 - **Group:** **Add Container** draws a box (a subgraph, boundary or namespace, depending on the
   type). Select shapes and choose **Group into Container** to put them inside one.
 - **Delete:** select something and press **Delete** or use **Delete Selected**. Canvas asks first.
@@ -137,7 +137,9 @@ queue as a pill, and a boundary, control or entity as a circle. The type is kept
 start anywhere and step by decimals (`autonumber 10`, `autonumber 1.5 0.25`). Class diagrams read
 `class A["Display label"]`. In ER diagrams an attribute's type or name can hold spaces when it is
 written between backtick characters (the name first name, for example), and a type ending in `?`
-marks an optional value (`string? middleName`).
+marks an optional value (`string? middleName`). ER diagrams also read subgraphs (`subgraph Sales` …
+`end`, nested if you like, with an optional title in square brackets and their own `direction`): each
+becomes a group on the canvas, and a relationship can start or end on one.
 
 Flowcharts read Mermaid's newer shape syntax, `A@{ shape: cyl, label: "Orders" }`, with any of
 Mermaid's shape names. Shapes Canvas has no drawing of (such as `doc`, `cloud` or `flag`), and icon

@@ -1,0 +1,24 @@
+{
+  "errors": [
+    {
+      "content": "  subgraph Sales",
+      "line": 5,
+      "message": "Subgraph 'Sales' is declared twice"
+    },
+    {
+      "content": "  subgraph Open",
+      "line": 13,
+      "message": "Unclosed subgraph 'Open' opened at line 13"
+    },
+    {
+      "content": "  \"No Such Group\" ||--o{ ORDER : has",
+      "line": 12,
+      "message": "\"No Such Group\" is not a subgraph: only a subgraph's id may be quoted"
+    },
+    {
+      "content": "  Billing",
+      "line": 8,
+      "message": "'Billing' is both an entity and a subgraph"
+    }
+  ]
+}

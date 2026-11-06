@@ -1,12 +1,27 @@
 import { inReadOrder } from './read-order.js';
-import { createEmptyDiagramModel, type DiagramModel, type DiagramNode, type EntityAttribute, type NodeStyle } from '../model/diagram-model.js';
+import { createEmptyDiagramModel, type DiagramContainer, type DiagramModel, type DiagramNode, type EntityAttribute, type NodeStyle } from '../model/diagram-model.js';
+import { computeContainmentLayout } from '../model/containment-layout.js';
 import { splitFrontMatter, joinFrontMatter, stripTrailingComment, type CanvasFrontMatter, readLegend, readPinned, withLegend, withPinned, NO_ENTRIES } from './front-matter.js';
 import type { FlowchartDirection } from '../model/diagram-model.js';
 import type { ParseError, ParseResult } from './types.js';
 
 const ID = String.raw`[A-Za-z0-9_-]+`;
+const PLAIN_ID = new RegExp(`^${ID}$`);
+// canvas-lwa4: a relationship end may be a quoted subgraph id (`"Customer Domain" ||--o{ ORDER : has`).
+const END = String.raw`(${ID}|"[^"]+")`;
 // CUSTOMER ||--o{ ORDER : places
-const RELATIONSHIP_PATTERN = new RegExp(`^(${ID})\\s+([|o}{.-]+)\\s+(${ID})\\s*:\\s*(.+)$`);
+const RELATIONSHIP_PATTERN = new RegExp(`^${END}\\s+([|o}{.-]+)\\s+${END}\\s*:\\s*(.+)$`);
+// canvas-lwa4: Mermaid 11.17 subgraphs. `subgraph Sales`, `subgraph "Customer Domain"`, `subgraph s1 [Sales team]`;
+// closed by `end`; nestable; `direction` inside one is the subgraph's own.
+const SUBGRAPH_START = new RegExp(`^subgraph\\s+(${ID}|"[^"]+")(?:\\s*\\[([^\\]]*)\\])?$`);
+const SUBGRAPH_END = /^end$/;
+/** A subgraph title as Mermaid joins it: its words (a quoted word without its quotes) with single spaces. */
+const titleWords = (text: string): string => (text.match(/"[^"]*"|[^\s"]+/g) ?? []).map((word) => word.replace(/"/g, '')).join(' ');
+/** A subgraph or relationship-end id as written: quoted when it isn't a plain id. */
+const erName = (id: string): string => (PLAIN_ID.test(id) ? id : `"${id.replace(/"/g, '')}"`);
+/** A subgraph title as written: bare when Mermaid reads it as plain words, else quoted. */
+const titleText = (label: string): string =>
+  /^[\w\-*\u0080-\uFFFF]+(?: [\w\-*\u0080-\uFFFF]+)*$/.test(label) ? label : `"${label.replace(/"/g, '')}"`;
 // canvas-vcv follow-up: exported (re-exported via index.ts's `export * from './dsl/erd.js'`) so
 // the interactive canvas's connect-mode gesture can give a freshly-drawn ER relationship real
 // cardinality data at creation time, instead of only visually defaulting to a plain arrow until a
@@ -124,6 +139,8 @@ export function parseErd(dsl: string): ParseResult {
   const { frontMatter, body } = splitFrontMatter(dsl);
   const positions = frontMatter.canvas?.positions ?? NO_ENTRIES;
   const styles = frontMatter.canvas?.styles ?? NO_ENTRIES;
+  const containerMeta = frontMatter.canvas?.containers ?? NO_ENTRIES;
+  const isFreshImport = Object.keys(positions).length === 0 && Object.keys(containerMeta).length === 0;
 
   const lines = body.split(/\r?\n/);
   const errors: ParseError[] = [];
@@ -154,6 +171,20 @@ export function parseErd(dsl: string): ParseResult {
   const classAssignments: { entityIds: string[]; className: string }[] = [];
   const styleDirectives: { entityId: string; propsRaw: string }[] = [];
 
+  // canvas-lwa4: subgraphs. Membership is settled after reading, as Mermaid does: in the order subgraphs close
+  // (inner ones first), each takes the entities named directly inside it that no subgraph has taken yet.
+  const subgraphsById = new Map<string, DiagramContainer>();
+  const subgraphStack: { id: string; line: number; content: string; mentions: string[] }[] = [];
+  const closedSubgraphs: { id: string; mentions: string[] }[] = [];
+  const declaredEntities = new Map<string, { line: number; content: string }>();
+  const quotedEnds: { name: string; line: number; content: string }[] = [];
+  const mention = (id: string) => subgraphStack[subgraphStack.length - 1]?.mentions.push(id);
+  let lineIndex = 0;
+  const declare = (id: string) => {
+    if (!declaredEntities.has(id)) declaredEntities.set(id, { line: lineIndex + 1, content: lines[lineIndex] });
+    mention(id);
+  };
+
   const ensureEntity = (id: string, aliasLabel?: string) => {
     const existing = nodesById.get(id);
     if (!existing) {
@@ -176,6 +207,7 @@ export function parseErd(dsl: string): ParseResult {
   };
 
   for (let i = 0; i < lines.length; i += 1) {
+    lineIndex = i;
     const rawLine = lines[i];
     let line = rawLine.trim();
     if (!line) continue;
@@ -220,9 +252,41 @@ export function parseErd(dsl: string): ParseResult {
       continue;
     }
 
+    const subgraphStart = line.match(SUBGRAPH_START);
+    if (subgraphStart) {
+      const [, rawId, rawTitle] = subgraphStart;
+      const id = rawId.startsWith('"') ? rawId.slice(1, -1) : rawId;
+      if (subgraphsById.has(id)) {
+        errors.push({ line: i + 1, content: rawLine, message: `Subgraph '${id}' is declared twice` });
+      }
+      // Stored numbers only: a place or size that isn't one (hand-edited front matter) is worked out again.
+      const meta = containerMeta[id] as Record<string, unknown> | undefined;
+      const stored = (key: string): number | undefined => (meta && typeof meta === 'object' && typeof meta[key] === 'number' ? (meta[key] as number) : undefined);
+      const [x, y, width, height] = [stored('x'), stored('y'), stored('width'), stored('height')];
+      const title = rawTitle === undefined ? '' : titleWords(rawTitle);
+      subgraphsById.set(id, {
+        id,
+        label: title || id,
+        position: x !== undefined && y !== undefined ? { x, y } : isFreshImport ? { x: 0, y: 0 } : nextPosition(),
+        size: width !== undefined && height !== undefined ? { width, height } : undefined,
+        parentContainerId: subgraphStack[subgraphStack.length - 1]?.id,
+      });
+      subgraphStack.push({ id, line: i + 1, content: rawLine, mentions: [] });
+      continue;
+    }
+
+    if (subgraphStack.length > 0 && SUBGRAPH_END.test(line)) {
+      const closed = subgraphStack.pop()!;
+      closedSubgraphs.push({ id: closed.id, mentions: closed.mentions });
+      continue;
+    }
+
     const directionMatch = line.match(DIRECTION_PATTERN);
     if (directionMatch) {
-      direction = directionMatch[1].toUpperCase() as FlowchartDirection;
+      const value = directionMatch[1].toUpperCase() as FlowchartDirection;
+      const open = subgraphStack[subgraphStack.length - 1];
+      if (open) subgraphsById.get(open.id)!.direction = value;
+      else direction = value;
       continue;
     }
 
@@ -250,6 +314,7 @@ export function parseErd(dsl: string): ParseResult {
     if (aliasBlockStart) {
       const [, id, alias] = aliasBlockStart;
       ensureEntity(id, alias);
+      declare(id);
       openEntity = { id, line: i + 1, content: rawLine };
       continue;
     }
@@ -258,6 +323,7 @@ export function parseErd(dsl: string): ParseResult {
     if (blockStart) {
       const [, id] = blockStart;
       ensureEntity(id);
+      declare(id);
       openEntity = { id, line: i + 1, content: rawLine };
       continue;
     }
@@ -266,6 +332,7 @@ export function parseErd(dsl: string): ParseResult {
     if (classShorthand) {
       const [, id, alias, classNames] = classShorthand;
       ensureEntity(id, alias);
+      declare(id);
       classAssignments.push({ entityIds: [id], className: classNames.split(',')[0].trim() });
       continue;
     }
@@ -300,9 +367,20 @@ export function parseErd(dsl: string): ParseResult {
 
     const relMatch = line.match(RELATIONSHIP_PATTERN);
     if (relMatch) {
-      const [, source, cardinalityToken, target, rawLabel] = relMatch;
-      ensureEntity(source);
-      ensureEntity(target);
+      const [, rawSource, cardinalityToken, rawTarget, rawLabel] = relMatch;
+      // A quoted end can only be a subgraph (checked once every subgraph is known); a plain one is an entity
+      // unless it turns out to be a subgraph's id.
+      const endName = (raw: string): string => {
+        if (!raw.startsWith('"')) {
+          ensureEntity(raw);
+          mention(raw);
+          return raw;
+        }
+        quotedEnds.push({ name: raw.slice(1, -1), line: i + 1, content: rawLine });
+        return raw.slice(1, -1);
+      };
+      const source = endName(rawSource);
+      const target = endName(rawTarget);
       edgeCounter += 1;
       const cardinality = parseCardinalityToken(cardinalityToken);
       // canvas-??? (quoted relationship label): a label may be quoted in real Mermaid (needed
@@ -330,12 +408,14 @@ export function parseErd(dsl: string): ParseResult {
     if (aliasOnly) {
       const [, id, alias] = aliasOnly;
       ensureEntity(id, alias);
+      declare(id);
       continue;
     }
 
     const bareEntity = line.match(BARE_ENTITY);
     if (bareEntity) {
       ensureEntity(bareEntity[1]);
+      declare(bareEntity[1]);
       continue;
     }
 
@@ -349,8 +429,36 @@ export function parseErd(dsl: string): ParseResult {
       message: `Unclosed attribute block for entity '${openEntity.id}' opened at line ${openEntity.line}`,
     });
   }
+  for (const open of subgraphStack) {
+    errors.push({ line: open.line, content: open.content, message: `Unclosed subgraph '${open.id}' opened at line ${open.line}` });
+  }
+  for (const { name, line, content } of quotedEnds) {
+    if (!subgraphsById.has(name)) errors.push({ line, content, message: `"${name}" is not a subgraph: only a subgraph's id may be quoted` });
+  }
+  for (const [id, where] of declaredEntities) {
+    if (subgraphsById.has(id)) errors.push({ ...where, message: `'${id}' is both an entity and a subgraph` });
+  }
 
   if (errors.length > 0) return { errors };
+
+  // A relationship end naming a subgraph is the subgraph, not an entity.
+  for (const id of subgraphsById.keys()) nodesById.delete(id);
+  for (const { id, mentions } of closedSubgraphs) {
+    for (const entityId of mentions) {
+      const node = nodesById.get(entityId);
+      if (node && node.containerId === undefined) node.containerId = id;
+    }
+  }
+  if (isFreshImport && subgraphsById.size > 0) {
+    const allNodes = Array.from(nodesById.values());
+    const allContainers = Array.from(subgraphsById.values());
+    const layout = computeContainmentLayout(allNodes, allContainers);
+    for (const node of allNodes) node.position = layout.nodePositions.get(node.id) ?? node.position;
+    for (const container of allContainers) {
+      container.position = layout.containerPositions.get(container.id) ?? container.position;
+      container.size = layout.containerSizes.get(container.id);
+    }
+  }
 
   // Class assignments before style directives, so an explicit `style` line on the same entity
   // overrides a class-applied property — same precedence flowchart-parser.ts already established.
@@ -372,6 +480,7 @@ export function parseErd(dsl: string): ParseResult {
   const model = createEmptyDiagramModel('erd');
   model.nodes = Array.from(nodesById.values());
   model.edges = edges;
+  model.containers = Array.from(subgraphsById.values());
   model.direction = direction;
   model.title = title;
   model.accTitle = accTitle;
@@ -393,6 +502,18 @@ function writeErd(model: DiagramModel): string {
     canvas: {
       positions: Object.fromEntries(model.nodes.map((n) => [n.id, n.position])),
       styles: Object.fromEntries(model.nodes.filter((n) => n.style).map((n) => [n.id, n.style!])),
+      // canvas-lwa4: subgraphs' places and sizes, as flowchart and class diagrams keep their groups' (only when
+      // there are any, so diagrams without subgraphs are written as before).
+      ...(model.containers.length > 0
+        ? {
+            containers: Object.fromEntries(
+              model.containers.map((c) => [
+                c.id,
+                c.size ? { x: c.position.x, y: c.position.y, width: c.size.width, height: c.size.height } : { x: c.position.x, y: c.position.y },
+              ]),
+            ),
+          }
+        : {}),
     },
   };
 
@@ -405,16 +526,47 @@ function writeErd(model: DiagramModel): string {
 
   const declared = new Set<string>();
   const declarationFor = (node: DiagramNode): string => (node.label !== node.id ? `${node.id}[${node.label}]` : node.id);
+  const attributeBlock = (node: DiagramNode, indent: string): string[] => [
+    `${indent}${declarationFor(node)} {`,
+    ...(node.attributes ?? []).map((attribute) => {
+      const keysPart = attribute.keys.length > 0 ? ` ${attribute.keys.join(', ')}` : '';
+      const commentPart = attribute.comment ? ` "${attribute.comment}"` : '';
+      return `${indent}  ${attributeWord(attribute.type)} ${attributeWord(attribute.name)}${keysPart}${commentPart}`;
+    }),
+    `${indent}}`,
+  ];
+
+  // canvas-lwa4: subgraph blocks first (a relationship can name a subgraph only once its block has ended, in
+  // Mermaid), each declaring its own entities. An aliased entity without attributes is written with an empty
+  // block: Mermaid's bare `id[Alias]` line doesn't put the entity in the subgraph.
+  const containerIds = new Set(model.containers.map((c) => c.id));
+  const written = new Set<string>();
+  const writeSubgraph = (container: DiagramContainer, indent: string) => {
+    if (written.has(container.id)) return;
+    written.add(container.id);
+    const title = container.label && container.label !== container.id ? ` [${titleText(container.label)}]` : '';
+    lines.push(`${indent}subgraph ${erName(container.id)}${title}`);
+    if (container.direction) lines.push(`${indent}  direction ${container.direction === 'TD' ? 'TB' : container.direction}`);
+    for (const node of model.nodes) {
+      if (node.containerId !== container.id || declared.has(node.id)) continue;
+      if ((node.attributes && node.attributes.length > 0) || node.label !== node.id) lines.push(...attributeBlock(node, `${indent}  `));
+      else lines.push(`${indent}  ${node.id}`);
+      declared.add(node.id);
+    }
+    for (const child of model.containers) {
+      if (child.parentContainerId === container.id) writeSubgraph(child, `${indent}  `);
+    }
+    lines.push(`${indent}end`);
+  };
+  for (const container of model.containers) {
+    if (container.parentContainerId === undefined || !containerIds.has(container.parentContainerId)) writeSubgraph(container, '');
+  }
+  // Groups whose parents form a loop (a broken model) still get written, at the top level.
+  for (const container of model.containers) writeSubgraph(container, '');
 
   for (const node of model.nodes) {
-    if (node.attributes && node.attributes.length > 0) {
-      lines.push(`${declarationFor(node)} {`);
-      for (const attribute of node.attributes) {
-        const keysPart = attribute.keys.length > 0 ? ` ${attribute.keys.join(', ')}` : '';
-        const commentPart = attribute.comment ? ` "${attribute.comment}"` : '';
-        lines.push(`  ${attributeWord(attribute.type)} ${attributeWord(attribute.name)}${keysPart}${commentPart}`);
-      }
-      lines.push('}');
+    if (!declared.has(node.id) && node.attributes && node.attributes.length > 0) {
+      lines.push(...attributeBlock(node, ''));
       declared.add(node.id);
     }
   }
@@ -439,7 +591,7 @@ function writeErd(model: DiagramModel): string {
       edge.erSourceCardinality && edge.erTargetCardinality
         ? `${edge.erSourceCardinality}${lineToken}${edge.erTargetCardinality}`
         : DEFAULT_CARDINALITY;
-    lines.push(`${edge.sourceId} ${cardinalityToken} ${edge.targetId} : ${edge.label?.trim() || DEFAULT_RELATIONSHIP_LABEL}`);
+    lines.push(`${erName(edge.sourceId)} ${cardinalityToken} ${erName(edge.targetId)} : ${edge.label?.trim() || DEFAULT_RELATIONSHIP_LABEL}`);
     declared.add(edge.sourceId);
     declared.add(edge.targetId);
   }
