@@ -52,7 +52,23 @@ ER_TARGET_CARDINALITY_TOKENS = ("||", "o|", "|{", "o{")
 DEFAULT_RELATIONSHIP_LABEL = "relates to"
 ENTITY_BLOCK_START = re.compile(f"^({ID}){S}*\\{{\\Z")
 BLOCK_END = re.compile("^\\}\\Z")
-ATTRIBUTE_LINE = re.compile(f'^({NS}+){S}+({NS}+)(?:{S}+([^"]*?))?{S}*(?:"([^"]*)")?\\Z')
+#: canvas-lwa4: a type or name may be in backticks, so it can hold spaces (erd.ts ATTRIBUTE_WORD).
+ATTRIBUTE_WORD = f"(`[^`]+`|[^{JS_WHITESPACE}`]{NS}*)"
+ATTRIBUTE_LINE = re.compile(f'^{ATTRIBUTE_WORD}{S}+{ATTRIBUTE_WORD}(?:{S}+([^"]*?))?{S}*(?:"([^"]*)")?\\Z')
+_NEEDS_BACKTICKS = re.compile(f'[{JS_WHITESPACE}"]')
+
+
+def _unquote_word(word: str) -> str:
+    return word[1:-1] if word.startswith("`") else word
+
+
+def _attribute_word(word: Any) -> str:
+    """erd.ts attributeWord: in backticks when it holds whitespace or a double quote (and no backtick)."""
+    if isinstance(word, str) and _NEEDS_BACKTICKS.search(word) and "`" not in word:
+        return f"`{word}`"
+    return _js_text(word)
+
+
 RECOGNIZED_KEYS = {"PK", "FK", "UK"}
 ALIAS_BLOCK_START = re.compile(f"^({ID}){S}*\\[([^\\]]+)\\]{S}*\\{{\\Z")
 ALIAS_PATTERN = re.compile(f"^({ID}){S}*\\[([^\\]]+)\\]\\Z")
@@ -162,7 +178,13 @@ def parse_erd(dsl: str) -> dict[str, Any]:
                     if k in RECOGNIZED_KEYS
                 ]
                 push_attribute(
-                    open_entity["id"], {"type": attr_type, "name": name, "keys": keys, "comment": comment or None}
+                    open_entity["id"],
+                    {
+                        "type": _unquote_word(attr_type),
+                        "name": _unquote_word(name),
+                        "keys": keys,
+                        "comment": comment or None,
+                    },
                 )
                 continue
             errors.append(
@@ -359,9 +381,8 @@ def _write_erd(model: dict[str, Any]) -> str:
                 keys = attribute.get("keys") or []
                 keys_part = f" {', '.join(keys)}" if len(keys) > 0 else ""
                 comment_part = f' "{attribute["comment"]}"' if _js_truthy(attribute.get("comment")) else ""
-                lines.append(
-                    f"  {_js_text(attribute.get('type'))} {_js_text(attribute.get('name'))}{keys_part}{comment_part}"
-                )
+                words = f"{_attribute_word(attribute.get('type'))} {_attribute_word(attribute.get('name'))}"
+                lines.append(f"  {words}{keys_part}{comment_part}")
             lines.append("}")
             declared.add(node["id"])
     for node in nodes:

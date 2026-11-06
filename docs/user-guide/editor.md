@@ -135,7 +135,9 @@ exported, but Canvas doesn't show them as a menu). Participant types, such as
 `participant DB@{ "type": "database" }`, are drawn as the nearest Canvas shape: a database as a cylinder, a
 queue as a pill, and a boundary, control or entity as a circle. The type is kept and exported. Numbering can
 start anywhere and step by decimals (`autonumber 10`, `autonumber 1.5 0.25`). Class diagrams read
-`class A["Display label"]`.
+`class A["Display label"]`. In ER diagrams an attribute's type or name can hold spaces when it is
+written between backtick characters (the name first name, for example), and a type ending in `?`
+marks an optional value (`string? middleName`).
 
 Flowcharts read Mermaid's newer shape syntax, `A@{ shape: cyl, label: "Orders" }`, with any of
 Mermaid's shape names. Shapes Canvas has no drawing of (such as `doc`, `cloud` or `flag`), and icon

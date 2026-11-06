@@ -1,0 +1,74 @@
+{
+  "containers": [],
+  "diagramTypeId": "erd",
+  "edges": [
+    {
+      "erSourceCardinality": "||",
+      "erTargetCardinality": "o{",
+      "id": "e1",
+      "label": "lives at",
+      "sourceId": "PERSON",
+      "targetId": "ADDRESS"
+    }
+  ],
+  "nodes": [
+    {
+      "attributes": [
+        {
+          "keys": [],
+          "name": "firstName",
+          "type": "string"
+        },
+        {
+          "comment": "as on the passport",
+          "keys": [],
+          "name": "middle name",
+          "type": "string"
+        },
+        {
+          "keys": [],
+          "name": "age",
+          "type": "unsigned int"
+        },
+        {
+          "keys": [
+            "PK",
+            "FK"
+          ],
+          "name": "postal code",
+          "type": "string"
+        }
+      ],
+      "id": "PERSON",
+      "label": "PERSON",
+      "position": {
+        "x": 40,
+        "y": 40
+      },
+      "role": "entity",
+      "shape": "rectangle"
+    },
+    {
+      "attributes": [
+        {
+          "keys": [],
+          "name": "line 1",
+          "type": "string"
+        },
+        {
+          "keys": [],
+          "name": "town",
+          "type": "string"
+        }
+      ],
+      "id": "ADDRESS",
+      "label": "ADDRESS",
+      "position": {
+        "x": 240,
+        "y": 40
+      },
+      "role": "entity",
+      "shape": "rectangle"
+    }
+  ]
+}

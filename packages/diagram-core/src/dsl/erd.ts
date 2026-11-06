@@ -34,7 +34,13 @@ export const DEFAULT_RELATIONSHIP_LABEL = 'relates to';
 const ENTITY_BLOCK_START = new RegExp(`^(${ID})\\s*\\{$`);
 const BLOCK_END = /^\}$/;
 // string id PK, UK "comment"
-const ATTRIBUTE_LINE = /^(\S+)\s+(\S+)(?:\s+([^"]*?))?\s*(?:"([^"]*)")?$/;
+// canvas-lwa4: a type or name may be written in backticks (Mermaid 11.16), so it can hold spaces:
+// `` string `first name` PK ``. The backticks aren't part of the word.
+const ATTRIBUTE_WORD = String.raw`(\`[^\`]+\`|[^\s\`]\S*)`;
+const ATTRIBUTE_LINE = new RegExp(`^${ATTRIBUTE_WORD}\\s+${ATTRIBUTE_WORD}(?:\\s+([^"]*?))?\\s*(?:"([^"]*)")?$`);
+const unquoteWord = (word: string): string => (word.startsWith('`') ? word.slice(1, -1) : word);
+/** A type or name as written: in backticks when it holds whitespace or a double quote (and no backtick). */
+const attributeWord = (word: string): string => (/[\s"]/.test(word) && !word.includes('`') ? `\`${word}\`` : word);
 const RECOGNIZED_KEYS = new Set(['PK', 'FK', 'UK']);
 
 // jmuir-dtu.6: entity aliases — "An alias can be added to an entity using square brackets. If
@@ -207,7 +213,7 @@ export function parseErd(dsl: string): ParseResult {
         // 4th group and immediately discarded — a real Mermaid attribute comment ("does not
         // impact the rendering of the diagram" per Mermaid's own docs, but is still real authored
         // content) silently vanished on every save.
-        pushAttribute(openEntity.id, { type, name, keys, comment: comment || undefined });
+        pushAttribute(openEntity.id, { type: unquoteWord(type), name: unquoteWord(name), keys, comment: comment || undefined });
         continue;
       }
       errors.push({ line: i + 1, content: rawLine, message: `Could not interpret line as an entity attribute: "${line}"` });
@@ -406,7 +412,7 @@ function writeErd(model: DiagramModel): string {
       for (const attribute of node.attributes) {
         const keysPart = attribute.keys.length > 0 ? ` ${attribute.keys.join(', ')}` : '';
         const commentPart = attribute.comment ? ` "${attribute.comment}"` : '';
-        lines.push(`  ${attribute.type} ${attribute.name}${keysPart}${commentPart}`);
+        lines.push(`  ${attributeWord(attribute.type)} ${attributeWord(attribute.name)}${keysPart}${commentPart}`);
       }
       lines.push('}');
       declared.add(node.id);

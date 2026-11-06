@@ -116,7 +116,9 @@ IDS = ["CUSTOMER", "ORDER", "o", "A", "line-item", "_x", "9", "B2", "constructor
 CARDS = ["||", "|o", "}|", "}o", "o|", "|{", "o{", "{{", "|"]
 LINES = ["--", "..", "-", "-.", ""]
 LABELS = ["places", '"quoted, label"', '"half', 'say "hi"', "x : y", '""', "  spaced  ", "émoji 🎨", "a%%b"]
-TYPES = ["string", "int", "varchar(255)", "date", "x"]
+TYPES = ["string", "int", "varchar(255)", "date", "x", "string?", "`big int`", '`a"b`', "`x`y", "`open"]
+#: canvas-lwa4: names in backticks (spaces, quotes), and malformed ones.
+NAMES = ["f{k}", "`first name {k}`", "`n{k}`", "`a b`c{k}", "`{k}"]
 KEYS = ["", " PK", " FK", " UK", " pk, fk", " PK,UK", " XX", " PK , ZZ, uk"]
 COMMENTS = ["", ' "note"', ' ""', ' "a, b"']
 CLASSES = ["warm", "cool", "k-2"]
@@ -134,7 +136,8 @@ def _line(rnd: random.Random) -> list[str]:
     if r < 0.42:
         head = _entity(rnd) + rnd.choice(["", "[Alias Name]", " [x]"])
         body = [
-            f"    {rnd.choice(TYPES)} f{k}{rnd.choice(KEYS)}{rnd.choice(COMMENTS)}" for k in range(rnd.randint(0, 3))
+            f"    {rnd.choice(TYPES)} {rnd.choice(NAMES).format(k=k)}{rnd.choice(KEYS)}{rnd.choice(COMMENTS)}"
+            for k in range(rnd.randint(0, 3))
         ]
         return [f"  {head} {{", *body, *(["  }"] if rnd.random() < 0.92 else [])]
     if r < 0.5:

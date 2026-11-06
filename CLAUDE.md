@@ -100,6 +100,13 @@ tests are NON-NEGOTIABLE and must exist (and fail) before implementing any diagr
 work — see `.specify/memory/constitution.md` Principle IV.
 
 ## Recent Changes
+- `canvas-lwa4` part 3 (Mermaid 12 extras, ER attributes): **backtick attribute words.** `` string `first name` PK ``
+  was misread (name `` `first ``, keys lost). erd.ts `ATTRIBUTE_WORD` (Python `ATTRIBUTE_WORD`) reads a backticked
+  type or name (backticks dropped); `attributeWord` / `_attribute_word` writes one back in backticks when it holds
+  whitespace or `"` (and no backtick). Optional types (`string? x`) already worked and draw in Mermaid 12.2.
+  Corpus `erd-attribute-backticks`, `erd-optional-types`; ER fuzz generates backtick words. ER subgraphs are a
+  support note until their own part. Pitfall: the mermaid-export spec imports diagram-core's BUILT copy -- rebuild
+  (`npm run build --workspace=@canvas/diagram-core`) before running it locally, or it tests the old parser.
 - `canvas-lwa4` part 2 (Mermaid 12 extras, C4): **a relationship can end on a boundary** (Mermaid 12.0). Parsing,
   saving and drawing already worked (renderers use `containerAsEndpoint`); now the editor's connect mode accepts a
   C4 boundary click (Canvas.tsx `handleContainerPointerDown`, as for state composites) and the AI's `addEdge` takes

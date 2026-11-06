@@ -1,0 +1,39 @@
+{
+  "containers": [],
+  "diagramTypeId": "erd",
+  "edges": [],
+  "nodes": [
+    {
+      "attributes": [
+        {
+          "keys": [],
+          "name": "firstName",
+          "type": "string"
+        },
+        {
+          "keys": [],
+          "name": "middleName",
+          "type": "string?"
+        },
+        {
+          "keys": [],
+          "name": "lastName",
+          "type": "string"
+        },
+        {
+          "keys": [],
+          "name": "diedOn",
+          "type": "date?"
+        }
+      ],
+      "id": "PERSON",
+      "label": "PERSON",
+      "position": {
+        "x": 40,
+        "y": 40
+      },
+      "role": "entity",
+      "shape": "rectangle"
+    }
+  ]
+}
