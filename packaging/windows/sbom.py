@@ -223,6 +223,8 @@ def main() -> None:
         parser.add_argument(f"--{name}", required=True)
     args = parser.parse_args()
     document = build(Path(args.stage), Path(args.root), args.version, args.python_url, args.python_sha256)
+    # The output path is this build tool's own command-line argument (build.ps1 passes it), not outside input.
+    # bearer:disable python_lang_path_traversal
     Path(args.output).write_text(json.dumps(document, indent=2) + "\n", encoding="utf-8")
     print(f"SBOM: {len(document['components'])} components -> {args.output}")
 
