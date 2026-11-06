@@ -51,7 +51,7 @@ CONNECTOR_LINE_STYLE_OPTIONS: dict[str, tuple[str, ...]] = {
     "flowchart": ("solid", "dotted", "thick", "invisible"),
     "sequence": ("solid", "dotted"),
 }
-GROUPABLE_FAMILIES = frozenset({"architecture", "c4", "uml", "sequence", "state"})
+GROUPABLE_FAMILIES = frozenset({"architecture", "c4", "erd", "uml", "sequence", "state"})
 SIDES = ("above", "below", "left", "right")
 ALIGNMENTS = ("left", "center", "right", "top", "middle", "bottom")
 #: The directions the editor's Auto Layout button offers (TB is the same as TD).
@@ -183,11 +183,11 @@ def create_tools(family: str, rules: JsonObj | None = None) -> dict[str, Tool]:
         model = state.model
         source, target = args["sourceId"], args["targetId"]
         # canvas-bnnh: in a state diagram a connector may also end on a composite state (a group); canvas-lwa4:
-        # in C4 on a boundary (Mermaid 12).
+        # in C4 on a boundary (Mermaid 12), in an ER diagram on a subgraph (Mermaid 11.17).
         missing = [
             i
             for i in (source, target)
-            if not _has(model["nodes"], i) and not (family in ("state", "c4") and _has(model["containers"], i))
+            if not _has(model["nodes"], i) and not (family in ("state", "c4", "erd") and _has(model["containers"], i))
         ]
         if missing:
             return not_found(state, "addEdge", "shape", missing[0])
@@ -624,7 +624,7 @@ def create_tools(family: str, rules: JsonObj | None = None) -> dict[str, Tool]:
                 )
             )
         tools["groupIntoContainer"] = Tool(
-            "Group one or more existing shapes into a new labeled container (a boundary/namespace/box, "
+            "Group one or more existing shapes into a new labeled container (a boundary/namespace/box/subgraph, "
             "depending on the diagram type). Returns the new container's id.",
             Obj.of(**group_shape),
             group_into_container,

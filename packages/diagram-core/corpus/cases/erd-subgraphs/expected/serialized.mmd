@@ -1,0 +1,68 @@
+---
+canvas:
+  positions:
+    CATALOGUE:
+      x: 680
+      y: 90
+    CUSTOMER:
+      x: 80
+      y: 140
+    ORDER:
+      x: 260
+      y: 140
+    ACCOUNT:
+      x: 480
+      y: 140
+    INVOICE:
+      x: 900
+      y: 90
+    PRODUCT:
+      x: 40
+      y: 289.6
+  styles: {}
+  containers:
+    Shop:
+      x: 40
+      y: 40
+      width: 800
+      height: 209.6
+    Sales:
+      x: 60
+      y: 90
+      width: 360
+      height: 139.6
+    Customer Domain:
+      x: 460
+      y: 90
+      width: 180
+      height: 130
+    Billing:
+      x: 880
+      y: 40
+      width: 180
+      height: 130
+---
+erDiagram
+direction LR
+subgraph Shop [Online shop]
+  direction TB
+  CATALOGUE
+  subgraph Sales
+    CUSTOMER
+    ORDER {
+      string id PK
+      date placedOn
+    }
+  end
+  subgraph "Customer Domain"
+    ACCOUNT[Customer account] {
+    }
+  end
+end
+subgraph Billing
+  INVOICE
+end
+CUSTOMER ||--o{ ORDER : places
+Sales ||--|{ Billing : bills
+"Customer Domain" ||--o{ INVOICE : receives
+PRODUCT }|--|| ORDER : is in

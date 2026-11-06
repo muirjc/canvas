@@ -1,0 +1,14 @@
+erDiagram
+  subgraph Sales
+    CUSTOMER
+  end
+  subgraph Sales
+    ORDER
+  end
+  Billing
+  subgraph Billing
+    INVOICE
+  end
+  "No Such Group" ||--o{ ORDER : has
+  subgraph Open
+    THING

@@ -149,3 +149,23 @@ def test_a_c4_connector_may_end_on_a_boundary() -> None:
         "flowchart", None, {**model, "diagramTypeId": "flowchart"}, "addEdge", {"sourceId": "u", "targetId": "b"}
     )
     assert flowchart["output"]["applied"] is False
+
+
+def test_er_entities_can_be_grouped_into_a_subgraph_and_connected_to_it() -> None:
+    """canvas-lwa4: ER subgraphs (Mermaid 11.17): the AI can group entities and relate an entity to a subgraph."""
+    entity = {"shape": "rectangle", "role": "entity", "position": {"x": 0, "y": 0}}
+    model = {
+        "diagramTypeId": "erd",
+        "nodes": [{"id": "CUSTOMER", "label": "CUSTOMER", **entity}, {"id": "ORDER", "label": "ORDER", **entity}],
+        "edges": [],
+        "containers": [],
+    }
+    grouped = run_tool("erd", None, model, "groupIntoContainer", {"nodeIds": ["CUSTOMER"], "label": "Sales"})
+    assert grouped["output"]["applied"] is True
+    group_id = grouped["output"]["containerId"]
+    assert [n.get("containerId") for n in grouped["model"]["nodes"]] == [group_id, None]
+    related = run_tool(
+        "erd", None, grouped["model"], "addEdge", {"sourceId": "ORDER", "targetId": group_id, "label": "sold by"}
+    )
+    assert related["output"] == {"applied": True}
+    assert [(e["sourceId"], e["targetId"]) for e in related["model"]["edges"]] == [("ORDER", group_id)]

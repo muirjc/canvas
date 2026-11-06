@@ -1,0 +1,24 @@
+erDiagram
+direction LR
+subgraph Shop [Online shop]
+  direction TB
+  CATALOGUE
+  subgraph Sales
+    CUSTOMER
+    ORDER {
+      string id PK
+      date placedOn
+    }
+  end
+  subgraph "Customer Domain"
+    ACCOUNT["Customer account"] {
+    }
+  end
+end
+subgraph Billing
+  INVOICE
+end
+CUSTOMER ||--o{ ORDER : "places"
+Sales ||--|{ Billing : "bills"
+"Customer Domain" ||--o{ INVOICE : "receives"
+PRODUCT }|--|| ORDER : "is in"

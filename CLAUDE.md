@@ -100,6 +100,21 @@ tests are NON-NEGOTIABLE and must exist (and fail) before implementing any diagr
 work — see `.specify/memory/constitution.md` Principle IV.
 
 ## Recent Changes
+- `canvas-lwa4` part 4 (Mermaid 12 extras, ER subgraphs): **ER diagrams have groups.** erd.ts / erd.py read
+  `subgraph Id [Title]` / `subgraph "Quoted id"` ... `end` (nestable, `direction` inside = the group's own) as
+  containers (no role; `parentContainerId` for nesting). Membership as Mermaid's erDb: after reading, subgraphs
+  in the order they CLOSE (inner first) take the entities named directly inside them (declarations, attribute
+  blocks, aliases, `:::`, relationship ends) that no subgraph has yet. A relationship end naming a subgraph is
+  the group (implicit entity removed); a quoted end must be a subgraph; an id both declared as an entity and a
+  subgraph, a duplicate subgraph, an unclosed one = errors. Places/sizes in front matter `canvas.containers`
+  (written only when there are groups; only stored NUMBERS are trusted, else placed again); a fresh import with
+  subgraphs uses computeContainmentLayout. Writer: subgraph blocks first (entities declared inside; an aliased
+  entity without attributes as `ID[Alias] {` `}` because Mermaid's bare `ID[Alias]` doesn't join the subgraph),
+  then the old top-level passes, relationships last (Mermaid resolves a subgraph id only after its block);
+  ids/ends quoted when not plain, titles quoted unless plain words. Before this, Add Container worked in ER but
+  saving dropped the group. Editor: connect mode ends on an ER group; AI: `groupIntoContainer` for erd,
+  `addEdge` to an ER group, primer. Corpus `erd-subgraphs`, `error-erd-subgraphs`; Python fuzz
+  `_subgraph_diagram` (parse, serialize, portable, render, Auto Layout; caught a reversed membership order).
 - `canvas-lwa4` part 3 (Mermaid 12 extras, ER attributes): **backtick attribute words.** `` string `first name` PK ``
   was misread (name `` `first ``, keys lost). erd.ts `ATTRIBUTE_WORD` (Python `ATTRIBUTE_WORD`) reads a backticked
   type or name (backticks dropped); `attributeWord` / `_attribute_word` writes one back in backticks when it holds
