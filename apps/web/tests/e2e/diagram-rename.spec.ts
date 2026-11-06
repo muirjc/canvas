@@ -74,7 +74,12 @@ test('typing a new name and pressing Enter commits it', async ({ page }) => {
   const input = page.getByTestId('diagram-title-input');
   const newName = `${originalName} Renamed`;
   await input.fill(newName);
+  // The box closes when the server has answered, which can be slow late in a CI run: wait for the answer.
+  const renamed = page.waitForResponse(
+    (r) => r.url().endsWith(`/diagrams/${diagramId}/name`) && r.request().method() === 'PATCH',
+  );
   await input.press('Enter');
+  expect((await renamed).ok()).toBe(true);
 
   await expect(page.getByTestId('diagram-title-input')).toHaveCount(0);
   await expect(page.getByTestId('diagram-title')).toHaveText(newName);
@@ -97,7 +102,11 @@ test('typing a new name and blurring (clicking elsewhere) also commits it', asyn
   await input.fill(newName);
 
   // Click a neutral, non-interactive element to move focus away without pressing Enter.
+  const renamed = page.waitForResponse(
+    (r) => r.url().endsWith(`/diagrams/${diagramId}/name`) && r.request().method() === 'PATCH',
+  );
   await page.getByTestId('save-status').click();
+  expect((await renamed).ok()).toBe(true);
 
   await expect(page.getByTestId('diagram-title-input')).toHaveCount(0);
   await expect(page.getByTestId('diagram-title')).toHaveText(newName);
