@@ -1,0 +1,23 @@
+---
+canvas:
+  positions:
+    PERSON:
+      x: 40
+      y: 40
+    ADDRESS:
+      x: 240
+      y: 40
+  styles: {}
+---
+erDiagram
+PERSON {
+  string firstName
+  string `middle name` "as on the passport"
+  `unsigned int` age
+  string `postal code` PK, FK
+}
+ADDRESS {
+  string `line 1`
+  string town
+}
+PERSON ||--o{ ADDRESS : lives at
