@@ -1829,10 +1829,11 @@ export function Canvas({ model: modelProp, onChange: onChangeProp, dslFamily, to
   const handleContainerPointerDown = (container: DiagramContainer) => (event: React.PointerEvent) => {
     // Containers sit behind shapes; a pointer-down that reached here is on the container itself.
     event.stopPropagation();
-    // canvas-bnnh: a state diagram's connector may start or end on a composite state; the click goes
-    // through the node path, which only needs an id.
+    // canvas-bnnh: a state diagram's connector may start or end on a composite state, and (canvas-lwa4,
+    // Mermaid 12) a C4 relationship on a boundary; the click goes through the node path, which only needs an id.
     if (connectMode) {
-      const endpoint = dslFamily === 'state' && container.role !== 'region' && !container.role?.startsWith('note') ? containerAsEndpoint(container) : undefined;
+      const canEnd = dslFamily === 'c4' || (dslFamily === 'state' && container.role !== 'region' && !container.role?.startsWith('note'));
+      const endpoint = canEnd ? containerAsEndpoint(container) : undefined;
       if (endpoint) handleNodePointerDown(endpoint)(event);
       return;
     }

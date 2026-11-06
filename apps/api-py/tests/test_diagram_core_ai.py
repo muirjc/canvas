@@ -130,3 +130,22 @@ def test_an_empty_list_where_one_item_is_needed_reads_as_zod_says() -> None:
         "  }\n"
         "]",
     }
+
+
+def test_a_c4_connector_may_end_on_a_boundary() -> None:
+    """canvas-lwa4: Mermaid 12 lets a C4 relationship start or end on a boundary; the AI's addEdge does too."""
+    model = {
+        "diagramTypeId": "c4-context",
+        "nodes": [{"id": "u", "label": "User", "shape": "person", "role": "person", "position": {"x": 0, "y": 0}}],
+        "edges": [],
+        "containers": [{"id": "b", "label": "Bank", "role": "system-boundary", "position": {"x": 0, "y": 0}}],
+    }
+    result = run_tool("c4", None, model, "addEdge", {"sourceId": "u", "targetId": "b", "label": "Uses"})
+    assert result["output"] == {"applied": True}
+    assert [(e["sourceId"], e["targetId"]) for e in result["model"]["edges"]] == [("u", "b")]
+    missing = run_tool("c4", None, model, "addEdge", {"sourceId": "u", "targetId": "nowhere", "label": "Uses"})
+    assert missing["output"]["applied"] is False
+    flowchart = run_tool(
+        "flowchart", None, {**model, "diagramTypeId": "flowchart"}, "addEdge", {"sourceId": "u", "targetId": "b"}
+    )
+    assert flowchart["output"]["applied"] is False
