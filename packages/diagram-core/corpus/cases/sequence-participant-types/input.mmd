@@ -1,0 +1,23 @@
+sequenceDiagram
+  autonumber .5 0.25
+  actor U as Customer
+  participant Web@{ "type": "boundary" } as Web shop
+  participant Orders@{ "type": "control", "alias": "Order service" }
+  participant Order@{ type: entity }
+  participant DB@{ "type": "database", "alias": "Orders DB" } as Orders DB
+  participant Items@{ 'type': 'collections' }
+  actor Q@{ "type": "queue", "alias": "Dispatch queue" }
+  participant Odd@{ "type": "hologram" }
+  box Aqua Partners
+    participant Pay@{ "type": "boundary" } as Payments
+  end
+  U->>Web: place order
+  Web->>Orders: create order
+  Orders->>Order: new
+  Order->>DB: insert
+  Orders->>Items: reserve
+  Orders->>Pay: charge
+  create participant Mail@{ "type": "control" } as Mailer
+  Orders->>Mail: confirm
+  Orders-)Q: dispatch
+  Odd->>U: ?

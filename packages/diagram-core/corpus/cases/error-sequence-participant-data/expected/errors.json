@@ -1,0 +1,14 @@
+{
+  "errors": [
+    {
+      "content": "  participant A@{ type: \"database\", type: \"queue\" }",
+      "line": 2,
+      "message": "Could not read the participant's @{ … } block: \"type\" is given twice"
+    },
+    {
+      "content": "  participant B@{ alias }",
+      "line": 3,
+      "message": "Could not read the participant's @{ … } block: Expected \":\" after \"alias\""
+    }
+  ]
+}

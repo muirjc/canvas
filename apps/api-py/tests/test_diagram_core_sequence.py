@@ -106,6 +106,29 @@ def _id(rnd: random.Random) -> str:
     return rnd.choice(IDS)
 
 
+#: canvas-lwa4: participant `@{ ... }` blocks, good and bad.
+PARTICIPANT_BLOCKS = [
+    '@{ "type": "database" }',
+    "@{type: queue, alias: Jobs}",
+    ' @{ "type": "boundary", "alias": "Edge" }',
+    "@{ 'type': 'control' }",
+    '@{ type: "entity", alias: "" }',
+    '@{ "type": "collections" }',
+    '@{ "type": "actor" }',
+    '@{ "type": "nonsense" }',
+    "@{ type: 5 }",
+    "@{ alias: true }",
+    "@{ }",
+    "@{ type }",
+    '@{ "type": "x", "type": "y" }',
+    '@{ "type": "a}b" }',
+]
+
+
+def _block(rnd: random.Random) -> str:
+    return rnd.choice(["", "", *PARTICIPANT_BLOCKS])
+
+
 def _line(rnd: random.Random, in_block: str | None) -> str:
     r = rnd.random()
     sp = rnd.choice(["", " ", "  "])
@@ -126,8 +149,8 @@ def _line(rnd: random.Random, in_block: str | None) -> str:
             ]
         )
     if r < 0.45:
-        alias = rnd.choice(["", f" as {rnd.choice(LABELS)}", " as", " AS x"])
-        return f"{rnd.choice(['participant', 'actor', 'Participant'])} {_id(rnd)}{alias}"
+        alias = rnd.choice(["", f" as {rnd.choice(LABELS)}", " as", " AS x", " as A", " as Edge"])
+        return f"{rnd.choice(['participant', 'actor', 'Participant'])} {_id(rnd)}{_block(rnd)}{alias}"
     if r < 0.55:
         where = rnd.choice(["left of", "right of", "over", "Over", "left  of"])
         ids = ",".join(_id(rnd) for _ in range(rnd.randint(1, 3)))
@@ -136,11 +159,23 @@ def _line(rnd: random.Random, in_block: str | None) -> str:
         return f"{rnd.choice(['activate', 'deactivate', 'destroy'])} {_id(rnd)}"
     if r < 0.66:
         alias = rnd.choice(["", f" as {rnd.choice(LABELS)}"])
-        return f"create {rnd.choice(['participant', 'actor'])} {_id(rnd)}{alias}"
+        return f"create {rnd.choice(['participant', 'actor'])} {_id(rnd)}{_block(rnd)}{alias}"
     if r < 0.7 and in_block:
         return rnd.choice(["else", "else otherwise", "and", "and more", "option", "option x"])
     if r < 0.74:
-        return rnd.choice(["autonumber", "autonumber off", "autonumber 3 2", "autonumber 0.5 1.25", "autonumber 1"])
+        return rnd.choice(
+            [
+                "autonumber",
+                "autonumber off",
+                "autonumber 3 2",
+                "autonumber 0.5 1.25",
+                "autonumber 1",
+                "autonumber 10",
+                "autonumber .5 .25",
+                "autonumber 1.555 1",
+                "autonumber 2.50",
+            ]
+        )
     if r < 0.77:
         return rnd.choice(["title " + rnd.choice(LABELS), "accTitle: t", "accDescr : d", "%% comment"])
     if r < 0.79:
@@ -179,7 +214,8 @@ def diagram(rnd: random.Random) -> str:
             title = rnd.choice(["", " Team", " Big team"])
             out.append(f"box{color}{title}")
             for _ in range(rnd.randint(0, 2)):
-                out.append(f"  {rnd.choice(['participant', 'actor'])} {_id(rnd)}{rnd.choice(['', ' as Box member'])}")
+                alias = rnd.choice(["", " as Box member"])
+                out.append(f"  {rnd.choice(['participant', 'actor'])} {_id(rnd)}{_block(rnd)}{alias}")
             if rnd.random() < 0.9:
                 out.append("end")
         else:
@@ -237,3 +273,38 @@ def test_native_sequence_matches_the_bridge_on_generated_diagrams(bridge: Diagra
             failures.append(f"seed={seed} index={index} differs in {found}:\n{dsl!r}")
     assert not failures, "\n\n".join(failures[:3])
     assert parsed_ok >= 5, "the generator should produce some diagrams that parse"
+
+
+def participants_diagram(rnd: random.Random) -> str:
+    """canvas-lwa4: mostly valid diagrams built around typed participants (declared again, aliased, boxed,
+    created), so the generated `@{ ... }` blocks get as far as serializing and drawing."""
+    out = ["sequenceDiagram"]
+    for _ in range(rnd.randint(1, 8)):
+        r = rnd.random()
+        alias = rnd.choice(["", "", " as A", " as Edge", f" as {rnd.choice(LABELS)}"])
+        keyword = rnd.choice(["participant", "actor"])
+        if r < 0.5:
+            out.append(f"{keyword} {_id(rnd)}{_block(rnd)}{alias}")
+        elif r < 0.6:
+            out += ["box Aqua Team", f"  {keyword} {_id(rnd)}{_block(rnd)}{alias}", "end"]
+        elif r < 0.7:
+            out.append(f"create {keyword} {_id(rnd)}{_block(rnd)}{alias}")
+        else:
+            out.append(f"{_id(rnd)}->>{_id(rnd)}: {rnd.choice(LABELS)}")
+    return "\n".join(out) + "\n"
+
+
+def test_native_sequence_matches_the_bridge_on_typed_participants(bridge: DiagramBridge) -> None:
+    rnd = random.Random(7)
+    failures: list[str] = []
+    typed = 0
+    for index in range(300):
+        dsl = participants_diagram(rnd)
+        parsed = parse_sequence(dsl)
+        if "model" in parsed and any(n.get("mermaidData") is not None for n in parsed["model"]["nodes"]):
+            typed += 1
+        found = _differences(bridge, dsl)
+        if found:
+            failures.append(f"#{index} {found}:\n{dsl}")
+    assert typed > 100, typed
+    assert not failures, "\n\n".join(failures[:3])

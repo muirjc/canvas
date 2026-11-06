@@ -22,6 +22,7 @@ from canvas_api.diagram_core.front_matter import (
 )
 from canvas_api.diagram_core.jsvalues import js_parse_float, js_truthy
 from canvas_api.diagram_core.jsyaml import js_key_order
+from canvas_api.diagram_core.mermaid_shape_data import data_entries, format_shape_data, parse_shape_data
 from canvas_api.diagram_core.model import create_empty_diagram_model, is_allowed_link_href
 from canvas_api.github.jstext import JS_WHITESPACE, js_len, js_number, js_trim
 
@@ -31,7 +32,34 @@ S = f"[{JS_WHITESPACE}]"  # JavaScript's \s
 DOT = "[^\\n\\r\\u2028\\u2029]"  # JavaScript's .
 ID = "[A-Za-z0-9_]+"
 
-PARTICIPANT_PATTERN = re.compile(f"^(participant|actor){S}+({ID})(?:{S}+as{S}+({DOT}+))?\\Z")
+#: canvas-lwa4: `participant API@{ "type": "database" }` (sequence.ts PARTICIPANT_DATA): the block is the
+#: participant's `mermaidData`; its `type` sets the shape drawn, its `alias` the label unless an `as` alias other
+#: than the id is given.
+PARTICIPANT_DATA = f"(?:{S}*@\\{{([^{{}}]*)\\}})?"
+PARTICIPANT_PATTERN = re.compile(f"^(participant|actor){S}+({ID}){PARTICIPANT_DATA}(?:{S}+as{S}+({DOT}+))?\\Z")
+PARTICIPANT_TYPE_SHAPES = {
+    "participant": "rectangle",
+    "actor": "person",
+    "boundary": "circle",
+    "control": "circle",
+    "entity": "circle",
+    "database": "cylinder",
+    "collections": "rectangle",
+    "queue": "stadium",
+}
+
+
+def _participant_shape(node: dict[str, Any]) -> str:
+    """The shape a participant is drawn as: its Mermaid type when it has one, else its keyword's."""
+    data = node.get("mermaidData")
+    participant_type = data.get("type") if isinstance(data, dict) else None
+    if participant_type is not None:
+        return (PARTICIPANT_TYPE_SHAPES.get(participant_type) if isinstance(participant_type, str) else None) or (
+            "rectangle"
+        )
+    return "person" if node.get("role") == "actor" else "rectangle"
+
+
 #: Each literal token is distinct, so the alternation order only matters as it does in JavaScript (same order).
 #: canvas-8wxq: Mermaid 11.12's half arrows (sequence.ts HALF_ARROW_TOKENS); `--` for the dotted form.
 HALF_ARROW_TOKENS = {
@@ -86,16 +114,19 @@ TOP_LEVEL_BLOCK_KEYWORDS = {"loop", "alt", "opt", "par", "critical", "break", "r
 NOTE_POSITION_TO_ROLE = {"left of": "note-left", "right of": "note-right", "over": "note-over"}
 ACTIVATE_PATTERN = re.compile(f"^activate{S}+({ID})\\Z")
 DEACTIVATE_PATTERN = re.compile(f"^deactivate{S}+({ID})\\Z")
-CREATE_PATTERN = re.compile(f"^create{S}+(participant|actor){S}+({ID})(?:{S}+as{S}+({DOT}+))?\\Z")
+CREATE_PATTERN = re.compile(f"^create{S}+(participant|actor){S}+({ID}){PARTICIPANT_DATA}(?:{S}+as{S}+({DOT}+))?\\Z")
 DESTROY_PATTERN = re.compile(f"^destroy{S}+({ID})\\Z")
 #: Only rgb()/rgba()/transparent are read as the box's color; a named color is part of the title.
 BOX_START = re.compile(f"^box(?:{S}+(rgba?\\([^)]*\\)|transparent))?(?:{S}+({DOT}+))?\\Z")
-AUTONUMBER_PATTERN = re.compile(f"^autonumber(?:{S}+(off)|{S}+([0-9]+(?:\\.[0-9]+)?){S}+([0-9]+(?:\\.[0-9]+)?))?\\Z")
+#: canvas-lwa4: `autonumber <start>` too, and numbers as Mermaid's NUM token reads them (two decimals at most).
+AUTONUMBER_NUM = "([0-9]+(?:\\.[0-9]{1,2})?|\\.[0-9]{1,2})"
+AUTONUMBER_PATTERN = re.compile(f"^autonumber(?:{S}+(off)|{S}+{AUTONUMBER_NUM}(?:{S}+{AUTONUMBER_NUM})?)?\\Z")
 TITLE_PATTERN = re.compile(f"^title{S}+({DOT}+)\\Z")
 ACC_TITLE_PATTERN = re.compile(f"^accTitle{S}*:{S}*({DOT}+)\\Z")
 ACC_DESCR_PATTERN = re.compile(f"^accDescr{S}*:{S}*({DOT}+)\\Z")
 MERMAID_CONFIG_DIRECTIVE_PATTERN = re.compile(f"^%%\\{{{DOT}*\\}}%%\\Z")
 _LINE_SPLIT = re.compile(r"\r?\n")
+_BRACE = re.compile("[{}]")
 
 
 def _placeholder() -> dict[str, float]:
@@ -153,11 +184,15 @@ def parse_sequence(dsl: str) -> dict[str, Any]:
         return order
 
     def ensure_participant(
-        node_id: str, kind: str = "participant", alias: str | None = None, box_id: str | None = None
+        node_id: str,
+        kind: str = "participant",
+        alias: str | None = None,
+        box_id: str | None = None,
+        data: dict[str, Any] | None = None,
     ) -> None:
-        existing = nodes_by_id.get(node_id)
-        if existing is None:
-            nodes_by_id[node_id] = {
+        node = nodes_by_id.get(node_id)
+        if node is None:
+            node = {
                 "id": node_id,
                 "label": alias if alias is not None else node_id,
                 "shape": "person" if kind == "actor" else "rectangle",
@@ -165,12 +200,37 @@ def parse_sequence(dsl: str) -> dict[str, Any]:
                 "position": _placeholder(),
                 "containerId": box_id,
             }
-            return
-        if alias is not None:
-            existing["label"] = alias
-        if kind == "actor":
-            existing["role"] = "actor"
-            existing["shape"] = "person"
+            nodes_by_id[node_id] = node
+        else:
+            if alias is not None:
+                node["label"] = alias
+            if kind == "actor":
+                node["role"] = "actor"
+                node["shape"] = "person"
+        if data is not None:
+            node["mermaidData"] = data
+            data_alias = data.get("alias")
+            if (alias is None or alias == node_id) and isinstance(data_alias, str) and data_alias != "":
+                node["label"] = data_alias
+        if node.get("mermaidData") is not None:
+            node["shape"] = _participant_shape(node)
+
+    def read_participant_data(inner: str | None, line_number: int, content: str) -> tuple[bool, dict[str, Any] | None]:
+        """(read, the participant's `@{ ... }` block or None without one); read is False when the block is malformed
+        (the error is recorded)."""
+        if inner is None:
+            return True, None
+        read = parse_shape_data(inner)
+        if "error" in read:
+            errors.append(
+                {
+                    "line": line_number,
+                    "content": content,
+                    "message": f"Could not read the participant's @{{ … }} block: {read['error']}",
+                }
+            )
+            return False, None
+        return True, _entries(read["entries"])
 
     def push_point_item(role: str, participant_id: str) -> None:
         counters["container"] += 1
@@ -218,7 +278,9 @@ def parse_sequence(dsl: str) -> dict[str, Any]:
                 open_box = None
                 continue
             if m := PARTICIPANT_PATTERN.match(line):
-                ensure_participant(m.group(2), m.group(1), m.group(3), open_box["id"])
+                read, data = read_participant_data(m.group(3), i + 1, raw_line)
+                if read:
+                    ensure_participant(m.group(2), m.group(1), m.group(4), open_box["id"], data)
                 continue
             errors.append(
                 {
@@ -283,7 +345,10 @@ def parse_sequence(dsl: str) -> dict[str, Any]:
             push_point_item("deactivate", m.group(1))
             continue
         if m := CREATE_PATTERN.match(line):
-            ensure_participant(m.group(2), m.group(1), m.group(3))
+            read, data = read_participant_data(m.group(3), i + 1, raw_line)
+            if not read:
+                continue
+            ensure_participant(m.group(2), m.group(1), m.group(4), None, data)
             push_point_item("create", m.group(2))
             continue
         if m := DESTROY_PATTERN.match(line):
@@ -339,7 +404,9 @@ def parse_sequence(dsl: str) -> dict[str, Any]:
             continue
 
         if m := PARTICIPANT_PATTERN.match(line):
-            ensure_participant(m.group(2), m.group(1), m.group(3))
+            read, data = read_participant_data(m.group(3), i + 1, raw_line)
+            if read:
+                ensure_participant(m.group(2), m.group(1), m.group(4), None, data)
             continue
 
         if m := LINK_PATTERN.match(line):
@@ -510,8 +577,19 @@ def _participant_keyword(node: dict[str, Any] | None) -> str:
     return "actor" if node is not None and node.get("role") == "actor" else "participant"
 
 
-def _alias(node: dict[str, Any]) -> str:
-    return f" as {_t(node.get('label'))}" if node.get("label") != node.get("id") else ""
+def _participant_declaration(node: dict[str, Any]) -> str:
+    """sequence.ts participantDeclaration: the keyword, the id, the `@{ ... }` block (its alias dropped when the label
+    is back to the id) and `as <label>` when the label differs from what the declaration shows without it."""
+    data = node.get("mermaidData")
+    data_alias = data.get("alias") if isinstance(data, dict) else None
+    entries = [(k, v) for k, v in data_entries(data) if not (isinstance(v, str) and _BRACE.search(v))]
+    if node.get("label") == node.get("id"):
+        entries = [(k, v) for k, v in entries if k != "alias"]
+    has_alias = isinstance(data_alias, str) and data_alias != "" and any(k == "alias" for k, _ in entries)
+    shown = data_alias if has_alias else node.get("id")
+    block = format_shape_data(entries) if entries else ""
+    as_part = f" as {_t(node.get('label'))}" if node.get("label") != shown else ""
+    return f"{_participant_keyword(node)} {_t(node.get('id'))}{block}{as_part}"
 
 
 def _serialize_container(container: dict[str, Any], model: dict[str, Any], indent: str) -> list[str]:
@@ -521,8 +599,8 @@ def _serialize_container(container: dict[str, Any], model: dict[str, Any], inden
     if role == "create":
         participant_id = _first_attached(container)
         node = next((n for n in model["nodes"] if n.get("id") == participant_id), None)
-        alias = _alias(node) if node is not None else ""
-        return [f"{indent}create {_participant_keyword(node)} {participant_id}{alias}"]
+        declaration = _participant_declaration(node) if node is not None else f"participant {participant_id}"
+        return [f"{indent}create {declaration}"]
     if role == "destroy":
         return [f"{indent}destroy {_first_attached(container)}"]
     note_keyword = NOTE_ROLE_TO_KEYWORD.get(role) if _truthy(role) and isinstance(role, str) else None
@@ -598,7 +676,10 @@ def serialize_sequence(model: dict[str, Any]) -> str:
     if _truthy(autonumber):
         start = autonumber.get("start") if isinstance(autonumber, dict) else None
         step = autonumber.get("step") if isinstance(autonumber, dict) else None
-        lines.append(f"autonumber {_t(start)} {_t(step)}" if start is not None and step is not None else "autonumber")
+        if start is not None:
+            lines.append(f"autonumber {_t(start)} {_t(step)}" if step is not None else f"autonumber {_t(start)}")
+        else:
+            lines.append(f"autonumber 1 {_t(step)}" if step is not None else "autonumber")
 
     boxes = [c for c in containers if c.get("role") == "box"]
     box_ids = [b.get("id") for b in boxes]
@@ -613,12 +694,12 @@ def serialize_sequence(model: dict[str, Any]) -> str:
         lines.append(f"box{color_part}{title_part}")
         for node in nodes:
             if node.get("containerId") == box.get("id"):
-                lines.append(f"  {_participant_keyword(node)} {_t(node.get('id'))}{_alias(node)}")
+                lines.append(f"  {_participant_declaration(node)}")
         lines.append("end")
     for node in nodes:
         if node.get("id") in boxed_node_ids or node.get("id") in created_node_ids:
             continue
-        lines.append(f"{_participant_keyword(node)} {_t(node.get('id'))}{_alias(node)}")
+        lines.append(_participant_declaration(node))
     # canvas-8wxq: participant link menus, one `link` line per entry.
     for node in nodes:
         for link in node.get("sequenceLinks") or []:
