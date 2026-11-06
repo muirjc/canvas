@@ -344,6 +344,7 @@ jobs:
           name: windows-installer
           path: |
             packaging/windows/out/CanvasSetup-*.exe
+            packaging/windows/out/CanvasSetup-*.cdx.json
             packaging/windows/out/smoke-logs/
           retention-days: 7
           if-no-files-found: ignore

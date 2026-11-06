@@ -107,3 +107,7 @@ Canvas is open source (Apache License 2.0). The installer includes its own copy 
 libraries Canvas uses; their licences are in **%LOCALAPPDATA%\Programs\Canvas\licenses**:
 `THIRD-PARTY-NOTICES.md` (the web app's and the server's packages), `PYTHON-LICENSE.txt` and
 `PYTHON-RUNTIME-NOTICES.txt` (Python and the libraries built into it, such as OpenSSL and SQLite).
+
+The same folder holds **`canvas-sbom.cdx.json`**, a software bill of materials in the CycloneDX 1.6 format:
+every component the install contains, with its version, licence and checksum, for security or compliance
+tools that read SBOMs.
