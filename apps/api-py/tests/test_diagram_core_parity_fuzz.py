@@ -22,7 +22,24 @@ from canvas_api.diagram_core.jsyaml import YamlError
 from canvas_api.diagram_core.portable import to_portable_mermaid
 from tests.diagram_bridge import DiagramBridge
 
-IDS = ["A", "B", "C", "n1", "n2", "Start", "end_1", "x", "_q", "10", "2", "constructor", "toString", "__proto__"]
+IDS = [
+    "A",
+    "B",
+    "C",
+    "n1",
+    "n2",
+    "Start",
+    "end_1",
+    "x",
+    "_q",
+    "10",
+    "2",
+    "constructor",
+    "toString",
+    "__proto__",
+    "S1",
+    "S2",
+]
 SHAPES = [
     ("[", "]"),
     ("(", ")"),

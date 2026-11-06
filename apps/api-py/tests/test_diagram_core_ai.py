@@ -145,10 +145,15 @@ def test_a_c4_connector_may_end_on_a_boundary() -> None:
     assert [(e["sourceId"], e["targetId"]) for e in result["model"]["edges"]] == [("u", "b")]
     missing = run_tool("c4", None, model, "addEdge", {"sourceId": "u", "targetId": "nowhere", "label": "Uses"})
     assert missing["output"]["applied"] is False
+    # canvas-pc76: a flowchart link may end on a subgraph too; a sequence message may not end on a box.
     flowchart = run_tool(
         "flowchart", None, {**model, "diagramTypeId": "flowchart"}, "addEdge", {"sourceId": "u", "targetId": "b"}
     )
-    assert flowchart["output"]["applied"] is False
+    assert flowchart["output"] == {"applied": True}
+    sequence = run_tool(
+        "sequence", None, {**model, "diagramTypeId": "sequence"}, "addEdge", {"sourceId": "u", "targetId": "b"}
+    )
+    assert sequence["output"]["applied"] is False
 
 
 def test_er_entities_can_be_grouped_into_a_subgraph_and_connected_to_it() -> None:
