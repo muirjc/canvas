@@ -29,6 +29,8 @@ RUN npm ci
 COPY packages/diagram-core packages/diagram-core
 COPY apps/web apps/web
 COPY docs docs
+# The web app's tests (type-checked by `tsc -b`) import the repo's .env reader (canvas-mywp).
+COPY scripts/dotenv.mjs scripts/dotenv.d.mts scripts/
 COPY LICENSE THIRD-PARTY-NOTICES.md ./
 RUN npm run build --workspace=@canvas/diagram-core \
   && VITE_API_BASE_URL= npm run build --workspace=@canvas/web \
