@@ -37,7 +37,8 @@ MAX_LINK_LENGTH = 1000
 MERMAID_NAME = re.compile("^[A-Za-z][A-Za-z0-9_-]*\\Z")
 
 _WS = re.compile(f"{_S}*")
-_KEY = re.compile("[A-Za-z][A-Za-z0-9_-]*")
+#: canvas-lwa4: a key may be quoted, as JSON writes it (`"type": "boundary"`).
+_KEY = re.compile("([A-Za-z][A-Za-z0-9_-]*)|\"([A-Za-z][A-Za-z0-9_-]*)\"|'([A-Za-z][A-Za-z0-9_-]*)'")
 _DOUBLE_QUOTED = re.compile(f'"((?:[^"\\\\]|\\\\{_DOT})*)"')
 _SINGLE_QUOTED = re.compile("'((?:[^']|'')*)'")
 _BARE = re.compile(f"[^,{JS_WHITESPACE}](?:[^,]*[^,{JS_WHITESPACE}])?")
@@ -68,9 +69,10 @@ def parse_shape_data(inner: str) -> dict[str, Any]:
         key = _KEY.match(inner, pos)
         if not key:
             return {"error": f'Expected a key at "{inner[pos:]}"'}
+        name = key.group(1) or key.group(2) or key.group(3)
         pos = _WS.match(inner, key.end()).end()  # type: ignore[union-attr]
         if not inner.startswith(":", pos):
-            return {"error": f'Expected ":" after "{key.group(0)}"'}
+            return {"error": f'Expected ":" after "{name}"'}
         pos = _WS.match(inner, pos + 1).end()  # type: ignore[union-attr]
         value: Any
         if match := _DOUBLE_QUOTED.match(inner, pos):
@@ -80,12 +82,12 @@ def parse_shape_data(inner: str) -> dict[str, Any]:
         elif match := _BARE.match(inner, pos):
             value = _bare_value(match.group(0))
         else:
-            return {"error": f'"{key.group(0)}" has no value'}
+            return {"error": f'"{name}" has no value'}
         pos = match.end()
-        if key.group(0) in seen:
-            return {"error": f'"{key.group(0)}" is given twice'}
-        seen.add(key.group(0))
-        entries.append((key.group(0), value))
+        if name in seen:
+            return {"error": f'"{name}" is given twice'}
+        seen.add(name)
+        entries.append((name, value))
         pos = _WS.match(inner, pos).end()  # type: ignore[union-attr]
         if pos < len(inner):
             if not inner.startswith(",", pos):

@@ -16,7 +16,8 @@ export const MAX_LINK_LENGTH = 1000;
 export const MERMAID_NAME = /^[A-Za-z][A-Za-z0-9_-]*$/;
 
 const WS = /\s*/y;
-const KEY = /[A-Za-z][A-Za-z0-9_-]*/y;
+// canvas-lwa4: a key may be quoted, as JSON writes it (`"type": "boundary"`, the form Mermaid's sequence docs use).
+const KEY = /([A-Za-z][A-Za-z0-9_-]*)|"([A-Za-z][A-Za-z0-9_-]*)"|'([A-Za-z][A-Za-z0-9_-]*)'/y;
 const COLON = /:/y;
 const COMMA = /,/y;
 const DOUBLE_QUOTED = /"((?:[^"\\]|\\.)*)"/y;
@@ -38,9 +39,10 @@ export function parseShapeData(inner: string): { entries: [string, string | numb
   while (pos < inner.length) {
     const key = at(KEY, inner, pos);
     if (!key) return { error: `Expected a key at "${inner.slice(pos)}"` };
+    const name = key[1] ?? key[2] ?? key[3];
     pos += key[0].length;
     pos += at(WS, inner, pos)![0].length;
-    if (!at(COLON, inner, pos)) return { error: `Expected ":" after "${key[0]}"` };
+    if (!at(COLON, inner, pos)) return { error: `Expected ":" after "${name}"` };
     pos += 1;
     pos += at(WS, inner, pos)![0].length;
     let value: string | number | boolean;
@@ -53,12 +55,12 @@ export function parseShapeData(inner: string): { entries: [string, string | numb
       const text = match[0];
       value = text === 'true' ? true : text === 'false' ? false : NUMBER.test(text) ? Number(text) : text;
     } else {
-      return { error: `"${key[0]}" has no value` };
+      return { error: `"${name}" has no value` };
     }
     pos += match[0].length;
-    if (seen.has(key[0])) return { error: `"${key[0]}" is given twice` };
-    seen.add(key[0]);
-    entries.push([key[0], value]);
+    if (seen.has(name)) return { error: `"${name}" is given twice` };
+    seen.add(name);
+    entries.push([name, value]);
     pos += at(WS, inner, pos)![0].length;
     if (pos < inner.length) {
       if (!at(COMMA, inner, pos)) return { error: `Expected "," at "${inner.slice(pos)}"` };

@@ -1,0 +1,247 @@
+{
+  "containers": [
+    {
+      "id": "box1",
+      "label": "Aqua Partners",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "role": "box"
+    },
+    {
+      "attachedNodeIds": [
+        "Mail"
+      ],
+      "id": "pt2",
+      "label": "",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "role": "create",
+      "sequenceOrder": 6
+    }
+  ],
+  "diagramTypeId": "sequence",
+  "edges": [
+    {
+      "arrow": "target",
+      "id": "e1",
+      "label": "place order",
+      "lineStyle": "solid",
+      "sequenceOrder": 0,
+      "sourceId": "U",
+      "targetId": "Web"
+    },
+    {
+      "arrow": "target",
+      "id": "e2",
+      "label": "create order",
+      "lineStyle": "solid",
+      "sequenceOrder": 1,
+      "sourceId": "Web",
+      "targetId": "Orders"
+    },
+    {
+      "arrow": "target",
+      "id": "e3",
+      "label": "new",
+      "lineStyle": "solid",
+      "sequenceOrder": 2,
+      "sourceId": "Orders",
+      "targetId": "Order"
+    },
+    {
+      "arrow": "target",
+      "id": "e4",
+      "label": "insert",
+      "lineStyle": "solid",
+      "sequenceOrder": 3,
+      "sourceId": "Order",
+      "targetId": "DB"
+    },
+    {
+      "arrow": "target",
+      "id": "e5",
+      "label": "reserve",
+      "lineStyle": "solid",
+      "sequenceOrder": 4,
+      "sourceId": "Orders",
+      "targetId": "Items"
+    },
+    {
+      "arrow": "target",
+      "id": "e6",
+      "label": "charge",
+      "lineStyle": "solid",
+      "sequenceOrder": 5,
+      "sourceId": "Orders",
+      "targetId": "Pay"
+    },
+    {
+      "arrow": "target",
+      "id": "e7",
+      "label": "confirm",
+      "lineStyle": "solid",
+      "sequenceOrder": 7,
+      "sourceId": "Orders",
+      "targetId": "Mail"
+    },
+    {
+      "arrow": "open",
+      "id": "e8",
+      "label": "dispatch",
+      "lineStyle": "solid",
+      "sequenceOrder": 8,
+      "sourceId": "Orders",
+      "targetId": "Q"
+    },
+    {
+      "arrow": "target",
+      "id": "e9",
+      "label": "?",
+      "lineStyle": "solid",
+      "sequenceOrder": 9,
+      "sourceId": "Odd",
+      "targetId": "U"
+    }
+  ],
+  "nodes": [
+    {
+      "id": "U",
+      "label": "Customer",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "role": "actor",
+      "shape": "person"
+    },
+    {
+      "id": "Web",
+      "label": "Web shop",
+      "mermaidData": {
+        "type": "boundary"
+      },
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "role": "participant",
+      "shape": "circle"
+    },
+    {
+      "id": "Orders",
+      "label": "Order service",
+      "mermaidData": {
+        "alias": "Order service",
+        "type": "control"
+      },
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "role": "participant",
+      "shape": "circle"
+    },
+    {
+      "id": "Order",
+      "label": "Order",
+      "mermaidData": {
+        "type": "entity"
+      },
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "role": "participant",
+      "shape": "circle"
+    },
+    {
+      "id": "DB",
+      "label": "Orders DB",
+      "mermaidData": {
+        "alias": "Orders DB",
+        "type": "database"
+      },
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "role": "participant",
+      "shape": "cylinder"
+    },
+    {
+      "id": "Items",
+      "label": "Items",
+      "mermaidData": {
+        "type": "collections"
+      },
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "role": "participant",
+      "shape": "rectangle"
+    },
+    {
+      "id": "Q",
+      "label": "Dispatch queue",
+      "mermaidData": {
+        "alias": "Dispatch queue",
+        "type": "queue"
+      },
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "role": "actor",
+      "shape": "stadium"
+    },
+    {
+      "id": "Odd",
+      "label": "Odd",
+      "mermaidData": {
+        "type": "hologram"
+      },
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "role": "participant",
+      "shape": "rectangle"
+    },
+    {
+      "containerId": "box1",
+      "id": "Pay",
+      "label": "Payments",
+      "mermaidData": {
+        "type": "boundary"
+      },
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "role": "participant",
+      "shape": "circle"
+    },
+    {
+      "id": "Mail",
+      "label": "Mailer",
+      "mermaidData": {
+        "type": "control"
+      },
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "role": "participant",
+      "shape": "circle"
+    }
+  ],
+  "sequenceAutonumber": {
+    "start": 0.5,
+    "step": 0.25
+  }
+}

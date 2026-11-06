@@ -129,7 +129,11 @@ updates the canvas; drawing updates the text. If the text has an error, the tab 
 
 The DSL tab reads Mermaid's newer sequence-diagram syntax: half arrows (such as `-|\`), central
 connections (`A->>()B`) and participant `link` menus (http and https links only; they're kept and
-exported, but Canvas doesn't show them as a menu). Class diagrams read `class A["Display label"]`.
+exported, but Canvas doesn't show them as a menu). Participant types, such as
+`participant DB@{ "type": "database" }`, are drawn as the nearest Canvas shape: a database as a cylinder, a
+queue as a pill, and a boundary, control or entity as a circle. The type is kept and exported. Numbering can
+start anywhere and step by decimals (`autonumber 10`, `autonumber 1.5 0.25`). Class diagrams read
+`class A["Display label"]`.
 
 Flowcharts read Mermaid's newer shape syntax, `A@{ shape: cyl, label: "Orders" }`, with any of
 Mermaid's shape names. Shapes Canvas has no drawing of (such as `doc`, `cloud` or `flag`), and icon

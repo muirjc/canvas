@@ -100,6 +100,18 @@ tests are NON-NEGOTIABLE and must exist (and fail) before implementing any diagr
 work — see `.specify/memory/constitution.md` Principle IV.
 
 ## Recent Changes
+- `canvas-lwa4` part 1 (Mermaid 12 extras, sequence): **participant types and the rest of autonumber.**
+  `participant|actor|create … ID@{ "type": "database", "alias": "x" }` (block read up to the first `}`, by
+  `parseShapeData`, which now also takes quoted keys `"type":` for every family): the block is `node.mermaidData`,
+  kept and written back (`participantDeclaration` / `_participant_declaration`); `type` sets the shape drawn
+  (`PARTICIPANT_TYPE_SHAPES`: boundary/control/entity circle, database cylinder, queue stadium, collections and
+  unknown types rectangle; type beats the keyword, as in Mermaid); the block's `alias` is the label unless an `as`
+  alias other than the id is given (written as `as` only when the label differs from what the block shows; alias
+  dropped when the label is back to the id). `autonumber 10` (step 1) and Mermaid's NUM (two decimals at most,
+  `.5`); written `autonumber <start>`. `properties`/`details` lines stay unread (support note). Corpus
+  `sequence-participant-types`, `error-sequence-participant-data`; Python fuzz `participants_diagram` (checked to
+  catch a wrong type shape). Still to do in canvas-lwa4: C4 Rel to a boundary, ER subgraphs / optional types,
+  flowchart shape and option extras.
 - `canvas-xl3a.5` (Windows install, SBOM): **`packaging/windows/sbom.py`** (stdlib only, run by build.ps1 on the
   staged Python) writes a CycloneDX 1.6 JSON SBOM: Canvas as metadata.component; the runtime from
   licenses/windows-python/manifest.json (nested `file` components with each installed file's SHA-256; CPython

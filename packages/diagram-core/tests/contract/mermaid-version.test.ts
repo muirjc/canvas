@@ -25,6 +25,8 @@ describe('Mermaid version', () => {
     ['flowchart', 'flowchart TD\n  subgraph one\n    A\n  end\n  one@{ view: collapsed }\n'],
     ['flowchart', 'flowchart TD\n  A\n  click A call cb()\n'],
     ['state', 'stateDiagram-v2\n  note "floating" as N\n'],
+    ['sequence', 'sequenceDiagram\n  properties A: {"class": "x"}\n  A->>B: hi\n'],
+    ['sequence', 'sequenceDiagram\n  details A: menu\n  A->>B: hi\n'],
   ])('%s: still not read, as the notes say: %j', (family, dsl) => {
     expect(parses(family, dsl)).toBe(false);
   });
@@ -39,6 +41,7 @@ describe('Mermaid version', () => {
     ['state', 'stateDiagram-v2\n  hide empty description\n  scale 600 width\n  A --> B\n'],
     ['uml', 'classDiagram\n  class A["Label"]\n'],
     ['sequence', 'sequenceDiagram\n  A -|\\ B: hi\n  A ->>() B: hi\n  link A: Dash @ https://example.org\n'],
+    ['sequence', 'sequenceDiagram\n  participant D@{ "type": "database" }\n  autonumber .5 0.25\n  D->>E: hi\n'],
   ])('%s: read, as the notes say: %j', (family, dsl) => {
     expect(parses(family, dsl)).toBe(true);
   });

@@ -5,18 +5,43 @@ import {
   type DiagramEdge,
   type DiagramModel,
   type DiagramNode,
+  type MermaidData,
   type NodeStyle,
   type SequenceHalfArrow,
 } from '../model/diagram-model.js';
 import { splitFrontMatter, joinFrontMatter, stripTrailingComment, type CanvasFrontMatter, NO_ENTRIES } from './front-matter.js';
 import type { ParseError, ParseResult } from './types.js';
+import { dataEntries, formatShapeData, parseShapeData } from './mermaid-shape-data.js';
 
 const ID = String.raw`[A-Za-z0-9_]+`;
 // jmuir-dtu.4: `actor` (shape 'person', role 'actor') alongside the pre-existing `participant`
 // (shape 'rectangle', role 'participant'), plus the `as <alias>` display-label suffix — the id
 // stays canonical everywhere else (messages, notes, activation), only `label` changes, same
 // alias convention already established for C4/ERD.
-const PARTICIPANT_PATTERN = new RegExp(`^(participant|actor)\\s+(${ID})(?:\\s+as\\s+(.+))?$`);
+// canvas-lwa4: Mermaid 11.x+ participant types, `participant API@{ "type": "database" }`: the block is the
+// participant's `mermaidData`, kept and written back; its `type` sets the shape drawn and its `alias` the label
+// (an `as` alias other than the id wins, as in Mermaid). Mermaid reads up to the first `}`.
+const PARTICIPANT_DATA = String.raw`(?:\s*@\{([^{}]*)\})?`;
+const PARTICIPANT_PATTERN = new RegExp(`^(participant|actor)\\s+(${ID})${PARTICIPANT_DATA}(?:\\s+as\\s+(.+))?$`);
+// The shape Canvas draws for each participant type Mermaid draws (Mermaid 12's PARTICIPANT_TYPE); any other
+// type is drawn as Mermaid's plain participant box.
+const PARTICIPANT_TYPE_SHAPES: Record<string, DiagramNode['shape']> = Object.assign(Object.create(null) as Record<string, DiagramNode['shape']>, {
+  participant: 'rectangle',
+  actor: 'person',
+  boundary: 'circle',
+  control: 'circle',
+  entity: 'circle',
+  database: 'cylinder',
+  collections: 'rectangle',
+  queue: 'stadium',
+});
+
+/** The shape a participant is drawn as: its Mermaid type when it has one, else its keyword's. */
+function participantShape(node: DiagramNode): DiagramNode['shape'] {
+  const type = node.mermaidData?.type;
+  if (type !== undefined) return (typeof type === 'string' && PARTICIPANT_TYPE_SHAPES[type]) || 'rectangle';
+  return node.role === 'actor' ? 'person' : 'rectangle';
+}
 // jmuir-dtu.4: the full arrow-token set beyond the pre-existing ->>/-->> (each literal token is
 // distinct, not a prefix of another, so alternation order doesn't affect correctness). The
 // optional `[+-]` between the arrow and target is the activation shorthand -- '+' activates the
@@ -90,7 +115,7 @@ const DEACTIVATE_PATTERN = new RegExp(`^deactivate\\s+(${ID})$`);
 // linked pairing) rather than a new DiagramNode ordering field -- reuses 100% of the existing
 // container/emitScope machinery, including correct nesting inside loop/alt/rect via
 // currentContainerId(), which a separate node-level field would not have gotten for free.
-const CREATE_PATTERN = new RegExp(`^create\\s+(participant|actor)\\s+(${ID})(?:\\s+as\\s+(.+))?$`);
+const CREATE_PATTERN = new RegExp(`^create\\s+(participant|actor)\\s+(${ID})${PARTICIPANT_DATA}(?:\\s+as\\s+(.+))?$`);
 const DESTROY_PATTERN = new RegExp(`^destroy\\s+(${ID})$`);
 // jmuir-dtu.4: `box <color>? <title>? ... end` groups participants — NOT part of the ordered
 // message timeline (no `end`-matching against BLOCK_END's own loop/alt/rect stack; tracked
@@ -100,8 +125,10 @@ const DESTROY_PATTERN = new RegExp(`^destroy\\s+(${ID})$`);
 // treated as part of the title instead, a disclosed simplification: the grouping itself is never
 // lost, only that one color form).
 const BOX_START = /^box(?:\s+(rgba?\([^)]*\)|transparent))?(?:\s+(.+))?$/;
-// jmuir-dtu.4: `autonumber`, `autonumber off`, or `autonumber <start> <step>` (decimals allowed).
-const AUTONUMBER_PATTERN = /^autonumber(?:\s+(off)|\s+(\d+(?:\.\d+)?)\s+(\d+(?:\.\d+)?))?$/;
+// jmuir-dtu.4: `autonumber`, `autonumber off`, `autonumber <start>` or `autonumber <start> <step>`. canvas-lwa4:
+// a number as Mermaid's NUM token reads it, at most two decimals (`1.5`, `.25`).
+const AUTONUMBER_NUM = String.raw`(\d+(?:\.\d{1,2})?|\.\d{1,2})`;
+const AUTONUMBER_PATTERN = new RegExp(`^autonumber(?:\\s+(off)|\\s+${AUTONUMBER_NUM}(?:\\s+${AUTONUMBER_NUM})?)?$`);
 const TITLE_PATTERN = /^title\s+(.+)$/;
 // jmuir-dtu.17: same cross-family precedent as TITLE_PATTERN. Single-line colon form only; the
 // multi-line `accDescr { ... }` block form is out of scope (a clean parse error, not a silent
@@ -180,24 +207,41 @@ export function parseSequence(dsl: string): ParseResult {
     return top.currentChildId ?? top.id;
   };
 
-  const ensureParticipant = (id: string, kind: 'participant' | 'actor' = 'participant', alias?: string, boxId?: string) => {
-    const existing = nodesById.get(id);
-    if (!existing) {
-      nodesById.set(id, {
+  const ensureParticipant = (id: string, kind: 'participant' | 'actor' = 'participant', alias?: string, boxId?: string, data?: MermaidData) => {
+    let node = nodesById.get(id);
+    if (!node) {
+      node = {
         id,
         label: alias ?? id,
         shape: kind === 'actor' ? 'person' : 'rectangle',
         role: kind,
         position: { ...PLACEHOLDER_POSITION },
         containerId: boxId,
-      });
-      return;
+      };
+      nodesById.set(id, node);
+    } else {
+      if (alias !== undefined) node.label = alias;
+      if (kind === 'actor') {
+        node.role = 'actor';
+        node.shape = 'person';
+      }
     }
-    if (alias !== undefined) existing.label = alias;
-    if (kind === 'actor') {
-      existing.role = 'actor';
-      existing.shape = 'person';
+    if (data !== undefined) {
+      node.mermaidData = data;
+      // Mermaid: the block's alias names the participant unless an `as` alias other than the id is given.
+      if ((alias === undefined || alias === id) && typeof data.alias === 'string' && data.alias !== '') node.label = data.alias;
     }
+    if (node.mermaidData !== undefined) node.shape = participantShape(node);
+  };
+  // canvas-lwa4: a participant's `@{ … }` block; null when it's malformed (the error is recorded).
+  const readParticipantData = (inner: string | undefined, lineNumber: number, content: string): MermaidData | undefined | null => {
+    if (inner === undefined) return undefined;
+    const read = parseShapeData(inner);
+    if ('error' in read) {
+      errors.push({ line: lineNumber, content, message: `Could not read the participant's @{ … } block: ${read.error}` });
+      return null;
+    }
+    return Object.fromEntries(read.entries);
   };
 
   // jmuir-dtu.4/.4.1: shared shape for every point-in-time, single-participant timeline item
@@ -266,8 +310,9 @@ export function parseSequence(dsl: string): ParseResult {
       }
       const boxedParticipant = line.match(PARTICIPANT_PATTERN);
       if (boxedParticipant) {
-        const [, kind, id, alias] = boxedParticipant;
-        ensureParticipant(id, kind as 'participant' | 'actor', alias, openBox.id);
+        const [, kind, id, inner, alias] = boxedParticipant;
+        const data = readParticipantData(inner, i + 1, rawLine);
+        if (data !== null) ensureParticipant(id, kind as 'participant' | 'actor', alias, openBox.id, data);
         continue;
       }
       errors.push({ line: i + 1, content: rawLine, message: `Could not interpret line as a participant/actor inside a "box" block: "${line}"` });
@@ -333,8 +378,10 @@ export function parseSequence(dsl: string): ParseResult {
 
     const createMatch = line.match(CREATE_PATTERN);
     if (createMatch) {
-      const [, kind, id, alias] = createMatch;
-      ensureParticipant(id, kind as 'participant' | 'actor', alias);
+      const [, kind, id, inner, alias] = createMatch;
+      const data = readParticipantData(inner, i + 1, rawLine);
+      if (data === null) continue;
+      ensureParticipant(id, kind as 'participant' | 'actor', alias, undefined, data);
       pushPointItem('create', id);
       continue;
     }
@@ -394,8 +441,9 @@ export function parseSequence(dsl: string): ParseResult {
 
     const participantMatch = line.match(PARTICIPANT_PATTERN);
     if (participantMatch) {
-      const [, kind, id, alias] = participantMatch;
-      ensureParticipant(id, kind as 'participant' | 'actor', alias);
+      const [, kind, id, inner, alias] = participantMatch;
+      const data = readParticipantData(inner, i + 1, rawLine);
+      if (data !== null) ensureParticipant(id, kind as 'participant' | 'actor', alias, undefined, data);
       continue;
     }
 
@@ -524,6 +572,19 @@ const ARROW_STYLE_TO_TOKEN: Record<string, string> = {
   ...Object.fromEntries(Object.entries(ARROW_TOKEN_TO_STYLE).map(([token, style]) => [`${style.arrow}|${style.lineStyle}`, token]).filter(([key]) => key.includes('half') || key.includes('stick'))),
 };
 
+/** `participant A`, `actor A as Label`, `participant A@{ type: "database" } as Label`. canvas-lwa4: the block's
+ *  alias is dropped when the label is back to the id (an `as A` couldn't override it), and `as` is written only
+ *  when the label differs from what the declaration shows without it. */
+function participantDeclaration(node: DiagramNode): string {
+  const keyword = node.role === 'actor' ? 'actor' : 'participant';
+  const dataAlias = node.mermaidData?.alias;
+  let entries = dataEntries(node.mermaidData).filter(([, value]) => !(typeof value === 'string' && /[{}]/.test(value)));
+  if (node.label === node.id) entries = entries.filter(([key]) => key !== 'alias');
+  const shown = typeof dataAlias === 'string' && dataAlias !== '' && entries.some(([key]) => key === 'alias') ? dataAlias : node.id;
+  const block = entries.length > 0 ? formatShapeData(entries) : '';
+  return `${keyword} ${node.id}${block}${node.label !== shown ? ` as ${node.label}` : ''}`;
+}
+
 function serializeContainer(container: DiagramContainer, model: DiagramModel, indent: string): string[] {
   if (container.role === 'activate' || container.role === 'deactivate') {
     return [`${indent}${container.role} ${container.attachedNodeIds?.[0] ?? ''}`];
@@ -531,9 +592,7 @@ function serializeContainer(container: DiagramContainer, model: DiagramModel, in
   if (container.role === 'create') {
     const participantId = container.attachedNodeIds?.[0] ?? '';
     const node = model.nodes.find((n) => n.id === participantId);
-    const kind = node?.role === 'actor' ? 'actor' : 'participant';
-    const alias = node && node.label !== node.id ? ` as ${node.label}` : '';
-    return [`${indent}create ${kind} ${participantId}${alias}`];
+    return [`${indent}create ${node ? participantDeclaration(node) : `participant ${participantId}`}`];
   }
   if (container.role === 'destroy') {
     return [`${indent}destroy ${container.attachedNodeIds?.[0] ?? ''}`];
@@ -607,7 +666,8 @@ export function serializeSequence(model: DiagramModel): string {
   if (model.accDescr) lines.push(`accDescr: ${model.accDescr}`);
   if (model.sequenceAutonumber) {
     const { start, step } = model.sequenceAutonumber;
-    lines.push(start !== undefined && step !== undefined ? `autonumber ${start} ${step}` : 'autonumber');
+    if (start !== undefined) lines.push(step !== undefined ? `autonumber ${start} ${step}` : `autonumber ${start}`);
+    else lines.push(step !== undefined ? `autonumber 1 ${step}` : 'autonumber');
   }
 
   const boxes = model.containers.filter((c) => c.role === 'box');
@@ -620,14 +680,13 @@ export function serializeSequence(model: DiagramModel): string {
     const titlePart = box.label ? ` ${box.label}` : '';
     lines.push(`box${colorPart}${titlePart}`);
     for (const node of model.nodes) {
-      if (node.containerId === box.id) lines.push(`  ${node.role === 'actor' ? 'actor' : 'participant'} ${node.id}${node.label !== node.id ? ` as ${node.label}` : ''}`);
+      if (node.containerId === box.id) lines.push(`  ${participantDeclaration(node)}`);
     }
     lines.push('end');
   }
   for (const node of model.nodes) {
     if (boxedNodeIds.has(node.id) || createdNodeIds.has(node.id)) continue;
-    const alias = node.label !== node.id ? ` as ${node.label}` : '';
-    lines.push(`${node.role === 'actor' ? 'actor' : 'participant'} ${node.id}${alias}`);
+    lines.push(participantDeclaration(node));
   }
   // canvas-8wxq: participant link menus, one `link` line per entry (a `links` JSON line reads back the same).
   for (const node of model.nodes) {

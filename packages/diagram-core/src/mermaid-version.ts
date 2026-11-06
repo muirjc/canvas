@@ -39,7 +39,11 @@ export const MERMAID_SUPPORT_NOTES: readonly MermaidSupportNote[] = [
   {
     family: 'sequence',
     label: 'Sequence',
-    notes: ['Read but not drawn: participant link menus (link / links); they are kept and exported.'],
+    notes: [
+      'Read but not drawn: participant link menus (link / links); they are kept and exported.',
+      'Drawn as the nearest Canvas shape: participant types (participant A@{ "type": "database" }); boundary, control and entity as a circle, collections as a box, queue as a pill. The type is kept and exported.',
+      'Not read: properties and details lines (properties A: {…}), which Mermaid doesn’t document.',
+    ],
   },
   {
     family: 'uml',
