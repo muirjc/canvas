@@ -20,6 +20,8 @@ applies to you too.
 
 Running Canvas itself (deploying, pausing, the IP allow-list, emergency access) is covered in
 [Operations](operations.md).
+Canvas on one Windows PC (install, start and stop, backups, upgrades) is covered in
+[Installing Canvas on Windows](installing-on-windows.md).
 
 ## Settings
 

@@ -1,0 +1,17 @@
+{
+  "comment": "canvas-xl3a.4: the private Python the Windows installer ships (packaging/windows/build.ps1) and the C libraries it bundles, with the licence text of each, reviewed for this build. CPython's own LICENSE.txt (shipped as PYTHON-LICENSE.txt) covers CPython, bzip2 and the Microsoft Visual C++ runtime DLLs ('Additional Conditions for this Windows binary build'); cpython-3.13.17-license.txt is CPython's Doc/license.rst at v3.13.17, which also lists the code built into CPython itself (mimalloc, SipHash, dtoa, ...). Versions: the libraries report them at run time (ssl.OPENSSL_VERSION, sqlite3.sqlite_version, zlib.ZLIB_RUNTIME_VERSION, pyexpat.EXPAT_VERSION, decimal.__libmpdec_version__); libffi, xz and bzip2 from python-build-standalone's pythonbuild/downloads.json at the release tag. Texts from the release's pgo-full archive (python/licenses). tkinter, Tcl/Tk, IDLE and the test modules are removed from the install. build.ps1 fails when the release differs from this one or a DLL in the build isn't listed here: bumping Python means reviewing this again.",
+  "pythonBuildStandalone": "20261021",
+  "python": "3.13.17",
+  "libraries": [
+    { "name": "CPython", "version": "3.13.17", "licence": "PSF-2.0", "files": ["python.exe", "pythonw.exe", "python3.dll", "python313.dll"], "source": "https://github.com/python/cpython/blob/v3.13.17/Doc/license.rst", "texts": ["cpython-3.13.17-license.txt"] },
+    { "name": "Microsoft Visual C++ runtime", "version": "14.44.35211", "licence": "Microsoft Distributable Code (see PYTHON-LICENSE.txt)", "files": ["vcruntime140.dll", "vcruntime140_1.dll"], "source": "https://learn.microsoft.com/en-us/cpp/windows/redistributing-visual-cpp-files", "texts": [] },
+    { "name": "OpenSSL", "version": "3.5.9", "licence": "Apache-2.0", "files": ["DLLs/libssl-3-x64.dll", "DLLs/libcrypto-3-x64.dll"], "source": "https://github.com/openssl/openssl/blob/openssl-3.5.9/LICENSE.txt", "texts": ["openssl-3.5.9-LICENSE.txt"] },
+    { "name": "SQLite", "version": "3.53.1", "licence": "blessing (public domain)", "files": ["DLLs/sqlite3.dll"], "source": "https://www.sqlite.org/copyright.html", "texts": ["sqlite-3.53.1-LICENSE.txt"] },
+    { "name": "zlib", "version": "1.3.2", "licence": "Zlib", "files": ["DLLs/zlib1.dll"], "source": "https://github.com/madler/zlib/blob/v1.3.2/LICENSE", "texts": ["zlib-1.3.2-LICENSE.txt"] },
+    { "name": "libffi", "version": "3.8.0", "licence": "MIT", "files": ["DLLs/libffi-8.dll"], "source": "https://github.com/libffi/libffi/blob/v3.8.0/LICENSE", "texts": ["libffi-3.8.0-LICENSE.txt"] },
+    { "name": "xz (liblzma)", "version": "5.8.4", "licence": "0BSD", "files": ["DLLs/_lzma.pyd"], "source": "https://github.com/tukaani-project/xz/blob/v5.8.4/COPYING.0BSD", "texts": ["xz-5.8.4-LICENSE.txt"] },
+    { "name": "bzip2", "version": "1.0.8", "licence": "bzip2-1.0.6", "files": ["DLLs/_bz2.pyd"], "source": "https://sourceware.org/bzip2/", "texts": ["bzip2-1.0.8-LICENSE.txt"] },
+    { "name": "Expat", "version": "2.8.5", "licence": "MIT", "files": ["DLLs/pyexpat.pyd"], "source": "https://github.com/libexpat/libexpat/blob/R_2_8_5/expat/COPYING", "texts": ["expat-2.8.5-COPYING.txt"] },
+    { "name": "mpdecimal", "version": "4.0.0", "licence": "BSD-2-Clause", "files": ["DLLs/_decimal.pyd"], "source": "https://www.bytereef.org/mpdecimal/", "texts": ["mpdecimal-4.0.0-LICENSE.txt"] }
+  ]
+}
