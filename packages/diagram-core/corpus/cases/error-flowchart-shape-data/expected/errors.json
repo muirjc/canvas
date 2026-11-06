@@ -26,13 +26,23 @@
       "message": "Edge id \"e1\" is used twice."
     },
     {
-      "content": "  S@{ view: collapsed }",
-      "line": 11,
-      "message": "Subgraph options (S@{ … }) are not read yet."
+      "content": "    S@{ view: collapsed }",
+      "line": 10,
+      "message": "Subgraph options (S@{ … }) go after the subgraph's end, without a class."
+    },
+    {
+      "content": "  S:::warm@{ view: collapsed }",
+      "line": 12,
+      "message": "Subgraph options (S@{ … }) go after the subgraph's end, without a class."
+    },
+    {
+      "content": "  S@{ view }",
+      "line": 13,
+      "message": "In S@{ … }: Expected \":\" after \"view\"."
     },
     {
       "content": "  I e9@--> J & K",
-      "line": 12,
+      "line": 14,
       "message": "Could not interpret line as a node, edge, or subgraph: \"I e9@--> J & K\""
     }
   ]

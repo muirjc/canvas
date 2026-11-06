@@ -274,6 +274,10 @@ def diagram(rnd: random.Random) -> str:
     out += ["end"] * depth if rnd.random() < 0.9 else []
     for _ in range(rnd.choice([0, 0, 1, 2])):
         out.append(f"e{rnd.randint(1, 3)}{shape_data(rnd)}")
+    # canvas-lwa4: subgraph options (view, algorithm, and whatever else), after or inside the subgraph.
+    for _ in range(rnd.choice([0, 0, 1, 2])):
+        options = rnd.choice(["view: collapsed", '"view": expanded', "algorithm: elk.box", "", "view"])
+        out.append(f"S{rnd.randint(1, 3)}{rnd.choice(['', '', ':::k'])}@{{ {options} }}")
     return "\n".join(out) + rnd.choice(["\n", "", "\r\n"])
 
 
@@ -314,6 +318,10 @@ def _differences(bridge: DiagramBridge, dsl: str) -> list[str]:
                 node["label"] = 'cr\r "q" \\ end'
             if index % 4 == 1:
                 node["mermaidData"] = {"img": "javascript:x", "9bad": 1, "w": 1e-7, "ok": "yes"}
+        for index, container in enumerate(model["containers"]):
+            container["mermaidData"] = [{"view": "collapsed", "9bad": 1}, None, {"w": 1e-7}][index % 3]
+            if index % 4 == 3:
+                container["id"] = "bad id"
         for index, edge in enumerate(model["edges"]):
             edge["mermaidId"] = ["e1", "e1", "bad id", None, "e2"][index % 5]
             edge["mermaidData"] = {"animate": True, "n": 0.000001} if index % 2 else None

@@ -198,6 +198,11 @@ function writeFlowchart(model: DiagramModel): string {
     const entries = dataEntries(edge.mermaidData);
     if (ids[i] !== undefined && entries.length > 0) bodyLines.push(`  ${ids[i]}${formatShapeData(entries)}`);
   });
+  // canvas-lwa4: a subgraph's options, after every subgraph has been declared.
+  for (const container of model.containers) {
+    const entries = dataEntries(container.mermaidData);
+    if (entries.length > 0 && /^[A-Za-z0-9_]+$/.test(container.id)) bodyLines.push(`  ${container.id}${formatShapeData(entries)}`);
+  }
   for (const node of model.nodes) {
     const clickLine = serializeClickHref(node);
     if (clickLine) bodyLines.push(clickLine);

@@ -100,6 +100,14 @@ tests are NON-NEGOTIABLE and must exist (and fail) before implementing any diagr
 work — see `.specify/memory/constitution.md` Principle IV.
 
 ## Recent Changes
+- `canvas-lwa4` part 5 (Mermaid 12 extras, flowchart; closes canvas-lwa4): **subgraph options are read and kept.**
+  `one@{ view: collapsed }` / `one@{ algorithm: elk.box }` after a CLOSED subgraph (Mermaid 11.17; Mermaid looks
+  for a subgraph before an edge id) merge into `DiagramContainer.mermaidData` (new field), written back after the
+  edge options (`one@{ … }`, plain ids only); Canvas still draws the subgraph open. Inside the subgraph's own body
+  or with a class it's an error. The other flowchart extras from the bead (datastore/folder/bucket/console/
+  browser/person shapes, edge `step`/`curve`) already worked since canvas-8wxq; state `%` alone was already
+  refused. Corpus `flowchart-subgraph-options`, error case extended; parity fuzz generates options and edits them.
+  Filed canvas-pc76: a flowchart link to a subgraph id makes a stray node.
 - `canvas-lwa4` part 4 (Mermaid 12 extras, ER subgraphs): **ER diagrams have groups.** erd.ts / erd.py read
   `subgraph Id [Title]` / `subgraph "Quoted id"` ... `end` (nestable, `direction` inside = the group's own) as
   containers (no role; `parentContainerId` for nesting). Membership as Mermaid's erDb: after reading, subgraphs

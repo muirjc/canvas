@@ -7,6 +7,8 @@ flowchart TD
   F e1@--> G
   subgraph S
     H
+    S@{ view: collapsed }
   end
-  S@{ view: collapsed }
+  S:::warm@{ view: collapsed }
+  S@{ view }
   I e9@--> J & K

@@ -1,0 +1,17 @@
+flowchart TD
+subgraph one [My Group]
+  A[A]
+  B[B]
+  C[C]
+end
+subgraph two [two]
+  D[D]
+end
+  Start[Start]
+  End[End]
+  Start --> A
+  A --> B
+  B --> C
+  C --> End
+  one@{ view: "collapsed" }
+  two@{ view: "expanded", algorithm: "elk.box" }

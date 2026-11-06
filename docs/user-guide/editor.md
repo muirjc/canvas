@@ -146,7 +146,8 @@ Mermaid's shape names. Shapes Canvas has no drawing of (such as `doc`, `cloud` o
 and image nodes (`icon:`, `img:`), are drawn as the nearest Canvas shape; the Mermaid name is kept,
 so the exported text still has it. Image addresses must be http or https links. Edge ids
 (`A e1@--> B`) and edge options such as `e1@{ animate: true }` are kept and exported; Canvas doesn't
-animate or curve edges. Subgraph options (`one@{ view: collapsed }`) aren't read yet.
+animate or curve edges. Subgraph options such as `one@{ view: collapsed }` (written after the
+subgraph's `end`) are kept and exported too; Canvas always shows the subgraph open.
 
 Longer links (`A ---> B`, `A -..-> B`, `A ===> B`) are read too. In Mermaid the extra length spaces
 the shapes further apart; Canvas keeps it and exports it, but draws them like any other connector.

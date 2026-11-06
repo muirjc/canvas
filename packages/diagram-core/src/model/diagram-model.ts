@@ -333,6 +333,9 @@ export interface DiagramContainer {
   boundaryType?: string;
   /** canvas-aoa: C4 Deployment_Node family only -- its description argument. */
   description?: string;
+  /** canvas-lwa4: flowchart subgraphs only -- `one@{ view: collapsed, algorithm: elk.box }`, kept and written
+   *  back, not used (Canvas always draws the subgraph open). */
+  mermaidData?: MermaidData;
   /** canvas-aoa: C4 boundaries -- the boundary's Mermaid `$tags` list, in order. */
   tags?: string[];
   parentContainerId?: ElementId;

@@ -39,6 +39,8 @@ from canvas_api.diagram_core.model import create_empty_diagram_model, is_allowed
 from canvas_api.diagram_core.read_order import in_read_order
 from canvas_api.github.jstext import JS_WHITESPACE, js_trim
 
+_PLAIN_SUBGRAPH_ID = re.compile("^[A-Za-z0-9_]+\\Z")
+
 __all__ = ["parse_flowchart", "serialize_flowchart"]
 
 S = f"[{JS_WHITESPACE}]"  # JavaScript's \s
@@ -481,8 +483,19 @@ def parse_flowchart(dsl: str) -> dict[str, Any]:
 
         if m := SHAPE_DATA_TOKEN.match(line):
             data_id, class_names, inner = m.group(1), m.group(2), m.group(3)
-            edge = edges_by_mermaid_id.get(data_id) if class_names is None else None
-            if edge is not None:
+            # canvas-lwa4: a closed subgraph's options first, as in Mermaid (flowchart-parser.ts).
+            subgraph = containers_by_id.get(data_id) if class_names is None and data_id not in container_stack else None
+            edge = edges_by_mermaid_id.get(data_id) if class_names is None and subgraph is None else None
+            if subgraph is not None:
+                parsed = parse_shape_data(inner)
+                if "error" in parsed:
+                    errors.append(
+                        {"line": i + 1, "content": raw_line, "message": f"In {data_id}@{{ … }}: {parsed['error']}."}
+                    )
+                else:
+                    for key, value in parsed["entries"]:
+                        subgraph["mermaidData"] = {**(subgraph.get("mermaidData") or {}), key: value}
+            elif edge is not None:
                 parsed = parse_shape_data(inner)
                 if "error" in parsed:
                     errors.append(
@@ -496,7 +509,8 @@ def parse_flowchart(dsl: str) -> dict[str, Any]:
                     {
                         "line": i + 1,
                         "content": raw_line,
-                        "message": f"Subgraph options ({data_id}@{{ … }}) are not read yet.",
+                        "message": f"Subgraph options ({data_id}@{{ … }}) go after the subgraph's end, "
+                        "without a class.",
                     }
                 )
             else:
@@ -792,6 +806,12 @@ def _write_flowchart(model: dict[str, Any]) -> str:
         entries = data_entries(edge.get("mermaidData"))
         if mermaid_id is not None and entries:
             body_lines.append(f"  {mermaid_id}{format_shape_data(entries)}")
+    # canvas-lwa4: a subgraph's options, after every subgraph has been declared.
+    for container in model.get("containers") or []:
+        entries = data_entries(container.get("mermaidData"))
+        container_id = container.get("id")
+        if entries and isinstance(container_id, str) and _PLAIN_SUBGRAPH_ID.match(container_id):
+            body_lines.append(f"  {container_id}{format_shape_data(entries)}")
     for node in nodes:
         click = _serialize_click_href(node)
         if click:
