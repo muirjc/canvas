@@ -30,6 +30,9 @@ _TRACER_NAME = "canvas_api"
 #: Longer query text is cut here (with "…"), as in the TypeScript service.
 MAX_SQL_LENGTH = 1000
 _STARTS = "canvas_query_starts"
+#: Requests left out of telemetry: Azure's health probes call /health every few seconds (~108 request records an
+#: hour that show nothing). Matched against the full URL, without the query string.
+EXCLUDED_URLS = r"^https?://[^/]+/health$"
 
 
 def route_template(path: str) -> str:
@@ -113,7 +116,7 @@ def configure_telemetry(app: FastAPI, connection_string: str | None, engine: Eng
     # dependency/endpoint spans, and the ASGI send/receive spans are excluded here: Application Insights stores
     # every such span as an "InProc" dependency, which would fill the outbound-calls panel.
     if not getattr(app, "_is_instrumented_by_opentelemetry", False):
-        FastAPIInstrumentor.instrument_app(app, exclude_spans=["receive", "send"])
+        FastAPIInstrumentor.instrument_app(app, excluded_urls=EXCLUDED_URLS, exclude_spans=["receive", "send"])
     app.add_middleware(RouteNameMiddleware)
     if engine is not None:
         instrument_queries(engine)

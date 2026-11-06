@@ -14,7 +14,14 @@ from opentelemetry.trace import SpanKind, StatusCode
 from sqlalchemy import create_engine, text
 from sqlalchemy.engine import Engine
 
-from canvas_api.telemetry import MAX_SQL_LENGTH, instrument_queries, query_span_name, route_template, work_span
+from canvas_api.telemetry import (
+    EXCLUDED_URLS,
+    MAX_SQL_LENGTH,
+    instrument_queries,
+    query_span_name,
+    route_template,
+    work_span,
+)
 
 
 @pytest.mark.parametrize(
@@ -145,8 +152,8 @@ def test_application_insights_gets_the_query_text_where_the_workbook_reads_it(
 def test_the_real_app_sends_request_and_query_spans(tmp_path: Path) -> None:
     """canvas-znz5: one request span per request (named the TypeScript way) with its SQL queries under it, and no
     per-request internal spans (FastAPI's dependency/endpoint or ASGI send/receive spans would each become an
-    "InProc" dependency in Application Insights). Run in its own process: configure_azure_monitor sets process-wide
-    providers."""
+    "InProc" dependency in Application Insights), and none for /health. Run in its own process:
+    configure_azure_monitor sets process-wide providers."""
     script = Path(__file__).parent / "data" / "telemetry_smoke.py"
     result = subprocess.run(  # noqa: S603 - fixed command, test only
         [sys.executable, str(script), str(tmp_path / "canvas.db")],
@@ -160,3 +167,21 @@ def test_the_real_app_sends_request_and_query_spans(tmp_path: Path) -> None:
     assert "SERVER GET /diagrams/:id -" in lines
     assert any(line.startswith("CLIENT SELECT sqlite SELECT u.id") for line in lines), lines
     assert not any(line.startswith("INTERNAL") for line in lines), lines
+    # Azure's health probes are left out (EXCLUDED_URLS).
+    assert not any("/health" in line for line in lines), lines
+
+
+@pytest.mark.parametrize(
+    ("url", "excluded"),
+    [
+        ("http://testserver/health", True),
+        ("https://canvas-api.example.net/health", True),
+        ("https://canvas-api.example.net/health/extra", False),
+        ("https://canvas-api.example.net/diagrams/health", False),
+        ("https://canvas-api.example.net/healthy", False),
+    ],
+)
+def test_only_the_health_probe_is_left_out(url: str, excluded: bool) -> None:
+    from opentelemetry.util.http import ExcludeList
+
+    assert ExcludeList([EXCLUDED_URLS]).url_disabled(url) is excluded

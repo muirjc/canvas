@@ -40,6 +40,7 @@ assert isinstance(provider, TracerProvider)
 memory = InMemorySpanExporter()
 provider.add_span_processor(SimpleSpanProcessor(memory))
 with TestClient(app) as client:
+    client.get("/health")
     client.post("/auth/local/login", json={"email": "nobody@example.com", "password": "wrong-password-123"})
     client.get("/diagrams/00000000-0000-0000-0000-000000000000")
 for span in memory.get_finished_spans():

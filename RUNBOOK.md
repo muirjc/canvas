@@ -608,7 +608,8 @@ it from the Bicep output. It uses the Azure Monitor OpenTelemetry distro
 the values), each outbound HTTP call (GitHub, Entra, the AI providers) and app work (`render svg`,
 `rasterize png`, `validate standard`, `ai chat` per model step). Diagram content, prompts, emails and
 tokens are never recorded. Requests are sampled (about 5 traces a second, the distro's default); a
-sampled request keeps all its child spans.
+sampled request keeps all its child spans. `/health` (Azure's health probes, every few seconds) is
+not recorded (`EXCLUDED_URLS`).
 
 - **Where to look:** Azure portal -> Monitor -> Workbooks -> **Canvas performance** (per-route
   p50/p95/p99 and failures, key routes over 7 days, slowest SQL queries, outbound calls and app
