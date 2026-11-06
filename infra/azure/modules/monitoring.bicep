@@ -121,7 +121,9 @@ var workbookContent = {
       content: {
         version: 'KqlItem/1.0'
         title: 'Slowest SQL queries, last 24 hours'
-        query: 'dependencies | where timestamp > ago(24h) and isnotempty(customDimensions["db.query.text"]) | summarize calls = count(), p95 = round(percentile(duration, 95)), total = round(sum(duration)) by query = tostring(customDimensions["db.query.text"]) | top 20 by p95 desc'
+        // canvas-znz5: the exporter puts a query's text in `data` and the database in `type` ("postgresql", or
+        // "SQL" for SQLite); db.* attributes never reach customDimensions.
+        query: 'dependencies | where timestamp > ago(24h) and type in ("postgresql", "SQL") | summarize calls = count(), p95 = round(percentile(duration, 95)), total = round(sum(duration)) by query = data | top 20 by p95 desc'
         size: 0
         queryType: 0
         resourceType: 'microsoft.insights/components'
@@ -133,7 +135,7 @@ var workbookContent = {
       content: {
         version: 'KqlItem/1.0'
         title: 'Outbound calls and app work (AI, GitHub, rendering), last 24 hours'
-        query: 'dependencies | where timestamp > ago(24h) and isempty(customDimensions["db.query.text"]) | summarize calls = count(), p50 = round(percentile(duration, 50)), p95 = round(percentile(duration, 95)), failed = countif(success == false) by name, type, target | order by p95 desc'
+        query: 'dependencies | where timestamp > ago(24h) and type !in ("postgresql", "SQL") | summarize calls = count(), p50 = round(percentile(duration, 50)), p95 = round(percentile(duration, 95)), failed = countif(success == false) by name, type, target | order by p95 desc'
         size: 0
         queryType: 0
         resourceType: 'microsoft.insights/components'

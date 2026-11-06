@@ -33,6 +33,7 @@ from canvas_api.diagram_core import DiagramCore
 from canvas_api.errors import ApiError
 from canvas_api.retention import delete_diagram_rows, diagram_retention_boundary
 from canvas_api.standards import get_active_standard
+from canvas_api.telemetry import work_span
 from canvas_api.timestamps import now_utc, parse_instant, to_api, to_api_ms, to_db
 
 router = APIRouter(tags=["Diagrams"])
@@ -141,7 +142,8 @@ def _validation(
     standard = get_active_standard(conn, diagram_type_id)
     if standard is None:
         return [], None
-    return core.validate(model, standard.rules), standard.version
+    with work_span("validate standard", {"canvas.standard.version": standard.version}):
+        return core.validate(model, standard.rules), standard.version
 
 
 # --- records ------------------------------------------------------------------------------------------
