@@ -104,8 +104,17 @@ describe('edge ids', () => {
     expect(early.nodes.map((n) => n.id)).toContain('e1');
   });
 
-  it('refuses subgraph view data', () => {
-    expect(errors('subgraph one\nA\nend\none@{ view: collapsed }').join()).toMatch(/not read yet/);
+  // canvas-lwa4: Mermaid 11.17's subgraph options, after the subgraph's end, are kept and written back.
+  it('keeps subgraph options given after the subgraph', () => {
+    const model = parse('subgraph one\nA\nend\none@{ view: collapsed }\none@{ "algorithm": elk.box }');
+    expect(model.containers[0].mermaidData).toEqual({ view: 'collapsed', algorithm: 'elk.box' });
+    expect(model.nodes.map((n) => n.id)).toEqual(['A']);
+    expect(serializeFlowchart(model)).toContain('  one@{ view: "collapsed", algorithm: "elk.box" }\n');
+  });
+
+  it('refuses subgraph options inside the subgraph or with a class', () => {
+    expect(errors('subgraph one\nA\none@{ view: collapsed }\nend').join()).toMatch(/after the subgraph's end/);
+    expect(errors('subgraph one\nA\nend\none:::k@{ view: collapsed }').join()).toMatch(/after the subgraph's end/);
   });
 });
 

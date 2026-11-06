@@ -569,17 +569,24 @@ export function parseFlowchart(dsl: string): ParseResult {
     }
 
     // canvas-8wxq: `A@{ … }` on its own line: an edge's options when an edge already has that id (as in
-    // Mermaid), refused for a subgraph (`one@{ view: collapsed }` isn't read yet), else a node's shape data.
+    // Mermaid), else a node's shape data. canvas-lwa4: on a subgraph already closed (Mermaid 11.17,
+    // `one@{ view: collapsed }`, `one@{ algorithm: elk.box }`) they are the subgraph's options, kept and written
+    // back; Canvas draws the subgraph as usual. Mermaid looks for the subgraph first.
     const shapeData = line.match(SHAPE_DATA_TOKEN);
     if (shapeData) {
       const [, id, classNames, inner] = shapeData;
-      const edge = classNames === undefined ? edgesByMermaidId.get(id) : undefined;
-      if (edge) {
+      const subgraph = classNames === undefined && !containerStack.includes(id) ? containersById.get(id) : undefined;
+      const edge = classNames === undefined && !subgraph ? edgesByMermaidId.get(id) : undefined;
+      if (subgraph) {
+        const parsed = parseShapeData(inner);
+        if ('error' in parsed) errors.push({ line: i + 1, content: rawLine, message: `In ${id}@{ … }: ${parsed.error}.` });
+        else for (const [key, value] of parsed.entries) subgraph.mermaidData = { ...subgraph.mermaidData, [key]: value };
+      } else if (edge) {
         const parsed = parseShapeData(inner);
         if ('error' in parsed) errors.push({ line: i + 1, content: rawLine, message: `In ${id}@{ … }: ${parsed.error}.` });
         else for (const [key, value] of parsed.entries) edge.mermaidData = { ...edge.mermaidData, [key]: value };
       } else if (containersById.has(id)) {
-        errors.push({ line: i + 1, content: rawLine, message: `Subgraph options (${id}@{ … }) are not read yet.` });
+        errors.push({ line: i + 1, content: rawLine, message: `Subgraph options (${id}@{ … }) go after the subgraph's end, without a class.` });
       } else {
         applyShapeData(ensureNode(id, id, 'rectangle'), inner);
         if (classNames) classAssignments.push({ nodeIds: [id], className: classNames.split(',')[0].trim() });

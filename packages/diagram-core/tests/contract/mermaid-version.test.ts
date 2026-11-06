@@ -22,7 +22,6 @@ describe('Mermaid version', () => {
   });
 
   it.each([
-    ['flowchart', 'flowchart TD\n  subgraph one\n    A\n  end\n  one@{ view: collapsed }\n'],
     ['flowchart', 'flowchart TD\n  A\n  click A call cb()\n'],
     ['state', 'stateDiagram-v2\n  note "floating" as N\n'],
     ['sequence', 'sequenceDiagram\n  properties A: {"class": "x"}\n  A->>B: hi\n'],
@@ -36,6 +35,7 @@ describe('Mermaid version', () => {
     ['flowchart', 'flowchart TD\n  A@{ shape: doc, label: "x" }\n  B@{ icon: "fa:user", img: "https://example.org/a.png" }\n'],
     ['flowchart', 'flowchart TD\n  A e1@--> B\n  e1@{ animate: true, animation: fast, curve: linear, step: 1 }\n'],
     ['flowchart', 'flowchart TD\n  A ---> B -..-> C ===> D\n  D -- label ----> E\n'],
+    ['flowchart', 'flowchart TD\n  subgraph one\n    A\n  end\n  one@{ view: collapsed, algorithm: elk.box }\n'],
     ['c4', 'C4Deployment\n  Node_L(n, "N") {\n  }\n  UpdateLayoutConfig($c4ShapeInRow="3")\n'],
     ['architecture', 'architecture-beta\n  service s(logos:aws-lambda)[S]\n'],
     ['state', 'stateDiagram-v2\n  hide empty description\n  scale 600 width\n  A --> B\n'],

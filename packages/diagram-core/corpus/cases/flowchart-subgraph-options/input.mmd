@@ -1,0 +1,13 @@
+flowchart TD
+  Start --> A
+  subgraph one [My Group]
+    A --> B
+    B --> C
+  end
+  subgraph two
+    D
+  end
+  C --> End
+  one@{ view: collapsed }
+  two@{ "view": expanded }
+  two@{ algorithm: elk.box }

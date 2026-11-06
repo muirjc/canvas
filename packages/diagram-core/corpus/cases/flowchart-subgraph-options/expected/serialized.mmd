@@ -1,0 +1,53 @@
+---
+canvas:
+  positions:
+    A:
+      x: 60
+      y: 90
+    B:
+      x: 240
+      y: 90
+    C:
+      x: 420
+      y: 90
+    D:
+      x: 820
+      y: 90
+    Start:
+      x: 620
+      y: 40
+    End:
+      x: 40
+      y: 210
+  containers:
+    one:
+      x: 40
+      y: 40
+      width: 540
+      height: 130
+    two:
+      x: 800
+      y: 40
+      width: 180
+      height: 130
+  styles: {}
+  edgeStyles: {}
+  icons: {}
+---
+flowchart TD
+subgraph one [My Group]
+  A[A]
+  B[B]
+  C[C]
+end
+subgraph two [two]
+  D[D]
+end
+  Start[Start]
+  End[End]
+  Start --> A
+  A --> B
+  B --> C
+  C --> End
+  one@{ view: "collapsed" }
+  two@{ view: "expanded", algorithm: "elk.box" }

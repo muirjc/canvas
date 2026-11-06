@@ -1,0 +1,119 @@
+{
+  "containers": [
+    {
+      "id": "one",
+      "label": "My Group",
+      "mermaidData": {
+        "view": "collapsed"
+      },
+      "position": {
+        "x": 40,
+        "y": 40
+      },
+      "size": {
+        "height": 130,
+        "width": 540
+      }
+    },
+    {
+      "id": "two",
+      "label": "two",
+      "mermaidData": {
+        "algorithm": "elk.box",
+        "view": "expanded"
+      },
+      "position": {
+        "x": 800,
+        "y": 40
+      },
+      "size": {
+        "height": 130,
+        "width": 180
+      }
+    }
+  ],
+  "diagramTypeId": "flowchart",
+  "direction": "TD",
+  "edges": [
+    {
+      "id": "e1",
+      "sourceId": "Start",
+      "targetId": "A"
+    },
+    {
+      "id": "e2",
+      "sourceId": "A",
+      "targetId": "B"
+    },
+    {
+      "id": "e3",
+      "sourceId": "B",
+      "targetId": "C"
+    },
+    {
+      "id": "e4",
+      "sourceId": "C",
+      "targetId": "End"
+    }
+  ],
+  "nodes": [
+    {
+      "id": "Start",
+      "label": "Start",
+      "position": {
+        "x": 620,
+        "y": 40
+      },
+      "shape": "rectangle"
+    },
+    {
+      "containerId": "one",
+      "id": "A",
+      "label": "A",
+      "position": {
+        "x": 60,
+        "y": 90
+      },
+      "shape": "rectangle"
+    },
+    {
+      "containerId": "one",
+      "id": "B",
+      "label": "B",
+      "position": {
+        "x": 240,
+        "y": 90
+      },
+      "shape": "rectangle"
+    },
+    {
+      "containerId": "one",
+      "id": "C",
+      "label": "C",
+      "position": {
+        "x": 420,
+        "y": 90
+      },
+      "shape": "rectangle"
+    },
+    {
+      "containerId": "two",
+      "id": "D",
+      "label": "D",
+      "position": {
+        "x": 820,
+        "y": 90
+      },
+      "shape": "rectangle"
+    },
+    {
+      "id": "End",
+      "label": "End",
+      "position": {
+        "x": 40,
+        "y": 210
+      },
+      "shape": "rectangle"
+    }
+  ]
+}
