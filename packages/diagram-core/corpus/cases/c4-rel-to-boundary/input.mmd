@@ -1,0 +1,12 @@
+C4Container
+  title Relationships to a boundary
+  Person(customer, "Customer")
+  System_Ext(mail, "Mail system")
+  System_Boundary(bank, "Internet banking") {
+    Container(web, "Web app", "React")
+    ContainerDb(db, "Database", "PostgreSQL")
+  }
+  Rel(customer, bank, "Banks with")
+  Rel_D(bank, mail, "Sends email through")
+  BiRel(web, db, "Reads and writes")
+  Rel_Back(bank, customer, "Notifies")

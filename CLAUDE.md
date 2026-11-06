@@ -100,6 +100,12 @@ tests are NON-NEGOTIABLE and must exist (and fail) before implementing any diagr
 work — see `.specify/memory/constitution.md` Principle IV.
 
 ## Recent Changes
+- `canvas-lwa4` part 2 (Mermaid 12 extras, C4): **a relationship can end on a boundary** (Mermaid 12.0). Parsing,
+  saving and drawing already worked (renderers use `containerAsEndpoint`); now the editor's connect mode accepts a
+  C4 boundary click (Canvas.tsx `handleContainerPointerDown`, as for state composites) and the AI's `addEdge` takes
+  a C4 container id (`tools.py`, family in state/c4; C4 primer says so). `update_ai_vectors` now also rewrites
+  primers (only the 12 C4 entries changed). Corpus `c4-rel-to-boundary`; e2e in apps/web/tests/e2e. Validation
+  treats a boundary end as an unclassified element.
 - `canvas-lwa4` part 1 (Mermaid 12 extras, sequence): **participant types and the rest of autonumber.**
   `participant|actor|create … ID@{ "type": "database", "alias": "x" }` (block read up to the first `}`, by
   `parseShapeData`, which now also takes quoted keys `"type":` for every family): the block is `node.mermaidData`,

@@ -182,11 +182,12 @@ def create_tools(family: str, rules: JsonObj | None = None) -> dict[str, Tool]:
     def add_edge(state: State, args: JsonObj) -> JsonObj:
         model = state.model
         source, target = args["sourceId"], args["targetId"]
-        # canvas-bnnh: in a state diagram a connector may also end on a composite state (a group).
+        # canvas-bnnh: in a state diagram a connector may also end on a composite state (a group); canvas-lwa4:
+        # in C4 on a boundary (Mermaid 12).
         missing = [
             i
             for i in (source, target)
-            if not _has(model["nodes"], i) and not (family == "state" and _has(model["containers"], i))
+            if not _has(model["nodes"], i) and not (family in ("state", "c4") and _has(model["containers"], i))
         ]
         if missing:
             return not_found(state, "addEdge", "shape", missing[0])

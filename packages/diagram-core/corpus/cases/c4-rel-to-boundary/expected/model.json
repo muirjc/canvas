@@ -1,0 +1,98 @@
+{
+  "containers": [
+    {
+      "id": "bank",
+      "label": "Internet banking",
+      "position": {
+        "x": 40,
+        "y": 40
+      },
+      "role": "system-boundary",
+      "size": {
+        "height": 130,
+        "width": 480
+      }
+    }
+  ],
+  "diagramTypeId": "c4-container",
+  "edges": [
+    {
+      "id": "e1",
+      "label": "Banks with",
+      "sourceId": "customer",
+      "targetId": "bank"
+    },
+    {
+      "id": "e2",
+      "label": "Sends email through",
+      "layoutHint": "down",
+      "sourceId": "bank",
+      "targetId": "mail"
+    },
+    {
+      "arrow": "both",
+      "id": "e3",
+      "label": "Reads and writes",
+      "sourceId": "web",
+      "targetId": "db"
+    },
+    {
+      "id": "e4",
+      "label": "Notifies",
+      "sourceId": "customer",
+      "targetId": "bank"
+    }
+  ],
+  "nodes": [
+    {
+      "c4TypeLabel": "Person",
+      "id": "customer",
+      "label": "Customer",
+      "position": {
+        "x": 560,
+        "y": 40
+      },
+      "role": "person",
+      "shape": "person"
+    },
+    {
+      "c4TypeLabel": "Software System",
+      "external": true,
+      "id": "mail",
+      "label": "Mail system",
+      "position": {
+        "x": 740,
+        "y": 40
+      },
+      "role": "system",
+      "shape": "rectangle"
+    },
+    {
+      "c4TypeLabel": "Container",
+      "containerId": "bank",
+      "id": "web",
+      "label": "Web app",
+      "position": {
+        "x": 60,
+        "y": 90
+      },
+      "role": "container",
+      "shape": "rounded-rectangle",
+      "technology": "React"
+    },
+    {
+      "c4TypeLabel": "Container",
+      "containerId": "bank",
+      "id": "db",
+      "label": "Database",
+      "position": {
+        "x": 300,
+        "y": 90
+      },
+      "role": "container",
+      "shape": "cylinder",
+      "technology": "PostgreSQL"
+    }
+  ],
+  "title": "Relationships to a boundary"
+}

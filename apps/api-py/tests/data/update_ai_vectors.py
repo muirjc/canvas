@@ -1,8 +1,9 @@
-"""Rewrites the tool lists and "Current diagram" sections in ai_tools_vectors.json from the Python tools.
+"""Rewrites the tool lists, primers and "Current diagram" sections in ai_tools_vectors.json from the Python tools.
 
 The vectors were generated from the TypeScript tools when they were ported (canvas-1bty.15.7); the TypeScript copy
 is gone (canvas-1bty.16), so they are now golden output of these tools, changed on purpose. This only rewrites
-what an intended change touches -- the tool list per family and standard, each model's description, and the
+what an intended change touches -- the tool list per family and standard, each family's primer, each model's
+description, and the
 "unavailable tool" error (it lists the tools offered). It never rewrites anything else in the recorded tool-call
 runs: those keep checking that the existing tools behave exactly as they did.
 
@@ -28,6 +29,7 @@ def _text(value: Any) -> str:
 def main() -> None:
     data: dict[str, Any] = json.loads(PATH.read_text("utf-8"))
     rules = data["rules"]
+    empty = {"nodes": [], "edges": [], "containers": []}
     tool_defs: list[Any] = []
     index_of: dict[str, int] = {}
     for entry in data["tools"]:
@@ -40,11 +42,12 @@ def main() -> None:
             indices.append(index_of[key])
         entry["tools"] = indices
     data["toolDefs"] = tool_defs
+    for entry in data["standards"]:
+        entry["primer"] = prompt_sections(entry["family"], rules[entry["rules"]], empty)["primer"]
     for entry in data["prompts"]:
         model = data["models"][entry["case"]]
         entry["currentDiagram"] = prompt_sections(entry["family"], rules[entry["rules"]], model)["currentDiagram"]
     unavailable = "Model tried to call unavailable tool "
-    empty = {"nodes": [], "edges": [], "containers": []}
     for run in data["runs"]:
         for step in run["steps"]:
             if step.get("error", "").startswith(unavailable):

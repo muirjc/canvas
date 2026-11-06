@@ -48,7 +48,9 @@ restore is stopped and says who.
 - **Colour:** click the palette icon. If a standard applies, you choose from its approved colours.
 - **Connect:** click **Connect**, then the first shape, then the second. While connecting you can
   choose the arrow direction (forward, reversed, both or none). Some types add more choices, such as
-  cardinality for ERD and UML class diagrams.
+  cardinality for ERD and UML class diagrams. In C4 diagrams a relationship can also start or end on a
+  boundary: click the boundary's box instead of a shape (state diagrams allow the same with a
+  composite state).
 - **Group:** **Add Container** draws a box (a subgraph, boundary or namespace, depending on the
   type). Select shapes and choose **Group into Container** to put them inside one.
 - **Delete:** select something and press **Delete** or use **Delete Selected**. Canvas asks first.

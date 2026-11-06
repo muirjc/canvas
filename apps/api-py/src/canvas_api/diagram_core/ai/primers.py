@@ -22,7 +22,8 @@ PRIMERS: dict[str, str] = {
         "stadium/pill shape). Related elements can be grouped inside a labeled boundary — a generic "
         "boundary, a system boundary, a container boundary, an enterprise boundary, or (for deployment "
         "diagrams) a deployment node. Relationships describe how elements interact, usually with a short "
-        "description of the interaction."
+        "description of the interaction. A relationship may also start or end on a boundary: use the "
+        "boundary's group id as its sourceId or targetId."
     ),
     "architecture": (
         "This is a cloud/service architecture diagram. Each service is drawn as an icon representing a "
