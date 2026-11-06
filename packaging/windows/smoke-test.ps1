@@ -110,6 +110,9 @@ try {
   Check (-not (Test-Path $Pythonw)) 'uninstall removed the program'
   Check (Test-Path (Join-Path $DataDir 'canvas.db')) 'uninstall kept the data'
   Write-Host 'Smoke test passed.'
+  # `status` exiting 1 above (as it should, once stopped) is still in LASTEXITCODE, and the CI shell ends the step
+  # with `exit $LASTEXITCODE`.
+  $global:LASTEXITCODE = 0
 } finally {
   if (Test-Path (Join-Path $DataDir 'logs')) { Copy-Item -Recurse -Force (Join-Path $DataDir 'logs') (Join-Path $Logs 'canvas') }
 }
