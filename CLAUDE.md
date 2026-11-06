@@ -100,6 +100,15 @@ tests are NON-NEGOTIABLE and must exist (and fail) before implementing any diagr
 work — see `.specify/memory/constitution.md` Principle IV.
 
 ## Recent Changes
+- `canvas-pc76`: **a flowchart link to a subgraph connects to the subgraph.** `Start --> one` (with `subgraph one`
+  anywhere in the text) used to make a separate node `one` beside the group (an extra box; the link missed the
+  group). As in Mermaid's flowDb (a vertex with a subgraph's id merges into the group node), after reading,
+  flowchart-parser.ts / flowchart.py drop any node whose id is a subgraph's: links keep the id and end on the
+  group (renderers already draw to groups); the node's label/shape/style are dropped (Canvas keeps no flowchart
+  group styles); if the node was named inside another subgraph, that becomes the group's parent (unless it would
+  loop). Corpus `flowchart-link-to-subgraph`; `flowchart-subgraphs-and-styles` had recorded the bug (`b1 -->
+  outer`). Editor connect mode and the AI's `addEdge` (`GROUP_ENDPOINT_FAMILIES`) accept flowchart groups; primer
+  says so. The C4 e2e spec's "flowchart subgraph cannot be an end" test now checks it can.
 - `canvas-lwa4` part 5 (Mermaid 12 extras, flowchart; closes canvas-lwa4): **subgraph options are read and kept.**
   `one@{ view: collapsed }` / `one@{ algorithm: elk.box }` after a CLOSED subgraph (Mermaid 11.17; Mermaid looks
   for a subgraph before an edge id) merge into `DiagramContainer.mermaidData` (new field), written back after the

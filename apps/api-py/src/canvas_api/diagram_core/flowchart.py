@@ -577,6 +577,31 @@ def parse_flowchart(dsl: str) -> dict[str, Any]:
     if errors:
         return {"errors": errors}
 
+    # canvas-pc76: a node named like a subgraph is that subgraph, as in Mermaid (flowchart-parser.ts).
+    def is_within(container_id: Any, ancestor_id: str) -> bool:
+        seen: set[Any] = set()
+        current = container_id
+        while current is not None and current not in seen:
+            if current == ancestor_id:
+                return True
+            seen.add(current)
+            parent = containers_by_id.get(current)
+            current = parent.get("parentContainerId") if parent is not None else None
+        return False
+
+    for container_id, container in containers_by_id.items():
+        node = nodes_by_id.pop(container_id, None)
+        if node is None:
+            continue
+        parent_id = node.get("containerId")
+        if (
+            container.get("parentContainerId") is None
+            and parent_id is not None
+            and parent_id in containers_by_id
+            and not is_within(parent_id, container_id)
+        ):
+            container["parentContainerId"] = parent_id
+
     if is_fresh_import:
         all_nodes = list(nodes_by_id.values())
         all_containers = list(containers_by_id.values())

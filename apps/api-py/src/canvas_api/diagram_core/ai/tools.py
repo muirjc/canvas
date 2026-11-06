@@ -51,6 +51,8 @@ CONNECTOR_LINE_STYLE_OPTIONS: dict[str, tuple[str, ...]] = {
     "flowchart": ("solid", "dotted", "thick", "invisible"),
     "sequence": ("solid", "dotted"),
 }
+#: Families whose connectors may start or end on a group (canvas-bnnh, canvas-lwa4, canvas-pc76).
+GROUP_ENDPOINT_FAMILIES = frozenset({"state", "c4", "erd", "flowchart"})
 GROUPABLE_FAMILIES = frozenset({"architecture", "c4", "erd", "uml", "sequence", "state"})
 SIDES = ("above", "below", "left", "right")
 ALIGNMENTS = ("left", "center", "right", "top", "middle", "bottom")
@@ -183,11 +185,11 @@ def create_tools(family: str, rules: JsonObj | None = None) -> dict[str, Tool]:
         model = state.model
         source, target = args["sourceId"], args["targetId"]
         # canvas-bnnh: in a state diagram a connector may also end on a composite state (a group); canvas-lwa4:
-        # in C4 on a boundary (Mermaid 12), in an ER diagram on a subgraph (Mermaid 11.17).
+        # in C4 on a boundary (Mermaid 12), in an ER diagram or a flowchart on a subgraph (canvas-pc76).
         missing = [
             i
             for i in (source, target)
-            if not _has(model["nodes"], i) and not (family in ("state", "c4", "erd") and _has(model["containers"], i))
+            if not _has(model["nodes"], i) and not (family in GROUP_ENDPOINT_FAMILIES and _has(model["containers"], i))
         ]
         if missing:
             return not_found(state, "addEdge", "shape", missing[0])

@@ -1,0 +1,59 @@
+---
+canvas:
+  positions:
+    Browse:
+      x: 460
+      y: 90
+    Cart:
+      x: 80
+      y: 140
+    Pay:
+      x: 260
+      y: 140
+    Card:
+      x: 860
+      y: 90
+    Start:
+      x: 660
+      y: 40
+    Done:
+      x: 40
+      y: 280
+  containers:
+    shop:
+      x: 40
+      y: 40
+      width: 580
+      height: 200
+    checkout:
+      x: 60
+      y: 90
+      width: 360
+      height: 130
+    payments:
+      x: 840
+      y: 40
+      width: 180
+      height: 130
+  styles: {}
+  edgeStyles: {}
+  icons: {}
+---
+flowchart LR
+subgraph shop [Shop]
+  Browse[Browse]
+  subgraph checkout [Checkout]
+    Cart[Cart]
+    Pay[Pay]
+  end
+end
+subgraph payments [payments]
+  Card[Card]
+end
+  Start[Start]
+  Done[Done]
+  Start --> checkout
+  Cart --> Pay
+  checkout --> Done
+  Browse --> checkout
+  payments --> Pay

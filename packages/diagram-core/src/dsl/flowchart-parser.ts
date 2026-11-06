@@ -671,6 +671,27 @@ export function parseFlowchart(dsl: string): ParseResult {
     return { errors };
   }
 
+  // canvas-pc76: a node named like a subgraph is that subgraph, as in Mermaid (its group node takes the vertex's
+  // place, wherever either appears): links to the id end on the group, and the node's own label, shape and style
+  // are dropped. Named inside another subgraph, it puts the group in that one, unless that would make a loop.
+  const isWithin = (containerId: string | undefined, ancestorId: string): boolean => {
+    const seen = new Set<string>();
+    for (let id = containerId; id !== undefined && !seen.has(id); id = containersById.get(id)?.parentContainerId) {
+      if (id === ancestorId) return true;
+      seen.add(id);
+    }
+    return false;
+  };
+  for (const [id, container] of containersById) {
+    const node = nodesById.get(id);
+    if (!node) continue;
+    nodesById.delete(id);
+    const parentId = node.containerId;
+    if (container.parentContainerId === undefined && parentId !== undefined && containersById.has(parentId) && !isWithin(parentId, id)) {
+      container.parentContainerId = parentId;
+    }
+  }
+
   // canvas-m0g: see c4.ts's identical post-pass comment.
   if (isFreshImport) {
     const allNodes = Array.from(nodesById.values());

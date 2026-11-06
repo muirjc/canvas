@@ -12,7 +12,8 @@ PRIMERS: dict[str, str] = {
         "double-circles, hexagons, parallelograms (or their mirrored parallelogram-alt/ trapezoid-alt "
         "orientation), trapezoids, and asymmetric shapes. Connectors between shapes show the direction of "
         "flow and may be labeled, drawn as a solid, dotted, thick, or invisible line, with an arrowhead "
-        "at one end, both ends, or none at all. Related shapes can be grouped into a labeled container."
+        "at one end, both ends, or none at all. Related shapes can be grouped into a labeled container, "
+        "and a connector may start or end on a container: use its group id as the sourceId or targetId."
     ),
     "c4": (
         "This is a C4 model diagram, showing software architecture at a specific level of abstraction. "

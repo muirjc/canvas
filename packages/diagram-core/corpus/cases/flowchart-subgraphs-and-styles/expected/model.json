@@ -105,15 +105,6 @@
         "strokeColor": "#d62728",
         "strokeWidth": 2
       }
-    },
-    {
-      "id": "outer",
-      "label": "outer",
-      "position": {
-        "x": 840,
-        "y": 40
-      },
-      "shape": "rectangle"
     }
   ]
 }

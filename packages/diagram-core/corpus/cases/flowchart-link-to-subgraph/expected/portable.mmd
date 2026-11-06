@@ -1,0 +1,18 @@
+flowchart LR
+subgraph shop [Shop]
+  Browse[Browse]
+  subgraph checkout [Checkout]
+    Cart[Cart]
+    Pay[Pay]
+  end
+end
+subgraph payments [payments]
+  Card[Card]
+end
+  Start[Start]
+  Done[Done]
+  Start --> checkout
+  Cart --> Pay
+  checkout --> Done
+  Browse --> checkout
+  payments --> Pay

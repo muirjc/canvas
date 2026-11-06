@@ -11,7 +11,7 @@ test.skip(!PROJECT_ID, 'E2E_PROJECT_ID env var not set — run the demo seed (py
 /**
  * canvas-lwa4 part 2: in connect mode a C4 boundary can be a connector's end (written as a plain
  * `Rel(person, boundary, "")`), as a state diagram's composite state already could. A flowchart
- * subgraph still cannot.
+ * subgraph can too (canvas-pc76).
  */
 
 async function openNewDiagram(page: Page, diagramTypeId: string, initialDslContent: string): Promise<void> {
@@ -70,7 +70,8 @@ test('a connector can end on a C4 boundary', async ({ page }) => {
   expect(await dsl(page)).toMatch(/Rel\(user, bank\b/);
 });
 
-test('a flowchart subgraph still cannot be a connector end', async ({ page }) => {
+// canvas-pc76: a flowchart link to a subgraph is Mermaid syntax too (`b --> grp`).
+test('a flowchart connector can end on a subgraph', async ({ page }) => {
   await openNewDiagram(
     page,
     'flowchart',
@@ -83,12 +84,9 @@ test('a flowchart subgraph still cannot be a connector end', async ({ page }) =>
   await page.getByTestId('node-b').click();
   await expect(page.getByTestId('node-b')).toHaveAttribute('data-connect-source', 'true');
   await clickEmptyPartOfGroup(page, 'grp');
-  await expect(page.locator('[data-testid^="edge-"]')).toHaveCount(0);
-
-  // The source is still waiting: the next shape clicked completes b -> a, never b -> grp.
-  await page.getByTestId('node-a').click();
   await expect(page.locator('[data-testid^="edge-"]')).toHaveCount(1);
   const text = await dsl(page);
-  expect(text).toMatch(/b\s*-->\s*a\b/);
-  expect(text).not.toMatch(/-->\s*grp\b/);
+  expect(text).toMatch(/b\s*-->\s*grp\b/);
+  // The group is still a group: no stray node named like it.
+  await expect(page.getByTestId('node-grp')).toHaveCount(0);
 });

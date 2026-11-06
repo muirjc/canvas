@@ -1,0 +1,15 @@
+flowchart LR
+  Start --> checkout
+  subgraph checkout [Checkout]
+    Cart --> Pay
+  end
+  checkout --> Done
+  subgraph shop [Shop]
+    checkout
+    Browse
+  end
+  Browse --> checkout
+  payments[Payments service] --> Pay
+  subgraph payments
+    Card
+  end
