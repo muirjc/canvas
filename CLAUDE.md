@@ -100,6 +100,17 @@ tests are NON-NEGOTIABLE and must exist (and fail) before implementing any diagr
 work — see `.specify/memory/constitution.md` Principle IV.
 
 ## Recent Changes
+- `canvas-xl3a.4` (Windows install, docs and licences): **`docs/admin-guide/installing-on-windows.md`** (install,
+  SmartScreen, first sign-in, Start menu, %LOCALAPPDATA%\Canvas, backup/restore, upgrade, uninstall, recovery, AI
+  via settings.json "env") + RUNBOOK "The Windows installer". **`python -m canvas_api.desktop reset-admin`**: asks
+  for an email and a new temporary password (policy-checked, typed twice) and runs bootstrap_admin's reset mode
+  (unlocked admin, MFA off, signed out); the lone-admin recovery on a single PC. **Licences**:
+  `licenses/windows-python/` (manifest + reviewed texts: CPython's Doc/license.rst at v3.13.17, OpenSSL 3.5.9,
+  SQLite 3.53.1, zlib 1.3.2, libffi 3.8.0, xz 5.8.4, bzip2 1.0.8, Expat 2.8.5, mpdecimal 4.0.0; VC++ runtime via
+  CPython's LICENSE.txt); build.ps1 writes `licenses\PYTHON-RUNTIME-NOTICES.txt` from it and FAILS when the
+  python-build-standalone release isn't the reviewed one, a DLL isn't listed, or an installed package isn't in
+  THIRD-PARTY-NOTICES.md (Linux-made; tzdata, psycopg's Windows-only dependency, now excluded too). The private
+  Python drops tkinter/Tcl/Tk, IDLE, tests, pip, headers (193 -> 162 MB).
 - `canvas-xl3a.2` + `.3` (Windows installer): **`packaging/windows/`**. `build.ps1` (Windows PowerShell 5.1 or pwsh;
   needs uv, `npm ci`, Inno Setup 6 unless `-SkipInstaller`; `-WebDist` takes a prebuilt same-origin web build):
   python-build-standalone CPython 3.13.17 (release 20261021, stripped, sha256 pinned in the script) to

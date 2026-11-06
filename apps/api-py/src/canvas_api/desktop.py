@@ -3,6 +3,7 @@
     python -m canvas_api.desktop start [--no-browser]   # or `open`: start if needed, then open the browser
     python -m canvas_api.desktop stop
     python -m canvas_api.desktop status
+    python -m canvas_api.desktop reset-admin             # locked out: an admin again, with a new temporary password
 
 Everything lives in one per-user data folder (CANVAS_DATA_DIR, else %LOCALAPPDATA%\\Canvas on Windows,
 $XDG_DATA_HOME/canvas elsewhere), kept across upgrades: `settings.json` (secrets and the port, generated once),
@@ -22,6 +23,7 @@ from __future__ import annotations
 import argparse
 import base64
 import contextlib
+import getpass
 import json
 import logging
 import os
@@ -33,6 +35,7 @@ import threading
 import time
 import urllib.request
 import webbrowser
+from collections.abc import Callable
 from logging.handlers import RotatingFileHandler
 from pathlib import Path
 from typing import Any
@@ -286,6 +289,43 @@ def status() -> int:
     return 0 if port else 1
 
 
+def reset_admin(ask: Callable[[str], str] = input, ask_secret: Callable[[str], str] = getpass.getpass) -> int:
+    """Recovery when nobody can sign in (one person, one PC: no other admin to reset them): makes an existing account
+    an active, unlocked admin again with a new temporary password and no two-step verification, signed out
+    everywhere (bootstrap_admin's reset mode). Works whether or not Canvas is running."""
+    from canvas_api.auth.passwords import check_password_policy
+
+    folder = data_dir()
+    folder.mkdir(parents=True, exist_ok=True)
+    settings = load_settings(folder)
+    os.environ.update(app_environment(folder, settings, int(settings["port"])))
+    email = ask("Email address of your Canvas account: ").strip()
+    password = ask_secret("New temporary password (at least 12 characters): ")
+    problem = check_password_policy(password, email)
+    if problem is None and ask_secret("The same password again: ") != password:
+        problem = "The two passwords don't match."
+    if problem is not None:
+        print(problem)
+        return 1
+
+    from canvas_api.config import Settings
+    from canvas_api.db import create_db_engine
+    from canvas_api.jobs.bootstrap_admin import BootstrapError, bootstrap_admin
+
+    engine = create_db_engine(Settings())  # type: ignore[call-arg]
+    try:
+        bootstrap_admin(
+            engine, {"BOOTSTRAP_ADMIN_EMAIL": email, "BOOTSTRAP_ADMIN_PASSWORD": password, "BOOTSTRAP_MODE": "reset"}
+        )
+    except BootstrapError as error:
+        print(error)
+        return 1
+    finally:
+        engine.dispose()
+    print(f"Done. Sign in as {email} with the temporary password; Canvas asks you to choose a new one.")
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="canvas", description="Run Canvas on this PC.")
     commands = parser.add_subparsers(dest="command", required=True)
@@ -294,9 +334,12 @@ def main(argv: list[str] | None = None) -> int:
         command.add_argument("--no-browser", action="store_true", help="don't open the browser")
     commands.add_parser("stop", help="stop Canvas")
     commands.add_parser("status", help="say whether Canvas is running")
+    commands.add_parser("reset-admin", help="make an account an admin again with a new temporary password")
     args = parser.parse_args(argv)
     if args.command in ("start", "open"):
         return start(open_browser=not args.no_browser)
+    if args.command == "reset-admin":
+        return reset_admin()
     return stop() if args.command == "stop" else status()
 
 

@@ -90,6 +90,27 @@ Sign in at `http://localhost:5173` with `admin@example.com` / `admin-dev-passwor
 To serve everything from one process instead (as in Azure): `npm run build --workspace=@canvas/web` and set
 `WEB_DIST_DIR=../web/dist` in `apps/api-py/.env`; the API then serves the web app on its own port.
 
+### The Windows installer (canvas-xl3a)
+
+`packaging/windows/build.ps1` builds `CanvasSetup-<version>.exe` (one person on their own PC; using it:
+`docs/admin-guide/installing-on-windows.md`). Run it on Windows (PowerShell 5.1 or 7) after `npm ci`, with uv
+and Inno Setup 6 installed: `./packaging/windows/build.ps1 -Version 0.2.0`. `-SkipInstaller` stops after the
+`out\stage` folder (no Inno Setup needed; `stage\python\python.exe -m canvas_api.desktop start` runs it);
+`-WebDist` takes an already-built `apps/web/dist` (built with `VITE_API_BASE_URL` empty). CI's
+`windows-installer` job builds it on every PR and runs `packaging/windows/smoke-test.ps1` (install, first
+start, sign-in, upgrade, uninstall); its artifact holds the installer for a week.
+
+- **Bumping its Python** (`$PythonUrl` / `$PythonSha256` in build.ps1): pick a python-build-standalone
+  release at least two weeks old, take the `install_only_stripped` asset's sha256 from the release, then
+  review `licenses/windows-python/`: each bundled library's version (the release's
+  `pythonbuild/downloads.json`, or the library's own version at run time) and licence text (the release's
+  `pgo-full` archive, `python/licenses`). The build refuses a release the manifest wasn't reviewed for, and
+  any DLL the manifest doesn't list.
+- **Python packages** come from `apps/api-py/uv.lock` (`uv export --frozen --no-dev`) without psycopg and
+  tzdata (only psycopg needs it). The build fails when an installed package isn't in THIRD-PARTY-NOTICES.md
+  (made from the Linux install), so a new Windows-only dependency can't ship without its licence.
+- The installer is unsigned (SmartScreen warns).
+
 ## Starting everything from a cold clone
 
 `npm run dev:local` (above) does all of this with SQLite. With PostgreSQL by hand:

@@ -84,12 +84,22 @@ if ($actual -ne $PythonSha256) {
 }
 Invoke-Native 'Unpacking Python' { tar -xzf $archive -C $Stage }  # makes stage\python
 $Python = Join-Path $Stage 'python\python.exe'
+# What Canvas never uses: tkinter with Tcl/Tk, IDLE, the test modules, pip (the dependencies are installed by uv,
+# here) and the headers and import libraries for building extensions. Smaller, and fewer licences to ship.
+$unused = @(
+  'tcl', 'include', 'libs', 'Lib\tkinter', 'Lib\idlelib', 'Lib\turtledemo', 'Lib\turtle.py', 'Lib\test',
+  'Lib\ensurepip', 'Lib\site-packages\pip', 'Scripts', 'DLLs\_tkinter.pyd', 'DLLs\tcl86t.dll', 'DLLs\tk86t.dll'
+)
+foreach ($path in $unused) { Remove-Item -Recurse -Force (Join-Path $Stage "python\$path") -ErrorAction SilentlyContinue }
+Get-ChildItem (Join-Path $Stage 'python\Lib\site-packages') -Filter 'pip-*.dist-info' | Remove-Item -Recurse -Force
+Get-ChildItem (Join-Path $Stage 'python\DLLs') -Filter '_*test*.pyd' | Remove-Item -Force
 
-# 2. The locked production dependencies, without psycopg (Postgres only).
+# 2. The locked production dependencies, without psycopg (Postgres only) and tzdata (only psycopg needs it, on
+# Windows; THIRD-PARTY-NOTICES.md is made on Linux, where it isn't installed).
 $requirements = Join-Path $OutDir 'requirements.txt'
 Invoke-Native 'uv export' {
   uv export --project $Api --frozen --no-dev --no-emit-project --no-emit-package psycopg `
-    --no-emit-package psycopg-binary --format requirements.txt --output-file $requirements --quiet
+    --no-emit-package psycopg-binary --no-emit-package tzdata --format requirements.txt --output-file $requirements --quiet
 }
 Invoke-Native 'Installing the dependencies' {
   uv pip install --python $Python --break-system-packages --require-hashes --no-deps --compile-bytecode `
@@ -129,12 +139,58 @@ Invoke-Native 'Copying the web app' {
   if ($LASTEXITCODE -lt 8) { $global:LASTEXITCODE = 0 }
 }
 
-# 5. Licences.
+# 5. Licences: Canvas's own, THIRD-PARTY-NOTICES.md (the npm and Python packages), CPython's LICENSE.txt and a
+# notice for the private Python's bundled libraries from licenses\windows-python (reviewed for this exact build).
 $licenses = Join-Path $Stage 'licenses'
 New-Item -ItemType Directory -Force -Path $licenses | Out-Null
 Copy-Item (Join-Path $Root 'LICENSE') (Join-Path $licenses 'LICENSE.txt')
 Copy-Item (Join-Path $Root 'THIRD-PARTY-NOTICES.md') (Join-Path $licenses 'THIRD-PARTY-NOTICES.md')
 Copy-Item (Join-Path $Stage 'python\LICENSE.txt') (Join-Path $licenses 'PYTHON-LICENSE.txt')
+# Every installed package (name and version) must be in THIRD-PARTY-NOTICES.md, which is made from the Linux
+# install: a Windows-only dependency would otherwise ship without its licence.
+$notices = Get-Content -Raw -Encoding UTF8 (Join-Path $Root 'THIRD-PARTY-NOTICES.md')
+foreach ($info in Get-ChildItem (Join-Path $Stage 'python\Lib\site-packages') -Directory -Filter '*.dist-info') {
+  $nameAndVersion = $info.Name.Substring(0, $info.Name.Length - '.dist-info'.Length)
+  $split = $nameAndVersion.LastIndexOf('-')
+  $name = ($nameAndVersion.Substring(0, $split) -replace '[._]', '-').ToLowerInvariant()
+  $packageVersion = $nameAndVersion.Substring($split + 1)
+  if (-not $notices.Contains("### $name $packageVersion`n") -and -not $notices.Contains("### $name $packageVersion`r`n")) {
+    throw "$name $packageVersion is installed but isn't in THIRD-PARTY-NOTICES.md (a Windows-only dependency?)."
+  }
+}
+$reviewed = Join-Path $Root 'licenses\windows-python'
+$manifest = Get-Content -Raw (Join-Path $reviewed 'manifest.json') | ConvertFrom-Json
+if ($PythonUrl -notmatch "/download/$($manifest.pythonBuildStandalone)/cpython-$([regex]::Escape($manifest.python))%2B") {
+  throw "licenses\windows-python was reviewed for python-build-standalone $($manifest.pythonBuildStandalone) " +
+    "(CPython $($manifest.python)); review it again for the Python in `$PythonUrl."
+}
+$listed = @($manifest.libraries | ForEach-Object { $_.files } | ForEach-Object { $_.Replace('/', '\').ToLowerInvariant() })
+foreach ($file in $listed) {
+  if (-not (Test-Path (Join-Path $Stage "python\$file"))) { throw "licenses\windows-python lists $file, which the build doesn't have." }
+}
+$pythonDir = Join-Path $Stage 'python'
+$dlls = @(Get-ChildItem $pythonDir -Filter '*.dll') + @(Get-ChildItem (Join-Path $pythonDir 'DLLs') -Filter '*.dll')
+foreach ($dll in $dlls) {
+  $relative = $dll.FullName.Substring($pythonDir.Length + 1).ToLowerInvariant()
+  if ($listed -notcontains $relative) { throw "$relative isn't in licenses\windows-python\manifest.json: review its licence." }
+}
+$notice = New-Object System.Text.StringBuilder
+[void]$notice.AppendLine("The Python runtime installed with Canvas: CPython $($manifest.python) built by python-build-standalone")
+[void]$notice.AppendLine("(release $($manifest.pythonBuildStandalone)), and the libraries it bundles, each used unmodified.")
+[void]$notice.AppendLine('CPython''s own licence, with the conditions for the Microsoft Visual C++ runtime, is in PYTHON-LICENSE.txt.')
+foreach ($library in $manifest.libraries) {
+  [void]$notice.AppendLine()
+  [void]$notice.AppendLine(('=' * 78))
+  [void]$notice.AppendLine("$($library.name) $($library.version) -- $($library.licence)")
+  [void]$notice.AppendLine("Files: $($library.files -join ', ')")
+  [void]$notice.AppendLine("Source: $($library.source)")
+  [void]$notice.AppendLine(('=' * 78))
+  foreach ($text in $library.texts) {
+    [void]$notice.AppendLine()
+    [void]$notice.AppendLine((Get-Content -Raw -Encoding UTF8 (Join-Path $reviewed $text)).TrimEnd())
+  }
+}
+[System.IO.File]::WriteAllText((Join-Path $licenses 'PYTHON-RUNTIME-NOTICES.txt'), $notice.ToString(), (New-Object System.Text.UTF8Encoding $false))
 
 # The staged app must at least import (catches a broken .pth or a missing dependency before Inno Setup runs).
 Invoke-Native 'Checking the staged app' {

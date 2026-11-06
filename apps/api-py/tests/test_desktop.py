@@ -372,3 +372,74 @@ def test_a_taken_port_is_replaced_and_remembered(launcher: Launcher) -> None:
         _wait(lambda: _get_status(port) == 200, "/health", 120)
         assert launcher.run("stop").returncode == 0
         assert _get_status(port) is None
+
+
+# --- reset-admin -------------------------------------------------------------------------------------
+
+
+def _credentials(folder: Path) -> Any:
+    engine = create_engine(f"sqlite:///{folder / 'canvas.db'}")
+    try:
+        with engine.connect() as conn:
+            return conn.execute(
+                text(
+                    "SELECT c.password_hash, c.password_salt AS salt, c.must_change_password, c.failed_attempts, "
+                    "c.locked_at, u.role "
+                    "FROM local_credentials c JOIN users u ON u.id = c.user_id"
+                )
+            ).one()
+    finally:
+        engine.dispose()
+
+
+def _answers(*values: str) -> Callable[[str], str]:
+    queue = list(values)
+    return lambda _prompt: queue.pop(0)
+
+
+@pytest.fixture
+def locked_out(prepared: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
+    """The first admin exists, then is locked and demoted, as if they'd lost access."""
+    monkeypatch.setenv("CANVAS_DATA_DIR", str(prepared))
+    (prepared / "first-admin.json").write_text(json.dumps(FIRST_ADMIN))
+    desktop.prepare(prepared)
+    engine = create_engine(f"sqlite:///{prepared / 'canvas.db'}")
+    with engine.begin() as conn:
+        conn.execute(text("UPDATE local_credentials SET failed_attempts = 3, locked_at = '2026-11-01T00:00:00.000Z'"))
+        conn.execute(text("UPDATE users SET role = 'viewer'"))
+    engine.dispose()
+    return prepared
+
+
+def test_reset_admin_gives_back_admin_with_a_new_temporary_password(
+    locked_out: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    from canvas_api.auth.passwords import verify_password
+
+    new = "a-brand-new-temporary-pass"
+    code = desktop.reset_admin(ask=_answers(" Owner@Example.com "), ask_secret=_answers(new, new))
+    assert code == 0, capsys.readouterr().out
+    row = _credentials(locked_out)
+    assert verify_password(new, row.password_hash, row.salt)
+    assert row.must_change_password
+    assert row.failed_attempts == 0 and row.locked_at is None
+    assert row.role == "admin"
+    assert new not in capsys.readouterr().out
+
+
+@pytest.mark.parametrize(
+    ("email", "passwords", "message"),
+    [
+        ("owner@example.com", ("short", "short"), "at least 12 characters"),
+        ("owner@example.com", ("a-brand-new-temporary-pass", "something-else-entirely"), "don't match"),
+        ("nobody@example.com", ("a-brand-new-temporary-pass", "a-brand-new-temporary-pass"), "nothing to reset"),
+    ],
+    ids=["weak-password", "mismatch", "unknown-email"],
+)
+def test_reset_admin_refuses_and_changes_nothing(
+    locked_out: Path, capsys: pytest.CaptureFixture[str], email: str, passwords: tuple[str, str], message: str
+) -> None:
+    before = _credentials(locked_out)
+    assert desktop.reset_admin(ask=_answers(email), ask_secret=_answers(*passwords)) == 1
+    assert message in capsys.readouterr().out
+    assert _credentials(locked_out) == before
