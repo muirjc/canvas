@@ -231,6 +231,18 @@ jobs:
   # tab with history, not only in a job log that scrolls away.
   # ---------------------------------------------------------------------------
 
+  # The production image (what deploy.sh builds with az acr build), built but not pushed: a file the
+  # image doesn't copy fails here, not at deploy time (scripts/dotenv.mjs did, 2026-11-06).
+  api-image:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Build the canvas-api-py image
+        run: docker build --file apps/api-py/Dockerfile --tag canvas-api-py:ci .
+
   secret-scan:
     name: secret-scan
     runs-on: ubuntu-latest
