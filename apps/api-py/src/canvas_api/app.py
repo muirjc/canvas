@@ -107,7 +107,7 @@ def create_app(
     app.state.language_model = None
     app.state.anthropic_client = None
     app.state.openai_client = None
-    configure_telemetry(app, settings.applicationinsights_connection_string)
+    configure_telemetry(app, settings.applicationinsights_connection_string, db)
     register_error_handlers(app)
 
     # The route groups, in the order they moved from TypeScript (canvas-1bty.6 to .14).

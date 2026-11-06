@@ -30,6 +30,7 @@ from canvas_api.diagram_core import DiagramCore
 from canvas_api.errors import ApiError
 from canvas_api.routes.diagrams import get_diagram
 from canvas_api.standards import get_active_standard
+from canvas_api.telemetry import work_span
 
 router = APIRouter(tags=["Export"])
 
@@ -95,12 +96,14 @@ def render_svg(
     model: dict[str, Any] = parsed["model"]
     legend = model.get("legend") or {}
     standard = get_active_standard(conn, diagram_type_id) if legend.get("visible") else None
-    return core.render_svg(
-        model,
-        icons=_icon_artwork(conn, model),
-        standard_rules=standard.rules if standard else None,
-        background=background,
-    )
+    icons = _icon_artwork(conn, model)
+    with work_span("render svg", {"canvas.diagram.family": family}):
+        return core.render_svg(
+            model,
+            icons=icons,
+            standard_rules=standard.rules if standard else None,
+            background=background,
+        )
 
 
 @router.get("/diagrams/{id}/export")
@@ -119,7 +122,11 @@ def export(
             body: bytes | str = core.portable(diagram["dslContent"])
         else:
             svg = render_svg(conn, core, diagram["dslFamily"], diagram["dslContent"], diagram["diagramTypeId"])
-            body = svg if format == "svg" else _png(svg)
+            if format == "svg":
+                body = svg
+            else:
+                with work_span("rasterize png", {"canvas.diagram.family": diagram["dslFamily"]}):
+                    body = _png(svg)
     return Response(
         content=body,
         headers={

@@ -100,6 +100,18 @@ tests are NON-NEGOTIABLE and must exist (and fail) before implementing any diagr
 work — see `.specify/memory/constitution.md` Principle IV.
 
 ## Recent Changes
+- `canvas-znz5`: **the performance workbook's SQL and outbound panels get data from the Python service.**
+  `telemetry.py`: `instrument_queries(engine)` (SQLAlchemy cursor events, as the TypeScript Kysely hook: one
+  CLIENT span per query inside a request, `<FIRST WORD> <dialect>`, `db.system.name` + `db.query.text`
+  parameterised, cut at 1000), `work_span(name, attrs)` around `render svg`, `rasterize png`, `validate
+  standard`, each `ai chat` model step; `configure_telemetry(app, conn, engine)` instruments the existing app
+  explicitly (`FastAPIInstrumentor.instrument_app`, send/receive spans excluded): left to the distro's class
+  swap, each request also emitted FastAPI dependency/endpoint INTERNAL spans, which App Insights stores as
+  "InProc" dependencies. httpx was already instrumented by the distro. The exporter keeps every `db.*`
+  attribute OUT of customDimensions: the workbook (monitoring.bicep) now reads the query from `data` and splits
+  on `type` ("postgresql", "SQL" = SQLite). Tests: `tests/test_telemetry.py` (in-memory spans; the exporter's
+  own envelope conversion; the real app in a subprocess, `tests/data/telemetry_smoke.py`). Not yet seen live
+  (Azure paused, deploy needs the user's go-ahead).
 - `canvas-pc76`: **a flowchart link to a subgraph connects to the subgraph.** `Start --> one` (with `subgraph one`
   anywhere in the text) used to make a separate node `one` beside the group (an extra box; the link missed the
   group). As in Mermaid's flowDb (a vertex with a subgraph's id merges into the group node), after reading,

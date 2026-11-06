@@ -604,10 +604,15 @@ The API sends OpenTelemetry traces to Azure **Application Insights** (`canvas-in
 `canvas-logs` workspace) whenever `APPLICATIONINSIGHTS_CONNECTION_STRING` is set; `deploy.sh` sets
 it from the Bicep output. It uses the Azure Monitor OpenTelemetry distro
 (`apps/api-py/src/canvas_api/telemetry.py`); each request is a span named after its route template
-(`GET /diagrams/:id`). Diagram content, prompts, emails and tokens are never recorded.
+(`GET /diagrams/:id`). Under it: each SQL query (`SELECT postgresql`, the parameterised text, never
+the values), each outbound HTTP call (GitHub, Entra, the AI providers) and app work (`render svg`,
+`rasterize png`, `validate standard`, `ai chat` per model step). Diagram content, prompts, emails and
+tokens are never recorded. Requests are sampled (about 5 traces a second, the distro's default); a
+sampled request keeps all its child spans.
 
 - **Where to look:** Azure portal -> Monitor -> Workbooks -> **Canvas performance** (per-route
-  p50/p95/p99 and failures, key routes over 7 days, requests over 3 s, i.e. cold starts), or
+  p50/p95/p99 and failures, key routes over 7 days, slowest SQL queries, outbound calls and app
+  work, requests over 3 s, i.e. cold starts), or
   Application Insights -> Performance / Transaction search for one request's timeline.
 - **Alert:** `canvas-key-route-p95` runs hourly and emails the admin (`adminEmail`; local auth mode)
   when open diagram / save / export / project list p95 > 2 s, or AI chat > 30 s (at least 5 requests).

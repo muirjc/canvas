@@ -35,6 +35,7 @@ from canvas_api.catalog import DSL_FAMILIES
 from canvas_api.config import Settings
 from canvas_api.diagram_core import DiagramCore
 from canvas_api.standards import get_active_standard
+from canvas_api.telemetry import work_span
 from canvas_api.timestamps import to_api
 
 log = logging.getLogger(__name__)
@@ -249,7 +250,8 @@ def send_chat_message(
     reply = ""
     try:
         for _ in range(_step_limit(mode, rules)):
-            step = lm.generate(system, conversation, tools)
+            with work_span("ai chat", {"canvas.ai.mode": mode, "canvas.diagram.family": family}):
+                step = lm.generate(system, conversation, tools)
             # canvas-9af: every step's tokens count, so a turn that fails partway still records what it spent.
             totals["steps"] += 1
             totals["input"] += step.usage.input_tokens
