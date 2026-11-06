@@ -383,7 +383,8 @@ def _credentials(folder: Path) -> Any:
         with engine.connect() as conn:
             return conn.execute(
                 text(
-                    "SELECT c.password_hash, c.password_salt AS salt, c.must_change_password, c.failed_attempts, c.locked_at, u.role "
+                    "SELECT c.password_hash, c.password_salt AS salt, c.must_change_password, c.failed_attempts, "
+                    "c.locked_at, u.role "
                     "FROM local_credentials c JOIN users u ON u.id = c.user_id"
                 )
             ).one()
