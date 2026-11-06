@@ -177,8 +177,9 @@ end;
 
 function ShouldSkipPage(PageID: Integer): Boolean;
 begin
-  { An upgrade keeps the accounts that already exist. }
-  Result := (PageID = AdminPage.ID) and HasData;
+  { An upgrade keeps the accounts that already exist. A silent install skips the page too: Setup would still
+    "click Next" on it, the empty fields would fail the check, and with /SUPPRESSMSGBOXES it would retry forever. }
+  Result := (PageID = AdminPage.ID) and (HasData or WizardSilent);
 end;
 
 function NextButtonClick(CurPageID: Integer): Boolean;
@@ -186,7 +187,7 @@ var
   Email, Problem: String;
 begin
   Result := True;
-  if CurPageID = AdminPage.ID then
+  if (CurPageID = AdminPage.ID) and not WizardSilent then
   begin
     Email := Trim(AdminPage.Values[0]);
     Problem := EmailProblem(Email);

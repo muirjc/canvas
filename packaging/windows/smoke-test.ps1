@@ -27,11 +27,20 @@ function Check([bool]$Condition, [string]$What) {
   Write-Host "ok: $What"
 }
 
-function Install([string]$LogName) {
-  $process = Start-Process -FilePath $Installer -Wait -PassThru -ArgumentList @(
-    '/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART', "/LOG=$(Join-Path $Logs $LogName)")
-  Check ($process.ExitCode -eq 0) "Setup exited 0 ($LogName)"
+# Runs Setup or the uninstaller silently, failing (not hanging) if it doesn't finish in 10 minutes.
+function Run-Silently([string]$Program, [string]$LogName) {
+  $log = Join-Path $Logs $LogName
+  $process = Start-Process -FilePath $Program -PassThru -ArgumentList @(
+    '/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART', "/LOG=$log")
+  if (-not $process.WaitForExit(600000)) {
+    Stop-Process -Id $process.Id -Force -ErrorAction SilentlyContinue
+    Get-Content $log -ErrorAction SilentlyContinue | Select-Object -Last 20
+    throw "FAILED: $LogName didn't finish within 10 minutes"
+  }
+  Check ($process.ExitCode -eq 0) "$LogName exited 0"
 }
+
+function Install([string]$LogName) { Run-Silently $Installer $LogName }
 
 function Port { (Get-Content (Join-Path $DataDir 'canvas.pid') | ConvertFrom-Json).port }
 
@@ -95,9 +104,7 @@ try {
   & $Python -m canvas_api.desktop status
   Check ($LASTEXITCODE -eq 1) 'stop stopped Canvas'
 
-  $process = Start-Process -FilePath (Join-Path $AppDir 'unins000.exe') -Wait -PassThru -ArgumentList @(
-    '/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART', "/LOG=$(Join-Path $Logs 'uninstall.log')")
-  Check ($process.ExitCode -eq 0) 'uninstall exited 0'
+  Run-Silently (Join-Path $AppDir 'unins000.exe') 'uninstall.log'
   # The uninstaller finishes removing itself just after it exits.
   for ($i = 0; $i -lt 20 -and (Test-Path $Pythonw); $i++) { Start-Sleep -Milliseconds 500 }
   Check (-not (Test-Path $Pythonw)) 'uninstall removed the program'
