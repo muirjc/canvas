@@ -11,7 +11,7 @@
     3. apps\api-py\src and migrations copied to stage\app (the layout canvas_api.desktop and the migration runner
        expect), a VERSION file, and a .pth file so the private Python finds canvas_api
     4. the web app built for the same origin (relative API URLs, as in the container image) to stage\app\web
-    5. LICENSE, THIRD-PARTY-NOTICES.md and the Python runtime's licence to stage\licenses
+    5. LICENSE, THIRD-PARTY-NOTICES.md, the Python runtime's licences and the SBOM (sbom.py) to stage\licenses
     6. Inno Setup compiles canvas.iss over the stage folder
 
 .PARAMETER Version
@@ -191,6 +191,14 @@ foreach ($library in $manifest.libraries) {
   }
 }
 [System.IO.File]::WriteAllText((Join-Path $licenses 'PYTHON-RUNTIME-NOTICES.txt'), $notice.ToString(), (New-Object System.Text.UTF8Encoding $false))
+
+# The SBOM (CycloneDX 1.6) of what's staged, inside the install and next to the installer.
+$sbom = Join-Path $licenses 'canvas-sbom.cdx.json'
+Invoke-Native 'Writing the SBOM' {
+  & $Python -I (Join-Path $Here 'sbom.py') --stage $Stage --root $Root --version $Version `
+    --python-url $PythonUrl --python-sha256 $PythonSha256 --output $sbom
+}
+Copy-Item $sbom (Join-Path $OutDir "CanvasSetup-$Version.cdx.json")
 
 # The staged app must at least import (catches a broken .pth or a missing dependency before Inno Setup runs).
 Invoke-Native 'Checking the staged app' {

@@ -100,6 +100,17 @@ tests are NON-NEGOTIABLE and must exist (and fail) before implementing any diagr
 work — see `.specify/memory/constitution.md` Principle IV.
 
 ## Recent Changes
+- `canvas-xl3a.5` (Windows install, SBOM): **`packaging/windows/sbom.py`** (stdlib only, run by build.ps1 on the
+  staged Python) writes a CycloneDX 1.6 JSON SBOM: Canvas as metadata.component; the runtime from
+  licenses/windows-python/manifest.json (nested `file` components with each installed file's SHA-256; CPython
+  names the python-build-standalone download + sha256); every installed .dist-info (purl pkg:pypi, SHA-256 of
+  the uv.lock wheel whose tags match the WHEEL file's `Tag:` lines; a package not in packages.json stops the
+  build); npm packages with `webApp` (purl pkg:npm, lockfile integrity as SHA-512 hex). Licences: an SPDX
+  expression, else by name. Shipped as `licenses\canvas-sbom.cdx.json`, copied beside the installer and kept in
+  CI's artifact. **`licenses/packages.json`**: scripts/third-party-notices.mjs now also writes the package list
+  as data (npm integrity, `webApp` = reachable from apps/web, Node-style resolution; Python incl. not-for-Linux
+  with marker); `licenses:check` checks it. Tests: `tests/test_windows_sbom.py` validates against the vendored
+  CycloneDX 1.6.2 schema (`tests/data/cyclonedx-1.6`); the real Windows SBOM (120 components) validates too.
 - `canvas-xl3a.4` (Windows install, docs and licences): **`docs/admin-guide/installing-on-windows.md`** (install,
   SmartScreen, first sign-in, Start menu, %LOCALAPPDATA%\Canvas, backup/restore, upgrade, uninstall, recovery, AI
   via settings.json "env") + RUNBOOK "The Windows installer". **`python -m canvas_api.desktop reset-admin`**: asks

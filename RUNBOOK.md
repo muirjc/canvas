@@ -109,6 +109,13 @@ start, sign-in, upgrade, uninstall); its artifact holds the installer for a week
 - **Python packages** come from `apps/api-py/uv.lock` (`uv export --frozen --no-dev`) without psycopg and
   tzdata (only psycopg needs it). The build fails when an installed package isn't in THIRD-PARTY-NOTICES.md
   (made from the Linux install), so a new Windows-only dependency can't ship without its licence.
+- **SBOM** (canvas-xl3a.5): `packaging/windows/sbom.py` writes a CycloneDX 1.6 SBOM of the stage
+  (`licenses\canvas-sbom.cdx.json` in the install, `out\CanvasSetup-<version>.cdx.json` beside the installer and
+  in CI's artifact): the private Python and its bundled libraries (SHA-256 of each installed file), each
+  installed Python package (SHA-256 of the exact wheel, from uv.lock), and the web app's npm packages (lockfile
+  integrity). Licences come from `licenses/packages.json`, which `npm run licenses` writes with
+  THIRD-PARTY-NOTICES.md (`licenses:check` keeps it current). `tests/test_windows_sbom.py` checks it against
+  the CycloneDX 1.6 schema (`tests/data/cyclonedx-1.6`).
 - The installer is unsigned (SmartScreen warns).
 
 ## Starting everything from a cold clone
