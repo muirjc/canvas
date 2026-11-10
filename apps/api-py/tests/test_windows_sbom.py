@@ -18,7 +18,7 @@ from referencing import Registry, Resource
 
 ROOT = Path(__file__).resolve().parents[3]
 SCHEMAS = Path(__file__).resolve().parent / "data" / "cyclonedx-1.6"
-PYTHON_URL = "https://example.test/cpython-3.13.17+20261021-x86_64-pc-windows-msvc-install_only_stripped.tar.gz"
+PYTHON_URL = "https://example.test/cpython-3.15.2+20261026-x86_64-pc-windows-msvc-install_only_stripped.tar.gz"
 PYTHON_SHA256 = "ab" * 32
 
 
@@ -69,6 +69,8 @@ def stage(tmp_path: Path) -> Path:
     site_packages = tmp_path / "python" / "Lib" / "site-packages"
     _dist_info(site_packages, "fastapi", _python_version("fastapi"), ["py3-none-any"])
     _dist_info(site_packages, "cryptography", _python_version("cryptography"), ["cp311-abi3-win_amd64"])
+    # Built from its source package on the build machine: no locked wheel has this tag.
+    _dist_info(site_packages, "PyYAML", _python_version("pyyaml"), ["cp315-cp315-win_amd64"])
     return tmp_path
 
 
@@ -106,7 +108,7 @@ def test_the_runtime_libraries_carry_the_hashes_of_their_installed_files(stage: 
 
 
 def test_cpython_names_the_download_it_came_from(stage: Path) -> None:
-    cpython = _component(_build(stage), "windows-python:cpython@3.13.17")
+    cpython = _component(_build(stage), "windows-python:cpython@3.15.2")
     distribution = next(r for r in cpython["externalReferences"] if r["type"] == "distribution")
     assert distribution == {
         "type": "distribution",
@@ -116,7 +118,7 @@ def test_cpython_names_the_download_it_came_from(stage: Path) -> None:
 
 
 def test_a_licence_that_isnt_an_spdx_expression_is_given_by_name(stage: Path) -> None:
-    runtime = _component(_build(stage), "windows-python:microsoft-visual-c++-runtime@14.44.35211")
+    runtime = _component(_build(stage), "windows-python:microsoft-visual-c++-runtime@14.51.36247")
     assert runtime["licenses"] == [{"license": {"name": "Microsoft Distributable Code (see PYTHON-LICENSE.txt)"}}]
 
 
@@ -155,3 +157,13 @@ def test_a_package_missing_from_packages_json_stops_the_build(stage: Path) -> No
 def test_wheel_tags_expand_compressed_tag_sets() -> None:
     assert sbom.wheel_tags("x-1.0-cp313.cp314-abi3-win_amd64.whl") == {"cp313-abi3-win_amd64", "cp314-abi3-win_amd64"}
     assert sbom.wheel_tags("x-1.0-1build-py3-none-any.whl") == {"py3-none-any"}
+
+
+def test_a_package_built_from_source_carries_the_hash_of_its_source_package(stage: Path) -> None:
+    document = _build(stage)
+    version = _python_version("pyyaml")
+    pyyaml = _component(document, f"pypi:pyyaml@{version}")
+    url = next(r["url"] for r in pyyaml["externalReferences"] if r["type"] == "distribution")
+    assert url.endswith(f"pyyaml-{version}.tar.gz")
+    assert pyyaml["hashes"][0]["alg"] == "SHA-256"
+    assert re.fullmatch(r"[0-9a-f]{64}", pyyaml["hashes"][0]["content"])

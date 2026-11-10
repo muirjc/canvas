@@ -36,8 +36,8 @@ RUN npm run build --workspace=@canvas/diagram-core \
   && VITE_API_BASE_URL= npm run build --workspace=@canvas/web \
   && node apps/web/scripts/precompress.mjs apps/web/dist
 
-FROM python:3.13-slim AS build
-COPY --from=ghcr.io/astral-sh/uv:0.13.1 /uv /bin/uv
+FROM python:3.15-slim AS build
+COPY --from=ghcr.io/astral-sh/uv:0.13.6 /uv /bin/uv
 ENV UV_COMPILE_BYTECODE=1 UV_LINK_MODE=copy UV_PYTHON_DOWNLOADS=never
 WORKDIR /app/apps/api-py
 COPY apps/api-py/pyproject.toml apps/api-py/uv.lock ./
@@ -46,7 +46,7 @@ COPY apps/api-py/src ./src
 COPY apps/api-py/migrations ./migrations
 RUN uv sync --frozen --no-dev
 
-FROM python:3.13-slim AS runtime
+FROM python:3.15-slim AS runtime
 RUN useradd --create-home --uid 10001 canvas
 WORKDIR /app/apps/api-py
 COPY --from=build /app/apps/api-py /app/apps/api-py

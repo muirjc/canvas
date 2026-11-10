@@ -140,7 +140,7 @@ class ManagedIdentityAssertion:
                 raise OidcError("Managed identity token response had no access_token.")
             try:
                 expires_on = float(body.get("expires_on"))
-            except (TypeError, ValueError):
+            except TypeError, ValueError:
                 expires_on = 0
             self._token = token
             self._expires_at = expires_on if expires_on > 0 else now + 3600
@@ -204,7 +204,7 @@ class OidcClient:
             raise OidcError(f"the token endpoint refused the app token ({response.status_code}, {error_code})")
         try:
             expires_in = float(body.get("expires_in", 3600))
-        except (TypeError, ValueError):
+        except TypeError, ValueError:
             expires_in = 3600
         with self._lock:
             self._app_tokens[scope] = (token, time.time() + expires_in)
@@ -233,7 +233,7 @@ class OidcClient:
         """RP-Initiated Logout, so signing out also ends the Entra session; None when the issuer has none."""
         try:
             endpoint = self.metadata().get("end_session_endpoint")
-        except (OidcError, httpx.HTTPError, ValueError):
+        except OidcError, httpx.HTTPError, ValueError:
             return None
         if not isinstance(endpoint, str) or not endpoint:
             return None

@@ -8,7 +8,8 @@ Components (each with its licence):
 - the private Python (python-build-standalone's CPython) and every library it bundles, from
   licenses/windows-python/manifest.json, each with the SHA-256 of its files as installed;
 - every Python package installed in the stage (from its .dist-info), with the SHA-256 of the exact wheel installed
-  (from apps/api-py/uv.lock, matched by the wheel's tags), licences from licenses/packages.json;
+  (from apps/api-py/uv.lock, matched by the wheel's tags), or of the source package when it was built from one,
+  licences from licenses/packages.json;
 - every npm package the web app is built from (licenses/packages.json, from package-lock.json), with the lockfile's
   integrity hash.
 Canvas itself is the document's subject (metadata.component). Standard library only: it runs on the staged Python.
@@ -71,6 +72,16 @@ def locked_wheels(uv_lock: Path) -> dict[tuple[str, str], list[dict[str, Any]]]:
     }
 
 
+def locked_sdists(uv_lock: Path) -> dict[tuple[str, str], dict[str, Any]]:
+    """(normalized name, version) -> the lockfile's source package for it (url, hash), where it has one."""
+    lock = tomllib.loads(uv_lock.read_text(encoding="utf-8"))
+    return {
+        (normalize(package["name"]), str(package["version"])): dict(package["sdist"])
+        for package in lock.get("package", [])
+        if "version" in package and isinstance(package.get("sdist"), dict) and "url" in package["sdist"]
+    }
+
+
 def installed_wheel(dist_info: Path, wheels: list[dict[str, Any]]) -> dict[str, Any] | None:
     """The locked wheel that was installed: the one whose tags include a tag in the .dist-info's WHEEL file."""
     wheel_file = dist_info / "WHEEL"
@@ -89,6 +100,7 @@ def installed_wheel(dist_info: Path, wheels: list[dict[str, Any]]) -> dict[str, 
 
 def python_packages(site_packages: Path, root: Path, known: dict[str, dict[str, Any]]) -> list[dict[str, Any]]:
     wheels = locked_wheels(root / "apps" / "api-py" / "uv.lock")
+    sdists = locked_sdists(root / "apps" / "api-py" / "uv.lock")
     components = []
     for dist_info in sorted(site_packages.glob("*.dist-info")):
         metadata: dict[str, str] = {}
@@ -111,7 +123,10 @@ def python_packages(site_packages: Path, root: Path, known: dict[str, dict[str, 
             "purl": f"pkg:pypi/{normalize(name)}@{version}",
             "licenses": licenses(entry["license"]),
         }
-        wheel = installed_wheel(dist_info, wheels.get((normalize(name), version), []))
+        # canvas-jpcn: a package with no wheel for this Python (PyYAML 6.0.3 on 3.15) was built here from its
+        # locked source package, so that is what was downloaded and its hash is the one to record.
+        key = (normalize(name), version)
+        wheel = installed_wheel(dist_info, wheels.get(key, [])) or sdists.get(key)
         if wheel is not None:
             algorithm, _, content = wheel["hash"].partition(":")
             if algorithm == "sha256":

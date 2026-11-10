@@ -100,6 +100,16 @@ tests are NON-NEGOTIABLE and must exist (and fail) before implementing any diagr
 work — see `.specify/memory/constitution.md` Principle IV.
 
 ## Recent Changes
+- `canvas-jpcn`: **the Python API runs on Python 3.15** (3.15.2; was 3.13). pyproject `>=3.15,<3.16`, ruff
+  `py315` (formats `except A, B:`, PEP 758), mypy `3.15`; `uv.lock` re-resolved with no version changes (every
+  compiled dependency already had cp315 wheels at its locked version). CI and the Docker image: uv 0.13.6 (the
+  first that knows 3.15.2), `python:3.15-slim`. **PyYAML 6.0.3 has no 3.15 wheels**: it installs from its source
+  package, pure Python (jsyaml only uses `yaml.SafeLoader`); canvas-4rlz switches back once wheels ship. Windows
+  installer: python-build-standalone 20261026 / CPython 3.15.2; `licenses/windows-python` reviewed again (Expat
+  2.9.0, VC++ runtime 14.51.36247, `python3t.dll`, new zstd 1.5.7 in `_zstd.pyd`, zlib-ng 2.2.4 listed as it ships
+  with the build); Tcl/Tk 9 (`tcl90.dll`, `tcl9tk90.dll`, `libtommath.dll`) removed with tkinter. SBOM: a package
+  built from source records its locked sdist's hash and URL. `scripts/third-party-notices.mjs` finds the venv's
+  `python3.X` folder.
 - `canvas-vvi.2` (live co-editing, part 2 of 3): **the editor joins live sessions.** `apps/web/src/app/live-session.ts`
   `LiveSession` (no React; tested with a fake socket and clock): `confirmed` (room model) + `pending` (sent, not
   acked) + `unsent` (flushed every 50 ms) = the view; a remote patch goes onto `confirmed` and own changes are put

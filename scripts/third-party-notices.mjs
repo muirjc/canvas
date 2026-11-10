@@ -35,7 +35,13 @@ const PACKAGES_JSON = join(ROOT, 'licenses', 'packages.json');
 // canvas-c8zl: the C libraries psycopg-binary bundles, with their reviewed licence texts.
 const BUNDLED_DIR = join(ROOT, 'licenses', 'psycopg-binary');
 const PY_PROJECT = join(ROOT, 'apps', 'api-py');
-const PY_SITE_PACKAGES = join(PY_PROJECT, '.venv', 'lib', 'python3.13', 'site-packages');
+// The venv's own python3.X folder, whichever Python it was made with (canvas-jpcn).
+const PY_LIB = join(PY_PROJECT, '.venv', 'lib');
+const PY_SITE_PACKAGES = join(
+  PY_LIB,
+  (existsSync(PY_LIB) ? readdirSync(PY_LIB).find((name) => /^python3\.\d+$/.test(name)) : undefined) ?? 'python3',
+  'site-packages',
+);
 
 // SPDX expressions accepted without review. Anything else fails unless listed in EXCEPTIONS.
 const ALLOWED = new Set([
