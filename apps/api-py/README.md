@@ -6,7 +6,7 @@ the TypeScript API (`apps/api`) route group by route group (epic canvas-1bty,
 docstrings that cite `apps/api/...` refer to the TypeScript original at tag `typescript-api-final`
 (`git show typescript-api-final:apps/api/<path>`).
 
-Stack: Python 3.13, FastAPI, SQLAlchemy Core (Postgres or SQLite, never the ORM), pydantic, uv,
+Stack: Python 3.15, FastAPI, SQLAlchemy Core (Postgres or SQLite, never the ORM), pydantic, uv,
 ruff, mypy, pytest.
 
 ```bash

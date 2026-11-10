@@ -268,7 +268,7 @@ def _render_both(
     """(native, bridge); an error is "error" on either side, which still has to match."""
     try:
         mine: str | None = render_to_svg(model, ICONS, standard_rules=rules, background=background)
-    except (KeyError, TypeError, AttributeError):
+    except KeyError, TypeError, AttributeError:
         mine = "error"
     try:
         theirs: str | None = bridge.render_svg(model, icons=ICONS, standard_rules=rules, background=background)

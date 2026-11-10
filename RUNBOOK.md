@@ -73,7 +73,7 @@ it's missing (canvas-mywp). For a throwaway database, `DATABASE_URL=:memory:` (l
 ### Running locally without containers (Linux, macOS, Windows)
 
 `npm run dev:local` (`scripts/dev-local.mjs`, canvas-mywp) is the whole local setup: Node 22 and
-[uv](https://docs.astral.sh/uv/) are the only requirements (uv fetches Python 3.13), with no Docker, WSL2 or
+[uv](https://docs.astral.sh/uv/) are the only requirements (uv fetches Python 3.15), with no Docker, WSL2 or
 database server. It reads `apps/api-py/.env` (copied from `.env.example` on first run; the process environment
 wins over it), builds `packages/diagram-core` if needed, seeds demo data when the SQLite database is new (else
 applies pending migrations), then runs the API and the web app together with `[api]` / `[web]` output; Ctrl-C
@@ -642,7 +642,7 @@ not recorded (`EXCLUDED_URLS`).
 
 ## Python backend
 
-The backend is `apps/api-py` (FastAPI, SQLAlchemy Core, Python 3.13, uv). It replaced the
+The backend is `apps/api-py` (FastAPI, SQLAlchemy Core, Python 3.15, uv). It replaced the
 TypeScript API (`apps/api`) route group by route group
 ([docs/python-backend-assessment.md](docs/python-backend-assessment.md)); the TypeScript code was
 removed in phase 12 and its last version is at tag `typescript-api-final`

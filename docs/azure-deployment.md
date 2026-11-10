@@ -9,7 +9,7 @@
 > `az group delete`.
 
 A minimal, no-Dockerfile path to a working Canvas deployment on Azure: PostgreSQL Flexible
-Server and one App Service (Linux, Python 3.13) that runs the API (`apps/api-py`) and serves the
+Server and one App Service (Linux, Python 3.15) that runs the API (`apps/api-py`) and serves the
 built web app from the same address, as the `infra/azure/` deployment does. One origin means the
 default cookie settings work; `COOKIE_SECURE`/`COOKIE_SAME_SITE` (see `RUNBOOK.md`) stay unset.
 
@@ -116,7 +116,7 @@ az webapp create \
   --resource-group canvas-demo-rg \
   --plan canvas-demo-plan \
   --name canvas-demo-<unique-suffix> \
-  --runtime "PYTHON:3.13"
+  --runtime "PYTHON:3.15"
 
 az webapp config appsettings set \
   --resource-group canvas-demo-rg \
