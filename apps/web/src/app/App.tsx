@@ -70,7 +70,7 @@ export function App() {
   // Landing rules apply once, to a bare address (design decisions 1-2).
   const landingPending = useRef(isBareAddress(window.location.search));
   // A navigation waiting on the "leave without saving?" confirm; viaHistory = it came from Back/Forward.
-  const [pendingNav, setPendingNav] = useState<{ to: Location; viaHistory: boolean; draft: boolean } | null>(null);
+  const [pendingNav, setPendingNav] = useState<{ to: Location; viaHistory: boolean; draft: boolean; othersEditing: number } | null>(null);
   const skipGuardOnce = useRef(false);
   // Set by user-made navigations so the next screen's heading takes focus (canvas-t3b.3).
   const focusAfterNavigation = useRef(false);
@@ -200,7 +200,12 @@ export function App() {
     landingPending.current = false;
     const from = locationRef.current;
     if (!options.force && from.screen === 'diagram' && !sameLocation(from, to) && diagramEditorRef.current?.hasUnsavedChanges()) {
-      setPendingNav({ to, viaHistory: false, draft: Boolean(diagramEditorRef.current?.isUnsavedDraft()) });
+      setPendingNav({
+        to,
+        viaHistory: false,
+        draft: Boolean(diagramEditorRef.current?.isUnsavedDraft()),
+        othersEditing: diagramEditorRef.current?.othersEditing() ?? 0,
+      });
       return;
     }
     if (options.replace) window.history.replaceState(null, '', urlFor(to));
@@ -227,7 +232,12 @@ export function App() {
         skipGuardOnce.current = false;
       } else if (from.screen === 'diagram' && !sameLocation(from, to) && diagramEditorRef.current?.hasUnsavedChanges()) {
         window.history.pushState(null, '', urlFor(from));
-        setPendingNav({ to, viaHistory: true, draft: Boolean(diagramEditorRef.current?.isUnsavedDraft()) });
+        setPendingNav({
+        to,
+        viaHistory: true,
+        draft: Boolean(diagramEditorRef.current?.isUnsavedDraft()),
+        othersEditing: diagramEditorRef.current?.othersEditing() ?? 0,
+      });
         return;
       }
       setError(null);
@@ -759,7 +769,7 @@ export function App() {
                 Keep editing
               </button>
               <button type="button" className="btn btn--primary" data-testid="confirm-home-nav" onClick={confirmPendingNav}>
-                Discard and leave
+                {pendingNav.othersEditing > 0 && !pendingNav.draft ? 'Leave' : 'Discard and leave'}
               </button>
             </>
           }
@@ -767,7 +777,11 @@ export function App() {
           <p>
             {pendingNav.draft
               ? 'This new diagram hasn’t been saved yet. Leaving will discard it.'
-              : 'This diagram has unsaved changes. Leaving will discard them.'}
+              : pendingNav.othersEditing > 0
+                ? `This diagram has unsaved changes. ${
+                    pendingNav.othersEditing === 1 ? 'Someone else is' : `${pendingNav.othersEditing} other people are`
+                  } still editing it, so the changes stay with them until someone saves.`
+                : 'This diagram has unsaved changes. Leaving will discard them.'}
           </p>
         </Modal>
       )}

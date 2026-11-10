@@ -61,11 +61,22 @@ def connect(
     if who is not None:
         headers["cookie"] = f"cid={who.cookie}"
     with client.websocket_connect(f"/diagrams/{diagram}/live", headers=headers) as socket:
+        # The server's first message (hello, or closed) ends its sign-in and access checks. Waiting for it
+        # keeps two connections' checks apart: the tests' in-memory SQLite is one connection shared by every
+        # thread (a file or Postgres has a pool).
+        FIRST[id(socket)] = socket.receive_json()
         yield socket
 
 
+FIRST: dict[int, dict[str, Any]] = {}
+
+
 def receive(socket: WebSocketTestSession, kind: str) -> dict[str, Any]:
-    """The next message of `kind`, passing over the others (people updates arrive whenever someone joins)."""
+    """The next message of `kind`, passing over the others (people updates arrive whenever someone joins). The
+    first message, taken by connect(), counts when it's the one asked for."""
+    first = FIRST.pop(id(socket), None)
+    if first is not None and first["type"] == kind:
+        return first
     for _ in range(20):
         message: dict[str, Any] = socket.receive_json()
         if message["type"] == kind:

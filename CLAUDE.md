@@ -100,6 +100,24 @@ tests are NON-NEGOTIABLE and must exist (and fail) before implementing any diagr
 work — see `.specify/memory/constitution.md` Principle IV.
 
 ## Recent Changes
+- `canvas-vvi.2` (live co-editing, part 2 of 3): **the editor joins live sessions.** `apps/web/src/app/live-session.ts`
+  `LiveSession` (no React; tested with a fake socket and clock): `confirmed` (room model) + `pending` (sent, not
+  acked) + `unsent` (flushed every 50 ms) = the view; a remote patch goes onto `confirmed` and own changes are put
+  back on top; on `hello` whatever differs from the last confirmed model (edits before connecting / while
+  disconnected) is sent again on the room's model; reconnects 1-30 s, stops on 1008/4401/4403/4404; pings 25 s.
+  `useLiveDiagram` wraps the editor's `setModel`: each edit is diffed against the model the canvas LAST DREW and
+  applied to the newest view (so an edit made before a redraw can't undo a remote change). Canvas, DSL Apply, AI
+  chat and palette inserts all go through it. Editor (`DiagramEditor.tsx`): `onSaved` moves `baseVersionRef` and
+  `lastSavedDsl` (anyone's Save = everyone's), `onReset` replaces the baseline (restore), `onHello` catches up when
+  someone saved between load and join; `handleRestored` leaves the model to the room's reset while live; Save
+  flushes first; an unsaved Create with AI draft joins only after its first save. Presence banner from the live
+  people list (editors + "is watching"; HTTP heartbeat only while not live); `LiveStatusNote` ("Reconnecting…",
+  off); the leave dialog says others still editing keep the changes (`othersEditing()` on the handle). DSL panel:
+  a change while you type keeps your text and shows `dsl-behind` (Load latest / Apply replaces); tracked in
+  state, not a ref (StrictMode renders twice: a ref mutated in render broke Apply). `edit-conflict.spec.ts` now
+  refuses the live socket (`routeWebSocket`) to test the fallback; `live-editing.spec.ts` (two browsers + viewer).
+  Docs: user guide "When someone else is editing", RUNBOOK "Live editing". Follow-ups: canvas-vvi.4 (check on
+  Azure), canvas-yg53 (more than one replica).
 - `canvas-vvi.1` (live co-editing, part 1 of 3; decided with the user: merge per element, anyone's Save saves for
   everyone, viewers watch live): **the engine and the server side; the editor doesn't use it yet** (part 2).
   `packages/diagram-core/src/live/model-patch.ts`: `diffModels`/`applyPatch`/`applyPatches` (top-level fields set/

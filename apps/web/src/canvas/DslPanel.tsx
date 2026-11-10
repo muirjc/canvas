@@ -29,10 +29,32 @@ export function DslPanel({ dsl, parseErrors, onApply, rules, dslFamily, readOnly
   // (e.g. drawing a connector) briefly showed the new edge while the panel still held the old DSL;
   // E2E specs reading the panel right after the edge appeared intermittently saw no edge line.
   const [syncedDsl, setSyncedDsl] = useState(dsl);
+  // canvas-vvi: someone else's change (or one made on the canvas) arrived while the user was typing here. The
+  // typing is kept, and the panel says the diagram moved on; Apply then replaces those changes.
+  const [behind, setBehind] = useState(false);
+  // The text last applied: the diagram changing to match it isn't "changed while you typed". State, not a ref:
+  // this runs during render, which React may repeat.
+  const [appliedText, setAppliedText] = useState<string | null>(null);
   if (dsl !== syncedDsl) {
+    const typing = draft !== syncedDsl && draft !== appliedText;
     setSyncedDsl(dsl);
-    setDraft(dsl);
+    setAppliedText(null);
+    if (typing) {
+      setBehind(true);
+    } else {
+      setDraft(dsl);
+      setBehind(false);
+    }
   }
+  const loadLatest = () => {
+    setDraft(dsl);
+    setBehind(false);
+  };
+  const apply = () => {
+    setAppliedText(draft);
+    setBehind(false);
+    onApply(draft);
+  };
 
   // canvas-tfr: debounce so the check runs when typing pauses, not on every keystroke.
   useEffect(() => {
@@ -75,6 +97,14 @@ export function DslPanel({ dsl, parseErrors, onApply, rules, dslFamily, readOnly
           readOnly={readOnly}
           spellCheck={false}
         />
+        {behind && !readOnly && (
+          <div className="dsl-behind" role="status" data-testid="dsl-behind">
+            <span>The diagram has changed since you started typing. Applying your text replaces those changes.</span>
+            <button type="button" className="btn btn--secondary btn--compact" data-testid="dsl-load-latest" onClick={loadLatest}>
+              Load latest
+            </button>
+          </div>
+        )}
         <UnsupportedElementNotice errors={parseErrors} />
         {standardIssues && standardIssues.length > 0 && (
           <div className="dsl-standards" data-testid="dsl-standards-check" role="status">
@@ -124,7 +154,7 @@ export function DslPanel({ dsl, parseErrors, onApply, rules, dslFamily, readOnly
             type="button"
             className="btn btn--primary btn--compact"
             data-testid="apply-dsl"
-            onClick={() => onApply(draft)}
+            onClick={apply}
           >
             Apply
           </button>

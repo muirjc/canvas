@@ -10,6 +10,8 @@ test.skip(!PROJECT_ID, 'E2E_PROJECT_ID env var not set — run the demo seed (py
 /**
  * canvas-obp0: two people editing one diagram. The second Save is refused and explained, with
  * "Save mine anyway" and "Load the newer version"; and each editor is told who else has it open.
+ * canvas-vvi: this is the fallback without a live session (live-editing.spec.ts has the live one), so both
+ * browsers here are refused the live connection.
  */
 test.describe.configure({ mode: 'serial', timeout: 90_000 });
 
@@ -30,6 +32,11 @@ async function open(page: Page) {
   await expect(page.getByTestId('diagram-canvas')).toBeVisible();
 }
 
+/** The live connection refused, as when it isn't available. */
+async function withoutLiveUpdates(ctx: BrowserContext) {
+  await ctx.routeWebSocket(/\/live$/, (ws) => ws.close({ code: 1008, reason: 'not here' }));
+}
+
 async function addShapeAndSave(page: Page) {
   await page.getByTestId('add-shape-rectangle').click();
   await page.getByTestId('save-diagram').click();
@@ -37,6 +44,7 @@ async function addShapeAndSave(page: Page) {
 
 test.beforeAll(async ({ browser }) => {
   adminCtx = await browser.newContext({ viewport: { width: 1280, height: 900 } });
+  await withoutLiveUpdates(adminCtx);
   admin = await adminCtx.newPage();
   await admin.goto('/');
   await admin.getByTestId('login-email').fill('admin@example.com');
@@ -60,6 +68,7 @@ test.beforeAll(async ({ browser }) => {
   });
   expect(share.status()).toBe(201);
   editorCtx = await browser.newContext({ viewport: { width: 1280, height: 900 } });
+  await withoutLiveUpdates(editorCtx);
   expect((await editorCtx.request.post(`${API_BASE_URL}/auth/local/login`, { data: { email, password: body.temporaryPassword } })).status()).toBe(200);
   expect(
     (await editorCtx.request.post(`${API_BASE_URL}/auth/password`, { data: { currentPassword: body.temporaryPassword, newPassword: PASSWORD } })).status(),
