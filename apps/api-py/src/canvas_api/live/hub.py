@@ -27,6 +27,7 @@ from starlette.websockets import WebSocket
 from canvas_api.diagram_core import DiagramCore
 from canvas_api.diagram_core.live_patch import apply_patch, patch_problem
 from canvas_api.diagram_core.model import is_allowed_link_href
+from canvas_api.timestamps import now_utc, to_api
 
 log = logging.getLogger(__name__)
 
@@ -47,6 +48,7 @@ class Client:
     user_id: str
     name: str
     can_edit: bool
+    since: str = field(default_factory=lambda: to_api(now_utc()) or "")
     outbox: asyncio.Queue[dict[str, Any] | None] = field(default_factory=asyncio.Queue)
 
     def send(self, message: dict[str, Any] | None) -> None:
@@ -54,7 +56,13 @@ class Client:
         self.outbox.put_nowait(message)
 
     def person(self) -> dict[str, Any]:
-        return {"connectionId": self.connection_id, "userId": self.user_id, "name": self.name, "canEdit": self.can_edit}
+        return {
+            "connectionId": self.connection_id,
+            "userId": self.user_id,
+            "name": self.name,
+            "canEdit": self.can_edit,
+            "since": self.since,
+        }
 
 
 @dataclass

@@ -23,6 +23,8 @@ import {
   type VersionConflictDto,
 } from './api';
 import { usePresence } from './usePresence';
+import { useLiveDiagram } from './useLiveDiagram';
+import { LiveStatusNote, livePresence } from './live-presence';
 import { CopyLinkButton } from '../ui/CopyLinkButton';
 import { PresenceBanner } from './PresenceBanner';
 import { SaveConflictDialog } from './SaveConflictDialog';
@@ -71,6 +73,8 @@ export interface DiagramEditorHandle {
   hasUnsavedChanges: () => boolean;
   /** canvas-j6v: an AI-drawn diagram never saved -- leaving without saving deletes it. */
   isUnsavedDraft: () => boolean;
+  /** canvas-vvi: how many other people are editing this diagram live (their copy keeps unsaved changes). */
+  othersEditing: () => number;
 }
 
 function initialModelFromDsl(diagram: DiagramDto): DiagramModel {
@@ -80,6 +84,12 @@ function initialModelFromDsl(diagram: DiagramDto): DiagramModel {
   if (!family) return createEmptyDiagramModel(diagram.diagramTypeId);
   const result = family.parse(diagram.dslContent);
   return isParseSuccess(result) ? result.model : createEmptyDiagramModel(diagram.diagramTypeId);
+}
+
+/** The saved text as this editor writes it (the baseline for "unsaved changes"). */
+function serializedDsl(diagram: DiagramDto): string {
+  const family = getDslFamily(diagram.dslFamily);
+  return family ? family.serialize(initialModelFromDsl(diagram)) : diagram.dslContent;
 }
 
 /** canvas-fkp: each rail tab opens with a "?" to its section of the user guide. */
@@ -118,7 +128,7 @@ export const DiagramEditor = forwardRef<DiagramEditorHandle, DiagramEditorProps>
   // canvas-j6v: a Create with AI draft opens on the drawing kept in this tab, over an empty saved
   // diagram -- so it reads "Not saved" until the user saves it.
   const [draft, setDraft] = useState(Boolean(initialDiagram.draft));
-  const [model, setModel] = useState<DiagramModel>(() =>
+  const [model, setModelState] = useState<DiagramModel>(() =>
     initialModelFromDsl(draft ? { ...diagram, dslContent: readDraftDsl(diagram.id) ?? diagram.dslContent } : diagram),
   );
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
@@ -175,6 +185,56 @@ export const DiagramEditor = forwardRef<DiagramEditorHandle, DiagramEditorProps>
   // State rather than a ref: the portal target must trigger a re-render once it is attached,
   // otherwise Canvas renders its toolbar in place on the first pass and never moves it.
   const [toolbarContainer, setToolbarContainer] = useState<HTMLDivElement | null>(null);
+  // canvas-obp0: the version this editor started from. Every save and restore sends it, and the API
+  // refuses (409) if someone else has saved since. A ref, not state: "save first, then restore"
+  // must send the version that save just made, within the same click.
+  const baseVersionRef = useRef(initialDiagram.currentVersionId);
+  const initialDslRef = useRef<string | null>(null);
+  const [lastSavedDsl, setLastSavedDsl] = useState<string | null>(null);
+  const [conflict, setConflict] = useState<VersionConflictDto | null>(null);
+  // canvas-2h2w.1: everyone signed in can open every diagram; editing needs Edit (or Manage).
+  const canEdit = accessAtLeast(diagram.accessLevel ?? 'edit', 'edit');
+  // canvas-vvi: everyone with the diagram open sees each other's changes as they're made. A Create with AI
+  // draft exists only in this tab until its first save, so it joins then.
+  const [liveNotice, setLiveNotice] = useState<string | null>(null);
+  const live = useLiveDiagram({
+    diagramId: diagram.id,
+    enabled: !draft,
+    canEdit,
+    model,
+    setModel: setModelState,
+    onHello: (base) => {
+      if (base === baseVersionRef.current) return;
+      // Someone saved between this editor loading the diagram and joining: catch up on what's saved.
+      baseVersionRef.current = base;
+      void api.getDiagram(diagram.id).then(({ diagram: latest }) => {
+        setDiagram(latest);
+        setLastSavedDsl(serializedDsl(latest));
+        setVersionRefreshToken((t) => t + 1);
+      });
+    },
+    onSaved: (saved) => {
+      // Anyone's save is everyone's: the next save goes from this version, and "Unsaved changes" clears
+      // wherever the diagram now matches what was saved.
+      baseVersionRef.current = saved.versionId;
+      setLastSavedDsl(saved.dsl);
+      setConflict(null);
+      setVersionRefreshToken((t) => t + 1);
+    },
+    onReset: (reset) => {
+      baseVersionRef.current = reset.baseVersionId;
+      setLastSavedDsl(null);
+      initialDslRef.current = null;
+      setVersionRefreshToken((t) => t + 1);
+      setLiveNotice(
+        reset.reason === 'restored'
+          ? `${reset.by.name} restored an earlier version. The diagram now shows it.`
+          : `${reset.by.name} saved a different version. The diagram now shows it.`,
+      );
+    },
+    onRejected: (message) => setLiveNotice(`Your last change couldn't be shared, so it was undone. ${message}`),
+  });
+  const setModel = live.setModel;
   const { dsl, parseErrors, applyDsl } = useDslSync(model, setModel, diagram.dslFamily);
   const liveViolations = useLiveViolations(model, standard?.rules);
   const authoring = effectiveAuthoring(standard?.rules);
@@ -189,26 +249,30 @@ export const DiagramEditor = forwardRef<DiagramEditorHandle, DiagramEditorProps>
   // can normalise whitespace and ordering, so comparing against the stored text would report every
   // freshly opened diagram as dirty and nag on every switch. Comparing serialized to serialized
   // reports only real edits.
-  const initialDslRef = useRef<string | null>(null);
   if (initialDslRef.current === null) initialDslRef.current = dsl;
-  const [lastSavedDsl, setLastSavedDsl] = useState<string | null>(null);
+  // Other people (not this person's own tabs) who can edit, in this live session: leaving doesn't lose the
+  // unsaved changes then, they stay in the session.
+  const othersEditingCount = new Set(
+    live.people.filter((p) => p.canEdit && p.userId !== currentUser.id).map((p) => p.userId),
+  ).size;
   const hasUnsavedChanges = draft || dsl !== (lastSavedDsl ?? initialDslRef.current);
 
-  useImperativeHandle(ref, () => ({ hasUnsavedChanges: () => hasUnsavedChanges, isUnsavedDraft: () => draft }), [hasUnsavedChanges, draft]);
+  useImperativeHandle(
+    ref,
+    () => ({ hasUnsavedChanges: () => hasUnsavedChanges, isUnsavedDraft: () => draft, othersEditing: () => othersEditingCount }),
+    [hasUnsavedChanges, draft, othersEditingCount],
+  );
 
   // canvas-j6v: keep the unsaved drawing in this tab, edits included, so a reload brings it back.
   useEffect(() => {
     if (draft) stashDraftDsl(diagram.id, dsl);
   }, [draft, diagram.id, dsl]);
 
-  // canvas-obp0: the version this editor started from. Every save and restore sends it, and the API
-  // refuses (409) if someone else has saved since. A ref, not state: "save first, then restore"
-  // must send the version that save just made, within the same click.
-  const baseVersionRef = useRef(initialDiagram.currentVersionId);
-  const [conflict, setConflict] = useState<VersionConflictDto | null>(null);
-  // canvas-2h2w.1: everyone signed in can open every diagram; editing needs Edit (or Manage).
-  const canEdit = accessAtLeast(diagram.accessLevel ?? 'edit', 'edit');
-  const others = usePresence(diagram.id, canEdit);
+  // canvas-obp0 / canvas-vvi: who else is here. A live session says so itself; the heartbeat is the
+  // fallback while there's no live connection.
+  const heartbeatOthers = usePresence(diagram.id, canEdit && live.status !== 'live');
+  const presence = livePresence(live.people, live.me, currentUser.id);
+  const others = live.status === 'live' ? presence.editors : heartbeatOthers;
 
   // canvas-3fha: an earlier version shown read-only on the canvas (History -> View). The editor's own
   // model -- including unsaved edits -- is left untouched while previewing.
@@ -266,8 +330,10 @@ export const DiagramEditor = forwardRef<DiagramEditorHandle, DiagramEditorProps>
     const { diagram: restored } = await api.getDiagram(diagram.id);
     setDiagram(restored);
     baseVersionRef.current = restored.currentVersionId;
-    setModel(initialModelFromDsl(restored));
     setViolations(restored.lastValidationResult);
+    // canvas-vvi: in a live session the room sends everyone the restored version (onReset above).
+    if (live.status === 'live') return;
+    setModelState(initialModelFromDsl(restored));
     setLastSavedDsl(null);
     initialDslRef.current = null;
   };
@@ -325,6 +391,8 @@ export const DiagramEditor = forwardRef<DiagramEditorHandle, DiagramEditorProps>
   /** `overwriteFrom`: the newer version a conflict reported, when the user chose "Save mine anyway". */
   const handleSave = async (overwriteFrom?: string): Promise<boolean> => {
     setSaveStatus('saving');
+    // canvas-vvi: the room gets every change before the save it's part of.
+    live.flush();
     try {
       const { diagram: saved } = await api.saveDiagram(diagram.id, dsl, overwriteFrom ?? baseVersionRef.current);
       baseVersionRef.current = saved.currentVersionId;
@@ -468,7 +536,16 @@ export const DiagramEditor = forwardRef<DiagramEditorHandle, DiagramEditorProps>
         )}
       </div>
 
-      <PresenceBanner others={others} />
+      <PresenceBanner others={others} watching={live.status === 'live' ? presence.watching : []} live={live.status === 'live'} />
+      <LiveStatusNote status={live.status} reason={live.statusReason} enabled={!draft} />
+      {liveNotice && (
+        <div className="presence-banner" role="status" data-testid="live-notice">
+          <span>{liveNotice}</span>
+          <button type="button" className="btn btn--tertiary btn--compact" onClick={() => setLiveNotice(null)}>
+            Dismiss
+          </button>
+        </div>
+      )}
 
       {renameError && (
         <p role="alert" data-testid="diagram-rename-error">

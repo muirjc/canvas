@@ -487,6 +487,24 @@ The API reads only its environment: if it fails at start-up with a validation er
 `DATABASE_URL` or `SESSION_SECRET`, the `--env-file` was missing or not found from the current
 directory.
 
+## Live editing (canvas-vvi)
+
+People with the same diagram open see each other's changes as they're made, over a WebSocket,
+`WS /diagrams/{id}/live` (design and messages: `docs/live-editing-design.md`).
+
+- **One API process.** Each open diagram's live session is kept in the API's memory. Run one uvicorn
+  process with no `--workers`, and one replica: Azure's canvas-api has `maxReplicas: 1`. More than one
+  would need the sessions shared (not built: Postgres LISTEN/NOTIFY would do).
+- **Origins.** The browser's `Origin` must be one of `WEB_ORIGINS`, or the API's own host (the
+  same-origin build in Azure). Anything else is refused, since a WebSocket isn't covered by CORS.
+- **Restarts.** A deploy, a restart or scale-to-zero drops every connection. Editors reconnect on
+  their own and keep their changes. A session whose last person has gone loses its unsaved changes,
+  as a closed tab does.
+- **Proxies.** Anything in front of the API must pass WebSocket upgrades. Container Apps ingress does
+  (`transport: auto`). Editors ping every 25 s, well inside its idle timeout of about 4 minutes.
+- **Not connected.** If the connection can't be made, the editor works as before: one person at a
+  time, with the "someone saved a newer version" check on Save.
+
 ## GitHub approval (canvas-3s5)
 
 Setup for admins is in `docs/admin-guide/github.md`; the design is in `docs/github-approval-design.md`.

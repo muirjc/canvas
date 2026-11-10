@@ -53,9 +53,11 @@ Export always uses the last **saved** version, so it waits until you save your c
 
 ## Someone else saved the diagram while I was editing. What now?
 
-Canvas stops your save and tells you who saved and when. You can **Save mine anyway** (theirs stays
-in History), **Load the newer version**, or **Keep editing**. You can also copy or download your
-version first. See [When someone else is editing](editor.md#when-someone-else-is-editing).
+Usually this doesn't happen: people with the same diagram open see each other's changes as they're
+made, and one person's Save saves for everyone. It can happen when live updates aren't connected
+(a bar says so). Then Canvas stops your save and tells you who saved and when. You can **Save mine
+anyway** (theirs stays in History), **Load the newer version**, or **Keep editing**. You can also copy
+or download your version first. See [When someone else is editing](editor.md#when-someone-else-is-editing).
 
 ## How do I see more of a big diagram?
 

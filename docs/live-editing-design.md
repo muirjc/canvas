@@ -67,7 +67,7 @@ While messages arrive, the session and access are checked again at least once a 
 
 | From | Message | Meaning |
 |---|---|---|
-| server | `hello {seq, model, baseVersionId, you, people}` | The room's live model and who is here. `you` is this connection: `{connectionId, userId, name, canEdit}`. |
+| server | `hello {seq, model, baseVersionId, you, people}` | The room's live model and who is here. `you` is this connection: `{connectionId, userId, name, canEdit, since}`. |
 | client | `patch {clientPatchId, patch}` | A change (edit access only). `clientPatchId` is the client's own id for it. |
 | server | `patch {seq, by, clientPatchId, patch}` | A change everyone applies. `by` is the sender's `connectionId`; the sender takes it as acknowledgement. |
 | server | `rejected {clientPatchId, message}` | Your change wasn't applied; drop it and show the room's model again. |

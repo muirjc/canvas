@@ -13,12 +13,30 @@ Opening a diagram shows it on the **canvas** in the middle:
 
 ## When someone else is editing
 
-Two people can open the same diagram, but changes aren't shared live. Canvas keeps either person's
-work from being lost without warning:
+Several people can work on the same diagram at once. Each sees the others' changes as they're made:
+a shape someone adds, moves or renames shows up on your screen too, before anyone saves.
 
-- **Who else is here.** If someone else with edit access has the diagram open, a bar under the top
-  says so, e.g. *Alex Smith is also editing this diagram (opened 10:31)*. It also tells you if you
-  have the diagram open in another tab. You can keep editing; the bar just suggests you save often.
+- **Who else is here.** A bar under the top lists who else has the diagram open, e.g. *Alex Smith is
+  also editing this diagram with you (opened 10:31)*, and who is only watching (people who can view
+  or comment but not edit). It also tells you if you have the diagram open in another tab.
+- **Changes merge shape by shape.** If you move a shape while someone else renames it, both changes
+  stay. If you both change the same thing at the same moment (both rename one shape), the later
+  change wins.
+- **One Save saves for everyone.** Everyone has the same diagram, so whoever clicks **Save** saves it
+  for all: **Unsaved changes** turns to **Saved** on everyone's screen.
+- **Leaving.** If you leave with unsaved changes while someone else is still editing, your changes
+  aren't lost: they stay in the diagram for the others until someone saves. If you're the last one
+  to leave, unsaved changes go, as usual, so Canvas asks first.
+- **Typing in the DSL tab.** If the diagram changes while you're typing in the DSL tab, your text is
+  kept, and the tab says the diagram has changed. **Load latest** replaces your text with the current
+  diagram; **Apply** puts your text on the diagram, replacing those changes.
+- **Restoring.** When someone restores an earlier version from **History**, everyone's screen
+  switches to it, and a note says who restored it.
+
+If the connection drops, a bar says *Reconnecting…*. You can keep working: your changes are kept and
+shared when the connection is back. If live updates can't connect at all, Canvas works as it did
+before live editing:
+
 - **If they saved first.** When you save and someone has saved a newer version since you opened (or
   last saved) the diagram, your save is stopped and Canvas tells you who saved and when. Nothing of
   yours has been saved yet. Choose:
