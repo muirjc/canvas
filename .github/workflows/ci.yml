@@ -24,8 +24,8 @@ jobs:
       - run: npm run lint
       # The licence check reads the Python packages' licences from the API's production environment.
       - name: Install uv
-        run: pipx install uv==0.13.1
-      - run: uv python install 3.13
+        run: pipx install uv==0.13.6
+      - run: uv python install 3.15
       - run: uv sync --frozen --no-dev
         working-directory: apps/api-py
       # canvas-qrvn: every production dependency's licence is on the allow-list, and the committed
@@ -87,8 +87,8 @@ jobs:
         run: npm run test --workspace=@canvas/diagram-bridge
       - run: npm run build --workspace=@canvas/diagram-bridge
       - name: Install uv
-        run: pipx install uv==0.13.1
-      - run: uv python install 3.13
+        run: pipx install uv==0.13.6
+      - run: uv python install 3.15
       - run: uv sync --frozen
         working-directory: apps/api-py
       - name: Python lint and format
@@ -152,8 +152,8 @@ jobs:
       - name: Install uv and the Python service
         working-directory: apps/api-py
         run: |
-          pipx install uv==0.13.1
-          uv python install 3.13
+          pipx install uv==0.13.6
+          uv python install 3.15
           uv sync --frozen
       - name: Seed database
         working-directory: apps/api-py
@@ -338,7 +338,7 @@ jobs:
           cache: npm
       - run: npm ci
       - name: Install uv
-        run: pipx install uv==0.13.1
+        run: pipx install uv==0.13.6
       - name: Inno Setup
         shell: pwsh
         run: |

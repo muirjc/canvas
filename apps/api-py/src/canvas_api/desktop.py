@@ -158,7 +158,7 @@ def running_port(folder: Path) -> int | None:
         return None
     try:
         port = int(json.loads(path.read_text(encoding="utf-8"))["port"])
-    except (ValueError, KeyError, TypeError):
+    except ValueError, KeyError, TypeError:
         return None
     return port if healthy(port) else None
 
@@ -268,7 +268,7 @@ def stop() -> int:
     try:
         details = json.loads(path.read_text(encoding="utf-8"))
         pid, port = int(details["pid"]), int(details["port"])
-    except (ValueError, KeyError, TypeError):
+    except ValueError, KeyError, TypeError:
         path.unlink(missing_ok=True)
         return 0
     with contextlib.suppress(ProcessLookupError, PermissionError, OSError):

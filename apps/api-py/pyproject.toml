@@ -2,7 +2,7 @@
 name = "canvas-api"
 version = "0.1.0"
 description = "Canvas backend: the API, its jobs and the front door that serves the web app"
-requires-python = ">=3.13,<3.14"
+requires-python = ">=3.15,<3.16"
 dependencies = [
     "anthropic>=1.15.0",
     "azure-monitor-opentelemetry>=1.8.11",
@@ -14,6 +14,8 @@ dependencies = [
     "pydantic>=2.14.1",
     "pydantic-settings>=2.16.0",
     "pyjwt[crypto]>=2.15.1",
+    # canvas-jpcn: PyYAML 6.0.3 has no Python 3.15 wheels yet, so it installs from its source package (pure Python;
+    # diagram_core/jsyaml.py only uses yaml.SafeLoader, never the C loader).
     "pyyaml>=6.0.2",
     "resvg-py>=0.5.0",
     "sqlalchemy>=2.1.5",
@@ -43,7 +45,7 @@ exclude-newer = "14 days"
 
 [tool.ruff]
 line-length = 120
-target-version = "py313"
+target-version = "py315"
 
 [tool.ruff.lint]
 select = ["E", "F", "W", "I", "B", "UP", "S", "SIM", "RUF"]
@@ -53,7 +55,7 @@ select = ["E", "F", "W", "I", "B", "UP", "S", "SIM", "RUF"]
 
 [tool.mypy]
 strict = true
-python_version = "3.13"
+python_version = "3.15"
 mypy_path = "src"
 packages = ["canvas_api"]
 

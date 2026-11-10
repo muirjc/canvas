@@ -47,7 +47,7 @@ An npm-workspaces monorepo for the frontend and shared packages, plus a Python b
 
 ```text
 apps/web/src/{canvas,palette,standards,admin,projects,app}   # React + Vite frontend (TypeScript)
-apps/api-py/src/canvas_api/                                  # FastAPI backend (Python 3.13, uv)
+apps/api-py/src/canvas_api/                                  # FastAPI backend (Python 3.15, uv)
 packages/diagram-core/src/{model,dsl,standards,libraries}    # Mermaid parser/serializer/validator (TypeScript)
 ```
 
@@ -60,7 +60,7 @@ backend (`apps/api`) was removed in November 2026; its last version is at tag `t
 ## Getting started
 
 Requirements: Node.js 22 LTS and npm (for the web app) and [uv](https://docs.astral.sh/uv/) (it installs
-Python 3.13 for you). No Docker or database server: local runs use SQLite by default. Works the same on
+Python 3.15 for you). No Docker or database server: local runs use SQLite by default. Works the same on
 Linux, macOS and Windows.
 
 ```bash

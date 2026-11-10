@@ -35,10 +35,10 @@ param(
 $ErrorActionPreference = 'Stop'
 $ProgressPreference = 'SilentlyContinue'  # Invoke-WebRequest is many times slower drawing its progress bar
 
-# python-build-standalone release 20261021 (CPython 3.13.17), stripped install_only build for 64-bit Windows.
+# python-build-standalone release 20261026 (CPython 3.15.2), stripped install_only build for 64-bit Windows.
 # A newer build: take the asset's sha256 from the release page (GitHub shows each asset's digest).
-$PythonUrl = 'https://github.com/astral-sh/python-build-standalone/releases/download/20261021/cpython-3.13.17%2B20261021-x86_64-pc-windows-msvc-install_only_stripped.tar.gz'
-$PythonSha256 = '56cde3b1a1dcc36576753cb408ee0c3568d211baafa0eee40423adc147c480f2'
+$PythonUrl = 'https://github.com/astral-sh/python-build-standalone/releases/download/20261026/cpython-3.15.2%2B20261026-x86_64-pc-windows-msvc-install_only_stripped.tar.gz'
+$PythonSha256 = '02e532b60e720aa3d77e757c349ae9cc945441c05851fa646336fc9ff0403041'
 
 $Here = $PSScriptRoot
 $Root = (Resolve-Path (Join-Path $Here '..\..')).ProviderPath
@@ -84,11 +84,13 @@ if ($actual -ne $PythonSha256) {
 }
 Invoke-Native 'Unpacking Python' { tar -xzf $archive -C $Stage }  # makes stage\python
 $Python = Join-Path $Stage 'python\python.exe'
-# What Canvas never uses: tkinter with Tcl/Tk, IDLE, the test modules, pip (the dependencies are installed by uv,
-# here) and the headers and import libraries for building extensions. Smaller, and fewer licences to ship.
+# What Canvas never uses: tkinter with Tcl/Tk 9 (and libtommath, only Tcl's), IDLE, the test modules, pip (the
+# dependencies are installed by uv, here) and the headers and import libraries for building extensions. Smaller,
+# and fewer licences to ship.
 $unused = @(
   'tcl', 'include', 'libs', 'Lib\tkinter', 'Lib\idlelib', 'Lib\turtledemo', 'Lib\turtle.py', 'Lib\test',
-  'Lib\ensurepip', 'Lib\site-packages\pip', 'Scripts', 'DLLs\_tkinter.pyd', 'DLLs\tcl86t.dll', 'DLLs\tk86t.dll'
+  'Lib\ensurepip', 'Lib\site-packages\pip', 'Scripts', 'DLLs\_tkinter.pyd', 'DLLs\tcl90.dll', 'DLLs\tcl9tk90.dll',
+  'DLLs\libtommath.dll'
 )
 foreach ($path in $unused) { Remove-Item -Recurse -Force (Join-Path $Stage "python\$path") -ErrorAction SilentlyContinue }
 Get-ChildItem (Join-Path $Stage 'python\Lib\site-packages') -Filter 'pip-*.dist-info' | Remove-Item -Recurse -Force
