@@ -32,6 +32,8 @@ from canvas_api.timestamps import now_utc, to_api
 log = logging.getLogger(__name__)
 
 CHECK_INTERVAL = 0.1
+#: Most ids one person's selection may hold.
+MAX_SELECTION = 500
 #: The largest live model (as JSON) a room keeps.
 MAX_MODEL_BYTES = 5_000_000
 #: Close codes the editor understands (4000-4999 are the application's own).
@@ -49,6 +51,8 @@ class Client:
     name: str
     can_edit: bool
     since: str = field(default_factory=lambda: to_api(now_utc()) or "")
+    #: The ids this person has selected (shown to the others in their colour; never saved).
+    selection: list[str] = field(default_factory=list)
     outbox: asyncio.Queue[dict[str, Any] | None] = field(default_factory=asyncio.Queue)
 
     def send(self, message: dict[str, Any] | None) -> None:
@@ -62,6 +66,7 @@ class Client:
             "name": self.name,
             "canEdit": self.can_edit,
             "since": self.since,
+            "selection": self.selection,
         }
 
 
@@ -142,6 +147,20 @@ class LiveHub:
 
     def room_for(self, diagram_id: str) -> Room | None:
         return self._rooms.get(diagram_id)
+
+    # --- selections -------------------------------------------------------------------------------------
+
+    def receive_selection(self, room: Room, client: Client, ids: Any) -> None:
+        """Anyone may select, watchers too (to comment). Only the shape of the list is checked: ids that name
+        nothing are simply not drawn."""
+        if not isinstance(ids, list) or len(ids) > MAX_SELECTION or not all(_is_id(i) for i in ids):
+            client.send({"type": "closed", "code": CLOSE_BAD_MESSAGE, "reason": "bad-selection"})
+            return
+        if ids == client.selection:
+            return
+        client.selection = list(ids)
+        message = {"type": "selection", "connectionId": client.connection_id, "ids": client.selection}
+        room.broadcast(message, except_for=client)
 
     # --- patches ------------------------------------------------------------------------------------------
 
@@ -294,6 +313,10 @@ def _links_allowed(value: Any, key: str | None = None) -> bool:
     if isinstance(value, str) and key in _ADDRESS_KEYS:
         return is_allowed_link_href(value)
     return True
+
+
+def _is_id(value: Any) -> bool:
+    return isinstance(value, str) and 0 < len(value) <= 200
 
 
 def _rejected(client_patch_id: Any, message: str) -> dict[str, Any]:

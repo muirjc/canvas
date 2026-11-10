@@ -19,6 +19,9 @@ a shape someone adds, moves or renames shows up on your screen too, before anyon
 - **Who else is here.** A bar under the top lists who else has the diagram open, e.g. *Alex Smith is
   also editing this diagram with you (opened 10:31)*, and who is only watching (people who can view
   or comment but not edit). It also tells you if you have the diagram open in another tab.
+- **What others have selected.** A shape, connector or group someone else has selected has an outline
+  in their colour, with their name on a small tag. Each person keeps the same colour. (Not in sequence
+  diagrams.)
 - **Changes merge shape by shape.** If you move a shape while someone else renames it, both changes
   stay. If you both change the same thing at the same moment (both rename one shape), the later
   change wins.

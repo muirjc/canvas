@@ -325,3 +325,28 @@ def test_no_sessions_while_paused(settings: Settings, engine: Engine, s: Setup) 
     paused = settings.model_copy(update={"paused_setting": "true"})
     with TestClient(create_app(paused, engine)) as client, connect(client, s.diagram, s.alice) as socket:
         assert receive(socket, "closed")["code"] == 1013
+
+
+def test_a_selection_reaches_the_others_and_a_newcomer_sees_it(s: Setup) -> None:
+    client = s.api.client
+    with connect(client, s.diagram, s.alice) as alice, connect(client, s.diagram, s.viewer) as vic:
+        me = receive(alice, "hello")["you"]["connectionId"]
+        receive(vic, "hello")
+        receive(alice, "people")  # Vic joining
+        # Watchers select too (to comment); the selection goes to everyone else, not back.
+        vic.send_json({"type": "select", "ids": ["A"]})
+        message = receive(alice, "selection")
+        assert message["ids"] == ["A"]
+        alice.send_json({"type": "select", "ids": ["A", "B"]})
+        assert receive(vic, "selection") == {"type": "selection", "connectionId": me, "ids": ["A", "B"]}
+        with connect(client, s.diagram, s.bob) as bob:
+            people = receive(bob, "hello")["people"]
+            assert {p["name"]: p["selection"] for p in people} == {"Alice": ["A", "B"], "Vic": ["A"], "Bob": []}
+
+
+@pytest.mark.parametrize("ids", ["A", [1], [""], ["x" * 201], ["a"] * 501])
+def test_a_selection_that_is_not_a_list_of_ids_ends_the_session(s: Setup, ids: Any) -> None:
+    with connect(s.api.client, s.diagram, s.alice) as alice:
+        receive(alice, "hello")
+        alice.send_json({"type": "select", "ids": ids})
+        assert receive(alice, "closed")["code"] == 4400

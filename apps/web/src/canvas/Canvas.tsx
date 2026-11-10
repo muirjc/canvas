@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { createContext, useCallback, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactElement, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import {
   addContainer,
@@ -339,6 +339,10 @@ export interface CanvasProps {
   /** canvas-bw4: element id -> open comment threads, drawn as a speech-bubble pin. */
   commentPins?: Record<string, number>;
   onCommentPinClick?: (anchorId: string) => void;
+  /** canvas-vvi: told every id selected (shapes, connector, group), for the others in a live session. */
+  onSelectedIdsChange?: (ids: string[]) => void;
+  /** canvas-vvi: what other people in the live session have selected, outlined in their colour. */
+  othersSelected?: { id: string; name: string; color: string }[];
   /** canvas-2h2w.1: someone with View/Comment access. Shapes can be selected (to comment on them)
    *  but nothing changes: edits are dropped, Delete and double-click editing are off, and the
    *  editor hides the toolbar and the in-place edit buttons. */
@@ -1161,6 +1165,56 @@ function popupPosition(
   };
 }
 
+/** canvas-vvi: other people's selections, outlined in their colour (several on one element sit one inside the
+ *  other), each with a name tag. Drawing only: nothing here can be clicked. */
+function OthersSelections({ model, selections }: { model: DiagramModel; selections: { id: string; name: string; color: string }[] }) {
+  const countOn = new Map<string, number>();
+  const outlines: ReactElement[] = [];
+  for (const selection of selections) {
+    const index = countOn.get(selection.id) ?? 0;
+    countOn.set(selection.id, index + 1);
+    const pad = 4 + index * 4;
+    let box: { x: number; y: number; width: number; height: number } | null = null;
+    let line: { x1: number; y1: number; x2: number; y2: number } | null = null;
+    const node = model.nodes.find((n) => n.id === selection.id);
+    const container = node ? undefined : model.containers.find((c) => c.id === selection.id);
+    const edge = node || container ? undefined : model.edges.find((e) => e.id === selection.id);
+    if (node) {
+      const size = nodeSize(node);
+      box = { x: node.position.x - pad, y: node.position.y - pad, width: size.width + 2 * pad, height: size.height + 2 * pad };
+    } else if (container) {
+      const b = containerBounds(container);
+      box = { x: b.left - pad, y: b.top - pad, width: b.right - b.left + 2 * pad, height: b.bottom - b.top + 2 * pad };
+    } else if (edge) {
+      const a = model.nodes.find((n) => n.id === edge.sourceId);
+      const b = model.nodes.find((n) => n.id === edge.targetId);
+      if (a && b) {
+        const sa = nodeSize(a);
+        const sb = nodeSize(b);
+        line = { x1: a.position.x + sa.width / 2, y1: a.position.y + sa.height / 2, x2: b.position.x + sb.width / 2, y2: b.position.y + sb.height / 2 };
+      }
+    }
+    if (!box && !line) continue;
+    const tagX = box ? box.x : (line!.x1 + line!.x2) / 2;
+    const tagY = (box ? box.y : (line!.y1 + line!.y2) / 2) - 18 - index * 18;
+    const tagWidth = Math.min(160, 12 + selection.name.length * 6.5);
+    outlines.push(
+      <g key={`${selection.id}-${selection.name}-${index}`} data-testid={`others-selection-${selection.id}`} data-name={selection.name} style={{ pointerEvents: 'none' }}>
+        {box ? (
+          <rect x={box.x} y={box.y} width={box.width} height={box.height} rx={6} fill="none" stroke={selection.color} strokeWidth={2} />
+        ) : (
+          <line {...line!} stroke={selection.color} strokeWidth={6} strokeOpacity={0.35} strokeLinecap="round" />
+        )}
+        <rect x={tagX} y={tagY} width={tagWidth} height={16} rx={3} fill={selection.color} />
+        <text x={tagX + 6} y={tagY + 12} fontSize={11} fill="#ffffff">
+          {selection.name.length > 22 ? `${selection.name.slice(0, 21)}…` : selection.name}
+        </text>
+      </g>,
+    );
+  }
+  return <g data-testid="others-selections">{outlines}</g>;
+}
+
 function containerBounds(container: DiagramContainer) {
   const size = container.size ?? { width: 300, height: 200 };
   return {
@@ -1229,7 +1283,7 @@ function descendantContainerIds(model: DiagramModel, containerId: string): Set<s
  * labels via direct manipulation. Renders the same DiagramModel that packages/diagram-core
  * parses/serializes, so every edit here is reflected in the Mermaid DSL by useDslSync.
  */
-export function Canvas({ model: modelProp, onChange: onChangeProp, dslFamily, toolbarContainer, standardRules, violations, focusRequest, onSelectionChange, commentPins, onCommentPinClick, readOnly = false }: CanvasProps) {
+export function Canvas({ model: modelProp, onChange: onChangeProp, dslFamily, toolbarContainer, standardRules, violations, focusRequest, onSelectionChange, commentPins, onCommentPinClick, onSelectedIdsChange, othersSelected, readOnly = false }: CanvasProps) {
   const onChange = readOnly ? () => undefined : onChangeProp;
   // canvas-hzf: a C4 element's type line ("[Software System]") is derived from its role; refresh it
   // here so a kind picked in the editor shows at once, not only after the next reload/parse.
@@ -1358,6 +1412,15 @@ export function Canvas({ model: modelProp, onChange: onChangeProp, dslFamily, to
             : null,
     );
   }, [singleNodeId, singleEdgeId, singleContainerId]);
+  // canvas-vvi: everything selected, for the others in a live session (a key, so the effect runs on real changes).
+  const onSelectedIdsChangeRef = useRef(onSelectedIdsChange);
+  onSelectedIdsChangeRef.current = onSelectedIdsChange;
+  const selectedKey = [...selectedIds, ...(selectedEdgeId ? [selectedEdgeId] : []), ...(selectedContainerId ? [selectedContainerId] : [])]
+    .sort()
+    .join('\u0000');
+  useEffect(() => {
+    onSelectedIdsChangeRef.current?.(selectedKey ? selectedKey.split('\u0000') : []);
+  }, [selectedKey]);
   // canvas-tfr: an Issues-tab click selects the offending element and scrolls it into view.
   useEffect(() => {
     if (!focusRequest) return;
@@ -4381,6 +4444,12 @@ export function Canvas({ model: modelProp, onChange: onChangeProp, dslFamily, to
             </g>
           );
         })}
+
+        {/* canvas-vvi: what other people in the live session have selected, each in their colour, with their
+            name. Sequence diagrams are laid out from their text, not from stored positions, so they're left out. */}
+        {dslFamily !== 'sequence' && (
+          <OthersSelections model={model} selections={othersSelected ?? []} />
+        )}
 
         {/* canvas-bw4: comment pins -- a speech-bubble badge per element with open threads. */}
         {Object.entries(commentPins ?? {}).map(([anchorId, count]) => {

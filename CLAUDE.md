@@ -100,6 +100,13 @@ tests are NON-NEGOTIABLE and must exist (and fail) before implementing any diagr
 work — see `.specify/memory/constitution.md` Principle IV.
 
 ## Recent Changes
+- `canvas-vvi.3` (live co-editing, part 3 of 3): **other people's selections in their colour.** Canvas reports every
+  selected id (`onSelectedIdsChange`); `LiveSession.select` sends `select {ids}` at most every 100 ms (only when it
+  changed; again after reconnecting); the hub keeps `Client.selection` (in `people`, <= 500 ids of <= 200 chars, any
+  access level) and sends `selection {connectionId, ids}` to the others. `live-presence.tsx`: `personColor(userId)`
+  (8 colours, none the selection blue), `othersSelections` (this tab left out; own other tab = "You, in another
+  tab"). Canvas draws `OthersSelections` (outline per person, nested when several, name tag; connectors a wide
+  translucent line), pointer-events none, not for sequence (computed layout). testids `others-selection-<id>`.
 - `canvas-vvi.2` (live co-editing, part 2 of 3): **the editor joins live sessions.** `apps/web/src/app/live-session.ts`
   `LiveSession` (no React; tested with a fake socket and clock): `confirmed` (room model) + `pending` (sent, not
   acked) + `unsent` (flushed every 50 ms) = the view; a remote patch goes onto `confirmed` and own changes are put

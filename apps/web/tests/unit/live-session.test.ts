@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { DiagramModel } from '@canvas/diagram-core';
 import { LiveSession, liveUrl, type LiveEvents, type LivePerson, type LiveSocket } from '../../src/app/live-session';
+import { othersSelections, PERSON_COLORS, personColor } from '../../src/app/live-presence';
 
 /** canvas-vvi: the editor's side of a live session, against a fake socket and a hand-run clock. */
 
@@ -84,20 +85,21 @@ const person = (connectionId: string, canEdit = true): LivePerson => ({
 function setup(options: { canEdit?: boolean; start?: DiagramModel } = {}) {
   const clock = new Clock();
   const sockets: FakeSocket[] = [];
-  const log: { models: DiagramModel[]; statuses: string[]; saved: unknown[]; resets: unknown[]; rejected: string[]; hellos: string[] } = {
+  const log: { models: DiagramModel[]; statuses: string[]; saved: unknown[]; resets: unknown[]; rejected: string[]; hellos: string[]; people: LivePerson[][] } = {
     models: [],
     statuses: [],
     saved: [],
     resets: [],
     rejected: [],
     hellos: [],
+    people: [],
   };
   const events: LiveEvents = {
     model: (m) => log.models.push(m),
     hello: (base) => log.hellos.push(base),
     saved: (s) => log.saved.push(s),
     reset: (r) => log.resets.push(r),
-    people: () => undefined,
+    people: (list) => log.people.push(list),
     status: (s, reason) => log.statuses.push(reason ? `${s}:${reason}` : s),
     rejected: (m) => log.rejected.push(m),
   };
@@ -236,6 +238,48 @@ describe('LiveSession', () => {
     hello();
     socket().receive({ type: 'saved', seq: 1, versionId: 'v2', by: { id: 'u', name: 'Bob' }, at: 'now', dsl: 'flowchart TD' });
     expect(log.saved).toEqual([{ type: 'saved', seq: 1, versionId: 'v2', by: { id: 'u', name: 'Bob' }, at: 'now', dsl: 'flowchart TD' }]);
+  });
+});
+
+describe('selections', () => {
+  it('sends what is selected once it settles, not every change, and again after reconnecting', () => {
+    const { session, clock, hello, socket } = setup();
+    hello();
+    session.select(['a']);
+    session.select(['a', 'b']);
+    clock.advance(150);
+    const selects = () => socket().sent.filter((m) => m.type === 'select');
+    expect(selects()).toEqual([{ type: 'select', ids: ['a', 'b'] }]);
+    session.select(['a', 'b']);
+    clock.advance(150);
+    expect(selects()).toHaveLength(1);
+    socket().drop(1006);
+    clock.advance(1_000);
+    hello();
+    expect(selects()).toEqual([{ type: 'select', ids: ['a', 'b'] }]);
+  });
+
+  it('keeps track of what each other person has selected', () => {
+    const { log, socket } = setup();
+    const me = person('me');
+    const bob = person('bob');
+    socket().receive({ type: 'hello', seq: 0, model: model(), baseVersionId: 'v1', you: me, people: [me, bob] });
+    socket().receive({ type: 'selection', connectionId: 'bob', ids: ['b'] });
+    expect(log.people.at(-1)!.find((p) => p.connectionId === 'bob')!.selection).toEqual(['b']);
+  });
+
+  it('lists others’ selections in their own colour, leaving this tab out', () => {
+    const me = { ...person('me'), selection: ['a'] };
+    const bob = { ...person('bob'), selection: ['a', 'b'] };
+    const myOtherTab = { ...person('tab2'), userId: me.userId, selection: ['b'] };
+    const list = othersSelections([me, bob, myOtherTab], me, me.userId);
+    expect(list).toEqual([
+      { id: 'a', name: 'bob', color: personColor(bob.userId) },
+      { id: 'b', name: 'bob', color: personColor(bob.userId) },
+      { id: 'b', name: 'You, in another tab', color: personColor(me.userId) },
+    ]);
+    expect(PERSON_COLORS).toContain(personColor('anyone'));
+    expect(personColor('same')).toBe(personColor('same'));
   });
 });
 
