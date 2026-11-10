@@ -19,6 +19,7 @@ from canvas_api.diagram_core import DiagramCore
 from canvas_api.errors import register_error_handlers
 from canvas_api.front_door import install as install_front_door
 from canvas_api.github.client import GitHubClient
+from canvas_api.live import LiveHub
 from canvas_api.routes import (
     admin_users,
     ai,
@@ -31,6 +32,7 @@ from canvas_api.routes import (
     github,
     libraries,
     library_admin,
+    live,
     notifications,
     projects,
     sharing,
@@ -98,6 +100,8 @@ def create_app(
     app.state.settings = settings
     app.state.db = db
     app.state.diagram_core = diagram_core
+    # canvas-vvi: live editing rooms, in memory (one API process).
+    app.state.live_hub = LiveHub(diagram_core)
     app.state.github_client = github_client
     app.state.oidc_client = oidc_client
     app.state.graph_client = graph_client
@@ -127,6 +131,7 @@ def create_app(
         ai,
         library_admin,
         notifications,
+        live,
     ):
         app.include_router(group.router)
 

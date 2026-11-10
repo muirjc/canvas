@@ -100,6 +100,20 @@ tests are NON-NEGOTIABLE and must exist (and fail) before implementing any diagr
 work — see `.specify/memory/constitution.md` Principle IV.
 
 ## Recent Changes
+- `canvas-vvi.1` (live co-editing, part 1 of 3; decided with the user: merge per element, anyone's Save saves for
+  everyone, viewers watch live): **the engine and the server side; the editor doesn't use it yet** (part 2).
+  `packages/diagram-core/src/live/model-patch.ts`: `diffModels`/`applyPatch`/`applyPatches` (top-level fields set/
+  unset; per collection `added`/`removed`/`changed` (fields set/unset)/`order`; a change to a removed element is
+  dropped). Python `diagram_core/live_patch.py` applies them identically (`tests/data/live_patch_vectors.json`,
+  `make_live_patch_vectors.ts`, 2,403 patches) and checks their shape (`patch_problem`). `canvas_api/live/hub.py`:
+  one in-memory room per open diagram (live model, seq, version last saved), patches applied in arrival order and
+  sent to all (the sender's copy = its ack), checked at most every 100 ms per room: the patched model must write and
+  read back, and every `href`/`url`/`img`/`src` must pass the link check (the writer silently drops a bad link, so the
+  round trip alone misses it). `WS /diagrams/{id}/live` (`routes/live.py`) checks Origin (WEB_ORIGINS or same host),
+  paused mode, the session cookie (`read_session` now takes any `HTTPConnection`) and access itself (a WebSocket
+  skips the HTTP middleware), re-checks at least every 60 s. Saves/restores tell the room after commit (`saved` /
+  `reset`), delete closes it. Messages and close codes: `docs/live-editing-design.md`. One API process only (rooms in
+  memory). Pitfall: pytest run through `rtk proxy` hangs on these WebSocket tests; run `uv run python -m pytest`.
 - `canvas-znz5`: **the performance workbook's SQL and outbound panels get data from the Python service.**
   `telemetry.py`: `instrument_queries(engine)` (SQLAlchemy cursor events, as the TypeScript Kysely hook: one
   CLIENT span per query inside a request, `<FIRST WORD> <dialect>`, `db.system.name` + `db.query.text`

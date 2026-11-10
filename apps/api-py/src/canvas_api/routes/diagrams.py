@@ -31,6 +31,7 @@ from canvas_api.catalog import DSL_FAMILIES
 from canvas_api.db import get_engine
 from canvas_api.diagram_core import DiagramCore
 from canvas_api.errors import ApiError
+from canvas_api.live.hub import LiveHub
 from canvas_api.retention import delete_diagram_rows, diagram_retention_boundary
 from canvas_api.standards import get_active_standard
 from canvas_api.telemetry import work_span
@@ -313,6 +314,22 @@ def _save(
     return get_diagram(conn, diagram_id)
 
 
+def _tell_live_room(
+    request: Request, user: SessionUser, diagram: dict[str, Any], base_version_id: str, *, restored: bool
+) -> None:
+    """canvas-vvi: after the save commits, the diagram's live room (if anyone has it open) hears of it."""
+    live_hub: LiveHub = request.app.state.live_hub
+    live_hub.notify_saved(
+        diagram["id"],
+        base_version_id=base_version_id,
+        version_id=diagram["currentVersionId"],
+        dsl=diagram["dslContent"],
+        by={"id": user.id, "name": user.name or user.email},
+        at=diagram["updatedAt"],
+        restored=restored,
+    )
+
+
 def _live_project_or_404(conn: Connection, project_id: str) -> None:
     """canvas-1bty.18: the access check lets a missing project through for this 404 (otherwise the
     foreign key fails, and a deleted project would take the diagram)."""
@@ -410,9 +427,9 @@ def save(id: str, request: Request, user: CurrentUser, db: Db, body: SaveBody) -
     core = _diagram_core(request)
     with db.begin() as conn:
         require_diagram_access(conn, user.id, id, "edit")
-        return {
-            "diagram": _save(conn, core, id, dsl=body.dslContent, author_id=user.id, base_version_id=body.baseVersionId)
-        }
+        diagram = _save(conn, core, id, dsl=body.dslContent, author_id=user.id, base_version_id=body.baseVersionId)
+    _tell_live_room(request, user, diagram, body.baseVersionId, restored=False)
+    return {"diagram": diagram}
 
 
 @router.patch("/diagrams/{id}/name")
@@ -593,6 +610,7 @@ def restore_version(
             base_version_id=body.baseVersionId,
             restored_from=versionId,
         )
+    _tell_live_room(request, user, diagram, body.baseVersionId, restored=True)
     return {"diagram": diagram}
 
 
@@ -675,7 +693,7 @@ def _require_owner_or_admin(conn: Connection, user: SessionUser, diagram_id: str
 
 
 @router.delete("/diagrams/{id}", status_code=204)
-def delete(id: str, user: CurrentUser, db: Db) -> Response:
+def delete(id: str, request: Request, user: CurrentUser, db: Db) -> Response:
     """Soft delete (idempotent); a draft is removed outright."""
     with db.begin() as conn:
         _require_owner_or_admin(conn, user, id)
@@ -693,6 +711,8 @@ def delete(id: str, user: CurrentUser, db: Db) -> Response:
                 ),
                 {"at": to_db(now_utc(), conn.dialect.name), "by": user.id, "id": id},
             )
+    live_hub: LiveHub = request.app.state.live_hub
+    live_hub.notify_deleted(id)
     return Response(status_code=204)
 
 
