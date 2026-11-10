@@ -24,7 +24,7 @@ import {
 } from './api';
 import { usePresence } from './usePresence';
 import { useLiveDiagram } from './useLiveDiagram';
-import { LiveStatusNote, livePresence } from './live-presence';
+import { LiveStatusNote, livePresence, othersSelections } from './live-presence';
 import { CopyLinkButton } from '../ui/CopyLinkButton';
 import { PresenceBanner } from './PresenceBanner';
 import { SaveConflictDialog } from './SaveConflictDialog';
@@ -632,6 +632,8 @@ export const DiagramEditor = forwardRef<DiagramEditorHandle, DiagramEditorProps>
             violations={liveViolations}
             focusRequest={focusRequest}
             onSelectionChange={setSelection}
+            onSelectedIdsChange={live.select}
+            othersSelected={live.status === 'live' ? othersSelections(live.people, live.me, currentUser.id) : undefined}
             commentPins={commentPins}
             onCommentPinClick={(anchorId) => {
               setCommentsTabRequest((prev) => ({ id: 'comments', nonce: (prev?.nonce ?? 0) + 1 }));
