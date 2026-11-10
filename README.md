@@ -131,7 +131,7 @@ Two sign-in models:
 ```bash
 npm run build --workspace=@canvas/diagram-core   # required before web tests — see above
 npm run test --workspace=@canvas/diagram-core     # parser/serializer/validator contract tests
-(cd apps/api-py && uv run pytest)                 # API tests (Postgres: needs the canvas_test database, see RUNBOOK)
+(cd apps/api-py && uv run pytest)                 # API tests (Postgres: the canvas_test database, see RUNBOOK)
 (cd apps/api-py && TEST_DB_CLIENT=sqlite uv run pytest)   # same suite against SQLite — no Postgres needed
 npm run test:e2e --workspace=@canvas/web          # Playwright E2E (needs the API and web dev servers running)
 ```

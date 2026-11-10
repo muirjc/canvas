@@ -10,6 +10,8 @@ services:
       - '5433:5432'
     volumes:
       - canvas_postgres_data:/var/lib/postgresql/data
+      # Creates canvas_test (the Python tests' database) on first start, i.e. a new data volume.
+      - ./infra/postgres-init:/docker-entrypoint-initdb.d:ro
 
 volumes:
   canvas_postgres_data:
