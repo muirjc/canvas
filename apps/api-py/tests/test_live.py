@@ -12,6 +12,7 @@ from contextlib import contextmanager
 from dataclasses import dataclass
 from typing import Any
 
+import anyio
 import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import Engine
@@ -61,13 +62,37 @@ def connect(
     if who is not None:
         headers["cookie"] = f"cid={who.cookie}"
     with client.websocket_connect(f"/diagrams/{diagram}/live", headers=headers) as socket:
+        # The server's first message (hello, or closed) ends its sign-in and access checks. Waiting for it
+        # keeps two connections' checks apart: the tests' in-memory SQLite is one connection shared by every
+        # thread (a file or Postgres has a pool).
+        FIRST[id(socket)] = next_message(socket)
         yield socket
 
 
+async def _within(stream: Any, seconds: float) -> Any:
+    with anyio.fail_after(seconds):
+        return await stream.receive()
+
+
+def next_message(socket: WebSocketTestSession, seconds: float = 10.0) -> Any:
+    """socket.receive_json(), but failing after `seconds` instead of waiting for ever (a missing message would
+    otherwise hang the whole run)."""
+    message = socket.portal.call(_within, socket._send_rx, seconds)
+    socket._raise_on_close(message)
+    return json.loads(message["text"])
+
+
+FIRST: dict[int, dict[str, Any]] = {}
+
+
 def receive(socket: WebSocketTestSession, kind: str) -> dict[str, Any]:
-    """The next message of `kind`, passing over the others (people updates arrive whenever someone joins)."""
+    """The next message of `kind`, passing over the others (people updates arrive whenever someone joins). The
+    first message, taken by connect(), counts when it's the one asked for."""
+    first = FIRST.pop(id(socket), None)
+    if first is not None and first["type"] == kind:
+        return first
     for _ in range(20):
-        message: dict[str, Any] = socket.receive_json()
+        message: dict[str, Any] = next_message(socket)
         if message["type"] == kind:
             return message
     raise AssertionError(f"no {kind} message")
@@ -166,7 +191,7 @@ def test_one_bad_patch_in_a_batch_leaves_the_others_through(s: Setup) -> None:
         bad = {"nodes": {"changed": [{"id": "B", "set": {"link": {"href": "javascript:x"}}}]}}
         for number, patch in enumerate([rename("A", "One"), bad, rename("A", "Two")]):
             alice.send_json({"type": "patch", "clientPatchId": number, "patch": patch})
-        messages = [alice.receive_json() for _ in range(3)]
+        messages = [next_message(alice) for _ in range(3)]
         assert sorted((m["type"], m["clientPatchId"]) for m in messages) == [
             ("patch", 0),
             ("patch", 2),
@@ -224,7 +249,7 @@ def test_deleting_the_diagram_ends_the_session(s: Setup) -> None:
         closed = receive(bob, "closed")
         assert closed["code"] == 4404
         with pytest.raises(WebSocketDisconnect) as ended:
-            bob.receive_json()
+            next_message(bob)
         assert ended.value.code == 4404
 
 
