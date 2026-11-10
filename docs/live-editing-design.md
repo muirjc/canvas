@@ -67,13 +67,15 @@ While messages arrive, the session and access are checked again at least once a 
 
 | From | Message | Meaning |
 |---|---|---|
-| server | `hello {seq, model, baseVersionId, you, people}` | The room's live model and who is here. `you` is this connection: `{connectionId, userId, name, canEdit, since}`. |
+| server | `hello {seq, model, baseVersionId, you, people}` | The room's live model and who is here. `you` is this connection: `{connectionId, userId, name, canEdit, since, selection}`. |
 | client | `patch {clientPatchId, patch}` | A change (edit access only). `clientPatchId` is the client's own id for it. |
 | server | `patch {seq, by, clientPatchId, patch}` | A change everyone applies. `by` is the sender's `connectionId`; the sender takes it as acknowledgement. |
 | server | `rejected {clientPatchId, message}` | Your change wasn't applied; drop it and show the room's model again. |
 | server | `saved {seq, versionId, by, at, dsl}` | Someone in the room saved: the version to save from next, and the text that was saved. |
 | server | `reset {seq, model, baseVersionId, by, reason}` | The live model was replaced (`reason`: `restored`, `saved-elsewhere`). Drop unacknowledged changes. |
-| server | `people {people}` | Who is here now (on every join, leave or access change). |
+| server | `people {people}` | Who is here now (on every join, leave or access change). Each person carries `selection` (ids). |
+| client | `select {ids}` | What this person has selected (anyone, watchers too: they select to comment). At most 500 ids. |
+| server | `selection {connectionId, ids}` | Someone else's selection changed. The editor outlines it in their colour (`personColor(userId)`). |
 | server | `closed {code, reason}` | Sent just before the server closes the connection. |
 | client | `ping` | Every 25 s. The server answers `pong`. |
 

@@ -69,3 +69,37 @@ export function LiveStatusNote({
     </div>
   );
 }
+
+/** canvas-vvi: one colour per person, from their user id, so they keep it everywhere. None is the canvas's own
+ *  selection blue; each is dark enough for white text on a tag. */
+export const PERSON_COLORS = ['#b45309', '#15803d', '#be185d', '#6d28d9', '#0e7490', '#b91c1c', '#4d7c0f', '#a21caf'];
+
+export function personColor(userId: string): string {
+  let hash = 0;
+  for (let i = 0; i < userId.length; i++) hash = (hash * 31 + userId.charCodeAt(i)) >>> 0;
+  return PERSON_COLORS[hash % PERSON_COLORS.length];
+}
+
+export interface OtherSelection {
+  /** The selected element's id. */
+  id: string;
+  name: string;
+  color: string;
+}
+
+/** What everyone else in the session has selected: one entry per element and person (this tab left out). */
+export function othersSelections(people: LivePerson[], me: LivePerson | null, currentUserId: string): OtherSelection[] {
+  const result: OtherSelection[] = [];
+  const seen = new Set<string>();
+  for (const person of people) {
+    if (person.connectionId === me?.connectionId) continue;
+    const name = person.userId === currentUserId ? 'You, in another tab' : person.name;
+    for (const id of person.selection ?? []) {
+      const key = `${person.userId}\u0000${id}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      result.push({ id, name, color: personColor(person.userId) });
+    }
+  }
+  return result;
+}

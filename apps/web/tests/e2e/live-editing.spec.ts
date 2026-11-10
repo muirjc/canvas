@@ -108,6 +108,18 @@ test('a change applied from the DSL text reaches the other person too', async ()
   await expect(admin.getByTestId('dsl-panel')).toHaveValue(/a\[Begin\]/);
 });
 
+test('what one person selects is outlined for the other, with their name', async () => {
+  const first = nodes(admin).first();
+  const id = ((await first.getAttribute('data-testid')) ?? '').replace(/^node-/, '');
+  await first.click();
+  const outline = editor.getByTestId(`others-selection-${id}`);
+  await expect(outline).toBeVisible();
+  await expect(outline).not.toHaveAttribute('data-name', EDITOR_NAME);
+  // Clicking the empty canvas clears the selection, for the other person too.
+  await admin.getByTestId('canvas-surface').click({ position: { x: 5, y: 5 } });
+  await expect(outline).toHaveCount(0);
+});
+
 test('one Save saves for both: no conflict, and "Saved" for each', async () => {
   await admin.getByTestId('save-diagram').click();
   await expect(admin.getByTestId('save-status')).toHaveText('Saved');

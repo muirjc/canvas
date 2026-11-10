@@ -36,6 +36,8 @@ export interface LiveDiagram {
   me: LivePerson | null;
   /** Sends any change still waiting (call before saving). */
   flush: () => void;
+  /** Tells the others what this editor has selected. */
+  select: (ids: string[]) => void;
 }
 
 /** canvas-vvi: the editor's live session (live-session.ts), opened while the diagram is open. */
@@ -105,6 +107,7 @@ export function useLiveDiagram(options: LiveDiagramOptions): LiveDiagram {
   );
 
   const flush = useCallback(() => session.current?.flush(), []);
+  const select = useCallback((ids: string[]) => session.current?.select(ids), []);
 
-  return { setModel: setLiveModel, status, statusReason, people, me, flush };
+  return { setModel: setLiveModel, status, statusReason, people, me, flush, select };
 }

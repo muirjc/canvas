@@ -28,6 +28,8 @@ export interface LivePerson {
   name: string;
   canEdit: boolean;
   since: string;
+  /** What they have selected (ids), shown to everyone else in their colour. */
+  selection?: string[];
 }
 
 export type LiveStatus = 'connecting' | 'live' | 'reconnecting' | 'off';
@@ -68,6 +70,7 @@ export interface LiveSocket {
 }
 
 export const FLUSH_MS = 50;
+export const SELECT_MS = 100;
 export const PING_MS = 25_000;
 const OPEN = 1;
 /** Close codes after which trying again can't help (docs/live-editing-design.md). */
@@ -104,6 +107,10 @@ export class LiveSession {
   private stopped = false;
   private everLive = false;
   private canEdit: boolean;
+  private people: LivePerson[] = [];
+  private selection: string[] = [];
+  private sentSelection: string[] = [];
+  private selectTimer: unknown = null;
 
   constructor(
     model: DiagramModel,
@@ -163,6 +170,23 @@ export class LiveSession {
         this.flushTimer = this.timers.setTimeout(() => this.flush(), FLUSH_MS);
     }
     return this.view;
+  }
+
+  /** What this editor has selected, for the others to see (sent at most every SELECT_MS, and again on
+   *  reconnecting). */
+  select(ids: string[]): void {
+    this.selection = ids;
+    if (this.selectTimer === null) {
+      this.selectTimer = this.timers.setTimeout(() => this.sendSelection(), SELECT_MS);
+    }
+  }
+
+  private sendSelection(): void {
+    this.selectTimer = null;
+    if (!this.live || !this.socket) return;
+    if (sameIds(this.selection, this.sentSelection)) return;
+    this.sentSelection = this.selection;
+    this.socket.send(JSON.stringify({ type: 'select', ids: this.selection }));
   }
 
   /** Sends what's waiting now (before a save, so the room has it too). */
@@ -239,9 +263,9 @@ export class LiveSession {
   }
 
   private clearTimers(): void {
-    for (const timer of [this.flushTimer, this.pingTimer, this.retryTimer])
+    for (const timer of [this.flushTimer, this.pingTimer, this.retryTimer, this.selectTimer])
       if (timer !== null) this.timers.clearTimeout(timer);
-    this.flushTimer = this.pingTimer = this.retryTimer = null;
+    this.flushTimer = this.pingTimer = this.retryTimer = this.selectTimer = null;
   }
 
   private rebuild(): void {
@@ -265,8 +289,12 @@ export class LiveSession {
         this.view = local ? applyPatch(this.confirmed, local) : this.confirmed;
         this.events.hello(message.baseVersionId as string);
         this.events.model(this.view);
-        this.events.people(message.people as LivePerson[], this.me);
+        this.people = message.people as LivePerson[];
+        this.events.people(this.people, this.me);
         this.events.status('live');
+        // A fresh connection has told the room nothing yet.
+        this.sentSelection = [];
+        if (this.selection.length > 0) this.sendSelection();
         if (local && this.canEdit) {
           this.unsent.push(local);
           this.flush();
@@ -305,6 +333,7 @@ export class LiveSession {
       }
       case 'people': {
         const people = message.people as LivePerson[];
+        this.people = people;
         const me =
           people.find((person) => person.connectionId === this.me?.connectionId) ?? this.me;
         if (me) {
@@ -314,10 +343,21 @@ export class LiveSession {
         this.events.people(people, me);
         return;
       }
+      case 'selection': {
+        this.people = this.people.map((p) =>
+          p.connectionId === message.connectionId ? { ...p, selection: message.ids as string[] } : p,
+        );
+        this.events.people(this.people, this.me);
+        return;
+      }
       default:
         return;
     }
   }
+}
+
+function sameIds(a: string[], b: string[]): boolean {
+  return a.length === b.length && a.every((id, i) => id === b[i]);
 }
 
 /** The address of a diagram's live session, from the API's base URL ('' = this page's own origin). */
