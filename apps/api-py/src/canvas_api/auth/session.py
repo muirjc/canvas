@@ -28,6 +28,7 @@ from urllib.parse import quote, unquote
 from fastapi import Request, Response
 from pydantic import BaseModel
 from sqlalchemy import Connection, Engine, text
+from starlette.requests import HTTPConnection
 
 from canvas_api.auth.cookie_signer import sign, unsign
 from canvas_api.config import Settings
@@ -86,7 +87,7 @@ def _idle_ms(settings: Settings) -> int:
     return int(settings.session_idle_minutes * 60 * 1000)
 
 
-def session_id_from_request(request: Request, settings: Settings) -> str | None:
+def session_id_from_request(request: HTTPConnection, settings: Settings) -> str | None:
     raw = request.cookies.get(SESSION_COOKIE_NAME)
     if not raw:
         return None
@@ -149,9 +150,9 @@ def signed_in_user(data: dict[str, Any], settings: Settings, now_ms: int | None 
     return SessionUser.model_validate(user)
 
 
-def read_session(request: Request) -> StoredSession | None:
-    """The request's live session, or None. A signed-in session past its absolute lifetime is ended here
-    (revoked), as the TypeScript service's onRequest hook replaces it with an empty one."""
+def read_session(request: HTTPConnection) -> StoredSession | None:
+    """The request's (or WebSocket's) live session, or None. A signed-in session past its absolute lifetime is
+    ended here (revoked), as the TypeScript service's onRequest hook replaces it with an empty one."""
     settings: Settings = request.app.state.settings
     engine: Engine = request.app.state.db
     session_id = session_id_from_request(request, settings)
