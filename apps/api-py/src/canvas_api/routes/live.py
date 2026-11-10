@@ -178,6 +178,8 @@ async def live(websocket: WebSocket, id: str) -> None:
                 client.send({"type": "pong"})
             elif kind == "patch" and isinstance(message, dict):
                 hub.receive_patch(room, client, message.get("clientPatchId"), message.get("patch"))
+            elif kind == "select" and isinstance(message, dict):
+                hub.receive_selection(room, client, message.get("ids"))
             else:
                 client.send({"type": "closed", "code": CLOSE_BAD_MESSAGE, "reason": "bad-message"})
                 break
