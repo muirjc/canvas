@@ -1,8 +1,8 @@
-"""Test databases: TEST_DB_CLIENT=postgres|sqlite, like the TypeScript suite.
+"""Test databases: TEST_DB_CLIENT=postgres|sqlite.
 
-Postgres uses its own schema, canvas_py, inside the TypeScript tests' database (canvas_test on
-localhost:5433, locally and in CI), so both suites can run on one machine without touching each
-other's tables. The schema is recreated for each test session.
+Postgres uses the schema canvas_py inside the canvas_test database on localhost:5433, locally and in CI.
+docker compose creates canvas_test on its first start (infra/postgres-init). The schema is recreated for
+each test session, so two Postgres test runs at once break each other.
 """
 
 from __future__ import annotations

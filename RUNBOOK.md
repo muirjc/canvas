@@ -578,7 +578,8 @@ TEST_DB_CLIENT=sqlite uv run pytest                # in-memory SQLite, no Postgr
 uv run ruff check . && uv run ruff format --check . && uv run mypy
 ```
 
-The Postgres tests need a `canvas_test` database, which `docker compose` doesn't create. Once:
+The Postgres tests need a `canvas_test` database. `docker compose` creates it the first time it starts
+(`infra/postgres-init`, run only on a new data volume); a volume made before that needs it once:
 `docker compose exec postgres createdb -U canvas canvas_test`. Each run recreates the `canvas_py`
 schema inside it, so two Postgres pytest runs at once break each other. The diagram-core comparison
 tests skip without Node and the bridge bundle (`npm run build --workspace=@canvas/diagram-bridge`);
