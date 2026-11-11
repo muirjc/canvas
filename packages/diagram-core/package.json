@@ -1,19 +1,37 @@
 {
   "name": "@canvas/diagram-core",
-  "version": "0.1.0",
-  "private": true,
+  "version": "0.2.0",
+  "description": "Canvas's diagram engine: Mermaid DSL parse/serialize, the diagram model, auto-layout, SVG rendering and standards validation.",
   "license": "Apache-2.0",
   "type": "module",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/muirjc/canvas.git",
+    "directory": "packages/diagram-core"
+  },
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "exports": {
-    ".": "./dist/index.js"
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "sideEffects": false,
+  "publishConfig": {
+    "registry": "https://npm.pkg.github.com"
   },
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "test": "vitest run",
     "test:watch": "vitest",
-    "generate:azure-icons": "node scripts/generate-azure-icons.mjs"
+    "generate:azure-icons": "node scripts/generate-azure-icons.mjs",
+    "prepublishOnly": "npm run build && npm test"
   },
   "devDependencies": {
     "typescript": "^5.7.2",
