@@ -1,0 +1,57 @@
+name: Publish diagram-core
+
+# canvas-gfjd: publishes packages/diagram-core to GitHub Packages so other
+# projects (ADP) can depend on a released version instead of copying the
+# source. Runs when a diagram-core-v<version> tag is pushed; the tag must
+# match the version in packages/diagram-core/package.json.
+#
+# Inside this repository the workspace is @canvas/diagram-core. GitHub
+# Packages only accepts a scope that matches the repository owner, so the
+# published name is set to @muirjc/diagram-core here, at publish time, and
+# never committed -- nothing in this repository has to change its imports.
+
+on:
+  push:
+    tags:
+      - 'diagram-core-v*'
+
+permissions:
+  contents: read
+  packages: write
+
+env:
+  NODE_VERSION: '26'
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          registry-url: https://npm.pkg.github.com
+          scope: '@muirjc'
+      - run: npm ci
+
+      - name: Check the tag matches the package version
+        run: |
+          VERSION=$(node -p "require('./packages/diagram-core/package.json').version")
+          if [ "${GITHUB_REF_NAME}" != "diagram-core-v${VERSION}" ]; then
+            echo "::error::Tag ${GITHUB_REF_NAME} does not match package version ${VERSION} (expected diagram-core-v${VERSION})"
+            exit 1
+          fi
+
+      - run: npm run build --workspace=@canvas/diagram-core
+      - run: npm test --workspace=@canvas/diagram-core
+
+      - name: Publish as @muirjc/diagram-core
+        working-directory: packages/diagram-core
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          cp -f ../../LICENSE LICENSE
+          npm pkg set name=@muirjc/diagram-core
+          # The build and tests already ran above; skip prepublishOnly's rerun.
+          npm publish --ignore-scripts
