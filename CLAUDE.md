@@ -44,7 +44,7 @@ Auto-generated from all feature plans. Last updated: 2026-10-02
 - No new technology added in 003-parser-correctness-fixes — it extends `packages/diagram-core`
   only (no new package, no persistence/schema changes; every new model field is optional and
   reuses the existing `DiagramContainer`/`DiagramEdge`/`DiagramNode` entities).
-- TypeScript 5.x end-to-end: React frontend, Fastify backend, Node.js 22 LTS. Shared
+- TypeScript 5.x end-to-end: React frontend, Fastify backend, Node.js 26 LTS. Shared
   `diagram-core` package (Mermaid DSL parser/serializer/validator) used identically by frontend
   and backend. PostgreSQL + a blob store for icon/shape library assets. (001-diagramming-platform)
 - No new technology added in 002-editing-lifecycle-enhancements — it extends the same stack
@@ -100,6 +100,14 @@ tests are NON-NEGOTIABLE and must exist (and fail) before implementing any diagr
 work — see `.specify/memory/constitution.md` Principle IV.
 
 ## Recent Changes
+- `canvas-ra2f`: **Canvas builds on Node.js 26 LTS** (26.13.0, Active LTS since 2026-10-28; was 22). CI
+  `NODE_VERSION: '26'`, the image's build stages `node:26-slim`, the example validator workflow, docs. Its npm
+  (11.20) **blocks dependency install scripts** unless the root `package.json`'s `allowScripts` allows them: only
+  esbuild has one, denied (`"esbuild": false`). The lockfile had none of esbuild's `@esbuild/*` platform packages
+  (the same npm bug as rollup's, see Active Technologies), so esbuild had been downloading its binary in that
+  script; the 52 entries (0.28.1 and vite's 0.25.12) were added from the registry's metadata, nothing else moved.
+  Check that `@esbuild/*` entries survive any lockfile regeneration too. The validator and bridge bundles still
+  target node20 (a repository's CI may run an older Node).
 - `canvas-jpcn`: **the Python API runs on Python 3.15** (3.15.2; was 3.13). pyproject `>=3.15,<3.16`, ruff
   `py315` (formats `except A, B:`, PEP 758), mypy `3.15`; `uv.lock` re-resolved with no version changes (every
   compiled dependency already had cp315 wheels at its locked version). CI and the Docker image: uv 0.13.6 (the

@@ -21,7 +21,7 @@ canvas-1bty); expect to adjust a step.
 ## Prerequisites
 
 - `az` CLI installed and logged in (`az login`) with a subscription that has Contributor access.
-- Node 22 and uv on the deploying machine, as in the repo's `README.md` "Getting started" section.
+- Node 26 and uv on the deploying machine, as in the repo's `README.md` "Getting started" section.
   Docker is not needed.
 
 ## 1. Resource group

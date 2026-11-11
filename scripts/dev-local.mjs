@@ -3,7 +3,7 @@
 // (SQLite, demo sign-in) and, for a new SQLite database, seeds the demo data; otherwise it applies any pending
 // migrations. Settings come from apps/api-py/.env; the process environment wins over it, as with
 // `uv run --env-file`. API_PORT / WEB_PORT pick other ports (default 3000 / 5173). `--seed` runs the demo seed
-// again (it only adds what's missing). Works on Windows too (needs Node 22 and uv on PATH).
+// again (it only adds what's missing). Works on Windows too (needs Node 26 and uv on PATH).
 import { spawn, spawnSync } from 'node:child_process';
 import { copyFileSync, existsSync } from 'node:fs';
 import { dirname, isAbsolute, join, resolve } from 'node:path';
