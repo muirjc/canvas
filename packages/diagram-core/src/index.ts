@@ -28,6 +28,8 @@ export * from './standards/kinds.js';
 export * from './standards/locate.js';
 export * from './standards/definition-check.js';
 export * from './standards/authoring.js';
+export * from './standards/reference/value-chain.js';
+export * from './standards/reference/value-stream.js';
 export * from './render/svg-renderer.js';
 export * from './render/legend.js';
 export * from './render/sequence-layout.js';
