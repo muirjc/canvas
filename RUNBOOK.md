@@ -72,7 +72,7 @@ it's missing (canvas-mywp). For a throwaway database, `DATABASE_URL=:memory:` (l
 
 ### Running locally without containers (Linux, macOS, Windows)
 
-`npm run dev:local` (`scripts/dev-local.mjs`, canvas-mywp) is the whole local setup: Node 22 and
+`npm run dev:local` (`scripts/dev-local.mjs`, canvas-mywp) is the whole local setup: Node 26 and
 [uv](https://docs.astral.sh/uv/) are the only requirements (uv fetches Python 3.15), with no Docker, WSL2 or
 database server. It reads `apps/api-py/.env` (copied from `.env.example` on first run; the process environment
 wins over it), builds `packages/diagram-core` if needed, seeds demo data when the SQLite database is new (else

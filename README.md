@@ -59,7 +59,7 @@ backend (`apps/api`) was removed in November 2026; its last version is at tag `t
 
 ## Getting started
 
-Requirements: Node.js 22 LTS and npm (for the web app) and [uv](https://docs.astral.sh/uv/) (it installs
+Requirements: Node.js 26 LTS and npm (for the web app) and [uv](https://docs.astral.sh/uv/) (it installs
 Python 3.15 for you). No Docker or database server: local runs use SQLite by default. Works the same on
 Linux, macOS and Windows.
 

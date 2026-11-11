@@ -6,7 +6,7 @@
 
 # canvas-1bty.11: the CI validator bundle Canvas commits with every GitHub submission
 # (packages/validator-cli, one esbuild file plus the example workflow).
-FROM node:22-slim AS validator
+FROM node:26-slim AS validator
 WORKDIR /app
 COPY package.json package-lock.json tsconfig.base.json ./
 COPY packages/diagram-core/package.json packages/diagram-core/
@@ -18,7 +18,7 @@ RUN npm run build --workspace=@canvas/validator-cli
 
 # canvas-1bty.14: the web app (canvas-r3y): relative API URLs, Help bundling docs/, the licence notices, and
 # .br/.gz copies of each text file.
-FROM node:22-slim AS web
+FROM node:26-slim AS web
 WORKDIR /app
 COPY package.json package-lock.json tsconfig.base.json ./
 COPY packages/diagram-core/package.json packages/diagram-core/package.json
