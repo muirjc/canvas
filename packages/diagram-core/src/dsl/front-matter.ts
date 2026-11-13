@@ -1,5 +1,5 @@
 import { parse as parseYaml, stringify as stringifyYaml } from 'yaml';
-import type { DiagramLegend, DiagramModel, LegendEntrySpec, NodeStyle } from '../model/diagram-model.js';
+import { isDiagramLinkId, type DiagramLegend, type DiagramModel, type LegendEntrySpec, type NodeStyle } from '../model/diagram-model.js';
 import { AWS_ICONS_VERSION, LEGACY_AWS_PLACEHOLDER_VERSION } from '../libraries/aws-icons.js';
 
 /**
@@ -22,6 +22,8 @@ export interface CanvasFrontMatter {
     legend?: unknown;
     /** canvas-rqm6: ids of the shapes and groups Auto Layout leaves where they are (validated by readPinned). */
     pinned?: unknown;
+    /** canvas-8uh1.1: element id -> the id of the diagram it links to (validated by applyLinks). */
+    links?: Record<string, unknown>;
   };
 }
 
@@ -45,7 +47,7 @@ export function splitFrontMatter(dsl: string): SplitDocument {
 export const NO_ENTRIES: Readonly<Record<string, never>> = Object.freeze(Object.create(null) as Record<string, never>);
 
 /** The canvas sections keyed by a diagram's own ids (node, edge, container ids). */
-const ID_KEYED_SECTIONS = ['positions', 'containers', 'styles', 'edgeStyles', 'icons', 'kinds'] as const;
+const ID_KEYED_SECTIONS = ['positions', 'containers', 'styles', 'edgeStyles', 'icons', 'kinds', 'links'] as const;
 
 /**
  * canvas-1bty.15.9: each id-keyed section as an object with no prototype, so `positions[id]` finds only
@@ -174,4 +176,40 @@ function pinnedIds(raw: unknown, model: Pick<DiagramModel, 'nodes' | 'containers
   const known = new Set<string>([...model.nodes.map((n) => n.id), ...model.containers.map((c) => c.id)]);
   const ids = [...new Set(raw.filter((id): id is string => typeof id === 'string' && known.has(id)))];
   return ids.length > 0 ? ids : undefined;
+}
+
+/** canvas-8uh1.1: gives each node and group named in `canvas.links` its `diagramRef`. An entry for an id the
+ *  model lacks, or whose value isn't a diagram id, is dropped (never a parse error). Changes the model's own
+ *  elements: call it at the end of a parse. */
+export function applyLinks(frontMatter: CanvasFrontMatter, model: Pick<DiagramModel, 'nodes' | 'containers'>): void {
+  const links = frontMatter.canvas?.links;
+  if (!links || typeof links !== 'object') return;
+  for (const element of [...model.nodes, ...model.containers]) {
+    if (!Object.prototype.hasOwnProperty.call(links, element.id)) continue;
+    const diagramId = links[element.id];
+    if (isDiagramLinkId(diagramId)) element.diagramRef = { diagramId };
+  }
+}
+
+/** canvas-8uh1.1: adds the model's links to a serializer's front matter, nodes then groups in model order, each
+ *  under the id the element will have when the text is read back (`savedId`; the same id unless a family renames
+ *  on save). Nothing is added when no element links anywhere. */
+export function withLinks(
+  frontMatter: CanvasFrontMatter,
+  model: Pick<DiagramModel, 'nodes' | 'containers'>,
+  savedId: (id: string, kind: 'node' | 'container') => string | undefined = (id) => id,
+): CanvasFrontMatter {
+  const links: Record<string, string> = Object.create(null) as Record<string, string>;
+  let any = false;
+  const add = (element: { id: string; diagramRef?: { diagramId: string } }, kind: 'node' | 'container') => {
+    const diagramId = element.diagramRef?.diagramId;
+    const id = savedId(element.id, kind);
+    if (id === undefined || !isDiagramLinkId(diagramId) || Object.prototype.hasOwnProperty.call(links, id)) return;
+    links[id] = diagramId;
+    any = true;
+  };
+  for (const node of model.nodes) add(node, 'node');
+  for (const container of model.containers) add(container, 'container');
+  if (!any) return frontMatter;
+  return { ...frontMatter, canvas: { ...(frontMatter.canvas ?? {}), links: { ...links } } };
 }

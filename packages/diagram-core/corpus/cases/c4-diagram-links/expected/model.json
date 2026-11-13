@@ -1,0 +1,59 @@
+{
+  "containers": [
+    {
+      "diagramRef": {
+        "diagramId": "c4-context-bank"
+      },
+      "id": "bank",
+      "label": "Bank",
+      "position": {
+        "x": 40,
+        "y": 40
+      },
+      "role": "enterprise-boundary",
+      "size": {
+        "height": 143,
+        "width": 240
+      }
+    }
+  ],
+  "diagramTypeId": "c4-context",
+  "edges": [
+    {
+      "id": "e1",
+      "label": "Pays with",
+      "sourceId": "user",
+      "targetId": "pay"
+    }
+  ],
+  "nodes": [
+    {
+      "c4TypeLabel": "Person",
+      "id": "user",
+      "label": "Customer",
+      "position": {
+        "x": 320,
+        "y": 40
+      },
+      "role": "person",
+      "shape": "person"
+    },
+    {
+      "c4TypeLabel": "Software System",
+      "containerId": "bank",
+      "description": "Takes payments",
+      "diagramRef": {
+        "diagramId": "c4-container-payments"
+      },
+      "id": "pay",
+      "label": "Payments",
+      "position": {
+        "x": 60,
+        "y": 90
+      },
+      "role": "system",
+      "shape": "rectangle"
+    }
+  ],
+  "title": "Banking"
+}

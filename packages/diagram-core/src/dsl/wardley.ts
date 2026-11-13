@@ -29,7 +29,7 @@ import {
   type WardleyStrategy,
 } from '../model/diagram-model.js';
 import { wardleyCoordinatesAt, wardleyFrame, wardleyPercent, wardleyPoint, wardleyX, wardleyY, type WardleyFrame } from '../model/wardley-geometry.js';
-import { splitFrontMatter } from './front-matter.js';
+import { applyLinks, joinFrontMatter, splitFrontMatter, withLinks } from './front-matter.js';
 import type { ParseError, ParseResult } from './types.js';
 
 export const WARDLEY_HEADER = 'wardley-beta';
@@ -449,6 +449,7 @@ export function parseWardley(dsl: string): ParseResult {
   model.edges = edges;
   model.containers = containers;
   layOutPipelines(model, frame);
+  applyLinks(frontMatter, model);
   return { model };
 }
 
@@ -557,7 +558,60 @@ const pair = (point: Point) => `[${wardleyNumber(point.visibility)}, ${wardleyNu
 const labelPart = (labelOffset: { x: number; y: number } | undefined) =>
   labelOffset ? ` label [${Math.round(labelOffset.x)}, ${Math.round(labelOffset.y)}]` : '';
 
+/** canvas-8uh1.1: the text, with `canvas.links` front matter when an element links to another diagram. A map's ids
+ *  come from what is written (a component's name, a note's place among the notes), so each link is keyed by the id
+ *  the element gets when the text is read back. */
 export function serializeWardley(model: DiagramModel): string {
+  const body = writeWardley(model);
+  if (![...model.nodes, ...model.containers].some((e) => e.diagramRef)) return body;
+  const reread = parseWardley(body);
+  if (!('model' in reread)) return body;
+  const ids = wardleySavedIds(model, reread.model);
+  return joinFrontMatter(withLinks({}, model, (id, kind) => ids.get(`${kind}:${id}`)), body);
+}
+
+/** For each element, the id it has after a save and a read: elements matched by what the text says about them
+ *  (a name, a pipeline's parent and name, a note's place), in order. */
+function wardleySavedIds(model: DiagramModel, reread: DiagramModel): Map<string, string> {
+  const OTHER = new Set(['note', 'annotation', 'accelerator', 'deaccelerator']);
+  const signatures = (m: DiagramModel) => {
+    const byId = new Map(m.nodes.map((n) => [n.id, n]));
+    const parentOf = new Map(m.containers.filter((c) => c.role === 'pipeline').map((c) => [c.id, byId.get(c.attachedNodeIds?.[0] ?? '')]));
+    const out: [string, string][] = [];
+    for (const node of m.nodes) {
+      const parent = node.containerId !== undefined ? parentOf.get(node.containerId) : undefined;
+      if (node.containerId !== undefined && parentOf.has(node.containerId)) {
+        if (parent) out.push([`node:${node.id}`, `pipeline-component:${parent.label}:${node.label}`]);
+      } else if (OTHER.has(node.role ?? '')) out.push([`node:${node.id}`, `${node.role}:`]);
+      else out.push([`node:${node.id}`, `map:${node.label}`]);
+    }
+    for (const container of m.containers) {
+      const parent = parentOf.get(container.id);
+      if (container.role === 'pipeline' && parent) out.push([`container:${container.id}`, `pipeline:${parent.label}`]);
+    }
+    return out;
+  };
+  const after = new Map<string, string[]>();
+  for (const [key, signature] of signatures(reread)) {
+    const list = after.get(signature) ?? [];
+    list.push(key.slice(key.indexOf(':') + 1));
+    after.set(signature, list);
+  }
+  const used = new Map<string, number>();
+  const ids = new Map<string, string>();
+  for (const [key, signature] of signatures(model)) {
+    const index = used.get(signature) ?? 0;
+    used.set(signature, index + 1);
+    // Two elements with one name are one element once read (Mermaid merges them); notes and the like are told
+    // apart by their place.
+    const merges = signature.startsWith('map:') || signature.startsWith('pipeline-component:') || signature.startsWith('pipeline:');
+    const id = after.get(signature)?.[merges ? 0 : index];
+    if (id !== undefined) ids.set(key, id);
+  }
+  return ids;
+}
+
+function writeWardley(model: DiagramModel): string {
   const frame = wardleyFrame(model);
   const lines: string[] = [];
   if (model.mermaidConfigDirective) lines.push(model.mermaidConfigDirective);

@@ -1,0 +1,14 @@
+---
+canvas:
+  styles: {}
+  edgeStyles: {}
+  links:
+    Alice: seq-alice
+    API: seq-api-detail
+---
+sequenceDiagram
+actor Alice
+participant API
+loop Every minute
+  Alice->>API: Ping
+end

@@ -1,0 +1,55 @@
+{
+  "containers": [
+    {
+      "id": "block1",
+      "label": "Every minute",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "role": "loop",
+      "sequenceOrder": 0
+    }
+  ],
+  "diagramTypeId": "sequence",
+  "edges": [
+    {
+      "arrow": "target",
+      "containerId": "block1",
+      "id": "e1",
+      "label": "Ping",
+      "lineStyle": "solid",
+      "sequenceOrder": 1,
+      "sourceId": "Alice",
+      "targetId": "API"
+    }
+  ],
+  "nodes": [
+    {
+      "diagramRef": {
+        "diagramId": "seq-alice"
+      },
+      "id": "Alice",
+      "label": "Alice",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "role": "actor",
+      "shape": "person"
+    },
+    {
+      "diagramRef": {
+        "diagramId": "seq-api-detail"
+      },
+      "id": "API",
+      "label": "API",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "role": "participant",
+      "shape": "rectangle"
+    }
+  ]
+}

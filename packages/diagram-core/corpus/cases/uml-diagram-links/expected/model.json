@@ -1,0 +1,58 @@
+{
+  "containers": [
+    {
+      "diagramRef": {
+        "diagramId": "uml-shop-package"
+      },
+      "id": "Shop",
+      "label": "Shop",
+      "position": {
+        "x": 40,
+        "y": 40
+      },
+      "role": "namespace",
+      "size": {
+        "height": 130,
+        "width": 360
+      }
+    }
+  ],
+  "diagramTypeId": "uml",
+  "edges": [
+    {
+      "id": "e1",
+      "sourceCardinality": "1",
+      "sourceId": "Order",
+      "targetCardinality": "*",
+      "targetId": "Item",
+      "umlRelationKind": "composition"
+    }
+  ],
+  "nodes": [
+    {
+      "containerId": "Shop",
+      "diagramRef": {
+        "diagramId": "uml-order-states"
+      },
+      "id": "Order",
+      "label": "Order",
+      "position": {
+        "x": 60,
+        "y": 90
+      },
+      "role": "class",
+      "shape": "rectangle"
+    },
+    {
+      "containerId": "Shop",
+      "id": "Item",
+      "label": "Item",
+      "position": {
+        "x": 240,
+        "y": 90
+      },
+      "role": "class",
+      "shape": "rectangle"
+    }
+  ]
+}

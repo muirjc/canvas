@@ -1,0 +1,33 @@
+---
+canvas:
+  positions:
+    api:
+      x: 60
+      y: 90
+    db:
+      x: 228
+      y: 90
+  containers:
+    cloud:
+      x: 40
+      y: 40
+      width: 316
+      height: 156.4
+  icons:
+    api:
+      libraryId: mermaid-architecture
+      libraryVersion: 1.0.0
+      iconId: server
+    db:
+      libraryId: mermaid-architecture
+      libraryVersion: 1.0.0
+      iconId: database
+  links:
+    api: arch-api-internals
+    cloud: arch-cloud-landing-zone
+---
+architecture-beta
+group cloud(cloud)[Cloud]
+service api(server)[API] in cloud
+service db(database)[DB] in cloud
+api:R --> L:db

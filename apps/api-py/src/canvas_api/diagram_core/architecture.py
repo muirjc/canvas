@@ -13,6 +13,7 @@ from typing import Any
 
 from canvas_api.diagram_core.architecture_layout import compute_architecture_layout
 from canvas_api.diagram_core.front_matter import (
+    apply_links,
     canvas_section,
     join_front_matter,
     read_legend,
@@ -21,6 +22,7 @@ from canvas_api.diagram_core.front_matter import (
     split_front_matter,
     strip_trailing_comment,
     with_legend,
+    with_links,
     with_pinned,
 )
 from canvas_api.diagram_core.model import create_empty_diagram_model
@@ -272,6 +274,7 @@ def parse_architecture(dsl: str) -> dict[str, Any]:
         model["architectureAlignments"] = alignments
     if pinned := read_pinned(front_matter, model):
         model["pinned"] = pinned
+    apply_links(front_matter, model)
     return {"model": model}
 
 
@@ -382,4 +385,6 @@ def serialize_architecture(model: dict[str, Any]) -> str:
     for alignment in model.get("architectureAlignments") or []:
         lines.append(f"align {alignment['axis']} {' '.join(alignment['ids'])}")
 
-    return join_front_matter(with_pinned(with_legend(front_matter, model), model), "\n".join(lines) + "\n")
+    return join_front_matter(
+        with_links(with_pinned(with_legend(front_matter, model), model), model), "\n".join(lines) + "\n"
+    )

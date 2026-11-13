@@ -9,7 +9,7 @@ import {
   type NodeStyle,
   type SequenceHalfArrow,
 } from '../model/diagram-model.js';
-import { splitFrontMatter, joinFrontMatter, stripTrailingComment, type CanvasFrontMatter, NO_ENTRIES } from './front-matter.js';
+import { splitFrontMatter, joinFrontMatter, stripTrailingComment, type CanvasFrontMatter, applyLinks, withLinks, NO_ENTRIES } from './front-matter.js';
 import type { ParseError, ParseResult } from './types.js';
 import { dataEntries, formatShapeData, parseShapeData } from './mermaid-shape-data.js';
 
@@ -549,6 +549,8 @@ export function parseSequence(dsl: string): ParseResult {
   model.accTitle = accTitle;
   model.accDescr = accDescr;
   model.mermaidConfigDirective = mermaidConfigDirective;
+  // canvas-8uh1.1: participants only -- a block's or note's id is made up by the parser, so it can't key a link.
+  applyLinks(frontMatter, { nodes: model.nodes, containers: [] });
   return { model };
 }
 
@@ -696,5 +698,5 @@ export function serializeSequence(model: DiagramModel): string {
   }
   lines.push(...emitScope(undefined, model, ''));
 
-  return joinFrontMatter(frontMatter, `${lines.join('\n')}\n`);
+  return joinFrontMatter(withLinks(frontMatter, { nodes: model.nodes, containers: [] }), `${lines.join('\n')}\n`);
 }

@@ -9,7 +9,7 @@ import {
   type NodeShape,
   type NodeStyle,
 } from '../model/diagram-model.js';
-import { splitFrontMatter, stripTrailingComment, readLegend, readPinned, NO_ENTRIES } from './front-matter.js';
+import { splitFrontMatter, stripTrailingComment, readLegend, readPinned, applyLinks, NO_ENTRIES } from './front-matter.js';
 import type { ParseError, ParseResult } from './types.js';
 import { computeContainmentLayout } from '../model/containment-layout.js';
 import { MAX_LINK_LENGTH, MERMAID_NAME, SHAPE_DATA_INNER_SOURCE, SHAPE_DATA_SOURCE, mermaidShapeToCanvas, parseShapeData } from './mermaid-shape-data.js';
@@ -716,5 +716,6 @@ export function parseFlowchart(dsl: string): ParseResult {
   model.legend = readLegend(frontMatter);
   const pinned = readPinned(frontMatter, model);
   if (pinned) model.pinned = pinned;
+  applyLinks(frontMatter, model);
   return { model };
 }

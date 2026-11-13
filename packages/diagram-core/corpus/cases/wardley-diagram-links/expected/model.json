@@ -1,0 +1,144 @@
+{
+  "containers": [
+    {
+      "attachedNodeIds": [
+        "Kettle"
+      ],
+      "diagramRef": {
+        "diagramId": "wardley-kettle-pipeline"
+      },
+      "id": "~pipeline:Kettle",
+      "label": "",
+      "position": {
+        "x": 234,
+        "y": 323.28
+      },
+      "role": "pipeline",
+      "size": {
+        "height": 24,
+        "width": 190.8
+      }
+    }
+  ],
+  "diagramTypeId": "wardley",
+  "edges": [
+    {
+      "id": "e1",
+      "sourceId": "Business",
+      "targetId": "Tea",
+      "wardley": {
+        "arrow": "->"
+      }
+    },
+    {
+      "id": "e2",
+      "sourceId": "Tea",
+      "targetId": "Kettle",
+      "wardley": {
+        "arrow": "->"
+      }
+    }
+  ],
+  "nodes": [
+    {
+      "id": "Business",
+      "label": "Business",
+      "position": {
+        "x": 554.52,
+        "y": 73.20000000000005
+      },
+      "role": "anchor",
+      "shape": "circle",
+      "wardley": {
+        "evolution": 0.63,
+        "visibility": 0.95
+      }
+    },
+    {
+      "diagramRef": {
+        "diagramId": "wardley-tea-detail"
+      },
+      "id": "Tea",
+      "label": "Tea",
+      "position": {
+        "x": 538.44,
+        "y": 153.83999999999997
+      },
+      "role": "component",
+      "shape": "circle",
+      "wardley": {
+        "evolution": 0.61,
+        "strategy": "buy",
+        "visibility": 0.79
+      }
+    },
+    {
+      "diagramRef": {
+        "diagramId": "wardley-kettle-options"
+      },
+      "id": "Kettle",
+      "label": "Kettle",
+      "position": {
+        "x": 329.4,
+        "y": 335.28
+      },
+      "role": "component",
+      "shape": "circle",
+      "wardley": {
+        "evolution": 0.35,
+        "visibility": 0.43
+      }
+    },
+    {
+      "containerId": "~pipeline:Kettle",
+      "diagramRef": {
+        "diagramId": "wardley-electric"
+      },
+      "id": "Kettle_Electric",
+      "label": "Electric",
+      "position": {
+        "x": 409.8,
+        "y": 335.28
+      },
+      "role": "pipeline-component",
+      "shape": "circle",
+      "wardley": {
+        "evolution": 0.45,
+        "visibility": 0.43
+      }
+    },
+    {
+      "containerId": "~pipeline:Kettle",
+      "id": "Kettle_Campfire",
+      "label": "Campfire",
+      "position": {
+        "x": 249,
+        "y": 335.28
+      },
+      "role": "pipeline-component",
+      "shape": "circle",
+      "wardley": {
+        "evolution": 0.25,
+        "visibility": 0.43
+      }
+    },
+    {
+      "diagramRef": {
+        "diagramId": "wardley-notes"
+      },
+      "id": "~note1",
+      "label": "Standardising",
+      "position": {
+        "x": 610.8,
+        "y": 400.8
+      },
+      "role": "note",
+      "shape": "rectangle",
+      "wardley": {
+        "evolution": 0.7,
+        "visibility": 0.3
+      }
+    }
+  ],
+  "title": "Tea Shop"
+}

@@ -137,5 +137,13 @@ def url_protocol(href: str) -> str | None:
     return scheme
 
 
+#: canvas-8uh1.1 (diagram-model.ts isDiagramLinkId): what a linked diagram's id may be (Canvas's are UUIDs).
+_DIAGRAM_LINK_ID = re.compile(r"[A-Za-z0-9][A-Za-z0-9_-]{0,99}")
+
+
+def is_diagram_link_id(value: Any) -> bool:
+    return isinstance(value, str) and _DIAGRAM_LINK_ID.fullmatch(value) is not None
+
+
 def is_allowed_link_href(href: str) -> bool:
     return url_protocol(href) in ("http", "https")

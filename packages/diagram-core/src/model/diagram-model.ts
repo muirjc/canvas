@@ -160,6 +160,20 @@ export interface DiagramNode {
   mermaidData?: MermaidData;
   /** canvas-4h1j: Wardley maps only -- the coordinates and markings as written (see WardleyNodeData). */
   wardley?: WardleyNodeData;
+  /** canvas-8uh1.1: the diagram this element opens (a drill-down link), front matter `canvas.links`. */
+  diagramRef?: DiagramRef;
+}
+
+/** canvas-8uh1.1: a link from an element to another diagram, by the diagram's id (its title is looked up). */
+export interface DiagramRef {
+  diagramId: string;
+}
+
+/** canvas-8uh1.1: what a linked diagram's id may be (Canvas's are UUIDs): letters, digits, `-` and `_`. */
+const DIAGRAM_LINK_ID = /^[A-Za-z0-9][A-Za-z0-9_-]{0,99}$/;
+
+export function isDiagramLinkId(value: unknown): value is string {
+  return typeof value === 'string' && DIAGRAM_LINK_ID.test(value);
 }
 
 /** canvas-4h1j: a Wardley map component's sourcing strategy (`(build)` ...), drawn as a ring behind it. */
@@ -429,6 +443,8 @@ export interface DiagramContainer {
    *  overriding the diagram's top-level direction for it. Note this is preserved for round-trip
    *  only — like the top-level `DiagramModel.direction`, it does not yet drive auto-layout. */
   direction?: FlowchartDirection;
+  /** canvas-8uh1.1: the diagram this group opens (a drill-down link), front matter `canvas.links`. */
+  diagramRef?: DiagramRef;
 }
 
 /** Mermaid flowchart layout direction (top-down, left-right, etc.), part of the DSL's own grammar. */

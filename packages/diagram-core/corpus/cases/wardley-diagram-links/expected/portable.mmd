@@ -1,0 +1,17 @@
+wardley-beta
+title Tea Shop
+
+anchor Business [0.95, 0.63]
+
+component Tea [0.79, 0.61] (buy)
+component Kettle [0.43, 0.35]
+
+pipeline Kettle {
+  component Electric [0.45]
+  component Campfire [0.25]
+}
+
+Business -> Tea
+Tea -> Kettle
+
+note "Standardising" [0.3, 0.7]

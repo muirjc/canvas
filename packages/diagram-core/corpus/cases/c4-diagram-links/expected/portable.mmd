@@ -1,0 +1,7 @@
+C4Context
+title Banking
+Enterprise_Boundary(bank, "Bank") {
+  System(pay, "Payments", "Takes payments")
+}
+Person(user, "Customer")
+Rel(user, pay, "Pays with")

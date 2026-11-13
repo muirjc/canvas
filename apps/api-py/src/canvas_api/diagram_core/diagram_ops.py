@@ -20,7 +20,7 @@ from contextvars import ContextVar
 from typing import Any
 
 from canvas_api.diagram_core.jsvalues import js_template, js_truthy
-from canvas_api.diagram_core.model import is_allowed_link_href
+from canvas_api.diagram_core.model import is_allowed_link_href, is_diagram_link_id
 
 __all__ = [
     "add_container",
@@ -43,6 +43,7 @@ __all__ = [
     "set_container_direction",
     "set_container_parent",
     "set_container_role",
+    "set_diagram_link",
     "set_node_link",
     "set_sequence_autonumber",
     "update_class_members",
@@ -489,3 +490,25 @@ def set_sequence_autonumber(model: Obj, patch: Obj) -> Obj:
             return model
         return _without(model, "sequenceAutonumber")
     return {**model, "sequenceAutonumber": _copy_given({}, patch, ("start", "step"))}
+
+
+def set_diagram_link(model: Obj, element_id: str, diagram_id: str | None) -> Obj:
+    """canvas-8uh1.1 (diagram-ops.ts setDiagramLink): links a shape or group to another diagram, or with None
+    removes the link."""
+    if diagram_id is not None and not is_diagram_link_id(diagram_id):
+        raise ValueError(f'setDiagramLink: "{js_template(diagram_id)}" is not a diagram id')
+    if not _has(model["nodes"], element_id) and not _has(model["containers"], element_id):
+        raise ValueError(f'setDiagramLink: there is no shape or group "{element_id}"')
+
+    def relink(element: Obj) -> Obj:
+        if element.get("id") != element_id:
+            return element
+        if diagram_id is None:
+            return _without(element, "diagramRef")
+        return {**element, "diagramRef": {"diagramId": diagram_id}}
+
+    return {
+        **model,
+        "nodes": [relink(n) for n in model["nodes"]],
+        "containers": [relink(c) for c in model["containers"]],
+    }

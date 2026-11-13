@@ -1,0 +1,28 @@
+---
+canvas:
+  positions:
+    pay:
+      x: 60
+      y: 90
+    user:
+      x: 320
+      y: 40
+  styles: {}
+  edgeStyles: {}
+  containers:
+    bank:
+      x: 40
+      y: 40
+      width: 240
+      height: 143
+  links:
+    pay: c4-container-payments
+    bank: c4-context-bank
+---
+C4Context
+title Banking
+Enterprise_Boundary(bank, "Bank") {
+  System(pay, "Payments", "Takes payments")
+}
+Person(user, "Customer")
+Rel(user, pay, "Pays with")

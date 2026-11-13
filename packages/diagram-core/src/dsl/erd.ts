@@ -1,7 +1,7 @@
 import { inReadOrder } from './read-order.js';
 import { createEmptyDiagramModel, type DiagramContainer, type DiagramModel, type DiagramNode, type EntityAttribute, type NodeStyle } from '../model/diagram-model.js';
 import { computeContainmentLayout } from '../model/containment-layout.js';
-import { splitFrontMatter, joinFrontMatter, stripTrailingComment, type CanvasFrontMatter, readLegend, readPinned, withLegend, withPinned, NO_ENTRIES } from './front-matter.js';
+import { splitFrontMatter, joinFrontMatter, stripTrailingComment, type CanvasFrontMatter, readLegend, readPinned, applyLinks, withLegend, withPinned, withLinks, NO_ENTRIES } from './front-matter.js';
 import type { FlowchartDirection } from '../model/diagram-model.js';
 import type { ParseError, ParseResult } from './types.js';
 
@@ -489,6 +489,7 @@ export function parseErd(dsl: string): ParseResult {
   model.legend = readLegend(frontMatter);
   const pinned = readPinned(frontMatter, model);
   if (pinned) model.pinned = pinned;
+  applyLinks(frontMatter, model);
   return { model };
 }
 
@@ -603,5 +604,5 @@ function writeErd(model: DiagramModel): string {
     if (!declared.has(node.id)) lines.push(declarationFor(node));
   }
 
-  return joinFrontMatter(withPinned(withLegend(frontMatter, model), model), `${lines.join('\n')}\n`);
+  return joinFrontMatter(withLinks(withPinned(withLegend(frontMatter, model), model), model), `${lines.join('\n')}\n`);
 }

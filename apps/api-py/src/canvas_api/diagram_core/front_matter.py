@@ -5,14 +5,17 @@ from __future__ import annotations
 
 import math
 import re
+from collections.abc import Callable
 from typing import Any
 
 from canvas_api.diagram_core import jsyaml
 from canvas_api.diagram_core.jsvalues import js_number_value
+from canvas_api.diagram_core.model import is_diagram_link_id
 from canvas_api.github.jstext import js_slice, js_trim
 
 __all__ = [
     "FRONT_MATTER_PATTERN",
+    "apply_links",
     "join_front_matter",
     "pinned_ids",
     "read_legend",
@@ -20,6 +23,7 @@ __all__ = [
     "split_front_matter",
     "strip_trailing_comment",
     "with_legend",
+    "with_links",
     "with_pinned",
 ]
 
@@ -215,3 +219,38 @@ def with_pinned(front_matter: dict[str, Any], model: dict[str, Any]) -> dict[str
     if not pinned:
         return front_matter
     return {**front_matter, "canvas": {**(front_matter.get("canvas") or {}), "pinned": pinned}}
+
+
+def apply_links(front_matter: Any, model: dict[str, Any]) -> None:
+    """canvas-8uh1.1 (front-matter.ts applyLinks): gives each node and group named in `canvas.links` its
+    `diagramRef`; entries for ids the model lacks, or whose value isn't a diagram id, are dropped."""
+    links = section(canvas_section(front_matter), "links")
+    if not links:
+        return
+    for element in [*model["nodes"], *model["containers"]]:
+        if element.get("id") not in links:
+            continue
+        diagram_id = links[element["id"]]
+        if is_diagram_link_id(diagram_id):
+            element["diagramRef"] = {"diagramId": diagram_id}
+
+
+def with_links(
+    front_matter: dict[str, Any],
+    model: dict[str, Any],
+    saved_id: Callable[[str, str], str | None] = lambda element_id, _kind: element_id,
+) -> dict[str, Any]:
+    """canvas-8uh1.1 (front-matter.ts withLinks): the model's links added to a serializer's front matter, nodes then
+    groups, each under the id the element has when the text is read back."""
+    links: dict[str, str] = {}
+    for kind, elements in (("node", model["nodes"]), ("container", model["containers"])):
+        for element in elements:
+            ref = element.get("diagramRef")
+            diagram_id = ref.get("diagramId") if isinstance(ref, dict) else None
+            element_id = saved_id(element["id"], kind)
+            if element_id is None or not is_diagram_link_id(diagram_id) or element_id in links:
+                continue
+            links[element_id] = diagram_id  # type: ignore[assignment]
+    if not links:
+        return front_matter
+    return {**front_matter, "canvas": {**(front_matter.get("canvas") or {}), "links": links}}

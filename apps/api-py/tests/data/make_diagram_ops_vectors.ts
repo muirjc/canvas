@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any -- a one-off generator writing loosely typed JSON vectors. */
-// Regenerates diagram_ops_vectors.json (addStateNode added for canvas-bnnh): seeded random sequences of diagram-core's model edits (diagram-ops.ts and
+// Regenerates diagram_ops_vectors.json (addStateNode added for canvas-bnnh, setDiagramLink for canvas-8uh1.1): seeded random sequences of diagram-core's model edits (diagram-ops.ts and
 // standard-ops.ts) applied by TypeScript to corpus diagrams and a few hand-made models -- a hash of JSON.stringify of
 // the model after every step and the whole model after a sequence's last edit -- for tests/test_diagram_core_ops.py. Each step records the ids TypeScript generated so Python can reuse
 // them. It imports diagram-core's source, so it runs inside that package's vitest: copy it to
@@ -146,7 +146,7 @@ it('gen', () => {
       args,
       run: () => (standardOps as any)[fn](model, ...args),
     });
-    switch (Math.floor(rand() * 37)) {
+    switch (Math.floor(rand() * 38)) {
       case 0:
       case 1:
         return call(
@@ -329,6 +329,11 @@ it('gen', () => {
         maybe(input, 'label', labels, 0.4);
         if (chance(0.3)) input.containerId = containerId();
         return call('addStateNode', input);
+      }
+      case 36: {
+        // canvas-8uh1.1: a drill-down link on a shape or group, a bad diagram id, or removing it.
+        const element = chance(0.7) ? nodeId() : containerId();
+        return call('setDiagramLink', element, pick(['7b0c2f9e-1d2a-4c3b-9e8f-0a1b2c3d4e5f', 'other_diagram', null, null, 'not an id', '']));
       }
       default:
         return callStd('applyConnectorRule', edgeId(), pick(connectorRules));

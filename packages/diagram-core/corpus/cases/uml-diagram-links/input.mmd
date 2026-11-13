@@ -1,0 +1,12 @@
+---
+canvas:
+  links:
+    Order: uml-order-states
+    Shop: uml-shop-package
+---
+classDiagram
+  namespace Shop {
+    class Order
+    class Item
+  }
+  Order "1" *-- "*" Item

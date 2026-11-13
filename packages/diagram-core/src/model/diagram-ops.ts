@@ -1,5 +1,6 @@
 import {
   isAllowedLinkHref,
+  isDiagramLinkId,
   type ClassMember,
   type DiagramContainer,
   type DiagramEdge,
@@ -828,4 +829,24 @@ export function addStateNode(model: DiagramModel, input: { kind: StateNodeKind; 
     ...(containerId ? { containerId } : {}),
   };
   return { ...model, nodes: [...model.nodes, node] };
+}
+
+/**
+ * canvas-8uh1.1: links a shape or group to another diagram (a drill-down link), or with `null` removes the link.
+ * The diagram is named by its id; whether it exists is the caller's business (the editor's picker, the API).
+ */
+export function setDiagramLink(model: DiagramModel, elementId: string, diagramId: string | null): DiagramModel {
+  if (diagramId !== null && !isDiagramLinkId(diagramId)) throw new Error(`setDiagramLink: "${String(diagramId)}" is not a diagram id`);
+  if (!model.nodes.some((n) => n.id === elementId) && !model.containers.some((c) => c.id === elementId)) {
+    throw new Error(`setDiagramLink: there is no shape or group "${elementId}"`);
+  }
+  const relink = <T extends DiagramNode | DiagramContainer>(element: T): T => {
+    if (element.id !== elementId) return element;
+    if (diagramId === null) {
+      const { diagramRef: _dropped, ...rest } = element;
+      return rest as T;
+    }
+    return { ...element, diagramRef: { diagramId } };
+  };
+  return { ...model, nodes: model.nodes.map(relink), containers: model.containers.map(relink) };
 }

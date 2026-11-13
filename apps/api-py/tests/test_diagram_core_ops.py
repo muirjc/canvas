@@ -74,7 +74,7 @@ def test_the_vectors_reach_every_edit_and_every_error() -> None:
     assert {_snake(op) for op in ops} == exported
     steps = [step for case in DATA["cases"] for sequence in case["sequences"] for step in sequence]
     errors = {step["error"].split(":")[0] for step in steps if "error" in step}
-    assert errors == {"setNodeLink", "updateNodeLabel", "updateContainerLabel"}
+    assert errors == {"setNodeLink", "updateNodeLabel", "updateContainerLabel", "setDiagramLink"}
 
 
 def test_generated_ids_look_like_typescript_ones() -> None:

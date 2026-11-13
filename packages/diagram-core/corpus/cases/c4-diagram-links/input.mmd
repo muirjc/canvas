@@ -1,0 +1,14 @@
+---
+canvas:
+  links:
+    pay: c4-container-payments
+    bank: c4-context-bank
+    user: 42
+---
+C4Context
+  title Banking
+  Person(user, "Customer")
+  Enterprise_Boundary(bank, "Bank") {
+    System(pay, "Payments", "Takes payments")
+  }
+  Rel(user, pay, "Pays with")

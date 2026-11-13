@@ -12,7 +12,7 @@ import math
 import re
 from typing import Any
 
-from canvas_api.diagram_core.front_matter import split_front_matter
+from canvas_api.diagram_core.front_matter import apply_links, join_front_matter, split_front_matter, with_links
 from canvas_api.diagram_core.jsvalues import js_template, js_truthy
 from canvas_api.diagram_core.model import create_empty_diagram_model
 from canvas_api.github.jstext import JS_WHITESPACE, js_number, js_trim
@@ -624,6 +624,7 @@ def parse_wardley(dsl: str) -> dict[str, Any]:
     model["edges"] = edges
     model["containers"] = containers
     lay_out_pipelines(model, frame)
+    apply_links(front_matter, model)
     return {"model": model}
 
 
@@ -771,6 +772,65 @@ def _wardley_of(node: dict[str, Any]) -> dict[str, Any]:
 
 
 def serialize_wardley(model: Model) -> str:
+    """canvas-8uh1.1: the text, with `canvas.links` front matter when an element links to another diagram, each
+    link keyed by the id the element gets when the text is read back (a map's ids come from what is written)."""
+    body = _write_wardley(model)
+    if not any(e.get("diagramRef") for e in [*model["nodes"], *model["containers"]]):
+        return body
+    reread = parse_wardley(body)
+    if "model" not in reread:
+        return body
+    ids = _wardley_saved_ids(model, reread["model"])
+    return join_front_matter(with_links({}, model, lambda element_id, kind: ids.get(f"{kind}:{element_id}")), body)
+
+
+_OTHER_ROLES = frozenset({"note", "annotation", "accelerator", "deaccelerator"})
+_MERGING = ("map:", "pipeline-component:", "pipeline:")
+
+
+def _signatures(model: Model) -> list[tuple[str, str]]:
+    by_id = {n["id"]: n for n in model["nodes"]}
+    parent_of: dict[str, Any] = {}
+    for c in model["containers"]:
+        if c.get("role") == "pipeline":
+            attached = c.get("attachedNodeIds") or []
+            parent_of[c["id"]] = by_id.get(attached[0] if attached else "")
+    out: list[tuple[str, str]] = []
+    for node in model["nodes"]:
+        container_id = node.get("containerId")
+        if container_id is not None and container_id in parent_of:
+            parent = parent_of[container_id]
+            if parent is not None:
+                out.append((f"node:{node['id']}", f"pipeline-component:{parent['label']}:{node['label']}"))
+        elif (node.get("role") or "") in _OTHER_ROLES:
+            out.append((f"node:{node['id']}", f"{node['role']}:"))
+        else:
+            out.append((f"node:{node['id']}", f"map:{node['label']}"))
+    for container in model["containers"]:
+        parent = parent_of.get(container["id"])
+        if container.get("role") == "pipeline" and parent is not None:
+            out.append((f"container:{container['id']}", f"pipeline:{parent['label']}"))
+    return out
+
+
+def _wardley_saved_ids(model: Model, reread: Model) -> dict[str, str]:
+    """For each element, the id it has after a save and a read (wardley.ts wardleySavedIds)."""
+    after: dict[str, list[str]] = {}
+    for key, signature in _signatures(reread):
+        after.setdefault(signature, []).append(key[key.index(":") + 1 :])
+    used: dict[str, int] = {}
+    ids: dict[str, str] = {}
+    for key, signature in _signatures(model):
+        index = used.get(signature, 0)
+        used[signature] = index + 1
+        found = after.get(signature, [])
+        position = 0 if signature.startswith(_MERGING) else index
+        if position < len(found):
+            ids[key] = found[position]
+    return ids
+
+
+def _write_wardley(model: Model) -> str:
     frame = wardley_frame(model)
     lines: list[str] = []
     if model.get("mermaidConfigDirective"):

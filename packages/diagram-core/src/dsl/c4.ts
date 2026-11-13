@@ -1,6 +1,6 @@
 import { inReadOrder } from './read-order.js';
 import { createEmptyDiagramModel, type DiagramContainer, type DiagramModel, type DiagramNode, type LayoutDirection, type LayoutHint, type NodeStyle } from '../model/diagram-model.js';
-import { splitFrontMatter, joinFrontMatter, stripTrailingComment, type CanvasFrontMatter, readLegend, readPinned, withLegend, withPinned, NO_ENTRIES } from './front-matter.js';
+import { splitFrontMatter, joinFrontMatter, stripTrailingComment, type CanvasFrontMatter, readLegend, readPinned, applyLinks, withLegend, withPinned, withLinks, NO_ENTRIES } from './front-matter.js';
 import type { ParseError, ParseResult } from './types.js';
 import { computeContainmentLayout } from '../model/containment-layout.js';
 
@@ -609,6 +609,7 @@ export function parseC4(dsl: string): ParseResult {
   if (layoutHints.length > 0) model.layoutHints = layoutHints;
   const pinned = readPinned(frontMatter, model);
   if (pinned) model.pinned = pinned;
+  applyLinks(frontMatter, model);
   return { model };
 }
 
@@ -744,5 +745,5 @@ function writeC4(model: import('../model/diagram-model.js').DiagramModel): strin
     if (suffix) lines.push(`Lay_${suffix}(${hint.from}, ${hint.to})`);
   }
 
-  return joinFrontMatter(withPinned(withLegend(frontMatter, model), model), `${lines.join('\n')}\n`);
+  return joinFrontMatter(withLinks(withPinned(withLegend(frontMatter, model), model), model), `${lines.join('\n')}\n`);
 }
