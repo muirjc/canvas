@@ -1,4 +1,6 @@
 import { isAllowedLinkHref, type ClassMember, type DiagramContainer, type DiagramEdge, type DiagramModel, type DiagramNode, type EntityAttribute, type Size } from '../model/diagram-model.js';
+import { renderWardleySvg } from './wardley-render.js';
+import { wardleyFrame } from '../model/wardley-geometry.js';
 import { computeSequenceLayout, SELF_MESSAGE_LOOP_WIDTH, type SequenceLayout } from './sequence-layout.js';
 import { computeLegendEntries, legendLayout, LEGEND_METRICS, type LegendEntry, type LegendLayout } from './legend.js';
 import type { StandardRules } from '../standards/schema.js';
@@ -1521,6 +1523,11 @@ function contentBounds(model: DiagramModel): { width: number; height: number } {
     const layout = computeSequenceLayout(model);
     return { width: layout.diagramWidth, height: layout.diagramHeight };
   }
+  // canvas-4h1j: a Wardley map is its frame (`size`, default 900 x 600).
+  if (model.diagramTypeId === 'wardley') {
+    const frame = wardleyFrame(model);
+    return { width: frame.width, height: frame.height };
+  }
   let maxX = 400;
   let maxY = 300;
   for (const node of model.nodes) {
@@ -1822,6 +1829,9 @@ function renderDiagramSvg(model: DiagramModel, resolveIcon: IconResolver | undef
   // audit); every other family's rendering below is completely unaffected.
   if (model.diagramTypeId === 'sequence') {
     return renderSequenceSvg(model, resolveIcon);
+  }
+  if (model.diagramTypeId === 'wardley') {
+    return renderWardleySvg(model);
   }
   const nodesById = new Map(model.nodes.map((n) => [n.id, n]));
   const containersById = new Map(model.containers.map((c) => [c.id, c]));

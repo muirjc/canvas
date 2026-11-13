@@ -1,0 +1,198 @@
+{
+  "containers": [],
+  "diagramTypeId": "wardley",
+  "edges": [
+    {
+      "id": "e1",
+      "sourceId": "end-user",
+      "targetId": "real-time processing",
+      "wardley": {
+        "arrow": "->"
+      }
+    },
+    {
+      "id": "e2",
+      "sourceId": "notebook",
+      "targetId": "3D Printer",
+      "wardley": {
+        "arrow": "->"
+      }
+    },
+    {
+      "id": "e3",
+      "sourceId": "Café",
+      "targetId": "Node.js",
+      "wardley": {
+        "arrow": "->"
+      }
+    },
+    {
+      "id": "e4",
+      "sourceId": "_private-id",
+      "targetId": "Shared",
+      "wardley": {
+        "arrow": "->"
+      }
+    }
+  ],
+  "nodes": [
+    {
+      "id": "Shared",
+      "label": "Shared",
+      "position": {
+        "x": 482.16,
+        "y": 189.12
+      },
+      "role": "component",
+      "shape": "circle",
+      "wardley": {
+        "evolution": 0.54,
+        "labelOffset": {
+          "x": 5,
+          "y": 5
+        },
+        "visibility": 0.72
+      }
+    },
+    {
+      "id": "real-time processing",
+      "label": "real-time processing",
+      "position": {
+        "x": 369.6,
+        "y": 274.79999999999995
+      },
+      "role": "component",
+      "shape": "circle",
+      "wardley": {
+        "evolution": 0.4,
+        "visibility": 0.55
+      }
+    },
+    {
+      "id": "end-user",
+      "label": "end-user",
+      "position": {
+        "x": 811.8,
+        "y": 98.39999999999998
+      },
+      "role": "component",
+      "shape": "circle",
+      "wardley": {
+        "evolution": 0.95,
+        "visibility": 0.9
+      }
+    },
+    {
+      "id": "notebook",
+      "label": "notebook",
+      "position": {
+        "x": 289.2,
+        "y": 400.8
+      },
+      "role": "component",
+      "shape": "circle",
+      "wardley": {
+        "evolution": 0.3,
+        "visibility": 0.3
+      }
+    },
+    {
+      "id": "3D Printer",
+      "label": "3D Printer",
+      "position": {
+        "x": 530.4,
+        "y": 451.2
+      },
+      "role": "component",
+      "shape": "circle",
+      "wardley": {
+        "evolution": 0.6,
+        "visibility": 0.2
+      }
+    },
+    {
+      "id": "Node.js",
+      "label": "Node.js",
+      "position": {
+        "x": 610.8,
+        "y": 350.4
+      },
+      "role": "component",
+      "shape": "circle",
+      "wardley": {
+        "evolution": 0.7,
+        "visibility": 0.4
+      }
+    },
+    {
+      "id": "Café",
+      "label": "Café",
+      "position": {
+        "x": 490.20000000000005,
+        "y": 375.6
+      },
+      "role": "component",
+      "shape": "circle",
+      "wardley": {
+        "evolution": 0.55,
+        "visibility": 0.35
+      }
+    },
+    {
+      "id": "Say \"hi\"",
+      "label": "Say \"hi\"",
+      "position": {
+        "x": 409.8,
+        "y": 426
+      },
+      "role": "component",
+      "shape": "circle",
+      "wardley": {
+        "evolution": 0.45,
+        "visibility": 0.25
+      }
+    },
+    {
+      "id": "R&D (core)",
+      "label": "R&D (core)",
+      "position": {
+        "x": 249,
+        "y": 300
+      },
+      "role": "component",
+      "shape": "circle",
+      "wardley": {
+        "evolution": 0.25,
+        "visibility": 0.5
+      }
+    },
+    {
+      "id": "_private-id",
+      "label": "_private-id",
+      "position": {
+        "x": 731.4,
+        "y": 325.2
+      },
+      "role": "component",
+      "shape": "circle",
+      "wardley": {
+        "evolution": 0.85,
+        "visibility": 0.45
+      }
+    },
+    {
+      "id": "Builder",
+      "label": "Builder",
+      "position": {
+        "x": 128.4,
+        "y": 249.60000000000002
+      },
+      "role": "component",
+      "shape": "circle",
+      "wardley": {
+        "evolution": 0.1,
+        "visibility": 0.6
+      }
+    }
+  ]
+}

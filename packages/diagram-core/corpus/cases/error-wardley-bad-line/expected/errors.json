@@ -1,0 +1,24 @@
+{
+  "errors": [
+    {
+      "content": "component A [1, 0]",
+      "line": 2,
+      "message": "Could not interpret line as a Wardley map statement: \"component A [1, 0]\" (coordinates are written as decimals, such as 0.5 or 1.0)"
+    },
+    {
+      "content": "component B [.5, 0.5]",
+      "line": 3,
+      "message": "Could not interpret line as a Wardley map statement: \"component B [.5, 0.5]\" (coordinates are written as decimals, such as 0.5 or 1.0)"
+    },
+    {
+      "content": "A B",
+      "line": 4,
+      "message": "Could not read \"A B\" as a link: put an arrow (->) between the names, or quote them"
+    },
+    {
+      "content": "market M [0.5, 0.5]",
+      "line": 5,
+      "message": "Could not interpret line as a Wardley map statement: \"market M [0.5, 0.5]\""
+    }
+  ]
+}

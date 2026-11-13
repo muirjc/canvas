@@ -9,6 +9,7 @@ import { DEFAULT_RELATIONSHIP_LABEL, parseErd, serializeErd } from './erd.js';
 import { parseUml, serializeUml } from './uml.js';
 import { parseSequence, serializeSequence } from './sequence.js';
 import { parseState, serializeState } from './state.js';
+import { parseWardley, serializeWardley } from './wardley.js';
 import { isParseSuccess, type ParseResult } from './types.js';
 import { parse as parseYaml, stringify as stringifyYaml } from 'yaml';
 import { FRONT_MATTER_PATTERN } from './front-matter.js';
@@ -71,6 +72,11 @@ function withMermaidForms(dsl: string, family: ReturnType<typeof detectDslFamily
     case 'state': {
       const result = parseState(dsl);
       return isParseSuccess(result) ? serializeState(withoutNulls(result.model)) : dsl;
+    }
+    case 'wardley': {
+      // canvas-4h1j: written again, so a name Canvas read more leniently than Mermaid goes out quoted.
+      const result = parseWardley(dsl);
+      return isParseSuccess(result) ? serializeWardley(withoutNulls(result.model)) : dsl;
     }
     default:
       return dsl;

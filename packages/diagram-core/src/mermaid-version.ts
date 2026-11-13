@@ -19,7 +19,7 @@ export const GITHUB_MERMAID_VERSION = { version: '12.2.0', checkedOn: '2026-11-0
 
 /** Per diagram family: Mermaid syntax Canvas doesn't read or doesn't draw yet. Checked by a test. */
 export interface MermaidSupportNote {
-  family: 'flowchart' | 'sequence' | 'uml' | 'erd' | 'c4' | 'architecture' | 'state';
+  family: 'flowchart' | 'sequence' | 'uml' | 'erd' | 'c4' | 'architecture' | 'state' | 'wardley';
   label: string;
   notes: string[];
 }
@@ -69,6 +69,15 @@ export const MERMAID_SUPPORT_NOTES: readonly MermaidSupportNote[] = [
     family: 'architecture',
     label: 'Architecture',
     notes: ['Icons from iconify packs (logos:aws-lambda) are kept but drawn as a plain box.'],
+  },
+  {
+    family: 'wardley',
+    label: 'Wardley map',
+    notes: [
+      'Read more loosely than Mermaid: an unquoted name may start with a keyword (notebook, builder); Canvas writes such names in quotes.',
+      'Refused, where Mermaid ignores it: evolve naming no component. Canvas also lets evolve name a pipeline component.',
+      'Not read (Mermaid 12.3 refuses them too): the Online Wardley Maps forms Mermaid documents but doesn’t read, such as trend lines (A -.- (x, y)), evolve A->B, pipeline A [x, y] and market or area lines.',
+    ],
   },
 ];
 

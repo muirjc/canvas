@@ -71,7 +71,7 @@ const cases = readdirSync(join(CORPUS, 'cases')).sort();
 describe('golden corpus (canvas-1bty.5)', () => {
   it('has cases for every diagram family, and the standards they name', () => {
     const families = new Set(cases.map((c) => detectDslFamily(readFileSync(join(CORPUS, 'cases', c, 'input.mmd'), 'utf8'))));
-    for (const f of ['flowchart', 'c4', 'architecture', 'sequence', 'erd', 'uml']) expect(families.has(f), f).toBe(true);
+    for (const f of ['flowchart', 'c4', 'architecture', 'sequence', 'erd', 'uml', 'state', 'wardley']) expect(families.has(f), f).toBe(true);
   });
 
   it.each(cases)('%s', (name) => {

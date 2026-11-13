@@ -1,0 +1,305 @@
+{
+  "containers": [],
+  "diagramTypeId": "wardley",
+  "edges": [
+    {
+      "id": "e1",
+      "sourceId": "Customer",
+      "targetId": "Mobile App",
+      "wardley": {
+        "arrow": "->"
+      }
+    },
+    {
+      "id": "e2",
+      "sourceId": "Customer",
+      "targetId": "Web App",
+      "wardley": {
+        "arrow": "->"
+      }
+    },
+    {
+      "id": "e3",
+      "sourceId": "Mobile App",
+      "targetId": "API Gateway",
+      "wardley": {
+        "arrow": "->"
+      }
+    },
+    {
+      "id": "e4",
+      "sourceId": "Web App",
+      "targetId": "API Gateway",
+      "wardley": {
+        "arrow": "->"
+      }
+    },
+    {
+      "id": "e5",
+      "sourceId": "API Gateway",
+      "targetId": "Auth Service",
+      "wardley": {
+        "arrow": "->"
+      }
+    },
+    {
+      "id": "e6",
+      "sourceId": "API Gateway",
+      "targetId": "Database",
+      "wardley": {
+        "arrow": "->"
+      }
+    },
+    {
+      "id": "e7",
+      "sourceId": "Database",
+      "targetId": "Cloud Platform",
+      "wardley": {
+        "arrow": "->"
+      }
+    }
+  ],
+  "nodes": [
+    {
+      "id": "Customer",
+      "label": "Customer",
+      "position": {
+        "x": 1001.8,
+        "y": 118.39999999999998
+      },
+      "role": "anchor",
+      "shape": "circle",
+      "wardley": {
+        "evolution": 0.95,
+        "visibility": 0.9
+      }
+    },
+    {
+      "id": "Mobile App",
+      "label": "Mobile App",
+      "position": {
+        "x": 901.4,
+        "y": 188.79999999999995
+      },
+      "role": "component",
+      "shape": "circle",
+      "wardley": {
+        "evolution": 0.85,
+        "strategy": "build",
+        "visibility": 0.8
+      }
+    },
+    {
+      "id": "Web App",
+      "label": "Web App",
+      "position": {
+        "x": 851.2,
+        "y": 224
+      },
+      "role": "component",
+      "shape": "circle",
+      "wardley": {
+        "evolution": 0.8,
+        "labelOffset": {
+          "x": -60,
+          "y": 10
+        },
+        "strategy": "build",
+        "visibility": 0.75
+      }
+    },
+    {
+      "id": "API Gateway",
+      "label": "API Gateway",
+      "position": {
+        "x": 700.6,
+        "y": 259.20000000000005
+      },
+      "role": "component",
+      "shape": "circle",
+      "wardley": {
+        "evolution": 0.65,
+        "evolve": 0.85,
+        "strategy": "buy",
+        "visibility": 0.7
+      }
+    },
+    {
+      "id": "Auth Service",
+      "label": "Auth Service",
+      "position": {
+        "x": 600.2,
+        "y": 329.6
+      },
+      "role": "component",
+      "shape": "circle",
+      "wardley": {
+        "evolution": 0.55,
+        "strategy": "outsource",
+        "visibility": 0.6
+      }
+    },
+    {
+      "id": "Database",
+      "label": "Database",
+      "position": {
+        "x": 499.8,
+        "y": 400
+      },
+      "role": "component",
+      "shape": "circle",
+      "wardley": {
+        "evolution": 0.45,
+        "evolve": 0.75,
+        "inertia": true,
+        "strategy": "buy",
+        "visibility": 0.5
+      }
+    },
+    {
+      "id": "Cloud Platform",
+      "label": "Cloud Platform",
+      "position": {
+        "x": 1001.8,
+        "y": 540.8
+      },
+      "role": "component",
+      "shape": "circle",
+      "wardley": {
+        "evolution": 0.95,
+        "strategy": "market",
+        "visibility": 0.3
+      }
+    },
+    {
+      "id": "~note1",
+      "label": "Build mobile-first experience",
+      "position": {
+        "x": 951.6,
+        "y": 153.60000000000002
+      },
+      "role": "note",
+      "shape": "rectangle",
+      "wardley": {
+        "evolution": 0.9,
+        "visibility": 0.85
+      }
+    },
+    {
+      "id": "~note2",
+      "label": "Migrate to cloud-native database",
+      "position": {
+        "x": 550,
+        "y": 329.6
+      },
+      "role": "note",
+      "shape": "rectangle",
+      "wardley": {
+        "evolution": 0.5,
+        "visibility": 0.6
+      }
+    },
+    {
+      "id": "~annotation1",
+      "label": "User touchpoints",
+      "position": {
+        "x": 871.28,
+        "y": 202.88
+      },
+      "role": "annotation",
+      "shape": "circle",
+      "wardley": {
+        "evolution": 0.82,
+        "number": 1,
+        "visibility": 0.78
+      }
+    },
+    {
+      "id": "~annotation2",
+      "label": "Integration layer",
+      "position": {
+        "x": 650.4,
+        "y": 259.20000000000005
+      },
+      "role": "annotation",
+      "shape": "circle",
+      "wardley": {
+        "evolution": 0.6,
+        "number": 2,
+        "visibility": 0.7
+      }
+    },
+    {
+      "id": "~annotation3",
+      "label": "Data persistence",
+      "position": {
+        "x": 449.6,
+        "y": 400
+      },
+      "role": "annotation",
+      "shape": "circle",
+      "wardley": {
+        "evolution": 0.4,
+        "number": 3,
+        "visibility": 0.5
+      }
+    },
+    {
+      "id": "~accelerator1",
+      "label": "Cloud Native",
+      "position": {
+        "x": 901.4,
+        "y": 611.2
+      },
+      "role": "accelerator",
+      "shape": "rectangle",
+      "wardley": {
+        "evolution": 0.85,
+        "visibility": 0.2
+      }
+    },
+    {
+      "id": "~deaccelerator1",
+      "label": "Legacy Data",
+      "position": {
+        "x": 399.4,
+        "y": 435.2
+      },
+      "role": "deaccelerator",
+      "shape": "rectangle",
+      "wardley": {
+        "evolution": 0.35,
+        "visibility": 0.45
+      }
+    }
+  ],
+  "title": "Software Platform Strategy",
+  "wardley": {
+    "annotationsBox": {
+      "evolution": 0.2,
+      "visibility": 0.1
+    },
+    "size": {
+      "height": 800,
+      "width": 1100
+    },
+    "stages": [
+      {
+        "boundary": 0.25,
+        "name": "Genesis"
+      },
+      {
+        "boundary": 0.5,
+        "name": "Custom"
+      },
+      {
+        "boundary": 0.75,
+        "name": "Product"
+      },
+      {
+        "boundary": 1,
+        "name": "Commodity"
+      }
+    ]
+  }
+}

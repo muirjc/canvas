@@ -18,7 +18,7 @@ describe('Mermaid version', () => {
   });
 
   it('has a note entry for every family Canvas reads', () => {
-    expect(MERMAID_SUPPORT_NOTES.map((n) => n.family).sort()).toEqual(['architecture', 'c4', 'erd', 'flowchart', 'sequence', 'state', 'uml']);
+    expect(MERMAID_SUPPORT_NOTES.map((n) => n.family).sort()).toEqual(['architecture', 'c4', 'erd', 'flowchart', 'sequence', 'state', 'uml', 'wardley']);
   });
 
   it.each([
@@ -26,6 +26,11 @@ describe('Mermaid version', () => {
     ['state', 'stateDiagram-v2\n  note "floating" as N\n'],
     ['sequence', 'sequenceDiagram\n  properties A: {"class": "x"}\n  A->>B: hi\n'],
     ['sequence', 'sequenceDiagram\n  details A: menu\n  A->>B: hi\n'],
+    ['wardley', 'wardley-beta\n  component A [0.5, 0.5]\n  evolve Missing 0.8\n'],
+    ['wardley', 'wardley-beta\n  component A [0.5, 0.5]\n  A -.- (0.5, 0.7)\n'],
+    ['wardley', 'wardley-beta\n  component A [0.5, 0.5]\n  component B [0.5, 0.6]\n  evolve A->B 0.8\n'],
+    ['wardley', 'wardley-beta\n  component A [0.5, 0.5]\n  pipeline A [0.2, 0.8]\n'],
+    ['wardley', 'wardley-beta\n  market M [0.5, 0.5]\n'],
   ])('%s: still not read, as the notes say: %j', (family, dsl) => {
     expect(parses(family, dsl)).toBe(false);
   });
@@ -44,6 +49,8 @@ describe('Mermaid version', () => {
     ['erd', 'erDiagram\n  subgraph "Customer Domain" [Customers]\n    direction LR\n    CUSTOMER\n  end\n  "Customer Domain" ||--o{ ORDER : places\n'],
     ['sequence', 'sequenceDiagram\n  A -|\\ B: hi\n  A ->>() B: hi\n  link A: Dash @ https://example.org\n'],
     ['sequence', 'sequenceDiagram\n  participant D@{ "type": "database" }\n  autonumber .5 0.25\n  D->>E: hi\n'],
+    ['wardley', 'wardley-beta\n  component notebook [0.5, 0.5]\n  component builder [0.4, 0.6]\n  notebook -> builder\n'],
+    ['wardley', 'wardley-beta\n  component A [0.5, 0.5]\n  pipeline A {\n    component B [0.3]\n  }\n  evolve B 0.8\n'],
   ])('%s: read, as the notes say: %j', (family, dsl) => {
     expect(parses(family, dsl)).toBe(true);
   });

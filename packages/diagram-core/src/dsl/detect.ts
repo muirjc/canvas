@@ -12,6 +12,8 @@ const HEADER_TO_FAMILY: Array<{ pattern: RegExp; family: string }> = [
   { pattern: /^architecture-beta$/, family: 'architecture' },
   // canvas-bnnh: Mermaid's grammar takes either header, in any case.
   { pattern: /^stateDiagram(?:-v2)?$/i, family: 'state' },
+  // canvas-4h1j: Mermaid's grammar takes the header in lower case only (its detector ignores case, then fails).
+  { pattern: /^wardley-beta$/, family: 'wardley' },
 ];
 
 /**

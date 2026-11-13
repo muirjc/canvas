@@ -1,0 +1,94 @@
+{
+  "containers": [],
+  "diagramTypeId": "wardley",
+  "edges": [],
+  "nodes": [
+    {
+      "id": "Novel",
+      "label": "Novel",
+      "position": {
+        "x": 168.6,
+        "y": 174
+      },
+      "role": "component",
+      "shape": "circle",
+      "wardley": {
+        "evolution": 0.15,
+        "strategy": "outsource",
+        "visibility": 0.75
+      }
+    },
+    {
+      "id": "Bespoke",
+      "label": "Bespoke",
+      "position": {
+        "x": 329.4,
+        "y": 199.20000000000005
+      },
+      "role": "component",
+      "shape": "circle",
+      "wardley": {
+        "evolution": 0.35,
+        "inertia": true,
+        "strategy": "market",
+        "visibility": 0.7
+      }
+    },
+    {
+      "id": "Product",
+      "label": "Product",
+      "position": {
+        "x": 570.6,
+        "y": 224.39999999999998
+      },
+      "role": "component",
+      "shape": "circle",
+      "wardley": {
+        "evolution": 0.65,
+        "inertia": true,
+        "labelOffset": {
+          "x": 10,
+          "y": -20
+        },
+        "strategy": "build",
+        "visibility": 0.65
+      }
+    },
+    {
+      "id": "Utility",
+      "label": "Utility",
+      "position": {
+        "x": 771.6,
+        "y": 249.60000000000002
+      },
+      "role": "component",
+      "shape": "circle",
+      "wardley": {
+        "evolution": 0.9,
+        "strategy": "buy",
+        "visibility": 0.6
+      }
+    }
+  ],
+  "title": "Custom Widths",
+  "wardley": {
+    "stages": [
+      {
+        "boundary": 0.2,
+        "name": "Genesis"
+      },
+      {
+        "boundary": 0.4,
+        "name": "Custom"
+      },
+      {
+        "boundary": 0.75,
+        "name": "Product"
+      },
+      {
+        "boundary": 1,
+        "name": "Commodity"
+      }
+    ]
+  }
+}

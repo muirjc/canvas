@@ -19,6 +19,8 @@ HEADER_TO_FAMILY: list[tuple[re.Pattern[str], str]] = [
     (re.compile("^architecture-beta$"), "architecture"),
     # canvas-bnnh: either header, in any case (Mermaid's grammar).
     (re.compile("^stateDiagram(?:-v2)?$", re.IGNORECASE | re.ASCII), "state"),
+    # canvas-4h1j: lower case only, as Mermaid's grammar reads it.
+    (re.compile("^wardley-beta$"), "wardley"),
 ]
 
 

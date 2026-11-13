@@ -35,6 +35,8 @@ from canvas_api.diagram_core.sizes import (
     split_label_lines,
     table_rows,
 )
+from canvas_api.diagram_core.wardley import wardley_frame
+from canvas_api.diagram_core.wardley_render import render_wardley_svg
 from canvas_api.github.jstext import JS_WHITESPACE, js_len
 
 __all__ = ["IconResolver", "clip_icon_artwork", "compute_bounds", "contrast_text_color", "render_to_svg"]
@@ -1235,6 +1237,9 @@ def _content_bounds(model: Model) -> dict[str, Any]:
     if model.get("diagramTypeId") == "sequence":
         layout = compute_sequence_layout(model)
         return {"width": layout["diagramWidth"], "height": layout["diagramHeight"]}
+    if model.get("diagramTypeId") == "wardley":
+        frame = wardley_frame(model)
+        return {"width": frame["width"], "height": frame["height"]}
     max_x: Any = 400
     max_y: Any = 300
     for node in model["nodes"]:
@@ -1555,6 +1560,8 @@ def _with_background(svg: str, background: Any) -> str:
 def _render_diagram_svg(model: Model, resolve_icon: IconResolver | None, standard_rules: Any) -> str:
     if model.get("diagramTypeId") == "sequence":
         return _render_sequence_svg(model, resolve_icon)
+    if model.get("diagramTypeId") == "wardley":
+        return render_wardley_svg(model)
     nodes_by_id = {n["id"]: n for n in model["nodes"]}
     containers_by_id = {c["id"]: c for c in model["containers"]}
     legend_model = model.get("legend")

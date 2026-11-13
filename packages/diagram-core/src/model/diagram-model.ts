@@ -158,7 +158,57 @@ export interface DiagramNode {
   /** canvas-8wxq: flowchart only -- the other `@{ }` keys (icon, img, form, pos, h, w, constraint, …), kept in
    *  order and written back, not drawn. */
   mermaidData?: MermaidData;
+  /** canvas-4h1j: Wardley maps only -- the coordinates and markings as written (see WardleyNodeData). */
+  wardley?: WardleyNodeData;
 }
+
+/** canvas-4h1j: a Wardley map component's sourcing strategy (`(build)` ...), drawn as a ring behind it. */
+export type WardleyStrategy = 'build' | 'buy' | 'outsource' | 'market';
+
+/** canvas-4h1j: a Wardley map element's coordinates and markings, as the text writes them. Values are Mermaid's:
+ *  0-1 is a fraction, above 1 a percentage (`0.5` and `50.0` are the same place). The node's `position` is the
+ *  drawn centre computed from them; a save writes these back unless the node was moved (then from `position`). */
+export interface WardleyNodeData {
+  visibility: number;
+  evolution: number;
+  /** `label [x, y]`: where the name is drawn, relative to the point (components and pipeline components). */
+  labelOffset?: Position;
+  strategy?: WardleyStrategy;
+  inertia?: boolean;
+  /** `evolve Name 0.62`: where the component is heading, on the evolution axis. */
+  evolve?: number;
+  /** Annotations only: `annotation 1,[...]`'s number. */
+  number?: number;
+}
+
+/** canvas-4h1j: one stage of a Wardley map's evolution axis (`Genesis / Concept@0.25`). */
+export interface WardleyStage {
+  name: string;
+  secondName?: string;
+  /** `@0.25`: where the stage ends (0-1). Used only when every stage has one, as in Mermaid. */
+  boundary?: number;
+}
+
+/** canvas-4h1j: map-wide Wardley settings. */
+export interface WardleyMapData {
+  /** `size [1100, 800]`; absent = Mermaid's 900 x 600. */
+  size?: Size;
+  /** `evolution A -> B -> ...`; absent = Genesis, Custom Built, Product, Commodity. */
+  stages?: WardleyStage[];
+  /** `annotations [visibility, evolution]`: where the list of annotation texts is drawn. */
+  annotationsBox?: { visibility: number; evolution: number };
+}
+
+/** canvas-4h1j: how a Wardley map link was written: its arrow (absent = none, `"A" "B"`), its flow ports
+ *  (`+>` forward, `+<` back, `+<>` both, after either name) and a labelled flow arrow (`+'text'>`). */
+export interface WardleyLinkData {
+  arrow?: '->' | '-->' | '-.->' | '>';
+  fromPort?: WardleyFlow;
+  toPort?: WardleyFlow;
+  flowArrow?: { label: string; flow: WardleyFlow };
+}
+
+export type WardleyFlow = '+>' | '+<' | '+<>';
 
 /** canvas-8wxq: the values of a Mermaid `@{ key: value }` block (a YAML flow mapping). */
 export type MermaidData = Record<string, string | number | boolean>;
@@ -318,6 +368,8 @@ export interface DiagramEdge {
   /** canvas-sfz7: flowchart only -- a longer link's Mermaid length (`A ---> B` = 2; absent = 1, the plain link).
    *  Mermaid lays such a link out longer; Canvas keeps and writes it back, Auto Layout doesn't use it. */
   mermaidLength?: number;
+  /** canvas-4h1j: Wardley maps only -- see WardleyLinkData. The `; label` text is `label`. */
+  wardley?: WardleyLinkData;
 }
 
 /** A visual grouping/boundary (e.g., a C4 "System Boundary" or a Mermaid subgraph). */
@@ -459,6 +511,8 @@ export interface DiagramModel {
    *  single-line block is supported (real Mermaid usage is overwhelmingly one line); if more than
    *  one appears in a file, the last one wins — a disclosed simplification, not a silent drop. */
   mermaidConfigDirective?: string;
+  /** canvas-4h1j: Wardley maps only -- size, evolution stages and the annotations box. */
+  wardley?: WardleyMapData;
 }
 
 export function createEmptyDiagramModel(diagramTypeId: string): DiagramModel {
