@@ -1,0 +1,19 @@
+wardley-beta
+title Kettle Evolution Pipeline
+size [1100, 800]
+
+component Kettle [0.57, 0.45]
+component Power [0.1, 0.7]
+component User [0.95, 0.5]
+
+pipeline Kettle {
+  component Campfire Kettle [0.35] label [-60, 35]
+  component Electric Kettle [0.53] label [-60, 35]
+  component Smart Kettle [0.72] label [-30, 35]
+}
+
+Kettle -> Power
+User -> Electric Kettle
+Campfire Kettle -> Kettle
+Electric Kettle -> Kettle
+Smart Kettle -> Kettle

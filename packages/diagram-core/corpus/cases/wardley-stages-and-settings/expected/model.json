@@ -1,0 +1,121 @@
+{
+  "accDescr": "A map whose evolution axis\nhas two labels per stage.",
+  "accTitle": "Dual stage labels",
+  "containers": [],
+  "diagramTypeId": "wardley",
+  "edges": [
+    {
+      "id": "e1",
+      "sourceId": "User",
+      "targetId": "Novel Idea",
+      "wardley": {
+        "arrow": "->"
+      }
+    }
+  ],
+  "mermaidConfigDirective": "%%{init: {\"theme\": \"neutral\"}}%%",
+  "nodes": [
+    {
+      "id": "User",
+      "label": "User",
+      "position": {
+        "x": 400,
+        "y": 68.20000000000005
+      },
+      "role": "anchor",
+      "shape": "circle",
+      "wardley": {
+        "evolution": 0.5,
+        "visibility": 0.95
+      }
+    },
+    {
+      "id": "Novel Idea",
+      "label": "Novel Idea",
+      "position": {
+        "x": 188.8,
+        "y": 431.8
+      },
+      "role": "component",
+      "shape": "circle",
+      "wardley": {
+        "evolution": 0.2,
+        "evolve": 0.6,
+        "visibility": 0.05
+      }
+    },
+    {
+      "id": "Custom Solution",
+      "label": "Custom Solution",
+      "position": {
+        "x": 400,
+        "y": 310.6
+      },
+      "role": "component",
+      "shape": "circle",
+      "wardley": {
+        "evolution": 50,
+        "visibility": 35
+      }
+    },
+    {
+      "id": "Product",
+      "label": "Product",
+      "position": {
+        "x": 540.8,
+        "y": 189.39999999999998
+      },
+      "role": "component",
+      "shape": "circle",
+      "wardley": {
+        "evolution": 0.7,
+        "labelOffset": {
+          "x": -40,
+          "y": 12
+        },
+        "visibility": 0.65
+      }
+    },
+    {
+      "id": "Utility",
+      "label": "Utility",
+      "position": {
+        "x": 48,
+        "y": 48
+      },
+      "role": "component",
+      "shape": "circle",
+      "wardley": {
+        "evolution": 0,
+        "inertia": true,
+        "visibility": 1
+      }
+    }
+  ],
+  "title": "From the front matter",
+  "wardley": {
+    "size": {
+      "height": 500,
+      "width": 800
+    },
+    "stages": [
+      {
+        "name": "Genesis",
+        "secondName": "Concept"
+      },
+      {
+        "boundary": 0.5,
+        "name": "Custom",
+        "secondName": "Emerging"
+      },
+      {
+        "name": "Product",
+        "secondName": "Converging"
+      },
+      {
+        "name": "Commodity",
+        "secondName": "Accepted"
+      }
+    ]
+  }
+}

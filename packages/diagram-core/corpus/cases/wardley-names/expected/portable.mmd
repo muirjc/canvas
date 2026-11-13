@@ -1,0 +1,18 @@
+wardley-beta
+
+component Shared [0.72, 0.54] label [5, 5]
+component real-time processing [0.55, 0.4]
+component end-user [0.9, 0.95]
+component "notebook" [0.3, 0.3]
+component "3D Printer" [0.2, 0.6]
+component "Node.js" [0.4, 0.7]
+component "Café" [0.35, 0.55]
+component "Say \"hi\"" [0.25, 0.45]
+component R&D (core) [0.5, 0.25]
+component "_private-id" [0.45, 0.85]
+component Builder [0.6, 0.1]
+
+end-user -> real-time processing
+"notebook" -> "3D Printer"
+"Café" -> "Node.js"
+"_private-id" -> Shared

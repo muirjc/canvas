@@ -1,0 +1,14 @@
+wardley-beta
+
+component constructor [0.8, 0.2]
+component toString [0.6, 0.4]
+component "__proto__" [0.4, 0.6]
+
+pipeline constructor {
+  component hasOwnProperty [0.3]
+}
+
+constructor -> toString
+toString -> "__proto__"
+
+evolve toString 0.9

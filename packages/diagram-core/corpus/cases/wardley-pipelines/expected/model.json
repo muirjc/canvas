@@ -1,0 +1,171 @@
+{
+  "containers": [
+    {
+      "attachedNodeIds": [
+        "Kettle"
+      ],
+      "id": "~pipeline:Kettle",
+      "label": "",
+      "position": {
+        "x": 384.4,
+        "y": 338.72
+      },
+      "role": "pipeline",
+      "size": {
+        "height": 24,
+        "width": 401.48
+      }
+    }
+  ],
+  "diagramTypeId": "wardley",
+  "edges": [
+    {
+      "id": "e1",
+      "sourceId": "Kettle",
+      "targetId": "Power",
+      "wardley": {
+        "arrow": "->"
+      }
+    },
+    {
+      "id": "e2",
+      "sourceId": "User",
+      "targetId": "Kettle_Electric Kettle",
+      "wardley": {
+        "arrow": "->"
+      }
+    },
+    {
+      "id": "e3",
+      "sourceId": "Kettle_Campfire Kettle",
+      "targetId": "Kettle",
+      "wardley": {
+        "arrow": "->"
+      }
+    },
+    {
+      "id": "e4",
+      "sourceId": "Kettle_Electric Kettle",
+      "targetId": "Kettle",
+      "wardley": {
+        "arrow": "->"
+      }
+    },
+    {
+      "id": "e5",
+      "sourceId": "Kettle_Smart Kettle",
+      "targetId": "Kettle",
+      "wardley": {
+        "arrow": "->"
+      }
+    }
+  ],
+  "nodes": [
+    {
+      "id": "Kettle",
+      "label": "Kettle",
+      "position": {
+        "x": 499.8,
+        "y": 350.72
+      },
+      "role": "component",
+      "shape": "circle",
+      "wardley": {
+        "evolution": 0.45,
+        "visibility": 0.57
+      }
+    },
+    {
+      "id": "Power",
+      "label": "Power",
+      "position": {
+        "x": 750.8,
+        "y": 681.6
+      },
+      "role": "component",
+      "shape": "circle",
+      "wardley": {
+        "evolution": 0.7,
+        "visibility": 0.1
+      }
+    },
+    {
+      "id": "User",
+      "label": "User",
+      "position": {
+        "x": 550,
+        "y": 83.20000000000005
+      },
+      "role": "component",
+      "shape": "circle",
+      "wardley": {
+        "evolution": 0.5,
+        "visibility": 0.95
+      }
+    },
+    {
+      "containerId": "~pipeline:Kettle",
+      "id": "Kettle_Campfire Kettle",
+      "label": "Campfire Kettle",
+      "position": {
+        "x": 399.4,
+        "y": 350.72
+      },
+      "role": "pipeline-component",
+      "shape": "circle",
+      "wardley": {
+        "evolution": 0.35,
+        "labelOffset": {
+          "x": -60,
+          "y": 35
+        },
+        "visibility": 0.57
+      }
+    },
+    {
+      "containerId": "~pipeline:Kettle",
+      "id": "Kettle_Electric Kettle",
+      "label": "Electric Kettle",
+      "position": {
+        "x": 580.12,
+        "y": 350.72
+      },
+      "role": "pipeline-component",
+      "shape": "circle",
+      "wardley": {
+        "evolution": 0.53,
+        "labelOffset": {
+          "x": -60,
+          "y": 35
+        },
+        "visibility": 0.57
+      }
+    },
+    {
+      "containerId": "~pipeline:Kettle",
+      "id": "Kettle_Smart Kettle",
+      "label": "Smart Kettle",
+      "position": {
+        "x": 770.88,
+        "y": 350.72
+      },
+      "role": "pipeline-component",
+      "shape": "circle",
+      "wardley": {
+        "evolution": 0.72,
+        "labelOffset": {
+          "x": -30,
+          "y": 35
+        },
+        "visibility": 0.57
+      }
+    }
+  ],
+  "title": "Kettle Evolution Pipeline",
+  "wardley": {
+    "size": {
+      "height": 800,
+      "width": 1100
+    }
+  }
+}

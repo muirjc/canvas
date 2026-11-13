@@ -1,0 +1,14 @@
+{
+  "errors": [
+    {
+      "content": "component A [150.0, 0.5]",
+      "line": 2,
+      "message": "Component \"A\" visibility must be between 0-1 (decimal) or 0-100 (percentage). Received: 150"
+    },
+    {
+      "content": "note \"far\" [0.5, 101.5]",
+      "line": 3,
+      "message": "Note \"far\" evolution must be between 0-1 (decimal) or 0-100 (percentage). Received: 101.5"
+    }
+  ]
+}

@@ -1,0 +1,953 @@
+{
+  "containers": [
+    {
+      "attachedNodeIds": [
+        "tokeniser"
+      ],
+      "id": "~pipeline:tokeniser",
+      "label": "",
+      "position": {
+        "x": 143.44,
+        "y": 169.76
+      },
+      "role": "pipeline",
+      "size": {
+        "height": 24,
+        "width": 722.76
+      }
+    },
+    {
+      "attachedNodeIds": [
+        "methodology"
+      ],
+      "id": "~pipeline:methodology",
+      "label": "",
+      "position": {
+        "x": 233.8,
+        "y": 233.12
+      },
+      "role": "pipeline",
+      "size": {
+        "height": 24,
+        "width": 632.4000000000001
+      }
+    },
+    {
+      "attachedNodeIds": [
+        "algo"
+      ],
+      "id": "~pipeline:algo",
+      "label": "",
+      "position": {
+        "x": 173.56,
+        "y": 366.88
+      },
+      "role": "pipeline",
+      "size": {
+        "height": 24,
+        "width": 692.6400000000001
+      }
+    }
+  ],
+  "diagramTypeId": "wardley",
+  "edges": [
+    {
+      "id": "e1",
+      "sourceId": "GPT Tokeniser",
+      "targetId": "tokeniser",
+      "wardley": {
+        "arrow": "->"
+      }
+    },
+    {
+      "id": "e2",
+      "sourceId": "tokeniser",
+      "targetId": "methodology",
+      "wardley": {
+        "arrow": "->"
+      }
+    },
+    {
+      "id": "e3",
+      "sourceId": "methodology",
+      "targetId": "training code",
+      "wardley": {
+        "arrow": "->"
+      }
+    },
+    {
+      "id": "e4",
+      "sourceId": "methodology",
+      "targetId": "inference code",
+      "wardley": {
+        "arrow": "->"
+      }
+    },
+    {
+      "id": "e5",
+      "sourceId": "methodology",
+      "targetId": "security framework",
+      "wardley": {
+        "arrow": "->"
+      }
+    },
+    {
+      "id": "e6",
+      "sourceId": "training code",
+      "targetId": "special tokens",
+      "wardley": {
+        "arrow": "->"
+      }
+    },
+    {
+      "id": "e7",
+      "sourceId": "training code",
+      "targetId": "python",
+      "wardley": {
+        "arrow": "->"
+      }
+    },
+    {
+      "id": "e8",
+      "sourceId": "algo",
+      "targetId": "tokeniser training data",
+      "wardley": {
+        "arrow": "->"
+      }
+    },
+    {
+      "id": "e9",
+      "sourceId": "training code",
+      "targetId": "text merging rules",
+      "wardley": {
+        "arrow": "->"
+      }
+    },
+    {
+      "id": "e10",
+      "sourceId": "training code",
+      "targetId": "encoder",
+      "wardley": {
+        "arrow": "->"
+      }
+    },
+    {
+      "id": "e11",
+      "sourceId": "inference code",
+      "targetId": "decoder",
+      "wardley": {
+        "arrow": "->"
+      }
+    },
+    {
+      "id": "e12",
+      "sourceId": "encoder",
+      "targetId": "algo",
+      "wardley": {
+        "arrow": "->"
+      }
+    },
+    {
+      "id": "e13",
+      "sourceId": "decoder",
+      "targetId": "algo",
+      "wardley": {
+        "arrow": "->"
+      }
+    },
+    {
+      "id": "e14",
+      "sourceId": "algo",
+      "targetId": "token vocabulary",
+      "wardley": {
+        "arrow": "->"
+      }
+    },
+    {
+      "id": "e15",
+      "sourceId": "byte pair encoding (BPE)",
+      "targetId": "UTF8",
+      "wardley": {
+        "arrow": "->"
+      }
+    },
+    {
+      "id": "e16",
+      "sourceId": "MEGABYTE",
+      "targetId": "UTF8",
+      "wardley": {
+        "arrow": "->"
+      }
+    },
+    {
+      "id": "e17",
+      "sourceId": "UTF8",
+      "targetId": "Unicode License v3",
+      "wardley": {
+        "arrow": "->"
+      }
+    },
+    {
+      "id": "e18",
+      "sourceId": "Unicode License v3",
+      "targetId": "Unicode Consortium",
+      "wardley": {
+        "arrow": "->"
+      }
+    },
+    {
+      "id": "e19",
+      "sourceId": "tokeniser training data",
+      "targetId": "english text data",
+      "wardley": {
+        "arrow": "->"
+      }
+    },
+    {
+      "id": "e20",
+      "sourceId": "tokeniser training data",
+      "targetId": "code data",
+      "wardley": {
+        "arrow": "->"
+      }
+    },
+    {
+      "id": "e21",
+      "sourceId": "tokeniser training data",
+      "targetId": "foreign text data",
+      "wardley": {
+        "arrow": "->"
+      }
+    },
+    {
+      "id": "e22",
+      "sourceId": "python",
+      "targetId": "IDE",
+      "wardley": {
+        "arrow": "->"
+      }
+    },
+    {
+      "id": "e23",
+      "sourceId": "python",
+      "targetId": "sentencepiece",
+      "wardley": {
+        "arrow": "->"
+      }
+    }
+  ],
+  "nodes": [
+    {
+      "id": "GPT Tokeniser",
+      "label": "GPT Tokeniser",
+      "position": {
+        "x": 630.3199999999999,
+        "y": 118.39999999999998
+      },
+      "role": "anchor",
+      "shape": "circle",
+      "wardley": {
+        "evolution": 0.58,
+        "visibility": 0.9
+      }
+    },
+    {
+      "id": "tokeniser",
+      "label": "tokeniser",
+      "position": {
+        "x": 630.3199999999999,
+        "y": 181.76
+      },
+      "role": "component",
+      "shape": "circle",
+      "wardley": {
+        "evolution": 0.58,
+        "visibility": 0.81
+      }
+    },
+    {
+      "id": "encoder",
+      "label": "encoder",
+      "position": {
+        "x": 369.28000000000003,
+        "y": 329.6
+      },
+      "role": "component",
+      "shape": "circle",
+      "wardley": {
+        "evolution": 0.32,
+        "labelOffset": {
+          "x": 1,
+          "y": -9
+        },
+        "visibility": 0.6
+      }
+    },
+    {
+      "id": "decoder",
+      "label": "decoder",
+      "position": {
+        "x": 770.88,
+        "y": 329.6
+      },
+      "role": "component",
+      "shape": "circle",
+      "wardley": {
+        "evolution": 0.72,
+        "visibility": 0.6
+      }
+    },
+    {
+      "id": "methodology",
+      "label": "methodology",
+      "position": {
+        "x": 580.12,
+        "y": 245.12
+      },
+      "role": "component",
+      "shape": "circle",
+      "wardley": {
+        "evolution": 0.53,
+        "visibility": 0.72
+      }
+    },
+    {
+      "id": "training code",
+      "label": "training code",
+      "position": {
+        "x": 309.04,
+        "y": 273.28
+      },
+      "role": "component",
+      "shape": "circle",
+      "wardley": {
+        "evolution": 0.26,
+        "labelOffset": {
+          "x": -90,
+          "y": 2
+        },
+        "visibility": 0.68
+      }
+    },
+    {
+      "id": "inference code",
+      "label": "inference code",
+      "position": {
+        "x": 419.48,
+        "y": 294.4
+      },
+      "role": "component",
+      "shape": "circle",
+      "wardley": {
+        "evolution": 0.37,
+        "labelOffset": {
+          "x": -50,
+          "y": -12
+        },
+        "visibility": 0.65
+      }
+    },
+    {
+      "id": "algo",
+      "label": "algo",
+      "position": {
+        "x": 550,
+        "y": 378.88
+      },
+      "role": "component",
+      "shape": "circle",
+      "wardley": {
+        "evolution": 0.5,
+        "labelOffset": {
+          "x": -15,
+          "y": -17
+        },
+        "visibility": 0.53
+      }
+    },
+    {
+      "id": "GPT2",
+      "label": "GPT2",
+      "position": {
+        "x": 700.6,
+        "y": 181.76
+      },
+      "role": "component",
+      "shape": "circle",
+      "wardley": {
+        "evolution": 0.65,
+        "labelOffset": {
+          "x": -14,
+          "y": 27
+        },
+        "visibility": 0.81
+      }
+    },
+    {
+      "id": "GPT3",
+      "label": "GPT3",
+      "position": {
+        "x": 780.92,
+        "y": 181.76
+      },
+      "role": "component",
+      "shape": "circle",
+      "wardley": {
+        "evolution": 0.73,
+        "labelOffset": {
+          "x": -15,
+          "y": 27
+        },
+        "visibility": 0.81
+      }
+    },
+    {
+      "id": "GPT4",
+      "label": "GPT4",
+      "position": {
+        "x": 821.08,
+        "y": 181.76
+      },
+      "role": "component",
+      "shape": "circle",
+      "wardley": {
+        "evolution": 0.77,
+        "labelOffset": {
+          "x": -14,
+          "y": 28
+        },
+        "visibility": 0.81
+      }
+    },
+    {
+      "id": "GPT5",
+      "label": "GPT5",
+      "position": {
+        "x": 419.48,
+        "y": 181.76
+      },
+      "role": "component",
+      "shape": "circle",
+      "wardley": {
+        "evolution": 0.37,
+        "labelOffset": {
+          "x": -10,
+          "y": 28
+        },
+        "visibility": 0.81
+      }
+    },
+    {
+      "id": "GPT6",
+      "label": "GPT6",
+      "position": {
+        "x": 218.68,
+        "y": 181.76
+      },
+      "role": "component",
+      "shape": "circle",
+      "wardley": {
+        "evolution": 0.17,
+        "labelOffset": {
+          "x": -20,
+          "y": 28
+        },
+        "visibility": 0.81
+      }
+    },
+    {
+      "id": "GPT7",
+      "label": "GPT7",
+      "position": {
+        "x": 178.52,
+        "y": 181.76
+      },
+      "role": "component",
+      "shape": "circle",
+      "wardley": {
+        "evolution": 0.13,
+        "labelOffset": {
+          "x": -13,
+          "y": 27
+        },
+        "visibility": 0.81
+      }
+    },
+    {
+      "id": "tokeniser training data",
+      "label": "tokeniser training data",
+      "position": {
+        "x": 389.36,
+        "y": 547.84
+      },
+      "role": "component",
+      "shape": "circle",
+      "wardley": {
+        "evolution": 0.34,
+        "labelOffset": {
+          "x": -74,
+          "y": -32
+        },
+        "visibility": 0.29
+      }
+    },
+    {
+      "id": "special tokens",
+      "label": "special tokens",
+      "position": {
+        "x": 309.04,
+        "y": 336.64000000000004
+      },
+      "role": "component",
+      "shape": "circle",
+      "wardley": {
+        "evolution": 0.26,
+        "labelOffset": {
+          "x": -61,
+          "y": 15
+        },
+        "visibility": 0.59
+      }
+    },
+    {
+      "id": "UTF8",
+      "label": "UTF8",
+      "position": {
+        "x": 790.96,
+        "y": 632.3199999999999
+      },
+      "role": "component",
+      "shape": "circle",
+      "wardley": {
+        "evolution": 0.74,
+        "visibility": 0.17
+      }
+    },
+    {
+      "id": "token vocabulary",
+      "label": "token vocabulary",
+      "position": {
+        "x": 610.24,
+        "y": 463.36
+      },
+      "role": "component",
+      "shape": "circle",
+      "wardley": {
+        "evolution": 0.56,
+        "labelOffset": {
+          "x": -25,
+          "y": 16
+        },
+        "visibility": 0.41
+      }
+    },
+    {
+      "id": "byte pair encoding (BPE)",
+      "label": "byte pair encoding (BPE)",
+      "position": {
+        "x": 811.04,
+        "y": 378.88
+      },
+      "role": "component",
+      "shape": "circle",
+      "wardley": {
+        "evolution": 0.76,
+        "labelOffset": {
+          "x": -27,
+          "y": 19
+        },
+        "visibility": 0.53
+      }
+    },
+    {
+      "id": "english text data",
+      "label": "english text data",
+      "position": {
+        "x": 419.48,
+        "y": 646.4
+      },
+      "role": "component",
+      "shape": "circle",
+      "wardley": {
+        "evolution": 0.37,
+        "labelOffset": {
+          "x": 0,
+          "y": 10
+        },
+        "visibility": 0.15
+      }
+    },
+    {
+      "id": "code data",
+      "label": "code data",
+      "position": {
+        "x": 349.2,
+        "y": 646.4
+      },
+      "role": "component",
+      "shape": "circle",
+      "wardley": {
+        "evolution": 0.3,
+        "labelOffset": {
+          "x": -31,
+          "y": 23
+        },
+        "visibility": 0.15
+      }
+    },
+    {
+      "id": "foreign text data",
+      "label": "foreign text data",
+      "position": {
+        "x": 278.92,
+        "y": 646.4
+      },
+      "role": "component",
+      "shape": "circle",
+      "wardley": {
+        "evolution": 0.23,
+        "labelOffset": {
+          "x": -51,
+          "y": 18
+        },
+        "visibility": 0.15
+      }
+    },
+    {
+      "id": "python",
+      "label": "python",
+      "position": {
+        "x": 891.36,
+        "y": 505.6
+      },
+      "role": "component",
+      "shape": "circle",
+      "wardley": {
+        "evolution": 0.84,
+        "visibility": 0.35
+      }
+    },
+    {
+      "id": "sentencepiece",
+      "label": "sentencepiece",
+      "position": {
+        "x": 851.2,
+        "y": 576
+      },
+      "role": "component",
+      "shape": "circle",
+      "wardley": {
+        "evolution": 0.8,
+        "labelOffset": {
+          "x": -49,
+          "y": 19
+        },
+        "visibility": 0.25
+      }
+    },
+    {
+      "id": "IDE",
+      "label": "IDE",
+      "position": {
+        "x": 911.4399999999999,
+        "y": 561.92
+      },
+      "role": "component",
+      "shape": "circle",
+      "wardley": {
+        "evolution": 0.86,
+        "visibility": 0.27
+      }
+    },
+    {
+      "id": "MEGABYTE",
+      "label": "MEGABYTE",
+      "position": {
+        "x": 228.72,
+        "y": 378.88
+      },
+      "role": "component",
+      "shape": "circle",
+      "wardley": {
+        "evolution": 0.18,
+        "labelOffset": {
+          "x": -28,
+          "y": 28
+        },
+        "visibility": 0.53
+      }
+    },
+    {
+      "id": "text merging rules",
+      "label": "text merging rules",
+      "position": {
+        "x": 258.84000000000003,
+        "y": 329.6
+      },
+      "role": "component",
+      "shape": "circle",
+      "wardley": {
+        "evolution": 0.21,
+        "labelOffset": {
+          "x": -64,
+          "y": -10
+        },
+        "visibility": 0.6
+      }
+    },
+    {
+      "id": "security framework",
+      "label": "security framework",
+      "position": {
+        "x": 630.3199999999999,
+        "y": 280.32
+      },
+      "role": "component",
+      "shape": "circle",
+      "wardley": {
+        "evolution": 0.58,
+        "labelOffset": {
+          "x": -27,
+          "y": 10
+        },
+        "visibility": 0.67
+      }
+    },
+    {
+      "id": "Unicode Consortium",
+      "label": "Unicode Consortium",
+      "position": {
+        "x": 600.2,
+        "y": 709.76
+      },
+      "role": "component",
+      "shape": "circle",
+      "wardley": {
+        "evolution": 0.55,
+        "visibility": 0.06
+      }
+    },
+    {
+      "id": "Unicode License v3",
+      "label": "Unicode License v3",
+      "position": {
+        "x": 770.88,
+        "y": 660.48
+      },
+      "role": "component",
+      "shape": "circle",
+      "wardley": {
+        "evolution": 0.72,
+        "labelOffset": {
+          "x": -29,
+          "y": 11
+        },
+        "visibility": 0.13
+      }
+    },
+    {
+      "containerId": "~pipeline:tokeniser",
+      "id": "tokeniser_tokeniser v1",
+      "label": "tokeniser v1",
+      "position": {
+        "x": 158.44,
+        "y": 181.76
+      },
+      "role": "pipeline-component",
+      "shape": "circle",
+      "wardley": {
+        "evolution": 0.11,
+        "visibility": 0.81
+      }
+    },
+    {
+      "containerId": "~pipeline:tokeniser",
+      "id": "tokeniser_tokeniser v2",
+      "label": "tokeniser v2",
+      "position": {
+        "x": 851.2,
+        "y": 181.76
+      },
+      "role": "pipeline-component",
+      "shape": "circle",
+      "wardley": {
+        "evolution": 0.8,
+        "visibility": 0.81
+      }
+    },
+    {
+      "containerId": "~pipeline:methodology",
+      "id": "methodology_methodology v1",
+      "label": "methodology v1",
+      "position": {
+        "x": 248.8,
+        "y": 245.12
+      },
+      "role": "pipeline-component",
+      "shape": "circle",
+      "wardley": {
+        "evolution": 0.2,
+        "visibility": 0.72
+      }
+    },
+    {
+      "containerId": "~pipeline:methodology",
+      "id": "methodology_methodology v2",
+      "label": "methodology v2",
+      "position": {
+        "x": 851.2,
+        "y": 245.12
+      },
+      "role": "pipeline-component",
+      "shape": "circle",
+      "wardley": {
+        "evolution": 0.8,
+        "visibility": 0.72
+      }
+    },
+    {
+      "containerId": "~pipeline:algo",
+      "id": "algo_algo v1",
+      "label": "algo v1",
+      "position": {
+        "x": 188.56,
+        "y": 378.88
+      },
+      "role": "pipeline-component",
+      "shape": "circle",
+      "wardley": {
+        "evolution": 0.14,
+        "visibility": 0.53
+      }
+    },
+    {
+      "containerId": "~pipeline:algo",
+      "id": "algo_algo v2",
+      "label": "algo v2",
+      "position": {
+        "x": 851.2,
+        "y": 378.88
+      },
+      "role": "pipeline-component",
+      "shape": "circle",
+      "wardley": {
+        "evolution": 0.8,
+        "visibility": 0.53
+      }
+    },
+    {
+      "id": "~note1",
+      "label": "Voting members: Adobe, Amazon, Apple, Google, Meta, Microsoft, Netflix, Salesforce",
+      "position": {
+        "x": 399.4,
+        "y": 723.84
+      },
+      "role": "note",
+      "shape": "rectangle",
+      "wardley": {
+        "evolution": 0.35,
+        "visibility": 0.04
+      }
+    },
+    {
+      "id": "~annotation1",
+      "label": "Alternative algos in research",
+      "position": {
+        "x": 208.64000000000001,
+        "y": 350.72
+      },
+      "role": "annotation",
+      "shape": "circle",
+      "wardley": {
+        "evolution": 0.16,
+        "number": 1,
+        "visibility": 0.57
+      }
+    },
+    {
+      "id": "~annotation2",
+      "label": "Most popular, but not the most efficient",
+      "position": {
+        "x": 811.04,
+        "y": 350.72
+      },
+      "role": "annotation",
+      "shape": "circle",
+      "wardley": {
+        "evolution": 0.76,
+        "number": 2,
+        "visibility": 0.57
+      }
+    },
+    {
+      "id": "~annotation3",
+      "label": "Ensure balanced token vocabulary",
+      "position": {
+        "x": 349.2,
+        "y": 611.2
+      },
+      "role": "annotation",
+      "shape": "circle",
+      "wardley": {
+        "evolution": 0.3,
+        "number": 3,
+        "visibility": 0.2
+      }
+    },
+    {
+      "id": "~annotation4",
+      "label": "Required for delimiters",
+      "position": {
+        "x": 329.12,
+        "y": 329.6
+      },
+      "role": "annotation",
+      "shape": "circle",
+      "wardley": {
+        "evolution": 0.28,
+        "number": 4,
+        "visibility": 0.6
+      }
+    },
+    {
+      "id": "~annotation5",
+      "label": "A structured approach for achieving a goal",
+      "position": {
+        "x": 550,
+        "y": 259.20000000000005
+      },
+      "role": "annotation",
+      "shape": "circle",
+      "wardley": {
+        "evolution": 0.5,
+        "number": 5,
+        "visibility": 0.7
+      }
+    },
+    {
+      "id": "~deaccelerator1",
+      "label": "License Play",
+      "position": {
+        "x": 831.12,
+        "y": 660.48
+      },
+      "role": "deaccelerator",
+      "shape": "rectangle",
+      "wardley": {
+        "evolution": 0.78,
+        "visibility": 0.13
+      }
+    }
+  ],
+  "title": "GPT Tokeniser",
+  "wardley": {
+    "annotationsBox": {
+      "evolution": 0,
+      "visibility": 1
+    },
+    "size": {
+      "height": 800,
+      "width": 1100
+    }
+  }
+}

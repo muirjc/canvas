@@ -1,0 +1,261 @@
+{
+  "containers": [],
+  "diagramTypeId": "wardley",
+  "edges": [
+    {
+      "id": "e1",
+      "sourceId": "Business",
+      "targetId": "Cup of Tea",
+      "wardley": {
+        "arrow": "->"
+      }
+    },
+    {
+      "id": "e2",
+      "sourceId": "Public",
+      "targetId": "Cup of Tea",
+      "wardley": {
+        "arrow": "->"
+      }
+    },
+    {
+      "id": "e3",
+      "sourceId": "Cup of Tea",
+      "targetId": "Cup",
+      "wardley": {
+        "arrow": "->"
+      }
+    },
+    {
+      "id": "e4",
+      "sourceId": "Cup of Tea",
+      "targetId": "Tea",
+      "wardley": {
+        "arrow": "->"
+      }
+    },
+    {
+      "id": "e5",
+      "sourceId": "Cup of Tea",
+      "targetId": "Hot Water",
+      "wardley": {
+        "arrow": "->"
+      }
+    },
+    {
+      "id": "e6",
+      "sourceId": "Hot Water",
+      "targetId": "Water",
+      "wardley": {
+        "arrow": "->"
+      }
+    },
+    {
+      "id": "e7",
+      "sourceId": "Hot Water",
+      "targetId": "Kettle",
+      "wardley": {
+        "arrow": "->"
+      }
+    },
+    {
+      "id": "e8",
+      "sourceId": "Kettle",
+      "targetId": "Power",
+      "wardley": {
+        "arrow": "->"
+      }
+    }
+  ],
+  "nodes": [
+    {
+      "id": "Business",
+      "label": "Business",
+      "position": {
+        "x": 680.52,
+        "y": 83.20000000000005
+      },
+      "role": "anchor",
+      "shape": "circle",
+      "wardley": {
+        "evolution": 0.63,
+        "visibility": 0.95
+      }
+    },
+    {
+      "id": "Public",
+      "label": "Public",
+      "position": {
+        "x": 831.12,
+        "y": 83.20000000000005
+      },
+      "role": "anchor",
+      "shape": "circle",
+      "wardley": {
+        "evolution": 0.78,
+        "visibility": 0.95
+      }
+    },
+    {
+      "id": "Cup of Tea",
+      "label": "Cup of Tea",
+      "position": {
+        "x": 660.4399999999999,
+        "y": 195.83999999999992
+      },
+      "role": "component",
+      "shape": "circle",
+      "wardley": {
+        "evolution": 0.61,
+        "labelOffset": {
+          "x": 19,
+          "y": -4
+        },
+        "visibility": 0.79
+      }
+    },
+    {
+      "id": "Cup",
+      "label": "Cup",
+      "position": {
+        "x": 831.12,
+        "y": 238.08000000000004
+      },
+      "role": "component",
+      "shape": "circle",
+      "wardley": {
+        "evolution": 0.78,
+        "visibility": 0.73
+      }
+    },
+    {
+      "id": "Tea",
+      "label": "Tea",
+      "position": {
+        "x": 861.24,
+        "y": 308.48
+      },
+      "role": "component",
+      "shape": "circle",
+      "wardley": {
+        "evolution": 0.81,
+        "visibility": 0.63
+      }
+    },
+    {
+      "id": "Hot Water",
+      "label": "Hot Water",
+      "position": {
+        "x": 851.2,
+        "y": 385.91999999999996
+      },
+      "role": "component",
+      "shape": "circle",
+      "wardley": {
+        "evolution": 0.8,
+        "visibility": 0.52
+      }
+    },
+    {
+      "id": "Water",
+      "label": "Water",
+      "position": {
+        "x": 871.28,
+        "y": 484.48
+      },
+      "role": "component",
+      "shape": "circle",
+      "wardley": {
+        "evolution": 0.82,
+        "visibility": 0.38
+      }
+    },
+    {
+      "id": "Kettle",
+      "label": "Kettle",
+      "position": {
+        "x": 399.4,
+        "y": 449.28000000000003
+      },
+      "role": "component",
+      "shape": "circle",
+      "wardley": {
+        "evolution": 0.35,
+        "evolve": 0.62,
+        "labelOffset": {
+          "x": -57,
+          "y": 4
+        },
+        "visibility": 0.43
+      }
+    },
+    {
+      "id": "Power",
+      "label": "Power",
+      "position": {
+        "x": 750.8,
+        "y": 681.6
+      },
+      "role": "component",
+      "shape": "circle",
+      "wardley": {
+        "evolution": 0.7,
+        "evolve": 0.89,
+        "labelOffset": {
+          "x": -27,
+          "y": 20
+        },
+        "visibility": 0.1
+      }
+    },
+    {
+      "id": "~note1",
+      "label": "Standardising power allows Kettles to evolve faster",
+      "position": {
+        "x": 539.96,
+        "y": 540.8
+      },
+      "role": "note",
+      "shape": "rectangle",
+      "wardley": {
+        "evolution": 0.49,
+        "visibility": 0.3
+      }
+    },
+    {
+      "id": "~note2",
+      "label": "Hot water is obvious and well known",
+      "position": {
+        "x": 851.2,
+        "y": 414.08000000000004
+      },
+      "role": "note",
+      "shape": "rectangle",
+      "wardley": {
+        "evolution": 0.8,
+        "visibility": 0.48
+      }
+    },
+    {
+      "id": "~note3",
+      "label": "A generic note appeared",
+      "position": {
+        "x": 379.32,
+        "y": 590.0799999999999
+      },
+      "role": "note",
+      "shape": "rectangle",
+      "wardley": {
+        "evolution": 0.33,
+        "visibility": 0.23
+      }
+    }
+  ],
+  "title": "Tea Shop",
+  "wardley": {
+    "size": {
+      "height": 800,
+      "width": 1100
+    }
+  }
+}

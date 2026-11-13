@@ -18,7 +18,7 @@ __all__ = ["NATIVE_PORTABLE_FAMILIES", "to_portable_mermaid"]
 
 COMMENT = "%% Colours for Mermaid tools outside Canvas (added on export)."
 #: Families with a native portable form: all of them (sequence and architecture get no style lines).
-NATIVE_PORTABLE_FAMILIES = {"flowchart", "c4", "erd", "uml", "sequence", "architecture", "state", None}
+NATIVE_PORTABLE_FAMILIES = {"flowchart", "c4", "erd", "uml", "sequence", "architecture", "state", "wardley", None}
 _TRAILING_SPACE = re.compile(f"[{JS_WHITESPACE}]+\\Z")
 
 
@@ -51,6 +51,11 @@ def _with_mermaid_forms(dsl: str, family: str | None) -> str:
 
         result = parse_state(dsl)
         return serialize_state(_defined(result["model"])) if "model" in result else dsl
+    if family == "wardley":
+        from canvas_api.diagram_core.wardley import parse_wardley, serialize_wardley
+
+        result = parse_wardley(dsl)
+        return serialize_wardley(_defined(result["model"])) if "model" in result else dsl
     if family != "architecture":
         return dsl
     from canvas_api.diagram_core.architecture import parse_architecture, serialize_architecture

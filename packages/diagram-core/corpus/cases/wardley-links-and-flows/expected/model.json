@@ -1,0 +1,244 @@
+{
+  "containers": [],
+  "diagramTypeId": "wardley",
+  "edges": [
+    {
+      "id": "e1",
+      "sourceId": "User",
+      "targetId": "App",
+      "wardley": {
+        "arrow": "->"
+      }
+    },
+    {
+      "id": "e2",
+      "label": "+>",
+      "sourceId": "App",
+      "targetId": "API",
+      "wardley": {
+        "fromPort": "+>"
+      }
+    },
+    {
+      "id": "e3",
+      "label": "constraint %% kept in the label, as in Mermaid",
+      "sourceId": "API",
+      "targetId": "Database",
+      "wardley": {
+        "arrow": "->"
+      }
+    },
+    {
+      "id": "e4",
+      "label": "+<>",
+      "sourceId": "API",
+      "targetId": "Cache",
+      "wardley": {
+        "fromPort": "+<>"
+      }
+    },
+    {
+      "id": "e5",
+      "label": "+<",
+      "sourceId": "Cache",
+      "targetId": "Service",
+      "wardley": {
+        "fromPort": "+<"
+      }
+    },
+    {
+      "id": "e6",
+      "sourceId": "Service",
+      "targetId": "Database",
+      "wardley": {
+        "flowArrow": {
+          "flow": "+>",
+          "label": "backup"
+        }
+      }
+    },
+    {
+      "id": "e7",
+      "sourceId": "Service",
+      "targetId": "Queue",
+      "wardley": {
+        "arrow": "-->"
+      }
+    },
+    {
+      "id": "e8",
+      "lineStyle": "dotted",
+      "sourceId": "Queue",
+      "targetId": "Log",
+      "wardley": {
+        "arrow": "-.->"
+      }
+    },
+    {
+      "id": "e9",
+      "sourceId": "Log",
+      "targetId": "User",
+      "wardley": {
+        "arrow": ">"
+      }
+    },
+    {
+      "id": "e10",
+      "sourceId": "Queue",
+      "targetId": "Cache",
+      "wardley": {}
+    },
+    {
+      "id": "e11",
+      "sourceId": "App",
+      "targetId": "Service",
+      "wardley": {
+        "arrow": "->",
+        "toPort": "+>"
+      }
+    },
+    {
+      "id": "e12",
+      "label": "ignored for the flow label",
+      "sourceId": "API",
+      "targetId": "Queue",
+      "wardley": {
+        "flowArrow": {
+          "flow": "+<>",
+          "label": "sync"
+        }
+      }
+    },
+    {
+      "id": "e13",
+      "sourceId": "App",
+      "targetId": "API",
+      "wardley": {
+        "arrow": "->"
+      }
+    },
+    {
+      "id": "e14",
+      "sourceId": "User",
+      "targetId": "Nowhere",
+      "wardley": {
+        "arrow": "->"
+      }
+    }
+  ],
+  "nodes": [
+    {
+      "id": "User",
+      "label": "User",
+      "position": {
+        "x": 771.6,
+        "y": 73.20000000000005
+      },
+      "role": "component",
+      "shape": "circle",
+      "wardley": {
+        "evolution": 0.9,
+        "visibility": 0.95
+      }
+    },
+    {
+      "id": "App",
+      "label": "App",
+      "position": {
+        "x": 651,
+        "y": 174
+      },
+      "role": "component",
+      "shape": "circle",
+      "wardley": {
+        "evolution": 0.75,
+        "visibility": 0.75
+      }
+    },
+    {
+      "id": "API",
+      "label": "API",
+      "position": {
+        "x": 530.4,
+        "y": 249.60000000000002
+      },
+      "role": "component",
+      "shape": "circle",
+      "wardley": {
+        "evolution": 0.6,
+        "visibility": 0.6
+      }
+    },
+    {
+      "id": "Cache",
+      "label": "Cache",
+      "position": {
+        "x": 409.8,
+        "y": 224.39999999999998
+      },
+      "role": "component",
+      "shape": "circle",
+      "wardley": {
+        "evolution": 0.45,
+        "visibility": 0.65
+      }
+    },
+    {
+      "id": "Database",
+      "label": "Database",
+      "position": {
+        "x": 691.2,
+        "y": 476.4
+      },
+      "role": "component",
+      "shape": "circle",
+      "wardley": {
+        "evolution": 0.8,
+        "visibility": 0.15
+      }
+    },
+    {
+      "id": "Service",
+      "label": "Service",
+      "position": {
+        "x": 450,
+        "y": 325.2
+      },
+      "role": "component",
+      "shape": "circle",
+      "wardley": {
+        "evolution": 0.5,
+        "visibility": 0.45
+      }
+    },
+    {
+      "id": "Queue",
+      "label": "Queue",
+      "position": {
+        "x": 289.2,
+        "y": 350.4
+      },
+      "role": "component",
+      "shape": "circle",
+      "wardley": {
+        "evolution": 0.3,
+        "visibility": 0.4
+      }
+    },
+    {
+      "id": "Log",
+      "label": "Log",
+      "position": {
+        "x": 208.8,
+        "y": 400.8
+      },
+      "role": "component",
+      "shape": "circle",
+      "wardley": {
+        "evolution": 0.2,
+        "visibility": 0.3
+      }
+    }
+  ],
+  "title": "Link Features"
+}

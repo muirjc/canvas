@@ -100,6 +100,25 @@ tests are NON-NEGOTIABLE and must exist (and fail) before implementing any diagr
 work — see `.specify/memory/constitution.md` Principle IV.
 
 ## Recent Changes
+- `canvas-4h1j.1` (Wardley maps, part 1 of 2; decided with the user: the text's coordinates are the only position,
+  dragging rewrites them, no Auto Layout; part 2 = the diagram type for Business/Enterprise Architects, editor, AI,
+  docs): **diagram-core reads, writes, draws and exports Mermaid `wardley-beta`** (11.14+, grammar unchanged
+  11.15-12.3; TS `dsl/wardley.ts`, `model/wardley-geometry.ts`, `render/wardley-render.ts`; Python `wardley.py`,
+  `wardley_render.py`; family `wardley`, `diagramTypeId` 'wardley'). Model: anchors/components/pipeline components
+  are nodes (roles `anchor`/`component`/`pipeline-component`, id = name, a repeated name merges, later wins;
+  pipeline child id `<parent>_<name>`, the parent's visibility); notes, annotations, (de)accelerators are nodes too
+  (`~note1` ...); `node.wardley` = coordinates AS WRITTEN (0-1 or a percentage, Mermaid's toPercent) + label
+  offset, strategy, inertia, evolve target, annotation number; `position` = the drawn centre (900x600 or `size`,
+  48px margin). A save writes the written coordinates unless the position moved (then 0-1, two decimals, clamped).
+  Pipelines = containers (role `pipeline`, `~pipeline:<parent>`, attached to the parent; box as Mermaid's, the
+  parent drawn on its top edge); links = edges (`edge.wardley`: arrow, flow ports, `+'label'>`; `-.->` = dotted;
+  resolved by id then label; an unknown end kept, not drawn). Statements take effect by kind, so the writer groups
+  them; no front matter written. Canvas reads names more loosely (`notebook` unquoted) and quotes them on save;
+  `evolve` of an unknown name is an error (Mermaid ignores it). Renderer after Mermaid's (`renderToSvg` branches on
+  'wardley' like sequence; angles rounded to 2 decimals, trig constants written out, so Python needn't match libm).
+  Corpus: 9 `wardley-*` + 4 `error-wardley-*` (Mermaid's own examples among them); `dsl-wardley.test.ts` (109);
+  `tests/test_diagram_core_wardley.py` (seeded fuzz vs the bridge: parse, export, save as read and after moves/
+  renames/stripped data, drawing; caught two planted bugs). mermaid-export.spec draws every export in Mermaid 12.2.
 - `canvas-ra2f`: **Canvas builds on Node.js 26 LTS** (26.13.0, Active LTS since 2026-10-28; was 22). CI
   `NODE_VERSION: '26'`, the image's build stages `node:26-slim`, the example validator workflow, docs. Its npm
   (11.20) **blocks dependency install scripts** unless the root `package.json`'s `allowScripts` allows them: only

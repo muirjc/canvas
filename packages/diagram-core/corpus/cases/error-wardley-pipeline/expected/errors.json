@@ -1,0 +1,9 @@
+{
+  "errors": [
+    {
+      "content": "pipeline Missing {",
+      "line": 3,
+      "message": "Pipeline \"Missing\" must reference an existing component with coordinates."
+    }
+  ]
+}

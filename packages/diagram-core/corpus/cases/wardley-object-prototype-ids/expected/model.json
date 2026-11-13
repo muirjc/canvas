@@ -1,0 +1,99 @@
+{
+  "containers": [
+    {
+      "attachedNodeIds": [
+        "constructor"
+      ],
+      "id": "~pipeline:constructor",
+      "label": "",
+      "position": {
+        "x": 274.2,
+        "y": 136.79999999999995
+      },
+      "role": "pipeline",
+      "size": {
+        "height": 24,
+        "width": 30
+      }
+    }
+  ],
+  "diagramTypeId": "wardley",
+  "edges": [
+    {
+      "id": "e1",
+      "sourceId": "constructor",
+      "targetId": "toString",
+      "wardley": {
+        "arrow": "->"
+      }
+    },
+    {
+      "id": "e2",
+      "sourceId": "toString",
+      "targetId": "__proto__",
+      "wardley": {
+        "arrow": "->"
+      }
+    }
+  ],
+  "nodes": [
+    {
+      "id": "constructor",
+      "label": "constructor",
+      "position": {
+        "x": 208.8,
+        "y": 148.79999999999995
+      },
+      "role": "component",
+      "shape": "circle",
+      "wardley": {
+        "evolution": 0.2,
+        "visibility": 0.8
+      }
+    },
+    {
+      "id": "toString",
+      "label": "toString",
+      "position": {
+        "x": 369.6,
+        "y": 249.60000000000002
+      },
+      "role": "component",
+      "shape": "circle",
+      "wardley": {
+        "evolution": 0.4,
+        "evolve": 0.9,
+        "visibility": 0.6
+      }
+    },
+    {
+      "id": "__proto__",
+      "label": "__proto__",
+      "position": {
+        "x": 530.4,
+        "y": 350.4
+      },
+      "role": "component",
+      "shape": "circle",
+      "wardley": {
+        "evolution": 0.6,
+        "visibility": 0.4
+      }
+    },
+    {
+      "containerId": "~pipeline:constructor",
+      "id": "constructor_hasOwnProperty",
+      "label": "hasOwnProperty",
+      "position": {
+        "x": 289.2,
+        "y": 148.79999999999995
+      },
+      "role": "pipeline-component",
+      "shape": "circle",
+      "wardley": {
+        "evolution": 0.3,
+        "visibility": 0.8
+      }
+    }
+  ]
+}

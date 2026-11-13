@@ -1,0 +1,9 @@
+{
+  "errors": [
+    {
+      "content": "pipeline A {",
+      "line": 3,
+      "message": "Pipeline \"A\" is missing its closing \"}\""
+    }
+  ]
+}
