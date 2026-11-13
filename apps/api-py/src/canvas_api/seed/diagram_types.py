@@ -75,6 +75,8 @@ DIAGRAM_TYPES: tuple[DiagramTypeSeed, ...] = (
     _type("uml", "UML Class Diagram", ("Solution", "Technical"), "N/A", "uml", ("generic",)),
     # canvas-bnnh: Mermaid state diagrams.
     _type("state", "State Diagram", ("Solution", "Technical"), "N/A", "state", ("generic",)),
+    # canvas-4h1j: Mermaid Wardley maps (wardley-beta), for strategy work.
+    _type("wardley", "Wardley Map", ("Business", "Enterprise"), "N/A", "wardley", ("generic",)),
 )
 
 _UPSERT = text(

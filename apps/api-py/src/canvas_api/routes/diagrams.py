@@ -52,6 +52,7 @@ FAMILY_DEFAULT_TYPE = {
     "erd": "erd",
     "uml": "uml",
     "state": "state",
+    "wardley": "wardley",
     "architecture": "cloud-infrastructure",
 }
 _VERSION_NUMBER = re.compile(r"^(?:v|#)?\s*(\d+)$", re.IGNORECASE)

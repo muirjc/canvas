@@ -426,6 +426,20 @@ STARTER_STANDARDS: list[dict[str, Any]] = [
             " from the start point, label every transition with its event, and use choice points for conditions.",
         ),
     ),
+    # canvas-4h1j: Mermaid Wardley maps.
+    _standard(
+        "wardley",
+        "Wardley Map (starter)",
+        "Components as today. Edit to add rules.",
+        _descriptive_starter(
+            "wardley",
+            "A Wardley map starts from a user need (an anchor at the top) and shows the value chain of components"
+            " that meet it: the higher a component, the more visible it is to the user; left to right, how evolved"
+            " it is, from Genesis through Custom Built and Product to Commodity. Link each component to the ones it"
+            " depends on, place components by where they really are today, and use evolve arrows, inertia and"
+            " notes to show how the map is expected to change.",
+        ),
+    ),
     _standard(
         "network",
         "Network Diagram (starter)",

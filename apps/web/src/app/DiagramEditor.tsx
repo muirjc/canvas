@@ -564,7 +564,8 @@ export const DiagramEditor = forwardRef<DiagramEditorHandle, DiagramEditorProps>
               canvas-23t.4) is hidden entirely rather than shown with nothing useful in it. */}
           {/* canvas-wid / canvas-7ewa: no Palette when the standard offers neither icons nor the
               generic shape-alias entries (e.g. a strict Value Chain: its kinds are the only way in). */}
-          {diagram.dslFamily !== 'erd' && !preview && canEdit && paletteOffered && (
+          {/* canvas-4h1j.2: nor for a Wardley map, whose elements are its own (the Map elements tools). */}
+          {diagram.dslFamily !== 'erd' && diagram.dslFamily !== 'wardley' && !preview && canEdit && paletteOffered && (
             <Palette diagramTypeId={diagram.diagramTypeId} onSelectIcon={handleSelectIcon} rules={standard?.rules} />
           )}
           {preview && (

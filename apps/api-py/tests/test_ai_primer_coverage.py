@@ -23,7 +23,7 @@ import pytest
 from canvas_api.diagram_core.ai import list_tools
 from canvas_api.diagram_core.ai.primers import primer_for
 
-FAMILIES = ["flowchart", "c4", "architecture", "sequence", "erd", "uml", "state"]
+FAMILIES = ["flowchart", "c4", "architecture", "sequence", "erd", "uml", "state", "wardley"]
 EXEMPT_PROPERTIES = {"side", "alignment", "axis", "direction"}
 
 Found = list[tuple[str, str, str]]  # (tool, property, enum value)

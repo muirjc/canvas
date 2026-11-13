@@ -327,6 +327,6 @@ export function getAddableShapes(dslFamily: string): { shape: NodeShape; label: 
   if (dslFamily === 'architecture') return [];
   // canvas-bnnh: a state diagram's elements (state, start, end, choice, fork, join) have their own
   // toolbar section (STATE_NODE_KINDS in Canvas.tsx, via addStateNode); the generic shapes don't apply.
-  if (dslFamily === 'state') return [];
+  if (dslFamily === 'state' || dslFamily === 'wardley') return [];
   return UNIVERSAL_SHAPES;
 }

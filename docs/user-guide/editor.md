@@ -114,6 +114,39 @@ Use **Connect** to draw transitions and double-click one to give it a label. **A
 here too. The DSL tab takes Mermaid `stateDiagram-v2` text, following Mermaid 12's state diagram
 syntax.
 
+### Wardley maps
+
+A Wardley map shows the parts of a value chain: up the side, how **visible** each part is to the
+user (their need at the top, what it depends on below); along the bottom, how **evolved** it is,
+from Genesis through Custom Built and Product to Commodity. Where something sits is the map's
+meaning, so there is no Auto Layout: you place everything yourself. Instead of **Shapes**, the left
+rail has a **Map elements** section:
+
+- **Component:** a dot with its name, something the user need depends on. **Anchor:** a user or
+  user need, shown as bold text at the top of the chain.
+- **Note**, **Annotation** (a numbered circle; with an `annotations [x, y]` line in the DSL tab
+  their texts are listed in a box) and **Accelerator** / **Deaccelerator** (block arrows for what
+  speeds up or holds back evolution).
+
+A new element lands on a free spot: drag it where it belongs. The text records each element's
+place as two numbers from 0 to 1, `[visibility, evolution]`, and dragging rewrites them (to two
+decimals). Anything you don't move keeps the numbers it was written with.
+
+Select an element and the rail shows where it is and lets you change it:
+
+- **Name:** two components can't share a name (Mermaid would treat them as one).
+- **Strategy:** Build, Buy, Outsource or Market, drawn as a ring around the dot.
+- **Inertia:** a thick bar beside it, for something that resists change.
+- **Evolves to:** a red dashed arrow to where it's heading on the evolution axis (0 to 1).
+- **Add to pipeline:** a box under the component holding the forms it comes in (say, *Kettle*:
+  electric, gas, campfire), each along the evolution axis at the parent's height. Drag one sideways
+  to move it; drag the parent to move the whole pipeline. Deleting the parent deletes its pipeline.
+
+Use **Connect** to draw a link (*depends on*) from one element to another. Select a link to give
+it a flow arrowhead (forward, back or both), make it dotted, or label it. The map's size and its
+evolution stage names are set in the DSL tab (`size [1100, 800]`,
+`evolution Genesis -> Custom -> Product -> Commodity`), which takes Mermaid `wardley-beta` text.
+
 ## Zoom
 
 The controls at the bottom-left of the canvas zoom the drawing from 25% to 400%: **−** and **+**

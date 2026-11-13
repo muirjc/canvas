@@ -18,7 +18,8 @@
     "cloud-infrastructure",
     "erd",
     "uml",
-    "state"
+    "state",
+    "wardley"
   ],
   "dslFamilies": [
     "flowchart",
@@ -27,7 +28,8 @@
     "sequence",
     "erd",
     "uml",
-    "state"
+    "state",
+    "wardley"
   ],
   "personas": [
     "Business",
