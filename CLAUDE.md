@@ -100,6 +100,25 @@ tests are NON-NEGOTIABLE and must exist (and fail) before implementing any diagr
 work — see `.specify/memory/constitution.md` Principle IV.
 
 ## Recent Changes
+- `canvas-4h1j.2` (Wardley maps, part 2 of 2; closes canvas-4h1j): **Wardley Map is a diagram type** (seed `wardley`,
+  Business + Enterprise, descriptive starter standard; family capabilities `circle`/`rectangle`). Edits:
+  `model/wardley-ops.ts` / Python `wardley_ops.py` (identical, `tests/data/wardley_ops_vectors.json` from
+  `make_wardley_ops_vectors.ts`): `addWardleyElement` (kind, optional coordinates, else a stepping grid; anchor and
+  component names made distinct), `moveWardleyElement` (0-1, two decimals, clamped; a pipeline component along
+  evolution only; a parent carries its pipeline), `setWardleyMarkings` (strategy/inertia/evolve; a pipeline
+  component only evolve -- its text line can't hold the rest), `addWardleyPipelineComponent`,
+  `removeWardleyElement` (a parent takes its pipeline), `setWardleyLinkFlow` (`A +> B`), `wardleyNameTaken`. Editor:
+  `canvas/WardleyLayer.tsx` draws the map from `computeWardleyLayout` (testids `wardley-element-<id>`,
+  `wardley-link-<id>`, ...; never node-/edge-), dragging rewrites the coordinates (a < 2px jitter isn't a move),
+  `canvas/WardleyToolbar.tsx` (Map elements; the selected element's name, coordinates, strategy, inertia, evolve,
+  Add to pipeline; a link's flow, dotted, label). No containers, Auto Layout, legend, shapes or icon palette for
+  wardley; Connect refuses notes/annotations/accelerators (a Mermaid link names components). AI: `addComponent`,
+  `moveComponent`, `setComponentMarkings` (`strategy: none`, `removeEvolve`), `addPipelineComponent`, `setLinkFlow`
+  (forward/backward/both/none); removeNode = removeWardleyElement, updateNodeLabel refuses a taken name, addEdge only
+  between anchors/components; no addNode/style/group/layout tools; a primer; `describe_model` lists each element's
+  [visibility, evolution] (a percentage shown as 0-1), markings and pipeline. Tests: `wardley-ops.test.ts`,
+  `wardley-toolbar.test.tsx`, `test_ai_wardley_tools.py`, `test_diagram_core_wardley_ops.py`, e2e
+  `wardley-map.spec.ts`. User guide: editor.md "Wardley maps".
 - `canvas-4h1j.1` (Wardley maps, part 1 of 2; decided with the user: the text's coordinates are the only position,
   dragging rewrites them, no Auto Layout; part 2 = the diagram type for Business/Enterprise Architects, editor, AI,
   docs): **diagram-core reads, writes, draws and exports Mermaid `wardley-beta`** (11.14+, grammar unchanged

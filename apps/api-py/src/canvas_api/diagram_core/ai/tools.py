@@ -31,6 +31,17 @@ from canvas_api.diagram_core.standards.kinds import (
     resolve_connector_rule,
 )
 from canvas_api.diagram_core.uml import UML_RELATION_KINDS
+from canvas_api.diagram_core.wardley_ops import (
+    WARDLEY_ELEMENT_KINDS,
+    WARDLEY_STRATEGIES,
+    add_wardley_element,
+    add_wardley_pipeline_component,
+    move_wardley_element,
+    remove_wardley_element,
+    set_wardley_link_flow,
+    set_wardley_markings,
+    wardley_name_taken,
+)
 
 __all__ = ["State", "Tool", "create_tools"]
 
@@ -67,6 +78,10 @@ CONTAINER_ROLE_OPTIONS: dict[str, tuple[str, ...]] = {
 }
 #: canvas-bnnh: what addState adds to a state diagram.
 STATE_KINDS = ("state", "start", "end", "choice", "fork", "join")
+#: canvas-4h1j.2: setLinkFlow's choices, as the wardley-beta port each one writes (none = a plain `->` link).
+WARDLEY_LINK_FLOWS: dict[str, str | None] = {"forward": "+>", "backward": "+<", "both": "+<>", "none": None}
+#: The roles a Wardley link may join: Mermaid links name anchors and components only.
+WARDLEY_LINKABLE_ROLES = frozenset({"anchor", "component", "pipeline-component"})
 
 
 @dataclass
@@ -172,7 +187,11 @@ def create_tools(family: str, rules: JsonObj | None = None) -> dict[str, Tool]:
     def remove_node(state: State, args: JsonObj) -> JsonObj:
         if not _has(state.model["nodes"], args["nodeId"]):
             return not_found(state, "removeNode", "shape", args["nodeId"])
-        state.model = ops.remove_node(state.model, args["nodeId"])
+        if family == "wardley":
+            # canvas-4h1j.2: a component's pipeline (and its components) goes with it.
+            state.model = remove_wardley_element(state.model, args["nodeId"])
+        else:
+            state.model = ops.remove_node(state.model, args["nodeId"])
         return record(state, "removeNode", True)
 
     tools["removeNode"] = Tool(
@@ -193,6 +212,12 @@ def create_tools(family: str, rules: JsonObj | None = None) -> dict[str, Tool]:
         ]
         if missing:
             return not_found(state, "addEdge", "shape", missing[0])
+        if family == "wardley":
+            for end in (source, target):
+                role = next(n for n in model["nodes"] if n.get("id") == end).get("role")
+                if role is not None and role not in WARDLEY_LINKABLE_ROLES:
+                    reason = f"'{_q(end)}' is a {_q(role)}; links join anchors and components only."
+                    return record(state, "addEdge", False, reason)
         rule = None
         if rules:
             source_kind, target_kind = kind_of_node(model, source), kind_of_node(model, target)
@@ -243,6 +268,12 @@ def create_tools(family: str, rules: JsonObj | None = None) -> dict[str, Tool]:
     def update_node_label(state: State, args: JsonObj) -> JsonObj:
         if not _has(state.model["nodes"], args["nodeId"]):
             return not_found(state, "updateNodeLabel", "shape", args["nodeId"])
+        if family == "wardley" and wardley_name_taken(state.model, args["nodeId"], args["label"]):
+            reason = (
+                f"Another component is already called '{_q(args['label'])}': a Wardley map names each component"
+                " once, so the two would be read as one. Pick a different name."
+            )
+            return record(state, "updateNodeLabel", False, reason)
         state.model = ops.update_node_label(state.model, args["nodeId"], args["label"])
         return record(state, "updateNodeLabel", True)
 
@@ -291,12 +322,14 @@ def create_tools(family: str, rules: JsonObj | None = None) -> dict[str, Tool]:
         state.model = ops.update_node_style(model, node_id, patch)
         return record(state, "updateNodeStyle", True)
 
-    tools["updateNodeStyle"] = Tool(
-        "Set a shape's fill/border color, border thickness/dash pattern, or label font. Only the "
-        "fields you provide are changed — omit any you want left as they are.",
-        Obj.of(nodeId=Str().describe("The id of the shape to restyle."), **style_patch),
-        update_node_style,
-    )
+    # canvas-4h1j.2: wardley-beta has no styles (Canvas writes no front matter for it), so colours wouldn't save.
+    if family != "wardley":
+        tools["updateNodeStyle"] = Tool(
+            "Set a shape's fill/border color, border thickness/dash pattern, or label font. Only the "
+            "fields you provide are changed — omit any you want left as they are.",
+            Obj.of(nodeId=Str().describe("The id of the shape to restyle."), **style_patch),
+            update_node_style,
+        )
 
     def update_edge_style(state: State, args: JsonObj) -> JsonObj:
         if not _has(state.model["edges"], args["edgeId"]):
@@ -304,12 +337,13 @@ def create_tools(family: str, rules: JsonObj | None = None) -> dict[str, Tool]:
         state.model = ops.update_edge_style(state.model, args["edgeId"], _without(args, "edgeId"))
         return record(state, "updateEdgeStyle", True)
 
-    tools["updateEdgeStyle"] = Tool(
-        "Set a connector's line color, thickness/dash pattern, or label font. Only the fields you "
-        "provide are changed — omit any you want left as they are.",
-        Obj.of(edgeId=Str().describe("The id of the connector to restyle."), **style_patch),
-        update_edge_style,
-    )
+    if family != "wardley":
+        tools["updateEdgeStyle"] = Tool(
+            "Set a connector's line color, thickness/dash pattern, or label font. Only the fields you "
+            "provide are changed — omit any you want left as they are.",
+            Obj.of(edgeId=Str().describe("The id of the connector to restyle."), **style_patch),
+            update_edge_style,
+        )
 
     # Under a strict standard, free-form shapes would only produce unknown-kind violations.
     if family == "state":
@@ -348,7 +382,10 @@ def create_tools(family: str, rules: JsonObj | None = None) -> dict[str, Tool]:
             add_state,
         )
 
-    if not strict_kinds and node_shapes and family != "state":
+    if family == "wardley":
+        _add_wardley_tools(tools, record, not_found)
+
+    if not strict_kinds and node_shapes and family not in ("state", "wardley"):
 
         def add_node(state: State, args: JsonObj) -> JsonObj:
             if refused := check_near(state, "addNode", args):
@@ -778,6 +815,157 @@ def create_tools(family: str, rules: JsonObj | None = None) -> dict[str, Tool]:
     if rules:
         return {name: _with_new_violations(tool, rules) for name, tool in tools.items()}
     return tools
+
+
+def _add_wardley_tools(
+    tools: dict[str, Tool],
+    record: Callable[..., JsonObj],
+    not_found: Callable[[State, str, str, Any], JsonObj],
+) -> None:
+    """canvas-4h1j.2: a Wardley map's own tools. Positions are coordinates on the map (visibility up the value
+    chain, evolution left to right, each 0-1), so these replace addNode and the layout tools."""
+
+    def node(state: State, node_id: Any) -> JsonObj | None:
+        return next((n for n in state.model["nodes"] if n.get("id") == node_id), None)
+
+    def add_component(state: State, args: JsonObj) -> JsonObj:
+        element: JsonObj = {k: args[k] for k in ("kind", "label", "visibility", "evolution") if k in args}
+        state.model = add_wardley_element(state.model, element)
+        return {**record(state, "addComponent", True), "nodeId": state.model["nodes"][-1]["id"]}
+
+    tools["addComponent"] = Tool(
+        "Add an element to the Wardley map at [visibility, evolution]. Returns its id -- use it as sourceId/"
+        "targetId in addEdge, or as parentId in addPipelineComponent. An anchor's or component's name must be "
+        'unique on the map: a taken name gets a number added ("Kettle 2").',
+        Obj.of(
+            kind=Enum(values=WARDLEY_ELEMENT_KINDS).describe(
+                "anchor (a user or user need, at the top of the map), component (a part of the value chain), "
+                "note (free text on the map), annotation (a numbered marker), accelerator or deaccelerator (an "
+                "arrow showing a force that speeds up or slows down evolution)."
+            ),
+            label=Str().opt().describe("The element's name (the text, for a note or an annotation)."),
+            visibility=Num()
+            .opt()
+            .describe(
+                "How visible it is to the user, from 0 (bottom of the map, invisible) to 1 (top, the user need). "
+                "Omit to place it on a free grid slot."
+            ),
+            evolution=Num()
+            .opt()
+            .describe(
+                "How evolved it is, from 0 (left: Genesis) through Custom Built and Product to 1 (right: "
+                "Commodity). Omit to place it on a free grid slot."
+            ),
+        ),
+        add_component,
+    )
+
+    def move_component(state: State, args: JsonObj) -> JsonObj:
+        if node(state, args["nodeId"]) is None:
+            return not_found(state, "moveComponent", "element", args["nodeId"])
+        point = {"visibility": args["visibility"], "evolution": args["evolution"]}
+        state.model = move_wardley_element(state.model, args["nodeId"], point)
+        return record(state, "moveComponent", True)
+
+    tools["moveComponent"] = Tool(
+        "Move an element to new map coordinates. A component's pipeline moves with it; a pipeline component "
+        "only moves along evolution (it stays at its pipeline's visibility).",
+        Obj.of(
+            nodeId=Str().describe("The id of the element to move."),
+            visibility=Num().describe("The new visibility, 0 (bottom) to 1 (top)."),
+            evolution=Num().describe("The new evolution, 0 (Genesis, left) to 1 (Commodity, right)."),
+        ),
+        move_component,
+    )
+
+    def set_markings(state: State, args: JsonObj) -> JsonObj:
+        node_id = args["nodeId"]
+        target = node(state, node_id)
+        if target is None:
+            return not_found(state, "setComponentMarkings", "component", node_id)
+        if target.get("role") not in (None, "component", "pipeline-component"):
+            reason = (
+                f"'{_q(node_id)}' is a {_q(target.get('role'))}; only a component has a strategy, inertia or evolve."
+            )
+            return record(state, "setComponentMarkings", False, reason)
+        if target.get("role") == "pipeline-component" and ("strategy" in args or "inertia" in args):
+            reason = (
+                f"'{_q(node_id)}' is a pipeline component: it can only have an evolve arrow, not a strategy or"
+                " inertia (its pipeline line has no room for them). Mark the pipeline's own component instead."
+            )
+            return record(state, "setComponentMarkings", False, reason)
+        if "evolve" in args and js_truthy(args.get("removeEvolve")):
+            return record(state, "setComponentMarkings", False, "Give either evolve or removeEvolve, not both.")
+        patch: JsonObj = {}
+        if "strategy" in args:
+            patch["strategy"] = None if args["strategy"] == "none" else args["strategy"]
+        if "inertia" in args:
+            patch["inertia"] = args["inertia"]
+        if "evolve" in args:
+            patch["evolve"] = args["evolve"]
+        elif js_truthy(args.get("removeEvolve")):
+            patch["evolve"] = None
+        state.model = set_wardley_markings(state.model, node_id, patch)
+        return record(state, "setComponentMarkings", True)
+
+    tools["setComponentMarkings"] = Tool(
+        "Set or clear a component's strategy ring, inertia bar and evolve arrow. Only the fields you provide are "
+        "changed. A pipeline component can only get an evolve arrow (no strategy or inertia).",
+        Obj.of(
+            nodeId=Str().describe("The id of the component."),
+            strategy=Enum(values=(*WARDLEY_STRATEGIES, "none"))
+            .opt()
+            .describe(
+                "How the component is sourced: build (in house), buy (a product), outsource, market (a commodity "
+                "bought on the market); none clears it."
+            ),
+            inertia=Bool().opt().describe("True when something resists the component evolving; false clears it."),
+            evolve=Num()
+            .opt()
+            .describe("Draw an evolve arrow to this evolution (0-1, usually right of where the component is now)."),
+            removeEvolve=Bool().opt().describe("True removes the component's evolve arrow."),
+        ),
+        set_markings,
+    )
+
+    def add_pipeline_component(state: State, args: JsonObj) -> JsonObj:
+        if node(state, args["parentId"]) is None:
+            return not_found(state, "addPipelineComponent", "component", args["parentId"])
+        element: JsonObj = {k: args[k] for k in ("label", "evolution") if k in args}
+        state.model = add_wardley_pipeline_component(state.model, args["parentId"], element)
+        return {**record(state, "addPipelineComponent", True), "nodeId": state.model["nodes"][-1]["id"]}
+
+    tools["addPipelineComponent"] = Tool(
+        "Add a component to a component's pipeline (making the pipeline if it has none): the competing forms of "
+        "one capability side by side, at the parent's visibility. Returns the new component's id.",
+        Obj.of(
+            parentId=Str().describe("The id of the component the pipeline belongs to."),
+            label=Str().opt().describe("The pipeline component's name, unique within its pipeline."),
+            evolution=Num()
+            .opt()
+            .describe("Its evolution, 0 (Genesis) to 1 (Commodity). Omit to put it right of the last one."),
+        ),
+        add_pipeline_component,
+    )
+
+    def set_link_flow(state: State, args: JsonObj) -> JsonObj:
+        if not _has(state.model["edges"], args["edgeId"]):
+            return not_found(state, "setLinkFlow", "link", args["edgeId"])
+        state.model = set_wardley_link_flow(state.model, args["edgeId"], WARDLEY_LINK_FLOWS[args["flow"]])
+        return record(state, "setLinkFlow", True)
+
+    tools["setLinkFlow"] = Tool(
+        "Mark a link as a flow (of money, information or goods) between its two ends, or make it a plain "
+        "dependency link again.",
+        Obj.of(
+            edgeId=Str().describe("The id of the link."),
+            flow=Enum(values=tuple(WARDLEY_LINK_FLOWS)).describe(
+                "forward (flows from the link's source to its target), backward (from target to source), both, "
+                "or none (a plain dependency link)."
+            ),
+        ),
+        set_link_flow,
+    )
 
 
 def _violation_key(violation: JsonObj) -> tuple[str, str]:

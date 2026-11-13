@@ -14,7 +14,8 @@ The **Chat** tab in the editor lets you change a diagram by describing the chang
 - **The AI can arrange the diagram.** Ask it to tidy up, or to put one shape beside another ("put
   the database under the API", "line these up", "space them out"). It can run the same Auto Layout
   as the toolbar button, then fine-tune positions. Sequence diagrams are laid out automatically, so
-  this doesn't apply to them.
+  this doesn't apply to them. On a Wardley map, where a component sits is what it means, so the AI
+  places each one at a visibility and evolution ("move Kettle to commodity") instead of tidying up.
 - **Under each reply**, a note says what changed: "2 changes made to the diagram". It also lists any
   change it couldn't make, and why.
 - **The conversation is saved with the diagram.** Anyone who can edit the diagram sees it and can

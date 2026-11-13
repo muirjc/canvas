@@ -20,7 +20,7 @@ const CATEGORIES = ['Business', 'Enterprise', 'Solution', 'Technical'] as const;
 // 010-ai-diagram-knowledge, User Story 4: the 6 registered diagram-type family ids a reference-
 // material entry can be scoped to (empty selection = unscoped, applies to every diagram type).
 // Fixed/complete per packages/diagram-core/src/dsl/registry.ts -- no need to fetch dynamically.
-const DIAGRAM_FAMILIES = ['flowchart', 'c4', 'architecture', 'sequence', 'erd', 'uml', 'state'] as const;
+const DIAGRAM_FAMILIES = ['flowchart', 'c4', 'architecture', 'sequence', 'erd', 'uml', 'state', 'wardley'] as const;
 
 type ReferenceMaterialDraft = { content: string; diagramFamilies: string[] };
 

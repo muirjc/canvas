@@ -30,6 +30,9 @@ FAMILY_NODE_SHAPES: dict[str, tuple[str, ...]] = {
     "architecture": ("icon", "circle"),
     # canvas-bnnh: a state, a choice, a fork/join bar, and the start/end pseudo-states.
     "state": ("rounded-rectangle", "diamond", "fork-bar", "state-start", "state-end"),
+    # canvas-4h1j: anchors, components, pipeline components and annotations are circles; notes and
+    # (de)accelerators rectangles.
+    "wardley": ("circle", "rectangle"),
 }
 
 #: Families whose DSL can carry an element kind (flowchart `:::kind`, C4 role + `_Ext`, architecture front matter).

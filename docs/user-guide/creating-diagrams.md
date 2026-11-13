@@ -15,6 +15,8 @@ shapes, connectors and rules apply. Types include:
 - **Flowchart:** Generic Flowchart, and the business types built on it: Business Capability Map,
   Value Chain, Value Stream, Application Landscape, Roadmap, Solution Architecture.
 - **C4:** Context, Container, Component, Code, Deployment.
+- **Wardley Map:** where each part of a value chain sits, from what users see to what they don't,
+  and how evolved it is (Genesis to Commodity).
 - **Others:** Sequence, State, Entity-Relationship (ERD), UML Class, and Network, Deployment and Cloud
   Infrastructure diagrams.
 

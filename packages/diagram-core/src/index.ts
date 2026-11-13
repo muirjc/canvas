@@ -24,6 +24,7 @@ export * from './dsl/erd.js';
 export * from './dsl/uml.js';
 export * from './dsl/wardley.js';
 export * from './model/wardley-geometry.js';
+export * from './model/wardley-ops.js';
 export * from './standards/schema.js';
 export * from './standards/validator.js';
 export * from './standards/kinds.js';

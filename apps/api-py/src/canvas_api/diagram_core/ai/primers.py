@@ -75,6 +75,24 @@ PRIMERS: dict[str, str] = {
         "have its own start and end inside it, and a transition may lead into or out of a composite state as a "
         "whole."
     ),
+    # canvas-4h1j.2: Mermaid Wardley maps (wardley-beta).
+    "wardley": (
+        "This is a Wardley map: the value chain that meets a user need, placed on two axes. Every element sits "
+        "at [visibility, evolution], each from 0 to 1. Visibility is the vertical axis: the anchor (a user or "
+        "user need) at the top (near 1), and below it, lower and lower, the components it depends on, down to "
+        "the invisible infrastructure (near 0). Evolution is the horizontal axis, left to right: Genesis (new, "
+        "uncertain, 0-0.17), Custom Built (0.17-0.4), Product (0.4-0.7) and Commodity (well understood, utility, "
+        "0.7-1). Place every element where it really is: the position carries meaning, so there is no automatic "
+        "layout -- use moveComponent to change coordinates. Add elements with addComponent and the right kind: "
+        "an anchor, a component, a note (free text), an annotation (a numbered marker), an accelerator or a "
+        "deaccelerator (a force that speeds up or slows down evolution). Each anchor and component has a unique "
+        'name. Links (addEdge, from the higher element to the one it depends on) mean "depends on"; a link can '
+        "also show a flow of money, information or goods with setLinkFlow: forward, backward, both, or none. A "
+        "pipeline (addPipelineComponent) shows the competing forms of one component side by side along the "
+        "evolution axis. setComponentMarkings marks a component's strategy (build, buy, outsource, market, or "
+        "none), its inertia (resistance to change) and an evolve arrow to where it is heading; a pipeline "
+        "component can only have an evolve arrow."
+    ),
 }
 
 

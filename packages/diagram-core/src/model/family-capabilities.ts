@@ -34,6 +34,9 @@ export const FAMILY_NODE_SHAPES: Record<string, readonly [NodeShape, ...NodeShap
   architecture: ['icon', 'circle'],
   // canvas-bnnh: a state, a choice, a fork/join bar, and the start/end pseudo-states.
   state: ['rounded-rectangle', 'diamond', 'fork-bar', 'state-start', 'state-end'],
+  // canvas-4h1j: anchors, components, pipeline components and annotations are circles; notes and
+  // (de)accelerators rectangles.
+  wardley: ['circle', 'rectangle'],
 };
 
 /** canvas-tfr: families whose DSL can carry an element kind (flowchart via `:::kind`, C4 via its

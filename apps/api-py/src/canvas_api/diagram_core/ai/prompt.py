@@ -14,6 +14,7 @@ from canvas_api.diagram_core.auto_layout import pinned_element_ids
 from canvas_api.diagram_core.family_capabilities import FAMILY_SUPPORTS_ELEMENT_KINDS
 from canvas_api.diagram_core.jsvalues import js_template, js_truthy
 from canvas_api.diagram_core.standards import validate
+from canvas_api.diagram_core.wardley import wardley_coordinates_at, wardley_frame
 from canvas_api.github.jstext import js_trim
 
 __all__ = ["build_standard_prompt", "describe_model"]
@@ -52,6 +53,8 @@ def describe_model(model: Obj, rules: Obj | None = None, family: str | None = No
     """A short summary of the diagram, so the model can refer to shapes and connectors by id; under a standard,
     each element's kind and the first ten violations too. For a family with stored positions (not sequence),
     each shape's and group's position and size, and the groups with what they contain (canvas-p2g8.2)."""
+    if family == "wardley":
+        return _describe_wardley(model) + _violations_section(model, rules)
     positioned = family in layout_ops.POSITIONED_FAMILIES
     # canvas-rqm6: pinned shapes and groups stay put when the diagram is arranged.
     pinned = set(pinned_element_ids(model)) if positioned else set()
@@ -80,12 +83,73 @@ def describe_model(model: Obj, rules: Obj | None = None, family: str | None = No
             where = _placement(model, c.get("id"))
             group_lines.append(f'- {_t(c, "id")}: "{_t(c, "label")}"{role}{where}{parent}{pin}')
         summary += "\n\nCurrent groups:\n" + "\n".join(group_lines)
-    if rules is not None:
-        violations = validate(model, rules)[:10]
-        if violations:
-            listed = "\n".join(f"- [{_t(v, 'severity')}] {_t(v, 'elementId')}: {_t(v, 'message')}" for v in violations)
-            summary += f"\n\nCurrent standard violations:\n{listed}"
-    return summary
+    return summary + _violations_section(model, rules)
+
+
+def _violations_section(model: Obj, rules: Obj | None) -> str:
+    if rules is None:
+        return ""
+    violations = validate(model, rules)[:10]
+    if not violations:
+        return ""
+    listed = "\n".join(f"- [{_t(v, 'severity')}] {_t(v, 'elementId')}: {_t(v, 'message')}" for v in violations)
+    return f"\n\nCurrent standard violations:\n{listed}"
+
+
+def _map_value(value: Any) -> str:
+    """A Wardley coordinate as a 0-1 fraction (a value above 1 is a percentage, as Mermaid reads it)."""
+    if isinstance(value, bool) or not isinstance(value, int | float) or not math.isfinite(value):
+        return "?"
+    return format(round(value / 100 if value > 1 else value, 3), "g")
+
+
+def _describe_wardley(model: Obj) -> str:
+    """canvas-4h1j.2: a Wardley map by its coordinates, not its pixels: each element's id, name, kind,
+    [visibility, evolution] and markings; the pipeline a component belongs to; the links and their flows."""
+    frame = wardley_frame(model)
+    pipelines = {c.get("id"): c for c in model["containers"] if c.get("role") == "pipeline"}
+    lines = []
+    for n in model["nodes"]:
+        data = n.get("wardley")
+        if not isinstance(data, dict):
+            position = n.get("position")
+            data = wardley_coordinates_at(frame, position) if isinstance(position, dict) else {}
+        role = n.get("role") or "component"
+        details = [f"visibility {_map_value(data.get('visibility'))}, evolution {_map_value(data.get('evolution'))}"]
+        if role == "annotation" and "number" in data:
+            details.append(f"number {_t(data, 'number')}")
+        if js_truthy(data.get("strategy")):
+            details.append(f"strategy {_t(data, 'strategy')}")
+        if js_truthy(data.get("inertia")):
+            details.append("inertia")
+        if data.get("evolve") is not None:
+            details.append(f"evolving to {_map_value(data.get('evolve'))}")
+        pipeline = pipelines.get(n.get("containerId")) if js_truthy(n.get("containerId")) else None
+        if pipeline is not None:
+            parent = (pipeline.get("attachedNodeIds") or ["?"])[0]
+            details.append(f"in the pipeline of {js_template(parent)}")
+        lines.append(f'- {_t(n, "id")}: "{_t(n, "label")}" ({js_template(role)}) [{"; ".join(details)}]')
+    flows = {"+>": "flow forward", "+<": "flow backward", "+<>": "flow both ways"}
+    link_lines = []
+    for e in model["edges"]:
+        data = e.get("wardley") if isinstance(e.get("wardley"), dict) else {}
+        flow_arrow = data.get("flowArrow")
+        flow = flow_arrow.get("flow") if isinstance(flow_arrow, dict) else data.get("fromPort")
+        extra = [flows[flow]] if isinstance(flow, str) and flow in flows else []
+        if isinstance(flow_arrow, dict) and js_truthy(flow_arrow.get("label")):
+            extra.append(f"of {_t(flow_arrow, 'label')}")
+        if e.get("lineStyle") == "dotted":
+            extra.append("dotted")
+        if js_truthy(e.get("label")):
+            extra.append(f'"{_t(e, "label")}"')
+        shown = f" ({', '.join(extra)})" if extra else ""
+        link_lines.append(f"- {_t(e, 'id')}: {_t(e, 'sourceId')} -> {_t(e, 'targetId')}{shown}")
+    elements = "\n".join(lines) or "(none yet)"
+    links = "\n".join(link_lines) or "(none yet)"
+    return (
+        "Current map elements (visibility 0 bottom to 1 top; evolution 0 Genesis to 1 Commodity):\n"
+        f"{elements}\n\nCurrent links (depends on):\n{links}"
+    )
 
 
 def _kind_line(kind: Obj) -> str:

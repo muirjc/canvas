@@ -49,6 +49,10 @@ import {
   pseudoStateSize,
   addStateNode,
   statePseudoId,
+  moveWardleyElement,
+  removeWardleyElement,
+  wardleyCoordinatesAt,
+  wardleyFrame,
   computeBounds,
   computeLegendEntries,
   legendLayout,
@@ -113,6 +117,8 @@ import { SwatchPicker } from './SwatchPicker';
 import { ConfirmDialog } from './ConfirmDialog';
 import { LegendBox } from './LegendBox';
 import { LegendEditor } from './LegendEditor';
+import { WardleyLayer } from './WardleyLayer';
+import { WardleyToolbar } from './WardleyToolbar';
 import { api, type CommentAnchor } from '../app/api';
 import { Icon } from '../ui/Icon';
 
@@ -1723,6 +1729,12 @@ export function Canvas({ model: modelProp, onChange: onChangeProp, dslFamily, to
   const handleNodePointerDown = (node: DiagramNode) => (event: React.PointerEvent) => {
     event.stopPropagation();
     if (connectMode) {
+      // canvas-4h1j.2: a Wardley link names two components (or anchors); notes, annotations and
+      // (de)accelerators aren't on the value chain.
+      if (dslFamily === 'wardley' && node.role !== undefined && !['anchor', 'component', 'pipeline-component'].includes(node.role)) {
+        setConnectNotice('A link joins two components or anchors. Notes, annotations and accelerators cannot be linked.');
+        return;
+      }
       if (!connectSourceId) {
         setConnectSourceId(node.id);
       } else if (connectSourceId !== node.id) {
@@ -1965,7 +1977,18 @@ export function Canvas({ model: modelProp, onChange: onChangeProp, dslFamily, to
     }
 
     if (drag.kind === 'node') {
-      updateNode(drag.id, { position: { x: point.x - drag.offsetX, y: point.y - drag.offsetY } });
+      const position = { x: point.x - drag.offsetX, y: point.y - drag.offsetY };
+      // canvas-4h1j.2: a Wardley element's place is its [visibility, evolution]; moving it rewrites them (two
+      // decimals, inside the map), so what the editor shows is what the text will say.
+      if (dslFamily === 'wardley') {
+        // A click's jitter isn't a move (it would round a written 0.333 to 0.33).
+        const current = model.nodes.find((n) => n.id === drag.id)?.position;
+        if (current && Math.abs(current.x - position.x) < 2 && Math.abs(current.y - position.y) < 2) return;
+        const next = moveWardleyElement(model, drag.id, wardleyCoordinatesAt(wardleyFrame(model), position));
+        if (next.nodes.some((n, i) => n.wardley !== model.nodes[i]?.wardley)) onChange(next);
+        return;
+      }
+      updateNode(drag.id, { position });
       return;
     }
 
@@ -2020,7 +2043,10 @@ export function Canvas({ model: modelProp, onChange: onChangeProp, dslFamily, to
       // empty-rect) marquee.
       if (rect.width < 3 && rect.height < 3) return;
 
-      const hitIds = model.nodes.filter((n) => rectsIntersect(rect, { ...n.position, ...nodeSize(n) })).map((n) => n.id);
+      // A Wardley element's position is its centre (a point on the map), not a box's corner.
+      const hitIds = model.nodes
+        .filter((n) => rectsIntersect(rect, dslFamily === 'wardley' ? { x: n.position.x - 6, y: n.position.y - 6, width: 12, height: 12 } : { ...n.position, ...nodeSize(n) }))
+        .map((n) => n.id);
       setSelectedIds((prev) => (drag.additive ? new Set([...prev, ...hitIds]) : new Set(hitIds)));
       setSelectedContainerId(null);
       setSelectedEdgeId(null);
@@ -2053,6 +2079,8 @@ export function Canvas({ model: modelProp, onChange: onChangeProp, dslFamily, to
     }
 
     if (!drag || drag.kind !== 'node') return;
+    // A Wardley map's pipelines aren't groups you drop things into.
+    if (dslFamily === 'wardley') return;
 
     // Membership is resolved once, on drop, from the shape's centre (FR-011, research §3).
     const node = model.nodes.find((n) => n.id === drag.id);
@@ -2679,7 +2707,8 @@ export function Canvas({ model: modelProp, onChange: onChangeProp, dslFamily, to
   const confirmDeleteSelected = () => {
     let next = model;
     for (const id of selectedIds) {
-      next = removeNode(next, id);
+      // canvas-4h1j.2: a Wardley pipeline goes with its parent.
+      next = dslFamily === 'wardley' ? removeWardleyElement(next, id) : removeNode(next, id);
     }
     // Deleting a container releases its shapes — it never deletes them (FR-013).
     if (selectedContainerId) {
@@ -2749,7 +2778,7 @@ export function Canvas({ model: modelProp, onChange: onChangeProp, dslFamily, to
   };
 
   // canvas-ltk: the legend. Entries and geometry come from diagram-core, shared with the export.
-  const legendSupported = dslFamily !== 'sequence' && model.diagramTypeId !== 'sequence';
+  const legendSupported = dslFamily !== 'sequence' && dslFamily !== 'wardley' && model.diagramTypeId !== 'sequence';
   const legendVisible = legendSupported && Boolean(model.legend?.visible);
   const legendEntries = legendVisible ? computeLegendEntries(model, standardRules) : [];
   const legend = legendVisible ? legendLayout(model, legendEntries, computeBounds(model)) : null;
@@ -2826,6 +2855,19 @@ export function Canvas({ model: modelProp, onChange: onChangeProp, dslFamily, to
           </div>
         </div>
       )}
+      {dslFamily === 'wardley' && !readOnly && (
+        <WardleyToolbar
+          model={model}
+          selectedIds={selectedIds}
+          selectedEdgeId={selectedEdgeId}
+          onChange={onChange}
+          onSelect={(id) => {
+            setSelectedIds(new Set([id]));
+            setSelectedContainerId(null);
+            setSelectedEdgeId(null);
+          }}
+        />
+      )}
       {addableShapes.length > 0 && (
         <div className="rail-section">
           <p className="section-label rail-section__label">Shapes</p>
@@ -2874,7 +2916,7 @@ export function Canvas({ model: modelProp, onChange: onChangeProp, dslFamily, to
               its own dedicated connect-mode picker below instead — none of the three families'
               arrowhead is a plain directional choice (ER's is crow's-foot cardinality; UML's is the
               relationship kind itself; architecture's is 'source'|'target' only, never 'both'). */}
-          {connectMode && dslFamily !== 'erd' && dslFamily !== 'uml' && dslFamily !== 'architecture' && dslFamily !== 'state' && (
+          {connectMode && dslFamily !== 'erd' && dslFamily !== 'uml' && dslFamily !== 'architecture' && dslFamily !== 'state' && dslFamily !== 'wardley' && (
             <label className="field__label" htmlFor="connect-arrow-style">
               Direction
               <select
@@ -3096,6 +3138,9 @@ export function Canvas({ model: modelProp, onChange: onChangeProp, dslFamily, to
               Add Junction
             </button>
           )}
+          {/* canvas-4h1j.2: a Wardley map has no free-form groups (its pipelines are made from a component). */}
+          {dslFamily !== 'wardley' && (
+            <>
           <button
             type="button"
             className="btn btn--secondary"
@@ -3115,6 +3160,8 @@ export function Canvas({ model: modelProp, onChange: onChangeProp, dslFamily, to
             <Icon name="group" />
             {dslFamily === 'state' ? 'Group as Composite' : 'Group into Container'}
           </button>
+            </>
+          )}
           <button
             type="button"
             className="btn btn--secondary"
@@ -3487,6 +3534,18 @@ export function Canvas({ model: modelProp, onChange: onChangeProp, dslFamily, to
           }
         }}
       >
+        {dslFamily === 'wardley' && (
+          <WardleyLayer
+            model={model}
+            selectedIds={selectedIds}
+            selectedEdgeId={selectedEdgeId}
+            connectSourceId={connectSourceId}
+            onElementPointerDown={handleNodePointerDown}
+            onLinkPointerDown={handleEdgePointerDown}
+          />
+        )}
+        {dslFamily !== 'wardley' && (
+        <>
         {model.containers.map((rawContainer) => {
           // canvas-7vs.1: activate/deactivate and else/and/option get an entirely different
           // geometry (a bar / a divider line, not a resizable dashed box) — handled as their own
@@ -4428,6 +4487,9 @@ export function Canvas({ model: modelProp, onChange: onChangeProp, dslFamily, to
           );
         })}
 
+        </>
+        )}
+
         {/* canvas-rqm6: pin badges (editor affordance only; the exported SVG doesn't draw them). */}
         {(model.pinned ?? []).map((pinId) => {
           const pn = model.nodes.find((n) => n.id === pinId);
@@ -4447,7 +4509,7 @@ export function Canvas({ model: modelProp, onChange: onChangeProp, dslFamily, to
 
         {/* canvas-vvi: what other people in the live session have selected, each in their colour, with their
             name. Sequence diagrams are laid out from their text, not from stored positions, so they're left out. */}
-        {dslFamily !== 'sequence' && (
+        {dslFamily !== 'sequence' && dslFamily !== 'wardley' && (
           <OthersSelections model={model} selections={othersSelected ?? []} />
         )}
 
@@ -4458,10 +4520,20 @@ export function Canvas({ model: modelProp, onChange: onChangeProp, dslFamily, to
           const pinNode = model.nodes.find((n) => n.id === anchorId);
           const pinEdge = pinNode ? undefined : model.edges.find((e) => e.id === anchorId);
           const pinContainer = pinNode || pinEdge ? undefined : model.containers.find((c) => c.id === anchorId);
-          if (pinNode) {
+          if (pinNode && dslFamily === 'wardley') {
+            // A Wardley element's position is its centre.
+            cx = pinNode.position.x + 10;
+            cy = pinNode.position.y - 10;
+          } else if (pinNode) {
             const size = nodeSize(pinNode);
             cx = pinNode.position.x + size.width;
             cy = pinNode.position.y;
+          } else if (pinEdge && dslFamily === 'wardley') {
+            const a = model.nodes.find((n) => n.id === pinEdge.sourceId);
+            const b = model.nodes.find((n) => n.id === pinEdge.targetId);
+            if (!a || !b) return null;
+            cx = (a.position.x + b.position.x) / 2;
+            cy = (a.position.y + b.position.y) / 2;
           } else if (pinEdge) {
             const a = model.nodes.find((n) => n.id === pinEdge.sourceId);
             const b = model.nodes.find((n) => n.id === pinEdge.targetId);
