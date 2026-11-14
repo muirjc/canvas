@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { clearDraftDsl } from '../ai/ai-draft';
 import { HelpScreen } from '../help/HelpScreen';
 import { findHelpPage } from '../help/help-content';
@@ -83,6 +83,12 @@ export function App() {
   // Set by user-made navigations so the next screen's heading takes focus (canvas-t3b.3).
   const focusAfterNavigation = useRef(false);
   const [projects, setProjects] = useState<ProjectDto[] | null>(null);
+  // canvas-g8i: other people's projects the user has opened (or opened a diagram in), read one at a time.
+  const [visitedProjects, setVisitedProjects] = useState<ProjectDto[]>([]);
+  const knownProjects = useMemo(
+    () => [...(projects ?? []), ...visitedProjects.filter((v) => !(projects ?? []).some((p) => p.id === v.id))],
+    [projects, visitedProjects],
+  );
   // Diagrams shared directly with this user, independent of project access (feature 008,
   // FR-001/FR-002). Fetched alongside — not gated on — the project list, since a user with zero
   // projects still needs to see this.
@@ -131,8 +137,9 @@ export function App() {
   useEffect(() => {
     if (!signedInFully) return;
     let cancelled = false;
+    // canvas-g8i: only the user's own (owned or member of); the Projects page searches the rest on the server.
     api
-      .listProjects()
+      .listProjects({ scope: 'mine' })
       .then(({ projects: available }) => {
         if (cancelled) return;
         setProjects(available);
@@ -299,12 +306,25 @@ export function App() {
   // reached, link included -- becomes the landing hint for next time (design decision 2).
   useEffect(() => {
     if (projects === null || location.screen !== 'project') return;
-    if (projects.some((p) => p.id === location.projectId)) {
+    if (knownProjects.some((p) => p.id === location.projectId)) {
       writeLastProjectId(location.projectId);
       return;
     }
-    navigate({ screen: 'projects' }, { replace: true, force: true });
-    setError('That project is not available to you. Showing your projects instead.');
+    // canvas-g8i: not one of the user's own -- read it on its own (everyone can read every project).
+    let cancelled = false;
+    api
+      .getProject(location.projectId)
+      .then(({ project }) => {
+        if (!cancelled) setVisitedProjects((current) => [...current.filter((p) => p.id !== project.id), project]);
+      })
+      .catch(() => {
+        if (cancelled) return;
+        navigate({ screen: 'projects' }, { replace: true, force: true });
+        setError('That project is not available to you. Showing your projects instead.');
+      });
+    return () => {
+      cancelled = true;
+    };
   }, [projects, location]);
 
   // canvas-93n: a saved diagram that's opened goes to the top of "Recently opened".
@@ -339,7 +359,22 @@ export function App() {
   /** The project in view: the one a project screen shows, or the open diagram's. */
   const currentProjectId =
     location.screen === 'project' ? location.projectId : location.screen === 'diagram' ? (diagram?.projectId ?? null) : null;
-  const currentProject = (projects ?? []).find((p) => p.id === currentProjectId) ?? null;
+  const currentProject = knownProjects.find((p) => p.id === currentProjectId) ?? null;
+  // canvas-g8i: an open diagram's project that isn't the user's own is read on its own too (name, access).
+  useEffect(() => {
+    if (location.screen !== 'diagram' || !currentProjectId || projects === null) return;
+    if (knownProjects.some((p) => p.id === currentProjectId)) return;
+    let cancelled = false;
+    api
+      .getProject(currentProjectId)
+      .then(({ project }) => {
+        if (!cancelled) setVisitedProjects((current) => [...current.filter((p) => p.id !== project.id), project]);
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, [location.screen, currentProjectId, projects]);
 
   // canvas-t3b.3: each screen names itself in the tab title -- the cheapest reliable cue for a
   // screen-reader user that the view changed (design: Accessibility and focus).
@@ -459,6 +494,7 @@ export function App() {
     setCreatingViaChat(false);
     setError(null);
     setProjects(null);
+    setVisitedProjects([]);
     setSharedLoaded(false);
     setPendingNav(null);
     // Signing back in starts from a bare address again, landing rules included.
@@ -560,9 +596,11 @@ export function App() {
           }}
           onRenamed={(renamedProjectId, name) => {
             setProjects((current) => current?.map((p) => (p.id === renamedProjectId ? { ...p, name } : p)) ?? current);
+            setVisitedProjects((current) => current.map((p) => (p.id === renamedProjectId ? { ...p, name } : p)));
           }}
           onDeleted={(deletedProjectId) => {
             setProjects((current) => current?.filter((p) => p.id !== deletedProjectId) ?? current);
+            setVisitedProjects((current) => current.filter((p) => p.id !== deletedProjectId));
             if (readLastProjectId() === deletedProjectId) writeLastProjectId(null);
           }}
           onViewDiagrams={(viewProjectId) => navigate({ screen: 'project', projectId: viewProjectId })}
@@ -577,7 +615,7 @@ export function App() {
     // (Only reached once `diagram` is the one the address names -- see the loading branch above.)
     // The back button names where it goes (design §7): the diagram's project when the user can
     // see it -- taken from the diagram as it is now, so it's right after a Move -- else Projects.
-    const diagramProject = (projects ?? []).find((p) => p.id === diagram.projectId);
+    const diagramProject = knownProjects.find((p) => p.id === diagram.projectId);
     content = (
       <DiagramEditor
         key={diagram.id}
@@ -703,13 +741,23 @@ export function App() {
             projectName={currentProject?.name ?? 'Project'}
             currentUser={user}
             onClose={() => setShowingMembers(false)}
-            onAccessChanged={() => api.listProjects().then(({ projects: available }) => setProjects(available)).catch(() => undefined)}
+            onAccessChanged={() => {
+              const projectId = location.projectId;
+              api
+                .listProjects({ scope: 'mine' })
+                .then(({ projects: available }) => setProjects(available))
+                .catch(() => undefined);
+              api
+                .getProject(projectId)
+                .then(({ project }) => setVisitedProjects((current) => [...current.filter((p) => p.id !== project.id), project]))
+                .catch(() => undefined);
+            }}
           />
         )}
         {location.screen === 'project' && (
           <ProjectBrowser
             rootProjectId={location.projectId}
-            projects={projects ?? []}
+            projects={knownProjects}
             onOpenDiagram={openDiagram}
           />
         )}

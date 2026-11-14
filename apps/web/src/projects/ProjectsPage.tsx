@@ -1,11 +1,18 @@
-import { useState } from 'react';
-import { api, ApiError, type ProjectDto, type SessionUser, type SharedDiagramDto } from '../app/api';
+import { useEffect, useState } from 'react';
+import {
+  api,
+  ApiError,
+  type ProjectDto,
+  type SessionUser,
+  type SharedDiagramDto,
+} from '../app/api';
 import { ConfirmDialog } from '../canvas/ConfirmDialog';
 import { Icon } from '../ui/Icon';
 import { RecentDiagrams } from './RecentDiagrams';
 import { SharedDiagramsList } from './SharedDiagramsList';
 
 export interface ProjectsPageProps {
+  /** The user's own projects (owned or a member of); everyone else's are searched on the server (canvas-g8i). */
   projects: ProjectDto[];
   currentUser: SessionUser;
   onCreated: (project: ProjectDto) => void;
@@ -21,6 +28,10 @@ export interface ProjectsPageProps {
   /** canvas-93n: a diagram's address, for the "Recently opened" links. */
   diagramHref?: (diagramId: string) => string;
 }
+
+/** canvas-g8i: "All projects" loads this many at a time, and searches this long after the last keystroke. */
+const OTHERS_PAGE = 50;
+const SEARCH_DELAY_MS = 300;
 
 /**
  * The Browse top level (canvas-t3b.3, docs/browse-screen-design.md): every project the user can
@@ -49,11 +60,67 @@ export function ProjectsPage({
   // canvas-228.2: same shape as ProjectBrowser's own pendingDelete/deleteError pair.
   const [pendingDelete, setPendingDelete] = useState<{ id: string; name: string } | null>(null);
   const [deleteError, setDeleteError] = useState<string | null>(null);
-  // canvas-3vq.3: client-side filter over the already-fetched project list — GET /projects takes
-  // no query params (project.service.ts's own comment: "no search or paging, the clarified scale
-  // is tens of projects"), so no API round-trip is needed here. Server-side search (canvas-g8i) is
-  // a separate, gated follow-up if real project counts ever justify it.
+  // canvas-3vq.3: the filter narrows the user's own projects in the browser; canvas-g8i: "All projects" (everyone
+  // else's, possibly thousands) is searched on the server as you type, a page at a time.
   const [filter, setFilter] = useState('');
+  const [others, setOthers] = useState<{
+    projects: ProjectDto[];
+    total: number;
+    query: string;
+  } | null>(null);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [othersError, setOthersError] = useState<string | null>(null);
+  // Bumped after a rename or delete, so the server list shows it.
+  const [othersVersion, setOthersVersion] = useState(0);
+  const othersQuery = filter.trim();
+
+  useEffect(() => {
+    let cancelled = false;
+    const timer = window.setTimeout(
+      () => {
+        api
+          .listProjects({ scope: 'others', q: othersQuery || undefined, limit: OTHERS_PAGE })
+          .then(({ projects: page, total }) => {
+            if (cancelled) return;
+            setOthers({ projects: page, total: total ?? page.length, query: othersQuery });
+            setOthersError(null);
+          })
+          .catch((err) => {
+            if (!cancelled)
+              setOthersError(
+                err instanceof ApiError ? err.message : 'Couldn\u2019t load the other projects.',
+              );
+          });
+      },
+      othersQuery ? SEARCH_DELAY_MS : 0,
+    );
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
+  }, [othersQuery, othersVersion]);
+
+  const showMoreOthers = async () => {
+    if (!others) return;
+    setLoadingMore(true);
+    try {
+      const { projects: page, total } = await api.listProjects({
+        scope: 'others',
+        q: others.query || undefined,
+        limit: OTHERS_PAGE,
+        offset: others.projects.length,
+      });
+      setOthers((current) =>
+        current && current.query === others.query
+          ? { ...current, projects: [...current.projects, ...page], total: total ?? current.total }
+          : current,
+      );
+    } catch (err) {
+      setOthersError(err instanceof ApiError ? err.message : 'Couldn\u2019t load more projects.');
+    } finally {
+      setLoadingMore(false);
+    }
+  };
 
   const handleCreate = async () => {
     setError(null);
@@ -70,7 +137,13 @@ export function ProjectsPage({
   /** Leaves rename mode and puts focus back on that row's Rename button (canvas-t3b.3). */
   const endRename = (projectId: string) => {
     setRenamingId(null);
-    window.setTimeout(() => document.querySelector<HTMLElement>(`[data-testid="projects-page-rename-${projectId}"]`)?.focus(), 0);
+    window.setTimeout(
+      () =>
+        document
+          .querySelector<HTMLElement>(`[data-testid="projects-page-rename-${projectId}"]`)
+          ?.focus(),
+      0,
+    );
   };
 
   const commitRename = async (projectId: string, newName: string, previousName: string) => {
@@ -82,6 +155,7 @@ export function ProjectsPage({
     try {
       const { project } = await api.renameProject(projectId, newName);
       onRenamed(projectId, project.name);
+      setOthersVersion((v) => v + 1);
       endRename(projectId);
     } catch (err) {
       setRenameError(err instanceof ApiError ? err.message : (err as Error).message);
@@ -94,6 +168,7 @@ export function ProjectsPage({
     try {
       await api.deleteProject(pendingDelete.id);
       onDeleted(pendingDelete.id);
+      setOthersVersion((v) => v + 1);
       setPendingDelete(null);
     } catch (err) {
       setPendingDelete(null);
@@ -102,12 +177,18 @@ export function ProjectsPage({
   };
 
   const normalizedFilter = filter.trim().toLowerCase();
-  const filteredProjects = normalizedFilter ? projects.filter((project) => project.name.toLowerCase().includes(normalizedFilter)) : projects;
   // canvas-2h2w.1: every project is readable, so the list splits into the ones the user owns or is a
-  // member of, and everything else (open read-only).
-  // (An older API without `membership` lists only the user's own projects, so undefined = mine.)
-  const myProjects = filteredProjects.filter((project) => project.membership !== null);
-  const otherProjects = filteredProjects.filter((project) => project.membership === null);
+  // member of (here, filtered in the browser), and everything else (open read-only; from the server).
+  const myProjects = normalizedFilter
+    ? projects.filter((project) => project.name.toLowerCase().includes(normalizedFilter))
+    : projects;
+  const otherProjects = others?.projects ?? [];
+  const othersSettled = others !== null && others.query === othersQuery;
+  // Nothing at all to list: no project of the user's own and none of anyone else's (before any filter).
+  const noProjects =
+    projects.length === 0 && others !== null && others.query === '' && others.total === 0;
+  const nothingMatches =
+    normalizedFilter !== '' && myProjects.length === 0 && othersSettled && others.total === 0;
 
   const renderList = (list: ProjectDto[], testId: string) => (
     <ul className="card project-node__list stack" data-testid={testId}>
@@ -127,10 +208,17 @@ export function ProjectsPage({
                   defaultValue={project.name}
                   onClick={(event) => event.stopPropagation()}
                   onKeyDown={(event) => {
-                    if (event.key === 'Enter') void commitRename(project.id, (event.target as HTMLInputElement).value, project.name);
+                    if (event.key === 'Enter')
+                      void commitRename(
+                        project.id,
+                        (event.target as HTMLInputElement).value,
+                        project.name,
+                      );
                     if (event.key === 'Escape') endRename(project.id);
                   }}
-                  onBlur={(event) => void commitRename(project.id, event.target.value, project.name)}
+                  onBlur={(event) =>
+                    void commitRename(project.id, event.target.value, project.name)
+                  }
                 />
               ) : (
                 // The name is a real link to the project as well as the Open button
@@ -140,7 +228,14 @@ export function ProjectsPage({
                   href={projectHref(project.id)}
                   data-testid={`projects-page-name-${project.id}`}
                   onClick={(event) => {
-                    if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+                    if (
+                      event.button !== 0 ||
+                      event.metaKey ||
+                      event.ctrlKey ||
+                      event.shiftKey ||
+                      event.altKey
+                    )
+                      return;
                     event.preventDefault();
                     onViewDiagrams(project.id);
                   }}
@@ -181,7 +276,11 @@ export function ProjectsPage({
                       data-testid={`projects-page-delete-${project.id}`}
                       aria-label={`Delete project ${project.name}`}
                       disabled={project.diagramCount > 0}
-                      title={project.diagramCount > 0 ? 'Only a project with no diagrams can be deleted.' : undefined}
+                      title={
+                        project.diagramCount > 0
+                          ? 'Only a project with no diagrams can be deleted.'
+                          : undefined
+                      }
                       onClick={() => setPendingDelete({ id: project.id, name: project.name })}
                     >
                       <Icon name="trash" size={12} />
@@ -207,7 +306,7 @@ export function ProjectsPage({
       {/* Toolbar: filter first, then New Project (design: top level, keyboard order). The create
           form opens in a card of its own. */}
       <div className="cluster browse-toolbar">
-        {projects.length > 0 && (
+        {!noProjects && (
           <input
             className="browse-toolbar__filter"
             data-testid="projects-page-filter"
@@ -219,13 +318,24 @@ export function ProjectsPage({
         )}
         {/* canvas-2h2w.1: viewers are capped at Comment, so creating projects is for architects and admins. */}
         {!creating && currentUser.role !== 'viewer' && (
-          <button type="button" className="btn btn--primary" data-testid="projects-page-start-create" onClick={() => setCreating(true)}>
+          <button
+            type="button"
+            className="btn btn--primary"
+            data-testid="projects-page-start-create"
+            onClick={() => setCreating(true)}
+          >
             <Icon name="plus" />
             New Project
           </button>
         )}
       </div>
-      {diagramHref && <RecentDiagrams userId={currentUser.id} onOpenDiagram={onOpenDiagram} diagramHref={diagramHref} />}
+      {diagramHref && (
+        <RecentDiagrams
+          userId={currentUser.id}
+          onOpenDiagram={onOpenDiagram}
+          diagramHref={diagramHref}
+        />
+      )}
       {creating && (
         <section className="card">
           <div className="panel__body">
@@ -249,7 +359,11 @@ export function ProjectsPage({
                 />
               </div>
               <div className="cluster">
-                <button type="submit" className="btn btn--primary btn--compact" data-testid="projects-page-confirm-create">
+                <button
+                  type="submit"
+                  className="btn btn--primary btn--compact"
+                  data-testid="projects-page-confirm-create"
+                >
                   Create Project
                 </button>
                 <button
@@ -275,24 +389,29 @@ export function ProjectsPage({
         </p>
       )}
 
-      {projects.length === 0 ? (
+      {noProjects ? (
         // canvas-hmm: the zero-projects state lives here (App's separate "create first project"
         // form is gone; the toolbar's New Project creates it). Invite, never invent (feature 007
         // FR-014/015) -- but not for a user with diagrams shared with them, where "you have no
         // projects" would sit above a list proving they have work (feature 008 FR-003).
         sharedDiagrams.length > 0 ? null : (
           <section className="card empty-state" data-testid="projects-page-empty">
-            <p>You don&rsquo;t have any projects yet. Create one with New Project to start drawing diagrams.</p>
+            <p>
+              You don&rsquo;t have any projects yet. Create one with New Project to start drawing
+              diagrams.
+            </p>
           </section>
         )
       ) : (
         <>
-          {filteredProjects.length === 0 ? (
+          {nothingMatches ? (
             <>
               <p className="state" data-testid="projects-page-filter-empty">
                 No projects match &ldquo;{filter}&rdquo;.
               </p>
-              {sharedDiagrams.length > 0 && <SharedDiagramsList diagrams={sharedDiagrams} onOpenDiagram={onOpenDiagram} />}
+              {sharedDiagrams.length > 0 && (
+                <SharedDiagramsList diagrams={sharedDiagrams} onOpenDiagram={onOpenDiagram} />
+              )}
             </>
           ) : (
             <>
@@ -305,22 +424,56 @@ export function ProjectsPage({
                 </section>
               )}
               {/* Your own work first: shared-with-you sits between your projects and everyone else's. */}
-              {sharedDiagrams.length > 0 && <SharedDiagramsList diagrams={sharedDiagrams} onOpenDiagram={onOpenDiagram} />}
+              {sharedDiagrams.length > 0 && (
+                <SharedDiagramsList diagrams={sharedDiagrams} onOpenDiagram={onOpenDiagram} />
+              )}
               {otherProjects.length > 0 && (
-                <section className="stack" aria-labelledby="projects-page-all-heading">
+                <section
+                  className="stack"
+                  aria-labelledby="projects-page-all-heading"
+                  aria-busy={!othersSettled}
+                >
                   <h2 className="section-label" id="projects-page-all-heading">
                     All projects
                   </h2>
-                  <p className="meta">Everyone can read these. Ask the owner to add you to change them.</p>
+                  <p className="meta">
+                    Everyone can read these. Ask the owner to add you to change them.
+                  </p>
                   {renderList(otherProjects, 'projects-page-all-list')}
+                  {others && others.total > otherProjects.length && (
+                    <div className="cluster">
+                      <button
+                        type="button"
+                        className="btn btn--secondary btn--compact"
+                        data-testid="projects-page-all-more"
+                        disabled={loadingMore}
+                        onClick={() => void showMoreOthers()}
+                      >
+                        {loadingMore ? 'Loading…' : 'Show more'}
+                      </button>
+                      <span className="meta" data-testid="projects-page-all-count" role="status">
+                        Showing {otherProjects.length} of {others.total}
+                      </span>
+                    </div>
+                  )}
                 </section>
+              )}
+              {othersError && (
+                <p
+                  role="alert"
+                  className="state state--error"
+                  data-testid="projects-page-all-error"
+                >
+                  {othersError}
+                </p>
               )}
             </>
           )}
         </>
-
       )}
-      {projects.length === 0 && sharedDiagrams.length > 0 && <SharedDiagramsList diagrams={sharedDiagrams} onOpenDiagram={onOpenDiagram} />}
+      {noProjects && sharedDiagrams.length > 0 && (
+        <SharedDiagramsList diagrams={sharedDiagrams} onOpenDiagram={onOpenDiagram} />
+      )}
       {renameError && (
         <p role="alert" data-testid="projects-page-rename-error">
           {renameError}

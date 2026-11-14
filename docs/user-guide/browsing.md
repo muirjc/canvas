@@ -13,10 +13,12 @@ Diagrams live in **projects**. Everyone who signs in can read every project and 
 them needs access from the owner. The list has two parts, each project with how many diagrams it
 holds:
 - **My projects:** projects you own or have been added to.
-- **All projects:** everyone else's. You can open and read them, but not change them.
+- **All projects:** everyone else's. You can open and read them, but not change them. They're listed
+  50 at a time: **Show more** adds the next 50.
 
 - **Recently opened:** above the lists, up to five diagrams you opened lately on this browser.
-- **Find a project:** type in the filter box.
+- **Find a project:** type part of its name in the filter box. Your own projects narrow as you type;
+  All projects is searched across everyone's projects a moment after you stop typing.
 - **New project:** creates one, and you're its owner. (People with the viewer role can't create
   projects.)
 - **Rename or delete:** owners and admins can rename a project. A project can only be deleted once

@@ -10675,6 +10675,47 @@
     },
     "/projects": {
       "get": {
+        "parameters": [
+          {
+            "in": "query",
+            "name": "q",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 200
+            }
+          },
+          {
+            "in": "query",
+            "name": "scope",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "mine",
+                "others"
+              ]
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "pattern": "^([1-9]|[1-9][0-9]|1[0-9][0-9]|200)$",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "pattern": "^(0|[1-9][0-9]{0,8})$",
+              "type": "string"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "content": {
@@ -10687,6 +10728,10 @@
                         "$ref": "#/components/schemas/ProjectListItem"
                       },
                       "type": "array"
+                    },
+                    "total": {
+                      "type": "integer",
+                      "minimum": 0
                     }
                   },
                   "required": [
@@ -10837,7 +10882,7 @@
                   "additionalProperties": false,
                   "properties": {
                     "project": {
-                      "$ref": "#/components/schemas/Project"
+                      "$ref": "#/components/schemas/ProjectListItem"
                     }
                   },
                   "required": [

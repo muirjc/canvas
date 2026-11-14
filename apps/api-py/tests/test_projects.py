@@ -7,10 +7,11 @@ from __future__ import annotations
 
 import time
 from datetime import UTC, datetime, timedelta
+from typing import Any
 
 import pytest
 
-from tests.api import JS_ISO, MISSING_ID, Api, User
+from tests.api import JS_ISO, MISSING_ID, Api, User, counting_queries
 
 
 @pytest.fixture()
@@ -352,3 +353,76 @@ def test_restoring_past_the_retention_window_is_refused(api: Api, owner: User) -
 def test_restoring_a_project_that_was_never_deleted_is_404(api: Api, owner: User, project: str) -> None:
     admin = api.user("admin@example.com", role="admin")
     assert api.call("POST", f"/projects/{project}/restore", admin).status_code == 404
+
+
+# --- canvas-g8i: searching and paging the project list ---------------------------------------------------
+
+
+def _page(api: Api, who: User, query: str) -> dict[str, Any]:
+    response = api.call("GET", f"/projects?{query}", who)
+    assert response.status_code == 200, response.text
+    body: dict[str, Any] = response.json()
+    return body
+
+
+def test_searches_by_name_case_insensitively_and_pages_each_scope(api: Api, owner: User) -> None:
+    bob = api.user("bob@example.com")
+    for name in ("Payments", "payroll", "PAYMENT gateway", "Shipping"):
+        api.project(bob, name)
+    mine = api.project(owner, "My payments")
+    names = lambda body: [p["name"] for p in body["projects"]]  # noqa: E731
+
+    everything = _page(api, owner, "q=pay")
+    # Ordered by name in the database's own collation (it differs between SQLite and Postgres), so as a set here.
+    assert set(names(everything)) == {"My payments", "PAYMENT gateway", "Payments", "payroll"}
+    assert everything["total"] == 4
+    assert names(_page(api, owner, "q=pay&scope=mine")) == ["My payments"]
+    others = _page(api, owner, "q=pay&scope=others")
+    assert others["total"] == 3 and len(others["projects"]) == 3
+    assert all(p["membership"] is None and p["accessLevel"] == "view" for p in others["projects"])
+
+    first = _page(api, owner, "scope=others&limit=2")
+    second = _page(api, owner, "scope=others&limit=2&offset=2")
+    assert first["total"] == second["total"] == 4
+    assert len(first["projects"]) == 2 and len(second["projects"]) == 2
+    assert {p["id"] for p in first["projects"]}.isdisjoint({p["id"] for p in second["projects"]})
+    assert _page(api, owner, "scope=others&offset=10") == {"projects": [], "total": 4}
+
+    # The old form, with no parameters, is unchanged: every project, no total.
+    plain = api.call("GET", "/projects", owner).json()
+    assert "total" not in plain and len(plain["projects"]) == 5
+    assert mine in {p["id"] for p in plain["projects"]}
+
+
+def test_like_wildcards_in_a_search_are_taken_literally(api: Api, owner: User) -> None:
+    for name in ("100% done", "1000 done", "a_b", "axb", "back\\slash"):
+        api.project(owner, name)
+    assert [p["name"] for p in _page(api, owner, "q=100%25")["projects"]] == ["100% done"]
+    assert [p["name"] for p in _page(api, owner, "q=a_b")["projects"]] == ["a_b"]
+    assert [p["name"] for p in _page(api, owner, "q=k%5Cs")["projects"]] == ["back\\slash"]
+
+
+def test_bad_paging_values_are_refused(api: Api, owner: User) -> None:
+    for query in ("limit=0", "limit=201", "offset=-1", "scope=everyone"):
+        assert api.call("GET", f"/projects?{query}", owner).status_code == 400, query
+
+
+def test_a_page_takes_the_same_queries_however_many_projects_match(api: Api, owner: User) -> None:
+    for i in range(3):
+        api.project(owner, f"Small {i}")
+    with counting_queries(api.engine) as few:
+        _page(api, owner, "q=small&limit=50")
+    for i in range(30):
+        api.project(owner, f"Small more {i}")
+    with counting_queries(api.engine) as many:
+        _page(api, owner, "q=small&limit=50")
+    assert len(many) == len(few)
+
+
+def test_reading_one_project_gives_the_callers_access_like_the_list(api: Api, owner: User) -> None:
+    bob = api.user("bob@example.com")
+    project = api.project(bob, "Bob's")
+    body = api.call("GET", f"/projects/{project}", owner).json()["project"]
+    assert body["name"] == "Bob's"
+    assert (body["accessLevel"], body["membership"], body["ownerId"], body["diagramCount"]) == ("view", None, bob.id, 0)
+    assert api.call("GET", f"/projects/{project}", bob).json()["project"]["membership"] == "owner"
