@@ -26,6 +26,9 @@ this browser. If you have no personas, you see every type.
 
 Your admin may hide some types, or add your organisation's own.
 
+Not sure which to pick? [Choosing a diagram type](diagram-types.md) says what each type is for. The
+**?** at the top of the dialog opens it too.
+
 ## Import Diagram
 
 Paste [Mermaid](https://mermaid.js.org/) text, or upload a `.mmd` file. Canvas reads it into a

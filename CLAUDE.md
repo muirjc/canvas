@@ -100,6 +100,15 @@ tests are NON-NEGOTIABLE and must exist (and fail) before implementing any diagr
 work — see `.specify/memory/constitution.md` Principle IV.
 
 ## Recent Changes
+- `canvas-ilhl`: **the user guide says what each diagram type is for.** `docs/user-guide/diagram-types.md`
+  ("Choosing a diagram type", after Creating diagrams in the README's order): one `###` section per built-in type
+  (heading = the seeded name; For / What it shows / Use it to / Example, "X or Y?" notes between neighbours),
+  grouped Business and strategy / Enterprise / C4 / Solution and software design / Infrastructure / Anything else.
+  `apps/api-py/tests/test_user_guide_diagram_types.py` fails when a type in `seed/diagram_types.py` has no section,
+  a section names no seeded type, or a **For:** line misses the type's personas -- add a section with a new type.
+  New Diagram dialog: "Which type should I use?" + HelpLink (`help-link-user-diagram-types`). Help renderer fix:
+  a line break inside a paragraph/list item is a space (was a `<br>`, so every page broke at the source's ~100
+  columns); a trailing `\` is a hard break.
 - `canvas-g8i`: **server-side project search and paging.** `GET /projects` with no params is unchanged (every
   project with access/membership; the link picker and GitHub admin still use it). With `q` (case-insensitive name,
   `LOWER(name) LIKE` with `%`/`_`/`\` escaped; SQLite's LOWER is ASCII-only), `scope` (`mine` = owned or member,

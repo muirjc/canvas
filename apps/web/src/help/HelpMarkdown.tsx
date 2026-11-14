@@ -142,8 +142,17 @@ export function HelpMarkdown({ page, hrefFor, onNavigate, titleTakesFocus = true
     return <Fragment key={key}>{label}</Fragment>;
   };
   const inline = (text: string, key: string) => renderInline(text, key, renderLink);
+  // canvas-ilhl: as in Markdown, a line break in the source is a space (the guides wrap at ~100 columns); a line
+  // ending in a backslash is a real line break (trailing spaces are trimmed by the parser).
   const withBreaks = (lines: string[], key: string) =>
-    lines.flatMap((line, i) => [...(i > 0 ? [<br key={`${key}-br-${i}`} />] : []), <Fragment key={`${key}-l-${i}`}>{inline(line, `${key}-${i}`)}</Fragment>]);
+    lines.flatMap((line, i) => {
+      const hard = line.endsWith('\\');
+      const text = hard ? line.slice(0, -1) : line;
+      return [
+        <Fragment key={`${key}-l-${i}`}>{inline(text, `${key}-${i}`)}</Fragment>,
+        ...(i < lines.length - 1 ? [hard ? <br key={`${key}-br-${i}`} /> : ' '] : []),
+      ];
+    });
 
   return (
     <div className="help-markdown">

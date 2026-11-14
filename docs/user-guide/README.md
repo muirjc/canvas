@@ -13,6 +13,7 @@ a **?** next to a feature to open its section. If you look after Canvas for your
 | [Signing in](signing-in.md) | First sign-in, two-step verification, if you're locked out |
 | [Finding your way around](browsing.md) | Projects, a project's diagrams, search, shared with me |
 | [Creating diagrams](creating-diagrams.md) | New diagram, import Mermaid, import from a template, Create with AI |
+| [Choosing a diagram type](diagram-types.md) | What each type of diagram is for, and which to pick |
 | [The editor](editor.md) | Shapes, connectors, containers, the Mermaid text, issues, history |
 | [AI chat](ai-chat.md) | Editing a diagram by describing the change |
 | [Sharing and exporting](sharing-and-exporting.md) | Giving others access; Mermaid, SVG and PNG files |
