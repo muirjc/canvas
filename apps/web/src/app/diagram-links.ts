@@ -66,7 +66,12 @@ export function linkStatusText(target: LinkTarget | undefined): string {
  */
 export function useLinkTargets(diagramId: string, model: DiagramModel, refreshToken: number) {
   const [targets, setTargets] = useState<Map<string, LinkTarget>>(new Map());
+  const targetsRef = useRef(targets);
+  targetsRef.current = targets;
   const asked = useRef(new Set<string>());
+  // The links index answers first: a link to a diagram in the bin reads as a 404 when looked up on its own, so a
+  // separate lookup that won the race would call it "missing" instead of "deleted".
+  const [indexed, setIndexed] = useState(false);
 
   const remember = useCallback((id: string, target: LinkTarget) => {
     asked.current.add(id);
@@ -76,18 +81,15 @@ export function useLinkTargets(diagramId: string, model: DiagramModel, refreshTo
   useEffect(() => {
     let cancelled = false;
     // A target still unchecked (its lookup failed for a reason other than 404) is looked up again after a save.
-    setTargets((prev) => {
-      for (const [id, target] of prev) if (target.status === 'checking') asked.current.delete(id);
-      return prev;
-    });
+    for (const [id, target] of targetsRef.current) if (target.status === 'checking') asked.current.delete(id);
     api
       .getDiagramLinks(diagramId)
       .then(({ links }) => {
         if (cancelled) return;
+        for (const link of links) asked.current.add(link.diagramId);
         setTargets((prev) => {
           const next = new Map(prev);
           for (const link of links) {
-            asked.current.add(link.diagramId);
             next.set(link.diagramId, {
               status: link.status,
               ...(link.diagram
@@ -98,34 +100,37 @@ export function useLinkTargets(diagramId: string, model: DiagramModel, refreshTo
           return next;
         });
       })
-      .catch(() => undefined);
+      .catch(() => undefined)
+      .finally(() => !cancelled && setIndexed(true));
     return () => {
       cancelled = true;
     };
   }, [diagramId, refreshToken]);
 
-  const wanted = elementLinks(model)
-    .map((l) => l.diagramId)
-    .filter((id, i, all) => all.indexOf(id) === i && !asked.current.has(id));
-  const wantedKey = wanted.join(',');
+  // Links the index doesn't know yet (made since the last save) are looked up one by one.
+  const wantedKey = indexed
+    ? elementLinks(model)
+        .map((l) => l.diagramId)
+        .filter((id, i, all) => all.indexOf(id) === i && !asked.current.has(id))
+        .join(',')
+    : '';
   useEffect(() => {
     if (!wantedKey) return;
+    // Only fills in a target nothing better has answered for since (the index after a save wins).
+    const settle = (id: string, target: LinkTarget) =>
+      setTargets((prev) => (prev.get(id)?.status === 'checking' ? new Map(prev).set(id, target) : prev));
     for (const id of wantedKey.split(',')) {
       asked.current.add(id);
       if (!UUID.test(id)) {
         setTargets((prev) => new Map(prev).set(id, { status: 'missing' }));
         continue;
       }
-      setTargets((prev) => new Map(prev).set(id, { status: 'checking' }));
+      setTargets((prev) => (prev.has(id) ? prev : new Map(prev).set(id, { status: 'checking' })));
       api
         .getDiagram(id)
-        .then(({ diagram }) =>
-          setTargets((prev) => new Map(prev).set(id, { status: 'available', name: diagram.name, diagramTypeId: diagram.diagramTypeId, projectId: diagram.projectId })),
-        )
-        // A 404 is a diagram that's gone, in the bin or someone else's draft; the save tells them apart.
-        .catch((error: unknown) =>
-          setTargets((prev) => new Map(prev).set(id, { status: error instanceof ApiError && error.status === 404 ? 'missing' : 'checking' })),
-        );
+        .then(({ diagram }) => settle(id, { status: 'available', name: diagram.name, diagramTypeId: diagram.diagramTypeId, projectId: diagram.projectId }))
+        // A 404 is a diagram that's gone, in the bin or someone else's draft; the next save tells them apart.
+        .catch((error: unknown) => settle(id, { status: error instanceof ApiError && error.status === 404 ? 'missing' : 'checking' }));
     }
   }, [wantedKey]);
 
