@@ -13,6 +13,7 @@ from typing import Any
 from canvas_api.diagram_core.containment_layout import compute_containment_layout
 from canvas_api.diagram_core.flowchart import parse_style_props
 from canvas_api.diagram_core.front_matter import (
+    apply_frames,
     apply_links,
     canvas_section,
     join_front_matter,
@@ -21,6 +22,7 @@ from canvas_api.diagram_core.front_matter import (
     section,
     split_front_matter,
     strip_trailing_comment,
+    with_frames,
     with_legend,
     with_links,
     with_pinned,
@@ -450,6 +452,7 @@ def parse_erd(dsl: str) -> dict[str, Any]:
     if pinned := read_pinned(front_matter, model):
         model["pinned"] = pinned
     apply_links(front_matter, model)
+    apply_frames(front_matter, model)
     return {"model": model}
 
 
@@ -597,4 +600,6 @@ def _write_erd(model: dict[str, Any]) -> str:
             lines.append(_declaration_for(node))
 
     body = "\n".join(lines) + "\n"
-    return join_front_matter(with_links(with_pinned(with_legend(front_matter, model), model), model), body)
+    return join_front_matter(
+        with_frames(with_links(with_pinned(with_legend(front_matter, model), model), model), model), body
+    )

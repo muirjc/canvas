@@ -20,13 +20,17 @@ LinkStatus = Literal["available", "unavailable", "deleted", "missing"]
 #: without a query (and Postgres would refuse it as a uuid).
 _UUID = re.compile(r"[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}")
 
-_CLEAR = text("DELETE FROM diagram_links WHERE source_diagram_id = :id AND kind = 'link'")
+_CLEAR = text("DELETE FROM diagram_links WHERE source_diagram_id = :id")
 _INSERT = text(
     "INSERT INTO diagram_links (source_diagram_id, kind, element_id, target_diagram_id, position)"
-    " VALUES (:id, 'link', :element, :target, :position)"
+    " VALUES (:id, :kind, :element, :target, :position)"
 )
 _OUTGOING = text(
     "SELECT element_id, target_diagram_id FROM diagram_links WHERE source_diagram_id = :id AND kind = 'link'"
+    " ORDER BY position"
+)
+_OUTGOING_FRAMES = text(
+    "SELECT element_id, target_diagram_id FROM diagram_links WHERE source_diagram_id = :id AND kind = 'frame'"
     " ORDER BY position"
 )
 _TARGET = text(
@@ -38,7 +42,7 @@ _USED_IN = text(
     "SELECT d.id, d.name, d.diagram_type_id, d.project_id, p.name AS project_name, d.owner_id, d.draft,"
     " l.element_id"
     " FROM diagram_links l JOIN diagrams d ON d.id = l.source_diagram_id JOIN projects p ON p.id = d.project_id"
-    " WHERE l.target_diagram_id = :target AND l.kind = 'link' AND d.deleted_at IS NULL AND p.deleted_at IS NULL"
+    " WHERE l.target_diagram_id = :target AND d.deleted_at IS NULL AND p.deleted_at IS NULL"
     " ORDER BY d.name, d.id, l.position"
 )
 
@@ -84,11 +88,23 @@ def link_types_for_rules(conn: Connection, model: dict[str, Any], rules: Any) ->
     return link_target_types(conn, model)
 
 
+def frames_of(model: dict[str, Any]) -> list[tuple[str, str]]:
+    """canvas-8uh1.6: (frame id, diagram id) for every frame, in order."""
+    found: list[tuple[str, str]] = []
+    for frame in model.get("frames") or []:
+        if isinstance(frame, dict) and isinstance(frame.get("id"), str) and isinstance(frame.get("diagramId"), str):
+            found.append((frame["id"], frame["diagramId"]))
+    return found
+
+
 def rebuild_links(conn: Connection, diagram_id: str, model: dict[str, Any]) -> None:
-    """Replaces the diagram's rows with the links its (just written) model holds."""
+    """Replaces the diagram's rows with the links and frames (canvas-8uh1.6) its (just written) model holds."""
     conn.execute(_CLEAR, {"id": diagram_id})
-    for position, (element_id, target) in enumerate(links_of(model)):
-        conn.execute(_INSERT, {"id": diagram_id, "element": element_id, "target": target, "position": position})
+    rows = [("link", e, t) for e, t in links_of(model)] + [("frame", f, t) for f, t in frames_of(model)]
+    for position, (kind, element_id, target) in enumerate(rows):
+        conn.execute(
+            _INSERT, {"id": diagram_id, "kind": kind, "element": element_id, "target": target, "position": position}
+        )
 
 
 def _status(row: Any, user_id: str) -> LinkStatus:
@@ -132,8 +148,8 @@ def outgoing_links(conn: Connection, diagram_id: str, user_id: str) -> list[dict
 
 
 def used_in(conn: Connection, diagram_id: str, user_id: str) -> list[dict[str, Any]]:
-    """The diagrams (not in the bin, not someone else's draft) whose current version links to this one, with
-    the elements that do, by name."""
+    """The diagrams (not in the bin, not someone else's draft) whose current version links to this one or shows it
+    in a frame (canvas-8uh1.6), with the elements (or frames) that do, by id."""
     by_source: dict[str, dict[str, Any]] = {}
     for row in conn.execute(_USED_IN, {"target": diagram_id}):
         if bool(row.draft) and str(row.owner_id) != user_id:
@@ -165,12 +181,13 @@ _SUBMITTED_PATH = text(
 _VERSION = text("SELECT id, sequence_number FROM diagram_versions WHERE id = :id")
 
 
-def submission_links(conn: Connection, diagram_id: str, repo_id: int) -> list[dict[str, Any]]:
+def submission_links(conn: Connection, diagram_id: str, repo_id: int, *, frames: bool = False) -> list[dict[str, Any]]:
     """canvas-8uh1.4: a GitHub submission's record of the diagram's links, in order: each linked diagram's version
     at submission (None when it can't be opened: in the bin, missing, or an unsaved draft), its name, and the
-    folder it was submitted to in the same repository (open or merged), if any."""
+    folder it was submitted to in the same repository (open or merged), if any. `frames` (canvas-8uh1.6): the
+    diagram's frames instead (`elementId` is the frame's id)."""
     out: list[dict[str, Any]] = []
-    for link in conn.execute(_OUTGOING, {"id": diagram_id}):
+    for link in conn.execute(_OUTGOING_FRAMES if frames else _OUTGOING, {"id": diagram_id}):
         target = link.target_diagram_id
         row = None
         if _UUID.fullmatch(target):
@@ -220,3 +237,28 @@ def project_link_targets(conn: Connection, project_id: str, diagram_id: str) -> 
         {"project": project_id, "id": diagram_id, "no": False, "limit": MAX_AI_LINK_TARGETS},
     ).all()
     return [{"id": str(r.id), "name": r.name, "diagramTypeId": r.diagram_type_id} for r in rows]
+
+
+#: canvas-8uh1.6: at most this many framed diagrams are drawn for one request.
+MAX_FRAME_TARGETS = 50
+_FRAME_TARGET = text(
+    "SELECT d.id, d.name, d.diagram_type_id, d.project_id, p.name AS project_name, d.owner_id, d.draft,"
+    " d.deleted_at, p.deleted_at AS project_deleted_at, t.dsl_family, v.dsl_content, d.current_version_id"
+    " FROM diagrams d JOIN projects p ON p.id = d.project_id JOIN diagram_types t ON t.id = d.diagram_type_id"
+    " LEFT JOIN diagram_versions v ON v.id = d.current_version_id WHERE d.id = :id"
+)
+
+
+def frame_targets(conn: Connection, diagram_ids: list[str], user_id: str | None) -> dict[str, dict[str, Any]]:
+    """canvas-8uh1.6: each framed diagram's state for `user_id` (None: as nobody in particular, so any draft is
+    unavailable), with its row when it can be shown: {status, row}."""
+    out: dict[str, dict[str, Any]] = {}
+    for target in diagram_ids[:MAX_FRAME_TARGETS]:
+        if target in out:
+            continue
+        row = conn.execute(_FRAME_TARGET, {"id": target}).first() if _UUID.fullmatch(target) else None
+        status = _status(row, user_id or "")
+        if status == "available" and (row is None or row.dsl_content is None):
+            status = "missing"
+        out[target] = {"status": status, "row": row if status == "available" else None}
+    return out

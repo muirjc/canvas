@@ -15,6 +15,7 @@ import {
   updateEmbeds,
   validate,
   type DiagramModel,
+  type FrameContent,
   type FlowchartDirection,
   type EmbedSource,
   type IconShapeLibraryManifest,
@@ -116,7 +117,7 @@ export const handlers: Record<string, (body: Body) => unknown> = {
   'check-standard': (body) => ({ issues: checkStandardDefinition(obj<StandardRules>(body, 'rules'), str(body, 'family')) }),
 
   /**
-   * { model, icons?, standardRules?, background?, diagramLinkBase? } -> { svg }. `icons` maps
+   * { model, icons?, standardRules?, background?, diagramLinkBase?, frameContents? } -> { svg }. `icons` maps
    * "<libraryId>@<libraryVersion>@<iconId>" to icon markup (the caller resolves it from its database).
    */
   'render-svg': (body) => {
@@ -125,6 +126,7 @@ export const handlers: Record<string, (body: Body) => unknown> = {
       standardRules: body.standardRules as StandardRules | undefined,
       background: typeof body.background === 'string' ? body.background : undefined,
       diagramLinkBase: typeof body.diagramLinkBase === 'string' ? body.diagramLinkBase : undefined,
+      frameContents: body.frameContents as Record<string, FrameContent> | undefined,
     });
     return { svg };
   },

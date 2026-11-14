@@ -105,7 +105,9 @@ Canvas keeps notifications for 90 days. It doesn't send email about this yet.
   [Linked diagrams](editor.md#linked-diagrams) become `click` lines in flowcharts and state diagrams,
   so a shape opens its diagram in Canvas; other kinds of diagram have no Mermaid syntax for links.
 - **SVG**: a sharp, scalable picture for documents and wikis. A shape or group that links to another
-  diagram opens that diagram in Canvas when clicked.
+  diagram opens that diagram in Canvas when clicked. [Embedded diagrams](editor.md#embedded-diagrams-frames)
+  are drawn in their frames, and a frame opens its diagram when clicked. The Mermaid file leaves frames out and
+  ends with a `%%` comment saying so.
 - **PNG**: an image. Its text is drawn in Liberation Sans, so it can look slightly different from the editor, which uses your system's font. An image can't hold links.
 
 ![The Export menu](../images/export-menu.png)

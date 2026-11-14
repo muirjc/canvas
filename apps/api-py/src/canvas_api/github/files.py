@@ -76,6 +76,8 @@ class SubmissionInput:
     validator: str | None = None
     #: canvas-8uh1.4: the diagram's links to other diagrams, in model order.
     links: tuple[SubmissionLink, ...] = ()
+    #: canvas-8uh1.6: the diagram's frames (other diagrams drawn in it); `element_id` is the frame's id.
+    frames: tuple[SubmissionLink, ...] = ()
 
 
 PR_BODY_LIMIT = 60_000
@@ -167,6 +169,22 @@ def build_manifest(i: SubmissionInput) -> dict[str, Any]:
             if i.links
             else {}
         ),
+        **(
+            {
+                "frames": [
+                    {
+                        "frameId": frame.element_id,
+                        "diagramId": frame.diagram_id,
+                        "diagramType": frame.diagram_type,
+                        "versionId": frame.version_id,
+                        "versionSequence": frame.version_sequence,
+                    }
+                    for frame in i.frames
+                ]
+            }
+            if i.frames
+            else {}
+        ),
         "canvasUrl": i.canvas_url,
     }
 
@@ -202,6 +220,15 @@ def _build_readme(i: SubmissionInput) -> str:
         lines += [escape_markdown(description), ""]
     if i.links:
         lines += ["## Linked diagrams", "", *(_link_line(i, link) for link in i.links), ""]
+    if i.frames:
+        lines += [
+            "## Embedded diagrams",
+            "",
+            "Drawn in the picture above as they were when submitted:",
+            "",
+            *(_link_line(i, frame) for frame in i.frames),
+            "",
+        ]
     lines += [
         "<details><summary>Mermaid source</summary>",
         "",

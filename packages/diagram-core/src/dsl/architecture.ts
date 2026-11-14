@@ -1,5 +1,5 @@
 import { createEmptyDiagramModel, type DiagramContainer, type DiagramModel, type DiagramNode } from '../model/diagram-model.js';
-import { splitFrontMatter, joinFrontMatter, stripTrailingComment, type CanvasFrontMatter, readLegend, readPinned, applyLinks, withLegend, withPinned, withLinks, NO_ENTRIES } from './front-matter.js';
+import { splitFrontMatter, joinFrontMatter, stripTrailingComment, type CanvasFrontMatter, readLegend, readPinned, applyLinks, applyFrames, withLegend, withPinned, withLinks, withFrames, NO_ENTRIES } from './front-matter.js';
 import type { ParseError, ParseResult } from './types.js';
 import { computeArchitectureLayout } from '../model/architecture-layout.js';
 import { MERMAID_ARCHITECTURE_ICON_IDS, mermaidArchitectureIconsManifest } from '../libraries/mermaid-architecture-icons.js';
@@ -254,6 +254,7 @@ export function parseArchitecture(dsl: string): ParseResult {
   const pinned = readPinned(frontMatter, model);
   if (pinned) model.pinned = pinned;
   applyLinks(frontMatter, model);
+  applyFrames(frontMatter, model);
   return { model };
 }
 
@@ -319,7 +320,7 @@ export function serializeArchitecture(model: DiagramModel): string {
     lines.push(`align ${alignment.axis} ${alignment.ids.join(' ')}`);
   }
 
-  return joinFrontMatter(withLinks(withPinned(withLegend(frontMatter, model), model), model), `${lines.join('\n')}\n`);
+  return joinFrontMatter(withFrames(withLinks(withPinned(withLegend(frontMatter, model), model), model), model), `${lines.join('\n')}\n`);
 }
 
 /** The `(icon)` token for a service or group: iconify refs as "prefix:iconId", others the bare id. */

@@ -12,7 +12,14 @@ import math
 import re
 from typing import Any
 
-from canvas_api.diagram_core.front_matter import apply_links, join_front_matter, split_front_matter, with_links
+from canvas_api.diagram_core.front_matter import (
+    apply_frames,
+    apply_links,
+    join_front_matter,
+    split_front_matter,
+    with_frames,
+    with_links,
+)
 from canvas_api.diagram_core.jsvalues import js_template, js_truthy
 from canvas_api.diagram_core.model import create_empty_diagram_model
 from canvas_api.github.jstext import JS_WHITESPACE, js_number, js_trim
@@ -625,6 +632,7 @@ def parse_wardley(dsl: str) -> dict[str, Any]:
     model["containers"] = containers
     lay_out_pipelines(model, frame)
     apply_links(front_matter, model)
+    apply_frames(front_matter, model)
     return {"model": model}
 
 
@@ -776,12 +784,13 @@ def serialize_wardley(model: Model) -> str:
     link keyed by the id the element gets when the text is read back (a map's ids come from what is written)."""
     body = _write_wardley(model)
     if not any(e.get("diagramRef") for e in [*model["nodes"], *model["containers"]]):
-        return body
+        return join_front_matter(with_frames({}, model), body)
     reread = parse_wardley(body)
     if "model" not in reread:
-        return body
+        return join_front_matter(with_frames({}, model), body)
     ids = _wardley_saved_ids(model, reread["model"])
-    return join_front_matter(with_links({}, model, lambda element_id, kind: ids.get(f"{kind}:{element_id}")), body)
+    linked = with_links({}, model, lambda element_id, kind: ids.get(f"{kind}:{element_id}"))
+    return join_front_matter(with_frames(linked, model), body)
 
 
 _OTHER_ROLES = frozenset({"note", "annotation", "accelerator", "deaccelerator"})

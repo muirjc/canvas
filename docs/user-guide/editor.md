@@ -181,6 +181,29 @@ A standard can say that a kind of element **should link to** a diagram of a cert
 Context's Software System, for example, should open its C4 Container diagram. An element that links
 to nothing, or to a diagram of another type, shows as a Warning on the Issues tab.
 
+## Embedded diagrams (frames)
+
+A **frame** shows another diagram inside this one: its latest saved version, scaled to fit, under a header with
+its title. Use it to put a context diagram beside the detail, or to show a component's internals next to the
+system around it.
+
+- **Add one:** choose **Embed diagram…** in the left rail and find the diagram (the same search as for links), or
+  **Create and embed** a new one in this project. The frame goes to the right of the diagram. Save to keep it.
+- **Move and resize:** drag the frame to move it; select it and drag the square at its bottom-right corner to
+  resize it. Frames sit on top of the diagram, and no connector ends on one.
+- **Open:** the frame's **Open** button goes to that diagram, as a link does. You can't edit a diagram inside its
+  frame.
+- **Remove:** select the frame and press Delete, choose **Remove frame** in the left rail, or use **Remove frame**
+  on the **Links** tab, which lists every frame under *Embedded diagrams*.
+- **Staying up to date:** a frame shows the other diagram as last saved, and picks up a newer save within a
+  minute (and whenever you save).
+- **What a frame can't show:** someone else's unsaved draft is *Not available*, a diagram in the bin is *Deleted
+  (in the bin)* (restoring it brings it back), and a purged one *Diagram no longer exists*. A diagram that itself
+  has frames shows them as empty boxes, so frames never go more than one level deep.
+
+SVG and PNG exports draw frames as the editor does. Mermaid has no way to show another diagram, so the Mermaid
+export leaves frames out and says so in a `%%` comment.
+
 ## Zoom
 
 The controls at the bottom-left of the canvas zoom the drawing from 25% to 400%: **−** and **+**

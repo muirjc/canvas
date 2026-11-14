@@ -480,3 +480,24 @@ def test_a_linked_shape_opens_its_diagram_in_canvas_from_the_svg_and_the_mermaid
     assert re.search(f'<a href="https?://[^"]+{address}"><g data-node-id="A">', svg_of(api, owner, diagram["id"]))
     mermaid = export(api, owner, diagram["id"], "mermaid").text
     assert re.search(f'click A href "https?://[^"]+{address}"', mermaid)
+
+
+def test_a_frame_draws_its_diagram_in_the_svg_and_is_noted_in_the_mermaid(api: Api, owner: User, project: str) -> None:
+    """canvas-8uh1.6: an export draws each frame's diagram (latest saved version), and a framed diagram that can't
+    be shown as a placeholder; the Mermaid export leaves frames out and says so."""
+    target = api.new_diagram(project, owner, "Payments containers", dsl="flowchart TD\n  X[Inner shape]\n")["id"]
+    gone = "00000000-0000-4000-8000-000000000000"
+    dsl = (
+        "---\ncanvas:\n  frames:\n"
+        f"    - id: f1\n      diagramId: {target}\n      x: 300\n      y: 20\n      width: 360\n      height: 240\n"
+        f"    - id: f2\n      diagramId: {gone}\n      x: 700\n      y: 20\n      width: 200\n      height: 120\n"
+        "---\nflowchart TD\n  A[Start]\n"
+    )
+    diagram = api.new_diagram(project, owner, "Source", dsl=dsl)
+    svg = svg_of(api, owner, diagram["id"])
+    assert svg.count('class="diagram-frame"') == 2
+    assert "Payments containers" in svg and "Inner shape" in svg
+    assert "Diagram no longer exists" in svg
+    assert re.search(r'^<svg [^>]*width="920"', svg)  # grown to fit the second frame (700 + 200 + 20)
+    mermaid = export(api, owner, diagram["id"], "mermaid").text
+    assert mermaid.endswith("%% This diagram embeds other diagrams (Canvas frames), which Mermaid can't show.\n")

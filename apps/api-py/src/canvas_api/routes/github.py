@@ -328,7 +328,8 @@ def submit(id: str, request: Request, response: Response, user: CurrentUser, db:
         settings = _settings(request)
 
         def draw(conn: Connection, family: str, dsl: str, type_id: str, background: str, link_base: str) -> str:
-            return render_svg(conn, core, family, dsl, type_id, background, link_base)
+            # canvas-8uh1.6: frames drawn as anyone may see them (an unsaved draft is "Not available").
+            return render_svg(conn, core, family, dsl, type_id, background, link_base, with_frames=True)
 
         result = submit_diagram(
             client,

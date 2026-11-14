@@ -19,6 +19,7 @@ from contextlib import contextmanager
 from contextvars import ContextVar
 from typing import Any
 
+from canvas_api.diagram_core.front_matter import MAX_FRAMES
 from canvas_api.diagram_core.jsvalues import js_template, js_truthy
 from canvas_api.diagram_core.model import is_allowed_link_href, is_diagram_link_id
 
@@ -512,3 +513,78 @@ def set_diagram_link(model: Obj, element_id: str, diagram_id: str | None) -> Obj
         "nodes": [relink(n) for n in model["nodes"]],
         "containers": [relink(c) for c in model["containers"]],
     }
+
+
+# ---- canvas-8uh1.6: frames (diagram-ops.ts addFrame / updateFrame / removeFrame) ----
+
+DEFAULT_FRAME_SIZE = {"width": 360, "height": 240}
+MIN_FRAME_SIZE = {"width": 160, "height": 100}
+
+
+def _frame_size(size: Obj) -> Obj:
+    return {
+        "width": max(MIN_FRAME_SIZE["width"], size["width"]),
+        "height": max(MIN_FRAME_SIZE["height"], size["height"]),
+    }
+
+
+def next_frame_id(model: Obj) -> str:
+    """The id the next frame gets: f1, f2, ... the first not taken."""
+    taken = {f.get("id") for f in model.get("frames") or []}
+    n = 1
+    while f"f{n}" in taken:
+        n += 1
+    return f"f{n}"
+
+
+def add_frame(model: Obj, input: Obj) -> Obj:
+    """A frame showing another diagram, at `position` (default 40, 40) and `size` (default DEFAULT_FRAME_SIZE, never
+    below MIN_FRAME_SIZE)."""
+    diagram_id = input.get("diagramId")
+    if not is_diagram_link_id(diagram_id):
+        raise ValueError(f'addFrame: "{js_template(diagram_id)}" is not a diagram id')
+    frames = model.get("frames") or []
+    if len(frames) >= MAX_FRAMES:
+        raise ValueError(f"addFrame: a diagram has at most {MAX_FRAMES} frames")
+    position = input.get("position") or {}
+    frame = {
+        "id": next_frame_id(model),
+        "diagramId": diagram_id,
+        "position": {"x": position.get("x", 40), "y": position.get("y", 40)},
+        "size": _frame_size(input.get("size") or DEFAULT_FRAME_SIZE),
+    }
+    return {**model, "frames": [*frames, frame]}
+
+
+def update_frame(model: Obj, frame_id: str, patch: Obj) -> Obj:
+    """Moves, resizes (never below MIN_FRAME_SIZE) or repoints a frame."""
+    frames = model.get("frames") or []
+    if not _has(frames, frame_id):
+        raise ValueError(f'updateFrame: there is no frame "{frame_id}"')
+    if "diagramId" in patch and not is_diagram_link_id(patch["diagramId"]):
+        raise ValueError(f'updateFrame: "{js_template(patch["diagramId"])}" is not a diagram id')
+
+    def changed(frame: Obj) -> Obj:
+        if frame.get("id") != frame_id:
+            return frame
+        out = {**frame}
+        if "diagramId" in patch:
+            out["diagramId"] = patch["diagramId"]
+        if patch.get("position"):
+            out["position"] = {"x": patch["position"]["x"], "y": patch["position"]["y"]}
+        if patch.get("size"):
+            out["size"] = _frame_size(patch["size"])
+        return out
+
+    return {**model, "frames": [changed(f) for f in frames]}
+
+
+def remove_frame(model: Obj, frame_id: str) -> Obj:
+    """Removes a frame (an unknown id changes nothing); the last one removes `frames` altogether."""
+    before = model.get("frames") or []
+    frames = [f for f in before if f.get("id") != frame_id]
+    if len(frames) == len(before):
+        return model
+    if frames:
+        return {**model, "frames": frames}
+    return _without(model, "frames")

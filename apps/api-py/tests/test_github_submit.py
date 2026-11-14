@@ -926,3 +926,39 @@ def test_a_diagram_without_links_has_no_links_entry(github: GH) -> None:
     assert files is not None
     assert "links" not in json.loads(files["architecture/order-flow/canvas.json"])
     assert "Linked diagrams" not in files["architecture/order-flow/README.md"]
+
+
+def test_a_submission_draws_and_records_frames(github: GH) -> None:
+    """canvas-8uh1.6: the committed SVG draws each frame's diagram; canvas.json records each frame's diagram and
+    version, and the README lists them."""
+    github.link_project()
+    target = github.create_diagram("Ledger")
+    framed = (
+        f"---\ncanvas:\n  frames:\n    - id: f1\n      diagramId: {target}\n      x: 400\n      y: 40\n"
+        "      width: 360\n      height: 240\n---\n"
+        "flowchart TD\n  A[Receive order]:::step --> B[Ship order]:::step\n"
+    )
+    source = github.create_diagram("Order Flow", dsl=framed)
+    res = github.submit(source)
+    assert res.status_code == 201, res.text
+    files = github.fake.files(github.repo, res.json()["submission"]["branch"])
+    assert files is not None
+    folder = "architecture/order-flow"
+    version = github.rows("SELECT current_version_id FROM diagrams WHERE id = :id", id=target)[0].current_version_id
+    manifest = json.loads(files[f"{folder}/canvas.json"])
+    assert manifest["frames"] == [
+        {
+            "frameId": "f1",
+            "diagramId": target,
+            "diagramType": "flowchart",
+            "versionId": str(version),
+            "versionSequence": 1,
+        }
+    ]
+    assert "links" not in manifest
+    readme = files[f"{folder}/README.md"]
+    assert "## Embedded diagrams" in readme
+    assert f"- Ledger: [Ledger](http://canvas.test/?diagramId={target}) (version 1)" in readme
+    svg = files[f"{folder}/order-flow.svg"]
+    assert 'class="diagram-frame"' in svg and "Ledger" in svg
+    assert files[f"{folder}/order-flow.mmd"].endswith("which Mermaid can't show.\n")

@@ -146,8 +146,10 @@ class DiagramCore:
         standard_rules: JsonObject | None = None,
         background: str | None = None,
         diagram_link_base: str | None = None,
+        frame_contents: JsonObject | None = None,
     ) -> str:
-        """The diagram as SVG. `icons` maps "<libraryId>@<libraryVersion>@<iconId>" to the artwork; `standard_rules`
+        """The diagram as SVG. `frame_contents` (canvas-8uh1.6): what each frame shows, by the framed diagram's id
+        ({name?, status, svg?}). `icons` maps "<libraryId>@<libraryVersion>@<iconId>" to the artwork; `standard_rules`
         feeds a visible legend; `background` a solid hex colour behind it all; `diagram_link_base` (canvas-8uh1.4)
         the start of a Canvas address, so linked elements open the diagram they link to."""
         return _native(
@@ -158,6 +160,7 @@ class DiagramCore:
                 standard_rules=standard_rules,
                 background=background,
                 diagram_link_base=diagram_link_base,
+                frame_contents=frame_contents,
             ),
         )
 

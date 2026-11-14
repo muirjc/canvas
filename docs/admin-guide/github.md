@@ -132,7 +132,9 @@ README: a diagram submitted to the same repository gets a relative link to its f
 Canvas address. `canvas.json` records each link's element, diagram id and the version that diagram
 had at submission (`versionId` and `versionSequence`, null when it couldn't be opened: in the bin,
 deleted, or someone's unsaved draft). The SVG's linked shapes open their diagrams in Canvas, and a
-flowchart's or state diagram's `.mmd` has a `click` line for each. Resubmitting records the versions
+flowchart's or state diagram's `.mmd` has a `click` line for each. Frames (diagrams embedded in this one) are drawn in
+the SVG as they were when submitted; the README lists them under "Embedded diagrams" and `canvas.json` records
+each frame's id, diagram and version under `frames`. The `.mmd` leaves frames out, with a `%%` comment. Resubmitting records the versions
 again, so a linked diagram saved since gives the pull request a new commit.
 
 Commits are made by the App, with a `Co-authored-by:` line naming the Canvas user who submitted.

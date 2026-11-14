@@ -52,6 +52,9 @@ import {
   moveWardleyElement,
   computeWardleyLayout,
   setDiagramLink,
+  removeFrame,
+  updateFrame,
+  type FrameContent,
   removeWardleyElement,
   wardleyCoordinatesAt,
   wardleyFrame,
@@ -120,6 +123,7 @@ import { ConfirmDialog } from './ConfirmDialog';
 import { LegendBox } from './LegendBox';
 import { LegendEditor } from './LegendEditor';
 import { WardleyLayer } from './WardleyLayer';
+import { FramesLayer } from './FramesLayer';
 import { WardleyToolbar } from './WardleyToolbar';
 import { linkStatusText, type LinkTarget } from '../app/diagram-links';
 import { api, type CommentAnchor } from '../app/api';
@@ -362,6 +366,12 @@ export interface CanvasProps {
   onOpenDiagramLink?: (diagramId: string) => void;
   /** canvas-8uh1.3: the Link to diagram tool (editors): choose what the element opens. */
   onRequestDiagramLink?: (elementId: string) => void;
+  /** canvas-8uh1.6: what each framed diagram shows, by diagram id (frames draw "Loading…" until it's here). */
+  frameContents?: Map<string, FrameContent>;
+  /** canvas-8uh1.6: a frame's Open. */
+  onOpenFrame?: (diagramId: string) => void;
+  /** canvas-8uh1.6: the Embed diagram tool (editors): choose a diagram to draw in a new frame. */
+  onRequestFrame?: () => void;
 }
 
 const SEVERITY_DOT_COLOR: Record<Severity, string> = { error: '#c81e1e', warning: '#d97706', info: '#64748b' };
@@ -1298,7 +1308,7 @@ function descendantContainerIds(model: DiagramModel, containerId: string): Set<s
  * labels via direct manipulation. Renders the same DiagramModel that packages/diagram-core
  * parses/serializes, so every edit here is reflected in the Mermaid DSL by useDslSync.
  */
-export function Canvas({ model: modelProp, onChange: onChangeProp, dslFamily, toolbarContainer, standardRules, violations, focusRequest, onSelectionChange, commentPins, onCommentPinClick, onSelectedIdsChange, othersSelected, readOnly = false, diagramLinkTargets, onOpenDiagramLink, onRequestDiagramLink }: CanvasProps) {
+export function Canvas({ model: modelProp, onChange: onChangeProp, dslFamily, toolbarContainer, standardRules, violations, focusRequest, onSelectionChange, commentPins, onCommentPinClick, onSelectedIdsChange, othersSelected, readOnly = false, diagramLinkTargets, onOpenDiagramLink, onRequestDiagramLink, frameContents, onOpenFrame, onRequestFrame }: CanvasProps) {
   const onChange = readOnly ? () => undefined : onChangeProp;
   // canvas-hzf: a C4 element's type line ("[Software System]") is derived from its role; refresh it
   // here so a kind picked in the editor shows at once, not only after the next reload/parse.
@@ -1403,6 +1413,8 @@ export function Canvas({ model: modelProp, onChange: onChangeProp, dslFamily, to
   // family with fields (erd/uml) and kind (c4).
   const [editingLinkNodeId, setEditingLinkNodeId] = useState<string | null>(null);
   const [selectedContainerId, setSelectedContainerId] = useState<string | null>(null);
+  // canvas-8uh1.6: a selected frame (frames aren't shapes, so they're never in a multi-selection).
+  const [selectedFrameId, setSelectedFrameId] = useState<string | null>(null);
   // canvas-u7e: edges had no selection state at all — the only ways to remove a connector were
   // deleting one of its endpoint nodes (which cascades but also destroys the node) or hand-editing
   // the DSL. Single-select only (no shift-multi-select precedent for edges), mirroring
@@ -1430,6 +1442,10 @@ export function Canvas({ model: modelProp, onChange: onChangeProp, dslFamily, to
   // canvas-vvi: everything selected, for the others in a live session (a key, so the effect runs on real changes).
   const onSelectedIdsChangeRef = useRef(onSelectedIdsChange);
   onSelectedIdsChangeRef.current = onSelectedIdsChange;
+  const selectedKeyForFrames = [...selectedIds, selectedEdgeId ?? '', selectedContainerId ?? ''].join('|');
+  useEffect(() => {
+    if (selectedKeyForFrames.replace(/\|/g, '') !== '') setSelectedFrameId(null);
+  }, [selectedKeyForFrames]);
   const selectedKey = [...selectedIds, ...(selectedEdgeId ? [selectedEdgeId] : []), ...(selectedContainerId ? [selectedContainerId] : [])]
     .sort()
     .join('\u0000');
@@ -2763,6 +2779,12 @@ export function Canvas({ model: modelProp, onChange: onChangeProp, dslFamily, to
     // Don't intercept Delete/Backspace while a label is being typed into.
     if (editingNodeId || editingEdgeId || readOnly) return;
     if (typing) return;
+    if ((event.key === 'Delete' || event.key === 'Backspace') && selectedFrameId) {
+      event.preventDefault();
+      onChange(removeFrame(model, selectedFrameId));
+      setSelectedFrameId(null);
+      return;
+    }
     if ((event.key === 'Delete' || event.key === 'Backspace') && (selectedIds.size > 0 || selectedEdgeId)) {
       event.preventDefault();
       requestDeleteSelected();
@@ -3190,6 +3212,27 @@ export function Canvas({ model: modelProp, onChange: onChangeProp, dslFamily, to
           </button>
           {/* canvas-8uh1.3: drill-down links. One selected shape or group (a sequence diagram's participants only:
               its blocks' ids are made up when the text is read, so a link on one wouldn't last). */}
+          {/* canvas-8uh1.6: draw another diagram in a frame on this one. */}
+          {onRequestFrame && (
+            <button type="button" className="btn btn--secondary" data-testid="embed-diagram" title="Draw another diagram in a frame on this one" onClick={onRequestFrame}>
+              <Icon name="plus" />
+              Embed diagram…
+            </button>
+          )}
+          {onRequestFrame && selectedFrameId && (
+            <button
+              type="button"
+              className="btn btn--secondary"
+              data-testid="remove-frame"
+              onClick={() => {
+                onChange(removeFrame(model, selectedFrameId));
+                setSelectedFrameId(null);
+              }}
+            >
+              <Icon name="trash" />
+              Remove frame
+            </button>
+          )}
           {onRequestDiagramLink && linkableSelection && (
             <>
               <button
@@ -3484,7 +3527,12 @@ export function Canvas({ model: modelProp, onChange: onChangeProp, dslFamily, to
   // dot-grid background already implies is drawable) and grows past it for content that needs more.
   // canvas-bx3: in diagram units the drawable area is the visible area divided by the zoom (so it
   // still fills the view zoomed out); the svg's on-screen size is that times the zoom.
-  const contentBounds = computeBounds(model, legendEntries);
+  const drawnBounds = computeBounds(model, legendEntries);
+  // canvas-8uh1.6: frames sit over the diagram; the drawing grows to fit them as an export does.
+  const contentBounds = (model.frames ?? []).reduce(
+    (bounds, f) => ({ width: Math.max(bounds.width, f.position.x + f.size.width + 20), height: Math.max(bounds.height, f.position.y + f.size.height + 20) }),
+    { width: drawnBounds.width, height: drawnBounds.height },
+  );
   const canvasWidth = Math.max(containerSize.width / zoom, contentBounds.width);
   const canvasHeight = Math.max(containerSize.height / zoom, contentBounds.height);
   const fitToDiagram = () => {
@@ -3649,6 +3697,7 @@ export function Canvas({ model: modelProp, onChange: onChangeProp, dslFamily, to
             setSelectedContainerId(null);
             setSelectedEdgeId(null);
             setSelectedMessageIds(new Set());
+            setSelectedFrameId(null);
           }
         }}
       >
@@ -4629,6 +4678,28 @@ export function Canvas({ model: modelProp, onChange: onChangeProp, dslFamily, to
             name. Sequence diagrams are laid out from their text, not from stored positions, so they're left out. */}
         {dslFamily !== 'sequence' && dslFamily !== 'wardley' && (
           <OthersSelections model={model} selections={othersSelected ?? []} />
+        )}
+
+        {/* canvas-8uh1.6: frames, on top of the diagram. */}
+        {(model.frames ?? []).length > 0 && (
+          <FramesLayer
+            frames={model.frames ?? []}
+            contents={frameContents ?? new Map()}
+            selectedFrameId={selectedFrameId}
+            readOnly={readOnly}
+            toCanvasPoint={toClientPoint}
+            onSelect={(id) => {
+              setSelectedIds(new Set());
+              setSelectedContainerId(null);
+              setSelectedEdgeId(null);
+              setSelectedMessageIds(new Set());
+              setSelectedFrameId(id);
+              svgRef.current?.closest<HTMLElement>('[tabindex]')?.focus({ preventScroll: true });
+            }}
+            onMove={(id, position) => onChange(updateFrame(model, id, { position: { x: Math.max(0, position.x), y: Math.max(0, position.y) } }))}
+            onResize={(id, size) => onChange(updateFrame(model, id, { size }))}
+            onOpen={(diagramId) => onOpenFrame?.(diagramId)}
+          />
         )}
 
         {/* canvas-8uh1.3: a badge on each element that opens another diagram (read-only viewers too). */}

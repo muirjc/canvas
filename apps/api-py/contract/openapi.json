@@ -810,6 +810,75 @@
           }
         }
       },
+      "DiagramFrameContent": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "diagramId",
+          "status",
+          "diagram",
+          "svg"
+        ],
+        "properties": {
+          "diagramId": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "available",
+              "unavailable",
+              "deleted",
+              "missing"
+            ]
+          },
+          "diagram": {
+            "anyOf": [
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "id",
+                  "name",
+                  "diagramTypeId",
+                  "projectId",
+                  "projectName"
+                ],
+                "properties": {
+                  "id": {
+                    "type": "string"
+                  },
+                  "name": {
+                    "type": "string"
+                  },
+                  "diagramTypeId": {
+                    "type": "string"
+                  },
+                  "projectId": {
+                    "type": "string"
+                  },
+                  "projectName": {
+                    "type": "string"
+                  }
+                }
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "svg": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        }
+      },
       "DiagramSummary": {
         "additionalProperties": false,
         "properties": {
@@ -8831,6 +8900,71 @@
         ],
         "tags": [
           "Diagrams"
+        ]
+      }
+    },
+    "/diagrams/{id}/frame-contents": {
+      "get": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "ids",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": ""
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "frames"
+                  ],
+                  "properties": {
+                    "frames": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/DiagramFrameContent"
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "description": "Default Response"
+          },
+          "4XX": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        },
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ],
+        "tags": [
+          "Export"
         ]
       }
     },

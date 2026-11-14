@@ -12,7 +12,7 @@ import { parseState, serializeState } from './state.js';
 import { parseWardley, serializeWardley } from './wardley.js';
 import { isParseSuccess, type ParseResult } from './types.js';
 import { parse as parseYaml, stringify as stringifyYaml } from 'yaml';
-import { FRONT_MATTER_PATTERN } from './front-matter.js';
+import { applyFrames, FRONT_MATTER_PATTERN, splitFrontMatter } from './front-matter.js';
 
 /**
  * canvas-jki: a flowchart's colours (hand-picked or a standard kind's swatch) round-trip through
@@ -63,7 +63,22 @@ export function toPortableMermaid(dsl: string, options: PortableMermaidOptions =
   const family = detectDslFamily(dsl);
   const rewritten = withMermaidForms(dsl, family, options.diagramLinkBase);
   const portable = withStyleLines(rewritten === dsl ? dsl : withOriginalKeys(dsl, rewritten), family);
-  return options.stripFrontMatter ? removeCanvasFrontMatter(portable) : portable;
+  const out = options.stripFrontMatter ? removeCanvasFrontMatter(portable) : portable;
+  return withFramesNote(dsl, out);
+}
+
+/** canvas-8uh1.6: frames (other diagrams drawn over this one) aren't Mermaid; the export says they were left out. */
+export const FRAMES_NOTE = '%% This diagram embeds other diagrams (Canvas frames), which Mermaid can\'t show.';
+
+function withFramesNote(original: string, text: string): string {
+  const read: Pick<DiagramModel, 'frames'> = {};
+  try {
+    applyFrames(splitFrontMatter(original).frontMatter, read);
+  } catch {
+    return text;
+  }
+  if (!read.frames) return text;
+  return `${text.endsWith('\n') ? text : `${text}\n`}${FRAMES_NOTE}\n`;
 }
 
 /**

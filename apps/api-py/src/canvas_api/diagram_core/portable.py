@@ -36,7 +36,25 @@ def to_portable_mermaid(dsl: str, strip_front_matter: bool = False, diagram_link
         return None
     rewritten = _with_mermaid_forms(dsl, family, diagram_link_base)
     portable = _with_style_lines(dsl if rewritten == dsl else _with_original_keys(dsl, rewritten), family)
-    return _remove_canvas_front_matter(portable) if strip_front_matter else portable
+    out = _remove_canvas_front_matter(portable) if strip_front_matter else portable
+    return _with_frames_note(dsl, out)
+
+
+#: canvas-8uh1.6: frames aren't Mermaid; the export says they were left out.
+FRAMES_NOTE = "%% This diagram embeds other diagrams (Canvas frames), which Mermaid can't show."
+
+
+def _with_frames_note(original: str, text: str) -> str:
+    from canvas_api.diagram_core.front_matter import apply_frames, split_front_matter
+
+    read: dict[str, Any] = {}
+    try:
+        apply_frames(split_front_matter(original)[0], read)
+    except Exception:
+        return text
+    if "frames" not in read:
+        return text
+    return f"{text if text.endswith(chr(10)) else text + chr(10)}{FRAMES_NOTE}\n"
 
 
 def _with_diagram_clicks(model: dict[str, Any], base: str | None) -> dict[str, Any]:

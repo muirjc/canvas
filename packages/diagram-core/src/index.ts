@@ -34,6 +34,7 @@ export * from './standards/authoring.js';
 export * from './standards/reference/value-chain.js';
 export * from './standards/reference/value-stream.js';
 export * from './render/svg-renderer.js';
+export * from './render/frames-render.js';
 export * from './render/legend.js';
 export * from './render/sequence-layout.js';
 export * from './render/wardley-render.js';

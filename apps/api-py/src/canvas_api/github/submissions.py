@@ -447,15 +447,25 @@ def _find_unrecorded_pull(
 
 
 def _submission_links(
-    conn: Connection, core: DiagramCore, diagram: dict[str, Any], repo_id: int, link_base: str
+    conn: Connection,
+    core: DiagramCore,
+    diagram: dict[str, Any],
+    repo_id: int,
+    link_base: str,
+    *,
+    frames: bool = False,
 ) -> tuple[SubmissionLink, ...]:
-    """canvas-8uh1.4: the diagram's links, each with the linked diagram's version now and the element's label."""
-    found = submission_links(conn, diagram["id"], repo_id)
+    """canvas-8uh1.4: the diagram's links, each with the linked diagram's version now and the element's label.
+    `frames` (canvas-8uh1.6): its frames instead, each labelled with the framed diagram's name."""
+    found = submission_links(conn, diagram["id"], repo_id, frames=frames)
     if not found:
         return ()
-    parsed = core.parse(diagram["dslFamily"], diagram["dslContent"])
-    model = parsed.get("model") or {}
-    labels = {e["id"]: e.get("label") or e["id"] for e in [*model.get("nodes", []), *model.get("containers", [])]}
+    if frames:
+        labels: dict[str, Any] = {f["elementId"]: f["name"] or f"Frame {f['elementId']}" for f in found}
+    else:
+        parsed = core.parse(diagram["dslFamily"], diagram["dslContent"])
+        model = parsed.get("model") or {}
+        labels = {e["id"]: e.get("label") or e["id"] for e in [*model.get("nodes", []), *model.get("containers", [])]}
     return tuple(
         SubmissionLink(
             element_id=link["elementId"],
@@ -588,6 +598,7 @@ def submit_diagram(
                 conn, diagram["dslFamily"], diagram["dslContent"], diagram["diagramTypeId"], "#ffffff", link_base
             )
             links = _submission_links(conn, core, diagram, int(submission.repo_id), link_base)
+            frames = _submission_links(conn, core, diagram, int(submission.repo_id), link_base, frames=True)
         sub_path = str(submission.path)
         submission_input = SubmissionInput(
             diagram_id=diagram_id,
@@ -610,6 +621,7 @@ def submit_diagram(
             canvas_url=f"{canvas_public_url}/?diagramId={encode_uri_component(diagram_id)}",
             validator=validator_bundle(validator_dir),
             links=links,
+            frames=frames,
         )
         files = build_submission_files(submission_input)
         target = RepoRef(submission.repo_owner, submission.repo_name)

@@ -35,11 +35,13 @@ import {
   readLegend,
   readPinned,
   applyLinks,
+  applyFrames,
   splitFrontMatter,
   stripTrailingComment,
   withLegend,
   withPinned,
   withLinks,
+  withFrames,
   type CanvasFrontMatter,
 } from './front-matter.js';
 import type { ParseError, ParseResult } from './types.js';
@@ -517,6 +519,7 @@ export function parseState(dsl: string): ParseResult {
   const pinned = readPinned(frontMatter, model);
   if (pinned) model.pinned = pinned;
   applyLinks(frontMatter, model);
+  applyFrames(frontMatter, model);
   return { model };
 }
 
@@ -698,5 +701,5 @@ function writeState(model: DiagramModel): string {
     containers: model.containers.map((c) => ({ ...c, id: savedId(c.id) })),
     ...(model.pinned ? { pinned: model.pinned.map(savedId) } : {}),
   };
-  return joinFrontMatter(withLinks(withPinned(withLegend(frontMatter, model), saved), model, (id, kind) => (kind === 'container' ? savedId(id) : id)), `${lines.join('\n')}\n`);
+  return joinFrontMatter(withFrames(withLinks(withPinned(withLegend(frontMatter, model), saved), model, (id, kind) => (kind === 'container' ? savedId(id) : id)), model), `${lines.join('\n')}\n`);
 }

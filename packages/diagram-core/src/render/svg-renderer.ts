@@ -1,5 +1,6 @@
 import { isAllowedLinkHref, type ClassMember, type DiagramContainer, type DiagramEdge, type DiagramModel, type DiagramNode, type EntityAttribute, type Size } from '../model/diagram-model.js';
 import { renderWardleySvg } from './wardley-render.js';
+import { withFrameOverlay, type FrameContent } from './frames-render.js';
 import { wardleyFrame } from '../model/wardley-geometry.js';
 import { computeSequenceLayout, SELF_MESSAGE_LOOP_WIDTH, type SequenceLayout } from './sequence-layout.js';
 import { computeLegendEntries, legendLayout, LEGEND_METRICS, type LegendEntry, type LegendLayout } from './legend.js';
@@ -1773,6 +1774,11 @@ export interface RenderOptions {
    * that already has its own click link keeps that one. Without it, links aren't drawn.
    */
   diagramLinkBase?: string;
+  /**
+   * canvas-8uh1.6: what each frame shows, by the framed diagram's id (its title, state and drawing). A frame whose
+   * diagram isn't here shows a placeholder, which is how frames inside a framed diagram are drawn (one level deep).
+   */
+  frameContents?: Record<string, FrameContent>;
 }
 
 /** canvas-8uh1.4: the address a linked element opens in an export, if it links and the export has a base. */
@@ -1840,7 +1846,8 @@ export function renderLegend(layout: LegendLayout, diagramTypeId?: string): stri
 }
 
 export function renderToSvg(model: DiagramModel, resolveIcon?: IconResolver, options: RenderOptions = {}): string {
-  return withBackground(renderDiagramSvg(model, resolveIcon, options), options.background);
+  const drawn = withFrameOverlay(renderDiagramSvg(model, resolveIcon, options), model, options.frameContents, options.diagramLinkBase);
+  return withBackground(drawn, options.background);
 }
 
 function renderDiagramSvg(model: DiagramModel, resolveIcon: IconResolver | undefined, options: RenderOptions): string {

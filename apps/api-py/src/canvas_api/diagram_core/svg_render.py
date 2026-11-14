@@ -16,6 +16,7 @@ from urllib.parse import quote
 
 from canvas_api.diagram_core.colors import resolve_node_fill_stroke
 from canvas_api.diagram_core.dagre.graph import js_string_gt
+from canvas_api.diagram_core.frames_render import with_frame_overlay
 from canvas_api.diagram_core.jsvalues import js_template, js_truthy
 from canvas_api.diagram_core.legend import LEGEND_METRICS, compute_legend_entries, legend_layout
 from canvas_api.diagram_core.model import is_allowed_link_href
@@ -1655,9 +1656,14 @@ def render_to_svg(
     standard_rules: Any = None,
     background: Any = None,
     diagram_link_base: str | None = None,
+    frame_contents: dict[str, Any] | None = None,
 ) -> str:
-    """renderToSvg(model, resolveIcon, { standardRules, background, diagramLinkBase }) as the bridge's render-svg op
-    calls it."""
-    return _with_background(
-        _render_diagram_svg(model, icon_resolver(icons), standard_rules, diagram_link_base), background
+    """renderToSvg(model, resolveIcon, { standardRules, background, diagramLinkBase, frameContents }) as the bridge's
+    render-svg op calls it. `frame_contents` (canvas-8uh1.6): what each frame shows, by the framed diagram's id."""
+    drawn = with_frame_overlay(
+        _render_diagram_svg(model, icon_resolver(icons), standard_rules, diagram_link_base),
+        model,
+        frame_contents,
+        diagram_link_base,
     )
+    return _with_background(drawn, background)

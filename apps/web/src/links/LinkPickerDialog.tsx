@@ -16,9 +16,12 @@ export interface LinkPickerDialogProps {
   currentTargetId?: string;
   onPick: (diagramId: string, target: LinkTarget) => void;
   onClose: () => void;
+  /** canvas-8uh1.6: 'frame' = choose a diagram to draw in a new frame (the same search; the wording changes). */
+  mode?: 'link' | 'frame';
 }
 
-export function LinkPickerDialog({ diagramId, diagramTypeId, projectId, elementLabel, currentTargetId, onPick, onClose }: LinkPickerDialogProps) {
+export function LinkPickerDialog({ diagramId, diagramTypeId, projectId, elementLabel, currentTargetId, onPick, onClose, mode = 'link' }: LinkPickerDialogProps) {
+  const framing = mode === 'frame';
   const suggested = SUGGESTED_LINK_TYPES[diagramTypeId] ?? [];
   const [projects, setProjects] = useState<ProjectDto[] | null>(null);
   const [types, setTypes] = useState<DiagramTypeDto[]>([]);
@@ -84,7 +87,7 @@ export function LinkPickerDialog({ diagramId, diagramTypeId, projectId, elementL
 
   return (
     <Modal
-      label={`Link ${elementLabel} to a diagram`}
+      label={framing ? 'Embed a diagram' : `Link ${elementLabel} to a diagram`}
       testId="link-picker"
       wide
       onClose={onClose}
@@ -95,7 +98,9 @@ export function LinkPickerDialog({ diagramId, diagramTypeId, projectId, elementL
       }
     >
       <div className="stack">
-        <p className="meta">Choose the diagram that opens from &ldquo;{elementLabel}&rdquo;.</p>
+        <p className="meta">
+          {framing ? 'Choose a diagram to draw in a frame on this one. The frame shows its latest saved version.' : <>Choose the diagram that opens from &ldquo;{elementLabel}&rdquo;.</>}
+        </p>
         <div className="cluster">
           <div className="field">
             <label className="field__label" htmlFor="link-picker-project">
@@ -182,10 +187,12 @@ export function LinkPickerDialog({ diagramId, diagramTypeId, projectId, elementL
                 </select>
               </div>
               <button type="button" className="btn btn--primary" data-testid="link-picker-create" disabled={creating || !newName.trim()} onClick={() => void createAndLink()}>
-                {creating ? 'Creating…' : 'Create and link'}
+                {creating ? 'Creating…' : framing ? 'Create and embed' : 'Create and link'}
               </button>
             </div>
-            <p className="meta" id="link-picker-new-hint">It goes in this diagram&rsquo;s project, empty, and opens when you follow the link.</p>
+            <p className="meta" id="link-picker-new-hint">
+              {framing ? 'It goes in this diagram’s project, empty; its frame fills in once it is saved.' : 'It goes in this diagram’s project, empty, and opens when you follow the link.'}
+            </p>
           </fieldset>
         )}
         {error && (
