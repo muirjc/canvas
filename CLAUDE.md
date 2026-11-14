@@ -100,6 +100,17 @@ tests are NON-NEGOTIABLE and must exist (and fail) before implementing any diagr
 work — see `.specify/memory/constitution.md` Principle IV.
 
 ## Recent Changes
+- `canvas-8uh1.2` (composite diagrams, part 2 of 7): **the API knows which diagrams link to which.** Table
+  `diagram_links` (Postgres `0037`, SQLite `0025`): source diagram (FK, cascade), `kind` ('link'; 'frame' for .6),
+  element id, target diagram id as TEXT (no FK, so a link to a purged diagram is still found), `position`.
+  `canvas_api/diagram_links.py`: `rebuild_links` from the parsed model in `create_diagram` and `_save` (so save,
+  version restore, import and template import; a 409 conflict leaves it as it was); purge deletes the rows (soft
+  delete keeps them, so a restore brings links back). Routes: `GET /diagrams/{id}/links` (in model order, each
+  `status` available | unavailable (someone else's draft) | deleted (bin, or its project's) | missing (no such
+  diagram, or not a UUID) and the target's name/type/project when available) and `GET /diagrams/{id}/used-in`
+  (diagrams whose current version links here, not in the bin, not others' drafts, with their element ids); both
+  view access, 404 for a binned/missing diagram. Contract schemas `DiagramLink`, `DiagramUsedIn`. No backfill:
+  nothing could make links before this (no UI yet). Tests `tests/test_diagram_links.py` (both databases).
 - `canvas-8uh1.1` (composite diagrams, part 1 of 7; design `docs/composite-diagrams-design.md`): **an element can link to
   another diagram.** `DiagramRef {diagramId}` as `diagramRef` on nodes and containers; front matter `canvas.links`
   (element id -> diagram id; `isDiagramLinkId`: letters/digits/`-`/`_`, <= 100) in every family, TS + Python:

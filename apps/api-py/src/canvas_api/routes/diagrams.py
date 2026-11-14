@@ -30,6 +30,7 @@ from canvas_api.auth.session import SessionUser
 from canvas_api.catalog import DSL_FAMILIES
 from canvas_api.db import get_engine
 from canvas_api.diagram_core import DiagramCore
+from canvas_api.diagram_links import outgoing_links, rebuild_links, used_in
 from canvas_api.errors import ApiError
 from canvas_api.live.hub import LiveHub
 from canvas_api.retention import delete_diagram_rows, diagram_retention_boundary
@@ -257,6 +258,7 @@ def create_diagram(
     conn.execute(
         text("UPDATE diagrams SET current_version_id = :v WHERE id = :id"), {"v": version_id, "id": diagram_id}
     )
+    rebuild_links(conn, diagram_id, model)
     return get_diagram(conn, diagram_id)
 
 
@@ -312,6 +314,7 @@ def _save(
                 "savedAt": to_api_ms(current.created_at),
             },
         )
+    rebuild_links(conn, diagram_id, model)
     return get_diagram(conn, diagram_id)
 
 
@@ -421,6 +424,25 @@ def read(id: str, user: CurrentUser, db: Db) -> dict[str, Any]:
         level = require_diagram_access(conn, user.id, id, "view")
         diagram = get_diagram(conn, id)
         return {"diagram": {**diagram, "accessLevel": level}}
+
+
+@router.get("/diagrams/{id}/links")
+def read_links(id: str, user: CurrentUser, db: Db) -> dict[str, Any]:
+    """canvas-8uh1.2: the diagrams this one's elements link to, in order, each with its state ("available",
+    "unavailable" = someone else's unsaved draft, "deleted" = in the bin, "missing" = no such diagram)."""
+    with db.connect() as conn:
+        require_diagram_access(conn, user.id, id, "view")
+        get_diagram(conn, id)  # 404 for a missing diagram or one in the bin
+        return {"links": outgoing_links(conn, id, user.id)}
+
+
+@router.get("/diagrams/{id}/used-in")
+def read_used_in(id: str, user: CurrentUser, db: Db) -> dict[str, Any]:
+    """canvas-8uh1.2: the diagrams that link to this one (not in the bin, not someone else's draft)."""
+    with db.connect() as conn:
+        require_diagram_access(conn, user.id, id, "view")
+        get_diagram(conn, id)  # 404 for a missing diagram or one in the bin
+        return {"usedIn": used_in(conn, id, user.id)}
 
 
 @router.patch("/diagrams/{id}")
