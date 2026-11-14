@@ -100,6 +100,15 @@ tests are NON-NEGOTIABLE and must exist (and fail) before implementing any diagr
 work — see `.specify/memory/constitution.md` Principle IV.
 
 ## Recent Changes
+- `canvas-dfam`: **the Mermaid syntax dry run can run against the Azure database.** Job `canvas-syntax-report`
+  (`infra/azure/modules/syntaxreportjob.bicep`, manual, read-only, `python -m canvas_api.jobs.syntax_report
+  --numbered`, 30 min timeout; deploy.sh keeps it on the app's image). `infra/azure/syntax-report.sh [--build |
+  --image <tag>] [rg]`: builds this checkout's image (tagged as deploy.sh tags it) or takes a tag, `job update
+  --image` (needs Microsoft.App/jobs/write), override-free start, waits, then reads the report from Log Analytics
+  (`canvas-logs`, ContainerAppConsoleLogs_CL by execution name) until `END OF REPORT`, sorts by the 6-digit line
+  number and strips it (records can arrive out of order); exit 1 when a diagram can't be opened. `--numbered` is a
+  new syntax_report option. deploy.sh now skips `az acr build` when the registry already has that clean commit's
+  tag. Docs: operations.md step 5, RUNBOOK Jobs row, infra/azure/README.md.
 - `canvas-8uh1.7` (composite diagrams, part 7 of 7; closes canvas-8uh1): **docs pass.** User guide: a screenshot
   (`docs/images/editor-links.png`, captured by `docs-screenshots/capture.spec.ts` "linked and embedded diagrams":
   demo "Payments context" linking and framing "Payments containers"), browsing.md on the delete prompt; design doc

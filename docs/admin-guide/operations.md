@@ -42,13 +42,18 @@ Mermaid version is a code change, made by whoever develops Canvas:
    golden-corpus diagram's export in real Mermaid, at the version GitHub runs (the `mermaid`
    devDependency of `apps/web`). It fails when GitHub's recorded version and that devDependency
    differ, so move them together; it lists the few cases that can't draw and why.
-5. **Run the dry-run report** with the new code: `python -m canvas_api.jobs.syntax_report` (see the
-   RUNBOOK's Jobs table). It lists every saved diagram the new code can't open, and every one whose
-   text it would write differently on the next save. "Can't open" must be zero before release.
-   Rewrites are expected when the saved form changes on purpose; check a few by hand. Run it against
-   a local database that holds real diagrams. It can't yet run against the Azure database: that
-   database is private to Canvas's Azure network, so it would need an Azure job of its own. Add one
-   the first time a release changes how Canvas reads Mermaid text.
+5. **Run the dry-run report** with the new code, against the real diagrams, before the app is updated.
+   It lists every saved diagram the new code can't open, and every one whose text it would write
+   differently on the next save. "Can't open" must be zero before release. Rewrites are expected
+   when the saved form changes on purpose; check a few by hand.
+   - **On Azure:** from the new checkout, run `infra/azure/syntax-report.sh --build`. It builds that
+     code's image, runs the `canvas-syntax-report` job with it against the Azure database (which is
+     private to Canvas's Azure network, so it can't be reached from a laptop) and prints the report;
+     it exits with an error when a diagram can't be opened. It changes no data. Then deploy as usual
+     with `deploy.sh`, which reuses the image it built. (`--image <tag>` uses an image already built;
+     no option reports with the image that's running now.)
+   - **Locally:** `python -m canvas_api.jobs.syntax_report` against a local database that holds real
+     diagrams (see the RUNBOOK's Jobs table).
 6. **Update the recorded versions** in `packages/diagram-core/src/mermaid-version.ts`: the syntax
    version, the notes on what isn't read yet, and GitHub's version with the date you checked it (put
    a `mermaid` block containing `info` in a GitHub Markdown preview and it prints the version). A

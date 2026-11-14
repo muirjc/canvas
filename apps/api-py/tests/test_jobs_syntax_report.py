@@ -87,3 +87,12 @@ def test_the_job_prints_a_summary_and_fails_when_a_diagram_cant_be_opened(
     data = json.loads(capsys.readouterr().out)
     assert data["checked"] == 2
     assert [(f["id"], f["problem"]) for f in data["findings"]] == [(broken, "unreadable")]
+
+    # canvas-dfam: the Azure job prints numbered lines, so its logs can be put back in order.
+    assert syntax_report.main(["--numbered"]) == 1
+    lines = capsys.readouterr().out.splitlines()
+    assert [line[:7] for line in lines] == [f"{n:06d} " for n in range(1, len(lines) + 1)]
+    assert lines[0] == "000001 Checked 2 diagram(s) (flowchart 2)."
+    assert lines[1] == "000002 Can't be opened by this build: 1"
+    assert lines[2].startswith(f"000003   {broken}  flowchart  'Broken'")
+    assert lines[-1] == f"{len(lines):06d} END OF REPORT"

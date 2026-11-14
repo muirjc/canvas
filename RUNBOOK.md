@@ -152,7 +152,7 @@ job from the same image.
 | `bootstrap_admin` | The first admin of a local-mode environment (`BOOTSTRAP_ADMIN_EMAIL`, `BOOTSTRAP_ADMIN_PASSWORD`, `BOOTSTRAP_MODE=create                             | reset`). Never prints the password. |
 | `purge`           | Deletes diagrams and projects past their retention window and abandoned AI drafts. `--dry-run` lists them only.                                      |
 | `e2e_reset`       | Empties the e2e "Smoke Test" project and removes `e2e-user-*` accounts. Refuses `NODE_ENV=production`.                                               |
-| `syntax_report`   | Read-only Mermaid syntax dry run (canvas-7p3y): lists saved diagrams this build can't open (exit 1) or would rewrite on the next save. `--json`. Run the NEW code before releasing a syntax change; local databases only for now (the Azure DB is private to its VNet, so Azure would need its own job). See docs/admin-guide/operations.md. |
+| `syntax_report`   | Read-only Mermaid syntax dry run (canvas-7p3y): lists saved diagrams this build can't open (exit 1) or would rewrite on the next save. `--json`; `--numbered` (each line numbered, ending `END OF REPORT`). Run the NEW code before releasing a syntax change. On Azure (the DB is private to its VNet) it's the `canvas-syntax-report` job: `infra/azure/syntax-report.sh --build` builds this checkout's image, runs the job with it and prints the report (canvas-dfam). See docs/admin-guide/operations.md. |
 
 The GitHub status sync is `python -m canvas_api.github.sync_run` (see "GitHub approval").
 
