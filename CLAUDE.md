@@ -100,6 +100,20 @@ tests are NON-NEGOTIABLE and must exist (and fail) before implementing any diagr
 work — see `.specify/memory/constitution.md` Principle IV.
 
 ## Recent Changes
+- `canvas-8uh1.3` (composite diagrams, part 3 of 7): **the editor makes and follows links.** Canvas: Tools
+  `link-to-diagram` ("Change link…" when linked) / `remove-diagram-link` for one selected shape or group (not a
+  sequence block); `renderLinkBadges` draws `diagram-link-badge-<id>` (data-status) at each linked element's corner in
+  every family (Wardley beside the dot, sequence on the participant header), blue = opens, orange "!" = can't (role
+  button, Enter works, read-only too). Ctrl/Cmd-click stays add-to-selection (design doc amended). `links/
+  LinkPickerDialog.tsx` (project, type with the next C4 level "suggested" via `SUGGESTED_LINK_TYPES`, name search
+  over `searchProjectDiagrams`; "Create and link" makes an empty diagram in this project, only when the project list
+  says you may). `links/LinksPanel.tsx` = the editor's Links rail tab (links with state, Open/Change/Remove; Used in;
+  `links-broken` count). `app/diagram-links.ts` `useLinkTargets`: targets from GET /links, refreshed with
+  `versionRefreshToken`; a link made since the last save looked up with GET /diagrams/:id (404 = missing; other
+  failures retried after a save). Trail: `navigation.ts` `readTrail`/`trailState` (history.state `canvasTrail`,
+  <= 20, UUIDs only); App's `navigate(to, { trail })`, popstate restores it, following a link back up the trail
+  cuts it; DiagramEditor `editor__trail` nav (`link-trail-<i>`) and `key={diagram.id}`. Tests: unit `trail`,
+  `links-panel`, `link-picker`, `canvas-diagram-links`; e2e `diagram-links.spec.ts`. User guide "Linked diagrams".
 - `canvas-8uh1.2` (composite diagrams, part 2 of 7): **the API knows which diagrams link to which.** Table
   `diagram_links` (Postgres `0037`, SQLite `0025`): source diagram (FK, cascade), `kind` ('link'; 'frame' for .6),
   element id, target diagram id as TEXT (no FK, so a link to a purged diagram is still found), `position`.

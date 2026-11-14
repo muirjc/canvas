@@ -247,6 +247,25 @@ export interface DiagramSummaryDto {
   updatedAt: string;
 }
 
+/** canvas-8uh1.3: a diagram an element links to (GET /diagrams/:id/links). */
+export interface DiagramLinkDto {
+  elementId: string;
+  diagramId: string;
+  /** available; unavailable = someone else's unsaved draft; deleted = in the bin; missing = no such diagram. */
+  status: 'available' | 'unavailable' | 'deleted' | 'missing';
+  diagram: { id: string; name: string; diagramTypeId: string; projectId: string; projectName: string } | null;
+}
+
+/** canvas-8uh1.3: a diagram that links to this one (GET /diagrams/:id/used-in). */
+export interface DiagramUsedInDto {
+  diagramId: string;
+  name: string;
+  diagramTypeId: string;
+  projectId: string;
+  projectName: string;
+  elementIds: string[];
+}
+
 export interface DiagramVersionDto {
   id: string;
   sequenceNumber: number;
@@ -684,6 +703,8 @@ export const api = {
       body: JSON.stringify(body),
     }),
   getDiagram: (id: string) => request<{ diagram: DiagramDto }>(`/diagrams/${id}`),
+  getDiagramLinks: (id: string) => request<{ links: DiagramLinkDto[] }>(`/diagrams/${id}/links`),
+  getDiagramUsedIn: (id: string) => request<{ usedIn: DiagramUsedInDto[] }>(`/diagrams/${id}/used-in`),
   saveDiagram: (id: string, dslContent: string, baseVersionId: string) =>
     request<{ diagram: DiagramDto }>(`/diagrams/${id}`, { method: 'PATCH', body: JSON.stringify({ dslContent, baseVersionId }) }),
   /** canvas-obp0: this editor tab is open; returns everyone else who has the diagram open. */

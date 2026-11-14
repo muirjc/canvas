@@ -78,10 +78,9 @@ canvas:
 ## What is shown
 
 **A linked element** carries a small "opens a diagram" badge with the inner diagram's title as its tooltip.
-There are three ways to open it:
-- clicking the badge;
-- Ctrl/Cmd-clicking the element;
-- double-clicking the element in a view-only diagram.
+It opens from the badge (a click, or Enter on it), in edit and view-only modes alike. As built (canvas-8uh1.3),
+Ctrl/Cmd-click stays "add to the selection", as everywhere else in the editor, rather than opening the link. A
+**Links** tab in the editor lists every link with its state, and the diagrams that link here.
 
 Opening it is an ordinary in-app navigation, so the unsaved-changes guard and the browser's Back button work as
 they do today.

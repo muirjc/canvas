@@ -50,6 +50,8 @@ import {
   addStateNode,
   statePseudoId,
   moveWardleyElement,
+  computeWardleyLayout,
+  setDiagramLink,
   removeWardleyElement,
   wardleyCoordinatesAt,
   wardleyFrame,
@@ -119,6 +121,7 @@ import { LegendBox } from './LegendBox';
 import { LegendEditor } from './LegendEditor';
 import { WardleyLayer } from './WardleyLayer';
 import { WardleyToolbar } from './WardleyToolbar';
+import { linkStatusText, type LinkTarget } from '../app/diagram-links';
 import { api, type CommentAnchor } from '../app/api';
 import { Icon } from '../ui/Icon';
 
@@ -353,6 +356,12 @@ export interface CanvasProps {
    *  but nothing changes: edits are dropped, Delete and double-click editing are off, and the
    *  editor hides the toolbar and the in-place edit buttons. */
   readOnly?: boolean;
+  /** canvas-8uh1.3: what each linked diagram is (by diagram id), for the link badges. With
+   *  `onOpenDiagramLink`, a linked element shows a badge that opens it. */
+  diagramLinkTargets?: Map<string, LinkTarget>;
+  onOpenDiagramLink?: (diagramId: string) => void;
+  /** canvas-8uh1.3: the Link to diagram tool (editors): choose what the element opens. */
+  onRequestDiagramLink?: (elementId: string) => void;
 }
 
 const SEVERITY_DOT_COLOR: Record<Severity, string> = { error: '#c81e1e', warning: '#d97706', info: '#64748b' };
@@ -1289,7 +1298,7 @@ function descendantContainerIds(model: DiagramModel, containerId: string): Set<s
  * labels via direct manipulation. Renders the same DiagramModel that packages/diagram-core
  * parses/serializes, so every edit here is reflected in the Mermaid DSL by useDslSync.
  */
-export function Canvas({ model: modelProp, onChange: onChangeProp, dslFamily, toolbarContainer, standardRules, violations, focusRequest, onSelectionChange, commentPins, onCommentPinClick, onSelectedIdsChange, othersSelected, readOnly = false }: CanvasProps) {
+export function Canvas({ model: modelProp, onChange: onChangeProp, dslFamily, toolbarContainer, standardRules, violations, focusRequest, onSelectionChange, commentPins, onCommentPinClick, onSelectedIdsChange, othersSelected, readOnly = false, diagramLinkTargets, onOpenDiagramLink, onRequestDiagramLink }: CanvasProps) {
   const onChange = readOnly ? () => undefined : onChangeProp;
   // canvas-hzf: a C4 element's type line ("[Software System]") is derived from its role; refresh it
   // here so a kind picked in the editor shows at once, not only after the next reload/parse.
@@ -2587,6 +2596,13 @@ export function Canvas({ model: modelProp, onChange: onChangeProp, dslFamily, to
   // emitNamespace/namespacedNodeIds), a standalone note stays reachable only via the plain "Add
   // Container" button (then renamed via the existing container-label affordance for its text) —
   // a disclosed, narrower scope, not a silent gap.
+  // canvas-8uh1.3: the one shape or group a link would go on.
+  const linkableSelection: { id: string; diagramRef?: { diagramId: string } } | undefined = (() => {
+    if (selectedIds.size === 1 && !selectedContainerId) return model.nodes.find((n) => selectedIds.has(n.id));
+    if (selectedIds.size === 0 && selectedContainerId && dslFamily !== 'sequence') return model.containers.find((c) => c.id === selectedContainerId);
+    return undefined;
+  })();
+
   const groupSelectedDisabled = selectedIds.size < 2 || (dslFamily === 'uml' && containerRoleChoice === 'note');
 
   const groupSelected = () => {
@@ -3172,6 +3188,32 @@ export function Canvas({ model: modelProp, onChange: onChangeProp, dslFamily, to
             <Icon name="trash" />
             Delete Selected
           </button>
+          {/* canvas-8uh1.3: drill-down links. One selected shape or group (a sequence diagram's participants only:
+              its blocks' ids are made up when the text is read, so a link on one wouldn't last). */}
+          {onRequestDiagramLink && linkableSelection && (
+            <>
+              <button
+                type="button"
+                className="btn btn--secondary"
+                data-testid="link-to-diagram"
+                title="Choose a diagram this element opens"
+                onClick={() => onRequestDiagramLink(linkableSelection.id)}
+              >
+                <Icon name="link" />
+                {linkableSelection.diagramRef ? 'Change link…' : 'Link to diagram…'}
+              </button>
+              {linkableSelection.diagramRef && (
+                <button
+                  type="button"
+                  className="btn btn--secondary"
+                  data-testid="remove-diagram-link"
+                  onClick={() => onChange(setDiagramLink(model, linkableSelection.id, null))}
+                >
+                  Remove link
+                </button>
+              )}
+            </>
+          )}
           {/* canvas-2s6.2: activate/deactivate already had full DSL/model/AI-tool support
               (addPointMarkerContainer, diagram-tools.ts's activateParticipant/deactivateParticipant)
               — Canvas.tsx just never called it. Select one participant, then click one of these. */}
@@ -3462,6 +3504,82 @@ export function Canvas({ model: modelProp, onChange: onChangeProp, dslFamily, to
   // (contracts/sequence-layout-contract.md). `null` for every non-sequence family, so every
   // sequence-specific branch below is a simple `sequenceLayout &&` guard.
   const sequenceLayout = dslFamily === 'sequence' ? computeSequenceLayout(model) : null;
+
+  /** canvas-8uh1.3: the corner each link badge sits on: a box's top-right corner, a Wardley element beside its dot,
+   *  a sequence participant's header. Available links open the diagram; any other state says why it can't. */
+  const renderLinkBadges = () => {
+    const wardleyPoints = dslFamily === 'wardley' ? computeWardleyLayout(model).points : null;
+    const corner = (id: string): { x: number; y: number } | undefined => {
+      const node = model.nodes.find((n) => n.id === id);
+      if (node) {
+        if (wardleyPoints) {
+          const p = wardleyPoints.get(id) ?? node.position;
+          return { x: p.x + 14, y: p.y - 14 };
+        }
+        const lifeline = sequenceLayout?.lifelines.get(id);
+        if (lifeline) return { x: lifeline.headerX + lifeline.headerWidth, y: lifeline.headerY };
+        return { x: node.position.x + nodeSize(node).width, y: node.position.y };
+      }
+      const container = model.containers.find((c) => c.id === id);
+      if (!container || dslFamily === 'sequence') return undefined;
+      const width = container.size?.width ?? 300;
+      return { x: container.position.x + width, y: container.position.y };
+    };
+    return [...model.nodes, ...model.containers].map((element) => {
+      const ref = element.diagramRef;
+      if (!ref) return null;
+      const at = corner(element.id);
+      if (!at) return null;
+      const target = diagramLinkTargets?.get(ref.diagramId);
+      const available = target?.status === 'available';
+      const label = element.label || element.id;
+      const open = () => {
+        if (available) onOpenDiagramLink?.(ref.diagramId);
+      };
+      const text = linkStatusText(target);
+      return (
+        <g
+          key={`link-badge-${element.id}`}
+          data-testid={`diagram-link-badge-${element.id}`}
+          data-status={target?.status ?? 'checking'}
+          transform={`translate(${at.x - 9} ${at.y - 9})`}
+          className="link-badge"
+          role="button"
+          tabIndex={0}
+          aria-label={available ? `${label}: open ${target.name ?? 'the linked diagram'}` : `${label}: ${text}`}
+          aria-disabled={available ? undefined : true}
+          style={{ cursor: available ? 'pointer' : 'help' }}
+          onPointerDown={(e) => e.stopPropagation()}
+          onClick={(e) => {
+            e.stopPropagation();
+            open();
+          }}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+              e.preventDefault();
+              open();
+            }
+          }}
+        >
+          <title>{text}</title>
+          {/* A larger invisible hit area (the 18px badge is under the 24px target size) and the focus ring (a focused SVG group gets no reliable outline). */}
+          <circle cx={9} cy={9} r={13} fill="transparent" />
+          <circle className="link-badge__ring" cx={9} cy={9} r={12} fill="none" />
+          <circle cx={9} cy={9} r={9} fill={available ? '#2563eb' : '#b45309'} stroke="#ffffff" strokeWidth={1.5} />
+          {available ? (
+            <g transform="translate(3.6 3.6) scale(0.45)" fill="none" stroke="#ffffff" strokeWidth={2.6} strokeLinecap="round" strokeLinejoin="round">
+              <path d="M10 14a5 5 0 0 0 7.5.5l3-3a5 5 0 0 0-7-7l-1.7 1.7" />
+              <path d="M14 10a5 5 0 0 0-7.5-.5l-3 3a5 5 0 0 0 7 7l1.7-1.7" />
+            </g>
+          ) : (
+            <text x={9} y={13} textAnchor="middle" fontSize={12} fontWeight={700} fill="#ffffff" pointerEvents="none">
+              !
+            </text>
+          )}
+        </g>
+      );
+    });
+  };
 
   return (
     <div className="canvas-root" tabIndex={0} onKeyDown={handleKeyDown} data-testid="canvas-root">
@@ -4512,6 +4630,9 @@ export function Canvas({ model: modelProp, onChange: onChangeProp, dslFamily, to
         {dslFamily !== 'sequence' && dslFamily !== 'wardley' && (
           <OthersSelections model={model} selections={othersSelected ?? []} />
         )}
+
+        {/* canvas-8uh1.3: a badge on each element that opens another diagram (read-only viewers too). */}
+        {onOpenDiagramLink && renderLinkBadges()}
 
         {/* canvas-bw4: comment pins -- a speech-bubble badge per element with open threads. */}
         {Object.entries(commentPins ?? {}).map(([anchorId, count]) => {
