@@ -97,6 +97,7 @@ class DiagramBridge:
         standard_rules: JsonObject | None = None,
         background: str | None = None,
         diagram_link_base: str | None = None,
+        frame_contents: JsonObject | None = None,
     ) -> str:
         body: JsonObject = {"model": model}
         if icons:
@@ -107,6 +108,8 @@ class DiagramBridge:
             body["background"] = background
         if diagram_link_base is not None:
             body["diagramLinkBase"] = diagram_link_base
+        if frame_contents is not None:
+            body["frameContents"] = frame_contents
         return cast(str, self._post("render-svg", body)["svg"])
 
     def portable(self, dsl: str, *, strip_front_matter: bool = False, diagram_link_base: str | None = None) -> str:

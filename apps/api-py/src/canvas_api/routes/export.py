@@ -28,7 +28,7 @@ from canvas_api.catalog import DSL_FAMILIES
 from canvas_api.config import Settings
 from canvas_api.db import get_engine
 from canvas_api.diagram_core import DiagramCore
-from canvas_api.diagram_links import diagram_link_base
+from canvas_api.diagram_links import MAX_FRAME_TARGETS, diagram_link_base, frame_targets
 from canvas_api.errors import ApiError
 from canvas_api.routes.diagrams import get_diagram
 from canvas_api.standards import get_active_standard
@@ -87,10 +87,14 @@ def render_svg(
     diagram_type_id: str,
     background: str | None = None,
     diagram_link_base: str | None = None,
+    *,
+    with_frames: bool = False,
+    viewer_id: str | None = None,
 ) -> str:
     """The diagram as SVG. `background` (canvas-n85n): a solid hex colour behind the drawing (GitHub
     submissions); downloads stay transparent. `diagram_link_base` (canvas-8uh1.4): linked elements open the diagram
-    they link to in Canvas."""
+    they link to in Canvas. `with_frames` (canvas-8uh1.6): draw what each frame shows (as `viewer_id` may see it); the
+    framed diagrams are drawn without their own frames' contents, so frames go one level deep."""
     if family not in DSL_FAMILIES:
         raise ApiError(422, f"No DSL family registered for: {family}")
     parsed = core.parse(family, dsl)
@@ -108,7 +112,28 @@ def render_svg(
             standard_rules=standard.rules if standard else None,
             background=background,
             diagram_link_base=diagram_link_base,
+            frame_contents=frame_contents(conn, core, model, viewer_id) if with_frames else None,
         )
+
+
+def frame_contents(
+    conn: Connection, core: DiagramCore, model: dict[str, Any], viewer_id: str | None
+) -> dict[str, dict[str, Any]]:
+    """canvas-8uh1.6: what each of the model's frames shows, by framed diagram id: {name, status, svg} for one that
+    can be shown (drawn from its latest saved version, without its own frames' contents), else {status}."""
+    ids = [frame["diagramId"] for frame in model.get("frames") or [] if isinstance(frame, dict)]
+    return {target: _frame_content(conn, core, entry) for target, entry in frame_targets(conn, ids, viewer_id).items()}
+
+
+def _frame_content(conn: Connection, core: DiagramCore, entry: dict[str, Any]) -> dict[str, Any]:
+    row = entry["row"]
+    if row is None:
+        return {"status": entry["status"]}
+    try:
+        svg = render_svg(conn, core, row.dsl_family, row.dsl_content, row.diagram_type_id)
+    except ApiError:  # saved text that doesn't parse (any more): a titled placeholder
+        return {"name": row.name, "status": "available"}
+    return {"name": row.name, "status": "available", "svg": svg}
 
 
 @router.get("/diagrams/{id}/export")
@@ -135,6 +160,8 @@ def export(
                 diagram["dslContent"],
                 diagram["diagramTypeId"],
                 diagram_link_base=link_base,
+                with_frames=True,
+                viewer_id=user.id,
             )
             if format == "svg":
                 body = svg
@@ -165,3 +192,38 @@ def _png(svg: str) -> bytes:
             monospace_family=FONT_FAMILY,
         )
     )
+
+
+@router.get("/diagrams/{id}/frame-contents")
+def read_frame_contents(id: str, request: Request, user: CurrentUser, db: Db, ids: str = "") -> dict[str, Any]:
+    """canvas-8uh1.6: what the editor draws in this diagram's frames: for each framed diagram id in `ids` (comma
+    separated, at most MAX_FRAME_TARGETS, in the order given) its state and, when it can be shown, its title, type,
+    project and drawing (latest saved version, its own frames as placeholders)."""
+    core = _diagram_core(request)
+    wanted = list(dict.fromkeys(part.strip() for part in ids.split(",") if part.strip()))[:MAX_FRAME_TARGETS]
+    with db.connect() as conn:
+        require_diagram_access(conn, user.id, id, "view")
+        get_diagram(conn, id)  # 404 for a missing diagram or one in the bin
+        out = []
+        for target, entry in frame_targets(conn, wanted, user.id).items():
+            row = entry["row"]
+            content = _frame_content(conn, core, entry)
+            out.append(
+                {
+                    "diagramId": target,
+                    "status": entry["status"],
+                    "diagram": (
+                        {
+                            "id": str(row.id),
+                            "name": row.name,
+                            "diagramTypeId": row.diagram_type_id,
+                            "projectId": str(row.project_id),
+                            "projectName": row.project_name,
+                        }
+                        if row is not None
+                        else None
+                    ),
+                    "svg": content.get("svg"),
+                }
+            )
+    return {"frames": out}

@@ -1,5 +1,5 @@
 import { forwardRef, useEffect, useImperativeHandle, useMemo, useRef, useState, type ReactNode } from 'react';
-import { createEmptyDiagramModel, effectiveAuthoring, getDslFamily, isParseSuccess, setDiagramLink, type DiagramModel } from '@canvas/diagram-core';
+import { addFrame, computeBounds, createEmptyDiagramModel, effectiveAuthoring, getDslFamily, isParseSuccess, removeFrame, setDiagramLink, type DiagramModel } from '@canvas/diagram-core';
 import { Canvas } from '../canvas/Canvas';
 import { DslPanel } from '../canvas/DslPanel';
 import { ExportMenu } from '../canvas/ExportMenu';
@@ -37,7 +37,7 @@ import { Icon } from '../ui/Icon';
 import { RailTabs } from '../ui/RailTabs';
 import { HelpLink } from '../help/HelpLink';
 import { Modal } from '../ui/Modal';
-import { elementLinks, linkTargetTypes, useLinkTargets } from './diagram-links';
+import { elementLinks, linkTargetTypes, useFrameContents, useLinkTargets } from './diagram-links';
 import { LinkPickerDialog } from '../links/LinkPickerDialog';
 import { LinksPanel } from '../links/LinksPanel';
 import { useActiveStandard, useLiveViolations } from '../standards/useStandard';
@@ -166,6 +166,9 @@ export const DiagramEditor = forwardRef<DiagramEditorHandle, DiagramEditorProps>
   const linkTargets = useLinkTargets(diagram.id, model, versionRefreshToken);
   const [usedIn, setUsedIn] = useState<DiagramUsedInDto[] | null>(null);
   const [linkingElementId, setLinkingElementId] = useState<string | null>(null);
+  // canvas-8uh1.6: frames -- what each framed diagram shows, and the Embed diagram picker.
+  const frameContents = useFrameContents(diagram.id, model, versionRefreshToken);
+  const [framing, setFraming] = useState(false);
   useEffect(() => {
     let cancelled = false;
     api
@@ -603,6 +606,22 @@ export const DiagramEditor = forwardRef<DiagramEditorHandle, DiagramEditorProps>
           />
         );
       })()}
+      {framing && (
+        <LinkPickerDialog
+          mode="frame"
+          diagramId={diagram.id}
+          diagramTypeId={diagram.diagramTypeId}
+          projectId={diagram.projectId}
+          elementLabel={diagram.name}
+          onClose={() => setFraming(false)}
+          onPick={(targetId) => {
+            // To the right of everything drawn so far (shapes, groups and other frames).
+            const right = Math.max(computeBounds(model).width, ...(model.frames ?? []).map((f) => f.position.x + f.size.width + 20));
+            setModel(addFrame(model, { diagramId: targetId, position: { x: Math.max(40, Math.round(right)), y: 40 } }));
+            setFraming(false);
+          }}
+        />
+      )}
       <PresenceBanner others={others} watching={live.status === 'live' ? presence.watching : []} live={live.status === 'live'} />
       <LiveStatusNote status={live.status} reason={live.statusReason} enabled={!draft} />
       {liveNotice && (
@@ -710,6 +729,9 @@ export const DiagramEditor = forwardRef<DiagramEditorHandle, DiagramEditorProps>
             diagramLinkTargets={linkTargets.targets}
             onOpenDiagramLink={onOpenDiagram}
             onRequestDiagramLink={canEdit ? setLinkingElementId : undefined}
+            frameContents={frameContents}
+            onOpenFrame={onOpenDiagram}
+            onRequestFrame={canEdit ? () => setFraming(true) : undefined}
           />
           )}
         </div>
@@ -824,6 +846,9 @@ export const DiagramEditor = forwardRef<DiagramEditorHandle, DiagramEditorProps>
                     onOpen={(id) => onOpenDiagram?.(id)}
                     onChange={setLinkingElementId}
                     onRemove={(elementId) => setModel(setDiagramLink(model, elementId, null))}
+                    frames={(preview ? preview.model : model).frames}
+                    frameContents={frameContents}
+                    onRemoveFrame={(frameId) => setModel(removeFrame(model, frameId))}
                     onSelectElement={(id) => setFocusRequest((prev) => ({ id, nonce: (prev?.nonce ?? 0) + 1 }))}
                   />
                 ),

@@ -186,3 +186,82 @@ def test_the_routes_need_sign_in_and_a_diagram_you_can_see(api: Api, owner: User
         assert api.call("GET", f"/diagrams/00000000-0000-4000-8000-000000000000/{route}", owner).status_code == 404
     assert api.call("DELETE", f"/diagrams/{diagram['id']}", owner).status_code == 204
     assert api.call("GET", f"/diagrams/{diagram['id']}/links", owner).status_code == 404
+
+
+# --- canvas-8uh1.6: frames ----------------------------------------------------------------------------
+
+
+def _framing(*frames: tuple[str, str]) -> str:
+    """A flowchart with `canvas.frames` front matter, one frame per (frame id, diagram id)."""
+    lines = ["---", "canvas:", "  frames:"]
+    for i, (frame_id, target) in enumerate(frames):
+        lines += [
+            f"    - id: {frame_id}",
+            f"      diagramId: {target}",
+            f"      x: {400 + 400 * i}",
+            "      y: 40",
+            "      width: 360",
+            "      height: 240",
+        ]
+    return "\n".join([*lines, "---", "flowchart TD", "  A --> B", ""])
+
+
+def test_frames_are_indexed_and_count_as_used_in(api: Api, owner: User, project: str) -> None:
+    target = api.new_diagram(project, owner, "Target")
+    source = api.new_diagram(project, owner, "Source", dsl=_framing(("f1", target["id"])))
+    assert _used_in(api, owner, target["id"]) == [
+        {
+            "diagramId": source["id"],
+            "name": "Source",
+            "diagramTypeId": "flowchart",
+            "projectId": project,
+            "projectName": "Payments",
+            "elementIds": ["f1"],
+        }
+    ]
+    assert _links(api, owner, source["id"]) == []  # frames aren't links
+    assert api.save_diagram(owner, source, "flowchart TD\n  A --> B\n").status_code == 200
+    assert _used_in(api, owner, target["id"]) == []
+
+
+def test_frame_contents_give_each_framed_diagrams_state_and_drawing(
+    api: Api, owner: User, other: User, project: str
+) -> None:
+    inner_target = api.new_diagram(project, owner, "Deepest")
+    inner = api.new_diagram(project, owner, "Inner", dsl=_framing(("f1", inner_target["id"])))
+    binned = api.new_diagram(project, owner, "Binned")
+    draft = api.new_diagram(project, other, "Olga's draft", draft=True)
+    assert api.call("DELETE", f"/diagrams/{binned['id']}", owner).status_code == 204
+    source = api.new_diagram(project, owner, "Source")
+    unknown = "00000000-0000-4000-8000-000000000000"
+    ids = ",".join([inner["id"], binned["id"], draft["id"], unknown, "nonsense", inner["id"]])
+    response = api.call("GET", f"/diagrams/{source['id']}/frame-contents?ids={ids}", owner)
+    assert response.status_code == 200, response.text
+    frames = response.json()["frames"]
+    assert [(f["diagramId"], f["status"]) for f in frames] == [
+        (inner["id"], "available"),
+        (binned["id"], "deleted"),
+        (draft["id"], "unavailable"),
+        (unknown, "missing"),
+        ("nonsense", "missing"),
+    ]
+    first = frames[0]
+    assert first["diagram"]["name"] == "Inner"
+    assert first["svg"].startswith("<svg")
+    # One level deep: the framed diagram's own frame is a placeholder, not Deepest's drawing.
+    assert 'class="diagram-frame"' in first["svg"]
+    assert "Embedded diagram" in first["svg"]
+    assert all(f["svg"] is None and f["diagram"] is None for f in frames[1:])
+    # Olga sees her own draft.
+    mine = api.call("GET", f"/diagrams/{source['id']}/frame-contents?ids={draft['id']}", other).json()["frames"]
+    assert mine[0]["status"] == "available"
+    empty = api.call("GET", f"/diagrams/{source['id']}/frame-contents?ids=", owner)
+    assert empty.json() == {"frames": []}
+
+
+def test_frame_contents_need_sign_in_and_a_diagram_you_can_see(
+    api: Api, owner: User, other: User, project: str
+) -> None:
+    draft = api.new_diagram(project, owner, "Draft", draft=True)
+    assert api.call("GET", f"/diagrams/{draft['id']}/frame-contents?ids=x").status_code == 401
+    assert api.call("GET", f"/diagrams/{draft['id']}/frame-contents?ids=x", other).status_code == 404

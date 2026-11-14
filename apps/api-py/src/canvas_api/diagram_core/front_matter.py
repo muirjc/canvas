@@ -6,7 +6,7 @@ from __future__ import annotations
 import math
 import re
 from collections.abc import Callable
-from typing import Any
+from typing import Any, cast
 
 from canvas_api.diagram_core import jsyaml
 from canvas_api.diagram_core.jsvalues import js_number_value
@@ -254,3 +254,81 @@ def with_links(
     if not links:
         return front_matter
     return {**front_matter, "canvas": {**(front_matter.get("canvas") or {}), "links": links}}
+
+
+#: canvas-8uh1.6 (diagram-model.ts MAX_FRAMES): at most this many frames are read.
+MAX_FRAMES = 50
+
+
+def _finite(value: Any) -> bool:
+    """`typeof value === 'number' && Number.isFinite(value)` (a YAML true/false is not a number)."""
+    return isinstance(value, (int, float)) and not isinstance(value, bool) and math.isfinite(value)
+
+
+def apply_frames(front_matter: Any, model: dict[str, Any]) -> None:
+    """canvas-8uh1.6 (front-matter.ts applyFrames): sets `model["frames"]` from `canvas.frames`, dropping entries
+    that aren't a frame (bad or repeated ids, numbers that aren't finite, a size that isn't positive); at most
+    MAX_FRAMES."""
+    listed = canvas_section(front_matter).get("frames")
+    if not isinstance(listed, list):
+        return
+    frames: list[dict[str, Any]] = []
+    seen: set[str] = set()
+    for entry in listed:
+        if len(frames) >= MAX_FRAMES:
+            break
+        if not isinstance(entry, dict):
+            continue
+        frame_id, diagram_id = entry.get("id"), entry.get("diagramId")
+        x, y, width, height = (cast(Any, entry.get(k)) for k in ("x", "y", "width", "height"))
+        if not is_diagram_link_id(frame_id) or not is_diagram_link_id(diagram_id) or frame_id in seen:
+            continue
+        if not (_finite(x) and _finite(y) and _finite(width) and _finite(height)) or width <= 0 or height <= 0:
+            continue
+        seen.add(str(frame_id))
+        frames.append(
+            {
+                "id": frame_id,
+                "diagramId": diagram_id,
+                "position": {"x": x, "y": y},
+                "size": {"width": width, "height": height},
+            }
+        )
+    if frames:
+        model["frames"] = frames
+
+
+def with_frames(front_matter: dict[str, Any], model: dict[str, Any]) -> dict[str, Any]:
+    """canvas-8uh1.6 (front-matter.ts withFrames): the model's frames added to a serializer's front matter (the same
+    checks as apply_frames); nothing when there are none."""
+
+    def entry(frame: Any) -> dict[str, Any]:
+        position = frame.get("position") if isinstance(frame, dict) else None
+        size = frame.get("size") if isinstance(frame, dict) else None
+        position = position if isinstance(position, dict) else {}
+        size = size if isinstance(size, dict) else {}
+        return {
+            "id": frame.get("id") if isinstance(frame, dict) else None,
+            "diagramId": frame.get("diagramId") if isinstance(frame, dict) else None,
+            "x": position.get("x"),
+            "y": position.get("y"),
+            "width": size.get("width"),
+            "height": size.get("height"),
+        }
+
+    read: dict[str, Any] = {}
+    apply_frames({"canvas": {"frames": [entry(f) for f in model.get("frames") or []]}}, read)
+    if "frames" not in read:
+        return front_matter
+    frames = [
+        {
+            "id": f["id"],
+            "diagramId": f["diagramId"],
+            "x": f["position"]["x"],
+            "y": f["position"]["y"],
+            "width": f["size"]["width"],
+            "height": f["size"]["height"],
+        }
+        for f in read["frames"]
+    ]
+    return {**front_matter, "canvas": {**(front_matter.get("canvas") or {}), "frames": frames}}

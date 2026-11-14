@@ -256,6 +256,15 @@ export interface DiagramLinkDto {
   diagram: { id: string; name: string; diagramTypeId: string; projectId: string; projectName: string } | null;
 }
 
+/** canvas-8uh1.6: what a frame shows (GET /diagrams/:id/frame-contents): the framed diagram's state, and its
+ *  title and latest saved drawing when it can be shown. */
+export interface FrameContentDto {
+  diagramId: string;
+  status: DiagramLinkDto['status'];
+  diagram: DiagramLinkDto['diagram'];
+  svg: string | null;
+}
+
 /** canvas-8uh1.3: a diagram that links to this one (GET /diagrams/:id/used-in). */
 export interface DiagramUsedInDto {
   diagramId: string;
@@ -705,6 +714,8 @@ export const api = {
   getDiagram: (id: string) => request<{ diagram: DiagramDto }>(`/diagrams/${id}`),
   getDiagramLinks: (id: string) => request<{ links: DiagramLinkDto[] }>(`/diagrams/${id}/links`),
   getDiagramUsedIn: (id: string) => request<{ usedIn: DiagramUsedInDto[] }>(`/diagrams/${id}/used-in`),
+  getFrameContents: (id: string, diagramIds: string[]) =>
+    request<{ frames: FrameContentDto[] }>(`/diagrams/${id}/frame-contents?ids=${encodeURIComponent(diagramIds.join(','))}`),
   saveDiagram: (id: string, dslContent: string, baseVersionId: string) =>
     request<{ diagram: DiagramDto }>(`/diagrams/${id}`, { method: 'PATCH', body: JSON.stringify({ dslContent, baseVersionId }) }),
   /** canvas-obp0: this editor tab is open; returns everyone else who has the diagram open. */

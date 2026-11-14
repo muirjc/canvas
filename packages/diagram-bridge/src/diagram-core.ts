@@ -13,6 +13,7 @@ export { getTemplateCompiler } from '../../diagram-core/src/template/template-re
 export { validate } from '../../diagram-core/src/standards/validator.js';
 export { checkStandardDefinition } from '../../diagram-core/src/standards/definition-check.js';
 export { renderToSvg } from '../../diagram-core/src/render/svg-renderer.js';
+export type { FrameContent } from '../../diagram-core/src/render/frames-render.js';
 export { updateEmbeds, type EmbedSource } from '../../diagram-core/src/embeds/markdown-embeds.js';
 // canvas-1bty.14: the library admin (uploaded SVGs, manifests, which diagrams use an icon).
 export { prepareUploadedSvg, sanitizeIconMarkupStrict, SvgImportError } from '../../diagram-core/src/libraries/svg-import.js';

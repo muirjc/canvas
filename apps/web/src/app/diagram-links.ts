@@ -3,7 +3,7 @@
 // comes from the API: the links index for the saved diagram (GET /diagrams/:id/links), and a read of the diagram
 // for a link made since the last save.
 import { useCallback, useEffect, useRef, useState } from 'react';
-import type { DiagramModel } from '@canvas/diagram-core';
+import type { DiagramModel, FrameContent } from '@canvas/diagram-core';
 import { api, ApiError, type DiagramLinkDto } from './api';
 
 export type LinkStatus = DiagramLinkDto['status'] | 'checking';
@@ -142,4 +142,55 @@ export function useLinkTargets(diagramId: string, model: DiagramModel, refreshTo
   }, [wantedKey]);
 
   return { targets, remember };
+}
+
+/** canvas-8uh1.6: how often frames look for a newer saved version of their diagrams, while the page is visible. */
+export const FRAME_REFRESH_MS = 60_000;
+
+/**
+ * canvas-8uh1.6: what each of the diagram's frames shows, by framed diagram id (FrameContent, as the renderer
+ * takes it). Loaded when the set of framed diagrams changes, after each save (`refreshToken`), and every
+ * FRAME_REFRESH_MS while the page is visible, so a frame follows the inner diagram's saves.
+ */
+export function useFrameContents(diagramId: string, model: DiagramModel, refreshToken: number) {
+  const [contents, setContents] = useState<Map<string, FrameContent & { projectId?: string }>>(new Map());
+  const [tick, setTick] = useState(0);
+  const ids = [...new Set((model.frames ?? []).map((f) => f.diagramId))].sort();
+  const key = ids.join(',');
+
+  useEffect(() => {
+    if (!key) return;
+    const timer = window.setInterval(() => {
+      if (document.visibilityState === 'visible') setTick((t) => t + 1);
+    }, FRAME_REFRESH_MS);
+    return () => window.clearInterval(timer);
+  }, [key]);
+
+  useEffect(() => {
+    if (!key) return;
+    let cancelled = false;
+    api
+      .getFrameContents(diagramId, key.split(','))
+      .then(({ frames }) => {
+        if (cancelled) return;
+        setContents((prev) => {
+          const next = new Map(prev);
+          for (const frame of frames) {
+            next.set(frame.diagramId, {
+              status: frame.status,
+              ...(frame.diagram ? { name: frame.diagram.name, projectId: frame.diagram.projectId } : {}),
+              ...(frame.svg !== null ? { svg: frame.svg } : {}),
+            });
+          }
+          return next;
+        });
+      })
+      // Kept as it was: a frame keeps showing the last drawing it had (or "Loading…") until the next try.
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, [diagramId, key, refreshToken, tick]);
+
+  return contents;
 }

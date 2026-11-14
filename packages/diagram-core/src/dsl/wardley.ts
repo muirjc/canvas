@@ -29,7 +29,7 @@ import {
   type WardleyStrategy,
 } from '../model/diagram-model.js';
 import { wardleyCoordinatesAt, wardleyFrame, wardleyPercent, wardleyPoint, wardleyX, wardleyY, type WardleyFrame } from '../model/wardley-geometry.js';
-import { applyLinks, joinFrontMatter, splitFrontMatter, withLinks } from './front-matter.js';
+import { applyFrames, applyLinks, joinFrontMatter, splitFrontMatter, withFrames, withLinks } from './front-matter.js';
 import type { ParseError, ParseResult } from './types.js';
 
 export const WARDLEY_HEADER = 'wardley-beta';
@@ -450,6 +450,7 @@ export function parseWardley(dsl: string): ParseResult {
   model.containers = containers;
   layOutPipelines(model, frame);
   applyLinks(frontMatter, model);
+  applyFrames(frontMatter, model);
   return { model };
 }
 
@@ -558,16 +559,17 @@ const pair = (point: Point) => `[${wardleyNumber(point.visibility)}, ${wardleyNu
 const labelPart = (labelOffset: { x: number; y: number } | undefined) =>
   labelOffset ? ` label [${Math.round(labelOffset.x)}, ${Math.round(labelOffset.y)}]` : '';
 
-/** canvas-8uh1.1: the text, with `canvas.links` front matter when an element links to another diagram. A map's ids
+/** canvas-8uh1.1: the text, with `canvas.links` front matter when an element links to another diagram (and
+ *  `canvas.frames` when it has frames, canvas-8uh1.6). A map's ids
  *  come from what is written (a component's name, a note's place among the notes), so each link is keyed by the id
  *  the element gets when the text is read back. */
 export function serializeWardley(model: DiagramModel): string {
   const body = writeWardley(model);
-  if (![...model.nodes, ...model.containers].some((e) => e.diagramRef)) return body;
+  if (![...model.nodes, ...model.containers].some((e) => e.diagramRef)) return joinFrontMatter(withFrames({}, model), body);
   const reread = parseWardley(body);
-  if (!('model' in reread)) return body;
+  if (!('model' in reread)) return joinFrontMatter(withFrames({}, model), body);
   const ids = wardleySavedIds(model, reread.model);
-  return joinFrontMatter(withLinks({}, model, (id, kind) => ids.get(`${kind}:${id}`)), body);
+  return joinFrontMatter(withFrames(withLinks({}, model, (id, kind) => ids.get(`${kind}:${id}`)), model), body);
 }
 
 /** For each element, the id it has after a save and a read: elements matched by what the text says about them

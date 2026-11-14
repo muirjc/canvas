@@ -146,3 +146,30 @@ describe('LinkPickerDialog', () => {
     expect(onClose).toHaveBeenCalled();
   });
 });
+
+describe('LinkPickerDialog in frame mode', () => {
+  it('says it embeds, not links', async () => {
+    mockApi();
+    renderPicker({ mode: 'frame' });
+    await screen.findByTestId('link-picker-result-other');
+    expect(document.querySelector('dialog')!.textContent).toContain('Embed a diagram');
+    expect(document.querySelector('dialog')!.textContent).toContain('Choose a diagram to draw in a frame on this one');
+    expect(document.querySelector('dialog')!.textContent).not.toContain('opens from');
+    expect(screen.getByTestId('link-picker-create').textContent).toBe('Create and embed');
+  });
+
+  it('keeps the link wording by default', async () => {
+    mockApi();
+    renderPicker();
+    await screen.findByTestId('link-picker-result-other');
+    expect(screen.getByTestId('link-picker-create').textContent).toBe('Create and link');
+    expect(document.querySelector('dialog')!.textContent).not.toContain('Embed a diagram');
+  });
+
+  it('picking a result still calls onPick', async () => {
+    mockApi();
+    const { onPick } = renderPicker({ mode: 'frame' });
+    fireEvent.click(await screen.findByTestId('link-picker-result-other'));
+    expect(onPick).toHaveBeenCalledWith('other', expect.objectContaining({ status: 'available', name: 'Payments containers' }));
+  });
+});

@@ -100,6 +100,28 @@ tests are NON-NEGOTIABLE and must exist (and fail) before implementing any diagr
 work — see `.specify/memory/constitution.md` Principle IV.
 
 ## Recent Changes
+- `canvas-8uh1.6` (composite diagrams, part 6 of 7): **frames -- another diagram drawn in this one.** Model
+  `frames?: DiagramFrame[]` ({id, diagramId, position, size}; `MAX_FRAMES` 50, `MIN_FRAME_SIZE` 160x100), front
+  matter `canvas.frames` (a list of {id, diagramId, x, y, width, height}) in every family: `applyFrames`/`withFrames`
+  (TS front-matter.ts, Python front_matter.py; bad/repeated ids, non-finite or non-positive numbers dropped; Wardley
+  writes front matter for frames alone too). Edits `addFrame` (ids f1, f2... via `nextFrameId`), `updateFrame`,
+  `removeFrame` (TS + Python). Drawing: `render/frames-render.ts` / `frames_render.py` `withFrameOverlay`, applied
+  by renderToSvg after any family's drawing: grows the root svg to fit (+20), draws each frame (header, title
+  shortened by `frameTitle`, inner drawing as a nested <svg> with its viewBox, or a placeholder via
+  `frameStatusText`); `RenderOptions.frameContents` {diagramId: {name?, status, svg?}} supplies the inner drawings,
+  rendered WITHOUT their own contents, so frames go one level deep. Portable export appends `FRAMES_NOTE` (`%%`).
+  Live editing carries `frames` as one top-level field (last writer wins for the whole list). API: frames go into
+  `diagram_links` (kind 'frame', element id = frame id; Used in counts them); `GET /diagrams/{id}/frame-contents?ids=`
+  (export.py; view access on the source; state + title + drawing per framed id, <= 50); exports and GitHub draw
+  them (`render_svg(..., with_frames=True, viewer_id)`; GitHub as nobody, so drafts are "Not available");
+  canvas.json `frames` [{frameId, diagramId, diagramType, versionId, versionSequence}] and a README "Embedded
+  diagrams" list only when there are frames. Web: `canvas/FramesLayer.tsx` (testids `diagram-frame-<id>`,
+  `frame-open-`, `frame-resize-`, `frame-placeholder-`; image of the inner SVG; drag/resize with pointer capture;
+  keyboard-focusable), Canvas `frameContents`/`onOpenFrame`/`onRequestFrame`, Tools `embed-diagram`/`remove-frame`,
+  Delete removes the selected frame; `useFrameContents` (refetch on save and every 60 s while visible);
+  LinkPickerDialog `mode="frame"`; Links tab "Embedded diagrams". Tests: `frames.test.ts`,
+  `test_diagram_core_frames.py` (seeded fuzz vs the bridge), test_diagram_links/test_export/test_github_submit,
+  web `frames-layer`, `frame-contents`, e2e `diagram-frames.spec.ts`.
 - `canvas-8uh1.5` (composite diagrams, part 5 of 7): **a standard can say a kind should link, and the AI links.**
   `ElementKind.linkTo` (diagram type ids; `DIAGRAM_TYPE_ID_PATTERN` slug, no duplicates in the definition check);
   rule `kind-link` (Warning): an element of the kind with no `diagramRef`, or linking to a diagram of a type not

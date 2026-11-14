@@ -1,6 +1,9 @@
 import {
   isAllowedLinkHref,
   isDiagramLinkId,
+  MAX_FRAMES,
+  MIN_FRAME_SIZE,
+  type DiagramFrame,
   type ClassMember,
   type DiagramContainer,
   type DiagramEdge,
@@ -849,4 +852,77 @@ export function setDiagramLink(model: DiagramModel, elementId: string, diagramId
     return { ...element, diagramRef: { diagramId } };
   };
   return { ...model, nodes: model.nodes.map(relink), containers: model.containers.map(relink) };
+}
+
+/** canvas-8uh1.6: a new frame's size when none is given. */
+export const DEFAULT_FRAME_SIZE: Size = { width: 360, height: 240 };
+
+export interface AddFrameInput {
+  diagramId: string;
+  position?: Position;
+  size?: Size;
+}
+
+function frameSize(size: Size): Size {
+  return { width: Math.max(MIN_FRAME_SIZE.width, size.width), height: Math.max(MIN_FRAME_SIZE.height, size.height) };
+}
+
+/** canvas-8uh1.6: the id the next frame gets: `f1`, `f2`, ... the first not taken. */
+export function nextFrameId(model: DiagramModel): string {
+  const taken = new Set((model.frames ?? []).map((f) => f.id));
+  let n = 1;
+  while (taken.has(`f${n}`)) n += 1;
+  return `f${n}`;
+}
+
+/**
+ * canvas-8uh1.6: adds a frame showing another diagram (by id), at `position` (default 40, 40) and `size` (default
+ * DEFAULT_FRAME_SIZE, never below MIN_FRAME_SIZE). Its id is nextFrameId's. Throws when there are MAX_FRAMES.
+ */
+export function addFrame(model: DiagramModel, input: AddFrameInput): DiagramModel {
+  if (!isDiagramLinkId(input.diagramId)) throw new Error(`addFrame: "${String(input.diagramId)}" is not a diagram id`);
+  const frames = model.frames ?? [];
+  if (frames.length >= MAX_FRAMES) throw new Error(`addFrame: a diagram has at most ${MAX_FRAMES} frames`);
+  const frame: DiagramFrame = {
+    id: nextFrameId(model),
+    diagramId: input.diagramId,
+    position: { x: input.position?.x ?? 40, y: input.position?.y ?? 40 },
+    size: frameSize(input.size ?? DEFAULT_FRAME_SIZE),
+  };
+  return { ...model, frames: [...frames, frame] };
+}
+
+export interface FramePatch {
+  position?: Position;
+  size?: Size;
+  diagramId?: string;
+}
+
+/** canvas-8uh1.6: moves, resizes (never below MIN_FRAME_SIZE) or repoints a frame. Throws for an unknown frame. */
+export function updateFrame(model: DiagramModel, frameId: string, patch: FramePatch): DiagramModel {
+  const frames = model.frames ?? [];
+  if (!frames.some((f) => f.id === frameId)) throw new Error(`updateFrame: there is no frame "${frameId}"`);
+  if (patch.diagramId !== undefined && !isDiagramLinkId(patch.diagramId)) throw new Error(`updateFrame: "${String(patch.diagramId)}" is not a diagram id`);
+  return {
+    ...model,
+    frames: frames.map((f) =>
+      f.id !== frameId
+        ? f
+        : {
+            ...f,
+            ...(patch.diagramId !== undefined ? { diagramId: patch.diagramId } : {}),
+            ...(patch.position ? { position: { x: patch.position.x, y: patch.position.y } } : {}),
+            ...(patch.size ? { size: frameSize(patch.size) } : {}),
+          },
+    ),
+  };
+}
+
+/** canvas-8uh1.6: removes a frame (an unknown id changes nothing); the last one removes `frames` altogether. */
+export function removeFrame(model: DiagramModel, frameId: string): DiagramModel {
+  const frames = (model.frames ?? []).filter((f) => f.id !== frameId);
+  if (frames.length === (model.frames ?? []).length) return model;
+  if (frames.length > 0) return { ...model, frames };
+  const { frames: _dropped, ...rest } = model;
+  return rest;
 }

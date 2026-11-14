@@ -529,7 +529,26 @@ export interface DiagramModel {
   mermaidConfigDirective?: string;
   /** canvas-4h1j: Wardley maps only -- size, evolution stages and the annotations box. */
   wardley?: WardleyMapData;
+  /** canvas-8uh1.6: other diagrams drawn over this one (front matter `canvas.frames`, every family). */
+  frames?: DiagramFrame[];
 }
+
+/**
+ * canvas-8uh1.6: a frame shows another diagram's latest saved version, scaled to fit, at a place and size of its
+ * own. It isn't part of the Mermaid text (no family could write it as one), and no connector ends on it.
+ */
+export interface DiagramFrame {
+  /** Unique among the diagram's frames; the same rule as a linked diagram's id. */
+  id: string;
+  diagramId: string;
+  position: Position;
+  size: Size;
+}
+
+/** canvas-8uh1.6: at most this many frames are read from a diagram's front matter. */
+export const MAX_FRAMES = 50;
+/** canvas-8uh1.6: a frame is never smaller than this, so its header and Open stay usable. */
+export const MIN_FRAME_SIZE = { width: 160, height: 100 };
 
 export function createEmptyDiagramModel(diagramTypeId: string): DiagramModel {
   return { diagramTypeId, nodes: [], edges: [], containers: [] };

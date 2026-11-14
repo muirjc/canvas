@@ -1,5 +1,5 @@
 import { parse as parseYaml, stringify as stringifyYaml } from 'yaml';
-import { isDiagramLinkId, type DiagramLegend, type DiagramModel, type LegendEntrySpec, type NodeStyle } from '../model/diagram-model.js';
+import { isDiagramLinkId, MAX_FRAMES, type DiagramFrame, type DiagramLegend, type DiagramModel, type LegendEntrySpec, type NodeStyle } from '../model/diagram-model.js';
 import { AWS_ICONS_VERSION, LEGACY_AWS_PLACEHOLDER_VERSION } from '../libraries/aws-icons.js';
 
 /**
@@ -24,6 +24,8 @@ export interface CanvasFrontMatter {
     pinned?: unknown;
     /** canvas-8uh1.1: element id -> the id of the diagram it links to (validated by applyLinks). */
     links?: Record<string, unknown>;
+    /** canvas-8uh1.6: frames, a list of {id, diagramId, x, y, width, height} (validated by applyFrames). */
+    frames?: unknown;
   };
 }
 
@@ -212,4 +214,43 @@ export function withLinks(
   for (const container of model.containers) add(container, 'container');
   if (!any) return frontMatter;
   return { ...frontMatter, canvas: { ...(frontMatter.canvas ?? {}), links: { ...links } } };
+}
+
+const finite = (value: unknown): value is number => typeof value === 'number' && Number.isFinite(value);
+
+/** canvas-8uh1.6: sets `model.frames` from the front matter's `canvas.frames`: entries that aren't a frame (bad
+ *  ids, a repeated id, numbers that aren't finite, a size that isn't positive) are dropped, never an error; at
+ *  most MAX_FRAMES are read. */
+export function applyFrames(frontMatter: CanvasFrontMatter, model: Pick<DiagramModel, 'frames'>): void {
+  const listed = frontMatter.canvas?.frames;
+  if (!Array.isArray(listed)) return;
+  const frames: DiagramFrame[] = [];
+  const seen = new Set<string>();
+  for (const entry of listed as unknown[]) {
+    if (frames.length >= MAX_FRAMES) break;
+    if (!entry || typeof entry !== 'object') continue;
+    const { id, diagramId, x, y, width, height } = entry as Record<string, unknown>;
+    if (!isDiagramLinkId(id) || !isDiagramLinkId(diagramId) || seen.has(id)) continue;
+    if (!finite(x) || !finite(y) || !finite(width) || !finite(height) || width <= 0 || height <= 0) continue;
+    seen.add(id);
+    frames.push({ id, diagramId, position: { x, y }, size: { width, height } });
+  }
+  if (frames.length > 0) model.frames = frames;
+}
+
+/** canvas-8uh1.6: adds the model's frames to a serializer's front matter (the same checks as applyFrames). Nothing
+ *  is added when there are none. */
+export function withFrames(frontMatter: CanvasFrontMatter, model: Pick<DiagramModel, 'frames'>): CanvasFrontMatter {
+  const read: Pick<DiagramModel, 'frames'> = {};
+  applyFrames(
+    {
+      canvas: {
+        frames: (model.frames ?? []).map((f) => ({ id: f.id, diagramId: f.diagramId, x: f.position?.x, y: f.position?.y, width: f.size?.width, height: f.size?.height })),
+      },
+    },
+    read,
+  );
+  if (!read.frames) return frontMatter;
+  const frames = read.frames.map((f) => ({ id: f.id, diagramId: f.diagramId, x: f.position.x, y: f.position.y, width: f.size.width, height: f.size.height }));
+  return { ...frontMatter, canvas: { ...(frontMatter.canvas ?? {}), frames } };
 }

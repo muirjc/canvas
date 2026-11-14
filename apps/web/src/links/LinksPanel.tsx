@@ -1,6 +1,7 @@
 // canvas-8uh1.3: the editor's Links tab. "Links from this diagram": each element that opens another diagram,
 // with where it goes and whether it can be opened (Open; Change and Remove for editors). "Used in": the diagrams
 // that link here (as last saved), each opening to the element that links.
+import { frameStatusText, type DiagramFrame, type FrameContent } from '@canvas/diagram-core';
 import type { DiagramUsedInDto } from '../app/api';
 import { linkStatusText, type ElementLink, type LinkTarget } from '../app/diagram-links';
 import { Icon } from '../ui/Icon';
@@ -14,6 +15,10 @@ export interface LinksPanelProps {
   onChange: (elementId: string) => void;
   onRemove: (elementId: string) => void;
   onSelectElement: (elementId: string) => void;
+  /** canvas-8uh1.6: the diagram's frames and what each shows. */
+  frames?: DiagramFrame[];
+  frameContents?: Map<string, FrameContent>;
+  onRemoveFrame?: (frameId: string) => void;
 }
 
 const STATUS_LABEL: Record<string, string> = {
@@ -23,7 +28,7 @@ const STATUS_LABEL: Record<string, string> = {
   checking: 'Checking…',
 };
 
-export function LinksPanel({ links, targets, usedIn, canEdit, onOpen, onChange, onRemove, onSelectElement }: LinksPanelProps) {
+export function LinksPanel({ links, targets, usedIn, canEdit, onOpen, onChange, onRemove, onSelectElement, frames = [], frameContents, onRemoveFrame }: LinksPanelProps) {
   return (
     <div className="stack links-panel" data-testid="links-panel">
       <section className="stack" aria-labelledby="links-from-heading">
@@ -81,6 +86,43 @@ export function LinksPanel({ links, targets, usedIn, canEdit, onOpen, onChange, 
           </ul>
         )}
       </section>
+      {frames.length > 0 && (
+        <section className="stack" aria-labelledby="frames-heading">
+          <h2 className="section-label" id="frames-heading">
+            Embedded diagrams
+          </h2>
+          <ul className="links-panel__list" data-testid="frames-list">
+            {frames.map((frame) => {
+              const content = frameContents?.get(frame.diagramId);
+              const available = content?.status === 'available';
+              return (
+                <li key={frame.id} className="links-panel__item" data-testid={`frame-row-${frame.id}`} data-status={content?.status ?? 'checking'}>
+                  {available ? (
+                    <span className="links-panel__target">{content.name}</span>
+                  ) : (
+                    <span className="links-panel__target links-panel__target--broken">
+                      {content && <Icon name="warning" />}
+                      {content ? frameStatusText(content) : 'Checking…'}
+                    </span>
+                  )}
+                  <span className="links-panel__actions">
+                    {available && (
+                      <button type="button" className="btn btn--secondary btn--compact" data-testid={`frame-row-open-${frame.id}`} aria-label={`Open ${content.name ?? 'the embedded diagram'}`} onClick={() => onOpen(frame.diagramId)}>
+                        Open
+                      </button>
+                    )}
+                    {canEdit && onRemoveFrame && (
+                      <button type="button" className="btn btn--tertiary btn--compact" data-testid={`frame-row-remove-${frame.id}`} aria-label={`Remove the frame showing ${content?.name ?? 'a diagram'}`} onClick={() => onRemoveFrame(frame.id)}>
+                        Remove frame
+                      </button>
+                    )}
+                  </span>
+                </li>
+              );
+            })}
+          </ul>
+        </section>
+      )}
       <section className="stack" aria-labelledby="used-in-heading">
         <h2 className="section-label" id="used-in-heading">
           Used in
@@ -89,7 +131,7 @@ export function LinksPanel({ links, targets, usedIn, canEdit, onOpen, onChange, 
           <p className="meta" role="status">Loading…</p>
         ) : usedIn.length === 0 ? (
           <p className="meta" data-testid="used-in-empty">
-            No other diagram links here.
+            No other diagram links here or embeds this one.
           </p>
         ) : (
           <ul className="links-panel__list" data-testid="used-in-list">

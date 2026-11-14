@@ -1,7 +1,7 @@
 import { inReadOrder } from './read-order.js';
 import { parseFlowchart } from './flowchart-parser.js';
 import { isAllowedLinkHref, type DiagramContainer, type DiagramModel, type DiagramNode, type NodeShape } from '../model/diagram-model.js';
-import { joinFrontMatter, type CanvasFrontMatter, withLegend, withPinned, withLinks } from './front-matter.js';
+import { joinFrontMatter, type CanvasFrontMatter, withLegend, withPinned, withLinks, withFrames } from './front-matter.js';
 import { MAX_LINK_LENGTH, MERMAID_NAME, MERMAID_SHAPE_NAME, dataEntries, formatShapeData, mermaidShapeToCanvas } from './mermaid-shape-data.js';
 
 const SHAPE_DELIMITERS: Record<NodeShape, [string, string]> = {
@@ -209,5 +209,5 @@ function writeFlowchart(model: DiagramModel): string {
   }
 
   const body = `${bodyLines.join('\n')}\n`;
-  return joinFrontMatter(withLinks(withPinned(withLegend(frontMatter, model), model), model), body);
+  return joinFrontMatter(withFrames(withLinks(withPinned(withLegend(frontMatter, model), model), model), model), body);
 }

@@ -110,6 +110,47 @@ describe('LinksPanel', () => {
   });
 });
 
+describe('LinksPanel embedded diagrams', () => {
+  const frames = [
+    { id: 'f1', diagramId: 'd-ok', position: { x: 0, y: 0 }, size: { width: 300, height: 200 } },
+    { id: 'f2', diagramId: 'd-bin', position: { x: 0, y: 0 }, size: { width: 300, height: 200 } },
+    { id: 'f3', diagramId: 'd-wait', position: { x: 0, y: 0 }, size: { width: 300, height: 200 } },
+  ];
+  const contents = new Map([
+    ['d-ok', { status: 'available' as const, name: 'Payments containers' }],
+    ['d-bin', { status: 'deleted' as const }],
+  ]);
+
+  it('lists nothing when there are no frames', () => {
+    setup();
+    expect(screen.queryByTestId('frames-list')).toBeNull();
+  });
+
+  it('shows each frame with its state; Open only when it can be opened', () => {
+    const props = setup({ frames, frameContents: contents, onRemoveFrame: vi.fn() });
+    expect(screen.getByTestId('frame-row-f1').getAttribute('data-status')).toBe('available');
+    expect(screen.getByTestId('frame-row-f1').textContent).toContain('Payments containers');
+    expect(screen.getByTestId('frame-row-f2').getAttribute('data-status')).toBe('deleted');
+    expect(screen.getByTestId('frame-row-f2').textContent).toContain('Deleted (in the bin)');
+    expect(screen.getByTestId('frame-row-f3').getAttribute('data-status')).toBe('checking');
+    expect(screen.queryByTestId('frame-row-open-f2')).toBeNull();
+    expect(screen.queryByTestId('frame-row-open-f3')).toBeNull();
+    fireEvent.click(screen.getByTestId('frame-row-open-f1'));
+    expect(props.onOpen).toHaveBeenCalledWith('d-ok');
+  });
+
+  it('Remove frame calls back with the frame id, for editors only', () => {
+    const onRemoveFrame = vi.fn();
+    setup({ frames, frameContents: contents, onRemoveFrame });
+    fireEvent.click(screen.getByTestId('frame-row-remove-f2'));
+    expect(onRemoveFrame).toHaveBeenCalledWith('f2');
+    cleanup();
+    setup({ frames, frameContents: contents, onRemoveFrame, canEdit: false });
+    expect(screen.queryByTestId('frame-row-remove-f1')).toBeNull();
+    expect(screen.getByTestId('frame-row-open-f1')).toBeTruthy();
+  });
+});
+
 describe('elementLinks', () => {
   it('lists shapes first, then groups, falling back to the id for a missing label', () => {
     const model = {
