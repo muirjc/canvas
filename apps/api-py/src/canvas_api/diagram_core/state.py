@@ -15,6 +15,7 @@ from typing import Any
 from canvas_api.diagram_core.containment_layout import compute_containment_layout
 from canvas_api.diagram_core.flowchart import parse_style_props
 from canvas_api.diagram_core.front_matter import (
+    apply_links,
     canvas_section,
     join_front_matter,
     read_legend,
@@ -23,6 +24,7 @@ from canvas_api.diagram_core.front_matter import (
     split_front_matter,
     strip_trailing_comment,
     with_legend,
+    with_links,
     with_pinned,
 )
 from canvas_api.diagram_core.jsvalues import js_truthy
@@ -547,6 +549,7 @@ def parse_state(dsl: str) -> dict[str, Any]:
     )
     if pinned := read_pinned(front_matter, model):
         model["pinned"] = pinned
+    apply_links(front_matter, model)
     return {"model": model}
 
 
@@ -782,4 +785,9 @@ def _write_state(model: dict[str, Any]) -> str:
         "containers": [{**c, "id": saved_id(c["id"])} for c in containers],
         **({"pinned": [saved_id(p) for p in model["pinned"]]} if model.get("pinned") else {}),
     }
-    return join_front_matter(with_pinned(with_legend(front_matter, model), saved), "\n".join(lines) + "\n")
+    linked = with_links(
+        with_pinned(with_legend(front_matter, model), saved),
+        model,
+        lambda element_id, kind: saved_id(element_id) if kind == "container" else element_id,
+    )
+    return join_front_matter(linked, "\n".join(lines) + "\n")

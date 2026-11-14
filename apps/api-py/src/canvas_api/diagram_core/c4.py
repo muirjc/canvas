@@ -13,6 +13,7 @@ from typing import Any
 
 from canvas_api.diagram_core.containment_layout import compute_containment_layout
 from canvas_api.diagram_core.front_matter import (
+    apply_links,
     canvas_section,
     join_front_matter,
     read_legend,
@@ -21,6 +22,7 @@ from canvas_api.diagram_core.front_matter import (
     split_front_matter,
     strip_trailing_comment,
     with_legend,
+    with_links,
     with_pinned,
 )
 from canvas_api.diagram_core.model import create_empty_diagram_model
@@ -480,6 +482,7 @@ def parse_c4(dsl: str) -> dict[str, Any]:
         model["layoutHints"] = layout_hints
     if pinned := read_pinned(front_matter, model):
         model["pinned"] = pinned
+    apply_links(front_matter, model)
     return {"model": model}
 
 
@@ -649,4 +652,6 @@ def _write_c4(model: dict[str, Any]) -> str:
         if suffix := _hint_suffix(hint.get("direction")):
             lines.append(f"Lay_{suffix}({_js_text(hint.get('from'))}, {_js_text(hint.get('to'))})")
 
-    return join_front_matter(with_pinned(with_legend(front_matter, model), model), "\n".join(lines) + "\n")
+    return join_front_matter(
+        with_links(with_pinned(with_legend(front_matter, model), model), model), "\n".join(lines) + "\n"
+    )

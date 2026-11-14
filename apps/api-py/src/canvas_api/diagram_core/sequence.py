@@ -14,11 +14,13 @@ import re
 from typing import Any
 
 from canvas_api.diagram_core.front_matter import (
+    apply_links,
     canvas_section,
     join_front_matter,
     section,
     split_front_matter,
     strip_trailing_comment,
+    with_links,
 )
 from canvas_api.diagram_core.jsvalues import js_parse_float, js_truthy
 from canvas_api.diagram_core.jsyaml import js_key_order
@@ -514,6 +516,8 @@ def parse_sequence(dsl: str) -> dict[str, Any]:
     model["accTitle"] = acc_title
     model["accDescr"] = acc_descr
     model["mermaidConfigDirective"] = config_directive
+    # canvas-8uh1.1: participants only -- a block's or note's id is made up by the parser.
+    apply_links(front_matter, {"nodes": model["nodes"], "containers": []})
     return {"model": model}
 
 
@@ -713,7 +717,9 @@ def serialize_sequence(model: dict[str, Any]) -> str:
                 lines.append(f"link {_t(node.get('id'))}: {_t(link_label)} @ {href}")
     lines.extend(_emit_scope(None, model, ""))
 
-    return join_front_matter(front_matter, "\n".join(lines) + "\n")
+    return join_front_matter(
+        with_links(front_matter, {"nodes": model["nodes"], "containers": []}), "\n".join(lines) + "\n"
+    )
 
 
 def _entries(pairs: list[tuple[str, Any]]) -> dict[str, Any]:

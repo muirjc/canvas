@@ -1,0 +1,65 @@
+{
+  "containers": [
+    {
+      "diagramRef": {
+        "diagramId": "arch-cloud-landing-zone"
+      },
+      "id": "cloud",
+      "label": "Cloud",
+      "position": {
+        "x": 40,
+        "y": 40
+      },
+      "size": {
+        "height": 156.4,
+        "width": 316
+      }
+    }
+  ],
+  "diagramTypeId": "cloud-infrastructure",
+  "edges": [
+    {
+      "arrow": "target",
+      "id": "e1",
+      "sourceAnchor": "R",
+      "sourceId": "api",
+      "targetAnchor": "L",
+      "targetId": "db"
+    }
+  ],
+  "nodes": [
+    {
+      "containerId": "cloud",
+      "diagramRef": {
+        "diagramId": "arch-api-internals"
+      },
+      "icon": {
+        "iconId": "server",
+        "libraryId": "mermaid-architecture",
+        "libraryVersion": "1.0.0"
+      },
+      "id": "api",
+      "label": "API",
+      "position": {
+        "x": 60,
+        "y": 90
+      },
+      "shape": "icon"
+    },
+    {
+      "containerId": "cloud",
+      "icon": {
+        "iconId": "database",
+        "libraryId": "mermaid-architecture",
+        "libraryVersion": "1.0.0"
+      },
+      "id": "db",
+      "label": "DB",
+      "position": {
+        "x": 228,
+        "y": 90
+      },
+      "shape": "icon"
+    }
+  ]
+}

@@ -1,0 +1,8 @@
+flowchart TD
+subgraph grp [Payments]
+  A[Checkout]
+  B[Charge card]
+end
+  constructor[Ledger]
+  A --> B
+  B --> constructor

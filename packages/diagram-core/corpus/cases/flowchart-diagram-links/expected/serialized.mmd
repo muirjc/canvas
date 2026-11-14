@@ -1,0 +1,34 @@
+---
+canvas:
+  positions:
+    A:
+      x: 60
+      y: 90
+    B:
+      x: 240
+      y: 90
+    constructor:
+      x: 440
+      y: 40
+  containers:
+    grp:
+      x: 40
+      y: 40
+      width: 360
+      height: 130
+  styles: {}
+  edgeStyles: {}
+  icons: {}
+  links:
+    A: 7b0c2f9e-1d2a-4c3b-9e8f-0a1b2c3d4e5f
+    constructor: 11111111-2222-4333-8444-555555555555
+    grp: 9e1d0000-aaaa-4bbb-8ccc-123456789abc
+---
+flowchart TD
+subgraph grp [Payments]
+  A[Checkout]
+  B[Charge card]
+end
+  constructor[Ledger]
+  A --> B
+  B --> constructor

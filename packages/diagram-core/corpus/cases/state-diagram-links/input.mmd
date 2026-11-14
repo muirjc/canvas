@@ -1,0 +1,13 @@
+---
+canvas:
+  links:
+    Paying: state-payment-flow
+    Shipping: state-shipping-detail
+---
+stateDiagram-v2
+  [*] --> Paying
+  Paying --> Shipping
+  state Shipping {
+    [*] --> Packed
+    Packed --> [*]
+  }

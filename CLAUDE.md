@@ -100,6 +100,18 @@ tests are NON-NEGOTIABLE and must exist (and fail) before implementing any diagr
 work — see `.specify/memory/constitution.md` Principle IV.
 
 ## Recent Changes
+- `canvas-8uh1.1` (composite diagrams, part 1 of 7; design `docs/composite-diagrams-design.md`): **an element can link to
+  another diagram.** `DiagramRef {diagramId}` as `diagramRef` on nodes and containers; front matter `canvas.links`
+  (element id -> diagram id; `isDiagramLinkId`: letters/digits/`-`/`_`, <= 100) in every family, TS + Python:
+  `applyLinks` at the end of each parse (unknown ids, bad values, a non-map section dropped, never an error;
+  `links` is an id-keyed section, so `constructor` works), `withLinks(fm, model, savedId)` in each writer (nodes then
+  groups). State keys groups by `savedId`; sequence keeps participant links only (block/note ids are made up);
+  Wardley writes front matter only when something links and keys each link by the id the element has once its text
+  is read back (`wardleySavedIds`: name; pipeline parent + name; a note's place among notes), so a rename keeps the
+  link. `setDiagramLink(model, elementId, diagramId | null)` (diagram-ops; Python `set_diagram_link`, in the ops
+  vectors). Corpus `<family>-diagram-links` (8); `diagram-links.test.ts`; `tests/test_diagram_core_links.py` (seeded
+  fuzz vs the bridge: random links + renames on every corpus diagram; caught a planted key-order bug). Nothing in the
+  editor/API/exports yet (8uh1.2-.7). Portable export strips the links with the rest of the front matter.
 - `canvas-4h1j.2` (Wardley maps, part 2 of 2; closes canvas-4h1j): **Wardley Map is a diagram type** (seed `wardley`,
   Business + Enterprise, descriptive starter standard; family capabilities `circle`/`rectangle`). Edits:
   `model/wardley-ops.ts` / Python `wardley_ops.py` (identical, `tests/data/wardley_ops_vectors.json` from

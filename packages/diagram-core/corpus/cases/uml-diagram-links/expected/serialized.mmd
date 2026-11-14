@@ -1,0 +1,26 @@
+---
+canvas:
+  positions:
+    Order:
+      x: 60
+      y: 90
+    Item:
+      x: 240
+      y: 90
+  styles: {}
+  containers:
+    Shop:
+      x: 40
+      y: 40
+      width: 360
+      height: 130
+  links:
+    Order: uml-order-states
+    Shop: uml-shop-package
+---
+classDiagram
+namespace Shop {
+  class Order
+  class Item
+}
+Order "1" *-- "*" Item

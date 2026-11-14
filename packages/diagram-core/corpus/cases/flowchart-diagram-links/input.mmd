@@ -1,0 +1,14 @@
+---
+canvas:
+  links:
+    A: 7b0c2f9e-1d2a-4c3b-9e8f-0a1b2c3d4e5f
+    grp: 9e1d0000-aaaa-4bbb-8ccc-123456789abc
+    B: "not a diagram id!"
+    ghost: 7b0c2f9e-1d2a-4c3b-9e8f-0a1b2c3d4e5f
+    constructor: 11111111-2222-4333-8444-555555555555
+---
+flowchart TD
+  subgraph grp [Payments]
+    A[Checkout] --> B[Charge card]
+  end
+  B --> constructor[Ledger]

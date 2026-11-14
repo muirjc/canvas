@@ -1,0 +1,70 @@
+{
+  "containers": [
+    {
+      "diagramRef": {
+        "diagramId": "9e1d0000-aaaa-4bbb-8ccc-123456789abc"
+      },
+      "id": "grp",
+      "label": "Payments",
+      "position": {
+        "x": 40,
+        "y": 40
+      },
+      "size": {
+        "height": 130,
+        "width": 360
+      }
+    }
+  ],
+  "diagramTypeId": "flowchart",
+  "direction": "TD",
+  "edges": [
+    {
+      "id": "e1",
+      "sourceId": "A",
+      "targetId": "B"
+    },
+    {
+      "id": "e2",
+      "sourceId": "B",
+      "targetId": "constructor"
+    }
+  ],
+  "nodes": [
+    {
+      "containerId": "grp",
+      "diagramRef": {
+        "diagramId": "7b0c2f9e-1d2a-4c3b-9e8f-0a1b2c3d4e5f"
+      },
+      "id": "A",
+      "label": "Checkout",
+      "position": {
+        "x": 60,
+        "y": 90
+      },
+      "shape": "rectangle"
+    },
+    {
+      "containerId": "grp",
+      "id": "B",
+      "label": "Charge card",
+      "position": {
+        "x": 240,
+        "y": 90
+      },
+      "shape": "rectangle"
+    },
+    {
+      "diagramRef": {
+        "diagramId": "11111111-2222-4333-8444-555555555555"
+      },
+      "id": "constructor",
+      "label": "Ledger",
+      "position": {
+        "x": 440,
+        "y": 40
+      },
+      "shape": "rectangle"
+    }
+  ]
+}
