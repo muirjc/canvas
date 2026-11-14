@@ -68,6 +68,7 @@ _DELETE_DIAGRAM = (
     text("DELETE FROM diagram_comment_reads WHERE diagram_id = :id"),
     text("DELETE FROM diagram_comments WHERE diagram_id = :id AND thread_root_id IS NOT NULL"),
     text("DELETE FROM diagram_comments WHERE diagram_id = :id"),
+    text("DELETE FROM diagram_links WHERE source_diagram_id = :id"),  # canvas-8uh1.2
     text("DELETE FROM diagrams WHERE id = :id"),
 )
 

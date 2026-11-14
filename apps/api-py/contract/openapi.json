@@ -748,6 +748,68 @@
         ],
         "type": "object"
       },
+      "DiagramLink": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "elementId",
+          "diagramId",
+          "status",
+          "diagram"
+        ],
+        "properties": {
+          "elementId": {
+            "type": "string"
+          },
+          "diagramId": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "available",
+              "unavailable",
+              "deleted",
+              "missing"
+            ]
+          },
+          "diagram": {
+            "anyOf": [
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "id",
+                  "name",
+                  "diagramTypeId",
+                  "projectId",
+                  "projectName"
+                ],
+                "properties": {
+                  "id": {
+                    "type": "string"
+                  },
+                  "name": {
+                    "type": "string"
+                  },
+                  "diagramTypeId": {
+                    "type": "string"
+                  },
+                  "projectId": {
+                    "type": "string"
+                  },
+                  "projectName": {
+                    "type": "string"
+                  }
+                }
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        }
+      },
       "DiagramSummary": {
         "additionalProperties": false,
         "properties": {
@@ -861,6 +923,41 @@
           "projectId"
         ],
         "type": "object"
+      },
+      "DiagramUsedIn": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "diagramId",
+          "name",
+          "diagramTypeId",
+          "projectId",
+          "projectName",
+          "elementIds"
+        ],
+        "properties": {
+          "diagramId": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "diagramTypeId": {
+            "type": "string"
+          },
+          "projectId": {
+            "type": "string"
+          },
+          "projectName": {
+            "type": "string"
+          },
+          "elementIds": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
       },
       "DiagramVersion": {
         "additionalProperties": false,
@@ -8668,6 +8765,62 @@
         ]
       }
     },
+    "/diagrams/{id}/links": {
+      "get": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "links"
+                  ],
+                  "properties": {
+                    "links": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/DiagramLink"
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "description": "Default Response"
+          },
+          "4XX": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        },
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ],
+        "tags": [
+          "Diagrams"
+        ]
+      }
+    },
     "/diagrams/{id}/name": {
       "patch": {
         "parameters": [
@@ -9521,6 +9674,62 @@
         ],
         "tags": [
           "GitHub"
+        ]
+      }
+    },
+    "/diagrams/{id}/used-in": {
+      "get": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "usedIn"
+                  ],
+                  "properties": {
+                    "usedIn": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/DiagramUsedIn"
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "description": "Default Response"
+          },
+          "4XX": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        },
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ],
+        "tags": [
+          "Diagrams"
         ]
       }
     },
