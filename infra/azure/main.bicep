@@ -186,6 +186,20 @@ module apiApp 'modules/apiapp.bicep' = {
   }
 }
 
+// canvas-dfam: the Mermaid syntax dry run, run by hand with syntax-report.sh before a release.
+module syntaxReportJob 'modules/syntaxreportjob.bicep' = {
+  name: 'syntaxReportJobDeploy'
+  scope: rg
+  params: {
+    location: location
+    environmentId: containerAppsEnv.outputs.environmentId
+    identityId: keyVault.outputs.identityId
+    acrLoginServer: acr.outputs.loginServer
+    apiImageTag: apiImageTag
+    keyVaultUri: keyVault.outputs.keyVaultUri
+  }
+}
+
 module migrationJob 'modules/migrationjob.bicep' = {
   name: 'migrationJobDeploy'
   scope: rg

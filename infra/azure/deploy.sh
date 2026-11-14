@@ -453,6 +453,11 @@ fi
 
 if [[ "$WHAT_IF_ONLY" == true ]]; then
   :
+elif [[ -n "$EXISTING_ACR" ]] && [[ "$API_IMAGE_TAG" != *-dirty-* ]] && \
+  [[ "$(az acr repository show-tags --name "$EXISTING_ACR" --repository canvas-api-py \
+    --query "contains(@, '$API_IMAGE_TAG')" -o tsv 2>/dev/null || true)" == true ]]; then
+  # canvas-dfam: syntax-report.sh --build already built this commit's image (a clean checkout's tag is its commit).
+  echo "== Python API image canvas-api-py:$API_IMAGE_TAG is already in $EXISTING_ACR -- not building it again =="
 elif [[ -n "$EXISTING_ACR" ]]; then
   # The one image: the Python backend with the web app built in, which canvas-api and every job run.
   echo "== Building Python API image (apps/api-py/Dockerfile) to $EXISTING_ACR, tag $API_IMAGE_TAG =="

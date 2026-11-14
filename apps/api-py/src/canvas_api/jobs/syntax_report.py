@@ -1,12 +1,14 @@
 """Mermaid syntax dry run (canvas-7p3y): reads every saved diagram with THIS build's diagram-core and lists the
 ones it can't open, and the ones whose saved text it would write differently on the next save. Run it with the new code
 BEFORE releasing a change to the Mermaid syntax Canvas reads or writes (docs/admin-guide/operations.md, "Moving to a
-newer Mermaid version"). Local databases only for now: the Azure database is private to its VNet (decided with the
-user: add an Azure job when a real syntax change needs one). Read-only: it runs no migrations and changes nothing.
+newer Mermaid version"). Locally, or against the Azure database through the canvas-syntax-report job
+(infra/azure/syntax-report.sh, canvas-dfam). Read-only: it runs no migrations and changes nothing.
 
 Usage:
   python -m canvas_api.jobs.syntax_report           # a summary, then one line per diagram that needs a look
   python -m canvas_api.jobs.syntax_report --json    # the same as JSON, for a script or a ticket
+  python -m canvas_api.jobs.syntax_report --numbered  # each line numbered, ending "END OF REPORT" (the Azure job,
+                                                      # canvas-dfam: infra/azure/syntax-report.sh reassembles it)
 Exit status: 0 when every diagram opens, 1 when any can't (a rewrite on the next save alone is not a failure).
 Env: DB_CLIENT (postgres | sqlite), DATABASE_URL, SESSION_SECRET (unused, but Settings requires it).
 """
@@ -104,15 +106,26 @@ def build_report(conn: Connection, core: DiagramCore | None = None) -> SyntaxRep
     return report
 
 
-def _print(report: SyntaxReport) -> None:
+def report_lines(report: SyntaxReport) -> list[str]:
     families = ", ".join(f"{family} {count}" for family, count in sorted(report.by_family.items()))
-    print(f"Checked {report.checked} diagram(s){f' ({families})' if families else ''}.")
-    print(f"Can't be opened by this build: {len(report.unreadable)}")
-    for f in report.unreadable:
-        print(f"  {f.id}  {f.family}  {f.name!r} (project {f.project_id}): {f.detail}")
-    print(f"Saved text would change on the next save: {len(report.rewritten)}")
-    for f in report.rewritten:
-        print(f"  {f.id}  {f.family}  {f.name!r} (project {f.project_id}): {f.detail}")
+    lines = [
+        f"Checked {report.checked} diagram(s){f' ({families})' if families else ''}.",
+        f"Can't be opened by this build: {len(report.unreadable)}",
+    ]
+    lines += [f"  {f.id}  {f.family}  {f.name!r} (project {f.project_id}): {f.detail}" for f in report.unreadable]
+    lines.append(f"Saved text would change on the next save: {len(report.rewritten)}")
+    lines += [f"  {f.id}  {f.family}  {f.name!r} (project {f.project_id}): {f.detail}" for f in report.rewritten]
+    return lines
+
+
+def _print(report: SyntaxReport, numbered: bool = False) -> None:
+    """`numbered` (canvas-dfam): each line starts with its number and a space, so a reader of the Azure job's
+    logs (one record per line, which can arrive out of order) can put them back in order."""
+    lines = report_lines(report)
+    for number, line in enumerate(lines, start=1):
+        print(f"{number:06d} {line}" if numbered else line)
+    if numbered:
+        print(f"{len(lines) + 1:06d} END OF REPORT")
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -136,7 +149,7 @@ def main(argv: list[str] | None = None) -> int:
             )
         )
     else:
-        _print(report)
+        _print(report, numbered="--numbered" in args)
     return 1 if report.unreadable else 0
 
 
