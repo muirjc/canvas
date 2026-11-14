@@ -14,7 +14,7 @@ from canvas_api.diagram_core.family_capabilities import (
 )
 from canvas_api.diagram_core.jsvalues import js_template, js_truthy
 from canvas_api.diagram_core.standards.kinds import classify_node
-from canvas_api.diagram_core.standards.schema import KIND_ID_PATTERN, RESERVED_KIND_IDS
+from canvas_api.diagram_core.standards.schema import DIAGRAM_TYPE_ID_PATTERN, KIND_ID_PATTERN, RESERVED_KIND_IDS
 from canvas_api.github.jstext import js_trim
 
 __all__ = ["check_standard_definition", "standard_definition_notices"]
@@ -112,6 +112,13 @@ def check_standard_definition(rules: Obj, family: str) -> list[Obj]:
                 )
 
         _check_counts(kind, at, issues)
+        seen_types: set[str] = set()
+        for type_id in kind.get("linkTo") or []:
+            if not _matches(DIAGRAM_TYPE_ID_PATTERN, type_id):
+                issues.append(_issue(f"{at}.linkTo", f'"{js_template(type_id)}" isn\'t a diagram type id.'))
+            elif js_template(type_id) in seen_types:
+                issues.append(_issue(f"{at}.linkTo", f'"{js_template(type_id)}" is listed twice.'))
+            seen_types.add(js_template(type_id))
 
         match = kind.get("match")
         if js_truthy(match):

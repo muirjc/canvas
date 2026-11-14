@@ -137,6 +137,21 @@ describe('validateRepository', () => {
     expect(findings(report)[0]).toMatchObject({ level: 'error', title: 'Must fix' });
   });
 
+  it("judges a kind's \"should link to\" rule by the linked diagrams' types in canvas.json (canvas-8uh1.5)", () => {
+    const rules = { elementKinds: [{ id: 'step', label: 'Step', shapes: [], approvedFills: [], linkTo: ['c4-container'] }] };
+    const dsl = '---\ncanvas:\n  links:\n    A: d-1\n    B: d-2\n---\nflowchart TD\n  A[Alpha]:::step --> B[Beta]:::step\n  C[Gamma]:::step\n';
+    writeDiagram(root, {
+      dsl,
+      rules,
+      manifest: { links: [{ elementId: 'A', diagramId: 'd-1', diagramType: 'c4-container' }, { elementId: 'B', diagramId: 'd-2', diagramType: 'flowchart' }] },
+    });
+    const messages = findings(validateRepository({ root })).filter((f) => f.title === 'Warning').map((f) => f.message);
+    expect(messages).toEqual([
+      expect.stringContaining('Step "Beta" links to a flowchart diagram; it should link to c4-container.'),
+      expect.stringContaining('Step "Gamma" should link to a diagram (c4-container).'),
+    ]);
+  });
+
   describe('errors', () => {
     it('unreadable manifest', () => {
       write(root, 'x/canvas.json', '{not json');

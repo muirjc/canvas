@@ -34,6 +34,7 @@ from canvas_api.ai.usage import record_usage, usage_for_messages
 from canvas_api.catalog import DSL_FAMILIES
 from canvas_api.config import Settings
 from canvas_api.diagram_core import DiagramCore
+from canvas_api.diagram_links import project_link_targets
 from canvas_api.standards import get_active_standard
 from canvas_api.telemetry import work_span
 from canvas_api.timestamps import to_api
@@ -151,14 +152,16 @@ def _system_prompt(
     model: dict[str, Any],
     rules: dict[str, Any] | None,
     mode: str,
+    link_targets: list[dict[str, Any]] | None = None,
 ) -> str:
-    """canvas-7wx: the persona's own prompt first, untouched; each appended section under its own heading."""
+    """canvas-7wx: the persona's own prompt first, untouched; each appended section under its own heading.
+    `link_targets` (canvas-8uh1.5): the diagrams an element may link to, listed for the linkToDiagram tool."""
     parts = [persona_prompt if persona_prompt is not None else DEFAULT_SYSTEM_PROMPT]
 
     def section(heading: str, body: str) -> None:
         parts.append(f"## {heading}\n\n{body}")
 
-    sections = core.ai_prompt(family, rules, model)
+    sections = core.ai_prompt(family, rules, model, link_targets)
     if sections.get("primer"):
         section("Diagram type", sections["primer"])
     if sections.get("standard"):
@@ -168,6 +171,8 @@ def _system_prompt(
         if material:
             section("Reference material", "\n\n".join(e["content"] for e in material))
     section("Reply style", REPLY_STYLE)
+    if sections.get("linkTargets"):
+        section("Diagrams you can link to", sections["linkTargets"])
     section("Current diagram", sections["currentDiagram"])
     if mode == "plan":
         section("Create with AI — planning", PLANNING_INSTRUCTIONS)
@@ -213,15 +218,27 @@ def send_chat_message(
         history = get_chat_messages(conn, diagram["id"])
         standard = get_active_standard(conn, diagram["diagramTypeId"])
         rules = standard.rules if standard else None
+        # canvas-8uh1.5: a planning turn only talks, so it gets no tools and no diagrams to link to.
+        link_targets = None if mode == "plan" else project_link_targets(conn, diagram["projectId"], diagram["id"])
         system = _system_prompt(
-            conn, core, chat_persona, persona["systemPrompt"] if persona else None, family, model, rules, mode
+            conn,
+            core,
+            chat_persona,
+            persona["systemPrompt"] if persona else None,
+            family,
+            model,
+            rules,
+            mode,
+            link_targets,
         )
         chosen = chosen_model_id(conn)
     lm = (language_model or (lambda c: language_model_for(settings, c)))(chosen)
     tools = (
         []
         if mode == "plan"
-        else [ToolSpec(t["name"], t["description"], t["inputSchema"]) for t in core.ai_tools(family, rules)]
+        else [
+            ToolSpec(t["name"], t["description"], t["inputSchema"]) for t in core.ai_tools(family, rules, link_targets)
+        ]
     )
 
     conversation = [Message(role=m["role"], text=m["content"]) for m in history]
@@ -266,7 +283,7 @@ def send_chat_message(
                 break
             results = []
             for call in step.tool_calls:
-                run = core.ai_tool(family, rules, model, call.name, call.input)
+                run = core.ai_tool(family, rules, model, call.name, call.input, link_targets)
                 if run.get("ok"):
                     model = run["model"]
                     outcomes.extend(run.get("outcomes", []))

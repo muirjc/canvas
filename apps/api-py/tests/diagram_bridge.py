@@ -78,8 +78,13 @@ class DiagramBridge:
         """{"dsl"}, {"errors"} or {"unsupported": True} for a filled-in intake template."""
         return self._post("compile-template", {"diagramTypeId": diagram_type_id, "template": template})
 
-    def validate(self, model: JsonObject, rules: JsonObject) -> list[JsonObject]:
-        return cast(list[JsonObject], self._post("validate", {"model": model, "rules": rules})["violations"])
+    def validate(
+        self, model: JsonObject, rules: JsonObject, link_target_types: dict[str, str] | None = None
+    ) -> list[JsonObject]:
+        body: JsonObject = {"model": model, "rules": rules}
+        if link_target_types is not None:
+            body["linkTargetTypes"] = link_target_types
+        return cast(list[JsonObject], self._post("validate", body)["violations"])
 
     def check_standard(self, rules: JsonObject, family: str) -> list[JsonObject]:
         return cast(list[JsonObject], self._post("check-standard", {"rules": rules, "family": family})["issues"])

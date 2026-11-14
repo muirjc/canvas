@@ -71,6 +71,17 @@ interface Manifest {
   portable?: string;
   svg?: string;
   standard?: { path?: string; id?: string; version?: number; name?: string | null } | null;
+  /** canvas-8uh1.4/.5: the diagram's links, each with the linked diagram's type at submission (when it could be opened). */
+  links?: { elementId?: string; diagramId?: string; diagramType?: string | null }[];
+}
+
+/** canvas-8uh1.5: each linked diagram's type, from canvas.json, for the standard's "should link to" rule. */
+function linkTargetTypes(manifest: Manifest): Record<string, string> {
+  const types: Record<string, string> = {};
+  for (const link of Array.isArray(manifest.links) ? manifest.links : []) {
+    if (link && typeof link.diagramId === 'string' && typeof link.diagramType === 'string') types[link.diagramId] = link.diagramType;
+  }
+  return types;
 }
 
 const SKIP_DIRS = new Set(['node_modules', '.git']);
@@ -193,7 +204,7 @@ function checkDiagram(root: string, manifestPath: string, renderDir: string | un
         // Canvas writes every field; a hand-edited file may not have them all.
         let violations: Violation[] = [];
         try {
-          violations = validate(parsed.model, { ...emptyStandardRules(), ...rules });
+          violations = validate(parsed.model, { ...emptyStandardRules(), ...rules }, { linkTargetTypes: linkTargetTypes(manifest) });
         } catch (error) {
           add({ level: 'error', file: standardRel, title: 'Unusable standard', message: `The standard could not be applied (${error instanceof Error ? error.message : String(error)}).` });
         }

@@ -6,7 +6,14 @@ from __future__ import annotations
 import re
 from typing import Any
 
-__all__ = ["DEFAULT_SEVERITY", "KIND_ID_PATTERN", "RESERVED_KIND_IDS", "RULE_IDS", "empty_standard_rules"]
+__all__ = [
+    "DEFAULT_SEVERITY",
+    "DIAGRAM_TYPE_ID_PATTERN",
+    "KIND_ID_PATTERN",
+    "RESERVED_KIND_IDS",
+    "RULE_IDS",
+    "empty_standard_rules",
+]
 
 RULE_IDS = (
     "allowed-shapes",
@@ -24,6 +31,7 @@ RULE_IDS = (
     "kind-group-min-count",
     "kind-group-max-count",
     "kind-unconnected",
+    "kind-link",
     "connector-not-allowed",
     "connector-style",
     "connector-label-required",
@@ -48,6 +56,7 @@ DEFAULT_SEVERITY: dict[str, str] = {
     "kind-group-min-count": "error",
     "kind-group-max-count": "error",
     "kind-unconnected": "info",
+    "kind-link": "warning",
     "connector-not-allowed": "error",
     "connector-style": "info",
     "connector-label-required": "warning",
@@ -71,6 +80,8 @@ RESERVED_KIND_IDS = (
 )
 #: /^[a-z][a-z0-9_]*$/ -- use fullmatch (JavaScript's `$` here never matches before a final newline).
 KIND_ID_PATTERN = re.compile(r"[a-z][a-z0-9_]*")
+#: canvas-8uh1.5: a diagram type id (a slug).
+DIAGRAM_TYPE_ID_PATTERN = re.compile(r"[a-z0-9][a-z0-9-]*")
 
 
 def empty_standard_rules() -> dict[str, Any]:

@@ -53,6 +53,7 @@ RULE_IDS: tuple[str, ...] = (
     "kind-group-min-count",
     "kind-group-max-count",
     "kind-unconnected",
+    "kind-link",
     "connector-not-allowed",
     "connector-style",
     "connector-label-required",

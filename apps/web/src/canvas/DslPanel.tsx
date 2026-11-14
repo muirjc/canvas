@@ -12,12 +12,14 @@ export interface DslPanelProps {
   dslFamily?: string;
   /** canvas-3fha: an earlier version shown in preview -- the text can be read and copied, not applied. */
   readOnly?: boolean;
+  /** canvas-8uh1.5: each linked diagram's type, by id, for the standard's "should link to" rule. */
+  linkTargetTypes?: Record<string, string>;
 }
 
 const SEVERITY_LABEL: Record<string, string> = { error: 'Must fix', warning: 'Warning', info: 'Info' };
 
 /** Editable Mermaid DSL text panel (FR-003): edits here update the canvas via onApply. */
-export function DslPanel({ dsl, parseErrors, onApply, rules, dslFamily, readOnly = false }: DslPanelProps) {
+export function DslPanel({ dsl, parseErrors, onApply, rules, dslFamily, readOnly = false, linkTargetTypes }: DslPanelProps) {
   const [draft, setDraft] = useState(dsl);
   const [checkedDraft, setCheckedDraft] = useState(dsl);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -70,11 +72,11 @@ export function DslPanel({ dsl, parseErrors, onApply, rules, dslFamily, readOnly
     if (!family) return undefined;
     const parsed = family.parse(checkedDraft);
     if (!isParseSuccess(parsed)) return undefined;
-    return validate(parsed.model, rules).map((violation) => ({
+    return validate(parsed.model, rules, { linkTargetTypes }).map((violation) => ({
       violation,
       line: violation.elementId === '(diagram)' ? undefined : findElementLine(checkedDraft, violation.elementId, parsed.model),
     }));
-  }, [rules, dslFamily, checkedDraft]);
+  }, [rules, dslFamily, checkedDraft, linkTargetTypes]);
 
   const selectLine = (line: number) => {
     const textarea = textareaRef.current;

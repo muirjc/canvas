@@ -66,6 +66,7 @@ function cleanRules(rules: StandardRules, family: string): StandardRules {
     out.elementKinds = rules.elementKinds.map((kind) => {
       const k: ElementKind = { ...kind, description: kind.description?.trim() || undefined };
       if (!k.approvedStrokes?.length) delete k.approvedStrokes;
+      if (!k.linkTo?.length) delete k.linkTo;
       if (family !== 'c4') delete k.match;
       // canvas-chq: always store an explicit external flag. The checkbox shows internal vs external,
       // and diagram-core's classifyNode treats an absent flag as "match either" -- so stripping
@@ -104,6 +105,19 @@ export function StandardsEditor({ diagramType, standard, readOnly = false, onDon
   const [savedNote, setSavedNote] = useState<string | null>(null);
   const [confirmPublish, setConfirmPublish] = useState(false);
   const [busy, setBusy] = useState(false);
+
+  // canvas-8uh1.5: the types an element kind can be told to link to.
+  const [linkTypes, setLinkTypes] = useState<DiagramTypeDto[]>([]);
+  useEffect(() => {
+    let cancelled = false;
+    api
+      .listDiagramTypes(undefined, { includeHidden: true })
+      .then(({ diagramTypes }) => !cancelled && setLinkTypes([...diagramTypes].sort((a, b) => a.name.localeCompare(b.name))))
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const kinds = rules.elementKinds ?? [];
   const connectors = rules.connectorRules ?? [];
@@ -366,6 +380,7 @@ export function StandardsEditor({ diagramType, standard, readOnly = false, onDon
                 kind={kind}
                 isC4={isC4}
                 familyShapes={kindShapes}
+                linkTypes={linkTypes}
                 onLabel={(label) => setKindLabel(i, label)}
                 onPatch={(next) => patchKind(i, next)}
                 onRemove={() => removeKind(i)}
@@ -741,6 +756,8 @@ interface KindCardProps {
   kind: ElementKind;
   isC4: boolean;
   familyShapes: readonly string[];
+  /** canvas-8uh1.5: every diagram type, by name, for "Should link to". */
+  linkTypes: DiagramTypeDto[];
   onLabel: (label: string) => void;
   onPatch: (next: Partial<ElementKind>) => void;
   onRemove: () => void;
@@ -749,7 +766,7 @@ interface KindCardProps {
   notices: string[];
 }
 
-function KindCard({ index: i, kind, isC4, familyShapes, onLabel, onPatch, onRemove, FieldErrors, notices }: KindCardProps) {
+function KindCard({ index: i, kind, isC4, familyShapes, linkTypes, onLabel, onPatch, onRemove, FieldErrors, notices }: KindCardProps) {
   const at = `elementKinds[${i}]`;
   const toggleShape = (shape: string) =>
     onPatch({ shapes: (kind.shapes as string[]).includes(shape) ? kind.shapes.filter((s) => s !== shape) : [...kind.shapes, shape as ElementKind['shapes'][number]] });
@@ -851,6 +868,27 @@ function KindCard({ index: i, kind, isC4, familyShapes, onLabel, onPatch, onRemo
         <input type="checkbox" data-testid={`kind-connected-${i}`} checked={Boolean(kind.requireConnection)} onChange={(e) => onPatch({ requireConnection: e.target.checked })} />
         Must be connected
       </label>
+
+      {/* canvas-8uh1.5: "should link to" -- a Warning (kind-link) when an element of this kind opens no diagram of
+          these types. Types no longer in the list (deleted) stay shown so they can be unticked. */}
+      <fieldset className="cluster cluster--tight std-fieldset" data-testid={`kind-link-to-${i}`}>
+        <legend className="field__label">Should link to a diagram of type (none = no rule)</legend>
+        {[...linkTypes.map((t) => ({ id: t.id, name: t.name })), ...(kind.linkTo ?? []).filter((id) => !linkTypes.some((t) => t.id === id)).map((id) => ({ id, name: id }))].map((type) => {
+          const checked = (kind.linkTo ?? []).includes(type.id);
+          return (
+            <label key={type.id} className="cluster cluster--tight">
+              <input
+                type="checkbox"
+                data-testid={`kind-link-to-${i}-${type.id}`}
+                checked={checked}
+                onChange={() => onPatch({ linkTo: checked ? (kind.linkTo ?? []).filter((id) => id !== type.id) : [...(kind.linkTo ?? []), type.id] })}
+              />
+              {type.name}
+            </label>
+          );
+        })}
+      </fieldset>
+      <FieldErrors path={`${at}.linkTo`} />
 
       <div className="cluster">
         <span className="spacer" />

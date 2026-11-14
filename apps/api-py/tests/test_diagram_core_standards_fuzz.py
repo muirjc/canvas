@@ -45,6 +45,11 @@ CONTAINER_ROLES = ["boundary", "system-boundary", "note", "group", None, ""]
 LIBRARIES = ["generic", "aws-icons", "azure-icons", "mermaid-architecture", "iconify"]
 
 
+#: canvas-8uh1.5: linked diagrams, and the types validation is told for some of them.
+LINK_TARGETS = ["d-container", "d-flow", "d-unknown"]
+LINK_TYPES = {"d-container": "c4-container", "d-flow": "flowchart"}
+
+
 def _maybe(rnd: random.Random, p: float = 0.5) -> bool:
     return rnd.random() < p
 
@@ -98,6 +103,10 @@ def random_rules(rnd: random.Random) -> dict[str, Any]:
                     kind[key] = _count(rnd)
             if _maybe(rnd, 0.3):
                 kind["requireConnection"] = rnd.choice([True, False])
+            if _maybe(rnd, 0.3):  # canvas-8uh1.5
+                kind["linkTo"] = rnd.choice(
+                    [[], ["c4-container"], ["c4-container", "flowchart"], ["Bad Type"], ["x", "x"]]
+                )
             kinds.append(kind)
         rules["elementKinds"] = kinds
     if _maybe(rnd, 0.4):
@@ -180,6 +189,8 @@ def random_model(rnd: random.Random) -> dict[str, Any]:
             node["style"] = style
         if _maybe(rnd, 0.2):
             node["icon"] = {"libraryId": rnd.choice(LIBRARIES), "libraryVersion": "1", "iconId": "x"}
+        if _maybe(rnd, 0.3):  # canvas-8uh1.5
+            node["diagramRef"] = {"diagramId": rnd.choice(LINK_TARGETS)}
         nodes.append(node)
     edges = []
     for i in range(rnd.randint(0, 8) if ids else 0):
@@ -229,7 +240,8 @@ def test_native_validate_matches_the_bridge(bridge: DiagramBridge, seed: int) ->
     for index in range(150):
         rules = random_rules(rnd)
         model = rnd.choice(CORPUS_MODELS) if _maybe(rnd, 0.4) else random_model(rnd)
-        if not _same(validate(model, rules), bridge.validate(model, rules)):
+        types = rnd.choice([None, {}, LINK_TYPES])
+        if not _same(validate(model, rules, types), bridge.validate(model, rules, types)):
             failures.append(f"validate seed={seed} index={index}\nrules={json.dumps(rules)}\nmodel={json.dumps(model)}")
         family = rnd.choice(FAMILIES)
         if not _same(check_standard_definition(rules, family), bridge.check_standard(rules, family)):

@@ -41,6 +41,13 @@ export const SUGGESTED_LINK_TYPES: Record<string, string[]> = {
   'c4-component': ['c4-code'],
 };
 
+/** canvas-8uh1.5: each linked diagram's type, by id, for the standards rule "should link to" (only those known). */
+export function linkTargetTypes(targets: Map<string, LinkTarget>): Record<string, string> {
+  const types: Record<string, string> = {};
+  for (const [id, target] of targets) if (target.status === 'available' && target.diagramTypeId) types[id] = target.diagramTypeId;
+  return types;
+}
+
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 /** What a link's status means, in a sentence for tooltips and lists. */

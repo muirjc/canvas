@@ -890,16 +890,18 @@ def test_a_submission_records_each_link_its_version_and_lists_them_in_the_readme
         {
             "elementId": "A",
             "diagramId": in_repo,
+            "diagramType": "flowchart",
             "versionId": versions[in_repo][0],
             "versionSequence": versions[in_repo][1],
         },
         {
             "elementId": "B",
             "diagramId": elsewhere,
+            "diagramType": "flowchart",
             "versionId": versions[elsewhere][0],
             "versionSequence": versions[elsewhere][1],
         },
-        {"elementId": "C", "diagramId": binned, "versionId": None, "versionSequence": None},
+        {"elementId": "C", "diagramId": binned, "diagramType": None, "versionId": None, "versionSequence": None},
     ]
     readme = files[f"{folder}/README.md"]
     assert "## Linked diagrams" in readme

@@ -17,6 +17,7 @@ from sqlalchemy import Connection, text
 
 from canvas_api.catalog import DSL_FAMILIES
 from canvas_api.diagram_core import DiagramCore
+from canvas_api.diagram_links import link_types_for_rules
 from canvas_api.timestamps import to_api
 
 #: The v2 rule fields, stored together in standards.kind_rules (standard.service.ts V2_RULE_KEYS).
@@ -250,7 +251,11 @@ def revalidate_type_diagrams(conn: Connection, core: DiagramCore, diagram_type_i
     ).all()
     for diagram in rows:
         parsed = core.parse(family, diagram.dsl_content)
-        violations = core.validate(parsed["model"], standard.rules) if "model" in parsed and standard else []
+        violations = (
+            core.validate(parsed["model"], standard.rules, link_types_for_rules(conn, parsed["model"], standard.rules))
+            if "model" in parsed and standard
+            else []
+        )
         conn.execute(
             text(
                 "UPDATE diagrams SET last_validation_result = :violations,"

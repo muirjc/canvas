@@ -16,6 +16,15 @@ export interface Violation {
   kindId?: string;
 }
 
+/**
+ * canvas-8uh1.5: what validation knows beyond the diagram itself. `linkTargetTypes` maps a linked diagram's id to
+ * its diagram type id, for the `kind-link` rule; a link whose target isn't in it (not looked up yet, or it can't be
+ * opened) isn't judged by type.
+ */
+export interface ValidationContext {
+  linkTargetTypes?: Record<string, string>;
+}
+
 /** canvas-7ewa: an element that isn't one of the standard's kinds -- what the Shapes/Icons
  *  settings govern. With no kinds defined, every element is one. */
 function isGeneric(node: DiagramModel['nodes'][number], rules: StandardRules): boolean {
@@ -147,7 +156,24 @@ function checkFontConstraints(model: DiagramModel, rules: StandardRules, violati
 
 // ---- canvas-tfr: v2 checks (element kinds, connectors, containers) ----
 
-function checkKinds(model: DiagramModel, rules: StandardRules, violations: Violation[]): void {
+function checkKindLink(node: DiagramModel['nodes'][number], kind: ElementKind, context: ValidationContext, violations: Violation[]): void {
+  const linkTo = kind.linkTo ?? [];
+  if (linkTo.length === 0) return;
+  const expected = linkTo.join(' or ');
+  const targetId = node.diagramRef?.diagramId;
+  let message: string | undefined;
+  if (targetId === undefined) {
+    message = `${kind.label} "${node.label}" should link to a diagram (${expected}).`;
+  } else {
+    const targetType = context.linkTargetTypes && Object.hasOwn(context.linkTargetTypes, targetId) ? context.linkTargetTypes[targetId] : undefined;
+    if (targetType !== undefined && !linkTo.includes(targetType)) {
+      message = `${kind.label} "${node.label}" links to a ${targetType} diagram; it should link to ${expected}.`;
+    }
+  }
+  if (message) violations.push({ elementId: node.id, elementType: 'node', kindId: kind.id, rule: 'kind-link', message, severity: 'warning' });
+}
+
+function checkKinds(model: DiagramModel, rules: StandardRules, violations: Violation[], context: ValidationContext): void {
   const kinds = rules.elementKinds ?? [];
   if (kinds.length === 0) return;
   const counts = new Map<string, number>();
@@ -222,6 +248,7 @@ function checkKinds(model: DiagramModel, rules: StandardRules, violations: Viola
         severity: 'warning',
       });
     }
+    checkKindLink(node, kind, context, violations);
   }
 
   for (const kind of kinds) {
@@ -375,14 +402,14 @@ function checkContainers(model: DiagramModel, rules: StandardRules, violations: 
  * canvas-tfr: severities come from DEFAULT_SEVERITY (v1 rules stay 'warning') overridden by
  * `rules.severityOverrides`; none of them ever blocks a save.
  */
-export function validate(model: DiagramModel, rules: StandardRules): Violation[] {
+export function validate(model: DiagramModel, rules: StandardRules, context: ValidationContext = {}): Violation[] {
   const violations: Violation[] = [];
   checkAllowedShapes(model, rules, violations);
   checkMandatoryShapes(model, rules, violations);
   checkIconLibraries(model, rules, violations);
   checkColorPalette(model, rules, violations);
   checkFontConstraints(model, rules, violations);
-  checkKinds(model, rules, violations);
+  checkKinds(model, rules, violations, context);
   checkConnectors(model, rules, violations);
   checkContainers(model, rules, violations);
   for (const v of violations) {

@@ -31,6 +31,11 @@ export interface ElementKind {
   maxCount?: number;
   /** Flag elements of this kind that have no connector at all. */
   requireConnection?: boolean;
+  /**
+   * canvas-8uh1.5: diagram type ids an element of this kind should link to (a C4 Context's Software System opens
+   * a C4 Container diagram). Empty/absent = no rule. Flagged as `kind-link`.
+   */
+  linkTo?: string[];
 }
 
 /** canvas-tfr: a permitted connection between two element kinds (`'*'` = any kind). Edges carry no
@@ -87,6 +92,7 @@ export const RULE_IDS = [
   'kind-group-min-count',
   'kind-group-max-count',
   'kind-unconnected',
+  'kind-link',
   'connector-not-allowed',
   'connector-style',
   'connector-label-required',
@@ -111,6 +117,7 @@ export const DEFAULT_SEVERITY: Record<RuleId, Severity> = {
   'kind-group-min-count': 'error',
   'kind-group-max-count': 'error',
   'kind-unconnected': 'info',
+  'kind-link': 'warning',
   'connector-not-allowed': 'error',
   'connector-style': 'info',
   'connector-label-required': 'warning',
@@ -122,6 +129,8 @@ export const DEFAULT_SEVERITY: Record<RuleId, Severity> = {
  *  default` would apply to every node). */
 export const RESERVED_KIND_IDS = ['default', 'end', 'class', 'classdef', 'style', 'subgraph', 'click', 'linkstyle', 'graph', 'flowchart', 'direction'] as const;
 export const KIND_ID_PATTERN = /^[a-z][a-z0-9_]*$/;
+/** canvas-8uh1.5: a diagram type id (a slug: built-in ids and custom types' names made safe). */
+export const DIAGRAM_TYPE_ID_PATTERN = /^[a-z0-9][a-z0-9-]*$/;
 
 export interface IconLibraryRef {
   libraryId: string;

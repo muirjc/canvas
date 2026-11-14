@@ -205,7 +205,28 @@ def _check_font_constraints(model: Obj, rules: Obj, out: list[Obj]) -> None:
 # ---- canvas-tfr: element kinds, connectors, containers ----
 
 
-def _check_kinds(model: Obj, rules: Obj, out: list[Obj]) -> None:
+def _check_kind_link(node: Obj, kind: Obj, link_types: dict[str, str], out: list[Obj]) -> None:
+    """canvas-8uh1.5: an element of a kind with `linkTo` should link to a diagram of one of those types. A link whose
+    target type isn't known (not in `link_types`) isn't judged by type."""
+    link_to = kind.get("linkTo") or []
+    if len(link_to) == 0:
+        return
+    expected = " or ".join(js_template(t) for t in link_to)
+    kind_label = _t(kind, "label")
+    node_label = _t(node, "label")
+    ref = node.get("diagramRef")
+    message: str | None = None
+    if not isinstance(ref, dict) or "diagramId" not in ref:
+        message = f'{kind_label} "{node_label}" should link to a diagram ({expected}).'
+    else:
+        target_type = link_types.get(js_template(ref["diagramId"]))
+        if target_type is not None and target_type not in link_to:
+            message = f'{kind_label} "{node_label}" links to a {target_type} diagram; it should link to {expected}.'
+    if message is not None:
+        out.append(_violation(node.get("id"), "kind-link", message, element_type="node", kind_id=kind.get("id")))
+
+
+def _check_kinds(model: Obj, rules: Obj, out: list[Obj], link_types: dict[str, str] | None = None) -> None:
     kinds = rules.get("elementKinds") or []
     if len(kinds) == 0:
         return
@@ -283,6 +304,7 @@ def _check_kinds(model: Obj, rules: Obj, out: list[Obj]) -> None:
                     kind_id=kind_id,
                 )
             )
+        _check_kind_link(node, kind, link_types or {}, out)
 
     for kind in kinds:
         kind_id = kind.get("id")
@@ -456,14 +478,15 @@ def _check_containers(model: Obj, rules: Obj, out: list[Obj]) -> None:
             out.append(_violation(container.get("id"), "container-not-allowed", message, element_type="container"))
 
 
-def validate(model: Obj, rules: Obj) -> list[Obj]:
+def validate(model: Obj, rules: Obj, link_target_types: dict[str, str] | None = None) -> list[Obj]:
+    """`link_target_types` (canvas-8uh1.5): a linked diagram's id -> its diagram type id, for `kind-link`."""
     violations: list[Obj] = []
     _check_allowed_shapes(model, rules, violations)
     _check_mandatory_shapes(model, rules, violations)
     _check_icon_libraries(model, rules, violations)
     _check_color_palette(model, rules, violations)
     _check_font_constraints(model, rules, violations)
-    _check_kinds(model, rules, violations)
+    _check_kinds(model, rules, violations, link_target_types)
     _check_connectors(model, rules, violations)
     _check_containers(model, rules, violations)
     overrides = rules.get("severityOverrides") or {}

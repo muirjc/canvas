@@ -128,7 +128,18 @@ def _q(value: Any) -> str:
     return js_template(value)
 
 
-def create_tools(family: str, rules: JsonObj | None = None) -> dict[str, Tool]:
+def link_target_types(link_targets: list[JsonObj] | None) -> dict[str, str] | None:
+    """canvas-8uh1.5: the linkable diagrams' types by id, for the `kind-link` standard rule."""
+    if link_targets is None:
+        return None
+    return {str(t["id"]): str(t["diagramTypeId"]) for t in link_targets}
+
+
+def create_tools(
+    family: str, rules: JsonObj | None = None, link_targets: list[JsonObj] | None = None
+) -> dict[str, Tool]:
+    """`link_targets` (canvas-8uh1.5): the diagrams an element may link to ([{id, name, diagramTypeId}]); when given,
+    the linkToDiagram tool is offered."""
     node_shapes = offered_shapes(FAMILY_NODE_SHAPES.get(family, FAMILY_NODE_SHAPES["flowchart"]), rules)
     kinds: list[JsonObj] = []
     if rules and family in FAMILY_SUPPORTS_ELEMENT_KINDS:
@@ -812,9 +823,55 @@ def create_tools(family: str, rules: JsonObj | None = None) -> dict[str, Tool]:
                 mark,
             )
 
+    if link_targets is not None:
+        _add_link_tool(tools, family, link_targets, record, not_found)
+
     if rules:
-        return {name: _with_new_violations(tool, rules) for name, tool in tools.items()}
+        types = link_target_types(link_targets)
+        return {name: _with_new_violations(tool, rules, types) for name, tool in tools.items()}
     return tools
+
+
+def _add_link_tool(
+    tools: dict[str, Tool],
+    family: str,
+    link_targets: list[JsonObj],
+    record: Callable[..., JsonObj],
+    not_found: Callable[[State, str, str, Any], JsonObj],
+) -> None:
+    """canvas-8uh1.5: link a shape or group to another diagram (it opens from there), or remove its link. Sequence
+    diagrams link participants only."""
+    linkable = {str(t["id"]) for t in link_targets}
+
+    def link(state: State, args: JsonObj) -> JsonObj:
+        element_id = args["elementId"]
+        elements = state.model["nodes"] if family == "sequence" else [*state.model["nodes"], *state.model["containers"]]
+        if not _has(elements, element_id):
+            return not_found(
+                state, "linkToDiagram", "participant" if family == "sequence" else "shape or group", element_id
+            )
+        diagram_id = args.get("diagramId")
+        if diagram_id is not None and diagram_id not in linkable:
+            return record(
+                state,
+                "linkToDiagram",
+                False,
+                f"No diagram with id '{_q(diagram_id)}' can be linked; use an id from \"Diagrams you can link to\".",
+            )
+        state.model = ops.set_diagram_link(state.model, element_id, diagram_id)
+        return record(state, "linkToDiagram", True)
+
+    tools["linkToDiagram"] = Tool(
+        "Link a shape or group to another diagram, so it opens that diagram (a C4 System opening its Container "
+        'diagram, say). Pick the diagram from "Diagrams you can link to". Omit diagramId to remove the link.',
+        Obj.of(
+            elementId=Str().describe(
+                "The id of the participant." if family == "sequence" else "The id of the shape or group."
+            ),
+            diagramId=Str().opt().describe("The id of the diagram it opens. Omit to remove its link."),
+        ),
+        link,
+    )
 
 
 def _add_wardley_tools(
@@ -975,15 +1032,15 @@ def _violation_key(violation: JsonObj) -> tuple[str, str]:
     return text("elementId"), text("rule")
 
 
-def _with_new_violations(tool: Tool, rules: JsonObj) -> Tool:
+def _with_new_violations(tool: Tool, rules: JsonObj, link_types: dict[str, str] | None = None) -> Tool:
     """An applied result also lists the violations the edit introduced (at most five)."""
 
     def execute(state: State, args: JsonObj) -> JsonObj:
-        before = {_violation_key(v) for v in validate(state.model, rules)}
+        before = {_violation_key(v) for v in validate(state.model, rules, link_types)}
         result = tool.execute(state, args)
         if not js_truthy(result.get("applied")):
             return result
-        introduced = [v for v in validate(state.model, rules) if _violation_key(v) not in before][:5]
+        introduced = [v for v in validate(state.model, rules, link_types) if _violation_key(v) not in before][:5]
         if not introduced:
             return result
         fields = ("rule", "elementId", "message", "severity")

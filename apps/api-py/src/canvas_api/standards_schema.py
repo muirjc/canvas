@@ -37,6 +37,8 @@ class ElementKind(_Model):
     minCount: StrictInt | None = None
     maxCount: StrictInt | None = None
     requireConnection: StrictBool | None = None
+    #: canvas-8uh1.5: diagram type ids an element of this kind should link to.
+    linkTo: list[StrictStr] | None = None
 
 
 class KindGroup(_Model):
