@@ -31,7 +31,9 @@ Between the two, **Shared with me** lists diagrams other people have shared with
 Click a project's name to open it. The page lists its diagrams.
 - **Find a diagram:** search by name, or filter by diagram type.
 - **Each diagram** has **Open**, **Move** (to another project) and **Delete**. Deleting moves it to
-  the bin; an admin can restore it for 30 days.
+  the bin; an admin can restore it for 30 days. If other diagrams link to it or embed it (see [Linked
+  diagrams](editor.md#linked-diagrams)), the prompt names them: their links and frames show it as deleted
+  until it is restored.
 - **New diagrams:** the buttons at the top create them (see [Creating diagrams](creating-diagrams.md)).
 
 In a project you can only read, the page says so, and only **Open** is offered. Opening a diagram

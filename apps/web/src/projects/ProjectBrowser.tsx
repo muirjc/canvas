@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { accessAtLeast, api, ApiError, type SubmissionBadgeDto, type DiagramSummaryDto, type DiagramTypeDto, type ProjectDto, type ProjectTreeNodeDto } from '../app/api';
+import { accessAtLeast, api, ApiError, type SubmissionBadgeDto, type DiagramSummaryDto, type DiagramUsedInDto, type DiagramTypeDto, type ProjectDto, type ProjectTreeNodeDto } from '../app/api';
 import { ConfirmDialog } from '../canvas/ConfirmDialog';
 import { Modal } from '../ui/Modal';
 import { Icon } from '../ui/Icon';
@@ -161,6 +161,21 @@ export function ProjectBrowser({ rootProjectId, projects, onOpenDiagram }: Proje
   const [tree, setTree] = useState<ProjectTreeNodeDto | null>(null);
   const [status, setStatus] = useState<'loading' | 'ready' | 'error'>('loading');
   const [pendingDelete, setPendingDelete] = useState<{ id: string; name: string } | null>(null);
+  // canvas-8uh1.7: the delete prompt says which diagrams link to or embed this one (their links then show it as
+  // deleted until it is restored).
+  const [deleteUsedIn, setDeleteUsedIn] = useState<DiagramUsedInDto[] | null>(null);
+  useEffect(() => {
+    setDeleteUsedIn(null);
+    if (!pendingDelete) return;
+    let cancelled = false;
+    api
+      .getDiagramUsedIn(pendingDelete.id)
+      .then(({ usedIn }) => !cancelled && setDeleteUsedIn(usedIn))
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, [pendingDelete]);
   // canvas-40t: deleteDiagram requires being the diagram's owner or an admin (DELETE
   // /diagrams/:id) — a user with only edit access (project membership or a share grant) gets a
   // 403. Without this, that rejection had nowhere to go: confirmDelete's un-caught throw left
@@ -390,7 +405,7 @@ export function ProjectBrowser({ rootProjectId, projects, onOpenDiagram }: Proje
       )}
       {pendingDelete && (
         <ConfirmDialog
-          message={`Delete "${pendingDelete.name}"? It can be recovered by an admin for a limited time.`}
+          message={`Delete "${pendingDelete.name}"? It can be recovered by an admin for a limited time.${usedInWarning(deleteUsedIn)}`}
           onConfirm={confirmDelete}
           onCancel={() => setPendingDelete(null)}
         />
@@ -458,4 +473,13 @@ export function ProjectBrowser({ rootProjectId, projects, onOpenDiagram }: Proje
       )}
     </div>
   );
+}
+
+/** canvas-8uh1.7: " It is used in 2 other diagrams (A, B): ..." for the delete prompt, or "" when nothing uses it. */
+export function usedInWarning(usedIn: DiagramUsedInDto[] | null): string {
+  if (!usedIn || usedIn.length === 0) return '';
+  const names = usedIn.slice(0, 3).map((u) => `"${u.name}"`).join(', ');
+  const more = usedIn.length > 3 ? ` and ${usedIn.length - 3} more` : '';
+  const count = usedIn.length === 1 ? '1 other diagram' : `${usedIn.length} other diagrams`;
+  return ` It is used in ${count} (${names}${more}); their links and frames will show it as deleted until it is restored.`;
 }

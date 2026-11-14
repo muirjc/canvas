@@ -152,6 +152,9 @@ evolution stage names are set in the DSL tab (`size [1100, 800]`,
 A shape or group can **open another diagram**. A common use is C4's levels: the Payments System in a Context
 diagram opens the Payments Container diagram, whose API opens its Component diagram.
 
+![A C4 Context diagram whose Payments System links to the Payments containers diagram (the blue badge), with
+that diagram also embedded in a frame below, and the Links tab listing both](../images/editor-links.png)
+
 - **Make a link:** select one shape or group and choose **Link to diagram…** in the left rail. Find the diagram:
   - pick a project (this diagram's project comes first);
   - filter by type: the next level down is marked *suggested*, so a C4 Context diagram offers Container diagrams;

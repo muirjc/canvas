@@ -100,6 +100,13 @@ tests are NON-NEGOTIABLE and must exist (and fail) before implementing any diagr
 work — see `.specify/memory/constitution.md` Principle IV.
 
 ## Recent Changes
+- `canvas-8uh1.7` (composite diagrams, part 7 of 7; closes canvas-8uh1): **docs pass.** User guide: a screenshot
+  (`docs/images/editor-links.png`, captured by `docs-screenshots/capture.spec.ts` "linked and embedded diagrams":
+  demo "Payments context" linking and framing "Payments containers"), browsing.md on the delete prompt; design doc
+  gains an "As built" section. Fixes found while capturing: the Links tab lacked the shared `panel`/`panel__body`
+  wrapper (no padding); a frame's Open button text was clipped (now fills its foreignObject). Built the planned
+  delete-prompt count: ProjectBrowser looks up GET /diagrams/:id/used-in when the prompt opens and appends
+  `usedInWarning(...)` (names up to three). Test `delete-used-in.test.ts`.
 - `canvas-8uh1.6` (composite diagrams, part 6 of 7): **frames -- another diagram drawn in this one.** Model
   `frames?: DiagramFrame[]` ({id, diagramId, position, size}; `MAX_FRAMES` 50, `MIN_FRAME_SIZE` 160x100), front
   matter `canvas.frames` (a list of {id, diagramId, x, y, width, height}) in every family: `applyFrames`/`withFrames`
