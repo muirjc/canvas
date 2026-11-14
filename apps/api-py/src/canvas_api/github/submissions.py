@@ -19,7 +19,7 @@ from sqlalchemy.exc import IntegrityError
 from canvas_api.audit import record_audit
 from canvas_api.catalog import DSL_FAMILIES
 from canvas_api.diagram_core import DiagramCore
-from canvas_api.diagram_links import diagram_link_base, submission_links
+from canvas_api.diagram_links import diagram_link_base, link_types_for_rules, submission_links
 from canvas_api.github.client import (
     SUBMIT_PERMISSIONS,
     GitHubApiError,
@@ -262,7 +262,11 @@ def check_submittable(
         }
         return [blocking], []
     standard = get_active_standard(conn, diagram_type_id)
-    violations = core.validate(parsed["model"], standard.rules) if standard else []
+    violations = (
+        core.validate(parsed["model"], standard.rules, link_types_for_rules(conn, parsed["model"], standard.rules))
+        if standard
+        else []
+    )
     return [v for v in violations if v.get("severity") == "error"], [
         v for v in violations if v.get("severity") != "error"
     ]
@@ -458,6 +462,7 @@ def _submission_links(
             label=str(labels.get(link["elementId"], link["elementId"])),
             diagram_id=link["diagramId"],
             name=link["name"],
+            diagram_type=link["diagramType"],
             version_id=link["versionId"],
             version_sequence=link["versionSequence"],
             repo_path=link["repoPath"],

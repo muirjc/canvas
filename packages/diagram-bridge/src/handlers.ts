@@ -106,7 +106,11 @@ export const handlers: Record<string, (body: Body) => unknown> = {
   },
 
   /** { model, rules } -> { violations } */
-  validate: (body) => ({ violations: validate(obj<DiagramModel>(body, 'model'), obj<StandardRules>(body, 'rules')) }),
+  validate: (body) => ({
+    violations: validate(obj<DiagramModel>(body, 'model'), obj<StandardRules>(body, 'rules'), {
+      linkTargetTypes: body.linkTargetTypes as Record<string, string> | undefined,
+    }),
+  }),
 
   /** { rules, family } -> { issues } */
   'check-standard': (body) => ({ issues: checkStandardDefinition(obj<StandardRules>(body, 'rules'), str(body, 'family')) }),

@@ -177,6 +177,10 @@ In an SVG export a linked element opens its diagram in Canvas, and a flowchart's
 export has a `click` line for it (see [Exporting](sharing-and-exporting.md#exporting)). A diagram submitted to
 GitHub lists its linked diagrams in its README.
 
+A standard can say that a kind of element **should link to** a diagram of a certain type. A C4
+Context's Software System, for example, should open its C4 Container diagram. An element that links
+to nothing, or to a diagram of another type, shows as a Warning on the Issues tab.
+
 ## Zoom
 
 The controls at the bottom-left of the canvas zoom the drawing from 25% to 400%: **−** and **+**

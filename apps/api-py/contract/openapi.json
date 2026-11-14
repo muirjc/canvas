@@ -2415,6 +2415,19 @@
                     "label": {
                       "type": "string"
                     },
+                    "linkTo": {
+                      "anyOf": [
+                        {
+                          "items": {
+                            "type": "string"
+                          },
+                          "type": "array"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
                     "match": {
                       "anyOf": [
                         {

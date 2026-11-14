@@ -239,6 +239,8 @@ def test_behaves_as_before_for_a_persona_with_no_reference_material_entries(
             prompt,
             f"## Diagram type\n\n{erd_primer()}",
             f"## Reply style\n\n{REPLY_STYLE}",
+            # canvas-8uh1.5: the project's other diagrams, for linkToDiagram.
+            f'## Diagrams you can link to\n\n- {w.diagram_id}: "D" (flowchart)',
             "## Current diagram\n\nCurrent shapes:\n(none yet)\n\nCurrent connectors:\n(none yet)",
         ]
     )

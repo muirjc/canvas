@@ -123,9 +123,14 @@ class DiagramCore:
 
         return _native("portable", answer)
 
-    def validate(self, model: JsonObject, rules: JsonObject) -> list[JsonObject]:
-        """The standard's violations for the model. The model's family doesn't matter."""
-        return cast(list[JsonObject], _native("validate", lambda: to_js_json(validate(model, rules))))
+    def validate(
+        self, model: JsonObject, rules: JsonObject, link_target_types: dict[str, str] | None = None
+    ) -> list[JsonObject]:
+        """The standard's violations for the model. The model's family doesn't matter. `link_target_types`
+        (canvas-8uh1.5): each linked diagram's type, by id, for the `kind-link` rule."""
+        return cast(
+            list[JsonObject], _native("validate", lambda: to_js_json(validate(model, rules, link_target_types)))
+        )
 
     def check_standard(self, rules: JsonObject, family: str) -> list[JsonObject]:
         """Problems with a standard's own definition for a family ([] = it can be saved)."""
@@ -200,17 +205,33 @@ class DiagramCore:
 
     # --- the AI chat's diagram tools -----------------------------------------------------------------------------
 
-    def ai_tools(self, family: str, rules: JsonObject | None) -> list[JsonObject]:
-        """The tools offered for a family under a standard: [{name, description, inputSchema}]."""
-        return _native("ai-tools", lambda: list_tools(family, rules))
+    def ai_tools(
+        self, family: str, rules: JsonObject | None, link_targets: list[JsonObject] | None = None
+    ) -> list[JsonObject]:
+        """The tools offered for a family under a standard: [{name, description, inputSchema}]. `link_targets`
+        (canvas-8uh1.5): [{id, name, diagramTypeId}] an element may link to; given, linkToDiagram is offered."""
+        return _native("ai-tools", lambda: list_tools(family, rules, link_targets))
 
-    def ai_tool(self, family: str, rules: JsonObject | None, model: JsonObject, name: str, input: Any) -> JsonObject:
+    def ai_tool(
+        self,
+        family: str,
+        rules: JsonObject | None,
+        model: JsonObject,
+        name: str,
+        input: Any,
+        link_targets: list[JsonObject] | None = None,
+    ) -> JsonObject:
         """Runs one tool call: {ok: true, model, output, outcomes} or {ok: false, error}."""
-        return cast(JsonObject, _native("ai-tool", lambda: to_js_json(run_tool(family, rules, model, name, input))))
+        return cast(
+            JsonObject,
+            _native("ai-tool", lambda: to_js_json(run_tool(family, rules, model, name, input, link_targets))),
+        )
 
-    def ai_prompt(self, family: str, rules: JsonObject | None, model: JsonObject) -> JsonObject:
-        """{primer, standard, currentDiagram}: the diagram-specific system prompt sections."""
-        return _native("ai-prompt", lambda: prompt_sections(family, rules, model))
+    def ai_prompt(
+        self, family: str, rules: JsonObject | None, model: JsonObject, link_targets: list[JsonObject] | None = None
+    ) -> JsonObject:
+        """{primer, standard, currentDiagram} (+ linkTargets): the diagram-specific system prompt sections."""
+        return _native("ai-prompt", lambda: prompt_sections(family, rules, model, link_targets))
 
 
 def _family_table[T](table: dict[str, T], op: str, family: str) -> T:

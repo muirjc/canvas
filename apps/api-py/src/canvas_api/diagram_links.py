@@ -57,6 +57,33 @@ def links_of(model: dict[str, Any]) -> list[tuple[str, str]]:
     return found
 
 
+def link_target_types(conn: Connection, model: dict[str, Any]) -> dict[str, str]:
+    """canvas-8uh1.5: the diagram type of each diagram the model links to, for the `kind-link` standard rule. Only
+    diagrams that can be opened by anyone: not in the bin (or in a binned project) and not an unsaved draft; a link to
+    any other isn't judged by type."""
+    ids = sorted({target for _, target in links_of(model) if _UUID.fullmatch(target)})
+    types: dict[str, str] = {}
+    for target in ids:
+        row = conn.execute(
+            text(
+                "SELECT d.diagram_type_id FROM diagrams d JOIN projects p ON p.id = d.project_id"
+                " WHERE d.id = :id AND d.deleted_at IS NULL AND p.deleted_at IS NULL AND d.draft = :no"
+            ),
+            {"id": target, "no": False},
+        ).first()
+        if row is not None:
+            types[target] = row.diagram_type_id
+    return types
+
+
+def link_types_for_rules(conn: Connection, model: dict[str, Any], rules: Any) -> dict[str, str] | None:
+    """link_target_types, looked up only when the standard has a `linkTo` rule (else None: nothing to judge)."""
+    kinds = rules.get("elementKinds") if isinstance(rules, dict) else None
+    if not any(isinstance(k, dict) and k.get("linkTo") for k in kinds or []):
+        return None
+    return link_target_types(conn, model)
+
+
 def rebuild_links(conn: Connection, diagram_id: str, model: dict[str, Any]) -> None:
     """Replaces the diagram's rows with the links its (just written) model holds."""
     conn.execute(_CLEAR, {"id": diagram_id})
@@ -149,7 +176,8 @@ def submission_links(conn: Connection, diagram_id: str, repo_id: int) -> list[di
         if _UUID.fullmatch(target):
             row = conn.execute(
                 text(
-                    "SELECT d.name, d.current_version_id, d.draft, d.deleted_at, p.deleted_at AS project_deleted_at"
+                    "SELECT d.name, d.diagram_type_id, d.current_version_id, d.draft, d.deleted_at,"
+                    " p.deleted_at AS project_deleted_at"
                     " FROM diagrams d JOIN projects p ON p.id = d.project_id WHERE d.id = :id"
                 ),
                 {"id": target},
@@ -168,9 +196,27 @@ def submission_links(conn: Connection, diagram_id: str, repo_id: int) -> list[di
                 "elementId": link.element_id,
                 "diagramId": target,
                 "name": row.name if available and row else None,
+                "diagramType": row.diagram_type_id if available and row else None,
                 "versionId": str(version.id) if version else None,
                 "versionSequence": int(version.sequence_number) if version else None,
                 "repoPath": str(path.path) if path else None,
             }
         )
     return out
+
+
+#: canvas-8uh1.5: at most this many diagrams are offered to the AI chat to link to (the prompt stays short).
+MAX_AI_LINK_TARGETS = 100
+
+
+def project_link_targets(conn: Connection, project_id: str, diagram_id: str) -> list[dict[str, Any]]:
+    """The diagrams the AI chat may link this diagram's elements to: the project's other saved diagrams (not in the
+    bin, not drafts), by name, [{id, name, diagramTypeId}]."""
+    rows = conn.execute(
+        text(
+            "SELECT id, name, diagram_type_id FROM diagrams WHERE project_id = :project AND id <> :id"
+            " AND deleted_at IS NULL AND draft = :no ORDER BY name, id LIMIT :limit"
+        ),
+        {"project": project_id, "id": diagram_id, "no": False, "limit": MAX_AI_LINK_TARGETS},
+    ).all()
+    return [{"id": str(r.id), "name": r.name, "diagramTypeId": r.diagram_type_id} for r in rows]

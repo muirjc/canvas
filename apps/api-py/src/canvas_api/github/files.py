@@ -46,6 +46,8 @@ class SubmissionLink:
     diagram_id: str
     #: The linked diagram's name and version at submission; None when it can't be opened (bin, missing, draft).
     name: str | None
+    #: canvas-8uh1.5: its diagram type, so the repository's CI can check "should link to" rules.
+    diagram_type: str | None
     version_id: str | None
     version_sequence: int | None
     #: The linked diagram's folder in this repository (submitted there, open or merged), else None.
@@ -155,6 +157,7 @@ def build_manifest(i: SubmissionInput) -> dict[str, Any]:
                     {
                         "elementId": link.element_id,
                         "diagramId": link.diagram_id,
+                        "diagramType": link.diagram_type,
                         "versionId": link.version_id,
                         "versionSequence": link.version_sequence,
                     }

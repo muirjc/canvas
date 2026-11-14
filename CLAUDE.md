@@ -100,6 +100,21 @@ tests are NON-NEGOTIABLE and must exist (and fail) before implementing any diagr
 work — see `.specify/memory/constitution.md` Principle IV.
 
 ## Recent Changes
+- `canvas-8uh1.5` (composite diagrams, part 5 of 7): **a standard can say a kind should link, and the AI links.**
+  `ElementKind.linkTo` (diagram type ids; `DIAGRAM_TYPE_ID_PATTERN` slug, no duplicates in the definition check);
+  rule `kind-link` (Warning): an element of the kind with no `diagramRef`, or linking to a diagram of a type not
+  listed. `validate(model, rules, { linkTargetTypes })` (TS) / `validate(model, rules, link_target_types)` (Python):
+  a target whose type isn't given is not judged. Rule id also in `catalog.py`, `constants.json`; `linkTo` in
+  `standards_schema.py` and the contract's StandardBody. API: `diagram_links.link_types_for_rules` (only when a kind
+  has linkTo; not binned, not drafts) on save, standard re-check and the GitHub submit check; canvas.json links gain
+  `diagramType`, which the validator CLI feeds to validate. Web: `linkTargetTypes(targets)` for the Issues tab and
+  DSL panel; standards editor "Should link to a diagram of type" (`kind-link-to-<i>-<type>`). AI: `linkToDiagram
+  {elementId, diagramId?}` offered only when `link_targets` is passed (chat: `project_link_targets`, the project's
+  other saved diagrams, <= 100; none in plan mode), so the golden AI vectors are unchanged; prompt section "Diagrams
+  you can link to"; `describe_model` adds `, links to <id>`; the standard prompt says "should link to a X diagram";
+  newViolations judge by the targets' types (keyed by element+rule, so an already-unlinked kind isn't "new"). Tests:
+  `standards-kind-link.test.ts`, fuzz in `test_diagram_core_standards_fuzz.py`, `test_ai_diagram_links.py`,
+  validator.test.ts, web `standards-kind-link.test.tsx`.
 - `canvas-8uh1.4` (composite diagrams, part 4 of 7): **links reach exports and GitHub.** `RenderOptions.diagramLinkBase`
   (TS) / `render_to_svg(..., diagram_link_base=)` (Python): the start of a Canvas address (`diagram_links.
   diagram_link_base(public_url)` = `<CANVAS_PUBLIC_URL>/?diagramId=`); `withDiagramLink` / `with_diagram_link` wraps a

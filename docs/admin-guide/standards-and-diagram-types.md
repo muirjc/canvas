@@ -23,6 +23,13 @@ you can set:
   kind in it, the AI is refused too, and going over (or under) is flagged as *Must fix*. Each kind's
   own counts still apply;
 - whether each one **must be connected** to something;
+- **Should link to a diagram of type**: tick the diagram types an element of this kind should open
+  (see the user guide's "Linked diagrams"). For example, a C4 Context's *Software System* should link
+  to a *C4 Container* diagram. An element of the kind that links to nothing, or to a diagram of
+  another type, is flagged as a *Warning* (rule `kind-link`). A link to a diagram that can't be
+  opened (in the bin, deleted, or someone's draft) isn't judged by its type: the editor's Links tab
+  shows it as broken instead. The AI is told the rule, and the repository check for GitHub
+  submissions applies it too;
 - for C4 types, **which C4 elements it applies to**: under *Applies to C4 elements*, the role
   (person, system, container or component) and whether it's the **External** (`_Ext`) variant. The
   role decides which shapes the kind can have: people are always the person shape; systems are

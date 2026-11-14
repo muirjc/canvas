@@ -49,12 +49,20 @@ def _placement(model: Obj, element_id: Any) -> str:
     return f" at ({_num(box['x'])}, {_num(box['y'])}), size {_num(box['width'])}x{_num(box['height'])}"
 
 
-def describe_model(model: Obj, rules: Obj | None = None, family: str | None = None) -> str:
+def _link(element: Obj) -> str:
+    """canvas-8uh1.5: ", links to <diagram id>" for an element that opens another diagram."""
+    ref = element.get("diagramRef")
+    return f", links to {_t(ref, 'diagramId')}" if isinstance(ref, dict) and "diagramId" in ref else ""
+
+
+def describe_model(
+    model: Obj, rules: Obj | None = None, family: str | None = None, link_types: dict[str, str] | None = None
+) -> str:
     """A short summary of the diagram, so the model can refer to shapes and connectors by id; under a standard,
     each element's kind and the first ten violations too. For a family with stored positions (not sequence),
     each shape's and group's position and size, and the groups with what they contain (canvas-p2g8.2)."""
     if family == "wardley":
-        return _describe_wardley(model) + _violations_section(model, rules)
+        return _describe_wardley(model) + _violations_section(model, rules, link_types)
     positioned = family in layout_ops.POSITIONED_FAMILIES
     # canvas-rqm6: pinned shapes and groups stay put when the diagram is arranged.
     pinned = set(pinned_element_ids(model)) if positioned else set()
@@ -66,7 +74,7 @@ def describe_model(model: Obj, rules: Obj | None = None, family: str | None = No
         where = _placement(model, n.get("id")) if positioned else ""
         inside = f", in {_t(n, 'containerId')}" if positioned and js_truthy(n.get("containerId")) else ""
         pin = ", pinned" if isinstance(n.get("id"), str) and n["id"] in pinned else ""
-        node_lines.append(f'- {_t(n, "id")}: "{_t(n, "label")}" ({_t(n, "shape")}{kind}){where}{inside}{pin}')
+        node_lines.append(f'- {_t(n, "id")}: "{_t(n, "label")}" ({_t(n, "shape")}{kind}){where}{inside}{pin}{_link(n)}')
     edge_lines = []
     for e in model["edges"]:
         label = f' ("{_t(e, "label")}")' if js_truthy(e.get("label")) else ""
@@ -81,15 +89,15 @@ def describe_model(model: Obj, rules: Obj | None = None, family: str | None = No
             parent = f", in {_t(c, 'parentContainerId')}" if js_truthy(c.get("parentContainerId")) else ""
             pin = ", pinned" if isinstance(c.get("id"), str) and c["id"] in pinned else ""
             where = _placement(model, c.get("id"))
-            group_lines.append(f'- {_t(c, "id")}: "{_t(c, "label")}"{role}{where}{parent}{pin}')
+            group_lines.append(f'- {_t(c, "id")}: "{_t(c, "label")}"{role}{where}{parent}{pin}{_link(c)}')
         summary += "\n\nCurrent groups:\n" + "\n".join(group_lines)
-    return summary + _violations_section(model, rules)
+    return summary + _violations_section(model, rules, link_types)
 
 
-def _violations_section(model: Obj, rules: Obj | None) -> str:
+def _violations_section(model: Obj, rules: Obj | None, link_types: dict[str, str] | None = None) -> str:
     if rules is None:
         return ""
-    violations = validate(model, rules)[:10]
+    violations = validate(model, rules, link_types)[:10]
     if not violations:
         return ""
     listed = "\n".join(f"- [{_t(v, 'severity')}] {_t(v, 'elementId')}: {_t(v, 'message')}" for v in violations)
@@ -128,7 +136,7 @@ def _describe_wardley(model: Obj) -> str:
         if pipeline is not None:
             parent = (pipeline.get("attachedNodeIds") or ["?"])[0]
             details.append(f"in the pipeline of {js_template(parent)}")
-        lines.append(f'- {_t(n, "id")}: "{_t(n, "label")}" ({js_template(role)}) [{"; ".join(details)}]')
+        lines.append(f'- {_t(n, "id")}: "{_t(n, "label")}" ({js_template(role)}) [{"; ".join(details)}]{_link(n)}')
     flows = {"+>": "flow forward", "+<": "flow backward", "+<>": "flow both ways"}
     link_lines = []
     for e in model["edges"]:
@@ -175,6 +183,9 @@ def _kind_line(kind: Obj) -> str:
             details.append(f"at most {_t(kind, 'maxCount')}")
     if js_truthy(kind.get("requireConnection")):
         details.append("must be connected")
+    link_to = _list(kind.get("linkTo"))
+    if link_to:  # canvas-8uh1.5
+        details.append(f"should link to a {_join(link_to, ' or ')} diagram")
     if details:
         parts.append(f" [{'; '.join(details)}]")
     return "".join(parts)
@@ -250,3 +261,15 @@ def build_standard_prompt(rules: Obj, family: str) -> str | None:
         "Fix them before finishing when you can."
     )
     return "Standard for this diagram:\n" + "\n".join(lines)
+
+
+def link_targets_section(link_targets: list[Obj], current_diagram_id: str | None = None) -> str:
+    """canvas-8uh1.5: the diagrams the linkToDiagram tool may link to, one per line (id, name, type)."""
+    lines = [
+        f'- {_t(t, "id")}: "{_t(t, "name")}" ({_t(t, "diagramTypeId")})'
+        for t in link_targets
+        if t.get("id") != current_diagram_id
+    ]
+    if not lines:
+        return "(no other diagrams in this project yet)"
+    return "\n".join(lines)

@@ -1,4 +1,4 @@
-import { forwardRef, useEffect, useImperativeHandle, useRef, useState, type ReactNode } from 'react';
+import { forwardRef, useEffect, useImperativeHandle, useMemo, useRef, useState, type ReactNode } from 'react';
 import { createEmptyDiagramModel, effectiveAuthoring, getDslFamily, isParseSuccess, setDiagramLink, type DiagramModel } from '@canvas/diagram-core';
 import { Canvas } from '../canvas/Canvas';
 import { DslPanel } from '../canvas/DslPanel';
@@ -37,7 +37,7 @@ import { Icon } from '../ui/Icon';
 import { RailTabs } from '../ui/RailTabs';
 import { HelpLink } from '../help/HelpLink';
 import { Modal } from '../ui/Modal';
-import { elementLinks, useLinkTargets } from './diagram-links';
+import { elementLinks, linkTargetTypes, useLinkTargets } from './diagram-links';
 import { LinkPickerDialog } from '../links/LinkPickerDialog';
 import { LinksPanel } from '../links/LinksPanel';
 import { useActiveStandard, useLiveViolations } from '../standards/useStandard';
@@ -260,7 +260,8 @@ export const DiagramEditor = forwardRef<DiagramEditorHandle, DiagramEditorProps>
   });
   const setModel = live.setModel;
   const { dsl, parseErrors, applyDsl } = useDslSync(model, setModel, diagram.dslFamily);
-  const liveViolations = useLiveViolations(model, standard?.rules);
+  const linkTypes = useMemo(() => linkTargetTypes(linkTargets.targets), [linkTargets.targets]);
+  const liveViolations = useLiveViolations(model, standard?.rules, linkTypes);
   const authoring = effectiveAuthoring(standard?.rules);
   const paletteOffered = authoring.icons !== 'none' || authoring.shapes === 'all';
   const shownViolations = liveViolations ?? violations;
@@ -737,6 +738,7 @@ export const DiagramEditor = forwardRef<DiagramEditorHandle, DiagramEditorProps>
                       rules={standard?.rules}
                       dslFamily={diagram.dslFamily}
                       readOnly={!canEdit}
+                      linkTargetTypes={linkTypes}
                     />
                   ),
               },

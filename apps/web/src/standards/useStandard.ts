@@ -44,6 +44,11 @@ export function useActiveStandard(diagramTypeId: string | undefined, refreshKey 
  * `validate` the server runs on save, so the Issues tab reflects every edit immediately instead
  * of only the last saved result. `undefined` while there is no model or no standard.
  */
-export function useLiveViolations(model: DiagramModel | null | undefined, rules: StandardRules | undefined): Violation[] | undefined {
-  return useMemo(() => (model && rules ? validate(model, rules) : undefined), [model, rules]);
+export function useLiveViolations(
+  model: DiagramModel | null | undefined,
+  rules: StandardRules | undefined,
+  /** canvas-8uh1.5: each linked diagram's type, by id (the "should link to" rule). */
+  linkTargetTypes?: Record<string, string>,
+): Violation[] | undefined {
+  return useMemo(() => (model && rules ? validate(model, rules, { linkTargetTypes }) : undefined), [model, rules, linkTargetTypes]);
 }

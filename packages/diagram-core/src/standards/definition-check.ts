@@ -1,7 +1,7 @@
 import { FAMILY_KIND_SHAPES, FAMILY_RESERVED_KIND_IDS, FAMILY_SUPPORTS_ELEMENT_KINDS } from '../model/family-capabilities.js';
 import { C4_ELEMENT_ROLES, C4_ROLE_SHAPES } from '../dsl/c4.js';
 import { classifyNode } from './kinds.js';
-import { KIND_ID_PATTERN, RESERVED_KIND_IDS, type StandardRules } from './schema.js';
+import { DIAGRAM_TYPE_ID_PATTERN, KIND_ID_PATTERN, RESERVED_KIND_IDS, type StandardRules } from './schema.js';
 
 export interface DefinitionIssue {
   /** Dotted path into the rules object, e.g. "elementKinds[1].id". */
@@ -19,6 +19,7 @@ const HEX = /^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/;
  *  - kind shapes outside FAMILY_KIND_SHAPES[family]; family-reserved ids (FAMILY_RESERVED_KIND_IDS)
  *  - fills/strokes that aren't #rgb or #rrggbb hex
  *  - minCount > maxCount, negative counts
+ *  - `linkTo` entries that aren't diagram type ids, or are listed twice (canvas-8uh1.5)
  *  - `match` on a non-C4 family; a C4 `match.role` not in C4_ELEMENT_ROLES
  *  - a C4 kind listing a shape its role can't be drawn as (C4_ROLE_SHAPES) -- canvas-syd
  *  - kind groups (canvas-thia): bad/duplicate ids, no name, fewer than two kinds, unknown kinds,
@@ -79,6 +80,15 @@ export function checkStandardDefinition(rules: StandardRules, family: string): D
     }
     if (kind.minCount !== undefined && kind.maxCount !== undefined && kind.minCount > kind.maxCount) {
       issues.push({ path: `${at}.minCount`, message: `Minimum count ${kind.minCount} exceeds maximum ${kind.maxCount}.` });
+    }
+    const seenTypes = new Set<string>();
+    for (const typeId of kind.linkTo ?? []) {
+      if (!DIAGRAM_TYPE_ID_PATTERN.test(typeId)) {
+        issues.push({ path: `${at}.linkTo`, message: `"${typeId}" isn't a diagram type id.` });
+      } else if (seenTypes.has(typeId)) {
+        issues.push({ path: `${at}.linkTo`, message: `"${typeId}" is listed twice.` });
+      }
+      seenTypes.add(typeId);
     }
 
     if (kind.match) {

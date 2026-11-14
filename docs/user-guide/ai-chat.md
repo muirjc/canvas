@@ -16,6 +16,9 @@ The **Chat** tab in the editor lets you change a diagram by describing the chang
   as the toolbar button, then fine-tune positions. Sequence diagrams are laid out automatically, so
   this doesn't apply to them. On a Wardley map, where a component sits is what it means, so the AI
   places each one at a visibility and evolution ("move Kettle to commodity") instead of tidying up.
+- **The AI can link shapes to other diagrams** in the same project ("link Payments to the payments
+  containers diagram"), or remove a link. It sees which shapes already link where. See [Linked
+  diagrams](editor.md#linked-diagrams).
 - **Under each reply**, a note says what changed: "2 changes made to the diagram". It also lists any
   change it couldn't make, and why.
 - **The conversation is saved with the diagram.** Anyone who can edit the diagram sees it and can

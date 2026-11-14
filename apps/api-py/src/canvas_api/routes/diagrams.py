@@ -30,7 +30,7 @@ from canvas_api.auth.session import SessionUser
 from canvas_api.catalog import DSL_FAMILIES
 from canvas_api.db import get_engine
 from canvas_api.diagram_core import DiagramCore
-from canvas_api.diagram_links import outgoing_links, rebuild_links, used_in
+from canvas_api.diagram_links import link_types_for_rules, outgoing_links, rebuild_links, used_in
 from canvas_api.errors import ApiError
 from canvas_api.live.hub import LiveHub
 from canvas_api.retention import delete_diagram_rows, diagram_retention_boundary
@@ -146,7 +146,7 @@ def _validation(
     if standard is None:
         return [], None
     with work_span("validate standard", {"canvas.standard.version": standard.version}):
-        return core.validate(model, standard.rules), standard.version
+        return core.validate(model, standard.rules, link_types_for_rules(conn, model, standard.rules)), standard.version
 
 
 # --- records ------------------------------------------------------------------------------------------
