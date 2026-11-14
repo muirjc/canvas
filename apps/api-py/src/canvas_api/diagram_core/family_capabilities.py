@@ -22,6 +22,7 @@ FAMILY_NODE_SHAPES: dict[str, tuple[str, ...]] = {
         "trapezoid",
         "trapezoid-alt",
         "asymmetric",
+        "chevron",
     ),
     "c4": ("rectangle", "person", "cylinder", "stadium"),
     "sequence": ("rectangle", "person"),

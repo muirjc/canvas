@@ -785,6 +785,17 @@ def _render_node_shape(node: Node, diagram_type_id: Any = None) -> str:
             "trapezoid-alt": [(x, y), (x + width, y), (x + width - skew, y + height), (x + skew, y + height)],
         }[shape]
         return _polygon(corners, fill, stroke)
+    if shape == "chevron":  # canvas-cvby: an arrow with a notch cut into its back
+        notch = _min(20, width / 5)
+        points = [
+            (x, y),
+            (x + width - notch, y),
+            (x + width, y + height / 2),
+            (x + width - notch, y + height),
+            (x, y + height),
+            (x + notch, y + height / 2),
+        ]
+        return _polygon(points, fill, stroke)
     if shape == "asymmetric":
         notch = _min(20, width / 5)
         points = [

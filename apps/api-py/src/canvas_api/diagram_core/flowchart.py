@@ -238,6 +238,16 @@ def parse_flowchart(dsl: str) -> dict[str, Any]:
     styles = section(canvas, "styles")
     edge_styles = section(canvas, "edgeStyles")
     icons = section(canvas, "icons")
+    shapes = section(canvas, "shapes")
+
+    def resolve_shape(node_id: Any, shape: str) -> str:
+        """The token's shape made more precise by front matter: an icon node (canvas-8n7), a chevron (canvas-cvby)."""
+        if shape == "rectangle" and icons.get(node_id):
+            return "icon"
+        if shape == "asymmetric" and shapes.get(node_id) == "chevron":
+            return "chevron"
+        return shape
+
     is_fresh_import = not positions and not container_meta
     placeholder = {"x": 0, "y": 0}
     auto = [0]
@@ -275,7 +285,7 @@ def parse_flowchart(dsl: str) -> dict[str, Any]:
             node = {
                 "id": node_id,
                 "label": label,
-                "shape": "icon" if shape == "rectangle" and icons.get(node_id) else shape,
+                "shape": resolve_shape(node_id, shape),
                 "position": positions[node_id]
                 if positions.get(node_id) is not None
                 else (placeholder if is_fresh_import else next_auto_position()),
@@ -289,7 +299,7 @@ def parse_flowchart(dsl: str) -> dict[str, Any]:
                 node["containerId"] = current_container()
             if explicit:
                 node["label"] = label
-                node["shape"] = "icon" if shape == "rectangle" and icons.get(node_id) else shape
+                node["shape"] = resolve_shape(node_id, shape)
         return node
 
     def apply_shape_data(node: dict[str, Any], inner: str) -> None:
@@ -301,7 +311,9 @@ def parse_flowchart(dsl: str) -> dict[str, Any]:
                     error = f'"{js_template(value)}" is not a shape name'
                     break
                 node["mermaidShape"] = value
-                node["shape"] = mermaid_shape_to_canvas(value, js_truthy(icons.get(node["id"])))
+                node["shape"] = resolve_shape(
+                    node["id"], mermaid_shape_to_canvas(value, js_truthy(icons.get(node["id"])))
+                )
             elif key == "label":
                 node["label"] = js_template(value)
             elif key == "img" and (not isinstance(value, str) or not is_allowed_link_href(value)):
@@ -656,6 +668,8 @@ SHAPE_DELIMITERS = {
     "trapezoid": ("[/", "\\]"),
     "trapezoid-alt": ("[\\", "/]"),
     "asymmetric": (">", "]"),
+    # canvas-cvby: Mermaid's nearest shape; front matter `canvas.shapes` keeps it a chevron in Canvas.
+    "chevron": (">", "]"),
     # canvas-bnnh: state-diagram shapes have no flowchart form; the nearest one keeps the node.
     "state-start": ("((", "))"),
     "state-end": ("(((", ")))"),
@@ -812,6 +826,12 @@ def _write_flowchart(model: dict[str, Any]) -> str:
             "styles": _entries([(n["id"], n["style"]) for n in nodes if n.get("style") is not None]),
             "edgeStyles": _entries([(e["id"], e["style"]) for e in edges if e.get("style") is not None]),
             "icons": _entries([(n["id"], n["icon"]) for n in nodes if n.get("icon")]),
+            # canvas-cvby: only when some node is a chevron, so other diagrams' text is unchanged.
+            **(
+                {"shapes": _entries([(n["id"], "chevron") for n in nodes if n.get("shape") == "chevron"])}
+                if any(n.get("shape") == "chevron" for n in nodes)
+                else {}
+            ),
         }
     }
     body_lines = [f"flowchart {model.get('direction') or 'TD'}"]

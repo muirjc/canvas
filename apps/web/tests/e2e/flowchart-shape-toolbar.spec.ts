@@ -21,6 +21,7 @@ const NEW_SHAPE_BUTTONS = [
   'add-shape-parallelogram',
   'add-shape-trapezoid',
   'add-shape-asymmetric',
+  'add-shape-chevron', // canvas-cvby
 ];
 const UNIVERSAL_SHAPE_BUTTONS = ['add-shape-rectangle', 'add-shape-rounded-rectangle', 'add-shape-circle', 'add-shape-diamond'];
 
@@ -39,7 +40,7 @@ async function createDiagramOfType(page: import('@playwright/test').Page, diagra
   await expect(page.getByTestId('diagram-canvas')).toBeVisible();
 }
 
-test('shows all 11 Add Shape buttons for the flowchart diagram type, but no -alt buttons', async ({ page }) => {
+test('shows all 12 Add Shape buttons for the flowchart diagram type, but no -alt buttons', async ({ page }) => {
   await login(page);
   await createDiagramOfType(page, 'flowchart');
 
@@ -85,7 +86,7 @@ test('shows ONLY the rectangle button for ERD -- no rounded-rectangle/circle/dia
   await expect(page.getByTestId('palette-search')).toHaveCount(0);
 });
 
-test('shows the 7 new shapes for business-capability-map (dslFamily flowchart, id not "flowchart")', async ({ page }) => {
+test('shows the 8 new shapes for business-capability-map (dslFamily flowchart, id not "flowchart")', async ({ page }) => {
   await login(page);
   await createDiagramOfType(page, 'business-capability-map');
 
@@ -119,4 +120,8 @@ test('clicking each new toolbar button adds a node of exactly that shape', async
       .poll(async () => page.getByTestId('dsl-panel').inputValue())
       .toEqual(expect.stringContaining(close));
   }
+
+  // canvas-cvby: a chevron is written in Mermaid's nearest shape, with front matter keeping it a chevron.
+  await page.getByTestId('add-shape-chevron').click();
+  await expect.poll(async () => page.getByTestId('dsl-panel').inputValue()).toMatch(/shapes:\n\s+\S+: chevron/);
 });

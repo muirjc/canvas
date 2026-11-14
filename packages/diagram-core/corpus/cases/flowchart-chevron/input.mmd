@@ -1,0 +1,12 @@
+---
+canvas:
+  shapes:
+    order: chevron
+    fulfil: chevron
+    review: chevron
+---
+flowchart LR
+  customer([Customer]) --> order>Order placed]
+  order --> fulfil>Order fulfilled]
+  fulfil --> paid>Payment received]
+  review[Reviewed by hand]

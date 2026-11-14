@@ -19,7 +19,8 @@ export const VALUE_STREAM_STANDARD: StandardRules = {
       label: 'Value Stage',
       description:
         'A stage in delivering value to the customer, named as an outcome ("Order Fulfilled"). Chain the stages left to right, from trigger to value delivered.',
-      shapes: ['asymmetric'],
+      // canvas-cvby: chevron by default; asymmetric (its Mermaid form) still allowed.
+      shapes: ['chevron', 'asymmetric'],
       approvedFills: ['#e0e7ff', '#c7d2fe'],
       approvedStrokes: ['#4338ca'],
       minCount: 1,

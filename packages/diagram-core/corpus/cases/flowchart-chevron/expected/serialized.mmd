@@ -1,0 +1,35 @@
+---
+canvas:
+  positions:
+    customer:
+      x: 40
+      y: 40
+    order:
+      x: 220
+      y: 40
+    fulfil:
+      x: 400
+      y: 40
+    paid:
+      x: 580
+      y: 40
+    review:
+      x: 760
+      y: 40
+  containers: {}
+  styles: {}
+  edgeStyles: {}
+  icons: {}
+  shapes:
+    order: chevron
+    fulfil: chevron
+---
+flowchart LR
+  customer([Customer])
+  order>Order placed]
+  fulfil>Order fulfilled]
+  paid>Payment received]
+  review[Reviewed by hand]
+  customer --> order
+  order --> fulfil
+  fulfil --> paid

@@ -26,6 +26,7 @@ export const FAMILY_NODE_SHAPES: Record<string, readonly [NodeShape, ...NodeShap
     'trapezoid',
     'trapezoid-alt',
     'asymmetric',
+    'chevron',
   ],
   c4: ['rectangle', 'person', 'cylinder', 'stadium'],
   sequence: ['rectangle', 'person'],

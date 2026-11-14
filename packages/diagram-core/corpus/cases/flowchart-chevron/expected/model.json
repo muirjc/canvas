@@ -1,0 +1,69 @@
+{
+  "containers": [],
+  "diagramTypeId": "flowchart",
+  "direction": "LR",
+  "edges": [
+    {
+      "id": "e1",
+      "sourceId": "customer",
+      "targetId": "order"
+    },
+    {
+      "id": "e2",
+      "sourceId": "order",
+      "targetId": "fulfil"
+    },
+    {
+      "id": "e3",
+      "sourceId": "fulfil",
+      "targetId": "paid"
+    }
+  ],
+  "nodes": [
+    {
+      "id": "customer",
+      "label": "Customer",
+      "position": {
+        "x": 40,
+        "y": 40
+      },
+      "shape": "stadium"
+    },
+    {
+      "id": "order",
+      "label": "Order placed",
+      "position": {
+        "x": 220,
+        "y": 40
+      },
+      "shape": "chevron"
+    },
+    {
+      "id": "fulfil",
+      "label": "Order fulfilled",
+      "position": {
+        "x": 400,
+        "y": 40
+      },
+      "shape": "chevron"
+    },
+    {
+      "id": "paid",
+      "label": "Payment received",
+      "position": {
+        "x": 580,
+        "y": 40
+      },
+      "shape": "asymmetric"
+    },
+    {
+      "id": "review",
+      "label": "Reviewed by hand",
+      "position": {
+        "x": 760,
+        "y": 40
+      },
+      "shape": "rectangle"
+    }
+  ]
+}

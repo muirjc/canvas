@@ -155,6 +155,7 @@ export const MERMAID_SHAPE_NAME: Record<NodeShape, string> = {
   trapezoid: 'trap-b',
   'trapezoid-alt': 'trap-t',
   asymmetric: 'odd',
+  chevron: 'odd',
   'state-start': 'circle',
   'state-end': 'dbl-circ',
   'fork-bar': 'fork',
