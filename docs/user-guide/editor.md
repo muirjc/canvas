@@ -58,6 +58,8 @@ restore is stopped and says who.
   diagram type: a flowchart has rectangles, diamonds, circles and more; a C4 diagram has people,
   systems and containers; and so on. Your organisation's **standard** for the type can narrow this,
   or offer only its own **Elements** (then the Shapes and Icons sections don't appear).
+  A flowchart's **Chevron** (an arrow with a notched back) suits the stages of a value stream. Mermaid
+  has no chevron, so other Mermaid tools and GitHub draw it as the nearest shape, a flag-like arrow.
 - **Architecture diagrams:** a **Services** section adds a Cloud, Database, Disk, Internet or Server
   service in one click; **Add Junction** adds a routing point. Search **Icons** for Azure and AWS
   services.

@@ -21,6 +21,8 @@ const SHAPE_DELIMITERS: Record<NodeShape, [string, string]> = {
   trapezoid: ['[/', '\\]'],
   'trapezoid-alt': ['[\\', '/]'],
   asymmetric: ['>', ']'],
+  // canvas-cvby: Mermaid's nearest shape; front matter `canvas.shapes` keeps it a chevron in Canvas.
+  chevron: ['>', ']'],
   // canvas-bnnh: state-diagram shapes have no flowchart form; the nearest one keeps the node.
   'state-start': ['((', '))'],
   'state-end': ['(((', ')))'],
@@ -172,6 +174,10 @@ function writeFlowchart(model: DiagramModel): string {
       icons: Object.fromEntries(
         model.nodes.filter((n) => n.icon).map((n) => [n.id, n.icon!]),
       ),
+      // canvas-cvby: only when some node is a chevron, so other diagrams' text is unchanged.
+      ...(model.nodes.some((n) => n.shape === 'chevron')
+        ? { shapes: Object.fromEntries(model.nodes.filter((n) => n.shape === 'chevron').map((n) => [n.id, 'chevron'])) }
+        : {}),
     },
   };
 

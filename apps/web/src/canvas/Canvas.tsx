@@ -152,6 +152,7 @@ const SHAPE_GLYPHS: Partial<Record<NodeShape, string>> = {
   parallelogram: '▱',
   trapezoid: '⏢',
   asymmetric: '⌂',
+  chevron: '❯',
   person: '👤',
   cylinder: '⌭',
 };

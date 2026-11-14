@@ -18,6 +18,8 @@ export interface CanvasFrontMatter {
     /** jmuir-dtu.28: element kind per node id, for families whose Mermaid grammar can't carry one
      *  (architecture-beta). */
     kinds?: Record<string, string>;
+    /** canvas-cvby: a flowchart node's Canvas-only shape (`chevron`), where its Mermaid text says the nearest one. */
+    shapes?: Record<string, string>;
     /** canvas-ltk: the diagram's legend (validated by readLegend). */
     legend?: unknown;
     /** canvas-rqm6: ids of the shapes and groups Auto Layout leaves where they are (validated by readPinned). */
@@ -49,7 +51,7 @@ export function splitFrontMatter(dsl: string): SplitDocument {
 export const NO_ENTRIES: Readonly<Record<string, never>> = Object.freeze(Object.create(null) as Record<string, never>);
 
 /** The canvas sections keyed by a diagram's own ids (node, edge, container ids). */
-const ID_KEYED_SECTIONS = ['positions', 'containers', 'styles', 'edgeStyles', 'icons', 'kinds', 'links'] as const;
+const ID_KEYED_SECTIONS = ['positions', 'containers', 'styles', 'edgeStyles', 'icons', 'kinds', 'links', 'shapes'] as const;
 
 /**
  * canvas-1bty.15.9: each id-keyed section as an object with no prototype, so `positions[id]` finds only

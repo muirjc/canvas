@@ -1,0 +1,9 @@
+flowchart LR
+  customer([Customer])
+  order>Order placed]
+  fulfil>Order fulfilled]
+  paid>Payment received]
+  review[Reviewed by hand]
+  customer --> order
+  order --> fulfil
+  fulfil --> paid

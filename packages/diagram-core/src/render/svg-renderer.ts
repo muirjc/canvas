@@ -1021,6 +1021,21 @@ function renderNodeShape(node: DiagramNode, diagramTypeId?: string): string {
         .join(' ');
       return `<polygon points="${points}" fill="${fill}" stroke="${stroke}" />`;
     }
+    case 'chevron': {
+      // canvas-cvby: an arrow with a notch cut into its back, the same depth as its point.
+      const notch = Math.min(20, width / 5);
+      const points = [
+        [x, y],
+        [x + width - notch, y],
+        [x + width, y + height / 2],
+        [x + width - notch, y + height],
+        [x, y + height],
+        [x + notch, y + height / 2],
+      ]
+        .map((p) => p.join(','))
+        .join(' ');
+      return `<polygon points="${points}" fill="${fill}" stroke="${stroke}" />`;
+    }
     case 'asymmetric': {
       const notch = Math.min(20, width / 5);
       const points = [

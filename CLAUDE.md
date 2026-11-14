@@ -100,6 +100,15 @@ tests are NON-NEGOTIABLE and must exist (and fail) before implementing any diagr
 work — see `.specify/memory/constitution.md` Principle IV.
 
 ## Recent Changes
+- `canvas-cvby`: **a chevron shape for value-stream stages** (flowchart family). `NodeShape` 'chevron' (polygon with a
+  notch the depth of its point, `min(20, w/5)`; TS svg-renderer, Python svg_render, web shapes.tsx, glyph ❯,
+  toolbar "Chevron"). Mermaid has no chevron: written as asymmetric `A>label]` plus front matter `canvas.shapes:
+  {A: chevron}` (only when some node is one, so other diagrams' text is unchanged; `shapes` is an id-keyed
+  section). Reading: `resolveShape` / `resolve_shape` -- `>…]` + shapes entry = chevron; a token of another shape
+  wins over a stale entry. Mermaid shape name `odd`. VALUE_STREAM_STANDARD's stage = ['chevron', 'asymmetric'];
+  the seeded descriptive starters allow it automatically (FAMILY_NODE_SHAPES). AI: flowchart primer names
+  chevrons; ai_tools_vectors refreshed (tool lists + 3 recorded invalid-shape errors listing the enum). Corpus
+  `flowchart-chevron`.
 - `canvas-dfam`: **the Mermaid syntax dry run can run against the Azure database.** Job `canvas-syntax-report`
   (`infra/azure/modules/syntaxreportjob.bicep`, manual, read-only, `python -m canvas_api.jobs.syntax_report
   --numbered`, 30 min timeout; deploy.sh keeps it on the app's image). `infra/azure/syntax-report.sh [--build |

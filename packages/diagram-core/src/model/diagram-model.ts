@@ -56,6 +56,9 @@ export type NodeShape =
   | 'trapezoid'
   | 'trapezoid-alt'
   | 'asymmetric'
+  // canvas-cvby: a value-stream stage. Mermaid has no chevron: written as asymmetric (`A>x]`), with front matter
+  // `canvas.shapes` saying it's a chevron.
+  | 'chevron'
   // canvas-bnnh: state diagrams' start ([*] as a source: a filled dot), end ([*] as a target: a ringed dot)
   // and fork/join bar.
   | 'state-start'

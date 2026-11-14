@@ -231,6 +231,15 @@ export function parseFlowchart(dsl: string): ParseResult {
   const styles = canvas.styles ?? NO_ENTRIES;
   const edgeStyles = canvas.edgeStyles ?? NO_ENTRIES;
   const icons = canvas.icons ?? NO_ENTRIES;
+  const shapes = canvas.shapes ?? NO_ENTRIES;
+  // The shape a token gives, made more precise by front matter: `[label]` with an icon is an icon node (canvas-8n7);
+  // `>label]` marked `chevron` in `canvas.shapes` is a chevron (canvas-cvby). A token of another shape wins over
+  // front matter left behind.
+  const resolveShape = (id: string, shape: NodeShape): NodeShape => {
+    if (shape === 'rectangle' && icons[id]) return 'icon';
+    if (shape === 'asymmetric' && shapes[id] === 'chevron') return 'chevron';
+    return shape;
+  };
   // canvas-m0g: see c4.ts's identical comment — a fresh import/paste (no stored geometry at all)
   // gets a real containment-aware auto-layout (nested subgraphs) instead of the flat
   // nextAutoPosition() counter, via a post-pass once the whole tree is known.
@@ -286,7 +295,7 @@ export function parseFlowchart(dsl: string): ParseResult {
         // between the two — an icon ref in front-matter breaks the tie toward 'icon'. Any other,
         // unambiguous shape (e.g. an explicit cylinder `[(label)]`) is never overridden: a node
         // can validly carry icon metadata without its shape being 'icon'.
-        shape: shape === 'rectangle' && icons[id] ? 'icon' : shape,
+        shape: resolveShape(id, shape),
         position: positions[id] ?? (isFreshImport ? { ...PLACEHOLDER_POSITION } : nextAutoPosition()),
         style: styles[id],
         icon: icons[id],
@@ -297,7 +306,7 @@ export function parseFlowchart(dsl: string): ParseResult {
       node.containerId = node.containerId ?? containerStack[containerStack.length - 1];
       if (explicit) {
         node.label = label;
-        node.shape = shape === 'rectangle' && icons[id] ? 'icon' : shape;
+        node.shape = resolveShape(id, shape);
       }
     }
     return node;
@@ -314,7 +323,7 @@ export function parseFlowchart(dsl: string): ParseResult {
           break;
         }
         node.mermaidShape = value;
-        node.shape = mermaidShapeToCanvas(value, !!icons[node.id]);
+        node.shape = resolveShape(node.id, mermaidShapeToCanvas(value, !!icons[node.id]));
       } else if (key === 'label') {
         node.label = String(value);
       } else if (key === 'img' && (typeof value !== 'string' || !isAllowedLinkHref(value))) {
