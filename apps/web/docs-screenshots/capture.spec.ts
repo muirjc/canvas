@@ -198,6 +198,52 @@ test('editor', async () => {
   await api('delete', `/diagrams/${scratch}`);
 });
 
+// canvas-8uh1.7: linked diagrams and frames (docs/user-guide/editor.md "Linked diagrams", "Embedded diagrams").
+const CONTAINER_DSL = `C4Container
+  title Payments containers
+  Person(customer, "Customer")
+  System_Boundary(pay, "Payments") {
+    Container(web, "Checkout web app", "React")
+    Container(api, "Payments API", "Python")
+    ContainerDb(db, "Ledger", "Postgres")
+  }
+  Rel(customer, web, "Pays with")
+  Rel(web, api, "Calls")
+  Rel(api, db, "Records")
+`;
+
+test('linked and embedded diagrams', async () => {
+  const containers = await ensureDiagram('Payments containers', 'c4-container', CONTAINER_DSL);
+  const contextDsl = `---
+canvas:
+  links:
+    payments: ${containers}
+  frames:
+    - id: f1
+      diagramId: ${containers}
+      x: 40
+      y: 300
+      width: 560
+      height: 340
+---
+C4Context
+  title Payments context
+  Person(customer, "Customer")
+  System(payments, "Payments System")
+  System_Ext(bank, "Card network")
+  Rel(customer, payments, "Pays with")
+  Rel(payments, bank, "Authorises cards")
+`;
+  const context = await ensureDiagram('Payments context', 'c4-context', contextDsl);
+  await openEditor(admin, context);
+  await expect(admin.getByTestId('diagram-link-badge-payments')).toHaveAttribute('data-status', 'available');
+  await expect(admin.getByTestId('diagram-frame-f1')).toHaveAttribute('data-status', 'available');
+  await admin.getByTestId('rail-tab-links').click();
+  await expect(admin.getByTestId('links-panel')).toBeVisible();
+  await expect(admin.getByTestId('frame-row-f1')).toHaveAttribute('data-status', 'available');
+  await shot(admin, 'editor-links.png');
+});
+
 test('create with AI', async () => {
   await admin.goto(`/?projectId=${projectId}`);
   await admin.getByTestId('create-via-ai-chat').click();

@@ -150,6 +150,34 @@ Three states need handling, both for a link badge and a frame placeholder:
   - `describe_model` says which elements link to what;
   - "Create the container diagram for this system" becomes possible later, as a separate feature.
 
+## As built
+
+All seven parts shipped (canvas-8uh1.1 to .7, PRs #366 to #372). Where the build differs from, or adds to, the
+design above:
+
+- **Opening a link:** from the badge (click or Enter), not Ctrl/Cmd-click, which stays "add to the selection".
+  The Links tab and a frame's **Open** open them too.
+- **Which elements link:** any shape or group, but a sequence diagram's participants only (its blocks' ids are
+  made up when the text is read, so a link on one wouldn't last).
+- **"Used in"** counts links and frames. The delete prompt names the diagrams that use the one being deleted
+  (built in part 7). There is no admin report of broken links after a purge: each diagram's Links tab and badges
+  show them.
+- **Frames refresh** after each save and every 60 seconds while the page is visible (not through the
+  notifications poll). Inner diagrams are drawn by the API with the export renderer and shown as images, so
+  nothing in them runs. A frame inside a framed diagram is a titled placeholder ("Embedded diagram").
+- **Live editing** carries frames as one field: if two people move different frames at the same moment, the last
+  change wins for the whole list. Links are per element, like any other element field.
+- **Standards:** an element kind's `linkTo` lists diagram types; rule `kind-link` (Warning) flags an element of the
+  kind that links to nothing, or to a diagram of a type not listed. A link whose target can't be opened isn't
+  judged by type. Element kinds classify shapes only, so groups aren't checked.
+- **AI chat:** `linkToDiagram` is offered with the project's other saved diagrams (at most 100), and only in build
+  mode. Its "new violations" feedback is keyed by element and rule, so linking an already-flagged element to the
+  wrong type isn't reported as new; the AI still sees it in the prompt's list of current violations.
+- **GitHub:** `canvas.json` gains `links` and `frames` (with each target's type and version) only when there are
+  some, so a diagram without them submits exactly the same files as before. A linked diagram submitted (open or
+  merged) to the same repository gets a relative README link.
+- **Not built:** connectors ending on a frame, and "create the container diagram for this system" from the AI.
+
 ## Child beads
 
 1. **Model and text:** `diagramRef` on nodes and groups, and `canvas.links` front matter in every family,
