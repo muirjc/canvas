@@ -93,9 +93,10 @@ GOOD_PROJECT = {"id": "p1", "name": "P", "parentProjectId": None, "createdAt": "
     ids=["extra field", "missing field", "zone-less timestamp", "wrong error shape", "undocumented status"],
 )
 def test_the_contract_check_rejects_a_response_out_of_shape(status: int, body: object, problem: str) -> None:
-    check_contract(_response("GET", "http://test/projects/p1", 200, {"project": GOOD_PROJECT}))
+    # Restore answers with the plain project; GET /projects/{id} gives the list entry since canvas-g8i.
+    check_contract(_response("POST", "http://test/projects/p1/restore", 200, {"project": GOOD_PROJECT}))
     with pytest.raises(AssertionError, match=problem):
-        check_contract(_response("GET", "http://test/projects/p1", status, body))
+        check_contract(_response("POST", "http://test/projects/p1/restore", status, body))
 
 
 def test_the_contract_check_knows_a_204_has_no_body() -> None:

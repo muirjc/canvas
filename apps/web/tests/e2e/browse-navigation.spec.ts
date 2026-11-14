@@ -124,13 +124,15 @@ test('a bare address resumes the last project opened in this browser', async ({ 
   await expect(page.getByTestId('project-browser-breadcrumb')).toContainText(name);
 });
 
-const WEB_ORIGIN = 'http://localhost:5173';
+const WEB_ORIGIN = process.env.E2E_WEB_ORIGIN ?? 'http://localhost:5173';
 const ARCHITECT_EMAIL = 'architect@example.com';
 const ARCHITECT_PASSWORD = 'architect-dev-password';
 
 /** Fulfils a cross-origin API GET with JSON (the web app sends credentials, so CORS must allow them). */
 async function stubApiGet(page: Page, path: string, body: unknown): Promise<void> {
-  await page.route(`${API_BASE_URL}${path}`, async (route) => {
+  // canvas-g8i: matched on the path alone -- the app asks for `/projects?scope=mine`, and a glob without the query
+  // string would not match it.
+  await page.route((url) => url.origin + url.pathname === `${API_BASE_URL}${path}`, async (route) => {
     if (route.request().method() !== 'GET') return route.fallback();
     await route.fulfill({
       status: 200,

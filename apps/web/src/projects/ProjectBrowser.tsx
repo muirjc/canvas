@@ -1,5 +1,15 @@
 import { useCallback, useEffect, useState } from 'react';
-import { accessAtLeast, api, ApiError, type SubmissionBadgeDto, type DiagramSummaryDto, type DiagramUsedInDto, type DiagramTypeDto, type ProjectDto, type ProjectTreeNodeDto } from '../app/api';
+import {
+  accessAtLeast,
+  api,
+  ApiError,
+  type SubmissionBadgeDto,
+  type DiagramSummaryDto,
+  type DiagramUsedInDto,
+  type DiagramTypeDto,
+  type ProjectDto,
+  type ProjectTreeNodeDto,
+} from '../app/api';
 import { ConfirmDialog } from '../canvas/ConfirmDialog';
 import { Modal } from '../ui/Modal';
 import { Icon } from '../ui/Icon';
@@ -33,7 +43,12 @@ function SubmissionBadge({ badge }: { badge: SubmissionBadgeDto }) {
   const { kind, label } = deriveBadge(badge);
   const text = badge.prNumber ? `${label} · PR #${badge.prNumber}` : label;
   return (
-    <span className={`badge diagram-badge diagram-badge--${kind}`} data-testid="submission-badge" data-state={kind} title={text}>
+    <span
+      className={`badge diagram-badge diagram-badge--${kind}`}
+      data-testid="submission-badge"
+      data-state={kind}
+      title={text}
+    >
       {label}
     </span>
   );
@@ -41,7 +56,17 @@ function SubmissionBadge({ badge }: { badge: SubmissionBadgeDto }) {
 
 /** One diagram row's Open/Move/Delete actions — shared by the recursive tree view and the flat
  *  search-results view (canvas-3vq.1) so the two can't drift apart on testids or behavior. */
-function DiagramRow({ diagramId, diagramName, typeName, currentProjectId, badge, onOpenDiagram, onRequestDelete, onRequestMove, canChange }: DiagramActionsProps) {
+function DiagramRow({
+  diagramId,
+  diagramName,
+  typeName,
+  currentProjectId,
+  badge,
+  onOpenDiagram,
+  onRequestDelete,
+  onRequestMove,
+  canChange,
+}: DiagramActionsProps) {
   return (
     <li className="row">
       <Icon name="diamond" />
@@ -61,28 +86,28 @@ function DiagramRow({ diagramId, diagramName, typeName, currentProjectId, badge,
           Open
         </button>
         {canChange && (
-        <>
-        <button
-          type="button"
-          className="btn btn--tertiary btn--compact"
-          data-testid={`move-diagram-${diagramId}`}
-          aria-label={`Move diagram ${diagramName}`}
-          onClick={() => onRequestMove(diagramId, diagramName, currentProjectId)}
-        >
-          <Icon name="arrow-right" size={12} />
-          Move
-        </button>
-        <button
-          type="button"
-          className="btn btn--tertiary-danger btn--compact"
-          data-testid={`delete-diagram-${diagramId}`}
-          aria-label={`Delete diagram ${diagramName}`}
-          onClick={() => onRequestDelete(diagramId, diagramName)}
-        >
-          <Icon name="trash" size={12} />
-          Delete
-        </button>
-        </>
+          <>
+            <button
+              type="button"
+              className="btn btn--tertiary btn--compact"
+              data-testid={`move-diagram-${diagramId}`}
+              aria-label={`Move diagram ${diagramName}`}
+              onClick={() => onRequestMove(diagramId, diagramName, currentProjectId)}
+            >
+              <Icon name="arrow-right" size={12} />
+              Move
+            </button>
+            <button
+              type="button"
+              className="btn btn--tertiary-danger btn--compact"
+              data-testid={`delete-diagram-${diagramId}`}
+              aria-label={`Delete diagram ${diagramName}`}
+              onClick={() => onRequestDelete(diagramId, diagramName)}
+            >
+              <Icon name="trash" size={12} />
+              Delete
+            </button>
+          </>
         )}
       </span>
     </li>
@@ -106,7 +131,16 @@ function countDiagrams(node: ProjectTreeNodeDto): number {
   return node.diagrams.length + node.children.reduce((sum, child) => sum + countDiagrams(child), 0);
 }
 
-function TreeNode({ node, isRoot = false, typeNameOf, badges, onOpenDiagram, onRequestDelete, onRequestMove, canChange }: TreeNodeProps) {
+function TreeNode({
+  node,
+  isRoot = false,
+  typeNameOf,
+  badges,
+  onOpenDiagram,
+  onRequestDelete,
+  onRequestMove,
+  canChange,
+}: TreeNodeProps) {
   const total = countDiagrams(node);
   return (
     <li className="project-node">
@@ -157,7 +191,8 @@ function TreeNode({ node, isRoot = false, typeNameOf, badges, onOpenDiagram, onR
 /** Project/folder browser (FR-016): browse a nested project hierarchy, open, or delete a diagram. */
 export function ProjectBrowser({ rootProjectId, projects, onOpenDiagram }: ProjectBrowserProps) {
   // canvas-2h2w.1: Move/Delete only where the user can edit (the API still decides).
-  const canChange = (projectId: string) => accessAtLeast(projects.find((p) => p.id === projectId)?.accessLevel ?? 'edit', 'edit');
+  const canChange = (projectId: string) =>
+    accessAtLeast(projects.find((p) => p.id === projectId)?.accessLevel ?? 'edit', 'edit');
   const [tree, setTree] = useState<ProjectTreeNodeDto | null>(null);
   const [status, setStatus] = useState<'loading' | 'ready' | 'error'>('loading');
   const [pendingDelete, setPendingDelete] = useState<{ id: string; name: string } | null>(null);
@@ -185,7 +220,40 @@ export function ProjectBrowser({ rootProjectId, projects, onOpenDiagram }: Proje
   // canvas-228.3: the diagram being moved, its current project (excluded from the destination
   // choices), and the chosen destination — a separate small piece of state per dialog field
   // rather than one combined object, since the destination resets each time a new move starts.
-  const [movingDiagram, setMovingDiagram] = useState<{ id: string; name: string; projectId: string } | null>(null);
+  const [movingDiagram, setMovingDiagram] = useState<{
+    id: string;
+    name: string;
+    projectId: string;
+  } | null>(null);
+  // canvas-g8i: the app holds only the user's own projects, so the Move dialog reads every project it could go to
+  // (those the user can edit -- an admin can edit all) when it opens.
+  const [moveDestinations, setMoveDestinations] = useState<ProjectDto[] | null>(null);
+  useEffect(() => {
+    if (!movingDiagram) {
+      setMoveDestinations(null);
+      return;
+    }
+    let cancelled = false;
+    api
+      .listProjects()
+      .then(
+        ({ projects: all }) =>
+          !cancelled &&
+          setMoveDestinations(
+            all.filter((project) => accessAtLeast(project.accessLevel ?? 'view', 'edit')),
+          ),
+      )
+      .catch(
+        () =>
+          !cancelled &&
+          setMoveDestinations(
+            projects.filter((project) => accessAtLeast(project.accessLevel ?? 'view', 'edit')),
+          ),
+      );
+    return () => {
+      cancelled = true;
+    };
+  }, [movingDiagram?.id]);
   const [destinationProjectId, setDestinationProjectId] = useState('');
   const [moveError, setMoveError] = useState<string | null>(null);
   // canvas-3vq.1: search/type-filter over this project's direct diagrams, via the pre-existing
@@ -216,7 +284,10 @@ export function ProjectBrowser({ rootProjectId, projects, onOpenDiagram }: Proje
 
   useEffect(() => {
     // canvas-9ff: includes hidden types -- existing diagrams of a hidden type still need its name.
-    api.listDiagramTypes(undefined, { includeHidden: true }).then(({ diagramTypes }) => setDiagramTypes(diagramTypes)).catch(() => {});
+    api
+      .listDiagramTypes(undefined, { includeHidden: true })
+      .then(({ diagramTypes }) => setDiagramTypes(diagramTypes))
+      .catch(() => {});
   }, []);
 
   const refresh = () => {
@@ -239,7 +310,10 @@ export function ProjectBrowser({ rootProjectId, projects, onOpenDiagram }: Proje
     }
     setSearchStatus('loading');
     api
-      .searchProjectDiagrams(rootProjectId, { query: query.trim() || undefined, type: typeFilter || undefined })
+      .searchProjectDiagrams(rootProjectId, {
+        query: query.trim() || undefined,
+        type: typeFilter || undefined,
+      })
       .then(({ diagrams }) => {
         setSearchResults(diagrams);
         setSearchStatus('ready');
@@ -304,7 +378,8 @@ export function ProjectBrowser({ rootProjectId, projects, onOpenDiagram }: Proje
   }
 
   const isEmpty = countDiagrams(tree) === 0;
-  const typeNameOf = (diagramTypeId: string) => diagramTypes.find((type) => type.id === diagramTypeId)?.name;
+  const typeNameOf = (diagramTypeId: string) =>
+    diagramTypes.find((type) => type.id === diagramTypeId)?.name;
   const requestDelete = (id: string, name: string) => setPendingDelete({ id, name });
   const requestMove = (id: string, name: string, projectId: string) => {
     setDestinationProjectId('');
@@ -381,27 +456,25 @@ export function ProjectBrowser({ rootProjectId, projects, onOpenDiagram }: Proje
             </ul>
           )}
         </>
+      ) : isEmpty ? (
+        <div className="card" data-testid="project-browser">
+          <p className="state" data-testid="project-browser-empty">
+            No diagrams yet — create one to get started.
+          </p>
+        </div>
       ) : (
-        isEmpty ? (
-          <div className="card" data-testid="project-browser">
-            <p className="state" data-testid="project-browser-empty">
-              No diagrams yet — create one to get started.
-            </p>
-          </div>
-        ) : (
-          <ul className="card" data-testid="project-browser">
-            <TreeNode
-              node={tree}
-              isRoot
-              typeNameOf={typeNameOf}
-              badges={badges}
-              onOpenDiagram={onOpenDiagram}
-              onRequestDelete={requestDelete}
-              onRequestMove={requestMove}
-              canChange={canChange}
-            />
-          </ul>
-        )
+        <ul className="card" data-testid="project-browser">
+          <TreeNode
+            node={tree}
+            isRoot
+            typeNameOf={typeNameOf}
+            badges={badges}
+            onOpenDiagram={onOpenDiagram}
+            onRequestDelete={requestDelete}
+            onRequestMove={requestMove}
+            canChange={canChange}
+          />
+        </ul>
       )}
       {pendingDelete && (
         <ConfirmDialog
@@ -455,7 +528,7 @@ export function ProjectBrowser({ rootProjectId, projects, onOpenDiagram }: Proje
               <option value="" disabled>
                 Select a project…
               </option>
-              {projects
+              {(moveDestinations ?? [])
                 .filter((project) => project.id !== movingDiagram.projectId)
                 .map((project) => (
                   <option key={project.id} value={project.id}>
@@ -478,7 +551,10 @@ export function ProjectBrowser({ rootProjectId, projects, onOpenDiagram }: Proje
 /** canvas-8uh1.7: " It is used in 2 other diagrams (A, B): ..." for the delete prompt, or "" when nothing uses it. */
 export function usedInWarning(usedIn: DiagramUsedInDto[] | null): string {
   if (!usedIn || usedIn.length === 0) return '';
-  const names = usedIn.slice(0, 3).map((u) => `"${u.name}"`).join(', ');
+  const names = usedIn
+    .slice(0, 3)
+    .map((u) => `"${u.name}"`)
+    .join(', ');
   const more = usedIn.length > 3 ? ` and ${usedIn.length - 3} more` : '';
   const count = usedIn.length === 1 ? '1 other diagram' : `${usedIn.length} other diagrams`;
   return ` It is used in ${count} (${names}${more}); their links and frames will show it as deleted until it is restored.`;

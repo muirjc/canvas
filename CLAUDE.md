@@ -100,6 +100,19 @@ tests are NON-NEGOTIABLE and must exist (and fail) before implementing any diagr
 work — see `.specify/memory/constitution.md` Principle IV.
 
 ## Recent Changes
+- `canvas-g8i`: **server-side project search and paging.** `GET /projects` with no params is unchanged (every
+  project with access/membership; the link picker and GitHub admin still use it). With `q` (case-insensitive name,
+  `LOWER(name) LIKE` with `%`/`_`/`\` escaped; SQLite's LOWER is ASCII-only), `scope` (`mine` = owned or member,
+  `others`), `limit` (1-200; absent = every match) or `offset`: `{projects, total}` -- names matched in one cheap
+  query, scope from `project_access_for_user` (in memory), then diagram counts for the page only (`IN :ids`,
+  expanding), so a page is a fixed number of queries. `GET /projects/{id}` returns the list entry (ownerId,
+  diagramCount, accessLevel, membership). Contract: query params as patterned strings (the repo's convention).
+  Web: App loads `scope: 'mine'` only, plus `visitedProjects` (others read with `getProject` when the address or an
+  open diagram names one; `knownProjects` drives the current project's name/access, the editor's back link and
+  ProjectBrowser). ProjectsPage: My projects filtered in the browser; All projects from the server (`scope=others`,
+  300 ms debounce, 50 a page, `projects-page-all-more` / `-count`, refetched after rename/delete). The Move dialog
+  reads `listProjects()` when it opens and offers edit+ projects only. Tests: test_projects.py (search, scopes,
+  paging, LIKE escaping, constant query count), web projects-page-search / project-browser-move.
 - `canvas-cvby`: **a chevron shape for value-stream stages** (flowchart family). `NodeShape` 'chevron' (polygon with a
   notch the depth of its point, `min(20, w/5)`; TS svg-renderer, Python svg_render, web shapes.tsx, glyph ❯,
   toolbar "Chevron"). Mermaid has no chevron: written as asymmetric `A>label]` plus front matter `canvas.shapes:

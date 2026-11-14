@@ -794,7 +794,19 @@ export const api = {
     return request<{ diagrams: DiagramSummaryDto[] }>(`/projects/${projectId}/diagrams${qs ? `?${qs}` : ''}`);
   },
   /** Projects available to the signed-in user — owned or shared (feature 007, FR-013a). */
-  listProjects: () => request<{ projects: ProjectDto[] }>('/projects'),
+  /** Every project with your access to each; or, with `params` (canvas-g8i), one page of them: `q` searches names,
+   *  `scope` "mine" = owned or a member of, "others" = the rest; `total` is how many match. */
+  listProjects: (params?: { q?: string; scope?: 'mine' | 'others'; limit?: number; offset?: number }) => {
+    const query = new URLSearchParams();
+    if (params?.q) query.set('q', params.q);
+    if (params?.scope) query.set('scope', params.scope);
+    if (params?.limit !== undefined) query.set('limit', String(params.limit));
+    if (params?.offset) query.set('offset', String(params.offset));
+    const suffix = query.toString();
+    return request<{ projects: ProjectDto[]; total?: number }>(`/projects${suffix ? `?${suffix}` : ''}`);
+  },
+  /** canvas-g8i: one project, with your access to it, as in the list. */
+  getProject: (id: string) => request<{ project: ProjectDto }>(`/projects/${encodeURIComponent(id)}`),
   /** Moves a diagram to a different project (canvas-228.3) — requires edit access on the diagram
    *  and on the destination project. */
   moveDiagram: (diagramId: string, projectId: string) =>

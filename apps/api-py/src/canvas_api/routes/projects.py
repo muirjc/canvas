@@ -8,10 +8,10 @@ sharing in phase 3.
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Annotated, Any
+from typing import Annotated, Any, Literal
 from uuid import uuid4
 
-from fastapi import APIRouter, Depends, Response
+from fastapi import APIRouter, Depends, Query, Response
 from pydantic import BaseModel, Field, StrictStr
 from sqlalchemy import Connection, Engine, bindparam, text
 
@@ -89,42 +89,78 @@ def create_project(user: ArchitectOrAdmin, db: Db, body: CreateProjectBody) -> d
     return {"project": project}
 
 
+_LIST_COLUMNS = (
+    "SELECT p.id, p.name, p.parent_project_id, p.created_at, p.owner_id, COUNT(d.id) AS diagram_count"
+    " FROM projects p"
+    " LEFT JOIN diagrams d ON d.project_id = p.id AND d.deleted_at IS NULL AND d.draft = :no"
+)
+_ALL_PROJECTS = text(f"{_LIST_COLUMNS} WHERE p.deleted_at IS NULL GROUP BY p.id ORDER BY p.name, p.id")
+# canvas-g8i: the names that match, cheaply (no diagram counts), then the counts for one page only.
+_MATCHING = text(
+    "SELECT id FROM projects WHERE deleted_at IS NULL AND LOWER(name) LIKE :pattern ESCAPE '\\' ORDER BY name, id"
+)
+_PAGE = text(f"{_LIST_COLUMNS} WHERE p.id IN :ids GROUP BY p.id ORDER BY p.name, p.id").bindparams(
+    bindparam("ids", expanding=True)
+)
+#: canvas-g8i: a page of the project list is at most this long.
+MAX_PAGE = 200
+
+
+def _listed(row: Any, access: dict[str, Any]) -> dict[str, Any]:
+    entry = access.get(str(row.id))
+    return {
+        **_project(row),
+        "ownerId": str(row.owner_id),
+        "diagramCount": int(row.diagram_count),
+        "accessLevel": entry.level if entry else "view",
+        "membership": entry.membership if entry else None,
+    }
+
+
+def _like_pattern(query: str) -> str:
+    """`%query%`, lower-cased, with LIKE's own wildcards (and the escape character) taken literally."""
+    escaped = query.lower().replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+    return f"%{escaped}%"
+
+
 @router.get("/projects")
-def list_projects(user: CurrentUser, db: Db) -> dict[str, Any]:
+def list_projects(
+    user: CurrentUser,
+    db: Db,
+    q: Annotated[str | None, Query(max_length=200)] = None,
+    scope: Literal["mine", "others"] | None = None,
+    limit: Annotated[int | None, Query(ge=1, le=MAX_PAGE)] = None,
+    offset: Annotated[int, Query(ge=0)] = 0,
+) -> dict[str, Any]:
     """Every live project with the caller's access to each, by name. An empty list is the first-run
-    path, not an error."""
+    path, not an error.
+
+    canvas-g8i: with any of `q` (a case-insensitive name search), `scope` ("mine" = owned or a member of,
+    "others" = the rest, which everyone can read), `limit` (at most 200; without it, every match) or `offset`,
+    the matching projects instead, with `total` (how many match)."""
     with db.connect() as conn:
         access = project_access_for_user(conn, user.id)
-        rows = conn.execute(
-            text(
-                "SELECT p.id, p.name, p.parent_project_id, p.created_at, p.owner_id, COUNT(d.id) AS diagram_count"
-                " FROM projects p"
-                " LEFT JOIN diagrams d ON d.project_id = p.id AND d.deleted_at IS NULL AND d.draft = :no"
-                " WHERE p.deleted_at IS NULL"
-                " GROUP BY p.id ORDER BY p.name, p.id"
-            ),
-            {"no": False},
-        ).all()
-    projects = []
-    for row in rows:
-        entry = access.get(str(row.id))
-        projects.append(
-            {
-                **_project(row),
-                "ownerId": str(row.owner_id),
-                "diagramCount": int(row.diagram_count),
-                "accessLevel": entry.level if entry else "view",
-                "membership": entry.membership if entry else None,
-            }
-        )
-    return {"projects": projects}
+        if q is None and scope is None and limit is None and offset == 0:
+            return {"projects": [_listed(row, access) for row in conn.execute(_ALL_PROJECTS, {"no": False})]}
+        ids = [str(row.id) for row in conn.execute(_MATCHING, {"pattern": _like_pattern((q or "").strip())})]
+        if scope is not None:
+            mine = {project_id for project_id, entry in access.items() if entry.membership is not None}
+            ids = [project_id for project_id in ids if (project_id in mine) == (scope == "mine")]
+        page = ids[offset:] if limit is None else ids[offset : offset + limit]
+        rows = conn.execute(_PAGE, {"ids": page, "no": False}).all() if page else []
+    return {"projects": [_listed(row, access) for row in rows], "total": len(ids)}
 
 
 @router.get("/projects/{id}")
 def get_project(id: str, user: CurrentUser, db: Db) -> dict[str, Any]:
+    """canvas-g8i: with the caller's access, membership, owner and diagram count, as in the project list (the app
+    no longer loads every project, so it reads the one open here)."""
     with db.connect() as conn:
         require_project_access(conn, user.id, id, "view")
-        return {"project": _get_project(conn, id)}
+        project = _get_project(conn, id)  # 404 for a missing or deleted project
+        row = conn.execute(_PAGE, {"ids": [id], "no": False}).first()
+        access = project_access_for_user(conn, user.id)
+    return {"project": _listed(row, access) if row is not None else project}
 
 
 @router.get("/projects/{id}/tree")

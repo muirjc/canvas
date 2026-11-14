@@ -259,7 +259,8 @@ test('a user with access to no projects is invited to create one, not shown an e
   const context = await browser.newContext();
   const page = await context.newPage();
 
-  await page.route('**/projects', async (route) => {
+  // canvas-g8i: the app lists `/projects?scope=mine` (and `scope=others`), so match the path, not the exact URL.
+  await page.route((url) => url.pathname === '/projects', async (route) => {
     if (route.request().method() === 'GET') {
       await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ projects: [] }) });
       return;
