@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import math
+from collections.abc import Callable
 from typing import Any
 
 from canvas_api.diagram_core.jsvalues import js_template, js_truthy
@@ -249,7 +250,14 @@ def _render_map_node(node: dict[str, Any], layout: dict[str, Any]) -> str:
     return "".join(parts)
 
 
-def _render_annotations(model: Model, frame: dict[str, float]) -> str:
+LinkWrap = Callable[[dict[str, Any], str], str]
+
+
+def _no_link(_node: dict[str, Any], markup: str) -> str:
+    return markup
+
+
+def _render_annotations(model: Model, frame: dict[str, float], link: LinkWrap = _no_link) -> str:
     annotations = [n for n in model["nodes"] if n.get("role") == "annotation"]
     if not annotations:
         return ""
@@ -258,10 +266,13 @@ def _render_annotations(model: Model, frame: dict[str, float]) -> str:
         x, y = node["position"]["x"], node["position"]["y"]
         number = _wardley(node).get("number")
         parts.append(
-            f'<g class="wardley-annotation" data-id="{_escape(node["id"])}"><circle cx="{_t(x)}" cy="{_t(y)}" r="10"'
-            f' fill="white" stroke="{STROKE}" stroke-width="1.5" /><text x="{_t(x)}" y="{_t(y)}" text-anchor="middle"'
-            f' dominant-baseline="central" font-size="10" fill="{TEXT}" font-weight="bold">'
-            f"{'' if number is None else _t(number)}</text></g>"
+            link(
+                node,
+                f'<g class="wardley-annotation" data-id="{_escape(node["id"])}"><circle cx="{_t(x)}" cy="{_t(y)}"'
+                f' r="10" fill="white" stroke="{STROKE}" stroke-width="1.5" /><text x="{_t(x)}" y="{_t(y)}"'
+                f' text-anchor="middle" dominant-baseline="central" font-size="10" fill="{TEXT}" font-weight="bold">'
+                f"{'' if number is None else _t(number)}</text></g>",
+            )
         )
     settings = model.get("wardley")
     box = settings.get("annotationsBox") if isinstance(settings, dict) else None
@@ -321,7 +332,8 @@ def _render_accelerator(node: dict[str, Any]) -> str:
     )
 
 
-def render_wardley_svg(model: Model) -> str:
+def render_wardley_svg(model: Model, link: LinkWrap = _no_link) -> str:
+    """`link` (canvas-8uh1.4) wraps an element's markup in a link to the diagram it links to, in an export."""
     layout = compute_wardley_layout(model)
     frame = layout["frame"]
     width, height, padding = frame["width"], frame["height"], frame["padding"]
@@ -414,16 +426,20 @@ def render_wardley_svg(model: Model) -> str:
     parts.extend(["</g>", '<g class="wardley-trends">'])
     parts.extend(_render_evolve(n, layout) for n in model["nodes"] if is_wardley_map_node(n))
     parts.extend(["</g>", '<g class="wardley-nodes">'])
-    parts.extend(_render_map_node(n, layout) for n in model["nodes"] if is_wardley_map_node(n))
+    parts.extend(link(n, _render_map_node(n, layout)) for n in model["nodes"] if is_wardley_map_node(n))
     parts.append("</g>")
-    parts.append(_render_annotations(model, frame))
+    parts.append(_render_annotations(model, frame, link))
     notes = [n for n in model["nodes"] if n.get("role") == "note"]
     if notes:
         parts.append('<g class="wardley-notes">')
         for note in notes:
             parts.append(
-                f'<text data-id="{_escape(note["id"])}" x="{_t(note["position"]["x"])}" y="{_t(note["position"]["y"])}"'
-                f' text-anchor="start" font-size="11" fill="{TEXT}" font-weight="bold">{_escape(note["label"])}</text>'
+                link(
+                    note,
+                    f'<text data-id="{_escape(note["id"])}" x="{_t(note["position"]["x"])}"'
+                    f' y="{_t(note["position"]["y"])}" text-anchor="start" font-size="11" fill="{TEXT}"'
+                    f' font-weight="bold">{_escape(note["label"])}</text>',
+                )
             )
         parts.append("</g>")
     accelerators = [n for n in model["nodes"] if n.get("role") in ("accelerator", "deaccelerator")]

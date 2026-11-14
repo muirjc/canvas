@@ -111,11 +111,12 @@ class DiagramCore:
         serializer = _family_table(SERIALIZERS, "empty-dsl", family)
         return _native("empty-dsl", lambda: serializer(create_empty_diagram_model(diagram_type_id)))
 
-    def portable(self, dsl: str, *, strip_front_matter: bool = False) -> str:
-        """The diagram as portable Mermaid (renders in any Mermaid viewer)."""
+    def portable(self, dsl: str, *, strip_front_matter: bool = False, diagram_link_base: str | None = None) -> str:
+        """The diagram as portable Mermaid (renders in any Mermaid viewer). `diagram_link_base`: see
+        to_portable_mermaid."""
 
         def answer() -> str:
-            out = to_portable_mermaid(dsl, strip_front_matter)
+            out = to_portable_mermaid(dsl, strip_front_matter, diagram_link_base)
             if out is None:
                 raise DiagramCoreError("diagram-core portable: not a diagram")
             return out
@@ -139,11 +140,20 @@ class DiagramCore:
         icons: dict[str, str] | None = None,
         standard_rules: JsonObject | None = None,
         background: str | None = None,
+        diagram_link_base: str | None = None,
     ) -> str:
         """The diagram as SVG. `icons` maps "<libraryId>@<libraryVersion>@<iconId>" to the artwork; `standard_rules`
-        feeds a visible legend; `background` a solid hex colour behind it all."""
+        feeds a visible legend; `background` a solid hex colour behind it all; `diagram_link_base` (canvas-8uh1.4)
+        the start of a Canvas address, so linked elements open the diagram they link to."""
         return _native(
-            "render-svg", lambda: render_to_svg(model, icons, standard_rules=standard_rules, background=background)
+            "render-svg",
+            lambda: render_to_svg(
+                model,
+                icons,
+                standard_rules=standard_rules,
+                background=background,
+                diagram_link_base=diagram_link_base,
+            ),
         )
 
     def compile_template(self, diagram_type_id: str, template: str) -> JsonObject:

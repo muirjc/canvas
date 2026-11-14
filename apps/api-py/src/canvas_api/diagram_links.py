@@ -124,3 +124,53 @@ def used_in(conn: Connection, diagram_id: str, user_id: str) -> list[dict[str, A
             }
         entry["elementIds"].append(row.element_id)
     return list(by_source.values())
+
+
+def diagram_link_base(canvas_public_url: str) -> str:
+    """canvas-8uh1.4: the start of a diagram's Canvas address, for links in exports (the diagram id is appended)."""
+    return f"{canvas_public_url}/?diagramId="
+
+
+_SUBMITTED_PATH = text(
+    "SELECT path FROM diagram_submissions WHERE diagram_id = :id AND repo_id = :repo AND state IN ('open', 'merged')"
+    " ORDER BY first_submitted_at DESC"
+)
+_VERSION = text("SELECT id, sequence_number FROM diagram_versions WHERE id = :id")
+
+
+def submission_links(conn: Connection, diagram_id: str, repo_id: int) -> list[dict[str, Any]]:
+    """canvas-8uh1.4: a GitHub submission's record of the diagram's links, in order: each linked diagram's version
+    at submission (None when it can't be opened: in the bin, missing, or an unsaved draft), its name, and the
+    folder it was submitted to in the same repository (open or merged), if any."""
+    out: list[dict[str, Any]] = []
+    for link in conn.execute(_OUTGOING, {"id": diagram_id}):
+        target = link.target_diagram_id
+        row = None
+        if _UUID.fullmatch(target):
+            row = conn.execute(
+                text(
+                    "SELECT d.name, d.current_version_id, d.draft, d.deleted_at, p.deleted_at AS project_deleted_at"
+                    " FROM diagrams d JOIN projects p ON p.id = d.project_id WHERE d.id = :id"
+                ),
+                {"id": target},
+            ).first()
+        available = (
+            row is not None
+            and row.deleted_at is None
+            and row.project_deleted_at is None
+            and not bool(row.draft)
+            and row.current_version_id is not None
+        )
+        version = conn.execute(_VERSION, {"id": row.current_version_id}).first() if available and row else None
+        path = conn.execute(_SUBMITTED_PATH, {"id": target, "repo": repo_id}).first() if available else None
+        out.append(
+            {
+                "elementId": link.element_id,
+                "diagramId": target,
+                "name": row.name if available and row else None,
+                "versionId": str(version.id) if version else None,
+                "versionSequence": int(version.sequence_number) if version else None,
+                "repoPath": str(path.path) if path else None,
+            }
+        )
+    return out

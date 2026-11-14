@@ -102,8 +102,11 @@ Canvas keeps notifications for 90 days. It doesn't send email about this yet.
   boundaries or namespaces are left out, ER relationship labels are quoted, a flowchart's title
   moves to the file's front matter, and a sequence note over three or more participants spans the
   first to the last. Your diagram itself is unchanged.
-- **SVG**: a sharp, scalable picture for documents and wikis.
-- **PNG**: an image. Its text is drawn in Liberation Sans, so it can look slightly different from the editor, which uses your system's font.
+  [Linked diagrams](editor.md#linked-diagrams) become `click` lines in flowcharts and state diagrams,
+  so a shape opens its diagram in Canvas; other kinds of diagram have no Mermaid syntax for links.
+- **SVG**: a sharp, scalable picture for documents and wikis. A shape or group that links to another
+  diagram opens that diagram in Canvas when clicked.
+- **PNG**: an image. Its text is drawn in Liberation Sans, so it can look slightly different from the editor, which uses your system's font. An image can't hold links.
 
 ![The Export menu](../images/export-menu.png)
 

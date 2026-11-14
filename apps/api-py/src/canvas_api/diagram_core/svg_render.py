@@ -12,6 +12,7 @@ import math
 import re
 from collections.abc import Callable
 from typing import Any
+from urllib.parse import quote
 
 from canvas_api.diagram_core.colors import resolve_node_fill_stroke
 from canvas_api.diagram_core.dagre.graph import js_string_gt
@@ -38,6 +39,9 @@ from canvas_api.diagram_core.sizes import (
 from canvas_api.diagram_core.wardley import wardley_frame
 from canvas_api.diagram_core.wardley_render import render_wardley_svg
 from canvas_api.github.jstext import JS_WHITESPACE, js_len
+
+#: JavaScript's encodeURIComponent leaves these as they are (canvas-8uh1.4: a linked diagram's address).
+_URI_COMPONENT_SAFE = "!'()*-._~"
 
 __all__ = ["IconResolver", "clip_icon_artwork", "compute_bounds", "contrast_text_color", "render_to_svg"]
 
@@ -818,6 +822,23 @@ def _wrap_node_link(node: Node, markup: str) -> str:
     return f'<a href="{escape_xml(link["href"])}"{target_attr}>{title}{markup}</a>'
 
 
+def _diagram_link_href(element: dict[str, Any], diagram_link_base: str | None) -> str | None:
+    """canvas-8uh1.4: the address a linked element opens in an export, if it links and the export has a base."""
+    ref = element.get("diagramRef")
+    if not diagram_link_base or not isinstance(ref, dict):
+        return None
+    href = f"{diagram_link_base}{quote(str(ref['diagramId']), safe=_URI_COMPONENT_SAFE)}"
+    return href if is_allowed_link_href(href) else None
+
+
+def with_diagram_link(element: dict[str, Any], markup: str, diagram_link_base: str | None) -> str:
+    """An element's markup inside `<a href>` to the diagram it links to (a node's own click link wins)."""
+    if js_truthy(element.get("link")):
+        return markup
+    href = _diagram_link_href(element, diagram_link_base)
+    return f'<a href="{escape_xml(href)}">{markup}</a>' if href else markup
+
+
 def _resolve(resolve_icon: IconResolver | None, icon: Any) -> str | None:
     if not js_truthy(icon) or resolve_icon is None:
         return None
@@ -1456,7 +1477,7 @@ def _render_sequence_note_or_box(container: Container, layout: dict[str, Any]) -
     return ""
 
 
-def _render_sequence_svg(model: Model, resolve_icon: IconResolver | None) -> str:
+def _render_sequence_svg(model: Model, resolve_icon: IconResolver | None, diagram_link_base: str | None) -> str:
     layout = compute_sequence_layout(model)
     containers = model["containers"]
     boxes = "".join(_render_sequence_note_or_box(c, layout) for c in containers if c.get("role") == "box")
@@ -1472,7 +1493,10 @@ def _render_sequence_svg(model: Model, resolve_icon: IconResolver | None) -> str
         for c in containers
         if js_truthy(c.get("role")) and c["role"] in _SEQUENCE_NOTE_ROLES
     )
-    lifelines = "".join(_render_sequence_lifeline(n, layout, resolve_icon) for n in model["nodes"])
+    lifelines = "".join(
+        with_diagram_link(n, _render_sequence_lifeline(n, layout, resolve_icon), diagram_link_base)
+        for n in model["nodes"]
+    )
     return (
         _svg_open(layout["diagramWidth"], layout["diagramHeight"])
         + _DEFS
@@ -1557,11 +1581,13 @@ def _with_background(svg: str, background: Any) -> str:
     return f'{svg[:opening]}<rect width="100%" height="100%" fill="{background}" />{svg[opening:]}'
 
 
-def _render_diagram_svg(model: Model, resolve_icon: IconResolver | None, standard_rules: Any) -> str:
+def _render_diagram_svg(
+    model: Model, resolve_icon: IconResolver | None, standard_rules: Any, diagram_link_base: str | None = None
+) -> str:
     if model.get("diagramTypeId") == "sequence":
-        return _render_sequence_svg(model, resolve_icon)
+        return _render_sequence_svg(model, resolve_icon, diagram_link_base)
     if model.get("diagramTypeId") == "wardley":
-        return render_wardley_svg(model)
+        return render_wardley_svg(model, lambda node, markup: with_diagram_link(node, markup, diagram_link_base))
     nodes_by_id = {n["id"]: n for n in model["nodes"]}
     containers_by_id = {c["id"]: c for c in model["containers"]}
     legend_model = model.get("legend")
@@ -1571,15 +1597,19 @@ def _render_diagram_svg(model: Model, resolve_icon: IconResolver | None, standar
     legend = legend_layout(model, legend_entries, _content_bounds(model))
 
     container_markup = "".join(
-        _render_container(
+        with_diagram_link(
             c,
-            [
-                _node_center(nodes_by_id[node_id])
-                for node_id in (c.get("attachedNodeIds") or [])
-                if node_id in nodes_by_id
-            ],
-            resolve_icon,
-            True,
+            _render_container(
+                c,
+                [
+                    _node_center(nodes_by_id[node_id])
+                    for node_id in (c.get("attachedNodeIds") or [])
+                    if node_id in nodes_by_id
+                ],
+                resolve_icon,
+                True,
+            ),
+            diagram_link_base,
         )
         for c in model["containers"]
     )
@@ -1588,7 +1618,9 @@ def _render_diagram_svg(model: Model, resolve_icon: IconResolver | None, standar
         _render_edge(e, nodes_by_id, containers_by_id, lanes.get(e.get("id"))) for e in model["edges"]
     )
     diagram_type_id = model.get("diagramTypeId")
-    node_markup = "".join(_render_node(n, resolve_icon, diagram_type_id) for n in model["nodes"])
+    node_markup = "".join(
+        with_diagram_link(n, _render_node(n, resolve_icon, diagram_type_id), diagram_link_base) for n in model["nodes"]
+    )
     return (
         _svg_open(bounds["width"], bounds["height"])
         + _DEFS
@@ -1622,6 +1654,10 @@ def render_to_svg(
     *,
     standard_rules: Any = None,
     background: Any = None,
+    diagram_link_base: str | None = None,
 ) -> str:
-    """renderToSvg(model, resolveIcon, { standardRules, background }) as the bridge's render-svg op calls it."""
-    return _with_background(_render_diagram_svg(model, icon_resolver(icons), standard_rules), background)
+    """renderToSvg(model, resolveIcon, { standardRules, background, diagramLinkBase }) as the bridge's render-svg op
+    calls it."""
+    return _with_background(
+        _render_diagram_svg(model, icon_resolver(icons), standard_rules, diagram_link_base), background
+    )

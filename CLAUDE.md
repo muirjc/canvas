@@ -100,6 +100,18 @@ tests are NON-NEGOTIABLE and must exist (and fail) before implementing any diagr
 work — see `.specify/memory/constitution.md` Principle IV.
 
 ## Recent Changes
+- `canvas-8uh1.4` (composite diagrams, part 4 of 7): **links reach exports and GitHub.** `RenderOptions.diagramLinkBase`
+  (TS) / `render_to_svg(..., diagram_link_base=)` (Python): the start of a Canvas address (`diagram_links.
+  diagram_link_base(public_url)` = `<CANVAS_PUBLIC_URL>/?diagramId=`); `withDiagramLink` / `with_diagram_link` wraps a
+  linked node, group, sequence participant or Wardley element/annotation/note in `<a href>` (encodeURIComponent of the
+  id, link check, XML-escaped; a node's own click link wins); no base = drawing unchanged. `toPortableMermaid({
+  diagramLinkBase })` / `to_portable_mermaid(..., diagram_link_base)`: flowchart and state shapes get `click X href`
+  (other families: front matter only, stripped with it). The export route and GitHub pass the base (PNG loses it).
+  GitHub: `submission_links` (index rows + each target's current version, name, and its open/merged folder in the same
+  repo); `SubmissionLink`; `canvas.json` gains `links` [{elementId, diagramId, versionId, versionSequence}] and the
+  README a "Linked diagrams" list (relative `../<folder>/README.md` or the Canvas address) ONLY when something links,
+  so other diagrams' files are byte-identical. Bridge ops take `diagramLinkBase`. Tests: diagram-links.test.ts,
+  `test_exports_link_as_typescript_does` (seeded, corpus vs bridge), test_github_submit.py, test_export.py.
 - `canvas-8uh1.3` (composite diagrams, part 3 of 7): **the editor makes and follows links.** Canvas: Tools
   `link-to-diagram` ("Change link…" when linked) / `remove-diagram-link` for one selected shape or group (not a
   sequence block); `renderLinkBadges` draws `diagram-link-badge-<id>` (data-status) at each linked element's corner in

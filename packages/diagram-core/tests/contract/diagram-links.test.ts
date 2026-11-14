@@ -6,6 +6,8 @@ import { isParseSuccess } from '../../src/dsl/types.js';
 import { setDiagramLink, updateNodeLabel } from '../../src/model/diagram-ops.js';
 import { addWardleyElement } from '../../src/model/wardley-ops.js';
 import type { DiagramModel } from '../../src/model/diagram-model.js';
+import { renderToSvg } from '../../src/render/svg-renderer.js';
+import { toPortableMermaid } from '../../src/dsl/portable-mermaid.js';
 
 function parse(family: string, text: string): DiagramModel {
   const result = getDslFamily(family)!.parse(text);
@@ -105,5 +107,61 @@ describe('a Wardley map keys a link by the id the element has once read back', (
   });
   it('writes no front matter when nothing links', () => {
     expect(save('wardley', parse('wardley', map)).startsWith('wardley-beta')).toBe(true);
+  });
+});
+
+// canvas-8uh1.4: links in exports.
+const BASE = 'https://canvas.example.com/?diagramId=';
+const TARGET = '11111111-2222-4333-8444-555555555555';
+
+describe('an SVG export links a linked element to its diagram', () => {
+  for (const [family, [text, id]] of Object.entries(SAMPLES)) {
+    it(family, () => {
+      const model = setDiagramLink(parse(family, text), id, TARGET);
+      const svg = renderToSvg(model, undefined, { diagramLinkBase: BASE });
+      expect(svg).toContain(`<a href="${BASE}${TARGET}">`);
+      expect(svg.match(/<a /g)).toHaveLength(1);
+      // Without a base, the drawing is exactly as before.
+      expect(renderToSvg(model)).toBe(renderToSvg(parse(family, text)));
+    });
+  }
+
+  it('a group links too', () => {
+    const model = setDiagramLink(parse('flowchart', 'flowchart TD\n  subgraph one [Group]\n    A\n  end\n'), 'one', TARGET);
+    expect(renderToSvg(model, undefined, { diagramLinkBase: BASE })).toMatch(new RegExp(`<a href="${BASE.replace(/[?.]/g, '\\$&')}${TARGET}"><g data-container-id="one">`));
+  });
+
+  it("a shape's own click link wins and the base is escaped", () => {
+    const own = setDiagramLink(parse('flowchart', 'flowchart TD\n  A --> B\n  click A href "https://example.com/own"\n'), 'A', TARGET);
+    const svg = renderToSvg(own, undefined, { diagramLinkBase: BASE });
+    expect(svg).toContain('href="https://example.com/own"');
+    expect(svg).not.toContain(TARGET);
+    const odd = renderToSvg(setDiagramLink(parse('flowchart', 'flowchart TD\n  A\n'), 'A', TARGET), undefined, { diagramLinkBase: 'https://c.example/?a=1&diagramId=' });
+    expect(odd).toContain('href="https://c.example/?a=1&amp;diagramId=');
+    // A base that isn't a link Canvas allows draws no link at all.
+    expect(renderToSvg(setDiagramLink(parse('flowchart', 'flowchart TD\n  A\n'), 'A', TARGET), undefined, { diagramLinkBase: 'javascript:alert(1)//' })).not.toContain('<a ');
+  });
+});
+
+describe('the portable export writes click lines where Mermaid has them', () => {
+  const linked = (family: string) => {
+    const [text, id] = SAMPLES[family];
+    return save(family, setDiagramLink(parse(family, text), id, TARGET));
+  };
+
+  it('flowchart and state', () => {
+    for (const [family, id] of [['flowchart', 'A'], ['state', 'Idle']]) {
+      const out = toPortableMermaid(linked(family), { stripFrontMatter: true, diagramLinkBase: BASE });
+      expect(out).toContain(`click ${id} href "${BASE}${TARGET}"`);
+      expect(out).not.toContain('links:');
+      // Without a base, no click line.
+      expect(toPortableMermaid(linked(family), { stripFrontMatter: true })).not.toContain('click');
+    }
+  });
+
+  it('other families keep their links in the front matter only', () => {
+    for (const family of ['c4', 'erd', 'uml', 'architecture', 'sequence', 'wardley']) {
+      expect(toPortableMermaid(linked(family), { stripFrontMatter: true, diagramLinkBase: BASE })).not.toContain(TARGET);
+    }
   });
 });

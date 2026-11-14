@@ -327,8 +327,8 @@ def submit(id: str, request: Request, response: Response, user: CurrentUser, db:
             diagram = get_diagram(conn, id)
         settings = _settings(request)
 
-        def draw(conn: Connection, family: str, dsl: str, type_id: str, background: str) -> str:
-            return render_svg(conn, core, family, dsl, type_id, background)
+        def draw(conn: Connection, family: str, dsl: str, type_id: str, background: str, link_base: str) -> str:
+            return render_svg(conn, core, family, dsl, type_id, background, link_base)
 
         result = submit_diagram(
             client,
