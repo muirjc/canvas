@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { api, type DiagramTypeDto } from './api';
 import { Modal } from '../ui/Modal';
 import { useDiagramTypeFilter } from './diagram-type-filter';
+import { HelpLink } from '../help/HelpLink';
 
 export interface NewDiagramDialogProps {
   persona?: string;
@@ -45,6 +46,9 @@ export function NewDiagramDialog({ persona, userPersonas, onCreate, onCancel }: 
         </>
       }
     >
+      <p className="meta">
+        Which type should I use? <HelpLink page="user/diagram-types" topic="what each diagram type is for" />
+      </p>
       {filter.control}
       <ul className="choice-list">
         {filter.visible.map((type) => (

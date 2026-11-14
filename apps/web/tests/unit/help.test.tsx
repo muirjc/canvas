@@ -9,7 +9,7 @@ describe('help content', () => {
   it('bundles both guides, README first and pages in the README order; admin pages for admins only', () => {
     const user = helpPages(false);
     expect(user.every((p) => p.guide === 'user')).toBe(true);
-    expect(user.map((p) => p.id).slice(0, 4)).toEqual(['user', 'user/signing-in', 'user/browsing', 'user/creating-diagrams']);
+    expect(user.map((p) => p.id).slice(0, 5)).toEqual(['user', 'user/signing-in', 'user/browsing', 'user/creating-diagrams', 'user/diagram-types']);
     expect(user.find((p) => p.id === 'user/common-questions')?.title).toBe('Common questions');
     expect(helpPages(true).some((p) => p.id === 'admin/people')).toBe(true);
     expect(findHelpPage('admin/people', false)).toBeUndefined();
@@ -64,6 +64,16 @@ describe('HelpMarkdown', () => {
   const page = (markdown: string): HelpPage => ({ id: 'user/test', guide: 'user', slug: 'test', title: 'Test', markdown });
   const draw = (markdown: string) =>
     render(<HelpMarkdown page={page(markdown)} hrefFor={(p, s) => `?help=${p}${s ? `&section=${s}` : ''}`} onNavigate={() => undefined} />).container;
+
+  it('joins a wrapped paragraph or list item into one line, as Markdown does', () => {
+    const el = draw('One line\nwrapped here.\n\n- an item\n  wrapped too\n\nHard\\\nbreak\n');
+    const [first, second] = [...el.querySelectorAll('p')];
+    expect(first.textContent).toBe('One line wrapped here.');
+    expect(first.querySelector('br')).toBeNull();
+    expect(el.querySelector('li')?.textContent).toBe('an item wrapped too');
+    expect(second.querySelectorAll('br')).toHaveLength(1);
+    expect(second.textContent).toBe('Hardbreak');
+  });
 
   it('renders tables, headings with ids, lists and help links', () => {
     const el = draw('# Title\n\n## Two words\n\n| A | B |\n|---|---|\n| [Editor](editor.md) | **bold** |\n\n- one\n- two\n');
