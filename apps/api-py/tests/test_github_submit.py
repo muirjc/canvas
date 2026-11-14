@@ -919,7 +919,7 @@ def test_a_submission_records_each_link_its_version_and_lists_them_in_the_readme
 
 def test_a_diagram_without_links_has_no_links_entry(github: GH) -> None:
     github.link_project()
-    diagram_id, branch, _ = github.submitted()
+    _, branch, _ = github.submitted()
     files = github.fake.files(github.repo, branch)
     assert files is not None
     assert "links" not in json.loads(files["architecture/order-flow/canvas.json"])
