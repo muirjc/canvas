@@ -24,6 +24,7 @@ import argparse
 import base64
 import contextlib
 import getpass
+import http.client
 import json
 import logging
 import os
@@ -33,7 +34,6 @@ import socket
 import sys
 import threading
 import time
-import urllib.request
 import webbrowser
 from collections.abc import Callable
 from logging.handlers import RotatingFileHandler
@@ -144,11 +144,19 @@ def free_port() -> int:
 
 
 def healthy(port: int, timeout: float = 1.0) -> bool:
-    try:
-        with urllib.request.urlopen(f"http://127.0.0.1:{port}/health", timeout=timeout) as response:
-            return bool(response.status == 200)
-    except OSError:
+    """Whether a Canvas answers GET /health on this PC's loopback at `port`. A plain HTTP connection to 127.0.0.1,
+    with no URL parsing, so nothing read from a settings or pid file can change the scheme or the host; a port
+    outside 1-65535 is never healthy."""
+    if not 0 < port < 65536:
         return False
+    connection = http.client.HTTPConnection("127.0.0.1", port, timeout=timeout)
+    try:
+        connection.request("GET", "/health")
+        return connection.getresponse().status == 200
+    except OSError, http.client.HTTPException:
+        return False
+    finally:
+        connection.close()
 
 
 def running_port(folder: Path) -> int | None:

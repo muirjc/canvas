@@ -4,11 +4,13 @@ start / status / stop life cycle, the last run as real subprocesses on a data fo
 from __future__ import annotations
 
 import base64
+import http.server
 import json
 import os
 import socket
 import subprocess
 import sys
+import threading
 import time
 import urllib.error
 import urllib.request
@@ -443,3 +445,59 @@ def test_reset_admin_refuses_and_changes_nothing(
     assert desktop.reset_admin(ask=_answers(email), ask_secret=_answers(*passwords)) == 1
     assert message in capsys.readouterr().out
     assert _credentials(locked_out) == before
+
+
+# --- the health check (Semgrep #181: no urllib, so no URL can choose the scheme or host) --------------
+
+
+class _Health(http.server.BaseHTTPRequestHandler):
+    status = 200
+
+    def do_GET(self) -> None:
+        self.send_response(self.status if self.path == "/health" else 404)
+        self.send_header("Content-Length", "0")
+        self.end_headers()
+
+    def log_message(self, *_args: object) -> None:
+        pass
+
+
+def _serve(handler: type[http.server.BaseHTTPRequestHandler]) -> tuple[http.server.HTTPServer, int]:
+    server = http.server.HTTPServer(("127.0.0.1", 0), handler)
+    threading.Thread(target=server.serve_forever, daemon=True).start()
+    return server, int(server.server_address[1])
+
+
+def test_healthy_is_a_200_from_health_on_the_loopback() -> None:
+    server, port = _serve(_Health)
+    try:
+        assert desktop.healthy(port)
+        _Health.status = 503
+        assert not desktop.healthy(port)
+    finally:
+        _Health.status = 200
+        server.shutdown()
+        server.server_close()
+
+
+def test_healthy_is_false_for_nothing_listening_garbage_and_impossible_ports() -> None:
+    assert not desktop.healthy(desktop.free_port(), timeout=0.5)
+
+    listener = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    listener.bind(("127.0.0.1", 0))
+    listener.listen(1)
+
+    def garbage() -> None:
+        connection, _ = listener.accept()
+        with connection:
+            connection.recv(1024)
+            connection.sendall(b"not http at all\r\n\r\n")
+
+    threading.Thread(target=garbage, daemon=True).start()
+    try:
+        assert not desktop.healthy(int(listener.getsockname()[1]), timeout=2)
+    finally:
+        listener.close()
+
+    for port in (0, -1, 65536, 70000):
+        assert not desktop.healthy(port)
