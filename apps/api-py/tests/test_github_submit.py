@@ -853,3 +853,74 @@ def test_a_repository_with_no_markers_gets_no_document_changes_and_no_documents_
     assert files is not None
     assert files["docs/readme.md"] == "# Docs\n"
     assert "Documents that embed" not in github.fake.pull(github.repo, 1).body
+
+
+# --- canvas-8uh1.4: links to other diagrams ------------------------------------------------------------
+
+
+def _linking_dsl(links: dict[str, str]) -> str:
+    lines = "".join(f"    {element}: {target}\n" for element, target in links.items())
+    body = "flowchart TD\n  A[Receive order]:::step --> B[Ship order]:::step\n  B --> C[Invoice]:::step\n"
+    return f"---\ncanvas:\n  links:\n{lines}---\n{body}"
+
+
+def test_a_submission_records_each_link_its_version_and_lists_them_in_the_readme(github: GH) -> None:
+    github.link_project()
+    in_repo, _, _ = github.submitted("Payments")  # submitted to this repository: a relative README link
+    elsewhere = github.create_diagram("Ledger")  # never submitted: its Canvas address
+    github.save(elsewhere, DSL_V2)
+    binned = github.create_diagram("Old one")
+    assert github.call("DELETE", f"/diagrams/{binned}", "owner").status_code == 204
+    source = github.create_diagram("Order Flow", dsl=_linking_dsl({"A": in_repo, "B": elsewhere, "C": binned}))
+
+    res = github.submit(source)
+    assert res.status_code == 201, res.text
+    files = github.fake.files(github.repo, res.json()["submission"]["branch"])
+    assert files is not None
+    folder = "architecture/order-flow"
+    versions = {
+        str(r.id): (str(r.current_version_id), r.sequence_number)
+        for r in github.rows(
+            "SELECT d.id, d.current_version_id, v.sequence_number FROM diagrams d"
+            " JOIN diagram_versions v ON v.id = d.current_version_id"
+        )
+    }
+    manifest = json.loads(files[f"{folder}/canvas.json"])
+    assert manifest["links"] == [
+        {
+            "elementId": "A",
+            "diagramId": in_repo,
+            "versionId": versions[in_repo][0],
+            "versionSequence": versions[in_repo][1],
+        },
+        {
+            "elementId": "B",
+            "diagramId": elsewhere,
+            "versionId": versions[elsewhere][0],
+            "versionSequence": versions[elsewhere][1],
+        },
+        {"elementId": "C", "diagramId": binned, "versionId": None, "versionSequence": None},
+    ]
+    readme = files[f"{folder}/README.md"]
+    assert "## Linked diagrams" in readme
+    assert f"- Receive order: [Payments](../payments/README.md) (version {versions[in_repo][1]})" in readme
+    assert (
+        f"- Ship order: [Ledger](http://canvas.test/?diagramId={elsewhere}) (version {versions[elsewhere][1]})"
+        in readme
+    )
+    assert "- Invoice: not available (in the bin, deleted, or not saved yet)" in readme
+    # The SVG opens each linked diagram in Canvas; the portable Mermaid has click lines.
+    svg = files[f"{folder}/order-flow.svg"]
+    assert f'<a href="http://canvas.test/?diagramId={in_repo}">' in svg
+    portable = files[f"{folder}/order-flow.mmd"]
+    assert f'click A href "http://canvas.test/?diagramId={in_repo}"' in portable
+    assert "links:" not in portable
+
+
+def test_a_diagram_without_links_has_no_links_entry(github: GH) -> None:
+    github.link_project()
+    diagram_id, branch, _ = github.submitted()
+    files = github.fake.files(github.repo, branch)
+    assert files is not None
+    assert "links" not in json.loads(files["architecture/order-flow/canvas.json"])
+    assert "Linked diagrams" not in files["architecture/order-flow/README.md"]

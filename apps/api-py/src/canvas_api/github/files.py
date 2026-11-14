@@ -17,6 +17,7 @@ byte too: a diagram submitted from one service and resubmitted unchanged from th
 from __future__ import annotations
 
 import hashlib
+import posixpath
 import re
 from dataclasses import dataclass
 from typing import Any
@@ -33,6 +34,23 @@ class SubmissionStandard:
     name: str | None
     description: str | None
     rules: Any
+
+
+@dataclass(frozen=True)
+class SubmissionLink:
+    """canvas-8uh1.4: one element's link to another diagram, as submitted."""
+
+    element_id: str
+    #: The element's label, for the README.
+    label: str
+    diagram_id: str
+    #: The linked diagram's name and version at submission; None when it can't be opened (bin, missing, draft).
+    name: str | None
+    version_id: str | None
+    version_sequence: int | None
+    #: The linked diagram's folder in this repository (submitted there, open or merged), else None.
+    repo_path: str | None
+    canvas_url: str
 
 
 @dataclass(frozen=True)
@@ -54,6 +72,8 @@ class SubmissionInput:
     canvas_url: str
     #: canvas-3s5.3: the CI validator bundle, committed as .canvas/validator.mjs (None when not built).
     validator: str | None = None
+    #: canvas-8uh1.4: the diagram's links to other diagrams, in model order.
+    links: tuple[SubmissionLink, ...] = ()
 
 
 PR_BODY_LIMIT = 60_000
@@ -128,6 +148,22 @@ def build_manifest(i: SubmissionInput) -> dict[str, Any]:
             if i.standard
             else None
         ),
+        # canvas-8uh1.4: only when something links, so a diagram without links submits the same files as before.
+        **(
+            {
+                "links": [
+                    {
+                        "elementId": link.element_id,
+                        "diagramId": link.diagram_id,
+                        "versionId": link.version_id,
+                        "versionSequence": link.version_sequence,
+                    }
+                    for link in i.links
+                ]
+            }
+            if i.links
+            else {}
+        ),
         "canvasUrl": i.canvas_url,
     }
 
@@ -161,6 +197,8 @@ def _build_readme(i: SubmissionInput) -> str:
     description = js_trim(i.description) if i.description else ""
     if description:
         lines += [escape_markdown(description), ""]
+    if i.links:
+        lines += ["## Linked diagrams", "", *(_link_line(i, link) for link in i.links), ""]
     lines += [
         "<details><summary>Mermaid source</summary>",
         "",
@@ -178,6 +216,19 @@ def _build_readme(i: SubmissionInput) -> str:
         "",
     ]
     return "\n".join(lines)
+
+
+def _link_line(i: SubmissionInput, link: SubmissionLink) -> str:
+    """A README line for one link: a relative link when the linked diagram is in this repository, else its Canvas
+    address; the version it had at submission."""
+    label = escape_markdown(link.label)
+    if link.name is None or link.version_sequence is None:
+        return f"- {label}: not available (in the bin, deleted, or not saved yet)"
+    if link.repo_path is not None:
+        href = encode_uri(f"{posixpath.relpath(link.repo_path, i.path)}/README.md")
+    else:
+        href = link.canvas_url
+    return f"- {label}: [{escape_markdown(link.name)}]({href}) (version {link.version_sequence})"
 
 
 def _trim_end(text: str) -> str:

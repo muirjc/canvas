@@ -163,15 +163,15 @@ function renderMapNode(node: DiagramNode, layout: WardleyLayout): string {
   return parts.join('');
 }
 
-function renderAnnotations(model: DiagramModel, frame: WardleyFrame): string {
+function renderAnnotations(model: DiagramModel, frame: WardleyFrame, link: (node: DiagramNode, markup: string) => string): string {
   const annotations = model.nodes.filter((n) => n.role === 'annotation');
   if (annotations.length === 0) return '';
   const parts = ['<g class="wardley-annotations">'];
   for (const node of annotations) {
     const { x, y } = node.position;
-    parts.push(
+    parts.push(link(node,
       `<g class="wardley-annotation" data-id="${escapeXml(node.id)}"><circle cx="${x}" cy="${y}" r="10" fill="white" stroke="${STROKE}" stroke-width="1.5" /><text x="${x}" y="${y}" text-anchor="middle" dominant-baseline="central" font-size="10" fill="${TEXT}" font-weight="bold">${node.wardley?.number ?? ''}</text></g>`,
-    );
+    ));
   }
   const box = model.wardley?.annotationsBox;
   const listed = annotations
@@ -211,7 +211,8 @@ function renderAccelerator(node: DiagramNode): string {
   return `<g class="wardley-${node.role}" data-id="${escapeXml(node.id)}"><path d="${d}" fill="white" stroke="${STROKE}" stroke-width="1" /><text x="${x + w / 2}" y="${y + h / 2 + 15}" text-anchor="middle" font-size="10" fill="${TEXT}" font-weight="bold">${escapeXml(node.label)}</text></g>`;
 }
 
-export function renderWardleySvg(model: DiagramModel): string {
+/** `link` (canvas-8uh1.4) wraps an element's markup in a link to the diagram it links to, in an export. */
+export function renderWardleySvg(model: DiagramModel, link: (node: DiagramNode, markup: string) => string = (_node, markup) => markup): string {
   const layout = computeWardleyLayout(model);
   const { frame } = layout;
   const { width, height, padding, chartWidth, chartHeight } = frame;
@@ -276,14 +277,14 @@ export function renderWardleySvg(model: DiagramModel): string {
   parts.push('</g>', '<g class="wardley-trends">');
   for (const node of model.nodes) if (isWardleyMapNode(node)) parts.push(renderEvolve(node, layout));
   parts.push('</g>', '<g class="wardley-nodes">');
-  for (const node of model.nodes) if (isWardleyMapNode(node)) parts.push(renderMapNode(node, layout));
+  for (const node of model.nodes) if (isWardleyMapNode(node)) parts.push(link(node, renderMapNode(node, layout)));
   parts.push('</g>');
-  parts.push(renderAnnotations(model, frame));
+  parts.push(renderAnnotations(model, frame, link));
   const notes = model.nodes.filter((n) => n.role === 'note');
   if (notes.length > 0) {
     parts.push('<g class="wardley-notes">');
     for (const note of notes) {
-      parts.push(`<text data-id="${escapeXml(note.id)}" x="${note.position.x}" y="${note.position.y}" text-anchor="start" font-size="11" fill="${TEXT}" font-weight="bold">${escapeXml(note.label)}</text>`);
+      parts.push(link(note, `<text data-id="${escapeXml(note.id)}" x="${note.position.x}" y="${note.position.y}" text-anchor="start" font-size="11" fill="${TEXT}" font-weight="bold">${escapeXml(note.label)}</text>`));
     }
     parts.push('</g>');
   }

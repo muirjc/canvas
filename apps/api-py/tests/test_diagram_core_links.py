@@ -89,3 +89,41 @@ def test_links_save_and_read_back_as_typescript_does(bridge: DiagramBridge, seed
 def test_a_portable_export_leaves_the_links_out() -> None:
     text = "---\ncanvas:\n  links:\n    A: d-1\n---\nflowchart TD\n  A --> B\n"
     assert "links" not in core.portable(text, strip_front_matter=True)
+
+
+BASE = "https://canvas.example.com/?a=1&diagramId="
+
+
+@pytest.mark.parametrize("seed", [5, 17])
+def test_exports_link_as_typescript_does(bridge: DiagramBridge, seed: int) -> None:
+    """canvas-8uh1.4: the SVG wraps linked elements in `<a href>`; flowchart and state exports get click lines."""
+    rnd = random.Random(seed)
+    failures: list[str] = []
+    anchors = clicks = 0
+    for name, family, model in _corpus():
+        edited = _strip_none(_linked(model, rnd))
+        svg = core.render_svg(edited, diagram_link_base=BASE)
+        if svg != bridge.render_svg(edited, diagram_link_base=BASE):
+            failures.append(f"{name}: svg")
+        anchors += svg.count('<a href="https://canvas.example.com/')
+        text = SERIALIZERS[family](edited)
+        for strip in (True, False):
+            portable = core.portable(text, strip_front_matter=strip, diagram_link_base=BASE)
+            if portable != bridge.portable(text, strip_front_matter=strip, diagram_link_base=BASE):
+                failures.append(f"{name}: portable strip={strip}")
+            clicks += portable.count('href "https://canvas.example.com/')
+    assert not failures, failures[:5]
+    assert anchors > 50 and clicks > 10, (anchors, clicks)
+
+
+def test_an_svg_links_only_with_a_base_and_never_over_a_shapes_own_link() -> None:
+    target = "11111111-2222-4333-8444-555555555555"
+    text = f'---\ncanvas:\n  links:\n    A: {target}\n    B: {target}\n---\nflowchart TD\n  A --> B\n  click B href "https://example.com/own"\n'
+    model = core.parse("flowchart", text)["model"]
+    assert "<a " not in core.render_svg(model).replace('<a href="https://example.com/own">', "")
+    svg = core.render_svg(model, diagram_link_base=BASE)
+    assert svg.count(f'href="https://canvas.example.com/?a=1&amp;diagramId={target}"') == 1
+    assert 'href="https://example.com/own"' in svg
+    assert "<a " not in core.render_svg(model, diagram_link_base="javascript:alert(1)//").replace(
+        '<a href="https://example.com/own">', ""
+    )

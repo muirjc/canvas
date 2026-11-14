@@ -112,7 +112,7 @@ export const handlers: Record<string, (body: Body) => unknown> = {
   'check-standard': (body) => ({ issues: checkStandardDefinition(obj<StandardRules>(body, 'rules'), str(body, 'family')) }),
 
   /**
-   * { model, icons?, standardRules?, background? } -> { svg }. `icons` maps
+   * { model, icons?, standardRules?, background?, diagramLinkBase? } -> { svg }. `icons` maps
    * "<libraryId>@<libraryVersion>@<iconId>" to icon markup (the caller resolves it from its database).
    */
   'render-svg': (body) => {
@@ -120,12 +120,18 @@ export const handlers: Record<string, (body: Body) => unknown> = {
     const svg = renderToSvg(obj<DiagramModel>(body, 'model'), (icon) => icons[`${icon.libraryId}@${icon.libraryVersion}@${icon.iconId}`], {
       standardRules: body.standardRules as StandardRules | undefined,
       background: typeof body.background === 'string' ? body.background : undefined,
+      diagramLinkBase: typeof body.diagramLinkBase === 'string' ? body.diagramLinkBase : undefined,
     });
     return { svg };
   },
 
-  /** { dsl, stripFrontMatter? } -> { dsl } */
-  portable: (body) => ({ dsl: toPortableMermaid(str(body, 'dsl'), { stripFrontMatter: body.stripFrontMatter === true }) }),
+  /** { dsl, stripFrontMatter?, diagramLinkBase? } -> { dsl } */
+  portable: (body) => ({
+    dsl: toPortableMermaid(str(body, 'dsl'), {
+      stripFrontMatter: body.stripFrontMatter === true,
+      diagramLinkBase: typeof body.diagramLinkBase === 'string' ? body.diagramLinkBase : undefined,
+    }),
+  }),
 
   /** { markdown, docPath, sources: { path: EmbedSource }, only?: string[] } -> EmbedUpdate */
   embeds: (body) => {

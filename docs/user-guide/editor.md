@@ -173,6 +173,10 @@ diagram opens the Payments Container diagram, whose API opens its Component diag
 Anyone who can read a diagram can follow its links. Every signed-in person can read every saved diagram, so a
 link never shows anyone something they couldn't open anyway. A sequence diagram's links go on participants only.
 
+In an SVG export a linked element opens its diagram in Canvas, and a flowchart's or state diagram's Mermaid
+export has a `click` line for it (see [Exporting](sharing-and-exporting.md#exporting)). A diagram submitted to
+GitHub lists its linked diagrams in its README.
+
 ## Zoom
 
 The controls at the bottom-left of the canvas zoom the drawing from 25% to 400%: **−** and **+**

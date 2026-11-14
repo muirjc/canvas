@@ -1,4 +1,4 @@
-import type { DiagramContainer, DiagramEdge, DiagramModel, NodeStyle } from '../model/diagram-model.js';
+import { isAllowedLinkHref, type DiagramContainer, type DiagramEdge, type DiagramModel, type NodeStyle } from '../model/diagram-model.js';
 import { containerSize, nodeSize } from '../render/svg-renderer.js';
 import { parseArchitecture, serializeArchitecture } from './architecture.js';
 import { detectDslFamily } from './detect.js';
@@ -39,12 +39,29 @@ export interface PortableMermaidOptions {
    * the .mmd in a GitHub pull request; the colours survive as the style lines added above.
    */
   stripFrontMatter?: boolean;
+  /**
+   * canvas-8uh1.4: the start of a Canvas address (the diagram id is appended). A flowchart or state diagram then
+   * gets `click <id> href "<address>"` for each shape that links to a diagram and has no click link of its own;
+   * other families have no click syntax, so their links live only in the front matter.
+   */
+  diagramLinkBase?: string;
+}
+
+/** Shapes linking to a diagram get that diagram's address as their click link (a shape's own link wins). */
+function withDiagramClicks(model: DiagramModel, base: string | undefined): DiagramModel {
+  if (!base) return model;
+  const nodes = model.nodes.map((node) => {
+    if (!node.diagramRef || node.link) return node;
+    const href = `${base}${encodeURIComponent(node.diagramRef.diagramId)}`;
+    return isAllowedLinkHref(href) ? { ...node, link: { href } } : node;
+  });
+  return { ...model, nodes };
 }
 
 export function toPortableMermaid(dsl: string, options: PortableMermaidOptions = {}): string {
   // The family is read once, from the text as saved, and used for both steps.
   const family = detectDslFamily(dsl);
-  const rewritten = withMermaidForms(dsl, family);
+  const rewritten = withMermaidForms(dsl, family, options.diagramLinkBase);
   const portable = withStyleLines(rewritten === dsl ? dsl : withOriginalKeys(dsl, rewritten), family);
   return options.stripFrontMatter ? removeCanvasFrontMatter(portable) : portable;
 }
@@ -55,7 +72,7 @@ export function toPortableMermaid(dsl: string, options: PortableMermaidOptions =
  * typed text's comments and spacing are left out of the file), adjusting what Mermaid refuses per family below. The
  * saved diagram is unchanged. Text Canvas can't read is exported as it is.
  */
-function withMermaidForms(dsl: string, family: ReturnType<typeof detectDslFamily>): string {
+function withMermaidForms(dsl: string, family: ReturnType<typeof detectDslFamily>, diagramLinkBase?: string): string {
   switch (family) {
     case 'architecture':
       return architectureForms(dsl);
@@ -68,10 +85,10 @@ function withMermaidForms(dsl: string, family: ReturnType<typeof detectDslFamily
     case 'sequence':
       return sequenceForms(dsl);
     case 'flowchart':
-      return flowchartForms(dsl);
+      return flowchartForms(dsl, diagramLinkBase);
     case 'state': {
       const result = parseState(dsl);
-      return isParseSuccess(result) ? serializeState(withoutNulls(result.model)) : dsl;
+      return isParseSuccess(result) ? serializeState(withDiagramClicks(withoutNulls(result.model), diagramLinkBase)) : dsl;
     }
     case 'wardley': {
       // canvas-4h1j: written again, so a name Canvas read more leniently than Mermaid goes out quoted.
@@ -164,10 +181,10 @@ function sequenceForms(dsl: string): string {
 
 /** Flowchart: Mermaid takes a flowchart's title from the front matter only, and a `"` inside a quoted label ends
  *  it (written as `#quot;`). */
-function flowchartForms(dsl: string): string {
+function flowchartForms(dsl: string, diagramLinkBase?: string): string {
   const result = parseFlowchart(dsl);
   if (!isParseSuccess(result)) return dsl;
-  const { model } = result;
+  const model = withDiagramClicks(result.model, diagramLinkBase);
   const nodes = model.nodes.map((node) => (node.label?.includes('"') ? { ...node, label: node.label.replace(/"/g, '#quot;') } : node));
   const text = serializeFlowchart(withoutNulls({ ...model, nodes, title: undefined }));
   return model.title ? withFrontMatterTitle(text, model.title) : text;

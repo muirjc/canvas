@@ -127,6 +127,14 @@ The README says so, and puts the Canvas-drawn SVG first as the picture to review
 Mermaid 12.3, which is newer than GitHub's copy: a flowchart using Mermaid 12.3's BPMN shapes
 (`A@{ shape: bpmn-gateway }`) draws in Canvas but not on GitHub until GitHub updates.
 
+A diagram that links to other diagrams (see the user guide's "Linked diagrams") lists them in its
+README: a diagram submitted to the same repository gets a relative link to its folder, any other its
+Canvas address. `canvas.json` records each link's element, diagram id and the version that diagram
+had at submission (`versionId` and `versionSequence`, null when it couldn't be opened: in the bin,
+deleted, or someone's unsaved draft). The SVG's linked shapes open their diagrams in Canvas, and a
+flowchart's or state diagram's `.mmd` has a `click` line for each. Resubmitting records the versions
+again, so a linked diagram saved since gives the pull request a new commit.
+
 Commits are made by the App, with a `Co-authored-by:` line naming the Canvas user who submitted.
 A diagram keeps the folder it was first submitted to, even if it's renamed later. Canvas never
 deletes or moves files in the repository.

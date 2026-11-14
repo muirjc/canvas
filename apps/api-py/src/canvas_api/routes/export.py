@@ -25,8 +25,10 @@ from sqlalchemy import Connection, Engine, bindparam, text
 from canvas_api.access import require_diagram_access
 from canvas_api.auth.roles import CurrentUser
 from canvas_api.catalog import DSL_FAMILIES
+from canvas_api.config import Settings
 from canvas_api.db import get_engine
 from canvas_api.diagram_core import DiagramCore
+from canvas_api.diagram_links import diagram_link_base
 from canvas_api.errors import ApiError
 from canvas_api.routes.diagrams import get_diagram
 from canvas_api.standards import get_active_standard
@@ -84,9 +86,11 @@ def render_svg(
     dsl: str,
     diagram_type_id: str,
     background: str | None = None,
+    diagram_link_base: str | None = None,
 ) -> str:
     """The diagram as SVG. `background` (canvas-n85n): a solid hex colour behind the drawing (GitHub
-    submissions); downloads stay transparent."""
+    submissions); downloads stay transparent. `diagram_link_base` (canvas-8uh1.4): linked elements open the diagram
+    they link to in Canvas."""
     if family not in DSL_FAMILIES:
         raise ApiError(422, f"No DSL family registered for: {family}")
     parsed = core.parse(family, dsl)
@@ -103,6 +107,7 @@ def render_svg(
             icons=icons,
             standard_rules=standard.rules if standard else None,
             background=background,
+            diagram_link_base=diagram_link_base,
         )
 
 
@@ -115,13 +120,22 @@ def export(
     format: Literal["mermaid", "svg", "png"] = "mermaid",
 ) -> Response:
     core = _diagram_core(request)
+    settings: Settings = request.app.state.settings
+    link_base = diagram_link_base(settings.canvas_public_url)
     with db.connect() as conn:
         require_diagram_access(conn, user.id, id, "view")
         diagram = get_diagram(conn, id)
         if format == "mermaid":
-            body: bytes | str = core.portable(diagram["dslContent"])
+            body: bytes | str = core.portable(diagram["dslContent"], diagram_link_base=link_base)
         else:
-            svg = render_svg(conn, core, diagram["dslFamily"], diagram["dslContent"], diagram["diagramTypeId"])
+            svg = render_svg(
+                conn,
+                core,
+                diagram["dslFamily"],
+                diagram["dslContent"],
+                diagram["diagramTypeId"],
+                diagram_link_base=link_base,
+            )
             if format == "svg":
                 body = svg
             else:

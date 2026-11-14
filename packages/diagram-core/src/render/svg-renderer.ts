@@ -1719,7 +1719,7 @@ function renderSequenceNoteOrBox(container: DiagramContainer, layout: SequenceLa
   return '';
 }
 
-function renderSequenceSvg(model: DiagramModel, resolveIcon?: IconResolver): string {
+function renderSequenceSvg(model: DiagramModel, resolveIcon: IconResolver | undefined, options: RenderOptions): string {
   const layout = computeSequenceLayout(model);
   const { width, height } = { width: layout.diagramWidth, height: layout.diagramHeight };
 
@@ -1731,7 +1731,7 @@ function renderSequenceSvg(model: DiagramModel, resolveIcon?: IconResolver): str
   const messageMarkup = model.edges.map((e) => renderSequenceMessage(e, layout)).join('');
   const activationMarkup = model.containers.filter((c) => c.role === 'activate').map((c) => renderSequenceActivation(c, layout)).join('');
   const noteMarkup = model.containers.filter((c) => c.role && NOTE_ROLES_FOR_RENDER.has(c.role)).map((c) => renderSequenceNoteOrBox(c, layout)).join('');
-  const lifelineMarkup = model.nodes.map((n) => renderSequenceLifeline(n, layout, resolveIcon)).join('');
+  const lifelineMarkup = model.nodes.map((n) => withDiagramLink(n, renderSequenceLifeline(n, layout, resolveIcon), options)).join('');
 
   return [
     `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">`,
@@ -1767,6 +1767,26 @@ export interface RenderOptions {
    * colour = ignored.
    */
   background?: string;
+  /**
+   * canvas-8uh1.4: where a linked element (`diagramRef`) points in the export: the start of a Canvas address, the
+   * diagram id is appended (`https://canvas.example.com/?diagramId=`). The element is wrapped in `<a href>`; an element
+   * that already has its own click link keeps that one. Without it, links aren't drawn.
+   */
+  diagramLinkBase?: string;
+}
+
+/** canvas-8uh1.4: the address a linked element opens in an export, if it links and the export has a base. */
+function diagramLinkHref(element: { diagramRef?: { diagramId: string } }, options: RenderOptions): string | undefined {
+  if (!options.diagramLinkBase || !element.diagramRef) return undefined;
+  const href = `${options.diagramLinkBase}${encodeURIComponent(element.diagramRef.diagramId)}`;
+  return isAllowedLinkHref(href) ? href : undefined;
+}
+
+/** canvas-8uh1.4: an element's markup inside `<a href>` to the diagram it links to (a node's own link wins). */
+export function withDiagramLink(element: DiagramNode | DiagramContainer, markup: string, options: RenderOptions): string {
+  if ('link' in element && element.link) return markup;
+  const href = diagramLinkHref(element, options);
+  return href ? `<a href="${escapeXml(href)}">${markup}</a>` : markup;
 }
 
 /** Puts a full-size background rect first inside the root <svg>, so it sits behind everything. */
@@ -1828,10 +1848,10 @@ function renderDiagramSvg(model: DiagramModel, resolveIcon: IconResolver | undef
   // svg-renderer.ts had zero sequence-aware branching before this (confirmed at the epic's own
   // audit); every other family's rendering below is completely unaffected.
   if (model.diagramTypeId === 'sequence') {
-    return renderSequenceSvg(model, resolveIcon);
+    return renderSequenceSvg(model, resolveIcon, options);
   }
   if (model.diagramTypeId === 'wardley') {
-    return renderWardleySvg(model);
+    return renderWardleySvg(model, (node, markup) => withDiagramLink(node, markup, options));
   }
   const nodesById = new Map(model.nodes.map((n) => [n.id, n]));
   const containersById = new Map(model.containers.map((c) => [c.id, c]));
@@ -1845,12 +1865,12 @@ function renderDiagramSvg(model: DiagramModel, resolveIcon: IconResolver | undef
         .map((id) => nodesById.get(id))
         .filter((n): n is DiagramNode => n !== undefined)
         .map((n) => nodeCenter(n));
-      return renderContainer(c, targets, resolveIcon, true);
+      return withDiagramLink(c, renderContainer(c, targets, resolveIcon, true), options);
     })
     .join('');
   const lanes = edgeLanes(model.edges);
   const edgeMarkup = model.edges.map((e) => renderEdge(e, nodesById, containersById, lanes.get(e.id))).join('');
-  const nodeMarkup = model.nodes.map((n) => renderNode(n, resolveIcon, model.diagramTypeId)).join('');
+  const nodeMarkup = model.nodes.map((n) => withDiagramLink(n, renderNode(n, resolveIcon, model.diagramTypeId), options)).join('');
 
   return [
     `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">`,

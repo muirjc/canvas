@@ -19,6 +19,7 @@ from sqlalchemy.exc import IntegrityError
 from canvas_api.audit import record_audit
 from canvas_api.catalog import DSL_FAMILIES
 from canvas_api.diagram_core import DiagramCore
+from canvas_api.diagram_links import diagram_link_base, submission_links
 from canvas_api.github.client import (
     SUBMIT_PERMISSIONS,
     GitHubApiError,
@@ -30,6 +31,7 @@ from canvas_api.github.client import (
 from canvas_api.github.embeds import DiagramFiles, document_embed_updates
 from canvas_api.github.files import (
     SubmissionInput,
+    SubmissionLink,
     SubmissionStandard,
     build_commit_message,
     build_pr_body,
@@ -440,6 +442,31 @@ def _find_unrecorded_pull(
     return candidates[0] if candidates else None
 
 
+def _submission_links(
+    conn: Connection, core: DiagramCore, diagram: dict[str, Any], repo_id: int, link_base: str
+) -> tuple[SubmissionLink, ...]:
+    """canvas-8uh1.4: the diagram's links, each with the linked diagram's version now and the element's label."""
+    found = submission_links(conn, diagram["id"], repo_id)
+    if not found:
+        return ()
+    parsed = core.parse(diagram["dslFamily"], diagram["dslContent"])
+    model = parsed.get("model") or {}
+    labels = {e["id"]: e.get("label") or e["id"] for e in [*model.get("nodes", []), *model.get("containers", [])]}
+    return tuple(
+        SubmissionLink(
+            element_id=link["elementId"],
+            label=str(labels.get(link["elementId"], link["elementId"])),
+            diagram_id=link["diagramId"],
+            name=link["name"],
+            version_id=link["versionId"],
+            version_sequence=link["versionSequence"],
+            repo_path=link["repoPath"],
+            canvas_url=f"{link_base}{encode_uri_component(link['diagramId'])}",
+        )
+        for link in found
+    )
+
+
 def submit_diagram(
     client: GitHubClient,
     core: DiagramCore,
@@ -451,8 +478,10 @@ def submit_diagram(
     validator_dir: str | None,
     render_svg: Any,
 ) -> dict[str, Any]:
-    """Submits the saved diagram. `render_svg(conn, family, dsl, type_id, background)` draws it (export)."""
+    """Submits the saved diagram. `render_svg(conn, family, dsl, type_id, background, diagram_link_base)` draws it
+    (export)."""
     diagram_id = diagram["id"]
+    link_base = diagram_link_base(canvas_public_url)
     with db.connect() as conn:
         link = get_link_for_project(conn, diagram["projectId"])
         if link is None:
@@ -550,7 +579,10 @@ def submit_diagram(
                 text("SELECT name FROM diagram_types WHERE id = :id"), {"id": diagram["diagramTypeId"]}
             ).scalar()
             # canvas-n85n: white behind the drawing, so it stays readable in GitHub's dark mode.
-            svg = render_svg(conn, diagram["dslFamily"], diagram["dslContent"], diagram["diagramTypeId"], "#ffffff")
+            svg = render_svg(
+                conn, diagram["dslFamily"], diagram["dslContent"], diagram["diagramTypeId"], "#ffffff", link_base
+            )
+            links = _submission_links(conn, core, diagram, int(submission.repo_id), link_base)
         sub_path = str(submission.path)
         submission_input = SubmissionInput(
             diagram_id=diagram_id,
@@ -560,7 +592,7 @@ def submit_diagram(
             diagram_type_name=type_name or diagram["diagramTypeId"],
             dsl_family=diagram["dslFamily"],
             dsl_content=diagram["dslContent"],
-            portable_mermaid=core.portable(diagram["dslContent"], strip_front_matter=True),
+            portable_mermaid=core.portable(diagram["dslContent"], strip_front_matter=True, diagram_link_base=link_base),
             svg=svg,
             version_sequence=version_sequence,
             standard=(
@@ -572,6 +604,7 @@ def submit_diagram(
             slug=sub_path[sub_path.rfind("/") + 1 :],
             canvas_url=f"{canvas_public_url}/?diagramId={encode_uri_component(diagram_id)}",
             validator=validator_bundle(validator_dir),
+            links=links,
         )
         files = build_submission_files(submission_input)
         target = RepoRef(submission.repo_owner, submission.repo_name)

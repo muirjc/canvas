@@ -91,6 +91,7 @@ class DiagramBridge:
         icons: dict[str, str] | None = None,
         standard_rules: JsonObject | None = None,
         background: str | None = None,
+        diagram_link_base: str | None = None,
     ) -> str:
         body: JsonObject = {"model": model}
         if icons:
@@ -99,10 +100,15 @@ class DiagramBridge:
             body["standardRules"] = standard_rules
         if background is not None:
             body["background"] = background
+        if diagram_link_base is not None:
+            body["diagramLinkBase"] = diagram_link_base
         return cast(str, self._post("render-svg", body)["svg"])
 
-    def portable(self, dsl: str, *, strip_front_matter: bool = False) -> str:
-        return cast(str, self._post("portable", {"dsl": dsl, "stripFrontMatter": strip_front_matter})["dsl"])
+    def portable(self, dsl: str, *, strip_front_matter: bool = False, diagram_link_base: str | None = None) -> str:
+        body: JsonObject = {"dsl": dsl, "stripFrontMatter": strip_front_matter}
+        if diagram_link_base is not None:
+            body["diagramLinkBase"] = diagram_link_base
+        return cast(str, self._post("portable", body)["dsl"])
 
     def embeds(
         self, markdown: str, doc_path: str, sources: dict[str, JsonObject], only: list[str] | None = None

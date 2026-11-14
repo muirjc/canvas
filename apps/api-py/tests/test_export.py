@@ -466,3 +466,17 @@ def test_an_architecture_groups_icon_is_drawn_in_its_header(api: Api, owner: Use
     svg = svg_of(api, owner, diagram["id"])
     group = svg[svg.index('data-container-id="vpc"') :]
     assert BUILT_IN_MARKS["server"] in group
+
+
+def test_a_linked_shape_opens_its_diagram_in_canvas_from_the_svg_and_the_mermaid(
+    api: Api, owner: User, project: str
+) -> None:
+    """canvas-8uh1.4: the SVG wraps a linked shape in a link to its diagram's Canvas address; the Mermaid export
+    has a click line for it (flowchart and state have click syntax)."""
+    target = api.new_diagram(project, owner, "Target")["id"]
+    dsl = f"---\ncanvas:\n  links:\n    A: {target}\n---\nflowchart TD\n  A[Start] --> B[End]\n"
+    diagram = api.new_diagram(project, owner, "Source", dsl=dsl)
+    address = re.escape(f"/?diagramId={target}")
+    assert re.search(f'<a href="https?://[^"]+{address}"><g data-node-id="A">', svg_of(api, owner, diagram["id"]))
+    mermaid = export(api, owner, diagram["id"], "mermaid").text
+    assert re.search(f'click A href "https?://[^"]+{address}"', mermaid)

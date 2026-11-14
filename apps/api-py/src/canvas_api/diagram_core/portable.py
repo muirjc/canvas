@@ -6,13 +6,18 @@ from __future__ import annotations
 
 import re
 from typing import Any
+from urllib.parse import quote
 
 from canvas_api.diagram_core import jsyaml
 from canvas_api.diagram_core.detect import detect_dsl_family
 from canvas_api.diagram_core.flowchart import parse_flowchart
 from canvas_api.diagram_core.front_matter import _TRAILING, FRONT_MATTER_PATTERN
 from canvas_api.diagram_core.jsvalues import js_truthy, to_js_json
+from canvas_api.diagram_core.model import is_allowed_link_href
 from canvas_api.github.jstext import JS_WHITESPACE, js_number, js_trim
+
+#: JavaScript's encodeURIComponent leaves these as they are (canvas-8uh1.4: a linked diagram's address).
+_URI_COMPONENT_SAFE = "!'()*-._~"
 
 __all__ = ["NATIVE_PORTABLE_FAMILIES", "to_portable_mermaid"]
 
@@ -22,17 +27,34 @@ NATIVE_PORTABLE_FAMILIES = {"flowchart", "c4", "erd", "uml", "sequence", "archit
 _TRAILING_SPACE = re.compile(f"[{JS_WHITESPACE}]+\\Z")
 
 
-def to_portable_mermaid(dsl: str, strip_front_matter: bool = False) -> str | None:
-    """The portable text, or None when the family's style lines need a parser not ported yet."""
+def to_portable_mermaid(dsl: str, strip_front_matter: bool = False, diagram_link_base: str | None = None) -> str | None:
+    """The portable text, or None when the family's style lines need a parser not ported yet. `diagram_link_base`
+    (canvas-8uh1.4): the start of a Canvas address; a flowchart or state diagram's shapes that link to a diagram
+    get `click <id> href "<address>"`."""
     family = detect_dsl_family(dsl)
     if family not in NATIVE_PORTABLE_FAMILIES:
         return None
-    rewritten = _with_mermaid_forms(dsl, family)
+    rewritten = _with_mermaid_forms(dsl, family, diagram_link_base)
     portable = _with_style_lines(dsl if rewritten == dsl else _with_original_keys(dsl, rewritten), family)
     return _remove_canvas_front_matter(portable) if strip_front_matter else portable
 
 
-def _with_mermaid_forms(dsl: str, family: str | None) -> str:
+def _with_diagram_clicks(model: dict[str, Any], base: str | None) -> dict[str, Any]:
+    """Shapes linking to a diagram get that diagram's address as their click link (a shape's own link wins)."""
+    if not base:
+        return model
+    nodes = []
+    for node in model["nodes"]:
+        ref = node.get("diagramRef")
+        if isinstance(ref, dict) and not js_truthy(node.get("link")):
+            href = f"{base}{quote(str(ref['diagramId']), safe=_URI_COMPONENT_SAFE)}"
+            if is_allowed_link_href(href):
+                node = {**node, "link": {"href": href}}
+        nodes.append(node)
+    return {**model, "nodes": nodes}
+
+
+def _with_mermaid_forms(dsl: str, family: str | None, diagram_link_base: str | None = None) -> str:
     """canvas-0t84, canvas-8ucs: the export always writes the diagram again in Canvas's own form (so anything Canvas
     opens draws in Mermaid), adjusting what Mermaid refuses. The saved diagram is unchanged; text Canvas can't read
     is exported as it is. Architecture: a missing connector side faces the other end."""
@@ -45,12 +67,14 @@ def _with_mermaid_forms(dsl: str, family: str | None) -> str:
     if family == "sequence":
         return _sequence_forms(dsl)
     if family == "flowchart":
-        return _flowchart_forms(dsl)
+        return _flowchart_forms(dsl, diagram_link_base)
     if family == "state":
         from canvas_api.diagram_core.state import parse_state, serialize_state
 
         result = parse_state(dsl)
-        return serialize_state(_defined(result["model"])) if "model" in result else dsl
+        if "model" not in result:
+            return dsl
+        return serialize_state(_with_diagram_clicks(_defined(result["model"]), diagram_link_base))
     if family == "wardley":
         from canvas_api.diagram_core.wardley import parse_wardley, serialize_wardley
 
@@ -188,14 +212,14 @@ def _sequence_forms(dsl: str) -> str:
     return serialize_sequence(_defined({**model, "containers": containers}))
 
 
-def _flowchart_forms(dsl: str) -> str:
+def _flowchart_forms(dsl: str, diagram_link_base: str | None = None) -> str:
     """Flowchart: the title moves to the front matter; `"` in a label is written `#quot;`."""
     from canvas_api.diagram_core.flowchart import serialize_flowchart
 
     result = parse_flowchart(dsl)
     if "model" not in result:
         return dsl
-    model = result["model"]
+    model = _with_diagram_clicks(result["model"], diagram_link_base)
     title = model.get("title")
     nodes = []
     for node in model["nodes"]:
