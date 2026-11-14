@@ -89,19 +89,23 @@ def create_project(user: ArchitectOrAdmin, db: Db, body: CreateProjectBody) -> d
     return {"project": project}
 
 
-_LIST_COLUMNS = (
+# Written out in full (no f-strings): plain constants, so the SQL can't be mistaken for text built from input.
+_ALL_PROJECTS = text(
     "SELECT p.id, p.name, p.parent_project_id, p.created_at, p.owner_id, COUNT(d.id) AS diagram_count"
     " FROM projects p"
     " LEFT JOIN diagrams d ON d.project_id = p.id AND d.deleted_at IS NULL AND d.draft = :no"
+    " WHERE p.deleted_at IS NULL GROUP BY p.id ORDER BY p.name, p.id"
 )
-_ALL_PROJECTS = text(f"{_LIST_COLUMNS} WHERE p.deleted_at IS NULL GROUP BY p.id ORDER BY p.name, p.id")
 # canvas-g8i: the names that match, cheaply (no diagram counts), then the counts for one page only.
 _MATCHING = text(
     "SELECT id FROM projects WHERE deleted_at IS NULL AND LOWER(name) LIKE :pattern ESCAPE '\\' ORDER BY name, id"
 )
-_PAGE = text(f"{_LIST_COLUMNS} WHERE p.id IN :ids GROUP BY p.id ORDER BY p.name, p.id").bindparams(
-    bindparam("ids", expanding=True)
-)
+_PAGE = text(
+    "SELECT p.id, p.name, p.parent_project_id, p.created_at, p.owner_id, COUNT(d.id) AS diagram_count"
+    " FROM projects p"
+    " LEFT JOIN diagrams d ON d.project_id = p.id AND d.deleted_at IS NULL AND d.draft = :no"
+    " WHERE p.id IN :ids GROUP BY p.id ORDER BY p.name, p.id"
+).bindparams(bindparam("ids", expanding=True))
 #: canvas-g8i: a page of the project list is at most this long.
 MAX_PAGE = 200
 
