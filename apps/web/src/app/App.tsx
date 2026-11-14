@@ -16,10 +16,13 @@ import {
   locationToSearch,
   parseLocation,
   readLastProjectId,
+  readTrail,
   resolveLanding,
   sameLocation,
+  trailState,
   writeLastProjectId,
   type Location,
+  type TrailEntry,
 } from './navigation';
 import { StandardsAdminPage } from '../admin/StandardsAdminPage';
 import { UsersPage } from '../admin/UsersPage';
@@ -70,7 +73,12 @@ export function App() {
   // Landing rules apply once, to a bare address (design decisions 1-2).
   const landingPending = useRef(isBareAddress(window.location.search));
   // A navigation waiting on the "leave without saving?" confirm; viaHistory = it came from Back/Forward.
-  const [pendingNav, setPendingNav] = useState<{ to: Location; viaHistory: boolean; draft: boolean; othersEditing: number } | null>(null);
+  const [pendingNav, setPendingNav] = useState<{ to: Location; viaHistory: boolean; draft: boolean; othersEditing: number; trail?: TrailEntry[] } | null>(null);
+  // canvas-8uh1.3: the diagrams followed (by their links) to reach the open one. Kept in the history entry's state,
+  // so Back, Forward and a reload keep it; any other way of reaching a screen has none.
+  const [trail, setTrail] = useState<TrailEntry[]>(() => readTrail(window.history.state));
+  const trailRef = useRef(trail);
+  trailRef.current = trail;
   const skipGuardOnce = useRef(false);
   // Set by user-made navigations so the next screen's heading takes focus (canvas-t3b.3).
   const focusAfterNavigation = useRef(false);
@@ -194,7 +202,7 @@ export function App() {
    * read synchronously via ref (canvas-eow) -- unless `force`. Pushes a history entry so Back goes
    * up a level (design §2); `replace` for redirects that shouldn't be returnable to.
    */
-  const navigate = (to: Location, options: { replace?: boolean; force?: boolean } = {}) => {
+  const navigate = (to: Location, options: { replace?: boolean; force?: boolean; trail?: TrailEntry[] } = {}) => {
     // Any navigation settles where the user is, so a landing still waiting on the project list must
     // not move them afterwards (a quick click on Projects lost to it, canvas-1bty.13's e2e run).
     landingPending.current = false;
@@ -202,17 +210,20 @@ export function App() {
     if (!options.force && from.screen === 'diagram' && !sameLocation(from, to) && diagramEditorRef.current?.hasUnsavedChanges()) {
       setPendingNav({
         to,
+        trail: options.trail,
         viaHistory: false,
         draft: Boolean(diagramEditorRef.current?.isUnsavedDraft()),
         othersEditing: diagramEditorRef.current?.othersEditing() ?? 0,
       });
       return;
     }
-    if (options.replace) window.history.replaceState(null, '', urlFor(to));
+    const nextTrail = options.trail ?? [];
+    if (options.replace) window.history.replaceState(trailState(nextTrail), '', urlFor(to));
     else if (!sameLocation(from, to)) {
-      window.history.pushState(null, '', urlFor(to));
+      window.history.pushState(trailState(nextTrail), '', urlFor(to));
       focusAfterNavigation.current = true;
     }
+    setTrail(nextTrail);
     setError(null);
     applyLocation(to);
   };
@@ -231,7 +242,7 @@ export function App() {
       if (skipGuardOnce.current) {
         skipGuardOnce.current = false;
       } else if (from.screen === 'diagram' && !sameLocation(from, to) && diagramEditorRef.current?.hasUnsavedChanges()) {
-        window.history.pushState(null, '', urlFor(from));
+        window.history.pushState(trailState(trailRef.current), '', urlFor(from));
         setPendingNav({
         to,
         viaHistory: true,
@@ -242,6 +253,7 @@ export function App() {
       }
       setError(null);
       focusAfterNavigation.current = true;
+      setTrail(readTrail(window.history.state));
       applyLocation(to);
     };
     window.addEventListener('popstate', onPopState);
@@ -413,7 +425,7 @@ export function App() {
       skipGuardOnce.current = true;
       window.history.back();
     } else {
-      navigate(pending.to, { force: true });
+      navigate(pending.to, { force: true, trail: pending.trail });
     }
   };
 
@@ -568,6 +580,7 @@ export function App() {
     const diagramProject = (projects ?? []).find((p) => p.id === diagram.projectId);
     content = (
       <DiagramEditor
+        key={diagram.id}
         diagram={diagram}
         ref={diagramEditorRef}
         currentUser={user}
@@ -576,6 +589,19 @@ export function App() {
           navigate(diagramProject ? { screen: 'project', projectId: diagramProject.id } : { screen: 'projects' })
         }
         initialRailTab={openDiagramOnChat ? 'chat' : 'dsl'}
+        trail={trail}
+        onOpenTrail={(index) => {
+          const entry = trail[index];
+          if (entry) navigate({ screen: 'diagram', diagramId: entry.diagramId }, { trail: trail.slice(0, index) });
+        }}
+        onOpenDiagram={(targetId) => {
+          // Following a link back up the trail goes back to that point; anything else adds this diagram to it.
+          const back = trail.findIndex((entry) => entry.diagramId === targetId);
+          navigate(
+            { screen: 'diagram', diagramId: targetId },
+            { trail: back >= 0 ? trail.slice(0, back) : [...trail, { diagramId: diagram.id, name: diagram.name }] },
+          );
+        }}
       />
     );
   } else {

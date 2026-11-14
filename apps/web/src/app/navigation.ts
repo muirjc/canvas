@@ -122,3 +122,24 @@ export function writeLastProjectId(projectId: string | null): void {
     // A landing hint is optional; losing it just means landing on the top level.
   }
 }
+
+/** canvas-8uh1.3: a diagram followed by a link to reach the open one (App keeps them in the history entry's state). */
+export interface TrailEntry {
+  diagramId: string;
+  name: string;
+}
+
+/** The trail a history entry's state holds (anything else -- another app's state, none -- is no trail). */
+export function readTrail(state: unknown): TrailEntry[] {
+  const raw = state && typeof state === 'object' ? (state as { canvasTrail?: unknown }).canvasTrail : undefined;
+  if (!Array.isArray(raw)) return [];
+  return raw
+    .filter((e): e is TrailEntry => !!e && typeof e === 'object' && typeof (e as TrailEntry).diagramId === 'string' && typeof (e as TrailEntry).name === 'string')
+    .filter((e) => UUID_PATTERN.test(e.diagramId))
+    .slice(-20);
+}
+
+/** The history state for a trail (null when there is none, as every other navigation writes). */
+export function trailState(trail: TrailEntry[]): { canvasTrail: TrailEntry[] } | null {
+  return trail.length > 0 ? { canvasTrail: trail.slice(-20) } : null;
+}

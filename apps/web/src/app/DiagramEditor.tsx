@@ -1,5 +1,5 @@
 import { forwardRef, useEffect, useImperativeHandle, useRef, useState, type ReactNode } from 'react';
-import { createEmptyDiagramModel, effectiveAuthoring, getDslFamily, isParseSuccess, type DiagramModel } from '@canvas/diagram-core';
+import { createEmptyDiagramModel, effectiveAuthoring, getDslFamily, isParseSuccess, setDiagramLink, type DiagramModel } from '@canvas/diagram-core';
 import { Canvas } from '../canvas/Canvas';
 import { DslPanel } from '../canvas/DslPanel';
 import { ExportMenu } from '../canvas/ExportMenu';
@@ -17,6 +17,7 @@ import {
   ApiError,
   type CommentAnchor,
   type DiagramDto,
+  type DiagramUsedInDto,
   type DiagramVersionDetailDto,
   type DiagramVersionDto,
   type IconDto,
@@ -36,6 +37,9 @@ import { Icon } from '../ui/Icon';
 import { RailTabs } from '../ui/RailTabs';
 import { HelpLink } from '../help/HelpLink';
 import { Modal } from '../ui/Modal';
+import { elementLinks, useLinkTargets } from './diagram-links';
+import { LinkPickerDialog } from '../links/LinkPickerDialog';
+import { LinksPanel } from '../links/LinksPanel';
 import { useActiveStandard, useLiveViolations } from '../standards/useStandard';
 import { clearDraftDsl, readDraftDsl, stashDraftDsl } from '../ai/ai-draft';
 
@@ -59,6 +63,12 @@ export interface DiagramEditorProps {
   initialRailTab?: 'dsl' | 'chat';
   /** The signed-in user, for comment edit/delete permissions. */
   currentUser: { id: string; role: string };
+  /** canvas-8uh1.3: open a diagram this one links to (or one that links here); App keeps the trail. */
+  onOpenDiagram?: (diagramId: string) => void;
+  /** canvas-8uh1.3: the diagrams followed to get here (each opened from a link in the one before). */
+  trail?: { diagramId: string; name: string }[];
+  /** Go back to the trail's entry at this index. */
+  onOpenTrail?: (index: number) => void;
 }
 
 /**
@@ -121,7 +131,7 @@ function withRailHelp<T extends { id: string; render: () => ReactNode }>(tabs: T
 }
 
 export const DiagramEditor = forwardRef<DiagramEditorHandle, DiagramEditorProps>(function DiagramEditor(
-  { diagram: initialDiagram, onRequestClose, backLabel, initialRailTab = 'dsl', currentUser },
+  { diagram: initialDiagram, onRequestClose, backLabel, initialRailTab = 'dsl', currentUser, onOpenDiagram, trail = [], onOpenTrail },
   ref,
 ) {
   const [diagram, setDiagram] = useState(initialDiagram);
@@ -152,6 +162,20 @@ export const DiagramEditor = forwardRef<DiagramEditorHandle, DiagramEditorProps>
   }
   const [versionRefreshToken, setVersionRefreshToken] = useState(0);
   const submission = useSubmission(diagram.id, versionRefreshToken);
+  // canvas-8uh1.3: drill-down links -- what each points at, and what links here (both as saved).
+  const linkTargets = useLinkTargets(diagram.id, model, versionRefreshToken);
+  const [usedIn, setUsedIn] = useState<DiagramUsedInDto[] | null>(null);
+  const [linkingElementId, setLinkingElementId] = useState<string | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    api
+      .getDiagramUsedIn(diagram.id)
+      .then(({ usedIn: list }) => !cancelled && setUsedIn(list))
+      .catch(() => !cancelled && setUsedIn([]));
+    return () => {
+      cancelled = true;
+    };
+  }, [diagram.id, versionRefreshToken]);
   const [sharing, setSharing] = useState(false);
   // canvas-8em: the Share button is hidden unless an admin has turned sharing on (Admin Overview).
   // Sharing itself keeps working either way -- existing shares, the API, "Shared with me".
@@ -536,6 +560,48 @@ export const DiagramEditor = forwardRef<DiagramEditorHandle, DiagramEditorProps>
         )}
       </div>
 
+      {/* canvas-8uh1.3: the links followed to get here, each a way back. */}
+      {trail.length > 0 && (
+        <nav className="editor__trail" aria-label="Opened from" data-testid="link-trail">
+          <ol>
+            {trail.map((entry, index) => (
+              <li key={`${entry.diagramId}-${index}`}>
+                <a
+                  href={`?diagramId=${encodeURIComponent(entry.diagramId)}`}
+                  data-testid={`link-trail-${index}`}
+                  onClick={(event) => {
+                    if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+                    event.preventDefault();
+                    onOpenTrail?.(index);
+                  }}
+                >
+                  {entry.name}
+                </a>
+              </li>
+            ))}
+            <li aria-current="page">{diagram.name}</li>
+          </ol>
+        </nav>
+      )}
+      {linkingElementId && (() => {
+        const element = [...model.nodes, ...model.containers].find((e) => e.id === linkingElementId);
+        if (!element) return null;
+        return (
+          <LinkPickerDialog
+            diagramId={diagram.id}
+            diagramTypeId={diagram.diagramTypeId}
+            projectId={diagram.projectId}
+            elementLabel={element.label || element.id}
+            currentTargetId={element.diagramRef?.diagramId}
+            onClose={() => setLinkingElementId(null)}
+            onPick={(targetId, target) => {
+              linkTargets.remember(targetId, target);
+              setModel(setDiagramLink(model, element.id, targetId));
+              setLinkingElementId(null);
+            }}
+          />
+        );
+      })()}
       <PresenceBanner others={others} watching={live.status === 'live' ? presence.watching : []} live={live.status === 'live'} />
       <LiveStatusNote status={live.status} reason={live.statusReason} enabled={!draft} />
       {liveNotice && (
@@ -640,6 +706,9 @@ export const DiagramEditor = forwardRef<DiagramEditorHandle, DiagramEditorProps>
               setCommentsTabRequest((prev) => ({ id: 'comments', nonce: (prev?.nonce ?? 0) + 1 }));
               setPinHighlight((prev) => ({ anchorId, nonce: (prev?.nonce ?? 0) + 1 }));
             }}
+            diagramLinkTargets={linkTargets.targets}
+            onOpenDiagramLink={onOpenDiagram}
+            onRequestDiagramLink={canEdit ? setLinkingElementId : undefined}
           />
           )}
         </div>
@@ -730,6 +799,33 @@ export const DiagramEditor = forwardRef<DiagramEditorHandle, DiagramEditorProps>
                     },
                   ]
                 : []),
+              {
+                id: 'links',
+                label: 'Links',
+                badge: (() => {
+                  const broken = elementLinks(model).filter((l) => {
+                    const status = linkTargets.targets.get(l.diagramId)?.status;
+                    return status !== undefined && status !== 'available' && status !== 'checking';
+                  }).length;
+                  return broken > 0 ? (
+                    <span className="badge badge--warning" data-testid="links-broken" aria-label={`${broken} broken links`}>
+                      {broken}
+                    </span>
+                  ) : undefined;
+                })(),
+                render: () => (
+                  <LinksPanel
+                    links={elementLinks(preview ? preview.model : model)}
+                    targets={linkTargets.targets}
+                    usedIn={usedIn}
+                    canEdit={canEdit && !preview}
+                    onOpen={(id) => onOpenDiagram?.(id)}
+                    onChange={setLinkingElementId}
+                    onRemove={(elementId) => setModel(setDiagramLink(model, elementId, null))}
+                    onSelectElement={(id) => setFocusRequest((prev) => ({ id, nonce: (prev?.nonce ?? 0) + 1 }))}
+                  />
+                ),
+              },
               {
                 id: 'history',
                 label: 'History',

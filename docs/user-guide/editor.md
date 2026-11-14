@@ -147,6 +147,32 @@ it a flow arrowhead (forward, back or both), make it dotted, or label it. The ma
 evolution stage names are set in the DSL tab (`size [1100, 800]`,
 `evolution Genesis -> Custom -> Product -> Commodity`), which takes Mermaid `wardley-beta` text.
 
+## Linked diagrams
+
+A shape or group can **open another diagram**. A common use is C4's levels: the Payments System in a Context
+diagram opens the Payments Container diagram, whose API opens its Component diagram.
+
+- **Make a link:** select one shape or group and choose **Link to diagram…** in the left rail. Find the diagram:
+  - pick a project (this diagram's project comes first);
+  - filter by type: the next level down is marked *suggested*, so a C4 Context diagram offers Container diagrams;
+  - search by name.
+
+  Or use **Create and link** to make a new, empty diagram for it in this diagram's project. Save to keep the link.
+- **Follow a link:** a linked element shows a small blue link badge. Click it (or press Enter on it) to open the
+  diagram. The links you followed show under the document bar, for example *Context › Payments containers*.
+  Click one to go back, or use the browser's Back button.
+- **Change or remove a link:** select the element and choose **Change link…** or **Remove link**, or use the
+  **Links** tab.
+- **The Links tab** lists every link in the diagram, where each one goes and whether it can be opened. **Used
+  in** lists the diagrams that link to this one; it counts saved diagrams only.
+- **A link that can't be opened** shows an orange **!** badge and a count on the Links tab. There are three cases:
+  - the diagram is someone else's unsaved draft;
+  - it's in the bin (restoring it mends the link);
+  - it no longer exists (remove the link or point it somewhere else).
+
+Anyone who can read a diagram can follow its links. Every signed-in person can read every saved diagram, so a
+link never shows anyone something they couldn't open anyway. A sequence diagram's links go on participants only.
+
 ## Zoom
 
 The controls at the bottom-left of the canvas zoom the drawing from 25% to 400%: **−** and **+**

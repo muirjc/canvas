@@ -1361,3 +1361,41 @@
   flex-wrap: wrap;
   gap: var(--space-2) var(--space-5);
 }
+
+/* ---- Linked diagrams (canvas-8uh1.3) -------------------------------------- */
+
+/* The links followed to reach this diagram, under the document bar. Same shape as the project breadcrumb. */
+.editor__trail {
+  padding: var(--space-1) var(--space-4);
+  color: var(--text-secondary);
+  font-size: var(--text-small-size);
+  border-block-end: var(--border-width) solid var(--border-default);
+}
+.editor__trail ol { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-1); margin: 0; padding: 0; list-style: none; }
+.editor__trail li + li::before { content: '›' / ''; margin-inline-end: var(--space-1); color: var(--text-tertiary); }
+.editor__trail li { min-width: 0; overflow-wrap: anywhere; }
+.editor__trail li[aria-current='page'] { color: var(--text-primary); }
+
+.links-panel__list { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--space-2); }
+.links-panel__item { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-1) var(--space-2); }
+.links-panel__item { padding-block-end: var(--space-2); border-block-end: var(--border-width) solid var(--border-default); }
+.links-panel__item:last-child { border-block-end: 0; padding-block-end: 0; }
+/* The shared .btn is one line (nowrap, fixed height): let a long element or diagram name wrap inside the narrow rail. */
+.links-panel__element,
+.links-panel__item--used .btn,
+.link-picker__result { white-space: normal; height: auto; min-width: 0; max-width: 100%; text-align: left; overflow-wrap: anywhere; padding-block: var(--space-1); }
+.links-panel__arrow { color: var(--text-tertiary); }
+.links-panel__target { min-width: 0; overflow-wrap: anywhere; }
+.links-panel__target--broken { display: inline-flex; align-items: flex-start; font-weight: var(--text-body-strong-weight); gap: var(--space-1); color: var(--warning); }
+.links-panel__actions { display: inline-flex; flex-wrap: wrap; gap: var(--space-1); margin-inline-start: auto; }
+
+.link-picker__results { list-style: none; margin: 0; padding: 0; max-height: 280px; overflow-y: auto; border: var(--border-width) solid var(--border-default); border-radius: var(--radius-md); }
+.link-picker__result { display: flex; flex-wrap: wrap; width: 100%; justify-content: flex-start; align-items: baseline; gap: var(--space-1) var(--space-2); }
+.link-picker__result[aria-current='true'] { background: var(--accent-subtle); }
+/* Link badges on the canvas: focus ring on the badge's own ring circle (shown by keyboard focus only). */
+.link-badge { outline: none; }
+.link-badge__ring { stroke: var(--focus-ring); stroke-width: var(--focus-ring-width); visibility: hidden; pointer-events: none; }
+.link-badge:focus-visible .link-badge__ring { visibility: visible; }
+.link-picker__name { font-weight: var(--text-body-strong-weight); }
+.link-picker__new { border: var(--border-width) solid var(--border-default); border-radius: var(--radius-md); padding: var(--space-3); margin: 0; }
+.link-picker__new .cluster { align-items: flex-end; }
