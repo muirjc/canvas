@@ -54,7 +54,8 @@ browser B ──patch──▶ │  live model · seq · version last saved    �
 in order:
 
 1. **Origin:** one of `WEB_ORIGINS`, or this server's own host. Otherwise the server refuses it (1008).
-2. **Paused:** closes with 1013 while the environment is paused.
+2. **Paused:** closes with 4503 while the environment is paused. The editor doesn't retry it (canvas-mqk0): it stops
+   and says Canvas is paused, so a tab left open doesn't keep a paused environment running.
 3. **Session cookie:** a signed-in session with no unfinished sign-in step (password change, two-step set-up).
    Otherwise it closes with 4401.
 4. **Access to the diagram:** view at least (4404 when missing, in the bin or someone else's draft). Edit access
@@ -85,11 +86,11 @@ Close codes:
 |---|---|
 | 1008 | Origin not allowed |
 | 1009 | Message over 1 MB |
-| 1013 | Paused |
 | 4400 | Not a message |
 | 4401 | Not signed in, or signed out |
 | 4403 | No access |
 | 4404 | Diagram missing or deleted |
+| 4503 | Paused (not retried) |
 
 ## Limits
 

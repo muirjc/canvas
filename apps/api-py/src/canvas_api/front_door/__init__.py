@@ -108,8 +108,11 @@ def install(app: FastAPI, settings: Settings) -> None:
                     return Response(
                         paused_page, status_code=503, headers=headers, media_type="text/html; charset=utf-8"
                     )
+                # canvas-mqk0: `code` tells an open tab to stop polling, so the paused app can scale to zero.
                 return JSONResponse(
-                    {"error": "Canvas is paused. Ask your admin to resume it."}, status_code=503, headers=headers
+                    {"error": "Canvas is paused. Ask your admin to resume it.", "code": "paused"},
+                    status_code=503,
+                    headers=headers,
                 )
             response = await call_next(request)
             if response.status_code in (404, 405) and request.method in ("GET", "HEAD"):

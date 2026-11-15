@@ -100,6 +100,15 @@ tests are NON-NEGOTIABLE and must exist (and fail) before implementing any diagr
 work — see `.specify/memory/constitution.md` Principle IV.
 
 ## Recent Changes
+- `canvas-mqk0`: **an open tab no longer keeps a paused Azure environment running.** Paused, the live socket
+  closed with 1013 ("try again later"), which LiveSession retried every 30 s for ever: one forgotten editor tab
+  held canvas-api at 1 replica for 9.5 h (113 requests/hour). Now: live.py closes with `CLOSE_PAUSED` 4503 (a
+  FINAL code in live-session.ts, reason `paused`; 1013 is still retried); the front door's paused JSON 503 says
+  `code: "paused"`. `app/paused.ts` (`markPaused`/`isPaused`/`onPaused`/`usePaused`): api.ts `request()` marks
+  the tab paused on that 503 and then fails every request without a network call; useLiveDiagram stops its
+  session on it (and doesn't start one); AppShell shows `paused-banner` (Reload). Only a reload un-pauses a
+  tab. Tests: `paused.test.tsx`, live-session 4503 vs 1013, test_front_door / test_live codes. Docs:
+  live-editing-design close codes, infra/azure/README, common-questions.
 - `canvas-ilhl`: **the user guide says what each diagram type is for.** `docs/user-guide/diagram-types.md`
   ("Choosing a diagram type", after Creating diagrams in the README's order): one `###` section per built-in type
   (heading = the seeded name; For / What it shows / Use it to / Example, "X or Y?" notes between neighbours),

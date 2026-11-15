@@ -196,6 +196,11 @@ sets `CANVAS_PAUSED=true` on `canvas-api`, which then answers every browser requ
 answering. `resume.sh` removes the setting once Postgres is ready. A deploy (which can't run while
 paused) leaves it unset.
 
+A browser tab left open on Canvas doesn't keep the paused app running (canvas-mqk0): the first paused
+answer (a 503 with `"code": "paused"`, or the live-editing socket closing with 4503) makes the tab stop
+calling the API altogether and show a "Canvas has been paused" banner, so the app can scale to zero.
+Before this, an open editor tab reconnected every 30 s and held one replica up for as long as it was open.
+
 Azure auto-restarts a stopped Postgres Flexible Server after 7 days if not resumed manually —
 `pause.sh` prints this reminder every time.
 

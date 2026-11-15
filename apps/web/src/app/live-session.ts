@@ -79,6 +79,8 @@ const FINAL_CODES: Record<number, string> = {
   4401: 'signed-out',
   4403: 'no-access',
   4404: 'gone',
+  // canvas-mqk0: paused. Retrying kept a paused environment from scaling to zero.
+  4503: 'paused',
 };
 const RETRY_MS = [1_000, 2_000, 5_000, 10_000, 30_000];
 

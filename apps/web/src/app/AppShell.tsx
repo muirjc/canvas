@@ -2,6 +2,7 @@ import { api, type SessionUser } from './api';
 import { Icon } from '../ui/Icon';
 import { InAppLink } from '../ui/InAppLink';
 import { NotificationsBell } from '../notifications/NotificationsBell';
+import { PAUSED_MESSAGE, usePaused } from './paused';
 
 export interface AppShellProps {
   user: SessionUser;
@@ -117,9 +118,25 @@ export function AppShell({ user, onSignOut, currentSection, projectsHref, onNavi
           </button>
         </span>
       </header>
+      <PausedBanner />
       <div className="app-content" id="main-content" tabIndex={-1}>
         {children}
       </div>
+    </div>
+  );
+}
+
+/** canvas-mqk0: once Canvas is found paused, this tab has stopped talking to it; say so on every screen. */
+function PausedBanner() {
+  const paused = usePaused();
+  if (!paused) return null;
+  return (
+    <div className="presence-banner" role="status" data-testid="paused-banner">
+      <span className="presence-banner__dot" aria-hidden="true" />
+      <span>{PAUSED_MESSAGE}</span>
+      <button type="button" className="btn btn--secondary btn--compact" onClick={() => window.location.reload()}>
+        Reload
+      </button>
     </div>
   );
 }

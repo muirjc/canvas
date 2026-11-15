@@ -302,7 +302,7 @@ def test_paused_browsers_get_the_paused_page(paused: TestClient) -> None:
 
 
 def test_paused_api_calls_get_a_503_json_error(paused: TestClient) -> None:
-    expected = {"error": "Canvas is paused. Ask your admin to resume it."}
+    expected = {"error": "Canvas is paused. Ask your admin to resume it.", "code": "paused"}
     for response in (
         paused.get("/projects", headers={"accept": "application/json"}),
         paused.get("/projects"),
