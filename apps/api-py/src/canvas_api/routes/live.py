@@ -41,7 +41,9 @@ router = APIRouter(tags=["Live editing"])
 
 RECHECK_SECONDS = 60.0
 MAX_MESSAGE_CHARS = 1_000_000
-CLOSE_TRY_AGAIN_LATER = 1013
+#: canvas-mqk0: paused has its own code, which the editor doesn't retry: a tab left open must let a paused
+#: environment scale to zero (1013 "try again later" was retried every 30 s for ever).
+CLOSE_PAUSED = 4503
 CLOSE_TOO_BIG = 1009
 CLOSE_POLICY = 1008
 
@@ -141,7 +143,7 @@ async def live(websocket: WebSocket, id: str) -> None:
         return
     await websocket.accept()
     if settings.paused:
-        await _refuse(websocket, CLOSE_TRY_AGAIN_LATER, "paused")
+        await _refuse(websocket, CLOSE_PAUSED, "paused")
         return
     engine: Engine = websocket.app.state.db
     try:

@@ -202,6 +202,20 @@ describe('LiveSession', () => {
     }
   });
 
+  it('stops for good when Canvas is paused, but retries a server that is only busy', () => {
+    const paused = setup();
+    paused.socket().receive({ type: 'closed', code: 4503, reason: 'paused' });
+    paused.socket().drop(4503);
+    paused.clock.advance(10 * 60_000);
+    expect(paused.sockets).toHaveLength(1);
+    expect(paused.log.statuses.at(-1)).toBe('off:paused');
+
+    const busy = setup();
+    busy.socket().drop(1013);
+    busy.clock.advance(60_000);
+    expect(busy.sockets.length).toBeGreaterThan(1);
+  });
+
   it('takes a reset as the new model and drops its own changes', () => {
     const { session, clock, log, hello, socket } = setup();
     hello();

@@ -324,7 +324,7 @@ def test_the_room_goes_when_the_last_person_leaves(s: Setup) -> None:
 def test_no_sessions_while_paused(settings: Settings, engine: Engine, s: Setup) -> None:
     paused = settings.model_copy(update={"paused_setting": "true"})
     with TestClient(create_app(paused, engine)) as client, connect(client, s.diagram, s.alice) as socket:
-        assert receive(socket, "closed")["code"] == 1013
+        assert receive(socket, "closed")["code"] == 4503
 
 
 def test_a_selection_reaches_the_others_and_a_newcomer_sees_it(s: Setup) -> None:

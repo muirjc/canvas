@@ -63,3 +63,10 @@ or download your version first. See [When someone else is editing](editor.md#whe
 
 Use the zoom controls at the bottom-left of the canvas, or hold **Ctrl** (**Cmd** on a Mac) and
 scroll. **Fit** shows the whole diagram. See [Zoom](editor.md#zoom).
+
+## Why does Canvas say it has been paused?
+
+Your admin has paused Canvas, for example to save running costs while nobody needs it. The page stops
+talking to Canvas and nothing more is saved. Anything you hadn't saved stays on the page until you close
+or reload the tab, so you can copy it from the **DSL** tab if you need it. Click **Reload** once your admin
+says Canvas is back.

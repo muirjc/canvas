@@ -39,6 +39,7 @@ const NOTES: Partial<Record<string, string>> = {
     'You’ve been signed out, so live updates have stopped. Sign in again to see other people’s changes.',
   'no-access': 'You no longer have access to this diagram’s live updates.',
   gone: 'This diagram was deleted.',
+  paused: 'Canvas is paused, so live updates have stopped.',
   'not-allowed': 'Live updates aren’t available here.',
 };
 

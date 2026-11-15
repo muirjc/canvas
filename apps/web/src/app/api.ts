@@ -1,5 +1,6 @@
 import type { StandardRules, Violation } from '@canvas/diagram-core';
 import { loadWebConfig } from '../config';
+import { isPaused, markPaused } from './paused';
 
 const { apiBaseUrl } = loadWebConfig();
 
@@ -21,6 +22,8 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   // Only send a JSON Content-Type when there's actually a JSON body — Fastify's default body
   // parser rejects "Content-Type: application/json" paired with an empty body (as happens on
   // e.g. POST /standards/:id/publish, which takes no payload).
+  // canvas-mqk0: a paused Canvas is left alone, so it can scale to zero.
+  if (isPaused()) throw new ApiError('Canvas is paused. Ask your admin to resume it.', 503, undefined, 'paused');
   const headers = new Headers(init?.headers);
   if (init?.body && !headers.has('Content-Type')) {
     headers.set('Content-Type', 'application/json');
@@ -32,6 +35,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   });
   if (!response.ok) {
     const body = await response.json().catch(() => ({}));
+    if (response.status === 503 && body.code === 'paused') markPaused();
     throw new ApiError(body.error ?? `Request to ${path} failed with status ${response.status}`, response.status, body.details ?? body.violations ?? body.diagrams, body.code);
   }
   // A 204 (or otherwise empty body) has nothing for .json() to parse — e.g. POST /auth/logout

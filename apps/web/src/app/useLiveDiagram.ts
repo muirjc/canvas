@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { DiagramModel } from '@canvas/diagram-core';
 import { loadWebConfig } from '../config';
+import { isPaused, markPaused, onPaused } from './paused';
 import {
   LiveSession,
   liveUrl,
@@ -56,8 +57,9 @@ export function useLiveDiagram(options: LiveDiagramOptions): LiveDiagram {
   const [me, setMe] = useState<LivePerson | null>(null);
 
   useEffect(() => {
-    if (!enabled || typeof WebSocket === 'undefined') {
+    if (!enabled || typeof WebSocket === 'undefined' || isPaused()) {
       setStatus('off');
+      if (isPaused()) setStatusReason('paused');
       return;
     }
     const live = new LiveSession(
@@ -77,12 +79,20 @@ export function useLiveDiagram(options: LiveDiagramOptions): LiveDiagram {
         status: (next, reason) => {
           setStatus(next);
           setStatusReason(reason);
+          if (reason === 'paused') markPaused();
         },
       },
     );
     session.current = live;
+    // canvas-mqk0: an API call that finds Canvas paused stops the live session too.
+    const stopWhenPaused = onPaused(() => {
+      live.stop();
+      setStatus('off');
+      setStatusReason('paused');
+    });
     live.start();
     return () => {
+      stopWhenPaused();
       live.stop();
       if (session.current === live) session.current = null;
       setPeople([]);
